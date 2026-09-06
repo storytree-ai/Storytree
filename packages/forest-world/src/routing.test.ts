@@ -4,6 +4,22 @@
 // when walled in, meander-bounded by clearance, and chain-continuous from rim
 // to rim. The LOOK is operator-attested (ADR-0070) — these pin the geometry.
 
+import { HEX_R, PRE_ADR0528_TILE } from './hex.js';
+
+/**
+ * The router's defaults are `HEX_R`-relative (cell, clearance, falloff, meander), and the tile is
+ * DERIVED since ADR-0528 (≈ 11.06). The island fixtures in the two tests below are absolute
+ * coordinates authored against the radius-27 tile, so they are routed with that tile's tuning —
+ * the same geometry relative to the tile the behaviour was judged on.
+ */
+const R27 = PRE_ADR0528_TILE.hexR;
+const TUNED_AT_27 = {
+  cellSize: R27 / 2,
+  clearance: 0.6 * R27,
+  falloff: 2.5 * R27,
+  meanderWavelength: 4 * R27,
+  meanderTaper: 4 * R27,
+} as const;
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -136,7 +152,7 @@ test('a pinched-out third island keeps its hard clearance (three block slots, no
   const islands = [isle('A', 0, 0, 40), isle('B', 90, 0, 40), X];
   const net = routeTrails(islands, [{ from: 'A', to: 'B' }], 'seed-pinch');
   assert.equal(net.caves.length, 0, 'the pinch routes around, never under');
-  const clearance = 0.6 * 27; // resolveTuning default from HEX_R
+  const clearance = 0.6 * HEX_R; // resolveTuning default from HEX_R
   for (const seg of net.segments) {
     for (const p of seg.points) {
       const d = Math.hypot(p.x - X.x, p.y - X.y);
@@ -378,16 +394,16 @@ test('edges that FUNNEL together dock ONCE — approach recluster collapses the 
     return s.size;
   };
   // chord-only clustering forks at the rim — the two C-edges take SEPARATE docks
-  const chordOnly = routeTrails(islands, edges, 'seed-funnel', { reclusterOnApproach: false });
+  const chordOnly = routeTrails(islands, edges, 'seed-funnel', { ...TUNED_AT_27, reclusterOnApproach: false });
   assert.equal(docksInto(chordOnly), 2, 'without the recluster the wide chords split into two docks (the Y-fork)');
   // the default two-pass reads the real approach and merges them into ONE trunk
-  const net = routeTrails(islands, edges, 'seed-funnel');
+  const net = routeTrails(islands, edges, 'seed-funnel', TUNED_AT_27);
   assert.equal(docksInto(net), 1, 'the funnelled C→P and C→Q share ONE dock after the approach recluster');
   assert.equal(net.dropped.length, 0, '§5 honesty: nothing dropped by the merge');
   assert.equal(net.caves.length, 0, 'a shared dock never forces a cave (cost only rises)');
   for (const edge of net.edges) assertChainContinuous(net, islands, edge);
   // deterministic: byte-identical on a re-route
-  assert.deepEqual(routeTrails(islands, edges, 'seed-funnel'), net);
+  assert.deepEqual(routeTrails(islands, edges, 'seed-funnel', TUNED_AT_27), net);
 });
 
 test('meander stays on open runs but is suppressed at junctions and near other trails (owner 2026-07-08)', () => {
@@ -404,9 +420,9 @@ test('meander stays on open runs but is suppressed at junctions and near other t
     const seg = net.segments.find((s) => e.segments.some((r) => r.id === s.id))!;
     return Math.max(...seg.points.map((p) => Math.abs(p.y)));
   };
-  const solo = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander');
+  const solo = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander', TUNED_AT_27);
   // a taper wider than the whole segment never lets any point ramp up to full → the grid baseline
-  const flat = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander', { meanderTaper: 100000 });
+  const flat = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander', { ...TUNED_AT_27, meanderTaper: 100000 });
   const soloDev = maxDevOf(solo, 'A');
   const flatDev = maxDevOf(flat, 'A');
   assert.ok(soloDev > flatDev + 1, `the open solo run wanders well above the tapered baseline (${soloDev} vs ${flatDev})`);
@@ -416,8 +432,8 @@ test('meander stays on open runs but is suppressed at junctions and near other t
   const D = isle('D', 900, 400, 30);
   const geo = [A, B, C, D];
   const eds: TrailEdgeIn[] = [{ from: 'A', to: 'B' }, { from: 'C', to: 'D' }];
-  const proxOff = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 0 });
-  const proxOn = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 100000 });
+  const proxOff = routeTrails(geo, eds, 'seed-meander', { ...TUNED_AT_27, meanderClearInner: 0, meanderClearOuter: 0 });
+  const proxOn = routeTrails(geo, eds, 'seed-meander', { ...TUNED_AT_27, meanderClearInner: 0, meanderClearOuter: 100000 });
   assert.ok(
     maxDevOf(proxOff, 'A') > maxDevOf(proxOn, 'A') + 1,
     `a neighbour within the clear band suppresses the wander (${maxDevOf(proxOn, 'A')} vs ${maxDevOf(proxOff, 'A')})`,

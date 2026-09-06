@@ -11,6 +11,7 @@ import { render, fireEvent, cleanup } from '@testing-library/react';
 import {
   buildScene,
   trailFillWidth,
+  TILE_SCALE,
   type BuildPhase,
   type ClaimColourState,
   type ClaimGrade,
@@ -350,9 +351,10 @@ describe('SceneView — the studio scene mapper', () => {
 
   it('renders the generous per-story hit rect at the BACK — transparent, behind the flora', () => {
     const { root } = renderScene();
-    // the hit rect's tell is rx=14: it IS rendered now (the studio uses it for forgiving node-click
-    // at the zoomed-out contain fit), and transparent so it never paints over the world.
-    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === '14.0');
+    // the hit rect's tell is its corner: 14 on the tuned tile, re-based onto the derived one (ADR-0528).
+    // It IS rendered now (the studio uses it for forgiving node-click at the zoomed-out contain fit),
+    // and transparent so it never paints over the world.
+    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === (14 * TILE_SCALE).toFixed(1));
     expect(hit).toBeTruthy();
     expect(hit?.getAttribute('fill')).toBe('transparent');
     expect(hit?.classList.contains('world-story-hit')).toBe(true);
@@ -365,7 +367,7 @@ describe('SceneView — the studio scene mapper', () => {
   it('selects the story when its generous hit rect is clicked (forgiving node-click)', () => {
     const onSelectStory = vi.fn();
     const { root } = renderScene({ onSelectStory });
-    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === '14.0')!;
+    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === (14 * TILE_SCALE).toFixed(1))!;
     fireEvent.click(hit);
     expect(onSelectStory).toHaveBeenCalledWith('lib');
   });
@@ -449,7 +451,8 @@ describe('SceneView — the studio scene mapper', () => {
     expect(hover?.getAttribute('transform')).toBeNull();
     expect(hover?.parentElement?.getAttribute('transform')).toMatch(/^translate\(/);
     const arm = [...(hover?.children ?? [])].find((c) => c.tagName === 'g');
-    expect(arm?.getAttribute('transform')).toMatch(/^translate\([\d.]+ 0\)$/);
+    // the arm's body wears the tile's drawing scale (ADR-0528); the orbit radius is still a plain translate
+    expect(arm?.getAttribute('transform')).toMatch(/^translate\([\d.]+ 0\) scale\([\d.]+\)$/);
     expect(root.querySelector('.world-claim-wisp')).toBeNull();
   });
 
@@ -747,7 +750,9 @@ describe('SceneView — the ADR-0242 lit lane', () => {
     const road = root.querySelector('.trail-fill[data-id="tseg2"]')!;
     const laneW = Number(lane.getAttribute('stroke-width'));
     const roadW = Number(road.getAttribute('stroke-width'));
-    expect(laneW).toBeCloseTo(litLaneWidth(2), 3);
+    // the lane wears the road's own stroke factor (the 2D drawing strokes the ONE width rule ×
+    // TRAIL_STROKE_SCALE on the derived tile, ADR-0528), so it stays narrower than the road it rides
+    expect(laneW).toBeCloseTo(litLaneWidth(2) * (roadW / trailFillWidth(2)), 3);
     expect(laneW).toBeLessThan(roadW);
   });
 

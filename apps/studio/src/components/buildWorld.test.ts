@@ -8,7 +8,9 @@
 // is owner-attested.
 
 import { describe, it, expect } from 'vitest';
-import { buildWorld, parseSpacingTuning } from './TreeView.js';
+import { AXIAL_DIRS } from '@storytree/forest-world';
+
+import { buildWorld, parseArtRungs, parseSpacingTuning } from './TreeView.js';
 import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS } from '../lib/islandSpacing.js';
 import type { TreeStory } from '../types';
 
@@ -236,6 +238,32 @@ describe('buildWorld — ADR-0521: the gaps derive from island size', () => {
       expect(w.trails.dropped).toEqual([]);
       expect(w.trails.edges.map((e) => `${e.from}->${e.to}`).sort()).toEqual(['left->lone', 'right->lone']);
     }
+  });
+
+  it('THE MOAT (ADR-0528 D5): no two islands’ tiles are ever adjacent, and every island still draws its whole quota', () => {
+    // a wide sweep of capability counts, including many one-hex islands packed on one rank
+    const stories = Array.from({ length: 60 }, (_, i) => story(`moat-${i}`, [1, 1, 2, 3, 4, 7, 12, 26][i % 8]!, i > 0 && i % 5 === 0 ? [`moat-${i - 1}`] : []));
+    const world = buildWorld(stories, { buildings: false });
+    const ownerOf = new Map<string, number>();
+    world.territories.forEach((t, i) => t.tiles.forEach((h) => ownerOf.set(`${h.q},${h.r}`, i)));
+    let adjacent = 0;
+    world.territories.forEach((t, i) => {
+      expect(t.tiles.length).toBe(Math.max(1, t.story.capabilities.length));
+      for (const h of t.tiles) {
+        for (const d of AXIAL_DIRS) {
+          const o = ownerOf.get(`${h.q + d.q},${h.r + d.r}`);
+          if (o !== undefined && o !== i) adjacent += 1;
+        }
+      }
+    });
+    expect(adjacent).toBe(0);
+  });
+
+  it('parseArtRungs (ADR-0528 D2): each ?<family>Rung= is a positive finite factor on the shipped rung; anything else is ignored, and a bare URL states no tile', () => {
+    expect(parseArtRungs(new URLSearchParams(''))).toEqual({});
+    expect(parseArtRungs(new URLSearchParams('?treeRung=0.8'))).toEqual({ tree: 0.8 });
+    expect(parseArtRungs(new URLSearchParams('?plateRung=1.25&trailRung=2.44&floraRung=1.5'))).toEqual({ plate: 1.25, trail: 2.44, flora: 1.5 });
+    expect(parseArtRungs(new URLSearchParams('?treeRung=0&plateRung=-1&trailRung=nope'))).toEqual({});
   });
 
   it('parseSpacingTuning: ?spacing= is the ratio; all three legacy keys together are the control, one or two are nothing', () => {

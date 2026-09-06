@@ -1053,6 +1053,18 @@ export function litLaneWidth(usage: number): number {
 }
 
 /**
+ * The factor the 2D drawing strokes a road at, read off the road itself (ADR-0528): the scene's
+ * `trail-fill` stroke is `trailFillWidth(usage) × TileArt.trailStroke`, and the lane rides that
+ * road, so it must wear the same factor — the lane rule above is stated in the ONE width rule's own
+ * units and would otherwise draw WIDER than the road it lights on the derived tile.
+ */
+function roadStrokeFactor(child: SceneNode): number {
+  const usage = child.usage ?? 1;
+  const rule = trailFillWidth(usage);
+  return child.strokeWidth !== undefined && rule > 0 ? child.strokeWidth / rule : 1;
+}
+
+/**
  * The ADR-0242 lit-lane overlay for the trail-fill pass: one extra `trail-lit` path per
  * segment the selection's own edges run through, drawn AFTER every fill so the lanes sit
  * on top of the whole road network rather than under a later trunk. A lane inherits the
@@ -1073,7 +1085,7 @@ function litLaneNodes(children: readonly SceneNode[], ctx: SceneCtx): React.JSX.
       className: 'trail-lit',
       d: child.d,
       'data-id': child.id,
-      strokeWidth: litLaneWidth(child.usage ?? 1),
+      strokeWidth: litLaneWidth(child.usage ?? 1) * roadStrokeFactor(child),
     };
     if (ctx.reveal?.byId.get(child.id)) props.mask = `url(#trail-m-${child.id})`;
     lanes.push(React.createElement('path', props));

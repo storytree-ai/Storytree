@@ -38,8 +38,9 @@ import {
   hexCenter,
   hexPath,
   polyPath,
+  PRE_ADR0528_TILE,
 } from './hex.js';
-import { crownRadius } from './sizing.js';
+import { FLORA_ART_RUNG, PLATE_ART_RUNG, TRAIL_ART_RUNG, TREE_ART_RUNG, crownRadius } from './sizing.js';
 import {
   type TrailCave,
   type TrailNetwork,
@@ -701,6 +702,11 @@ export interface SceneInput {
    * were built at is the mismatch the whole increment removes, so don't.
    */
   cameraElevationDeg?: number;
+  /** The tile the scene is drawn on (ADR-0528): the lattice radius the surface laid its tiles out
+   *  with. ABSENT ⇒ the shipped, derived `HEX_R`, which is what every product surface draws on. An
+   *  instrument that lays a scene out on another radius (the r3f harness fixture, on the tuned
+   *  tile) states it here so the props, keep-outs and strokes re-base with the lattice. */
+  tile?: { hexR: number; rungs?: ArtRungs };
 }
 
 /** DORMANT: the scene-graph's def id the baked standing-stone once used (ADR-0218). No longer emitted
@@ -771,6 +777,83 @@ export interface SceneVegetationInput {
 // ---------------------------------------------------------------------------
 
 const f = (n: number): string => n.toFixed(1);
+
+// ---------------------------------------------------------------------------
+// THE TILE IS AN INPUT OF THE DRAWING (ADR-0528)
+// ---------------------------------------------------------------------------
+//
+// Every prop, keep-out, offset and stroke in this file was authored in ground units against the
+// radius-27 tile. The shipped lattice is DERIVED now (`HEX_R` ≈ 11.06, one hex per capability), so
+// the drawing re-bases those lengths by the ratio of the tile it is drawn on to the tile they were
+// authored on — and it takes that tile from `SceneInput.tile` rather than from a module constant,
+// because one scene is NOT drawn on the shipped tile: the r3f harness fixture is the island every
+// 3D ground constant was tuned on and is drawn on the tuned tile (`PRE_ADR0528_TILE.hexR`), where
+// the re-basing factor is exactly 1 and the drawing is byte-for-byte what it was.
+//
+// The per-family ART RUNGS (`TREE_ART_RUNG` …, `sizing.ts`) multiply the tile factor: they are the
+// 2D art pass's dials (ADR-0528 D2), picked on rendered ladders, and they apply on every tile.
+
+/** The tile a scene is drawn on, resolved once per `buildScene` and threaded to every builder. */
+export interface TileArt {
+  /** The lattice radius the scene is drawn on. */
+  readonly hexR: number;
+  /** `hexR / 27` — the factor a ground-unit length authored on the tuned tile multiplies by. */
+  readonly scale: number;
+  /** A length authored on the tuned tile, on this tile. */
+  units(authoredOnTunedTile: number): number;
+  /** The story tree's drawing scale on this tile (`scale × TREE_ART_RUNG`). */
+  readonly tree: number;
+  /** The nameplate's drawing scale on this tile. */
+  readonly plate: number;
+  /** The parcel flora's drawing scale on this tile. */
+  readonly flora: number;
+  /** What the 2D drawing strokes a trail at, as a factor on the ONE width rule. */
+  readonly trailStroke: number;
+  /** The floor on how close two UAT flowers may stand ON THE GROUND (15 on the tuned tile). */
+  readonly markerSpacing: number;
+  /** The GROUND radius around the story tree's base no UAT flower stands inside (36 on the tuned tile). */
+  readonly markerTreeWell: number;
+  /** The window-shopping orbit radius (ADR-0212 channel 1; 9 on the tuned tile). */
+  readonly hoverOrbitR: number;
+}
+
+/** The per-family art rungs a scene may state (ADR-0528 D2) — each a factor on the shipped rung
+ *  (`sizing.ts`), so `1` on every key is the shipped drawing. An instrument's dial: the studio reads
+ *  `?treeRung=` … off its URL into these so a ladder can be captured from the running map. */
+export interface ArtRungs {
+  tree?: number;
+  plate?: number;
+  flora?: number;
+  trail?: number;
+}
+
+export function tileArt(hexR: number = HEX_R, rungs: ArtRungs = {}): TileArt {
+  const scale = hexR / PRE_ADR0528_TILE.hexR;
+  const units = (n: number): number => n * scale;
+  return {
+    hexR,
+    scale,
+    units,
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE THE RUNG SHIPS AT 1 — the four
+    // art rungs are the owner's dials (ADR-0528 D2) and every one of them is 1 today, so `× rung`
+    // and `÷ rung` compute the same number and no test can separate them. This is the ONE shape of
+    // equivalence here that expires: ship a rung off 1 and the mutant becomes killable, so the
+    // landing that moves one owes this line its test rather than this comment.
+    tree: scale * TREE_ART_RUNG * (rungs.tree ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE PLATE_ART_RUNG IS 1 — see `tree`.
+    plate: scale * PLATE_ART_RUNG * (rungs.plate ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE FLORA_ART_RUNG IS 1 — see `tree`.
+    flora: scale * FLORA_ART_RUNG * (rungs.flora ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE TRAIL_ART_RUNG IS 1 — see `tree`.
+    trailStroke: scale * TRAIL_ART_RUNG * (rungs.trail ?? 1),
+    markerSpacing: units(15),
+    markerTreeWell: units(36),
+    hoverOrbitR: units(9),
+  };
+}
+
+/** The shipped tile's art — what every builder draws with when a caller states no tile. */
+export const SHIPPED_TILE_ART: TileArt = tileArt();
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
 function g(children: SceneNode[], a: SceneNodeBase = {}): SceneG {
@@ -822,7 +905,7 @@ function text(
  *  form, with the crown blobs deterministically jittered by the story id. Includes
  *  the recently-landed crown bloom and the human-witness signpost as children
  *  (matching the studio's `story-tree` group). */
-export function buildTree(t: SceneTerritoryInput, unifiedVeg = false): SceneG {
+export function buildTree(t: SceneTerritoryInput, unifiedVeg = false, art: TileArt = SHIPPED_TILE_ART): SceneG {
   const st = t.status;
   const caps = t.caps;
   const withered = st === 'unhealthy';
@@ -905,11 +988,13 @@ export function buildTree(t: SceneTerritoryInput, unifiedVeg = false): SceneG {
   // (byte-for-byte; the public website never sends `vegetation`).
   if (t.signpost && !unifiedVeg) children.push(buildSignpost(t.signpost, R));
 
+  // The tree is authored in its own frame (`crownRadius`) and scaled onto the tile here (ADR-0528
+  // D2, `TREE_SCALE`) — the trunk, litter, signpost and bloom inside scale with it.
   return g(children, {
     kind: 'tree',
     status: st,
     title: t.treeTitle,
-    transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)})`,
+    transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)}) scale(${f(art.tree)})`,
   });
 }
 
@@ -1139,13 +1224,10 @@ function groundPolarOffset(ang: number, r: number, elevationDeg: number): Pt {
   return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r }, elevationDeg);
 }
 
-/** The floor on how close two UAT flowers may stand ON THE GROUND. The historical `> 15`, now named
- *  and honestly a ground distance — the value is unchanged, only the space it is measured in. */
-const MARKER_GROUND_SPACING = 15;
-
-/** The GROUND radius around the story tree's base no UAT flower may be planted inside (it also covers
- *  the signpost beside it). The historical `> 36`, unchanged in value. */
-const MARKER_GROUND_TREE_WELL = 36;
+// The floor on how close two UAT flowers may stand ON THE GROUND (the historical `> 15`) and the
+// GROUND radius around the story tree's base no flower is planted inside (the historical `> 36`, which
+// also covers the signpost) are `TileArt.markerSpacing` / `markerTreeWell` — the same values on the
+// tuned tile, re-based on the tile the scene is drawn on (ADR-0528).
 
 /** The island's UAT markers as INDIVIDUAL y-sorted drawables — one tall flower per criterion,
  *  scattered deterministically (owner call 2026-07-18: no path). Each flower is its own painter
@@ -1172,6 +1254,7 @@ function buildUatMarkers(
   ownerCells: RelaxedCell[] | null,
   small = false,
   elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+  art: TileArt = SHIPPED_TILE_ART,
 ): Array<{ y: number; node: SceneG }> {
   const criteria = t.uatCriteria ?? [];
   if (!criteria.length) return [];
@@ -1179,7 +1262,9 @@ function buildUatMarkers(
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
   const clearsSpacing = (placed: Pt[], x: number, y: number): boolean =>
-    placed.every((p) => groundGap({ x, y }, p, elevationDeg) > MARKER_GROUND_SPACING);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — a ground gap is a continuous
+    // measurement, so `>` and `>=` differ only on an exact float tie, which no fixture can author.
+    placed.every((p) => groundGap({ x, y }, p, elevationDeg) > art.markerSpacing);
   const placed: Pt[] = [];
   const out: Array<{ y: number; node: SceneG }> = [];
   criteria.forEach((c) => {
@@ -1193,8 +1278,10 @@ function buildUatMarkers(
       const off = groundPolarOffset(ang, rr, elevationDeg);
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
-      const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > MARKER_GROUND_TREE_WELL;
-      const clearsPlate = y < t.labelY - 14;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous gap, no authorable tie.
+      const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > art.markerTreeWell;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
+      const clearsPlate = y < t.labelY - art.units(14);
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
         break;
@@ -1227,7 +1314,8 @@ function buildUatMarkers(
       node: g(tallFlowerMarks(c.state, k, small), {
         kind,
         id: c.id,
-        transform: `translate(${f(x)} ${f(y)}) scale(${f(small ? MARKER_SCALE_SMALL : MARKER_SCALE)})`,
+        // the flower's own drawing scale, re-based onto the derived tile (ADR-0528)
+        transform: `translate(${f(x)} ${f(y)}) scale(${f((small ? MARKER_SCALE_SMALL : MARKER_SCALE) * art.scale)})`,
       }),
     });
   });
@@ -1278,7 +1366,7 @@ export function buildBloom(
 /** A capability as a flower bed / berry bush / sapling (hash-picked variant),
  *  tinted by its folded status; `unhealthy` withers it to the matching dead
  *  silhouette. */
-export function buildPlant(p: ScenePlantInput): SceneG {
+export function buildPlant(p: ScenePlantInput, art: TileArt = SHIPPED_TILE_ART): SceneG {
   const variant = hash(`${p.id}:variant`) % 3;
   const dead = p.status === 'unhealthy';
   const children: SceneNode[] = [circle(0, 0, 9.5, { kind: 'flora-hit' })];
@@ -1293,7 +1381,8 @@ export function buildPlant(p: ScenePlantInput): SceneG {
     // wires onSelectCap from it; the website uses it as data-id for delegation).
     id: p.id,
     title: p.title,
-    transform: `translate(${f(p.x)} ${f(p.y)})`,
+    // drawn in its own frame, scaled onto the derived tile (ADR-0528)
+    transform: `translate(${f(p.x)} ${f(p.y)}) scale(${f(art.scale)})`,
   });
 }
 
@@ -1388,7 +1477,7 @@ function buildPlantBody(dead: boolean, variant: number): SceneG {
 
 /** A small leaning conifer with a snow cap — deliberately small so the central
  *  story tree dominates the island. The colour band (`c-N`) comes from the seed. */
-export function buildConifer(x: number, y: number, h: number, seed: number): SceneG {
+export function buildConifer(x: number, y: number, h: number, seed: number, art: TileArt = SHIPPED_TILE_ART): SceneG {
   const lean = (rand01(seed) - 0.5) * 2;
   const w = h * 0.42;
   return g(
@@ -1403,7 +1492,8 @@ export function buildConifer(x: number, y: number, h: number, seed: number): Sce
         { kind: 'conifer-snow' },
       ),
     ],
-    { kind: 'conifer', transform: `translate(${f(x)} ${f(y)})` },
+    // drawn at its authored height, scaled onto the derived tile (ADR-0528)
+    { kind: 'conifer', transform: `translate(${f(x)} ${f(y)}) scale(${f(art.scale)})` },
   );
 }
 
@@ -1416,9 +1506,9 @@ export function buildConifer(x: number, y: number, h: number, seed: number): Sce
  *  which builds are in-flight); the core derives each orbit phase from the runId
  *  and lays the glow/dot/hit at the orbit radius. The mapper drives the rotation
  *  (the studio's SMIL `animateTransform`, the website's CSS) from `phase`. */
-function buildWisps(t: SceneTerritoryInput): SceneG | null {
+function buildWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
   if (!t.wisps.length) return null;
-  const orbitR = t.screenRadius * 0.72 + 10;
+  const orbitR = t.screenRadius * 0.72 + art.units(10);
   const wisps = t.wisps.map((w) => {
     const phase = rand01(hash(w.runId)) * 360;
     // `phase` is the orbit ROTATION (geometry); `phaseBand` is the red→green build state
@@ -1445,7 +1535,7 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
             circle(0, 0, 6.5, { kind: 'wisp-glow' }),
             circle(0, 0, 2.8, { kind: 'wisp-dot' }),
           ],
-          { transform: `translate(${f(orbitR)} 0)` },
+          { transform: `translate(${f(orbitR)} 0) scale(${f(art.scale)})` },
         ),
       ],
       wispAttrs,
@@ -1467,15 +1557,15 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
  *  carrying a `colourState` that is NEVER `green`/`bloom` — only a signed verdict paints the green
  *  bloom (ADR-0045). A claimed-but-not-proven story can therefore never render as a proven-green one.
  *  Orbits a touch wider than the build wisp so the two layers read as distinct when both are present. */
-/** The window-shopping orbit radius (ADR-0212 channel 1): small and LOCAL — deliberately far tighter
- *  than the work stage's whole-island orbit, so the two stages read apart on position alone. */
-const HOVER_ORBIT_R = 9;
+// The window-shopping orbit radius (ADR-0212 channel 1) is `TileArt.hoverOrbitR`: small and LOCAL —
+// deliberately far tighter than the work stage's whole-island orbit, so the two stages read apart on
+// position alone.
 
-function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
+function buildClaimWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
   // `claims` is OPTIONAL (a surface with no live-claim concept omits it) — absent/empty ⇒ no layer.
   const claims = t.claims ?? [];
   if (!claims.length) return null;
-  const orbitR = t.screenRadius * 0.72 + 22;
+  const orbitR = t.screenRadius * 0.72 + art.units(22);
   // the hover rest spot is anchored above the story tree (the layer's frame is the centroid).
   const treeDx = t.treeSpot.x - t.centroid.x;
   const treeDy = t.treeSpot.y - t.centroid.y;
@@ -1497,8 +1587,8 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
       // spot. Outer g = the rest spot; middle g = the kind-bearing node the mapper rotates;
       // innermost g = the small orbit radius.
       const k = hash(c.key);
-      const hx = treeDx + (rand01(k + 1) - 0.5) * 18;
-      const hy = treeDy - (orbitR + 12) + (rand01(k + 2) - 0.5) * 10;
+      const hx = treeDx + (rand01(k + 1) - 0.5) * art.units(18);
+      const hy = treeDy - (orbitR + art.units(12)) + (rand01(k + 2) - 0.5) * art.units(10);
       const phase = rand01(k) * 360;
       return g(
         [
@@ -1510,7 +1600,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
                   circle(0, 0, 6.5, { kind: 'hover-wisp-glow' }),
                   circle(0, 0, 2.8, { kind: 'hover-wisp-dot' }),
                 ],
-                { transform: `translate(${f(HOVER_ORBIT_R)} 0)` },
+                { transform: `translate(${f(art.hoverOrbitR)} 0) scale(${f(art.scale)})` },
               ),
             ],
             // `title` carries the claim's intent prose; NEVER an `outcome`/`bloom` (the §5 wall).
@@ -1524,7 +1614,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
       // QUEUED (ADR-0200 D7): a visible ordered line anchored just outside the orbit ring — each
       // waiter placed by its queue INDEX in INPUT order (the surface sends waiters ordered by
       // claimedAt — deterministic from array order, never hash-random) and stationary (no `phase`).
-      const qx = orbitR + 14 + queueIndex * 16;
+      const qx = orbitR + art.units(14) + queueIndex * art.units(16);
       queueIndex += 1;
       return g(
         [
@@ -1534,7 +1624,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
               circle(0, 0, 6.5, { kind: 'queue-wisp-glow' }),
               circle(0, 0, 2.8, { kind: 'queue-wisp-dot' }),
             ],
-            { transform: `translate(${f(qx)} 0)` },
+            { transform: `translate(${f(qx)} 0) scale(${f(art.scale)})` },
           ),
         ],
         // NEVER carries an `outcome`/`bloom` (the §5 wall).
@@ -1564,7 +1654,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
             circle(0, 0, 6.5, { kind: 'claim-wisp-glow' }),
             circle(0, 0, 2.8, { kind: 'claim-wisp-dot' }),
           ],
-          { transform: `translate(${f(orbitR)} 0)` },
+          { transform: `translate(${f(orbitR)} 0) scale(${f(art.scale)})` },
         ),
       ],
       claimAttrs,
@@ -1583,16 +1673,16 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
  *  the mapper/CSS's job (the later operator-attested LOOK stage). Same §5 honesty wall as the claim
  *  families: a departure is a coordination trace, never a bloom, never an `outcome`. Absent/empty ⇒
  *  no layer (the website back-compat mirror of `buildClaimWisps`). */
-function buildDepartingWisps(t: SceneTerritoryInput): SceneG | null {
+function buildDepartingWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
   const departures = t.departures ?? [];
   if (!departures.length) return null;
-  const orbitR = t.screenRadius * 0.72 + 22;
+  const orbitR = t.screenRadius * 0.72 + art.units(22);
   const treeDx = t.treeSpot.x - t.centroid.x;
   const treeDy = t.treeSpot.y - t.centroid.y;
   const wisps = departures.map((d) => {
     const k = hash(d.key);
-    const x = treeDx + (rand01(k + 1) - 0.5) * 18;
-    const y = treeDy - (orbitR + 12) - d.ageRatio * 24;
+    const x = treeDx + (rand01(k + 1) - 0.5) * art.units(18);
+    const y = treeDy - (orbitR + art.units(12)) - d.ageRatio * art.units(24);
     return g(
       [
         g(
@@ -1601,7 +1691,7 @@ function buildDepartingWisps(t: SceneTerritoryInput): SceneG | null {
             circle(0, 0, 6.5, { kind: 'departing-wisp-glow' }),
             circle(0, 0, 2.8, { kind: 'departing-wisp-dot' }),
           ],
-          { transform: `translate(${f(x)} ${f(y)})` },
+          { transform: `translate(${f(x)} ${f(y)}) scale(${f(art.scale)})` },
         ),
       ],
       // stationary (no `phase`); `ageRatio` is the mapper's fade input. NEVER `outcome`/`bloom`.
@@ -1618,7 +1708,17 @@ function buildDepartingWisps(t: SceneTerritoryInput): SceneG | null {
 // the nameplate (world-plate)
 // ---------------------------------------------------------------------------
 
-function buildPlate(t: SceneTerritoryInput): SceneG {
+/**
+ * THE NAMEPLATE'S DRAWING SCALE — the 2D art pass's rung for the plate (ADR-0528 D2). The plate box
+ * (`nameplateLayout`, studio-side) and its CSS text sizes are authored in the plate's own frame; this
+ * scales that frame onto the derived tile. At `TILE_SCALE` the plate keeps the exact on-screen size it
+ * had at the designed resting view. ⚠ The 2D map is a WORKING tool — the plate is what an operator
+ * reads a story's id and state off — so this is the rung the increment's sheet judges hardest, at the
+ * working zoom rather than the fitted one.
+ */
+export const PLATE_SCALE = SHIPPED_TILE_ART.plate;
+
+function buildPlate(t: SceneTerritoryInput, art: TileArt): SceneG {
   const p = t.plate;
   return g(
     [
@@ -1629,7 +1729,8 @@ function buildPlate(t: SceneTerritoryInput): SceneG {
     {
       kind: 'plate',
       title: p.title,
-      transform: `translate(${f(t.centroid.x - p.w / 2)} ${f(t.labelY)})`,
+      // centred on the island in ground units, then the plate's own frame scaled onto the tile
+      transform: `translate(${f(t.centroid.x - (p.w * art.plate) / 2)} ${f(t.labelY)}) scale(${f(art.plate)})`,
     },
   );
 }
@@ -1696,6 +1797,10 @@ export type SurfaceFn = (
    *  the status accents (sprouts / wilt / building-sparks) stay. Absent/false ⇒ today's surface
    *  byte-for-byte. */
   unifiedVeg?: boolean,
+  /** The tile the parcel is drawn on (ADR-0528) — the drift-bed spread and every mark's drawing scale
+   *  re-base on it. Absent ⇒ the shipped tile. Trailing and optional, so the frozen seam's callers
+   *  and every existing surface are unchanged in shape. */
+  art?: TileArt,
 ) => ParcelSurface;
 
 /** A seeded mulberry32 STREAM `() => number` (a `SurfaceFn` draws many values). Mirrors the spike's
@@ -1735,17 +1840,34 @@ function parcelGround(cells: ParcelCell[], status: SceneStatus, rand: () => numb
 
 /** Wrap a theme's absolute-coord marks as one placed `parcel-flora` item at painter-anchor `y`. The
  *  capId is stamped later (in `buildTerritorySurface`, where the parcel identity is known). */
+/**
+ * THE PARCEL FLORA'S DRAWING SCALE (ADR-0528 D2) — the designer surfaces (`meadow.js` / `woodland.js`
+ * / `heath.js`) draw their marks in ABSOLUTE coordinates around each drift-bed spot, at sizes judged
+ * against the radius-27 tile; the marks are ported verbatim and are not re-authored. Each item is
+ * therefore scaled ABOUT ITS OWN SPOT: `translate(p) scale(s) translate(-p)` leaves the spot where the
+ * drift placed it (so containment and painter order are untouched) and shrinks the mark around it.
+ */
+export const FLORA_SCALE = SHIPPED_TILE_ART.flora;
+
 function parcelFloraItem(
   theme: SurfaceTheme,
   status: SceneStatus,
   y: number,
   marks: SceneNode[],
+  /** The drift-bed spot the marks were drawn around — the pivot the item scales about. */
+  pivot: Pt,
+  art: TileArt,
   opacity?: number,
 ): ParcelFloraMark {
   // ANNOTATED local, then one guarded assignment — the shape
   // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is load-bearing: without
   // it the inferred type has no `opacity` and the write below stops compiling.
-  const attrs: SceneNodeBase = { kind: 'parcel-flora', theme, status };
+  const attrs: SceneNodeBase = {
+    kind: 'parcel-flora',
+    theme,
+    status,
+    transform: `translate(${f(pivot.x)} ${f(pivot.y)}) scale(${f(art.flora)}) translate(${f(-pivot.x)} ${f(-pivot.y)})`,
+  };
   if (opacity != null) attrs.opacity = opacity;
   return { y, node: g(marks, attrs) };
 }
@@ -1791,14 +1913,14 @@ export const DRIFT_CONTAINMENT_TRIES = 12;
  *
  *  ⚠ EXPORTED FOR THAT PROOF, and it has a precondition: `cells` must be NON-EMPTY. All three
  *  `SurfaceFn`s return early on an empty parcel before they ever call this. */
-export function driftSpot(cells: ParcelCell[], tests: number, rand: () => number): () => Pt {
+export function driftSpot(cells: ParcelCell[], tests: number, rand: () => number, art: TileArt = SHIPPED_TILE_ART): () => Pt {
   const anchors: Pt[] = [];
   const n = tests >= 7 ? 2 : 1;
   for (let d = 0; d < n; d++) {
     const c = cells[Math.floor(rand() * cells.length)]!;
     anchors.push({ x: c.cx, y: c.cy });
   }
-  const spread = 7 + Math.max(0, tests) * 0.55;
+  const spread = art.units(7 + Math.max(0, tests) * 0.55); // a bed's radius, authored on the tuned tile
   // THE CONTAINMENT TEST. `cells` is exactly the parcel's own share of the island's mesh, so this
   // asks the only question that makes the tint true: is this plant standing on the capability that
   // coloured it? The polygons are GROUND polygons seen through the declared camera, and
@@ -1838,13 +1960,14 @@ function meadowSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
+  art: TileArt = SHIPPED_TILE_ART,
 ): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
 
-  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
-    parcelFloraItem('meadow', status, y, marks);
+  const item = (y: number, marks: SceneNode[], pivot: Pt): ParcelFloraMark =>
+    parcelFloraItem('meadow', status, y, marks, pivot, art);
 
   // density budget (verbatim): grass is the ramp bulk; shrubs a "grown" mark only where standing bulk
   // grows (healthy/building/unhealthy); flowers a healthy (mapped-rare) accent — but the decorative
@@ -1877,7 +2000,7 @@ function meadowSurface(
   const lushBlade = (status === 'healthy' || status === 'building') && tests >= 6;
 
   // the drift beds: the whole budget plants inside them (open lawn is part of the drawing)
-  const spot = driftSpot(cells, tests, rand);
+  const spot = driftSpot(cells, tests, rand, art);
 
   // mark: long grass tuft — 3-4 filled two-face blades (dark back-face v1 under a narrower light
   // front-face v0).
@@ -1989,32 +2112,32 @@ function meadowSurface(
   // the status-specific accent layer — all planted inside the drift beds.
   for (let k = 0; k < shrubCount; k++) {
     const ps = spot();
-    flora.push(item(ps.y + 1, shrub(ps.x, ps.y)));
+    flora.push(item(ps.y + art.units(1), shrub(ps.x, ps.y), ps));
   }
   for (let k = 0; k < grassCount; k++) {
     const pg = spot();
     const marks = grassTuft(pg.x, pg.y);
     if (status === 'unhealthy' && rand() < 0.4) marks.push(...wilt(pg.x + 3, pg.y));
-    flora.push(item(pg.y, marks));
+    flora.push(item(pg.y, marks, pg));
   }
   if (status === 'healthy' || (status === 'mapped' && flowerCount)) {
     for (let k = 0; k < flowerCount; k++) {
       const pf = spot();
-      flora.push(item(pf.y, flower(pf.x, pf.y)));
+      flora.push(item(pf.y, flower(pf.x, pf.y), pf));
     }
   }
   if (status === 'proposed' || status === 'building') {
     const sproutCount = tests <= 0 ? 0 : Math.max(1, Math.round(tests * (status === 'building' ? 0.6 : 0.45)));
     for (let k = 0; k < sproutCount; k++) {
       const psp = spot();
-      flora.push(item(psp.y, sprout(psp.x, psp.y)));
+      flora.push(item(psp.y, sprout(psp.x, psp.y), psp));
     }
   }
   if (status === 'unhealthy') {
     const wiltCount = tests <= 0 ? 0 : Math.max(1, Math.round(tests * 0.4));
     for (let k = 0; k < wiltCount; k++) {
       const pw = spot();
-      flora.push(item(pw.y, wilt(pw.x, pw.y)));
+      flora.push(item(pw.y, wilt(pw.x, pw.y), pw));
     }
   }
   return { ground, flora };
@@ -2031,13 +2154,14 @@ function woodlandSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
+  art: TileArt = SHIPPED_TILE_ART,
 ): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
 
-  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
-    parcelFloraItem('woodland', status, y, marks);
+  const item = (y: number, marks: SceneNode[], pivot: Pt): ParcelFloraMark =>
+    parcelFloraItem('woodland', status, y, marks, pivot, art);
   const fleck = (x: number, y: number): SceneNode => circle(x, y, 0.8, { kind: 'parcel-flower', variant: 0 });
   const distressed = status === 'unhealthy';
 
@@ -2054,7 +2178,7 @@ function woodlandSurface(
 
   // the drift beds: the whole budget plants inside them (the old spread-maximising pick retired —
   // massing is the point now).
-  const spot = driftSpot(cells, tests, rand);
+  const spot = driftSpot(cells, tests, rand, art);
 
   // mark: fern tuft — each blade a dark back-half (v1) under a narrower light front-half (v0).
   const fern = (x: number, y: number): FloraMarkGroup => {
@@ -2171,22 +2295,22 @@ function woodlandSurface(
   for (let i = 0; i < nFerns; i++) {
     const p = spot();
     const m = fern(p.x, p.y);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   for (let i = 0; i < nShrubs; i++) {
     const p = spot();
     const m = shrub(p.x, p.y);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   for (let i = 0; i < nFlowers; i++) {
     const p = spot();
     const m = flower(p.x, p.y);
-    if (m) flora.push(item(m.y, m.marks));
+    if (m) flora.push(item(m.y, m.marks, p));
   }
   for (let i = 0; i < nSaplings; i++) {
     const p = spot();
     const m = sapling(p.x, p.y);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   return { ground, flora };
 }
@@ -2233,6 +2357,7 @@ function heathSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
+  art: TileArt = SHIPPED_TILE_ART,
 ): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
@@ -2245,8 +2370,8 @@ function heathSurface(
   // fall to zero under the flag. Absent/false ⇒ today's heath byte-for-byte.
   const bloomChance = unifiedVeg ? 0 : conf.bloomChance;
 
-  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
-    parcelFloraItem('heath', status, y, marks, conf.opacity < 1 ? conf.opacity : undefined);
+  const item = (y: number, marks: SceneNode[], pivot: Pt): ParcelFloraMark =>
+    parcelFloraItem('heath', status, y, marks, pivot, art, conf.opacity < 1 ? conf.opacity : undefined);
   // bell face variants: light index 0/1 → v0/v4, dark index 0/1 → v1/v5 (the healthy 2-colour rotation).
   const bellLightV = (idx: number): number => (idx === 1 ? 4 : 0);
   const bellDarkV = (idx: number): number => (idx === 1 ? 5 : 1);
@@ -2371,7 +2496,7 @@ function heathSurface(
   };
 
   // the drift beds: the whole budget plants inside them (the all-cells spread retired).
-  const next = driftSpot(cells, tests, rand);
+  const next = driftSpot(cells, tests, rand, art);
 
   // density budget: tests drives every tier, status only recolours/mutes.
   const t = Math.max(0, tests | 0);
@@ -2382,17 +2507,17 @@ function heathSurface(
   for (let i = 0; i < grassCount; i++) {
     const p = next();
     const m = grassTuft(p.x, p.y);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   for (let i = 0; i < shrubCount; i++) {
     const p = next();
     const m = shrub(p.x, p.y, i < 2);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   for (let i = 0; i < flowerClusters; i++) {
     const p = next();
     const m = bellCluster(p.x, p.y);
-    flora.push(item(m.y, m.marks));
+    flora.push(item(m.y, m.marks, p));
   }
   return { ground, flora };
 }
@@ -2455,6 +2580,7 @@ function buildTerritorySurface(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[],
   unifiedVeg = false,
+  art: TileArt = SHIPPED_TILE_ART,
 ): ParcelSurface | null {
   const parcels = t.parcels;
   if (!parcels || !parcels.length || !ownerCells.length) return null;
@@ -2465,13 +2591,49 @@ function buildTerritorySurface(
     const idx = nearestParcel(cen, seeds);
     groups[idx]!.push({ poly: c.poly, cx: cen.x, cy: cen.y });
   }
+  // ⚠ NO CAPABILITY STARVES (ADR-0528). An island is drawn on ONE hex per capability now, so two
+  // capability seeds can share a hex and the Voronoi above can hand every cell of that hex to one of
+  // them — the other has no ground, no colour, and in 3D no tree (measured on the tile ladder: one
+  // rung stood 202 trees against the control's 203). A parcel that would starve takes the cell
+  // nearest its seed from whichever parcel holds two or more, in parcel order, so the repair is
+  // deterministic and reaches only the islands where a parcel actually starved; every other
+  // partition is byte-for-byte what the Voronoi gave it. It cannot run dry while there are at least
+  // as many cells as parcels, which the mesh guarantees (several cells per hex).
+  /** The cell nearest `seed` in any group that can SPARE one (holds two or more), as the group it
+   *  sits in and its index there — or null when no group can spare a cell, which is the only way the
+   *  repair declines. Returning the pair rather than filling two pre-seeded locals is deliberate: a
+   *  sentinel initialiser is dead by construction here (both locals are written together, and the
+   *  guard that reads them tests the sentinel), so it can be neither exercised nor observed. */
+  const nearestSpare = (seed: Pt): { from: number; at: number } | null => {
+    let found: { from: number; at: number } | null = null;
+    let bd = Infinity;
+    groups.forEach((cells, j) => {
+      if (cells.length < 2) return;
+      cells.forEach((cell, k) => {
+        const d = (cell.cx - seed.x) ** 2 + (cell.cy - seed.y) ** 2;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — `<=` differs only when two cells
+        // sit at exactly the same distance from the seed, and the mesh never places two centroids there.
+        if (d < bd) {
+          bd = d;
+          found = { from: j, at: k };
+        }
+      });
+    });
+    return found;
+  };
+  parcels.forEach((_parcel, i) => {
+    if (groups[i]!.length > 0) return;
+    const spare = nearestSpare(seeds[i]!);
+    if (!spare) return;
+    groups[i]!.push(groups[spare.from]!.splice(spare.at, 1)[0]!);
+  });
   const ground: SceneNode[] = [];
   const flora: ParcelFloraMark[] = [];
   parcels.forEach((parcel, i) => {
     const cells = groups[i]!;
     if (!cells.length) return;
     const rand = streamRand(`parcel:${t.id}:${parcel.capId}`);
-    const out = SURFACES[parcel.theme](cells, parcel.status, parcel.testCount, rand, unifiedVeg);
+    const out = SURFACES[parcel.theme](cells, parcel.status, parcel.testCount, rand, unifiedVeg, art);
     ground.push(
       g(out.ground, { kind: 'parcel', id: parcel.capId, status: parcel.status, title: parcel.capId }),
     );
@@ -2526,8 +2688,8 @@ const GARDEN_TREE_GAP = 0.15;
 /** The fitted scale for one hero on island `t`: the crown-based target height, CAPPED so the scaled
  *  footprint (base half-width and height) stays inside the island (see the FIT constants). Independent
  *  of the placement point, so a caller can derive the footprint half-width before it places the hero. */
-export function fittedHeroScale(id: GardenHeroId, hero: SceneGardenHero, t: SceneTerritoryInput): number {
-  const sTarget = (crownRadius(t.caps) * GARDEN_HERO_TARGET[id]) / hero.height;
+export function fittedHeroScale(id: GardenHeroId, hero: SceneGardenHero, t: SceneTerritoryInput, art: TileArt = SHIPPED_TILE_ART): number {
+  const sTarget = (crownRadius(t.caps) * art.tree * GARDEN_HERO_TARGET[id]) / hero.height;
   // A SIZE cap, not a ground displacement: `s` scales the hero's local def units directly into a
   // screen `scale()` transform with no further camera projection, so the bound it must stay inside
   // is how big the fitted footprint reads ON SCREEN — `screenRadius`, matching what is actually drawn
@@ -2593,6 +2755,7 @@ export function placeGardenHeroes(
   land: RelaxedCell[] | null,
   treeFitHalfW: number,
   elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+  art: TileArt = SHIPPED_TILE_ART,
 ): Map<GardenHeroId, Pt> {
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
@@ -2632,7 +2795,8 @@ export function placeGardenHeroes(
       const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
-      const clearsPlate = y < t.labelY - 18;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
+      const clearsPlate = y < t.labelY - art.units(18);
       const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;
@@ -2712,6 +2876,8 @@ interface StonePathOpts {
   /** The camera the waypoints are projected at — the walk is laid on the GROUND and projected through
    *  it (ADR-0367 D1). Defaults to the declared land camera. */
   elevationDeg?: number;
+  /** The tile the island is drawn on (ADR-0528). */
+  art?: TileArt;
 }
 
 /** The deterministic stepping-stone garden PATH (grounded-art inc 11 unit 2, footpath refined inc 12) — a
@@ -2742,7 +2908,7 @@ function buildStonePath(
   opts: StonePathOpts,
 ): Array<{ y: number; node: SceneNode }> {
   const elevationDeg = opts.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
-  const s = fittedHeroScale('stepping-stone', hero, t);
+  const s = fittedHeroScale('stepping-stone', hero, t, opts.art);
   const stoneW = s * hero.width; // scaled footprint width (a ground x extent — no camera term)
   const spacingMul = opts.spacingMul ?? 1;
   const wobbleMul = opts.wobbleMul ?? 1;
@@ -2915,14 +3081,15 @@ function buildGardenArt(
   garden: SceneGardenInput,
   ownerCells: RelaxedCell[] | null,
   elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+  art: TileArt = SHIPPED_TILE_ART,
 ): Array<{ y: number; node: SceneNode }> {
   const land = ownerCells && ownerCells.length ? ownerCells : null;
-  const crownR = crownRadius(t.caps);
+  const crownR = crownRadius(t.caps) * art.tree;
   const out: Array<{ y: number; node: SceneNode }> = [];
 
   // the autumn-tree hero AS the central tree (ADR-0221) — at the story's tree spot, FITTED to the island
   // so its footprint lands within the shore on a small island (unit 2).
-  const treeScale = fittedHeroScale('autumn-tree', garden.heroes['autumn-tree'], t);
+  const treeScale = fittedHeroScale('autumn-tree', garden.heroes['autumn-tree'], t, art);
   // its fitted footprint half-width feeds the free heroes' tree keep-out (grounded-art inc 12), so a
   // building never merges into the trunk on a small island where the tree fills the island.
   const treeHalfW = (treeScale * garden.heroes['autumn-tree'].width) / 2;
@@ -2936,12 +3103,12 @@ function buildGardenArt(
   // whole fitted footprint sits on owned land (unit 2 — the owner's "fully land within the island" fix).
   const freeIds: GardenHeroId[] = ['cottage', 'gazebo'];
   const scales = new Map<GardenHeroId, number>(
-    freeIds.map((id) => [id, fittedHeroScale(id, garden.heroes[id], t)]),
+    freeIds.map((id) => [id, fittedHeroScale(id, garden.heroes[id], t, art)]),
   );
   const halfW = new Map<GardenHeroId, number>(
     freeIds.map((id) => [id, (scales.get(id)! * garden.heroes[id].width) / 2]),
   );
-  const spots = placeGardenHeroes(t, freeIds, halfW, land, treeHalfW, elevationDeg);
+  const spots = placeGardenHeroes(t, freeIds, halfW, land, treeHalfW, elevationDeg, art);
   for (const [id, p] of spots) {
     out.push({ y: p.y, node: gardenHeroUse(id, p.x, p.y, scales.get(id)!) });
   }
@@ -2959,12 +3126,12 @@ function buildGardenArt(
   const stone = garden.heroes['stepping-stone'];
   if (cottage) {
     // the prominent front-door WALK — tight spacing + a calm meander reads as a laid path, not a scatter.
-    out.push(...buildStonePath(t, stone, [landfall, cottage], { spacingMul: 0.72, wobbleMul: 0.45, skipNear: crown, tag: 'walk', elevationDeg }));
+    out.push(...buildStonePath(t, stone, [landfall, cottage], { spacingMul: 0.72, wobbleMul: 0.45, skipNear: crown, tag: 'walk', elevationDeg, art }));
   }
   if (cottage && gazebo) {
     // a LIGHT trail on to the gazebo — sparse, skirting the tree crown so no stone hides beneath it.
     const detour = detourAroundTree(cottage, gazebo, crown.c, treeHalfW, elevationDeg);
-    out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step', elevationDeg }));
+    out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step', elevationDeg, art }));
   }
 
   // flat decorative accents + the UAT verdict: a lavender clump beside the cottage, and a couple of grass
@@ -2984,7 +3151,7 @@ function buildGardenArt(
     const a = towardLand({ x: cottage.x + beside.x, y: cottage.y + beside.y }, cen, land);
     out.push({ y: a.y, node: g(lavenderMarks(hash(`${t.id}:lavender`)), { transform: `translate(${f(a.x)} ${f(a.y)}) scale(${f(accentScale)})` }) });
   }
-  out.push(...buildUatMarkers(t, land, true, elevationDeg));
+  out.push(...buildUatMarkers(t, land, true, elevationDeg, art));
   for (let i = 0; i < 3; i++) {
     const k = hash(`${t.id}:grass:${i}`);
     const ang = rand01(k) * Math.PI * 2;
@@ -3030,10 +3197,10 @@ function resolvedTreeStatus(heroTrees: SceneVegHeroTrees, status: SceneStatus): 
  *  colourway shares one box, so the fit is status-independent. Define-once / reference-many: one def per
  *  status, N cheap `<use>`s. Kind `baked-art` is the existing ADR-0218 placement kind — the studio/website
  *  mappers already render it and R3F already skips it, so there is zero new mapper/R3F code. */
-function vegHeroTreeUse(heroTrees: SceneVegHeroTrees, t: SceneTerritoryInput): SceneBakedUse {
+function vegHeroTreeUse(heroTrees: SceneVegHeroTrees, t: SceneTerritoryInput, art: TileArt): SceneBakedUse {
   const status = resolvedTreeStatus(heroTrees, t.status);
   const hero = heroTrees[status];
-  const s = hero ? fittedHeroScale('autumn-tree', hero, t) : 1;
+  const s = hero ? fittedHeroScale('autumn-tree', hero, t, art) : 1;
   return {
     el: 'baked-use',
     defId: vegHeroTreeDefId(status),
@@ -3082,6 +3249,8 @@ export function buildTerritoryFlora(
   /** The camera the island's geometry is projected at (ADR-0367 D1) — the placements below measure
    *  ground distances through it. Defaults to the declared land camera. */
   elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+  /** The tile the island is drawn on (ADR-0528). Defaults to the shipped tile. */
+  art: TileArt = SHIPPED_TILE_ART,
 ): SceneG {
   const drawables: { y: number; node: SceneNode }[] = [];
   // The unified vegetation vocabulary (ADR-0226) governs the NON-garden path only — the garden
@@ -3094,7 +3263,7 @@ export function buildTerritoryFlora(
     // The decorative flora (conifers / capability plants / parcel flora), the procedural central tree,
     // and the 1:1 UAT-flower scatter are ALL suppressed — the heroes replace them; the `autumn-tree`
     // hero stands as the central tree. The nameplate + session wisps/claims still layer on below.
-    drawables.push(...buildGardenArt(t, garden, ownerCells ?? null, elevationDeg));
+    drawables.push(...buildGardenArt(t, garden, ownerCells ?? null, elevationDeg, art));
   } else {
     if (parcelFlora) {
       // parcels-present: the parcel surface flora IS the island's flora (conifers + plant ring retired).
@@ -3106,11 +3275,11 @@ export function buildTerritoryFlora(
           const a = rand01(d.seed + i * 7) * Math.PI * 2;
           const rr = rand01(d.seed + i * 13) * HEX_R * 0.55;
           const x = d.x + Math.cos(a) * rr;
-          const y = d.y + Math.sin(a) * rr * 0.8 + 4;
-          drawables.push({ y, node: buildConifer(x, y, 7 + rand01(d.seed + i) * 4, d.seed + i) });
+          const y = d.y + Math.sin(a) * rr * 0.8 + art.units(4);
+          drawables.push({ y, node: buildConifer(x, y, 7 + rand01(d.seed + i) * 4, d.seed + i, art) });
         }
       }
-      for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
+      for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant, art) });
     }
     // The central tree. Under the tree-spread (ADR-0226 decision 1, amends ADR-0221; per-status
     // colourways, ADR-0227), a supplied `vegetation.heroTrees` replaces the procedural `buildTree` with a
@@ -3120,30 +3289,30 @@ export function buildTerritoryFlora(
     // ONLY the tree becomes the hero. Absent `heroTrees` ⇒ the procedural tree (grass/flowers still
     // apply, and flag-off is byte-for-byte).
     if (vegetation?.heroTrees) {
-      drawables.push({ y: t.treeSpot.y, node: vegHeroTreeUse(vegetation.heroTrees, t) });
+      drawables.push({ y: t.treeSpot.y, node: vegHeroTreeUse(vegetation.heroTrees, t, art) });
     } else {
-      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg) });
+      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg, art) });
     }
     // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7; small flowers folded into
     // the grass, ADR-0226) — each scattered flower is its OWN y-sorted drawable so it interleaves with the
     // tree + flora by depth. Under the vocabulary flag they render SMALL (a low meadow flower, not a tall
     // scatter). The island's substrate cells (when known) are the scatter's keep-in. Absent/empty
     // uatCriteria ⇒ nothing (the lock).
-    drawables.push(...buildUatMarkers(t, ownerCells ?? null, unifiedVeg, elevationDeg));
+    drawables.push(...buildUatMarkers(t, ownerCells ?? null, unifiedVeg, elevationDeg, art));
   }
   drawables.sort((a, b) => a.y - b.y);
 
   const children: SceneNode[] = drawables.map((d) => d.node);
-  children.push(buildPlate(t));
-  const wisps = buildWisps(t);
+  children.push(buildPlate(t, art));
+  const wisps = buildWisps(t, art);
   if (wisps) children.push(wisps);
   // ADR-0138 §5: the story-claim orbit ("a session is here") — a DISTINCT drawable family from the
   // build wisp, never a bloom. Layered after the build wisps so when both run the claim reads outside.
-  const claimWisps = buildClaimWisps(t);
+  const claimWisps = buildClaimWisps(t, art);
   if (claimWisps) children.push(claimWisps);
   // ADR-0200 D7: the departure layer ("a session just left") — after the claim layer, same
   // absent/empty ⇒ nothing rule, same §5 honesty wall (never a bloom).
-  const departingWisps = buildDepartingWisps(t);
+  const departingWisps = buildDepartingWisps(t, art);
   if (departingWisps) children.push(departingWisps);
 
   return g(children, { kind: 'territory', status: t.status, id: t.id });
@@ -3157,7 +3326,7 @@ function isG(n: SceneG | null): n is SceneG {
   return n !== null;
 }
 
-function buildEmpties(input: SceneInput): SceneG {
+function buildEmpties(input: SceneInput, art: TileArt): SceneG {
   return g(
     input.empties.map((h) => {
       const c = hexCenter(h);
@@ -3166,7 +3335,7 @@ function buildEmpties(input: SceneInput): SceneG {
       // unattributed hex (or an owner index no territory answers to) stays id-less, exactly as
       // every coast hex was before attribution existed.
       const id = h.owner === undefined ? undefined : input.territories[h.owner]?.id;
-      return path(hexPath(c.x, c.y, HEX_R - 0.6), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
+      return path(hexPath(c.x, c.y, art.hexR - art.units(0.6)), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
     }),
     { kind: 'empties-layer' },
   );
@@ -3280,6 +3449,17 @@ function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): Sce
   return g(tiles, { kind: 'ground-hex' });
 }
 
+/**
+ * THE 2D TRAIL'S STROKE SCALE — the 2D art pass's rung for the trails (ADR-0528 D2). `trailFillWidth`
+ * is the ONE width rule every surface shares, in ground units, and the 3D mapper reads it DIRECTLY
+ * (`world-to-3d.ts`) for its ribbon — so it must not move, or the 3D island's own trails would.
+ * What the 2D drawing strokes is that width times this factor: at `TILE_SCALE` the trail keeps the
+ * exact on-screen width it had at the designed resting view; at 1 the 2D trail is as wide relative
+ * to its island as the 3D ribbon is. The cave portal (`buildCave`) is NOT scaled: the mapper recovers
+ * its mouth width from the drawn arch, so its geometry is the 3D contract.
+ */
+export const TRAIL_STROKE_SCALE = SHIPPED_TILE_ART.trailStroke;
+
 /** One trail-segment path node — the segment id + `data-usage`/`data-edges` hooks, and
  *  the per-pass stroke width derived from the ONE width rule (`trailFillWidth`). */
 function trailSegPath(
@@ -3287,7 +3467,8 @@ function trailSegPath(
   kind: SceneKind,
   widen: number,
   edgesOf: (id: string) => string,
-  markSpur = false,
+  markSpur: boolean,
+  art: TileArt,
 ): ScenePath {
   // ANNOTATED local, then one guarded assignment — the shape
   // `anti-slop/no-conditional-empty-object-spread` requires.
@@ -3296,7 +3477,7 @@ function trailSegPath(
     id: s.id,
     usage: s.usage,
     edges: edgesOf(s.id),
-    strokeWidth: trailFillWidth(s.usage) + widen,
+    strokeWidth: trailFillWidth(s.usage) * art.trailStroke + art.units(widen),
   };
   // a spur (one edge) is a dashed footpath; a trunk (≥2) a solid road (ADR-0169 §2)
   if (markSpur && s.usage === 1) attrs.spur = true;
@@ -3308,7 +3489,7 @@ function trailSegPath(
  *  never interleaved per path, so merged trunks read as one trail (the cartographic
  *  casing rule). Ends with the non-visual per-edge reveal metadata (`trail-edges`).
  *  Default-hidden is the SURFACE's concern (§3): the core emits everything. */
-export function buildTrails(input: SceneInput): SceneG {
+export function buildTrails(input: SceneInput, art: TileArt = tileArt(input.tile?.hexR, input.tile?.rungs)): SceneG {
   const net = input.trails;
   // Per-segment `from->to` keys, folded from the edge chains (a segment doesn't carry
   // them); edge-input order, first appearance wins — deterministic.
@@ -3326,10 +3507,10 @@ export function buildTrails(input: SceneInput): SceneG {
   const hidden = net.segments.filter((s) => s.hidden);
   return g(
     [
-      g(visible.map((s) => trailSegPath(s, 'trail-shadow', 5, edgesOf)), { kind: 'trail-shadow-pass' }),
-      g(visible.map((s) => trailSegPath(s, 'trail-casing', 2.5, edgesOf)), { kind: 'trail-casing-pass' }),
-      g(visible.map((s) => trailSegPath(s, 'trail-fill', 0, edgesOf, true)), { kind: 'trail-fill-pass' }),
-      g(hidden.map((s) => trailSegPath(s, 'trail-ghost', 0, edgesOf)), { kind: 'trail-ghost-pass' }),
+      g(visible.map((s) => trailSegPath(s, 'trail-shadow', 5, edgesOf, false, art)), { kind: 'trail-shadow-pass' }),
+      g(visible.map((s) => trailSegPath(s, 'trail-casing', 2.5, edgesOf, false, art)), { kind: 'trail-casing-pass' }),
+      g(visible.map((s) => trailSegPath(s, 'trail-fill', 0, edgesOf, true, art)), { kind: 'trail-fill-pass' }),
+      g(hidden.map((s) => trailSegPath(s, 'trail-ghost', 0, edgesOf, false, art)), { kind: 'trail-ghost-pass' }),
       g(
         net.edges.map((e) => {
           // ANNOTATED local, then one guarded assignment — the shape
@@ -3388,13 +3569,13 @@ function buildCaves(input: SceneInput): SceneG[] {
   return input.trails.caves.map((c) => buildCave(c, statusOf.get(c.islandId) ?? 'unknown'));
 }
 
-function buildHits(input: SceneInput): SceneG {
+function buildHits(input: SceneInput, art: TileArt): SceneG {
   return g(
     input.territories.map((t) => {
       const crownR = crownRadius(t.caps);
-      const top = t.treeSpot.y - (2.7 * crownR + 16);
-      const hgt = t.labelY + t.plate.h - top;
-      return rect(t.centroid.x - t.screenRadius, top, t.screenRadius * 2, hgt, 14, {
+      const top = t.treeSpot.y - (2.7 * crownR + 16) * art.tree;
+      const hgt = t.labelY + t.plate.h * art.plate - top;
+      return rect(t.centroid.x - t.screenRadius, top, t.screenRadius * 2, hgt, art.units(14), {
         kind: 'hit',
         id: t.id,
         title: t.plate.title,
@@ -3439,9 +3620,11 @@ export function buildScene(input: SceneInput): SceneG {
   // camera, which is what every shipped surface uses — so this is a proof/inspection seam, not a
   // second camera.
   const elevationDeg = input.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  // The tile the scene is drawn on (ADR-0528) — absent ⇒ the shipped, derived tile.
+  const art = tileArt(input.tile?.hexR, input.tile?.rungs);
   const surfaces: (ParcelSurface | null)[] = input.territories.map((t, i) => {
     const own = ownerCells[i];
-    return own ? buildTerritorySurface(t, own, unifiedVeg) : null;
+    return own ? buildTerritorySurface(t, own, unifiedVeg, art) : null;
   });
   // ADR-0218's fenced baked-art seam is RE-LIT here (grounded-art inc 11, ADR-0221): when `input.garden`
   // is present, its heroes' `baked-def`s are emitted once into a `baked-defs` layer that every hero
@@ -3456,10 +3639,10 @@ export function buildScene(input: SceneInput): SceneG {
     // every non-garden island's central-tree `<use>`. Absent ⇒ no defs layer, and every island's tree
     // renders as the procedural `buildTree` byte-for-byte.
     ...(vegetation?.heroTrees ? [buildVegetationDefs(vegetation.heroTrees, input.territories.map((t) => t.status))] : []),
-    buildEmpties(input),
+    buildEmpties(input, art),
     buildCoast(input),
     buildGround(input, surfaces),
-    buildTrails(input),
+    buildTrails(input, art),
     g(
       [
         ...input.territories.map((t, i) =>
@@ -3470,13 +3653,14 @@ export function buildScene(input: SceneInput): SceneG {
             garden && garden.islandId === t.id ? garden : null,
             vegetation,
             elevationDeg,
+            art,
           ),
         ),
         ...buildCaves(input),
       ],
       { kind: 'flora-layer' },
     ),
-    buildHits(input),
+    buildHits(input, art),
   ];
   return g(layers, {
     kind: 'world',

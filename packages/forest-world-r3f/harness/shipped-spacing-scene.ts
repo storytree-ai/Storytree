@@ -325,6 +325,84 @@ export function nearestPair(footprints: readonly IslandFootprint[]): NearestPair
   return best;
 }
 
+/**
+ * THE TIGHTEST TWO ISLANDS BY THEIR ACTUAL RINGS — not by bounding boxes. {@link nearestPair}'s
+ * water is the gap between two axis-aligned extents along the pair's line, which OVERSTATES how close
+ * two lobed islands stand once they are near each other (a box's corner reaches where no land is) and
+ * cannot tell touching from overlapping. This reads the rings: `water` is the smallest distance
+ * between a vertex of one island's ground and a vertex of the other's, and `overlap` is whether a
+ * vertex of either stands INSIDE a ground cell of the other. On the tile ladder (ADR-0528 D5) the
+ * lattice floor puts neighbours side by side, and this is the number that says whether a rung's
+ * neighbours still keep water between them.
+ */
+export interface TightestPair {
+  a: string;
+  b: string;
+  /** Centre to centre, in ground units. */
+  centres: number;
+  /** The smallest vertex-to-vertex gap between the two islands' rings — 0 when they overlap. */
+  water: number;
+  /** A vertex of one island stands inside a ground cell of the other. */
+  overlap: boolean;
+}
+
+function pointInRing(x: number, z: number, ring: ReadonlyArray<{ x: number; z: number }>): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]!;
+    const b = ring[j]!;
+    if (a.z > z !== b.z > z && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+export function tightestPair(stream: readonly InstanceDescriptor[]): TightestPair {
+  const rings = new Map<string, Array<ReadonlyArray<{ x: number; z: number }>>>();
+  const centres = islandCentres(stream);
+  for (const d of stream) {
+    if (d.kind !== 'cell-ground' || d.island === undefined || !d.points?.length) continue;
+    const list = rings.get(d.island) ?? [];
+    list.push(d.points.map((p) => ({ x: p.x, z: p.z })));
+    rings.set(d.island, list);
+  }
+  const ids = [...rings.keys()].sort();
+  if (ids.length < 2) throw new Error('shipped-spacing-scene: fewer than two islands');
+  const verts = new Map(ids.map((id) => [id, rings.get(id)!.flat()]));
+  // each island's reach from its centre — a pair whose centres are further apart than the best
+  // water so far plus both reaches cannot beat it, which is what keeps the vertex sweep cheap
+  const reach = new Map(
+    ids.map((id) => {
+      const c = centres.get(id) ?? { x: 0, z: 0 };
+      return [id, Math.max(0, ...verts.get(id)!.map((p) => Math.hypot(p.x - c.x, p.z - c.z)))];
+    }),
+  );
+  let best: TightestPair | null = null;
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const a = ids[i]!;
+      const b = ids[j]!;
+      const ca = centres.get(a);
+      const cb = centres.get(b);
+      if (!ca || !cb) continue;
+      const dc = Math.hypot(cb.x - ca.x, cb.z - ca.z);
+      if (best !== null && dc - reach.get(a)! - reach.get(b)! > best.water) continue;
+      let water = Infinity;
+      for (const p of verts.get(a)!) {
+        for (const q of verts.get(b)!) {
+          const dd = Math.hypot(p.x - q.x, p.z - q.z);
+          if (dd < water) water = dd;
+        }
+      }
+      if (best !== null && water >= best.water) continue;
+      const overlap =
+        verts.get(a)!.some((p) => rings.get(b)!.some((r) => pointInRing(p.x, p.z, r))) ||
+        verts.get(b)!.some((p) => rings.get(a)!.some((r) => pointInRing(p.x, p.z, r)));
+      best = { a, b, centres: dc, water: overlap ? 0 : water, overlap };
+    }
+  }
+  return best!;
+}
+
 export interface ForestBounds {
   /** The bounding box of every island CENTRE, in ground units — the layout's own extent. */
   centres: { w: number; d: number };
@@ -460,6 +538,7 @@ export interface SpacingScene {
   groundTriangles: number;
   bounds: ForestBounds;
   nearest: NearestPair;
+  tightest: TightestPair;
   read: IslandFootprint;
   screen: ScreenExtent;
   counts: DressingCounts;
@@ -522,6 +601,7 @@ export function buildSpacingScene(kit: LoadedKit, lit: CalibratedIntensities, ar
     groundTriangles: geo.triangles,
     bounds: forestBounds(stream),
     nearest: nearestPair(footprints),
+    tightest: tightestPair(stream),
     read,
     screen: screenExtent(geo.positions, camera),
     counts: dressingCounts(placements, stream),
@@ -543,6 +623,8 @@ export interface SpacingReading {
   counts: DressingCounts;
   bounds: ForestBounds;
   nearest: NearestPair;
+  /** The tightest two islands by their actual rings — the honest water at a rung (see {@link TightestPair}). */
+  tightest: TightestPair;
   /** The read island: its land, capabilities and extent — the same on every arm, to the driver's tolerance. */
   read: { id: string; capabilities: number; landArea: number; unitsPerCapability: number; w: number; d: number };
   casters: number;
@@ -598,14 +680,20 @@ export interface SpacingRunner {
   snapshot(arm: string, picture: SpacingPictureId, zoom: CrowdZoom): string;
 }
 
-async function fetchJsonFromPage(url: string): Promise<unknown> {
+export async function fetchJsonFromPage(url: string): Promise<unknown> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`shipped-spacing-scene: ${url} answered ${res.status} — run the export driver first, and serve the harness from THIS worktree`);
   return res.json();
 }
 
-export async function createSpacingRunner(fetchJson: FetchJson = fetchJsonFromPage): Promise<SpacingRunner> {
-  const { manifest, arms } = await loadSpacingArms(fetchJson);
+/** How a runner finds its arms — the spacing ladder by default; the tile page (`shipped-tile-scene.ts`)
+ *  passes its own loader, because its manifest carries a tile per arm and a control that is NOT the
+ *  legacy triple. Everything downstream of the load — the shipped pipeline, the readings, the cost
+ *  clock — is the same instrument, which is the point: two ladders, one ruler. */
+export type ArmLoader = (fetchJson: FetchJson) => Promise<{ manifest: SpacingManifest; arms: SpacingArm[] }>;
+
+export async function createSpacingRunner(fetchJson: FetchJson = fetchJsonFromPage, load: ArmLoader = loadSpacingArms): Promise<SpacingRunner> {
+  const { manifest, arms } = await load(fetchJson);
   const armOf = (id: string): SpacingArm => {
     const found = arms.find((a) => a.record.id === id);
     if (!found) throw new Error(`shipped-spacing-scene: no arm "${id}"`);
@@ -683,6 +771,7 @@ export async function createSpacingRunner(fetchJson: FetchJson = fetchJsonFromPa
         counts: s.counts,
         bounds: s.bounds,
         nearest: s.nearest,
+        tightest: s.tightest,
         read: {
           id: s.read.id,
           capabilities: s.read.land.capabilities,

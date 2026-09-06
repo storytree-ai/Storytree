@@ -1,0 +1,31 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+plan: 12 configurations (6 arms × 2 pictures) x 5 interleaved repeats x 20 frames per GPU query, 2 independent runs
+
+⚠ THIS REPORTS AND DOES NOT GATE (ADR-0517 D4 / ADR-0520 D6): every number moves because the forest’s extent moves. It picks no rung.
+
+TILE FOOTPRINT — FRAME COST on the GPU's own clock, forest @ fit
+arm                 calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today                   5     720432     0.3999   0.0101          —      2.4%   ← TODAY (before this landing)
+tile-spacing-0.5        5     689160     0.5717   0.0139    +0.1718      3.4%
+tile-spacing-0.35       5     689216     0.6072   0.0118    +0.2073      3.6%
+tile-spacing-0.2        5     688500     0.6414   0.0166    +0.2415      3.8%
+tile-spacing-0.1        5     687412     0.6653   0.0278    +0.2654      4.0%   ← SHIPPED
+tile-spacing-0          5     687622     0.7046   0.0188    +0.3047      4.2%
+
+TILE FOOTPRINT — FRAME COST on the GPU's own clock, one @ 8
+arm                 calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today                   5     720432     0.4403   0.0109          —      2.6%   ← TODAY (before this landing)
+tile-spacing-0.5        5     689160     0.8301   0.0237    +0.3898      5.0%
+tile-spacing-0.35       5     689216     0.8506   0.0305    +0.4102      5.1%
+tile-spacing-0.2        5     688500     0.8443   0.0182    +0.4040      5.1%
+tile-spacing-0.1        5     687412     0.7574   0.0204    +0.3170      4.5%   ← SHIPPED
+tile-spacing-0          5     687622     0.7554   0.0166    +0.3151      4.5%
+
+DID IT REPRODUCE?
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+
+WHAT IT MEANS FOR THE BUDGET (16.67 ms at 60 Hz):
+  the SHIPPED picture (tile-spacing-0.1) draws the whole real map, fitted, in 0.6653 ms — 4.0% of a frame.
+  against the layout as it stood (today) that is +0.2654 ms (1.66x).
+  ⚠ THIS IS THE GPU’S DRAW COST FOR THIS SCENE AND NOTHING ELSE — not the site’s frame time.

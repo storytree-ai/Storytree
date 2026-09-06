@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { shippedElevationDeg } from '../src/camera-framing.js';
+import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.js';
 import { islandScene } from './island-fixture.js';
 import { orientedCamera } from './shipped-crowd-scene.js';
@@ -26,6 +27,7 @@ import {
   loadSpacingArms,
   nearestPair,
   neighbourArm,
+  tightestPair,
   validateManifest,
   viewElevationDeg,
   type IslandFootprint,
@@ -169,4 +171,34 @@ test('⚠⚠ viewElevationDeg reads the signed elevation at ANY target — the p
   const away = orientedCamera({ x: 3000, z: -5000 }, 1);
   assert.ok(Math.abs(viewElevationDeg(origin) - shippedElevationDeg()) < 1e-6, `origin ${viewElevationDeg(origin)}`);
   assert.ok(Math.abs(viewElevationDeg(away) - viewElevationDeg(origin)) < 1e-6, `away ${viewElevationDeg(away)} vs origin ${viewElevationDeg(origin)}`);
+});
+
+test('tightestPair reads the RINGS: two lobed islands whose boxes overlap but whose land does not keep their water; a vertex inside the other’s cell is an overlap', () => {
+  const cell = (island: string, ring: Array<[number, number]>): InstanceDescriptor => ({
+    kind: 'cell-ground',
+    island,
+    transform: { x: 0, y: 0, z: 0 },
+    group: 'cell-ground',
+    points: ring.map(([x, z]) => ({ x, y: 0, z })),
+  });
+  // a: a unit square at the origin; b: a square 3 to the right → water 2 between their facing edges
+  const apart = [cell('a', [[0, 0], [1, 0], [1, 1], [0, 1]]), cell('b', [[3, 0], [4, 0], [4, 1], [3, 1]])];
+  const t = tightestPair(apart);
+  assert.deepEqual([t.a, t.b], ['a', 'b']);
+  assert.equal(t.overlap, false);
+  assert.ok(Math.abs(t.water - 2) < 1e-9, `${t.water}`);
+  // an L-shaped island and a square nestled in its notch: the boxes overlap, the land does not
+  const nestled = [
+    cell('l', [[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]]),
+    cell('s', [[2, 2], [3, 2], [3, 3], [2, 3]]),
+  ];
+  const n = tightestPair(nestled);
+  assert.equal(n.overlap, false);
+  assert.ok(Math.abs(n.water - 1) < 1e-9, `${n.water}`);
+  // a square whose corner stands inside the other's cell
+  const over = [cell('p', [[0, 0], [2, 0], [2, 2], [0, 2]]), cell('q', [[1, 1], [3, 1], [3, 3], [1, 3]])];
+  const o = tightestPair(over);
+  assert.equal(o.overlap, true);
+  assert.equal(o.water, 0);
+  assert.throws(() => tightestPair([cell('only', [[0, 0], [1, 0], [1, 1]])]), /fewer than two/);
 });

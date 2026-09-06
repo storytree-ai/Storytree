@@ -58,8 +58,19 @@ export const PRE_ADR0521_SPACING: Readonly<LegacySpacing> = Object.freeze({
  * ALSO shows is the bound: the three constants held about a third of the layout's area and this
  * removes it; the other two thirds is the 2D tile footprint (`HEX_R`, the `+ 2` quota), which no
  * ratio on the gaps can reach — that is option B's lever (ADR-0521), escalated, not decided here.
+ *
+ * ⚠ RE-LADDERED 2026-09-06 OVER CORRECTLY-SIZED TILES (ADR-0528 D5) — the pick is 0.1. With the tile
+ * following the land ratio (one hex per capability, `packages/forest-world/src/hex.ts`) and the
+ * packer's one-hex moat, the same five rungs were re-exported and rendered through the shipped 3D
+ * mapper (`docs/research/chapter2-tile-footprint-2026-09-06/`): land 0.89% → 2.90 / 3.20 / 3.62 /
+ * 3.90 / 4.31% of the fitted frame at 0.5 / 0.35 / 0.2 / 0.1 / 0, every trail routed on every rung.
+ * Rung 0 is not the pick: its tightest pair keeps ONE unit of water between two 3D islands (the
+ * island outgrows its tile by its coast outset and the mapper's lobing factor), so they read as
+ * touching. 0.1 is the boldest rung with water between every pair (10 units at its tightest) and
+ * gives up 0.4 points of land share for it. Below 0.35 the moat floor binds and the extent moves
+ * only with the seed jitter, which is why the ladder does not tighten monotonically there.
  */
-export const ISLAND_SPACING_RATIO = 0;
+export const ISLAND_SPACING_RATIO = 0.1;
 
 /** The ladder the owner picks from, boldest (tightest) last. Rung 0 is the hex floor's own spacing. */
 export const ISLAND_SPACING_RUNGS: readonly number[] = Object.freeze([0.5, 0.35, 0.2, 0.1, 0]);

@@ -30,6 +30,9 @@ import {
   axialKey,
   pixelToHex,
   HEX_R,
+  TILE_SCALE,
+  crownRadiusWorld,
+  tileUnits,
   PLAN_VIEW_ELEVATION_DEG,
   LAND_CAMERA_ELEVATION_DEG,
   hash,
@@ -74,7 +77,10 @@ function retiredSquashOffset(ang: number, r: number): Pt {
 
 /**
  * A four-tile hook, chosen because BOTH argmins are strict on it (no tie decides the answer) and
- * they pick different tiles. Verified by hand, at `HEX_R = 27`, `HEX_W = 46.765…`:
+ * they pick different tiles. Verified by hand on the pre-ADR-0528 tile (`HEX_R = 27`,
+ * `HEX_W = 46.765…`) — the table is in those units, and the assertions below are written in
+ * multiples of `HEX_R` / `HEX_W` so they hold on the DERIVED tile (ADR-0528: `HEX_R ≈ 11.06`),
+ * since every coordinate here is homogeneous in the radius:
  *
  *   tile      ground centre        ground gap    screen centre         screen gap
  *   (0,0)     (  0.00,  0.00)          60.75     (  0.00,  0.00)           53.63
@@ -86,6 +92,9 @@ function retiredSquashOffset(ang: number, r: number): Pt {
  * (1,1) is genuinely the middle of the hook. (1,0) only LOOKS nearest, because the camera flattens
  * the depth axis the hook runs along — which is the whole defect, in four tiles.
  */
+/** The table above is at radius 27; a length in it divides by this to read on the current tile. */
+const TABLE_R = 27;
+const onTile = (lengthAtR27: number): number => (lengthAtR27 / TABLE_R) * HEX_R;
 const HOOK: Axial[] = [
   { q: 0, r: 0 },
   { q: 1, r: 0 },
@@ -110,8 +119,8 @@ describe('groundHeroTile — the story tree stands where the GROUND says the mid
     const deep = HOOK[3]!;
     const ground = hexCenter(deep, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
     const screen = hexCenter(deep);
-    expect(ground.y).toBeCloseTo(81, 6);
-    expect(screen.y).toBeCloseTo(81 * groundFlattening(LAND_CAMERA_ELEVATION_DEG), 6);
+    expect(ground.y).toBeCloseTo(onTile(81), 6); // 2 × 1.5 · HEX_R
+    expect(screen.y).toBeCloseTo(onTile(81) * groundFlattening(LAND_CAMERA_ELEVATION_DEG), 6);
     expect(screen.x).toBeCloseTo(ground.x, 6); // the across-screen axis is untouched
   });
 
@@ -122,8 +131,8 @@ describe('groundHeroTile — the story tree stands where the GROUND says the mid
       y: centers.reduce((s, p) => s + p.y, 0) / centers.length,
     };
     const gaps = centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y)).sort((a, b) => a - b);
-    expect(gaps[0]).toBeCloseTo(20.25, 2);
-    expect(gaps[1]).toBeCloseTo(30.93, 2); // a 10.68 px margin — no tie is deciding this
+    expect(gaps[0]).toBeCloseTo(onTile(20.25), 2);
+    expect(gaps[1]).toBeCloseTo(onTile(30.93), 2); // a 10.68-at-27 margin — no tie is deciding this
   });
 
   it('breaks an exact tie toward the earliest tile in input order (the retired sort was stable)', () => {
@@ -208,11 +217,17 @@ const cap = (id: string): TreeCapability => ({
 });
 
 /**
- * An eight-capability island — a ten-tile territory, big enough that no plant is walked inward by
- * the keep-IN loop, so every cap spot below is the ring's own answer rather than the walk's.
- * `crownRadius(8) = min(32, 18 + 17.6) = 32`, so `ringR = min(32 + 18, groundRadius − HEX_R·0.55)
- * = min(50, 112.85 − 14.85) = 50`, and each plant's own radius wobbles ±5 around it.
+ * A nineteen-capability island — a nineteen-tile territory since ADR-0528 (one tile per capability;
+ * it was eight capabilities on ten tiles before the `+ 2` went), two full hex rings, so the whole
+ * ring circle below lies on owned land and no plant is walked inward by the keep-IN loop: every cap
+ * spot is the ring's own answer rather than the walk's. `crownRadius(19) = min(32, 18 + 41.8) = 32`
+ * in the tree's own frame, i.e. `32 · TREE_SCALE` on the ground, so `ringR = min(32 · TREE_SCALE +
+ * tileUnits(18), groundRadius − HEX_R·0.55) = 50 · TILE_SCALE`, and each plant's own radius wobbles
+ * ±5 · TILE_SCALE around it — `RING_R` / `RING_WOBBLE` below.
  */
+const RING_CAPS = 19;
+const RING_R = Math.min(crownRadiusWorld(RING_CAPS) + tileUnits(18), 50 * TILE_SCALE);
+const RING_WOBBLE = tileUnits(5);
 const RING_FIXTURE: TreeStory = {
   id: 'ring-fixture',
   title: 'ring-fixture',
@@ -222,7 +237,7 @@ const RING_FIXTURE: TreeStory = {
   uatWitness: 'machine',
   dependsOn: [],
   consumedBy: [],
-  capabilities: Array.from({ length: 8 }, (_, j) => cap(`ring-fixture-c${j}`)),
+  capabilities: Array.from({ length: RING_CAPS }, (_, j) => cap(`ring-fixture-c${j}`)),
 };
 
 /** Every capability's offset from the story tree, measured back on the GROUND PLANE. */
@@ -238,33 +253,33 @@ function capGroundOffsets(): { r: number; screenR: number }[] {
 }
 
 describe('the capability ring is a CIRCLE on the ground', () => {
-  it('seats every plant at the SAME ground radius, within its own ±5 wobble', () => {
+  it('seats every plant at the SAME ground radius, within its own wobble', () => {
     const rs = capGroundOffsets().map((o) => o.r);
-    expect(rs).toHaveLength(8);
-    // The value, not merely the shape: `ringR` is 50 here and the per-plant wobble is ±5, so a
-    // ground radius outside this band means either the squash is back or `ringR` read the wrong
-    // radius. Under the retired formula these ran from 45 to 106.
+    expect(rs).toHaveLength(RING_CAPS);
+    // The value, not merely the shape: `ringR` is RING_R here and the per-plant wobble is
+    // ±RING_WOBBLE, so a ground radius outside this band means either the squash is back or
+    // `ringR` read the wrong radius. Under the retired formula these ran from 45 to 106 (at 27).
     for (const r of rs) {
-      expect(r).toBeGreaterThanOrEqual(45);
-      expect(r).toBeLessThanOrEqual(55);
+      expect(r).toBeGreaterThanOrEqual(RING_R - RING_WOBBLE - 1e-6);
+      expect(r).toBeLessThanOrEqual(RING_R + RING_WOBBLE + 1e-6);
     }
-    expect(Math.max(...rs) - Math.min(...rs)).toBeLessThanOrEqual(10);
+    expect(Math.max(...rs) - Math.min(...rs)).toBeLessThanOrEqual(2 * RING_WOBBLE + 1e-6);
   });
 
   it('CONTROL: the retired squash, replayed on this fixture, breaks that band', () => {
     // Same angles and same radii, differing only in how the offset reaches the screen.
     const ARC = (Math.PI * 4) / 3;
     const n = RING_FIXTURE.capabilities.length;
-    const ringR = 50;
+    const ringR = RING_R;
     const retired = RING_FIXTURE.capabilities.map((c, j) => {
       const slot = -Math.PI / 6 + ((j + 0.5) / n) * ARC;
       const angle = slot + (rand01(hash(`${RING_FIXTURE.id}:${c.id}:a`)) - 0.5) * (ARC / n) * 0.5;
-      const rr = ringR + (rand01(hash(`${RING_FIXTURE.id}:${c.id}:r`)) - 0.5) * 10;
+      const rr = ringR + (rand01(hash(`${RING_FIXTURE.id}:${c.id}:r`)) - 0.5) * 2 * RING_WOBBLE;
       const g = unprojectGround(retiredSquashOffset(angle, rr));
       return Math.hypot(g.x, g.y);
     });
-    expect(Math.max(...retired)).toBeGreaterThan(55);
-    expect(Math.max(...retired) - Math.min(...retired)).toBeGreaterThan(10);
+    expect(Math.max(...retired)).toBeGreaterThan(RING_R + RING_WOBBLE);
+    expect(Math.max(...retired) - Math.min(...retired)).toBeGreaterThan(2 * RING_WOBBLE);
   });
 
   it('CONTROL: the ring is deliberately NOT a circle on the SCREEN — the camera is doing work', () => {
@@ -286,10 +301,15 @@ describe('the capability ring is a CIRCLE on the ground', () => {
       `tree ${t.treeSpot.x.toFixed(2)},${t.treeSpot.y.toFixed(2)}`,
       ...t.caps.map((c) => `${c.cap.id.slice(-2)} ${c.x.toFixed(2)},${c.y.toFixed(2)}`),
     ].join(' | ');
+    // Re-recorded 2026-09-06 (ADR-0528): the LATTICE moved (HEX_R 27 → ≈ 11.06, derived from the
+    // land ratio), the QUOTA moved (one tile per capability, the `+ 2` retired), and this fixture
+    // itself grew from eight to nineteen capabilities so its ring still lies on owned land. Every
+    // coordinate below is therefore in the new tile's units; nothing about the ring rule changed.
     expect(digest).toBe(
-      'tree 0.00,-138.52 | c0 45.08,-141.39 | c1 51.25,-134.21 | c2 32.31,-125.76' +
-        ' | c3 20.21,-121.75 | c4 -17.78,-122.41 | c5 -34.87,-125.40 | c6 -46.37,-133.79' +
-        ' | c7 -49.18,-140.84',
+      'tree 0.00,-68.11 | c0 17.44,-70.50 | c1 21.19,-69.59 | c2 20.18,-67.71 | c3 21.32,-66.68' +
+        ' | c4 18.00,-64.66 | c5 16.66,-63.61 | c6 12.36,-62.81 | c7 9.63,-61.98 | c8 4.85,-61.93' +
+        ' | c9 -1.09,-61.08 | 10 -5.71,-61.13 | 11 -9.01,-62.29 | 12 -12.58,-62.52 | 13 -14.61,-63.52' +
+        ' | 14 -19.77,-64.59 | 15 -21.02,-66.24 | 16 -18.66,-68.14 | 17 -21.42,-69.30 | 18 -20.54,-70.86',
     );
   });
 });
@@ -383,12 +403,14 @@ describe('every capability parcel seed stands on its OWN island', () => {
 // ---------------------------------------------------------------------------------------------
 describe('fixture arithmetic', () => {
   it('states the constants the ring band above is derived from', () => {
-    expect(HEX_R).toBe(27);
+    // ADR-0528: the tile is DERIVED — one hex per capability, sized so a drawn island is its land.
+    expect(HEX_R).toBeCloseTo(Math.sqrt(318 / ((3 * Math.sqrt(3)) / 2)), 9);
+    expect(TILE_SCALE).toBeCloseTo(HEX_R / 27, 9);
     const world = buildWorld([RING_FIXTURE], { buildings: false });
     const t = world.territories[0]!;
-    expect(t.tiles).toHaveLength(10);
-    expect(t.groundRadius).toBeCloseTo(112.85, 2);
-    // ringR = min(crownRadius(8) + 18, groundRadius − HEX_R·0.55) = min(50, 98) = 50
-    expect(Math.min(50, t.groundRadius - HEX_R * 0.55)).toBeCloseTo(50, 6);
+    expect(t.tiles).toHaveLength(RING_CAPS); // one tile per capability
+    // the island is roomy enough that the crown rule, not the shore, sets the ring
+    expect(t.groundRadius - HEX_R * 0.55).toBeGreaterThan(RING_R);
+    expect(RING_R).toBeCloseTo(50 * TILE_SCALE, 6);
   });
 });

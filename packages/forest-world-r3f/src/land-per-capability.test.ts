@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { HEX_R } from '@storytree/forest-world';
+import { HEX_R, LAND_AREA_PER_CAPABILITY as ENGINE_RATIO, PRE_ADR0528_TILE } from '@storytree/forest-world';
 
 import { RECIPE_ISLAND_AREA } from './dressing-ground.js';
 import {
@@ -91,8 +91,13 @@ test('⚠⚠ the constant carries its provenance: the approved render’s own de
   }
 });
 
-test('the tuned reference is the fixture island: thirteen regular hexes of HEX_R over eleven capabilities, ≈ 2,238.4 units² each — and LAND_SCALE is the edge-to-edge factor to the shipped rung', () => {
-  assert.equal(HEX_R, 27);
+test('the tuned reference is the fixture island: thirteen regular hexes of the PRE-ADR-0528 tile over eleven capabilities, ≈ 2,238.4 units² each — and LAND_SCALE is the edge-to-edge factor to the shipped rung', () => {
+  // ⚠ The basis is FROZEN on the tile the constants were tuned on, not the engine's live tile: the
+  // engine's HEX_R follows the ratio since ADR-0528 (≈ 11.06), and had this read it, LAND_SCALE
+  // would have jumped to ~0.93 and every band on the shipped island with it.
+  assert.equal(PRE_ADR0528_TILE.hexR, 27);
+  assert.ok(HEX_R < PRE_ADR0528_TILE.hexR, `the engine's tile (${HEX_R}) is derived and smaller than the tuned one`);
+  assert.equal(LAND_AREA_PER_CAPABILITY, ENGINE_RATIO, 'one ratio, declared in the engine and re-exported here');
   assert.ok(Math.abs(HEX_TILE_AREA - 1894.0) < 0.01, `${HEX_TILE_AREA}`);
   assert.deepEqual(TUNED_FIXTURE, { tiles: 13, capabilities: 11 });
   assert.ok(Math.abs(TUNED_LAND_AREA_PER_CAPABILITY - 2238.36) < 0.01, `${TUNED_LAND_AREA_PER_CAPABILITY}`);

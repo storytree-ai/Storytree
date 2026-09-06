@@ -351,7 +351,10 @@ test('THE MESH IS A FIXED ARTIFACT — if this digest moves, the land moved, and
   assert.equal(cells.length, 326, 'the fixture no longer decomposes into 326 cells');
   assert.equal(
     digest,
-    4012762627,
+    // Re-recorded 2026-09-06 (ADR-0528): the LATTICE moved — HEX_R is derived from the land ratio
+    // (27 → ≈ 11.06), so every cell's coordinates scaled with it. The fixture still decomposes into
+    // the same 326 cells; only their size changed. Was 4012762627.
+    1938404724,
     'the ground mesh this fixture produces has changed. That is not automatically wrong — but it ' +
       'is never invisible: name what moved and why in the landing, then re-record it here.',
   );

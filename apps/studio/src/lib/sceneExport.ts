@@ -18,7 +18,8 @@
 // survived the re-layout (ADR-0520's consequence list, item 1): the routed edge count, the segment
 // count, and the `dropped` list are read off the same `HexWorld` the scene was folded from.
 
-import type { Pt, SceneG, SceneNode, TrailNetwork } from '@storytree/forest-world';
+import { HEX_R, HEX_TILES_PER_CAPABILITY, TILE_QUOTA_RULE } from '@storytree/forest-world';
+import type { ArtRungs, Pt, SceneG, SceneNode, TrailNetwork } from '@storytree/forest-world';
 
 import type { LegacySpacing } from './islandSpacing.js';
 
@@ -64,11 +65,25 @@ export interface SceneExportTrails {
   dropped: ReadonlyArray<{ from: string; to: string }>;
 }
 
+/** The tile the lattice was built on — read off the engine's own constants at export time, so a
+ *  comparison page can refuse a scene that stands on a tile other than the one it claims (ADR-0528:
+ *  the tile is derived, and a manifest that did not record it could not show that). */
+export interface SceneExportTile {
+  /** The hex circumradius, ground units. */
+  hexR: number;
+  /** How an island's tile quota follows its capability count — prose, for the reader. */
+  quota: string;
+  tilesPerCapability: number;
+  /** The 2D art rungs the scene was drawn with when a dial moved one (ADR-0528 D2); absent ⇒ shipped. */
+  rungs?: ArtRungs;
+}
+
 export interface SceneExportBridge {
   /** The drawable scene graph — `worldTo3D`'s input. */
   scene: SceneG;
   /** The spacing the world was laid out with, as the URL asked for it (absent keys ⇒ the shipped default). */
   spacing: { ratio?: number; legacy?: LegacySpacing };
+  tile: SceneExportTile;
   world: { width: number; height: number; offset: Pt; islands: SceneExportIsland[] };
   trails: SceneExportTrails;
 }
@@ -83,10 +98,12 @@ export function sceneExportBridge(
   world: ExportableWorld,
   scene: SceneG,
   spacing: { ratio?: number; legacy?: LegacySpacing },
+  artRungs: ArtRungs | null = null,
 ): SceneExportBridge {
   const out: SceneExportBridge = {
     scene,
     spacing: {},
+    tile: { hexR: HEX_R, quota: TILE_QUOTA_RULE, tilesPerCapability: HEX_TILES_PER_CAPABILITY },
     world: {
       width: world.width,
       height: world.height,
@@ -108,6 +125,7 @@ export function sceneExportBridge(
   };
   if (spacing.ratio !== undefined) out.spacing.ratio = spacing.ratio;
   if (spacing.legacy !== undefined) out.spacing.legacy = { ...spacing.legacy };
+  if (artRungs && Object.keys(artRungs).length > 0) out.tile.rungs = { ...artRungs };
   return out;
 }
 

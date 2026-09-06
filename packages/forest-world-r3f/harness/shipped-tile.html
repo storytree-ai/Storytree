@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the 2D tile footprint follows the land ratio — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The 2D tile footprint follows the land ratio (ADR-0528)</h1>
+      <p>
+        ADR-0520 sized every 3D island to <code>capabilities &times; 318 units&sup2;</code>, and ADR-0521
+        derived the gaps between islands from their size &mdash; but each island was still DRAWN on
+        <code>max(3, capabilities + 2)</code> hex tiles of radius 27, a footprint about seven times the
+        island, and the 3D map reads the 2D centres unchanged. At gap ratio 0 the nearest two islands
+        still carried 65 units of water. The owner chose the larger lever &mdash; <em>&ldquo;option 1,
+        we have time dont take shortcuts&rdquo;</em> &mdash; so the tile itself is now derived: one hex
+        per capability, the hex sized so a drawn island IS its land. The gap is re-laddered over the
+        correctly-sized tiles here (ADR-0528 D5) for his pick.
+      </p>
+      <p class="numbers">
+        today              the map as it SHIPPED before this landing — max(3, caps + 2) hexes of radius 27, spacing ratio 0 (CONTROL)
+        tile-spacing-&lt;r&gt;   the DERIVED tile — one hex per capability, radius √(318 / (3√3/2)) ≈ 11.06 — at gap ratio r
+        tile-spacing-0     the lattice's own floor over correctly-sized tiles — the boldest rung
+      </p>
+      <p>
+        <strong>The real forest, not a crowd.</strong> Every arm is the studio's own layout of the live
+        corpus, exported through the map's <code>?sceneExport=1</code> bridge and rendered through the
+        shipped 3D pipeline by the SAME instrument as the spacing page (<code>shipped-spacing-scene.ts</code>,
+        through its loader seam). The forest fitted is the view the map opens on: read the land's share of
+        the frame and of its own box. One island at 8 px/unit is the same story on every arm: its land and
+        its trees are unchanged; only its outline is composed from fewer hexes. Frame cost is taken by
+        <code>shipped-tile-cost.mjs</code> on the RTX 2060 and <em>reports</em> (ADR-0517 D4).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedTile } from './shipped-tile-scene.ts';
+      try {
+        await mountShippedTile(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

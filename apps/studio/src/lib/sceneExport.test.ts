@@ -1,5 +1,6 @@
 // sceneExport — the `?sceneExport=1` bridge's grammar and its bookkeeping, without a window.
 
+import { HEX_R, HEX_TILES_PER_CAPABILITY, TILE_QUOTA_RULE } from '@storytree/forest-world';
 import type { SceneG } from '@storytree/forest-world';
 import { describe, expect, it } from 'vitest';
 
@@ -51,6 +52,23 @@ describe('sceneExportBridge', () => {
       ],
     });
     expect(b.trails).toEqual({ edges: 1, segments: 2, caves: 0, dropped: [{ from: 'x', to: 'y' }] });
+  });
+
+  it('ADR-0528: records the tile the lattice was built on — the engine’s own derived radius and quota — and the art rungs only when a dial moved one', () => {
+    const b = sceneExportBridge(world, scene, {});
+    expect(b.tile).toEqual({ hexR: HEX_R, quota: TILE_QUOTA_RULE, tilesPerCapability: HEX_TILES_PER_CAPABILITY });
+    expect(b.tile.hexR).toBeCloseTo(11.063, 3);
+    expect(b.tile.quota).toBe('max(1, capabilities) × 1 hexes');
+    expect('rungs' in b.tile).toBe(false);
+    expect('rungs' in sceneExportBridge(world, scene, {}, null).tile).toBe(false);
+    expect('rungs' in sceneExportBridge(world, scene, {}, {}).tile).toBe(false);
+    const dialled = sceneExportBridge(world, scene, {}, { tree: 0.8, plate: 1.25 });
+    expect(dialled.tile.rungs).toEqual({ tree: 0.8, plate: 1.25 });
+    // a copy, never the caller's object
+    const rungs = { trail: 2.44 };
+    const b2 = sceneExportBridge(world, scene, {}, rungs);
+    expect(b2.tile.rungs).toEqual(rungs);
+    expect(b2.tile.rungs).not.toBe(rungs);
   });
 
   it('records the legacy triple when the control arm asked for it, and omits absent keys rather than writing undefined', () => {

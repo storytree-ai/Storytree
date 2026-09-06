@@ -50,6 +50,10 @@ export interface SubstrateTuning {
   /** mesh-only: extra quad-subdivision passes on the merge result (1 = the
    *  canonical hexagrid-relaxing density; 2 = finer cobbles). */
   subdiv?: number;
+  /** The lattice radius the cells are built on. Defaults to the derived `HEX_R`; an INSTRUMENT'S
+   *  option (ADR-0528) — see `ElevationOpts.hexR` in `hex.ts`. The jitter is a fraction of THIS
+   *  radius, so a fixture drawn on the tuned tile relaxes exactly as it did. */
+  hexR?: number;
 }
 
 /**
@@ -194,6 +198,7 @@ function buildRelaxedHexCells(
   wheatSets: readonly ReadonlySet<string>[],
   t: SubstrateTuning,
 ): RelaxedCell[] {
+  const R = t.hexR ?? HEX_R; // the lattice radius this mesh is built on (ADR-0528)
   const verts: Pt[] = [];
   const vId = new Map<string, number>();
   const adj: Set<number>[] = [];
@@ -213,8 +218,8 @@ function buildRelaxedHexCells(
   const edgeUse = new Map<string, number>();
   const eKey = (a: number, b: number): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h, GROUND);
-    const ids = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG).map(intern);
+    const c = hexCenter(h, { ...GROUND, hexR: R });
+    const ids = hexCorners(c.x, c.y, R, PLAN_VIEW_ELEVATION_DEG).map(intern);
     tileCorners.push({ owner, key: axialKey(h), ids });
     for (let i = 0; i < 6; i++) {
       const a = ids[i];
@@ -234,7 +239,7 @@ function buildRelaxedHexCells(
       pinned.add(Number(b));
     }
   }
-  relaxVerts(verts, adj, pinned, { jitterMag: HEX_R * t.jitter, iters: t.iters, relax: t.relax });
+  relaxVerts(verts, adj, pinned, { jitterMag: R * t.jitter, iters: t.iters, relax: t.relax });
   return tileCorners.map(({ owner, key, ids }) => ({
     owner,
     poly: ids.map((id) => verts[id] ?? { x: 0, y: 0 }),
@@ -249,6 +254,7 @@ function buildRelaxedQuadCells(
   wheatSets: readonly ReadonlySet<string>[],
   t: SubstrateTuning,
 ): RelaxedCell[] {
+  const R = t.hexR ?? HEX_R; // the lattice radius this mesh is built on (ADR-0528)
   const verts: Pt[] = [];
   const vId = new Map<string, number>();
   const adj: Set<number>[] = [];
@@ -279,8 +285,8 @@ function buildRelaxedQuadCells(
     edgeUse.set(k, (edgeUse.get(k) ?? 0) + 1);
   };
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h, GROUND);
-    const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
+    const c = hexCenter(h, { ...GROUND, hexR: R });
+    const corners = hexCorners(c.x, c.y, R, PLAN_VIEW_ELEVATION_DEG);
     const oid = intern(c);
     const key = axialKey(h);
     const wheat = wheatSets[owner]?.has(key) ?? false;
@@ -314,7 +320,7 @@ function buildRelaxedQuadCells(
       pinned.add(Number(b));
     }
   }
-  relaxVerts(verts, adj, pinned, { jitterMag: HEX_R * t.jitter, iters: t.iters, relax: t.relax });
+  relaxVerts(verts, adj, pinned, { jitterMag: R * t.jitter, iters: t.iters, relax: t.relax });
   return quads.map((q) => ({
     owner: q.owner,
     poly: q.ids.map((id) => verts[id] ?? { x: 0, y: 0 }),
@@ -350,6 +356,7 @@ function buildMeshCells(
   wheatSets: readonly ReadonlySet<string>[],
   t: SubstrateTuning,
 ): RelaxedCell[] {
+  const R = t.hexR ?? HEX_R; // the lattice radius this mesh is built on (ADR-0528)
   const verts: Pt[] = [];
   const vId = new Map<string, number>();
   const adj: Set<number>[] = [];
@@ -375,9 +382,9 @@ function buildMeshCells(
   const tris: Tri[] = [];
   const triEdges = new Map<string, number[]>();
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h, GROUND);
+    const c = hexCenter(h, { ...GROUND, hexR: R });
     const oid = intern(c);
-    const cornerIds = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG).map(intern);
+    const cornerIds = hexCorners(c.x, c.y, R, PLAN_VIEW_ELEVATION_DEG).map(intern);
     for (let i = 0; i < 6; i++) {
       const a = cornerIds[i] ?? 0;
       const b = cornerIds[(i + 1) % 6] ?? 0;
@@ -462,7 +469,7 @@ function buildMeshCells(
       cx += p.x;
       cy += p.y;
     }
-    const hkey = axialKey(pixelToHex({ x: cx / ids.length, y: cy / ids.length }, GROUND));
+    const hkey = axialKey(pixelToHex({ x: cx / ids.length, y: cy / ids.length }, { ...GROUND, hexR: R }));
     cells.push({ ids, owner, hkey });
     for (let i = 0; i < ids.length; i++) link(ids[i] ?? 0, ids[(i + 1) % ids.length] ?? 0);
   };
@@ -520,7 +527,7 @@ function buildMeshCells(
       pinned.add(Number(b));
     }
   }
-  relaxVerts(verts, adj, pinned, { jitterMag: HEX_R * t.jitter, iters: t.iters, relax: t.relax });
+  relaxVerts(verts, adj, pinned, { jitterMag: R * t.jitter, iters: t.iters, relax: t.relax });
 
   return cells.map((cell) => {
     const isWheatHex = wheatSets[cell.owner]?.has(cell.hkey) ?? false;

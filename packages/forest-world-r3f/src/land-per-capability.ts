@@ -3,11 +3,21 @@
 // The owner, 2026-09-05, on the one-tree-per-capability sheet: *"i want one tree per a capability,
 // we need to scale the land size, can we build a ratio based on this as land should also scale per
 // land size."* One tree per capability STANDS (ADR-0518 D1). What was wrong was the SIZE of the land
-// under it: the island the 2D layout draws is `max(3, capabilities + 2)` hex tiles of `HEX_R = 27`
+// under it: the island the 2D layout drew was `max(3, capabilities + 2)` hex tiles of `HEX_R = 27`
 // (`apps/studio/src/components/TreeView.tsx`, `packages/forest-world/src/sizing.ts`), so island area
-// already scales with capability count — through a constant nobody chose. On the fixture island it
-// comes to ~2,240 units² of land per capability, and one tree standing on 2,240 units² is a tree
+// already scaled with capability count — through a constant nobody chose. On the fixture island it
+// came to ~2,240 units² of land per capability, and one tree standing on 2,240 units² is a tree
 // adrift on a field. The picture he called nicer stood a tree on roughly 320.
+//
+// ⚠ CORRECTED IN PLACE 2026-09-06 (ADR-0528): the 2D tile now FOLLOWS the ratio — one hex per
+// capability, the hex sized so a drawn island is exactly `capabilities × LAND_AREA_PER_CAPABILITY`
+// — and the ratio itself moved DOWN to the engine (`packages/forest-world/src/hex.ts`), which this
+// module re-exports. The mapper below is unchanged in effect: it still sizes every island to exactly
+// the ratio about its own centre, and on a correctly-drawn island that factor is close to 1. What
+// this module now guards is the TUNED BASIS: every band and lattice constant in this package was
+// judged on the pre-ADR-0528 tile, so `HEX_TILE_AREA` is frozen on that tile (`PRE_ADR0528_TILE`)
+// rather than read off the engine's live `HEX_R` — otherwise `LAND_SCALE` would have jumped from
+// 0.377 to 0.925 and every feature on the shipped island would have grown 2.4× overnight.
 //
 // So the mapper sizes each island from a RATIO, per island, about the island's own centre
 // (`scaleAboutIslands`, the same per-island affine seam ADR-0517 D1's footprint restoration uses):
@@ -35,14 +45,17 @@
 //
 // Pure: no React, no three — behind the provability firewall with `world-to-3d.ts`.
 
-import { HEX_R } from '@storytree/forest-world';
+import { LAND_AREA_PER_CAPABILITY, PRE_ADR0528_TILE } from '@storytree/forest-world';
 
 import { scaleAboutIslands, type IslandCentre, type IslandScale } from './true-footprint.js';
 import type { Descriptor3D, Transform3D } from './world-to-3d.js';
 
-/** One hex tile's ground-plane area in the TRUE basis — a regular hexagon of circumradius `HEX_R`,
- *  `(3√3 / 2) · R²`. The unit every 2D island is built from, so the unit the old ratio hid in. */
-export const HEX_TILE_AREA = ((3 * Math.sqrt(3)) / 2) * HEX_R * HEX_R;
+/** One hex tile's ground-plane area in the TRUE basis ON THE TUNED TILE — a regular hexagon of the
+ *  pre-ADR-0528 circumradius 27, `(3√3 / 2) · R²` ≈ 1,894. The unit every 2D island WAS built from,
+ *  so the unit the old ratio hid in — and the basis every constant here was judged against. ⚠ It
+ *  reads `PRE_ADR0528_TILE`, never the engine's live `HEX_R`, on purpose: the tile is derived now
+ *  (≈ 11.06) and this basis must not follow it, or `LAND_SCALE` moves and so does every band. */
+export const HEX_TILE_AREA = ((3 * Math.sqrt(3)) / 2) * PRE_ADR0528_TILE.hexR * PRE_ADR0528_TILE.hexR;
 
 /**
  * THE ISLAND EVERY GROUND-UNIT CONSTANT WAS TUNED ON: the harness fixture, thirteen hex tiles
@@ -91,8 +104,12 @@ export const LAND_AREA_PER_CAPABILITY_RUNGS = [318, 200, 108] as const;
  * density of the picture the owner called nicer, which the approved render's own density agrees
  * with in the true basis. A constant with no provenance is how the old ratio drifted unchosen for
  * as long as it did; change this one on a rendered ladder, never by hand.
+ *
+ * ⚠ DECLARED IN THE ENGINE since ADR-0528 (`packages/forest-world/src/hex.ts`), because the 2D
+ * lattice derives from it and that package is the root; re-exported here so every reader in this
+ * package keeps its import. The value and its provenance are unchanged — 318.
  */
-export const LAND_AREA_PER_CAPABILITY = 318;
+export { LAND_AREA_PER_CAPABILITY };
 
 /**
  * THE LINEAR FACTOR EVERY ISLAND-RELATIVE CONSTANT FOLLOWS: how much smaller, edge to edge, the

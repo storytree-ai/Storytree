@@ -159,7 +159,15 @@ import {
   polyPath,
   ringsOf,
   estRadius,
+  tileQuota,
+  tileUnits,
+  COAST_OUTSET_ON_TILE,
+  type ArtRungs,
+  TILE_SCALE,
+  TREE_SCALE,
+  PLATE_SCALE,
   crownRadius,
+  crownRadiusWorld,
   storyTreeReach,
   storyEdges,
   rankStories,
@@ -251,7 +259,12 @@ const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
 // ---------- world building ----------
 
-const MARGIN = 60;
+const MARGIN = tileUnits(60); // authored as 60 on the radius-27 tile (ADR-0528)
+/** The water between any two islands' tiles, in hexes (ADR-0528 D5) — see the growth floor in
+ *  `buildWorld`. One is the smallest separation the lattice can express, and it is derived from what
+ *  the 3D map does with a tile rather than picked by eye: the island is sized to its ratio about its
+ *  centre and wears a coast outset, so touching tiles overlap in 3D and one hex apart does not. */
+const MOAT_HEXES = 1;
 // `resting-view-still-clips-five-islands`: the resting camera fit's own `padding: 16` guarantees only
 // 16px of headroom at whichever vertical edge `buildWorld`'s bounds happen to sit snug against — but
 // TWO pieces of UI chrome are PERMANENTLY docked over the map at rest, and 16px does not clear either:
@@ -297,9 +310,9 @@ interface SpacingTuning {
 }
 const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
-const LANE_GAP = 13; // px centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
+const LANE_GAP = tileUnits(13); // ground units (13 on the radius-27 tile) centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
 const LANE_WINDOW = 0.4; // fraction of each river's length over which it blends from its true dock/mouth into the shared corridor
-const MOUTH_FLARE = 14; // px offshore the merged trunk fuses before diving head-on into the single coast mouth
+const MOUTH_FLARE = tileUnits(14); // ground units (14 on the radius-27 tile) offshore the merged trunk fuses before diving head-on into the single coast mouth
 
 interface CapSpot {
   cap: TreeCapability;
@@ -559,7 +572,10 @@ export function buildWorld(
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
   // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
   // (centred, everything orbits + spokes converge), not by a distinct size/skin.
-  const quotas = stories.map((s) => Math.max(3, s.capabilities.length + 2));
+  // ADR-0528 D1: one tile per capability — a drawn island IS `capabilities × 318 units²`, the island
+  // the 3D map sizes it to (ADR-0520). The retired `max(3, capabilities + 2)` was the last by-eye
+  // number on the layout path; `tileQuota` carries the rule and its floor.
+  const quotas = stories.map((s) => tileQuota(s.capabilities.length));
 
   // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
   const edgeList = storyEdges(stories);
@@ -656,8 +672,8 @@ export function buildWorld(
       const story = stories[s.idx];
       const seedH = hash(story?.id ?? String(s.idx));
       seedPx.set(s.idx, {
-        x: xCursor + s.w + (rand01(seedH) - 0.5) * 44,
-        y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * 30,
+        x: xCursor + s.w + (rand01(seedH) - 0.5) * tileUnits(44),
+        y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * tileUnits(30),
       });
       xCursor += 2 * s.w + gapAfter(k);
     });
@@ -665,15 +681,28 @@ export function buildWorld(
 
   // Snap seeds to the hex lattice, then enforce a growth floor: two seeds
   // closer than their combined ring reach would strangle each other's quota.
+  //
+  // ADR-0528 D5: the floor also leaves room for the MOAT — one hex of water between any two
+  // islands' tiles, which the growth below keeps (`foreignAdjacent`). The 3D map sizes every
+  // island to its land ratio about its own centre and its ground carries a coast outset, so an
+  // island outgrows its tiles a little; two islands whose tiles TOUCH therefore overlap in 3D
+  // (measured on the real forest at gap ratio 0 and 0.2 before the moat existed). One hex of
+  // water is the smallest separation the lattice can express, and it is what makes the tightest
+  // rung of the gap ladder a layout with water between every pair rather than a lottery of the
+  // seed jitter.
   const seeds: Axial[] = stories.map((_, i) => pixelToHex(seedPx.get(i) ?? { x: 0, y: 0 }));
-  for (let pass = 0; pass < 24; pass++) {
+  // Each nudge moves one seed one hex EAST, so the passes converge; the bound is a guard against a
+  // pathological input, not a budget — at 24 a crowded rank ran out of passes with two seeds still
+  // inside each other's floor, and the moat below then had nothing to keep (measured on a 60-island
+  // sweep at ratio 0.1: two adjacent tiles).
+  for (let pass = 0; pass < 400; pass++) {
     let moved = false;
     for (let i = 0; i < seeds.length; i++) {
       for (let j = i + 1; j < seeds.length; j++) {
         const a = seeds[i];
         const b = seeds[j];
         if (!a || !b) continue;
-        const floor = ringsOf(quotas[i] ?? 3) + ringsOf(quotas[j] ?? 3) + 1;
+        const floor = ringsOf(quotas[i] ?? 1) + ringsOf(quotas[j] ?? 1) + 1 + MOAT_HEXES;
         if (hexDist(a, b) < floor) {
           seeds[j] = { q: b.q + 1, r: b.r }; // deterministic eastward nudge
           moved = true;
@@ -685,13 +714,20 @@ export function buildWorld(
 
   // Grow territories round-robin: each story claims its cheapest frontier hex
   // (closest to seed, hash-jittered for organic coastlines) until its quota —
-  // a tile per capability plus breathing room — is met.
+  // a tile per capability (ADR-0528) — is met.
   const owner = new Map<string, number>();
   const tilesByStory: Axial[][] = stories.map(() => []);
   seeds.forEach((seed, i) => {
     owner.set(axialKey(seed), i);
     tilesByStory[i]?.push(seed);
   });
+  // THE MOAT (ADR-0528 D5): a hex adjacent to another story's tile is never claimed, so two islands'
+  // tiles are always at least one hex apart. See the growth-floor note above for why.
+  const foreignAdjacent = (h: Axial, mine: number): boolean =>
+    AXIAL_DIRS.some((d) => {
+      const o = owner.get(axialKey({ q: h.q + d.q, r: h.r + d.r }));
+      return o !== undefined && o !== mine;
+    });
   let progress = true;
   while (progress) {
     progress = false;
@@ -707,7 +743,7 @@ export function buildWorld(
         for (const d of AXIAL_DIRS) {
           const cand = { q: t.q + d.q, r: t.r + d.r };
           const key = axialKey(cand);
-          if (owner.has(key)) continue;
+          if (owner.has(key) || foreignAdjacent(cand, i)) continue;
           const cost = hexDist(seed, cand) + rand01(hash(`${story.id}:${key}`)) * 1.4;
           if (cost < bestCost) {
             bestCost = cost;
@@ -771,12 +807,13 @@ export function buildWorld(
     // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
     const centerTile = groundHeroTile(tiles) ?? seed;
     const treeSpot = hexCenter(centerTile);
-    const crownR = crownRadius(story.capabilities.length);
+    // The tree's crown radius in GROUND units — its drawing frame scaled onto the tile (ADR-0528).
+    const crownR = crownRadiusWorld(story.capabilities.length);
     // A GROUND radius. `crownR` is the tree's screen HALF-WIDTH, and the camera foreshortens only
     // the depth axis, so a horizontal half-width is already a ground magnitude; `HEX_R` is a ground
     // radius by definition. The one screen quantity in this expression was the island `radius`, and
     // it is replaced by its declared ground twin (`studio-island-layout-moves-to-ground-space`).
-    const ringR = Math.max(crownR * 0.9, Math.min(crownR + 18, groundRadius - HEX_R * 0.55));
+    const ringR = Math.max(crownR * 0.9, Math.min(crownR + tileUnits(18), groundRadius - HEX_R * 0.55));
     // Front 240° arc only (centred south) — a plant behind the tree would
     // vanish under the canopy.
     const ARC = (Math.PI * 4) / 3;
@@ -796,7 +833,7 @@ export function buildWorld(
             crownR * 0.95,
             ringR * (0.62 + rand01(hash(`${story.id}:${cap.id}:rb`)) * 0.72),
           )
-        : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * 10;
+        : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * tileUnits(10);
       // `angle` is a GROUND bearing and `rr` a GROUND radius, so the ring is a circle on the land;
       // `groundPolarOffset` projects it ONCE, through the declared camera, into the screen offset the
       // already-projected `treeSpot` needs. The retired `* 0.66` was a hand-picked top-down squash
@@ -849,12 +886,12 @@ export function buildWorld(
       Math.max(...centers.map((p) => p.y), centroid.y) +
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
-      8;
+      tileUnits(8);
     // `smoothCoast` outset + smoothed in GROUND space (see the boundary comment above); project
     // the loop to screen once here and regenerate the `d` strings from the projected points —
     // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
     // projecting-then-smoothing reproduces exactly what smoothing-then-projecting would draw.
-    const coastGround = smoothCoast(boundary, story.id);
+    const coastGround = smoothCoast(boundary, story.id, COAST_OUTSET_ON_TILE); // the beach on the shipped tile (ADR-0528)
     const coastLoopsScreen = coastGround.loops.map((loop) => loop.map((p) => projectGround(p)));
     const coastPathsScreen = coastLoopsScreen.map(smoothLoopPath);
     const coast = { loops: coastLoopsScreen, paths: coastPathsScreen };
@@ -868,8 +905,8 @@ export function buildWorld(
     const stamps = carried.map((icon, si) => {
       const side = si % 2 === 0 ? -1 : 1;
       const tier = Math.floor(si / 2); // each side-pair steps further out
-      let bx = treeSpot.x + side * (crownR + 17 + tier * 26);
-      let by = treeSpot.y + 7 + tier * 6; // a touch in front of the trunk base, lower per tier
+      let bx = treeSpot.x + side * (crownR + tileUnits(17 + tier * 26));
+      let by = treeSpot.y + tileUnits(7 + tier * 6); // a touch in front of the trunk base, lower per tier
       for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
         bx += (treeSpot.x - bx) * 0.3;
         by += (treeSpot.y - by) * 0.3;
@@ -1019,7 +1056,7 @@ export function buildWorld(
       ...territories.map((t) => t.treeSpot.y - storyTreeReach(t.story.capabilities.length)),
     ) - MARGIN;
   const maxY =
-    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + 34)) +
+    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + tileUnits(34))) +
     hexHalfHeight +
     TILE_DEPTH +
     MARGIN / 2;
@@ -1405,6 +1442,8 @@ export function worldToScene(
   bakedStone: BakedStoneAsset | null = null,
   garden: SceneGardenInput | null = null,
   vegetation: SceneVegetationInput | null = null,
+  /** ADR-0528 D2: art-rung overrides (an instrument's dial). Absent ⇒ the shipped drawing. */
+  artRungs: ArtRungs | null = null,
 ): SceneInput {
   const scene: SceneInput = {
     offset: world.offset,
@@ -1434,6 +1473,9 @@ export function worldToScene(
   // ADR-0226 (grounded-art): the unified vegetation vocabulary, supplied only when `?veg=on`. The
   // core reads its presence to flip the vocabulary on the non-garden islands; absent ⇒ byte-for-byte.
   if (vegetation) scene.vegetation = vegetation;
+  // ADR-0528: the shipped map draws on the derived tile, which is the builder's default — the tile
+  // is stated only when a dial moves a rung, so a bare `#/tree` is byte-for-byte the default scene.
+  if (artRungs && Object.keys(artRungs).length > 0) scene.tile = { hexR: HEX_R, rungs: artRungs };
   return scene;
 }
 
@@ -1480,6 +1522,34 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 function readSpacingTuning(): Partial<SpacingTuning> {
   if (typeof window === 'undefined') return {};
   return parseSpacingTuning(new URLSearchParams(window.location.search));
+}
+
+/** Live 2D ART-RUNG overrides from the URL (ADR-0528 D2) — `?treeRung=&plateRung=&floraRung=&trailRung=`,
+ *  each a factor on the shipped rung, so the art ladder can be captured from the running map
+ *  (`scripts/export-tile-art-ladder.mjs`). Absent ⇒ the shipped drawing. */
+function readArtRungs(): ArtRungs {
+  if (typeof window === 'undefined') return {};
+  return parseArtRungs(new URLSearchParams(window.location.search));
+}
+
+/** The pure half of `readArtRungs`. A rung must be a finite positive number; anything else is ignored. */
+export function parseArtRungs(q: URLSearchParams): ArtRungs {
+  const out: ArtRungs = {};
+  const num = (key: string): number | null => {
+    const raw = q.get(key);
+    if (raw === null) return null;
+    const v = Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const tree = num('treeRung');
+  const plate = num('plateRung');
+  const flora = num('floraRung');
+  const trail = num('trailRung');
+  if (tree !== null) out.tree = tree;
+  if (plate !== null) out.plate = plate;
+  if (flora !== null) out.flora = flora;
+  if (trail !== null) out.trail = trail;
+  return out;
 }
 
 /** The pure half of `readSpacingTuning`, so the dial's grammar is testable without a window. */
@@ -2094,6 +2164,7 @@ export function TreeView({
   // (`?rankGap=`/`?islandGap=`/`?rankSwing=`), same shape as `substrateTuning` above. Absent ⇒
   // `buildWorld`'s own (now tighter) defaults.
   const spacingTuning = useMemo(() => readSpacingTuning(), [search]);
+  const artRungs = useMemo(() => readArtRungs(), [search]);
   const world = useMemo(
     () => (stories ? buildWorld(stories, { plantsScatter, buildings, spacing: spacingTuning }) : null),
     [stories, plantsScatter, buildings, spacingTuning],
@@ -2963,9 +3034,9 @@ export function TreeView({
   const sceneInput = useMemo(
     () =>
       world
-        ? worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation)
+        ? worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation, artRungs)
         : null,
-    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation],
+    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation, artRungs],
   );
   const scene = useMemo(() => (sceneInput ? buildScene(sceneInput) : null), [sceneInput]);
 
@@ -2977,12 +3048,12 @@ export function TreeView({
   const sceneExport = useMemo(() => readSceneExport(search), [search]);
   useEffect(() => {
     if (!sceneExport || !world || !scene) return;
-    const bridge = sceneExportBridge(world, scene, spacingTuning);
+    const bridge = sceneExportBridge(world, scene, spacingTuning, artRungs);
     window.__storytreeSceneExport = bridge;
     return () => {
       if (window.__storytreeSceneExport === bridge) delete window.__storytreeSceneExport;
     };
-  }, [sceneExport, world, scene, spacingTuning]);
+  }, [sceneExport, world, scene, spacingTuning, artRungs]);
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which
@@ -4015,7 +4086,7 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
   const lean = (rand01(seed) - 0.5) * 2;
   const w = h * 0.42;
   return (
-    <g className="hex-conifer" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+    <g className="hex-conifer" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}>
       <ellipse className="flora-shadow" cx={1} cy={1} rx={w * 0.9} ry={2.4} />
       <path
         className={`conifer-body c-${seed % 3}`}
@@ -5094,7 +5165,7 @@ function StoryTree({
   return (
     <g
       className={`story-tree st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)})`}
+      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)}) scale(${TREE_SCALE})`}
     >
       <title>{`${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`}</title>
       <ellipse
@@ -5298,7 +5369,7 @@ function GardenPlant({
   return (
     <g
       className={`garden-flora st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}
+      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -5363,7 +5434,7 @@ function TerritoryFlora({
       const a = rand01(f.seed + i * 7) * Math.PI * 2;
       const rr = rand01(f.seed + i * 13) * HEX_R * 0.55;
       const x = f.x + Math.cos(a) * rr;
-      const y = f.y + Math.sin(a) * rr * 0.8 + 4;
+      const y = f.y + Math.sin(a) * rr * 0.8 + tileUnits(4);
       drawables.push({
         y,
         el: (
@@ -5422,7 +5493,7 @@ function TerritoryFlora({
 
       <g
         className="world-plate"
-        transform={`translate(${t.centroid.x - plate.w / 2} ${t.labelY})`}
+        transform={`translate(${t.centroid.x - (plate.w * PLATE_SCALE) / 2} ${t.labelY}) scale(${PLATE_SCALE})`}
       >
         <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
         <rect className="world-plate-bg" width={plate.w} height={plate.h} rx={plate.rx} />
@@ -5478,7 +5549,7 @@ function TerritoryFlora({
                 dur="6s"
                 repeatCount="indefinite"
               />
-              <g transform={`translate(${t.radius * 0.72 + 10} 0)`}>
+              <g transform={`translate(${t.radius * 0.72 + tileUnits(10)} 0) scale(${TILE_SCALE})`}>
                 <circle className="world-wisp-hit" r={12} fill="transparent" />
                 <circle className="world-wisp-glow" r={6.5} />
                 <circle className="world-wisp-dot" r={2.8} />
@@ -5496,7 +5567,7 @@ function TerritoryFlora({
           index math) so the legacy inline render can't drift from the scene render. Never a bloom. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
-          const orbitR = t.radius * 0.72 + 22;
+          const orbitR = t.radius * 0.72 + tileUnits(22);
           const treeDx = t.treeSpot.x - t.centroid.x;
           const treeDy = t.treeSpot.y - t.centroid.y;
           let queueIndex = 0;
@@ -5507,12 +5578,12 @@ function TerritoryFlora({
             if (grade === 'exploring') {
               // HOVERING: at rest beside/above the tree, per-key jitter, NO orbit animation.
               const k = hash(c.sessionId);
-              const hx = treeDx + (rand01(k + 1) - 0.5) * 18;
-              const hy = treeDy - (orbitR + 12) + (rand01(k + 2) - 0.5) * 10;
+              const hx = treeDx + (rand01(k + 1) - 0.5) * tileUnits(18);
+              const hy = treeDy - (orbitR + tileUnits(12)) + (rand01(k + 2) - 0.5) * tileUnits(10);
               return (
                 <g key={`claim:${c.sessionId}`} className={`world-hover-wisp state-${state}`}>
                   <title>{title}</title>
-                  <g transform={`translate(${hx.toFixed(1)} ${hy.toFixed(1)})`}>
+                  <g transform={`translate(${hx.toFixed(1)} ${hy.toFixed(1)}) scale(${TILE_SCALE})`}>
                     <circle className="world-hover-wisp-hit" r={12} fill="transparent" />
                     <circle className="world-hover-wisp-glow" r={6.5} />
                     <circle className="world-hover-wisp-dot" r={2.8} />
@@ -5523,12 +5594,12 @@ function TerritoryFlora({
             if (grade === 'waiting') {
               // QUEUED: a visible ordered line just outside the orbit ring, index-placed in the
               // SAME claimedAt-ascending order the scene path sorts to (orderClaimsForScene above).
-              const qx = orbitR + 14 + queueIndex * 16;
+              const qx = orbitR + tileUnits(14) + queueIndex * tileUnits(16);
               queueIndex += 1;
               return (
                 <g key={`claim:${c.sessionId}`} className={`world-queue-wisp state-${state}`}>
                   <title>{title}</title>
-                  <g transform={`translate(${qx.toFixed(1)} 0)`}>
+                  <g transform={`translate(${qx.toFixed(1)} 0) scale(${TILE_SCALE})`}>
                     <circle className="world-queue-wisp-hit" r={12} fill="transparent" />
                     <circle className="world-queue-wisp-glow" r={6.5} />
                     <circle className="world-queue-wisp-dot" r={2.8} />
@@ -5549,7 +5620,7 @@ function TerritoryFlora({
                   dur="9s"
                   repeatCount="indefinite"
                 />
-                <g transform={`translate(${orbitR} 0)`}>
+                <g transform={`translate(${orbitR} 0) scale(${TILE_SCALE})`}>
                   <circle className="world-claim-wisp-hit" r={12} fill="transparent" />
                   <circle className="world-claim-wisp-glow" r={6.5} />
                   <circle className="world-claim-wisp-dot" r={2.8} />
@@ -5566,14 +5637,14 @@ function TerritoryFlora({
           inline render can't drift. Never a bloom, never an orbit — stationary by construction. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
-          const orbitR = t.radius * 0.72 + 22;
+          const orbitR = t.radius * 0.72 + tileUnits(22);
           const treeDx = t.treeSpot.x - t.centroid.x;
           const treeDy = t.treeSpot.y - t.centroid.y;
           return departures.map((d) => {
             const ageRatio = departureAgeRatio(d.ageMs);
             const k = hash(d.sessionId);
-            const x = treeDx + (rand01(k + 1) - 0.5) * 18;
-            const y = treeDy - (orbitR + 12) - ageRatio * 24;
+            const x = treeDx + (rand01(k + 1) - 0.5) * tileUnits(18);
+            const y = treeDy - (orbitR + tileUnits(12)) - ageRatio * tileUnits(24);
             return (
               <g
                 key={`departure:${d.sessionId}`}
@@ -5581,7 +5652,7 @@ function TerritoryFlora({
                 opacity={Number((1 - ageRatio).toFixed(2))}
               >
                 <title>{departureWispTitle(d, now)}</title>
-                <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+                <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}>
                   <circle className="world-departing-wisp-hit" r={12} fill="transparent" />
                   <circle className="world-departing-wisp-glow" r={6.5} />
                   <circle className="world-departing-wisp-dot" r={2.8} />

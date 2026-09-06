@@ -4,6 +4,24 @@
 // CANONICAL numbers (the studio wins every divergence from the website seed,
 // ADR-0093).
 //
+// THE TILE IS DERIVED FROM THE LAND RATIO, NOT AUTHORED (ADR-0528 D1). Owner, 2026-09-06, verbatim:
+// "option 1, we have time dont take shortcuts." `HEX_R` was 27 by eye and each island was drawn on
+// `max(3, capabilities + 2)` of them — a footprint about seven times the island ADR-0520 sizes in
+// 3D (`capabilities × 318 units²`), so every island stood in a slot seven times its size and no gap
+// ratio (ADR-0521) could close it. Now ONE hex is ONE capability's land: the hex is sized so that
+// `HEX_TILES_PER_CAPABILITY` of them cover exactly `LAND_AREA_PER_CAPABILITY`, and an island's quota
+// is its capability count (`sizing.ts`'s `tileQuota`). A drawn island IS the island it represents,
+// the 2D and 3D maps agree about size for the first time since ADR-0517, and the lattice's growth
+// floor — which sets the spacing at gap ratio 0 — shrinks with the islands.
+//
+// ⚠ EVERY LENGTH THIS ENGINE AUTHORED AGAINST THE OLD TILE IS RE-BASED THROUGH `tileUnits()`. The
+// props, keep-outs, offsets and strokes were judged in ground units on a radius-27 tile; a length
+// that meant "so much of a tile" keeps meaning that by multiplying by `TILE_SCALE`, and the old
+// value stays visible at the call site as `tileUnits(<old>)`. What does NOT re-base is named where
+// it stands: a dimensionless ratio, a SCREEN quantity (a hit slop, a padding in CSS px), and the
+// trail width the 3D mapper reads directly (`routing.ts`'s one width rule). The memory
+// `land-scale-has-three-classes-of-constant` is the same discipline on the 3D side.
+//
 // THE LATTICE IS A GROUND PLANE, AND IT IS SEEN THROUGH THE DECLARED CAMERA (ADR-0367 D1).
 // `HEX_R` / `HEX_W` and the corner offsets are GROUND-plane quantities; every function here that
 // hands back SCREEN coordinates projects them through `./camera.js` — the lattice pitch and the
@@ -28,15 +46,87 @@ export interface Axial {
   r: number;
 }
 
-export const HEX_R = 27; // centre → corner, in the GROUND plane
+/**
+ * THE LAND-PER-CAPABILITY RATIO, in ground units² — ADR-0520 D2's constant, and the number the whole
+ * lattice below derives from, which is why it lives in this root package (`forest-world-r3f`
+ * re-exports it; the mapper still sizes every 3D island to exactly `capabilities × this`).
+ *
+ * Provenance (ADR-0520 D2): PICKED ON THE LOOK from a rendered ladder (2,239 / 318 / 200 / 108) at
+ * both zooms on the RTX 2060 (`docs/research/chapter2-land-per-capability-2026-09-05/`). 318 is the
+ * density of the picture the owner called nicer on 2026-09-05 — 72 trees on the fixture island, about
+ * 318 units² of land per tree — and the approved Cycles render's own density read in the true basis
+ * (≈ 316 per pine; `land-per-capability.test.ts` holds the two within a few percent). A constant
+ * with no provenance is how the old ratio drifted unchosen; change this one on a rendered ladder,
+ * never by hand.
+ */
+export const LAND_AREA_PER_CAPABILITY = 318;
+
+/**
+ * HOW MANY HEXES DRAW ONE CAPABILITY'S LAND — the shape-granularity lever ADR-0528 D1 names beside
+ * the radius. Modelled on the live corpus before choosing (README in
+ * `docs/research/chapter2-tile-footprint-2026-09-06/`): 1 keeps the map's hex count near what it
+ * was (207 hexes for 35 islands against 277) and makes the parcel partition literal — each
+ * capability's parcel is its own hex, which is what the `+ 2` quota approximated; 2–4 multiply the
+ * relaxed mesh's cells and shrink the hex below the props drawn on it for no reading the map needs.
+ * Radius alone could not do this job: one radius for the whole lattice leaves `(caps + 2) / caps`
+ * of the footprint authored, so a one-capability island is drawn at twice its land; quota alone
+ * cannot either — at radius 27 a capability is 0.17 of a hex and 18 of 31 islands cannot be drawn.
+ */
+export const HEX_TILES_PER_CAPABILITY = 1;
+
+/** The area of a regular hexagon of circumradius 1: `(3√3 / 2)`. */
+export const HEX_UNIT_AREA = (3 * Math.sqrt(3)) / 2;
+
+/**
+ * The hex circumradius, centre → corner, in the GROUND plane — DERIVED: the radius at which
+ * `HEX_TILES_PER_CAPABILITY` hexes cover exactly `LAND_AREA_PER_CAPABILITY`. ≈ 11.06.
+ */
+// Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE HEX_TILES_PER_CAPABILITY IS 1 —
+// the `k` lever of ADR-0528 D1's model ships at 1 (one hex per capability), so dividing by it and
+// multiplying by it give the same radius and no test can separate them. Re-picking `k` makes the
+// mutant killable, and the landing that re-picks it owes this line its test.
+export const HEX_R = Math.sqrt(LAND_AREA_PER_CAPABILITY / HEX_TILES_PER_CAPABILITY / HEX_UNIT_AREA);
 export const HEX_W = Math.sqrt(3) * HEX_R;
+/** One hex's ground-plane area — `LAND_AREA_PER_CAPABILITY / HEX_TILES_PER_CAPABILITY` by construction. */
+export const HEX_AREA = HEX_UNIT_AREA * HEX_R * HEX_R;
+
+/** How an island's tile quota follows its capability count, as prose for a manifest or a caption. */
+export const TILE_QUOTA_RULE = `max(1, capabilities) × ${HEX_TILES_PER_CAPABILITY} hexes`;
+
+/**
+ * THE TILE THIS ENGINE'S ART WAS AUTHORED ON, TYPED AS HISTORY (ADR-0528). `HEX_R = 27` was the one
+ * by-eye number left on the layout path, and every prop, keep-out and offset in `scene.ts`,
+ * `coast.ts` and the studio's packer was judged in ground units against it. It is kept here for two
+ * readers and nothing on the shipped path draws it: `tileUnits()` re-bases those lengths, and a
+ * comparison page's control arm (`shipped-tile-scene.ts`) records which tile the map as it shipped
+ * stood on. The quota rule is the old `max(3, capabilities + 2)`.
+ */
+export const PRE_ADR0528_TILE = Object.freeze({ hexR: 27, quota: 'max(3, capabilities + 2) hexes' });
+
+/**
+ * The linear factor from the tile the art was authored on to the derived one — `HEX_R / 27`,
+ * ≈ 0.41. Every ground-unit length that meant "so much of a tile" multiplies by it (see
+ * {@link tileUnits}); the camera's resting view is pinned to island count (ADR-0471), so a uniformly
+ * re-based drawing opens at the same on-screen composition it did — which is the baseline the 2D
+ * art pass is judged FROM, never the pass itself.
+ */
+export const TILE_SCALE = HEX_R / PRE_ADR0528_TILE.hexR;
+
+/**
+ * A ground-unit length authored against the pre-ADR-0528 tile, re-based to the derived one. The
+ * argument is the historical value, so `tileUnits(7)` reads as "7 on the old tile" at the call site
+ * and the classification (this is a tile-relative distance) is visible without a comment.
+ */
+export function tileUnits(authoredAgainstOldTile: number): number {
+  return authoredAgainstOldTile * TILE_SCALE;
+}
 
 /**
  * The extrusion below a claimed tile, as a world HEIGHT. Named separately from the projected
  * offset so the two paint sites keep reading one already-projected number, and so the depth stops
  * being a bare screen constant the moment the land has a camera.
  */
-export const TILE_DEPTH_WORLD = 8;
+export const TILE_DEPTH_WORLD = tileUnits(8);
 
 /**
  * The tile extrusion ON SCREEN — an upright world height through the declared camera, so it carries
@@ -69,6 +159,11 @@ export const AXIAL_DIRS: Axial[] = [
  */
 export interface ElevationOpts {
   elevationDeg?: number;
+  /** The lattice radius to lay the hexes out on. Defaults to the derived {@link HEX_R}; an
+   *  INSTRUMENT'S option (ADR-0528) — the r3f harness draws its fixture island on the tile its
+   *  ground constants were tuned on (`PRE_ADR0528_TILE.hexR`), so the tuned island stays the tuned
+   *  island while the shipped lattice follows the ratio. Nothing on a shipped path passes it. */
+  hexR?: number;
 }
 
 /**
@@ -81,9 +176,10 @@ export interface ElevationOpts {
  */
 export function hexCenter(h: Axial, opts?: ElevationOpts): Pt {
   const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  const R = opts?.hexR ?? HEX_R;
   return {
-    x: HEX_W * (h.q + h.r / 2),
-    y: 1.5 * HEX_R * h.r * groundFlattening(elevationDeg),
+    x: Math.sqrt(3) * R * (h.q + h.r / 2),
+    y: 1.5 * R * h.r * groundFlattening(elevationDeg),
   };
 }
 
@@ -96,8 +192,9 @@ export function hexCenter(h: Axial, opts?: ElevationOpts): Pt {
  */
 export function pixelToHex(p: Pt, opts?: ElevationOpts): Axial {
   const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
-  const rf = p.y / (1.5 * HEX_R * groundFlattening(elevationDeg));
-  const qf = p.x / HEX_W - rf / 2;
+  const R = opts?.hexR ?? HEX_R;
+  const rf = p.y / (1.5 * R * groundFlattening(elevationDeg));
+  const qf = p.x / (Math.sqrt(3) * R) - rf / 2;
   const sf = -qf - rf;
   let q = Math.round(qf);
   let r = Math.round(rf);

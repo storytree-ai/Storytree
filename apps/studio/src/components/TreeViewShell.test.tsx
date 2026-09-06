@@ -561,8 +561,11 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(section).toBeTruthy();
       // 50 -> 52 on 2026-09-06 (ADR-0521): the fixture's two islands are seeded by the ratio-derived
       // spacing now, so the second island's seed moved and its territory grew a different tile set.
-      // What is NOT allowed to move is asserted alongside — one connected adjacency wave per ring.
-      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('52');
+      // 52 -> 26 later the same day (ADR-0528): the tile follows the land ratio — ONE hex per
+      // capability, the `+ 2` quota retired — so the fixture's island is drawn on fewer hexes and
+      // the relaxed mesh decomposes into half the cells. What is NOT allowed to move is asserted
+      // alongside — one connected adjacency wave per ring.
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('26');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
       // 50 cells over 8 connected waves. The counts have moved twice before — from 52 /
       // `1,4,8,13,13,9,4` when `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`
@@ -585,7 +588,15 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       // `1,4,5,6,8,9,8,8,3` at rung 0.1 while the pick was being laddered: the partition is a function
       // of where the seed lands), still one connected wave per ring, still a rise and a taper. Caught
       // here loudly, as this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,11,13,10,6');
+      //
+      // And once more on 2026-09-06 (ADR-0528): the tile follows the land ratio — one hex per
+      // capability, radius ≈ 11.06 — so the fixture's island is drawn on half the cells (52 -> 26,
+      // asserted above) and the adjacency partition is a shorter rise and taper over the same
+      // connected waves: `1,4,5,4,3,4,3,2` at gap ratio 0 while the pick was being re-laddered, and
+      // `1,4,6,3,3,4,3,2` at the shipped 0.1 (ADR-0528 D5) — the partition is a function of where the
+      // seed lands, and the pick moved the fixture's second island's seed. Caught here loudly, as
+      // this assertion is for.
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,6,3,3,4,3,2');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [
@@ -1522,9 +1533,10 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       expect(section.getAttribute('data-organic-technique')).toBe('pose-to-pose');
       expect(section.getAttribute('data-island-technique')).toBe('connected-accretion');
       // Same fixture/golden as the organic-island-accretion gate above — see its comment for why
-      // 52 -> 50 (islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out's spacing cut) and
-      // then 50 -> 52 (ADR-0521, the ratio-derived spacing re-seeded the fixture's second island).
-      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('52');
+      // 52 -> 50 (islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out's spacing cut),
+      // then 50 -> 52 (ADR-0521, the ratio-derived spacing re-seeded the fixture's second island),
+      // then 52 -> 26 (ADR-0528, one hex per capability: the island is drawn on fewer hexes).
+      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('26');
       expect(section.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
 
       // The picker names every candidate, with the incumbent pressed by default.
