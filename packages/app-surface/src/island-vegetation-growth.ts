@@ -321,7 +321,12 @@ function roleOf(node: SceneNode, storyId: string): VegetationRole | null {
  * worse than no sprout, because it reads as the object flying in from somewhere else.
  */
 function rootOf(node: SceneNode): { anchor: VegetationAnchor; rootMode: VegetationRootMode } | null {
-  if (node.transform !== undefined) {
+  // A parcel-flora item draws its marks in ABSOLUTE island coordinates; since ADR-0528 it also
+  // carries a transform — `translate(p) scale(s) translate(-p)`, the tile re-basing scaled about its
+  // own drift spot — which places nothing: its local origin is still the island's, not the mark's
+  // ground contact. So it stays MEASURED (below), and the growth's scale-about-anchor, appended
+  // after that transform, acts in the same absolute coordinates the marks were drawn in.
+  if (node.transform !== undefined && node.kind !== 'parcel-flora') {
     const t = parseSimpleTransform(node.transform);
     return t ? { anchor: { x: t.tx, y: t.ty }, rootMode: 'placement' } : null;
   }

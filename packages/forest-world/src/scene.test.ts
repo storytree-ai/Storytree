@@ -309,6 +309,9 @@ test('hidden under-island runs land ONLY in the ghost pass', () => {
   const ghosts = children(mustByKind(layer, 'trail-ghost-pass'));
   assert.deepEqual(ghosts.map((p) => p.id).sort(), hidden.map((s) => s.id).sort());
   assert.ok(ghosts.every((p) => p.el === 'path' && p.kind === 'trail-ghost'));
+  // the ghost pass never marks a spur — the dashed-footpath read belongs to the FILL pass only.
+  assert.ok(hidden.some((s) => s.usage === 1), 'the fixture carries a hidden spur, so the next line is not vacuous');
+  assert.ok(ghosts.every((p) => p.spur === undefined), 'a ghost run carries no spur mark');
   const hiddenIds = new Set(hidden.map((s) => s.id));
   for (const pass of ['trail-shadow-pass', 'trail-casing-pass', 'trail-fill-pass'] as const) {
     for (const p of children(mustByKind(layer, pass))) {

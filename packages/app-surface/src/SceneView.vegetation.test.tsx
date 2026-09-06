@@ -17,6 +17,8 @@ import {
   type SceneInput,
   type SceneNode,
   type SceneVegHeroTrees,
+  TREE_SCALE,
+  PLATE_SCALE,
 } from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView.js';
 import { deriveIslandVegetationPlans } from './island-vegetation-growth.js';
@@ -135,7 +137,8 @@ describe('the central tree becomes a frame of the shared track', () => {
   it('replaces the PROCEDURAL tree body while keeping its wrapper identity', () => {
     const { root } = renderAt(1, {}, false);
     const wrapper = root.querySelector('g.story-tree')!;
-    expect(wrapper.getAttribute('transform')).toBe('translate(50.0 45.0)');
+    // the wrapper keeps its translate and its own drawing scale (ADR-0528); nothing else is added
+    expect(wrapper.getAttribute('transform')).toBe(`translate(50.0 45.0) scale(${TREE_SCALE.toFixed(1)})`);
     expect(wrapper.querySelector('image.veg-track-tree')).toBeTruthy();
     // The vector crown it replaced is gone — the track IS the artwork now, not an overlay on it.
     expect(wrapper.querySelector('.crown-lo')).toBeNull();
@@ -213,14 +216,17 @@ describe('the vector half: rooted sprouting, and nothing left behind (ADR-0292 D
     expect(conifer).toBeTruthy();
     // `translate(x y) scale(g)` — SVG composes left to right, so the scale happens about the anchor
     // the scene already placed, never about the flora group's shared centre.
-    expect(conifer!.getAttribute('transform')).toMatch(/^translate\([-\d. ]+\) scale\(0\.\d+\)$/u);
+    // the conifer's own drawing scale (one decimal, ADR-0528) then the growth's (four decimals)
+    expect(conifer!.getAttribute('transform')).toMatch(/^translate\([-\d. ]+\) scale\(0\.\d\) scale\(0\.\d{4}\)$/u);
   });
 
   it('settles the nameplate by translation only — never a scale', () => {
     const { root } = renderAt(0.7);
     const plate = root.querySelector('g.world-plate[data-veg-grown]')!;
     expect(plate.getAttribute('transform')).toMatch(/translate\(0 -[\d.]+\)$/u);
-    expect(plate.getAttribute('transform')).not.toContain('scale');
+    // the plate's ONE scale is its own drawing scale (ADR-0528) — the growth adds none
+    expect(plate.getAttribute('transform')?.match(/scale\(/gu)).toHaveLength(1);
+    expect(plate.getAttribute('transform')).toContain(`scale(${PLATE_SCALE.toFixed(1)}) translate(0 -`);
   });
 
   it('leaves NO growth attribute anywhere on the settled map', () => {

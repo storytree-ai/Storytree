@@ -1253,6 +1253,8 @@ function buildUatMarkers(
   const land = ownerCells && ownerCells.length ? ownerCells : null;
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — a ground gap is a continuous
+  // measurement, so `>` and `>=` differ only on an exact float tie, which no fixture can author.
   const clearsSpacing = (placed: Pt[], x: number, y: number): boolean =>
     placed.every((p) => groundGap({ x, y }, p, elevationDeg) > art.markerSpacing);
   const placed: Pt[] = [];
@@ -1268,7 +1270,9 @@ function buildUatMarkers(
       const off = groundPolarOffset(ang, rr, elevationDeg);
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous gap, no authorable tie.
       const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > art.markerTreeWell;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       const clearsPlate = y < t.labelY - art.units(14);
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
@@ -2597,6 +2601,8 @@ function buildTerritorySurface(
       if (cells.length < 2) return;
       cells.forEach((cell, k) => {
         const d = (cell.cx - seed.x) ** 2 + (cell.cy - seed.y) ** 2;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — `<=` differs only when two cells
+        // sit at exactly the same distance from the seed, and the mesh never places two centroids there.
         if (d < bd) {
           bd = d;
           from = j;
@@ -2775,6 +2781,7 @@ export function placeGardenHeroes(
       const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       const clearsPlate = y < t.labelY - art.units(18);
       const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
