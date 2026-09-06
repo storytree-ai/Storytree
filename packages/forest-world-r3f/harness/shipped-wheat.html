@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the wheat field on the in-progress islands — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #e0c96a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The wheat field on the in-progress islands</h1>
+      <p>
+        14 of the map's 35 islands carry the in-progress yellow and draw completely flat beside 21
+        green islands wearing a six-layer painted stack. This page paints them &mdash; layer 1's own
+        structure with its six stops re-palettised onto an authored anchor, entering as a mix INTO
+        the island's yellow through the same seam the grass uses, never as a cover over it &mdash;
+        and ladders how yellow the anchor is for the owner to pick.
+      </p>
+      <p class="numbers">
+        today              the map as it shipped: green painted, the yellow FLAT, deep shadow on the green alone (CONTROL)
+        wheat-straw        the palest rung — bleached straw #d9d18a, nearest the in-progress yellow
+        wheat-wheat        the authored wheat token #d6b271 — the app's own wheat, a warm tan
+        wheat-light-straw  light straw #c6c06a — a true yellow, on the 2026-08-27 instrument's bar
+        wheat-mustard      the measured mustard #b0b040 — the boldest yellow, 1.8x the straw's separation
+        shipped            what ships — one rung of the ladder, read off the source
+      </p>
+      <p>
+        The green island is a proof of no change: shipped must equal today, byte for byte. The
+        ladder is read on one in-progress island at 8 px/unit and on the REAL forest, fitted &mdash;
+        the studio's own layout for the live corpus. Under each arm: colour families, MICRO, pixels
+        moved past 20/255 against <code>today</code> (ADR-0490 D6), and pixels touched against
+        <code>shipped</code>. The reader model's margin per rung is in the driver's report &mdash;
+        printed with its grid step, negative where it is negative, and not a fence (ADR-0503 D1,
+        ADR-0506, ADR-0489 D3).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedWheat } from './shipped-wheat-scene.ts';
+      try {
+        await mountShippedWheat(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

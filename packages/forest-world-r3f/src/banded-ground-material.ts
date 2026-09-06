@@ -60,6 +60,7 @@ import {
   grainStops,
 } from './land-grain.js';
 import { grassGlsl } from './land-grass.js';
+import { wheatGlsl } from './land-wheat.js';
 import { rockGlsl } from './land-rock.js';
 import { sandGlsl } from './land-sand.js';
 import { wearGlsl } from './land-wear.js';
@@ -153,6 +154,48 @@ export interface GroundGrassLayer {
    * work to deliver the pixels it delivered before.
    */
   rows: readonly number[];
+}
+
+/**
+ * THE WHEAT FIELD — LAYER 1 RE-PALETTISED ONTO THE IN-PROGRESS YELLOW (`src/land-wheat.ts`,
+ * `paint-every-land-type-arc-inc-01`): the grass's own structure, the wheat's colour, on the rows
+ * this layer names.
+ *
+ * ⚠⚠ IT WIDENS ADR-0492 D1's GATE BY TOKEN, IT DOES NOT DELETE IT. The grass keeps its rows and
+ * its factor; the wheat has its own rows and its own factor, and the two enter through ONE seam —
+ * the paint line — as `mix(c, paint * level, uGrassMix * grassGate + uWheatMix * wheatGate)`,
+ * where `paint` is the grass on a grass row and the wheat on a wheat row. A row named by BOTH
+ * gates is REFUSED: it would be painted twice through one seam, which is neither layer.
+ *
+ * ⚠⚠ A MIX INTO THE STATUS COLOUR, NEVER A COVER (ADR-0490 D5). The 2026-08-27 cover path drew
+ * `wheat` as a whole-island token in place of the status colour; this option modulates the
+ * island's own yellow and leaves `1 - mix` of it in every fragment. It is the shape the owner
+ * asked for on 2026-09-05 ("rather then have a whole separate base for it").
+ *
+ * ⚠ THE LAYERS ABOVE RIDE THE WHEAT TOO. After the paint line the material promotes the wheat's
+ * gate into the grass gate (`grassGate = max(grassGate, wheatGate)`), so the sand, the path and
+ * the rock — whose colours are the recipe's own neutrals and not green — composite over a wheat
+ * island exactly as they do over a grass one. "Every land type is painted" means the stack, not
+ * one layer of it.
+ *
+ * ⚠ IT REQUIRES {@link BandedGroundMaterialOptions.grass} and is refused without it: its ramps
+ * ride `st_grassScalar` / `st_grassDrift` / `st_grassSrgb`, which only the grass source declares,
+ * and it evaluates no octave of its own. ABSENT means the emitted source is byte-identical to
+ * the one this file produced before the wheat existed.
+ */
+export interface GroundWheatLayer {
+  /** How much of the wheat colour enters the delivered pixel on a wheat row — the wheat's OWN
+   *  factor, separate from the grass's, so a scale-back on one never moves the other. Never 1.0
+   *  (ADR-0490 D5's seam, kept literally). No default, for the grass's reason. */
+  mix: number;
+  /** WHICH RAMP ROWS WEAR THE WHEAT — `WHEAT_STATUS_GATE` resolved through the caller's own row
+   *  ordering, like the grass's `rows`. Empty is refused; a row shared with the grass is refused. */
+  rows: readonly number[];
+  /** The anchor colour the wheat's ramps are rebased onto (`#rrggbb`) — one rung of
+   *  `WHEAT_ANCHORS`, the ladder the owner scales along. Written into the source, like the ramp
+   *  stops: a page comparing rungs compiles one shader per rung, which is the shape the stops
+   *  already impose. */
+  anchor: string;
 }
 
 /**
@@ -329,6 +372,12 @@ export interface BandedGroundMaterialOptions {
    *  Every material this map builds is grained already, so the constraint costs a real caller
    *  nothing; what it buys is that the failure is a message rather than a black island. */
   grass?: GroundGrassLayer;
+  /** WEAR the wheat field on the in-progress rows — layer 1 re-palettised. See
+   *  {@link GroundWheatLayer}; absent leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grass}, and is refused without it: it reads the grass's own scalar,
+   *  drift and transfer, which only the grass source declares. */
+  wheat?: GroundWheatLayer;
   /** WEAR the approved ground's LAYER 2 — the shore sand and its band. See
    *  {@link GroundSandLayer}; absent leaves the emitted source byte-identical.
    *
@@ -535,8 +584,20 @@ export function rampSelectGlsl(entries: number): string {
  * flat, which is precisely the misreport the gate exists to prevent.
  */
 export function grassGateGlsl(rows: readonly number[]): string {
-  const tests = rows.map((row) => `if (int(vStatus + 0.5) == ${row}) grassGate = 1.0;`);
-  return ['float grassGate = 0.0;', ...tests].join('\n        ');
+  return gateGlsl('grassGate', rows);
+}
+
+/** A PER-TOKEN GATE UNDER ANY NAME — the grass's and the wheat's are the same emitter, so the two
+ *  cannot disagree about the `+ 0.5` the row test rests on. Exported for the same exact-golden
+ *  reason {@link grassGateGlsl} is. */
+export function gateGlsl(name: string, rows: readonly number[]): string {
+  const tests = rows.map((row) => gateTestLine(name, row));
+  return [`float ${name} = 0.0;`, ...tests].join('\n        ');
+}
+
+/** One row test of a gate. Named rather than an inline arrow, for the mutation rung's attribution. */
+function gateTestLine(name: string, row: number): string {
+  return `if (int(vStatus + 0.5) == ${row}) ${name} = 1.0;`;
 }
 
 /** One ladder level as a GLSL literal — six places, the precision every other authored float in
@@ -779,6 +840,42 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         `of the ${opts.tokens.length} this material was handed`,
     );
   }
+  const wheat = opts.wheat;
+  // ⚠ REFUSED FOR THE SAND'S REASON. `wheatGlsl()` calls `st_grassScalar`, `st_grassDrift`,
+  // `st_grassCool`, `st_grassWarm` and `st_grassSrgb`, which only the grass source declares — the
+  // wheat is the grass's structure wearing another colour, and has no field of its own to stand on.
+  if (wheat !== undefined && grass === undefined) {
+    throw new Error(
+      'banded-ground-material: the wheat layer needs the grass — it is layer 1’s own structure ' +
+        're-palettised, and reads the scalar, drift and transfer only the grass source declares',
+    );
+  }
+  // ⚠ AN EMPTY GATE IS REFUSED, for the grass's reason: it is a layer switched on that dresses
+  // nothing, at a full shader's cost, and it looks like a clean landing.
+  if (wheat !== undefined && wheat.rows.length === 0) {
+    throw new Error(
+      'banded-ground-material: the wheat layer was given no rows to dress — a gate that ' +
+        'matches nothing draws the flat yellow at the painted yellow’s cost',
+    );
+  }
+  const strayWheatRow = wheat?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
+  if (strayWheatRow !== undefined) {
+    throw new Error(
+      `banded-ground-material: the wheat layer names row ${strayWheatRow}, which is not a ramp row ` +
+        `of the ${opts.tokens.length} this material was handed`,
+    );
+  }
+  // ⚠⚠ A ROW IN BOTH GATES IS REFUSED. The paint line composites `grass * grassGate + wheat *
+  // wheatGate` and mixes at `uGrassMix * grassGate + uWheatMix * wheatGate`; a row both gates name
+  // would deliver the SUM of two layers at the sum of two factors — a colour neither layer's
+  // instrument ever measured, on a token that reads as whichever it happens to land near.
+  const sharedRow = wheat === undefined || grass === undefined ? undefined : wheat.rows.find((row) => grass.rows.includes(row));
+  if (sharedRow !== undefined) {
+    throw new Error(
+      `banded-ground-material: row ${sharedRow} is named by BOTH the grass gate and the wheat ` +
+        'gate — one row wears one painted layer, never the sum of two',
+    );
+  }
   const shadowed = ladder !== null;
   const [grainDark, grainLight] = grainStops();
 
@@ -816,6 +913,11 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // facs would otherwise compile four shaders that differ in a constant.
   const grassUniforms: Record<string, { value: number }> = {};
   if (grass !== undefined) grassUniforms['uGrassMix'] = { value: grass.mix };
+  // The wheat's own factor, by statement for the grass's two reasons: an unwheated material must
+  // carry NO `uWheat*` uniform at all, and the shorter spellings are refused by the anti-slop
+  // rules. Uploaded rather than written in, like the grass's — it is the number a scale-back moves.
+  const wheatUniforms: Record<string, { value: number }> = {};
+  if (wheat !== undefined) wheatUniforms['uWheatMix'] = { value: wheat.mix };
   // Layer 2's field, by statement for the same two reasons: an unsanded material must carry NO
   // `uShore*` uniform at all, and the shorter spellings are refused by the anti-slop rules.
   const sandUniforms: Record<string, { value: Texture } | { value: number }> = {};
@@ -887,6 +989,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     },
     ...grainUniforms,
     ...grassUniforms,
+    ...wheatUniforms,
     ...sandUniforms,
     ...wearUniforms,
     ...rockUniforms,
@@ -899,6 +1002,10 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // ES 1.0 resolves calls against declarations already seen, and every grass octave calls
   // `st_grainOctave`.
   const grassSource = grass === undefined ? '' : `      ${grassGlsl().split('\n').join('\n      ')}\n`;
+  // Appended AFTER the grass source, because `wheatGlsl()` calls the grass's scalar, drift, ramps
+  // and transfer — it declares no field of its own. Before the sand's, so a sanded-and-wheated
+  // shader carries the recipe's order grass → wheat → sand → wear → rock.
+  const wheatSource = wheat === undefined ? '' : `      ${wheatGlsl(wheat.anchor).split('\n').join('\n      ')}\n`;
   // Appended AFTER the grass source, because `sandGlsl()` calls `st_grassScalar` and
   // `st_grassSrgb`, and GLSL ES 1.0 resolves calls against declarations already seen.
   const sandSource = sand === undefined ? '' : `      ${sandGlsl().split('\n').join('\n      ')}\n`;
@@ -918,6 +1025,8 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     (grainColour ? '\n      uniform float uGrainColourMix;' : '');
   // Appended after the grain's, so an ungrassed shader is byte-identical.
   const grassUniformDecls = grass === undefined ? '' : '\n      uniform float uGrassMix;';
+  // Appended after the grass's, so an unwheated shader is byte-identical.
+  const wheatUniformDecls = wheat === undefined ? '' : '\n      uniform float uWheatMix;';
   // Appended after the grass's, so an unsanded shader is byte-identical.
   const sandUniformDecls =
     sand === undefined
@@ -1004,6 +1113,28 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         n = normalize(n - uGrainNormalStrength * vec3(gradient.x, 0.0, gradient.y));
 `
     : '';
+  // THE PAINT LINE — the one seam layer 1 enters through, in its two shapes. Without the wheat it
+  // is the grass line, BYTE FOR BYTE what it was before the wheat existed. With the wheat it is
+  // the same seam carrying both painted layers: the wheat's gate is declared beside the grass's,
+  // `st_paintColour` returns the grass on a grass row and the wheat on a wheat row (the fields run
+  // ONCE), the factor is each layer's own, and the wheat's gate is then promoted into the grass
+  // gate so the sand, the path and the rock below composite over the wheat exactly as over the
+  // grass — the stack, not one layer of it. Every line the sand, wear and rock stages emit is
+  // untouched by that promotion, which is what keeps their goldens standing.
+  const paintLine =
+    grass === undefined
+      ? ''
+      : wheat === undefined
+        ? '        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'
+        : `        // THE WHEAT FIELD — layer 1 re-palettised onto the in-progress yellow (src/land-wheat.ts),
+        // on its own rows at its own factor, through this same seam (ADR-0490 D5): a mix INTO
+        // the island's yellow, never a cover over it.
+        ${gateGlsl('wheatGate', wheat.rows)}
+        c = mix(c, st_paintColour(vWorld.xz, grassGate, wheatGate) * level, uGrassMix * grassGate + uWheatMix * wheatGate);
+        // The layers above ride ONE painted gate: a wheat island wears the sand, the path and
+        // the rock as a grass island does.
+        grassGate = max(grassGate, wheatGate);
+`;
   // LAYER 1, COMPOSITED BETWEEN THE RAMP SELECTION AND THE WRITE — which is the recipe's own
   // order and not merely a convenient place. In `mat_attribute()` the grass is the BASE and the
   // grain is applied LAST, over everything; here the base is the parcel's status colour, so the
@@ -1024,11 +1155,10 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // gate names, the same measurement admits 0.4065. Every other row multiplies the mix by
         // zero and delivers exactly the pixel it delivered before this layer existed.
         ${grassGateGlsl(grass.rows)}
-${
+${paintLine}${
   sand === undefined
-    ? '        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'
-    : `        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);
-        // LAYER 2 — the shore sand, over layer 1 and masked to the beach (build_land.py:869-893).
+    ? ''
+    : `        // LAYER 2 — the shore sand, over layer 1 and masked to the beach (build_land.py:869-893).
         //
         // ⚠⚠ A SECOND SEAM RATHER THAN A BLEND INSIDE LAYER 1'S, AND THE DIFFERENCE IS THE WHOLE
         // REASON THIS LAYER CAN SHIP. The recipe blends sand and grass and mixes the result in
@@ -1183,9 +1313,9 @@ ${
     `,
     fragmentShader: `
       ${bandGlsl(lit).split('\n').join('\n      ')}
-${grainSource}${grassSource}${sandSource}${wearSource}${rockSource}
+${grainSource}${grassSource}${wheatSource}${sandSource}${wearSource}${rockSource}
       uniform vec3 uRamp[${ramp.length}];
-      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${sandUniformDecls}${wearUniformDecls}${rockUniformDecls}${detailUniformDecls}${shadowUniformDecls}
+      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${wheatUniformDecls}${sandUniformDecls}${wearUniformDecls}${rockUniformDecls}${detailUniformDecls}${shadowUniformDecls}
       varying float vStatus;
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 

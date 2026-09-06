@@ -100,16 +100,22 @@ export const AMPLIFY_FACTOR = 8;
 export const LAYER_ARM_MIX: GrassArm = 'authored';
 
 /**
- * The line the grass enters the shipped fragment shader on, emitted by
+ * The call layer 1 enters the shipped fragment shader through, emitted by
  * `src/banded-ground-material.ts`. Matched on the CALL rather than on the whole statement so the
  * surrounding comment text can change without silently disarming the surgery.
+ *
+ * ⚠ SINCE 2026-09-06 IT IS THE PAINT CALL, NOT `st_grassColour(vWorld.xz)`. The wheat field
+ * (`src/land-wheat.ts`) put both painted layers through one seam: `st_paintColour` evaluates the
+ * grass's fields ONCE and returns the grass on a grass row and the wheat on a wheat row, so the
+ * shipped shader no longer spells the bare grass call at all. The amplifier multiplies THIS call,
+ * which is what carries the octaves; the gate arguments ride along unchanged.
  */
-export const GRASS_CALL = 'st_grassColour(vWorld.xz)';
+export const GRASS_CALL = 'st_paintColour(vWorld.xz, grassGate, wheatGate)';
 
 /**
  * MAKE THE LAYER DELIBERATELY DEARER, in the fragment stage and nowhere else.
  *
- * The single `st_grassColour(vWorld.xz)` call becomes `factor` calls at distinct offsets, averaged.
+ * The single paint call ({@link GRASS_CALL}) becomes `factor` calls at distinct offsets, averaged.
  * DISTINCT OFFSETS ARE THE POINT: `factor` copies of an identical call are one call after common
  * subexpression elimination, and the arm would be byte-equivalent to the layer arm while claiming
  * to be eight times dearer — a sensitivity control that always reports blindness. The offsets are
@@ -142,7 +148,7 @@ export function amplifyGrass(fragmentShader: string, factor: number): string {
     // compiler cannot prove any two calls equal.
     const dx = (i * 0.0131).toFixed(6);
     const dz = (i * 0.0079).toFixed(6);
-    terms.push(`st_grassColour(vWorld.xz + vec2(${dx}, ${dz}))`);
+    terms.push(`st_paintColour(vWorld.xz + vec2(${dx}, ${dz}), grassGate, wheatGate)`);
   }
   const amplified = `((${terms.join(' + ')}) / ${factor.toFixed(1)})`;
   return fragmentShader.split(GRASS_CALL).join(amplified);

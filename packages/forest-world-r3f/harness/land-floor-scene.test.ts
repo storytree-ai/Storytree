@@ -58,7 +58,7 @@ test('this instrument reads the GPU clock and carries no gl.finish() timing rout
 test('amplifyGrass multiplies the grass call and nothing else', () => {
   const src = `  vec3 c = base;\n  c = mix(c, ${GRASS_CALL}, uGrassMix);\n  gl_FragColor = vec4(c, 1.0);`;
   const out = amplifyGrass(src, 4);
-  assert.equal(count(out, 'st_grassColour('), 4);
+  assert.equal(count(out, 'st_paintColour('), 4);
   // The surrounding shader is untouched: same statements, same order.
   assert.ok(out.includes('vec3 c = base;'));
   assert.ok(out.includes('gl_FragColor = vec4(c, 1.0);'));
@@ -71,7 +71,8 @@ test('the amplified calls carry DISTINCT arguments — identical ones would coll
   // the layer arm while claiming to be eight times dearer — and the sensitivity rung would then
   // report the instrument as blind, in every run, forever.
   const out = amplifyGrass(`x = ${GRASS_CALL};`, AMPLIFY_FACTOR);
-  const args = [...out.matchAll(/st_grassColour\(([^)]*\))\)/g)].map((m) => m[1]);
+  // The OFFSET is the argument that differs; the two gate arguments ride along unchanged.
+  const args = [...out.matchAll(/st_paintColour\((vWorld\.xz \+ vec2\([^)]*\)), grassGate, wheatGate\)/g)].map((m) => m[1]);
   assert.equal(args.length, AMPLIFY_FACTOR);
   assert.equal(new Set(args).size, AMPLIFY_FACTOR, 'every evaluation must have its own offset');
 });
@@ -126,9 +127,12 @@ test('the CONTROL arm’s shader carries no grass at all — it is the map as it
 test('the amplified arm really does evaluate the layer AMPLIFY_FACTOR times over', () => {
   const layer = fragmentOf(buildLandFloorScene(LAND_FLOOR_LAYER, 'one', 8));
   const amplified = fragmentOf(buildLandFloorScene(LAND_FLOOR_AMPLIFIED, 'one', 8));
-  const layerCalls = count(layer, 'st_grassColour(vWorld');
-  const amplifiedCalls = count(amplified, 'st_grassColour(vWorld');
-  assert.equal(layerCalls, 1, 'the shipped shader evaluates the grass once');
+  // The PAINT call, since the wheat (2026-09-06) — the one seam both painted layers enter through,
+  // and the one place the shipped shader evaluates layer 1's fields.
+  const layerCalls = count(layer, 'st_paintColour(vWorld');
+  const amplifiedCalls = count(amplified, 'st_paintColour(vWorld');
+  assert.equal(layerCalls, 1, 'the shipped shader evaluates the paint once');
+  assert.equal(count(layer, 'st_grassColour(vWorld'), 0, 'and never the bare grass call beside it');
   assert.equal(amplifiedCalls, AMPLIFY_FACTOR);
   assert.notEqual(layer, amplified, 'the sensitivity control must not be the layer arm');
 });
