@@ -45,7 +45,7 @@ const grassed = (): BandedGroundMaterialOptions => ({
   grain: 'normal',
   grass: { mix: 0.85, rows: GREEN_ROWS },
 });
-const WHEAT = { mix: 0.85, rows: YELLOW_ROWS, anchor: '#b0b040' } as const;
+const WHEAT = { mix: 0.85, rows: YELLOW_ROWS, anchor: '#b0b040', lift: 1 } as const;
 const wheated = (): BandedGroundMaterialOptions => ({ ...grassed(), wheat: { ...WHEAT } });
 const sandedOpts = (base: BandedGroundMaterialOptions): BandedGroundMaterialOptions => ({
   ...base,
@@ -150,7 +150,7 @@ test('a WHEATED material uploads the caller`s mix and splices the generated whea
   assert.equal(m.uniforms['uWheatMix']?.value, 0.85, 'the fac is UPLOADED, never written in');
   assert.equal(m.uniforms['uGrassMix']?.value, 0.85, 'and the grass keeps its own');
   assert.ok(/uniform float uGrassMix;\n      uniform float uWheatMix;/.test(m.fragmentShader), 'declared after the grass`s');
-  const spliced = wheatGlsl('#b0b040').split('\n').join('\n      ');
+  const spliced = wheatGlsl({ anchor: '#b0b040', lift: 1 }).split('\n').join('\n      ');
   assert.ok(m.fragmentShader.includes(spliced), 'the wheat source is not spliced with its lines intact');
   assert.ok(m.fragmentShader.includes('\n      // GENERATED from land-wheat.ts'), 'indented into the shader, not flattened');
   // AFTER the grass source (it calls the grass's functions), and each declared exactly once.
@@ -162,6 +162,22 @@ test('a WHEATED material uploads the caller`s mix and splices the generated whea
   const other = createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, anchor: '#d6b271' } });
   assert.notEqual(other.fragmentShader, m.fragmentShader);
   assert.ok(other.fragmentShader.includes('onto the anchor #d6b271'));
+  // And a different LIFT on the same anchor — the paleness rung is in the bytes, with the stops.
+  const paler = createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift: 2 } });
+  assert.notEqual(paler.fragmentShader, m.fragmentShader);
+  assert.ok(paler.fragmentShader.includes('then lifted by 2.00 in'));
+  assert.ok(paler.fragmentShader.includes(wheatGlsl({ anchor: '#b0b040', lift: 2 }).split('\n').join('\n      ')));
+  assert.equal(paler.uniforms['uWheatMix']?.value, 0.85, 'the lift is in the source, never a uniform');
+  assert.ok(!/uWheatLift/.test(paler.fragmentShader));
+});
+
+test('a lift below 1, or not a finite number, is REFUSED with the ladder`s floor named', () => {
+  for (const lift of [0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift } }), /lift is .* the paleness ladder runs from 1/);
+  }
+  // Exactly 1 is the floor, and admitted.
+  assert.doesNotThrow(() => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift: 1 } }));
+  assert.doesNotThrow(() => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift: 1.25 } }));
 });
 
 test('⚠⚠ THE PAINT LINE: one seam, both gates, each layer`s own factor — and the wheat`s gate is promoted for the layers above', () => {

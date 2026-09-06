@@ -16,11 +16,12 @@ import {
   SHIPPED_SHADOW_DEPTH,
   SHIPPED_WHEAT,
   SHIPPED_WHEAT_ANCHOR,
+  SHIPPED_WHEAT_LIFT,
   SHIPPED_WHEAT_MIX,
   WHEAT_GATE_ROWS,
 } from '../src/ForestWorldCanvas.js';
 import { GRASS_STATUS_GATE } from '../src/land-grass.js';
-import { GRASS_TOKEN_REFERENCE, WHEAT_ANCHORS, WHEAT_STATUS_GATE } from '../src/land-wheat.js';
+import { GRASS_TOKEN_REFERENCE, WHEAT_ANCHORS, WHEAT_LIFTS, WHEAT_STATUS_GATE } from '../src/land-wheat.js';
 import { SHADOW_DEPTH, SHADOW_EDGE } from '../src/shadow-rung.js';
 import { separationOf } from './ground-cover.js';
 import { groundSanity } from './ground-sanity.js';
@@ -70,7 +71,10 @@ test('the shipped wheat is one rung of the ladder, at the grass`s strength, on t
   assert.ok(WHEAT_ANCHORS.some((a) => a.hex === SHIPPED_WHEAT_ANCHOR), 'the pick is not a rung of the ladder');
   assert.equal(SHIPPED_WHEAT_MIX, SHIPPED_GRASS_MIX, 'the treatment transfers at one strength');
   assert.ok(SHIPPED_WHEAT_MIX < 1, 'ADR-0490 D5: modulate, never replace');
-  assert.deepEqual(SHIPPED_WHEAT, { mix: SHIPPED_WHEAT_MIX, rows: WHEAT_GATE_ROWS, anchor: SHIPPED_WHEAT_ANCHOR });
+  assert.deepEqual(SHIPPED_WHEAT, { mix: SHIPPED_WHEAT_MIX, rows: WHEAT_GATE_ROWS, anchor: SHIPPED_WHEAT_ANCHOR, lift: SHIPPED_WHEAT_LIFT });
+  // The lift is a rung of the paleness ladder, at or above the derivation.
+  assert.ok(WHEAT_LIFTS.some((l) => l.lift === SHIPPED_WHEAT_LIFT), 'the lift is not a rung of the paleness ladder');
+  assert.ok(SHIPPED_WHEAT_LIFT >= 1);
   // The green reference the ramps are stated against IS the shipped healthy token.
   assert.equal(GRASS_TOKEN_REFERENCE, SHIPPED_GROUND_COLOUR.get('healthy'));
 });
@@ -104,8 +108,9 @@ test('the arms: the control first, one rung per anchor in ladder order, the ship
   assert.equal(WHEAT_ARMS[0]!.id, CONTROL_ARM);
   assert.equal(WHEAT_ARMS[WHEAT_ARMS.length - 1]!.id, SHIPPED_ARM);
   assert.deepEqual(LADDER_ARMS, WHEAT_ANCHORS.map((a) => wheatArmId(a.id)));
-  assert.deepEqual(armSpec(CONTROL_ARM), { id: CONTROL_ARM, anchor: null, rung: null });
-  for (const a of WHEAT_ANCHORS) assert.deepEqual(armSpec(wheatArmId(a.id)), { id: wheatArmId(a.id), anchor: a.hex, rung: a.id });
+  assert.deepEqual(armSpec(CONTROL_ARM), { id: CONTROL_ARM, anchor: null, rung: null, lift: null });
+  // Every rung wears the SHIPPED lift, held fixed — this ladder varies the anchor and nothing else.
+  for (const a of WHEAT_ANCHORS) assert.deepEqual(armSpec(wheatArmId(a.id)), { id: wheatArmId(a.id), anchor: a.hex, rung: a.id, lift: SHIPPED_WHEAT_LIFT });
   const shipped = armSpec(SHIPPED_ARM);
   assert.equal(shipped.anchor, SHIPPED_WHEAT_ANCHOR);
   const twins = LADDER_ARMS.filter((id) => sameArm(armSpec(id), shipped));
@@ -116,6 +121,9 @@ test('the arms: the control first, one rung per anchor in ladder order, the ship
   assert.ok(armCaption(CONTROL_ARM).endsWith('(CONTROL)'));
   assert.ok(armCaption(SHIPPED_ARM).endsWith('(SHIPS)'));
   assert.ok(armCaption(wheatArmId('mustard')).includes('#b0b040'));
+  assert.ok(armCaption(wheatArmId('mustard')).includes(`lifted ${SHIPPED_WHEAT_LIFT.toFixed(2)}`), 'the caption names the lift the rung wears');
+  // `sameArm` compares BOTH ladders' levers: an arm at another lift is not the same picture.
+  assert.ok(!sameArm(shipped, { ...shipped, lift: shipped.lift! + 0.5 }));
 });
 
 test('armWheat: null on the control, the SHIPPED rows and factor on every rung — only the anchor differs', () => {
@@ -126,6 +134,7 @@ test('armWheat: null on the control, the SHIPPED rows and factor on every rung �
     assert.equal(w.mix, SHIPPED_WHEAT_MIX);
     assert.deepEqual([...w.rows], [...WHEAT_GATE_ROWS]);
     assert.equal(w.anchor, armSpec(id).anchor);
+    assert.equal(w.lift, SHIPPED_WHEAT_LIFT, `${id} does not wear the shipped lift`);
   }
   assert.deepEqual(armWheat(SHIPPED_ARM), SHIPPED_WHEAT);
 });
@@ -196,7 +205,11 @@ test('shippedLayoutArm picks the export whose ratio IS the shipped ratio, and re
 
 test('the page builds every arm through the SHIPPED builder, handing it this arm`s wheat and depth and nothing else', () => {
   const page = source('shipped-wheat-scene.ts');
-  assert.ok(page.includes('buildGroundMaterial(build.field, SHIPPED_GRASS, build.shore(), SHIPPED_SAND_MIX, extras, armDepth(arm), armWheat(arm))'));
+  assert.ok(page.includes('buildGroundMaterial(build.field, SHIPPED_GRASS, build.shore(), SHIPPED_SAND_MIX, extras, depth, wheat)'));
+  // The wheat and depth are the TABLE's, resolved once per scene — the paleness page shares this.
+  assert.ok(page.includes('const wheat = table.wheat(arm);'));
+  assert.ok(page.includes('groundMesh(timed.build, wheat, table.depth(arm))'));
+  assert.ok(page.includes('groundMesh(build, wheat, table.depth(arm))'));
   assert.equal([...page.matchAll(/buildGroundMaterial\(/g)].length, 1, 'one material call, shared by every picture');
   assert.ok(page.includes('shippedGroundBuild('), 'the mono ground is the canvas`s own build');
   // The canvas's CellGround still passes no wheat of its own — the default IS the shipped wheat.

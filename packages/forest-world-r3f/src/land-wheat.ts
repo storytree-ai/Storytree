@@ -40,6 +40,19 @@
 // per-pixel reader with THIS layer's reachable colours and reports its margin on every rung —
 // negative where it is negative. ADR-0503 retired that number as a fence and ADR-0506 extended
 // the retirement to layer 1; the look decides (ADR-0489 D3), and a negative margin is a report.
+//
+// ⚠ HOW PALE IT IS, IS A SECOND LADDER, ORTHOGONAL TO THE FIRST (`wheat-paleness-ladder`,
+// 2026-09-06). The rebasing above has no free constant, and the yellowness sheet surfaced what
+// that costs: EVERY rung is darker and duller than the flat yellow token, because the recipe's
+// ramps sit BELOW the token they mix into — the green's dark stop is 0.20–0.26 of its token, the
+// mid stop ~0.5, and the base scalar concentrates near the mid stop. The green wore that same
+// darkening as its approved look; on the yellow it costs the flat token's brightness, and a
+// wheat field in the owner's sense may want to be pale gold rather than deep ochre. The lever
+// for that is the STOP LUMA, not the anchor: {@link WheatPalette.lift} scales all six rebased
+// stops by ONE number in linear space, ratio-preserving, so the cool/warm drift and the
+// dark-to-light ladder keep their proportions and only the field's brightness moves. The anchor
+// the owner picked stays fixed. {@link WHEAT_LIFTS} is that ladder; the pick lives in
+// `ForestWorldCanvas.tsx` beside the anchor's.
 
 import {
   GRASS_COOL,
@@ -149,6 +162,92 @@ export function wheatAnchor(id: string): WheatAnchor {
 }
 
 /**
+ * THE WHEAT'S PALETTE — the two numbers that decide the six stop colours: WHICH anchor the
+ * ramps are rebased onto (how yellow, {@link WHEAT_ANCHORS}) and HOW FAR the rebased stops are
+ * lifted (how pale, {@link WHEAT_LIFTS}). Two orthogonal ladders, one object, so a caller cannot
+ * hand a function the anchor and forget the lift — a shipped path silently at 1.0 while the pick
+ * said otherwise would be the "control that is not a control" shape this arc has shipped before.
+ */
+export interface WheatPalette {
+  /** The anchor, `#rrggbb` — the colour that plays the green token's role in the rebasing. */
+  anchor: string;
+  /** The stop-luma lift — every rebased stop scaled by this in linear space, ratio-preserving,
+   *  clamped to 1 per channel. `1` is the derivation untouched (as shipped 2026-09-06 morning). */
+  lift: number;
+}
+
+/** One rung of the paleness ladder: a lift and what it is. */
+export interface WheatLift {
+  id: string;
+  lift: number;
+  /** What the rung is, for a caption. */
+  what: string;
+}
+
+/**
+ * THE LADDER — HOW PALE THE WHEAT IS, four lifts from 1.0 upward, chosen against the flat token's
+ * own brightness rather than by eye (a scratch walk over the reach set, 2026-09-06, mixed into
+ * the lit flat token at the shipped strength; `harness/wheat-status-reading.ts`'s
+ * `wheatFieldLuma` re-derives it on every sheet):
+ *
+ *   1.00  the derivation as shipped: the field's mean delivered luma 134 against the flat token's
+ *         172 — the darkening the yellowness sheet surfaced
+ *   1.50  half again: 156 — the light stops now sit ABOVE the anchor, the dark stops still below
+ *   2.00  double: 173 — the mean field luma REACHES the flat token's; the warm light stop's red
+ *         clamps at linear white, which is where the ratio stops being preserved
+ *   3.00  triple: 197 — the OVERSHOOT rung, five channels clamped, both light stops a flat lemon
+ *         #ffff79 — rendered so the owner can see what "too far" is and scale back from it
+ *
+ * ⚠ A QUARTER LIFT WAS RENDERED FIRST AND DROPPED: 1.25 moved NO pixel of the in-progress island
+ * past ADR-0490 D6's 20/255 bar against 1.00 on the RTX 2060 (and 1.50 moved 1.5%) — a lever
+ * laddered at a shallow rung is invisible, and a ladder with an invisible rung offers the owner a
+ * scale-back that changes nothing. The top rung went up instead.
+ *
+ * ⚠ RATIO-PRESERVING BY CONSTRUCTION, so a lift moves NO hue until a channel clamps: the warm
+ * light stop reads 40° as delivered at 1.00 and 1.50 alike (#cba049 / #f3c059), 45° at 2.00
+ * (#ffda66) because its red saturates first — toward yellow, AWAY from the peach the pale anchors
+ * showed (the straw's warm light stop is 22°, the wheat token's 17°) — and 60° at 3.00, a pure
+ * lemon. The second finding of the yellowness sheet (the recipe's cool→warm drift heading for
+ * orange on a yellow anchor) is therefore not re-exposed by a lift on the mustard; the sheet
+ * prints the hue per rung so that is read rather than assumed.
+ *
+ * ⚠ THE PICK IS NOT HERE. `SHIPPED_WHEAT_LIFT` in `ForestWorldCanvas.tsx` names the rung that
+ * ships and the sheet it was chosen from; this list is the ladder the owner scales along.
+ */
+export const WHEAT_LIFTS: readonly WheatLift[] = [
+  { id: '1.00', lift: 1, what: 'as derived — the recipe’s own darkening, the field a third darker than the flat token' },
+  { id: '1.50', lift: 1.5, what: 'a half lift — the light stops now above the anchor, the dark stops still below it' },
+  { id: '2.00', lift: 2, what: 'doubled — the field’s mean brightness reaches the flat token’s; the warm light stop clamps' },
+  { id: '3.00', lift: 3, what: 'tripled — the overshoot rung, both light stops clamped to a flat lemon; rendered so “too far” is on the sheet' },
+];
+
+/** One lift by id — refused rather than `undefined`, for {@link wheatAnchor}'s reason. */
+export function wheatLift(id: string): WheatLift {
+  const found = WHEAT_LIFTS.find((l) => l.id === id);
+  if (found === undefined) throw new Error(`land-wheat: no wheat lift "${id}"`);
+  return found;
+}
+
+/**
+ * ONE CHANNEL LIFTED: the rebased linear value times the lift, clamped at linear white. The same
+ * number on all three channels of all six stops is what makes the lift ratio-preserving — the
+ * chromaticity of every stop and the proportion between any two stops are untouched until a
+ * channel clamps. A named function, like {@link rebaseChannel}, so the mutation rung can
+ * attribute a mutant in the arithmetic.
+ */
+export function liftChannel(value: number, lift: number): number {
+  return clamp01(value * lift);
+}
+
+/** One stop lifted — the position untouched, the three channels through {@link liftChannel}. */
+export function liftStop(stop: RampStop, lift: number): RampStop {
+  return {
+    at: stop.at,
+    linear: [liftChannel(stop.linear[0], lift), liftChannel(stop.linear[1], lift), liftChannel(stop.linear[2], lift)],
+  };
+}
+
+/**
  * ONE STOP REBASED: the anchor scaled per channel by the green stop's ratio to the green
  * reference, in LINEAR space, clamped to 1.
  *
@@ -177,21 +276,23 @@ export function rebaseChannel(stop: number, anchor: number, reference: number): 
   return clamp01((anchor * stop) / reference);
 }
 
-/** A whole ramp rebased onto an anchor. */
-export function wheatRamp(stops: readonly RampStop[], anchorHex: string): RampStop[] {
-  const anchor = hexToLinear(anchorHex);
+/** A whole ramp rebased onto the palette's anchor, then lifted by its lift — rebase FIRST, so
+ *  the lift scales the derived colour and the clamp is the lift's own (a ratio above 1 on a pale
+ *  anchor clamps in the rebase for its own reason; the two clamps are then the same ceiling). */
+export function wheatRamp(stops: readonly RampStop[], palette: WheatPalette): RampStop[] {
+  const anchor = hexToLinear(palette.anchor);
   const reference = hexToLinear(GRASS_TOKEN_REFERENCE);
-  return stops.map((stop) => rebaseStop(stop, anchor, reference));
+  return stops.map((stop) => liftStop(rebaseStop(stop, anchor, reference), palette.lift));
 }
 
-/** THE WHEAT'S COOL RAMP — the grass's cool ramp rebased. */
-export function wheatCool(anchorHex: string): RampStop[] {
-  return wheatRamp(GRASS_COOL, anchorHex);
+/** THE WHEAT'S COOL RAMP — the grass's cool ramp rebased and lifted. */
+export function wheatCool(palette: WheatPalette): RampStop[] {
+  return wheatRamp(GRASS_COOL, palette);
 }
 
-/** THE WHEAT'S WARM RAMP — the grass's warm ramp rebased. */
-export function wheatWarm(anchorHex: string): RampStop[] {
-  return wheatRamp(GRASS_WARM, anchorHex);
+/** THE WHEAT'S WARM RAMP — the grass's warm ramp rebased and lifted. */
+export function wheatWarm(palette: WheatPalette): RampStop[] {
+  return wheatRamp(GRASS_WARM, palette);
 }
 
 /**
@@ -203,9 +304,9 @@ export function wheatWarm(anchorHex: string): RampStop[] {
  * the layer's reachable colour set is a property of the scalars' range, and the reader instrument
  * enumerates it rather than sampling an island.
  */
-export function wheatLinearOf(anchorHex: string, t: number, d: number): LinearRgb {
-  const cool = rampLinear(wheatCool(anchorHex), t);
-  const warm = rampLinear(wheatWarm(anchorHex), t);
+export function wheatLinearOf(palette: WheatPalette, t: number, d: number): LinearRgb {
+  const cool = rampLinear(wheatCool(palette), t);
+  const warm = rampLinear(wheatWarm(palette), t);
   return [
     cool[0] + (warm[0] - cool[0]) * d,
     cool[1] + (warm[1] - cool[1]) * d,
@@ -215,15 +316,15 @@ export function wheatLinearOf(anchorHex: string, t: number, d: number): LinearRg
 
 /** {@link wheatLinearOf} as a delivered sRGB pixel — interpolated in linear, converted once, the
  *  faithful order `land-grass.ts` records paying for. */
-export function wheatColourOf(anchorHex: string, t: number, d: number): Rgb255 {
-  const [r, g, b] = wheatLinearOf(anchorHex, t, d);
+export function wheatColourOf(palette: WheatPalette, t: number, d: number): Rgb255 {
+  const [r, g, b] = wheatLinearOf(palette, t, d);
   return { r: linearToSrgb255(r), g: linearToSrgb255(g), b: linearToSrgb255(b) };
 }
 
 /** THE WHEAT COLOUR at a ground point — the GRASS's own base scalar and drift (the structure), the
  *  wheat's ramps (the colour). */
-export function wheatColourAt(anchorHex: string, x: number, z: number): Rgb255 {
-  return wheatColourOf(anchorHex, grassScalar(x, z), grassDrift(x, z));
+export function wheatColourAt(palette: WheatPalette, x: number, z: number): Rgb255 {
+  return wheatColourOf(palette, grassScalar(x, z), grassDrift(x, z));
 }
 
 /**
@@ -239,16 +340,17 @@ export function wheatColourAt(anchorHex: string, x: number, z: number): Rgb255 {
  * term is multiplied by zero, on a wheat row the grass term is, and on every other row both are —
  * which is what lets the material composite one line rather than two.
  */
-export function wheatGlsl(anchorHex: string): string {
+export function wheatGlsl(palette: WheatPalette): string {
   const [lo, hi] = GRASS_DRIFT_RAMP;
   return [
     '// GENERATED from land-wheat.ts — do not hand-edit these constants.',
     `// The wheat field: layer 1's structure (build_land.py:836-868, mat_attribute()) re-palettised`,
-    `// onto the anchor ${anchorHex} — each stop is that anchor scaled per channel by the green`,
-    `// stop's ratio to the green token ${GRASS_TOKEN_REFERENCE}.`,
-    ...rampGlsl('st_wheatCool', wheatCool(anchorHex)),
+    `// onto the anchor ${palette.anchor} — each stop is that anchor scaled per channel by the green`,
+    `// stop's ratio to the green token ${GRASS_TOKEN_REFERENCE}, then lifted by ${palette.lift.toFixed(2)} in`,
+    `// linear space (ratio-preserving; how pale the field is).`,
+    ...rampGlsl('st_wheatCool', wheatCool(palette)),
     '',
-    ...rampGlsl('st_wheatWarm', wheatWarm(anchorHex)),
+    ...rampGlsl('st_wheatWarm', wheatWarm(palette)),
     '',
     '// THE PAINTED COLOUR at a ground point, as a delivered sRGB triple in 0..1: the grass on a',
     '// grass row, the wheat on a wheat row, both from the ONE base scalar and drift the fragment',
