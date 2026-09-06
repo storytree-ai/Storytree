@@ -706,7 +706,7 @@ export interface SceneInput {
    *  with. ABSENT ⇒ the shipped, derived `HEX_R`, which is what every product surface draws on. An
    *  instrument that lays a scene out on another radius (the r3f harness fixture, on the tuned
    *  tile) states it here so the props, keep-outs and strokes re-base with the lattice. */
-  tile?: { hexR: number };
+  tile?: { hexR: number; rungs?: ArtRungs };
 }
 
 /** DORMANT: the scene-graph's def id the baked standing-stone once used (ADR-0218). No longer emitted
@@ -817,17 +817,27 @@ export interface TileArt {
   readonly hoverOrbitR: number;
 }
 
-export function tileArt(hexR: number = HEX_R): TileArt {
+/** The per-family art rungs a scene may state (ADR-0528 D2) — each a factor on the shipped rung
+ *  (`sizing.ts`), so `1` on every key is the shipped drawing. An instrument's dial: the studio reads
+ *  `?treeRung=` … off its URL into these so a ladder can be captured from the running map. */
+export interface ArtRungs {
+  tree?: number;
+  plate?: number;
+  flora?: number;
+  trail?: number;
+}
+
+export function tileArt(hexR: number = HEX_R, rungs: ArtRungs = {}): TileArt {
   const scale = hexR / PRE_ADR0528_TILE.hexR;
   const units = (n: number): number => n * scale;
   return {
     hexR,
     scale,
     units,
-    tree: scale * TREE_ART_RUNG,
-    plate: scale * PLATE_ART_RUNG,
-    flora: scale * FLORA_ART_RUNG,
-    trailStroke: scale * TRAIL_ART_RUNG,
+    tree: scale * TREE_ART_RUNG * (rungs.tree ?? 1),
+    plate: scale * PLATE_ART_RUNG * (rungs.plate ?? 1),
+    flora: scale * FLORA_ART_RUNG * (rungs.flora ?? 1),
+    trailStroke: scale * TRAIL_ART_RUNG * (rungs.trail ?? 1),
     markerSpacing: units(15),
     markerTreeWell: units(36),
     hoverOrbitR: units(9),
@@ -3430,7 +3440,7 @@ function trailSegPath(
  *  never interleaved per path, so merged trunks read as one trail (the cartographic
  *  casing rule). Ends with the non-visual per-edge reveal metadata (`trail-edges`).
  *  Default-hidden is the SURFACE's concern (§3): the core emits everything. */
-export function buildTrails(input: SceneInput, art: TileArt = tileArt(input.tile?.hexR)): SceneG {
+export function buildTrails(input: SceneInput, art: TileArt = tileArt(input.tile?.hexR, input.tile?.rungs)): SceneG {
   const net = input.trails;
   // Per-segment `from->to` keys, folded from the edge chains (a segment doesn't carry
   // them); edge-input order, first appearance wins — deterministic.
@@ -3562,7 +3572,7 @@ export function buildScene(input: SceneInput): SceneG {
   // second camera.
   const elevationDeg = input.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
   // The tile the scene is drawn on (ADR-0528) — absent ⇒ the shipped, derived tile.
-  const art = tileArt(input.tile?.hexR);
+  const art = tileArt(input.tile?.hexR, input.tile?.rungs);
   const surfaces: (ParcelSurface | null)[] = input.territories.map((t, i) => {
     const own = ownerCells[i];
     return own ? buildTerritorySurface(t, own, unifiedVeg, art) : null;

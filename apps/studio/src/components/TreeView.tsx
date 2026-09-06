@@ -162,6 +162,7 @@ import {
   tileQuota,
   tileUnits,
   COAST_OUTSET_ON_TILE,
+  type ArtRungs,
   TILE_SCALE,
   TREE_SCALE,
   PLATE_SCALE,
@@ -1416,6 +1417,8 @@ export function worldToScene(
   bakedStone: BakedStoneAsset | null = null,
   garden: SceneGardenInput | null = null,
   vegetation: SceneVegetationInput | null = null,
+  /** ADR-0528 D2: art-rung overrides (an instrument's dial). Absent ⇒ the shipped drawing. */
+  artRungs: ArtRungs | null = null,
 ): SceneInput {
   const scene: SceneInput = {
     offset: world.offset,
@@ -1445,6 +1448,9 @@ export function worldToScene(
   // ADR-0226 (grounded-art): the unified vegetation vocabulary, supplied only when `?veg=on`. The
   // core reads its presence to flip the vocabulary on the non-garden islands; absent ⇒ byte-for-byte.
   if (vegetation) scene.vegetation = vegetation;
+  // ADR-0528: the shipped map draws on the derived tile, which is the builder's default — the tile
+  // is stated only when a dial moves a rung, so a bare `#/tree` is byte-for-byte the default scene.
+  if (artRungs && Object.keys(artRungs).length > 0) scene.tile = { hexR: HEX_R, rungs: artRungs };
   return scene;
 }
 
@@ -1491,6 +1497,34 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 function readSpacingTuning(): Partial<SpacingTuning> {
   if (typeof window === 'undefined') return {};
   return parseSpacingTuning(new URLSearchParams(window.location.search));
+}
+
+/** Live 2D ART-RUNG overrides from the URL (ADR-0528 D2) — `?treeRung=&plateRung=&floraRung=&trailRung=`,
+ *  each a factor on the shipped rung, so the art ladder can be captured from the running map
+ *  (`scripts/export-tile-art-ladder.mjs`). Absent ⇒ the shipped drawing. */
+function readArtRungs(): ArtRungs {
+  if (typeof window === 'undefined') return {};
+  return parseArtRungs(new URLSearchParams(window.location.search));
+}
+
+/** The pure half of `readArtRungs`. A rung must be a finite positive number; anything else is ignored. */
+export function parseArtRungs(q: URLSearchParams): ArtRungs {
+  const out: ArtRungs = {};
+  const num = (key: string): number | null => {
+    const raw = q.get(key);
+    if (raw === null) return null;
+    const v = Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const tree = num('treeRung');
+  const plate = num('plateRung');
+  const flora = num('floraRung');
+  const trail = num('trailRung');
+  if (tree !== null) out.tree = tree;
+  if (plate !== null) out.plate = plate;
+  if (flora !== null) out.flora = flora;
+  if (trail !== null) out.trail = trail;
+  return out;
 }
 
 /** The pure half of `readSpacingTuning`, so the dial's grammar is testable without a window. */
@@ -2105,6 +2139,7 @@ export function TreeView({
   // (`?rankGap=`/`?islandGap=`/`?rankSwing=`), same shape as `substrateTuning` above. Absent ⇒
   // `buildWorld`'s own (now tighter) defaults.
   const spacingTuning = useMemo(() => readSpacingTuning(), [search]);
+  const artRungs = useMemo(() => readArtRungs(), [search]);
   const world = useMemo(
     () => (stories ? buildWorld(stories, { plantsScatter, buildings, spacing: spacingTuning }) : null),
     [stories, plantsScatter, buildings, spacingTuning],
@@ -2974,9 +3009,9 @@ export function TreeView({
   const sceneInput = useMemo(
     () =>
       world
-        ? worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation)
+        ? worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, null, null, vegetation, artRungs)
         : null,
-    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation],
+    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation, artRungs],
   );
   const scene = useMemo(() => (sceneInput ? buildScene(sceneInput) : null), [sceneInput]);
 
@@ -2988,12 +3023,12 @@ export function TreeView({
   const sceneExport = useMemo(() => readSceneExport(search), [search]);
   useEffect(() => {
     if (!sceneExport || !world || !scene) return;
-    const bridge = sceneExportBridge(world, scene, spacingTuning);
+    const bridge = sceneExportBridge(world, scene, spacingTuning, artRungs);
     window.__storytreeSceneExport = bridge;
     return () => {
       if (window.__storytreeSceneExport === bridge) delete window.__storytreeSceneExport;
     };
-  }, [sceneExport, world, scene, spacingTuning]);
+  }, [sceneExport, world, scene, spacingTuning, artRungs]);
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which

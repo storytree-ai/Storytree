@@ -19,7 +19,7 @@
 // count, and the `dropped` list are read off the same `HexWorld` the scene was folded from.
 
 import { HEX_R, HEX_TILES_PER_CAPABILITY, TILE_QUOTA_RULE } from '@storytree/forest-world';
-import type { Pt, SceneG, SceneNode, TrailNetwork } from '@storytree/forest-world';
+import type { ArtRungs, Pt, SceneG, SceneNode, TrailNetwork } from '@storytree/forest-world';
 
 import type { LegacySpacing } from './islandSpacing.js';
 
@@ -74,6 +74,8 @@ export interface SceneExportTile {
   /** How an island's tile quota follows its capability count — prose, for the reader. */
   quota: string;
   tilesPerCapability: number;
+  /** The 2D art rungs the scene was drawn with when a dial moved one (ADR-0528 D2); absent ⇒ shipped. */
+  rungs?: ArtRungs;
 }
 
 export interface SceneExportBridge {
@@ -96,6 +98,7 @@ export function sceneExportBridge(
   world: ExportableWorld,
   scene: SceneG,
   spacing: { ratio?: number; legacy?: LegacySpacing },
+  artRungs: ArtRungs | null = null,
 ): SceneExportBridge {
   const out: SceneExportBridge = {
     scene,
@@ -122,6 +125,7 @@ export function sceneExportBridge(
   };
   if (spacing.ratio !== undefined) out.spacing.ratio = spacing.ratio;
   if (spacing.legacy !== undefined) out.spacing.legacy = { ...spacing.legacy };
+  if (artRungs && Object.keys(artRungs).length > 0) out.tile.rungs = { ...artRungs };
   return out;
 }
 

@@ -157,6 +157,7 @@ export {
   BAKED_STONE_DEF,
   buildScene,
   type TileArt,
+  type ArtRungs,
   tileArt,
   SHIPPED_TILE_ART,
   PLATE_SCALE,
