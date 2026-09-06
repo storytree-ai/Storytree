@@ -63,6 +63,16 @@ test('AN ABSENT WHEAT CHANGES NOTHING — grassed, sanded and stacked shaders ar
   // The grass line is the one it always was, and it is the ONLY paint line.
   assert.ok(plain.fragmentShader.includes('        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'));
   assert.equal([...plain.fragmentShader.matchAll(/c = mix\(c, st_/g)].length, 1);
+  // ⚠ THE JOINS, EXACTLY — the three sites an absent wheat leaves empty must close straight onto
+  // what follows them, which is the only assertion that can see a non-empty "absent" (a sweep for
+  // `st_wheat` cannot): the grass source onto the ramp declaration, the grass uniform onto the
+  // varyings, and the unsanded paint line onto the write.
+  assert.ok(plain.fragmentShader.includes('}\n\n      uniform vec3 uRamp['), 'the grass source must close straight onto the ramp declaration');
+  assert.ok(plain.fragmentShader.includes('uniform float uGrassMix;\n      varying float vStatus;'), 'the grass uniform must close straight onto the varyings');
+  assert.ok(
+    plain.fragmentShader.includes('uGrassMix * grassGate);\n        gl_FragColor = vec4(c, 1.0);'),
+    'the unsanded paint line must close straight onto the write',
+  );
   // An explicit-absent key and a missing key build the same bytes — under exactOptionalPropertyTypes
   // the option is simply not there.
   const sandedPlain = createBandedGroundMaterial(sandedOpts(grassed()));
@@ -180,6 +190,8 @@ test('⚠⚠ THE PAINT LINE: one seam, both gates, each layer`s own factor — a
   const paint = src.indexOf('c = mix(c, st_paintColour');
   const promote = src.indexOf('        grassGate = max(grassGate, wheatGate);\n');
   assert.ok(promote > paint, 'the gate is promoted after the paint, not before');
+  // Unsanded, the promotion closes straight onto the write — the absent sand block is EMPTY.
+  assert.ok(src.includes('grassGate = max(grassGate, wheatGate);\n        gl_FragColor = vec4(c, 1.0);'));
 });
 
 test('the layers above ride the promoted gate — a sanded, worn, rocked wheat shader keeps their lines byte for byte', () => {
