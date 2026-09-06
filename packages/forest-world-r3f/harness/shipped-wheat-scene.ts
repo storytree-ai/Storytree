@@ -39,6 +39,13 @@
 // ⚠ FRAME COST REPORTS, IT DOES NOT GATE (ADR-0517 D4): the GPU frame on the yellow island and on
 // the real forest, control against shipped, on the RTX 2060's own clock.
 //
+// ⚠ SINCE THE PALENESS LADDER (`wheat-paleness-ladder`, 2026-09-06) EVERY WHEAT ARM HERE ALSO
+// WEARS THE SHIPPED LIFT (`SHIPPED_WHEAT_LIFT`), held fixed — this ladder varies the anchor and
+// nothing else, and the shipped twin has to coincide with one rung, which it cannot if the rungs
+// sit at a lift the map no longer ships. The paleness ladder is `shipped-wheat-lift-scene.ts`,
+// which varies the lift on the shipped anchor and shares this page's runner, pictures and
+// readings through {@link WheatArmTable}.
+//
 // THE PAGE ADOPTS NOTHING OF ITS OWN. `harness/` only: it produces EVIDENCE about the `src/`
 // modules it imports. The pick lands in `src/ForestWorldCanvas.tsx` (`SHIPPED_WHEAT_ANCHOR`).
 
@@ -56,6 +63,7 @@ import {
   SHIPPED_SHADOW_DEPTH,
   SHIPPED_WHEAT,
   SHIPPED_WHEAT_ANCHOR,
+  SHIPPED_WHEAT_LIFT,
   SHIPPED_WHEAT_MIX,
   WHEAT_GATE_ROWS,
   buildGroundMaterial,
@@ -114,6 +122,8 @@ export interface WheatArmSpec {
   anchor: string | null;
   /** The rung's id in `WHEAT_ANCHORS`, for the caption; `null` on the control. */
   rung: string | null;
+  /** The stop-luma lift every wheat arm wears — the SHIPPED one, held fixed; `null` on the control. */
+  lift: number | null;
 }
 
 export const CONTROL_ARM = 'today';
@@ -124,9 +134,14 @@ export function wheatArmId(rung: string): string {
 }
 
 export const WHEAT_ARMS: readonly WheatArmSpec[] = [
-  { id: CONTROL_ARM, anchor: null, rung: null },
-  ...WHEAT_ANCHORS.map((a): WheatArmSpec => ({ id: wheatArmId(a.id), anchor: a.hex, rung: a.id })),
-  { id: SHIPPED_ARM, anchor: SHIPPED_WHEAT_ANCHOR, rung: WHEAT_ANCHORS.find((a) => a.hex === SHIPPED_WHEAT_ANCHOR)?.id ?? null },
+  { id: CONTROL_ARM, anchor: null, rung: null, lift: null },
+  ...WHEAT_ANCHORS.map((a): WheatArmSpec => ({ id: wheatArmId(a.id), anchor: a.hex, rung: a.id, lift: SHIPPED_WHEAT_LIFT })),
+  {
+    id: SHIPPED_ARM,
+    anchor: SHIPPED_WHEAT_ANCHOR,
+    rung: WHEAT_ANCHORS.find((a) => a.hex === SHIPPED_WHEAT_ANCHOR)?.id ?? null,
+    lift: SHIPPED_WHEAT_LIFT,
+  },
 ];
 
 /** The ladder's arms, in order — the rungs, without the control or the shipped twin. */
@@ -142,7 +157,7 @@ export function armSpec(id: string): WheatArmSpec {
  *  is what makes it a pick rather than a fifth candidate; the driver refuses a run where it
  *  coincides with none. */
 export function sameArm(a: WheatArmSpec, b: WheatArmSpec): boolean {
-  return a.anchor === b.anchor;
+  return a.anchor === b.anchor && a.lift === b.lift;
 }
 
 /** The arm one rung DOWN the ladder (less yellow), or null — the control and the first rung have
@@ -163,7 +178,7 @@ export function armCaption(id: string): string {
   const anchor = WHEAT_ANCHORS.find((a) => a.hex === s.anchor);
   const what = anchor === undefined ? s.anchor : `${anchor.id} ${anchor.hex}: ${anchor.what}`;
   const tag = id === SHIPPED_ARM ? ' (SHIPS)' : '';
-  return `the wheat at ${SHIPPED_WHEAT_MIX} on the in-progress rows, rebased onto ${what}; the stack above and the deep shadow as the green wears them${tag}`;
+  return `the wheat at ${SHIPPED_WHEAT_MIX} on the in-progress rows, rebased onto ${what}, lifted ${s.lift?.toFixed(2)}; the stack above and the deep shadow as the green wears them${tag}`;
 }
 
 /** The wheat option one arm hands the material — `null` for the control, which is what makes its
@@ -171,8 +186,8 @@ export function armCaption(id: string): string {
  *  Every wheat arm wears the SHIPPED rows and the SHIPPED factor: the anchor is the one moving part. */
 export function armWheat(id: string): GroundWheatLayer | null {
   const s = armSpec(id);
-  if (s.anchor === null) return null;
-  return { mix: SHIPPED_WHEAT_MIX, rows: WHEAT_GATE_ROWS, anchor: s.anchor };
+  if (s.anchor === null || s.lift === null) return null;
+  return { mix: SHIPPED_WHEAT_MIX, rows: WHEAT_GATE_ROWS, anchor: s.anchor, lift: s.lift };
 }
 
 /**
@@ -192,6 +207,26 @@ export const TODAY_SHADOW_DEPTH: ShadowDepthOptions = {
   deepTokens: GRASS_STATUS_GATE.map((status) => SHIPPED_GROUND_COLOUR.get(status)!),
   edge: SHADOW_EDGE,
 };
+
+// ---------------------------------------------------------------- the arm table
+
+/**
+ * WHAT A LADDER PAGE HAS TO SAY ABOUT ITS ARMS for the shared runner below to render, measure and
+ * caption them: which arm is the control and which ships, what each arm hands the material, which
+ * arm is one rung down, and the reader-model report the page prints. The yellowness ladder
+ * ({@link YELLOWNESS_TABLE}) and the paleness ladder (`shipped-wheat-lift-scene.ts`) are two
+ * tables over ONE runner, so the two pages cannot drift in how they build a scene or read a pixel.
+ */
+export interface WheatArmTable<M> {
+  control: string;
+  shipped: string;
+  armsFor(pic: WheatPictureId): readonly string[];
+  wheat(arm: string): GroundWheatLayer | null;
+  depth(arm: string): ShadowDepthOptions;
+  neighbour(arm: string): string | null;
+  caption(arm: string): string;
+  margins(): M;
+}
 
 // ---------------------------------------------------------------- the pictures
 
@@ -345,7 +380,9 @@ export interface WheatScene {
   width: number;
   height: number;
   pxPerUnit: number;
-  spec: WheatArmSpec;
+  arm: string;
+  /** What the arm's material wore — `null` is no wheat. */
+  wheat: GroundWheatLayer | null;
   groundTriangles: number;
   screen: ScreenExtent;
   meshes: number;
@@ -354,7 +391,7 @@ export interface WheatScene {
 }
 
 /** ONE ARM'S GROUND in one picture: the picture's build, this arm's material. */
-function groundMesh(build: ShippedGroundBuild, arm: string) {
+function groundMesh(build: ShippedGroundBuild, wheat: GroundWheatLayer | null, depth: ShadowDepthOptions) {
   const geo = cellGroundGeometry(build.input);
   if (geo.triangles === 0) throw new Error('shipped-wheat-scene: the picture drew no ground');
   const geometry = new THREE.BufferGeometry();
@@ -368,7 +405,7 @@ function groundMesh(build: ShippedGroundBuild, arm: string) {
   const extras: GroundLayerExtras = { rock: SHIPPED_LAYERS.rock, detail: SHIPPED_LAYERS.detail };
   if (wearField !== null) extras.wear = { field: wearField, mix: SHIPPED_LAYERS.wearMix };
   // ⚠ THE SHIPPED BUILDER, HANDED THIS ARM'S WHEAT AND DEPTH AND NOTHING ELSE OF ITS OWN.
-  const { material } = buildGroundMaterial(build.field, SHIPPED_GRASS, build.shore(), SHIPPED_SAND_MIX, extras, armDepth(arm), armWheat(arm));
+  const { material } = buildGroundMaterial(build.field, SHIPPED_GRASS, build.shore(), SHIPPED_SAND_MIX, extras, depth, wheat);
   return { mesh: new THREE.Mesh(geometry, material), triangles: geo.triangles, positions: geo.positions };
 }
 
@@ -382,9 +419,10 @@ function lightScene(scene: THREE.Scene, lit: CalibratedIntensities): void {
 }
 
 /** A MONO picture's scene: the fixture island at the read zoom, centred on the origin. */
-export function buildMonoScene(kit: LoadedKit, lit: CalibratedIntensities, arm: string, pic: WheatPictureId): WheatScene {
+export function buildMonoScene<M>(kit: LoadedKit, lit: CalibratedIntensities, table: WheatArmTable<M>, arm: string, pic: WheatPictureId): WheatScene {
   const timed = monoGroundBuild(pic);
-  const ground = groundMesh(timed.build, arm);
+  const wheat = table.wheat(arm);
+  const ground = groundMesh(timed.build, wheat, table.depth(arm));
   const scene = new THREE.Scene();
   scene.add(ground.mesh);
   let meshes = 0;
@@ -401,7 +439,8 @@ export function buildMonoScene(kit: LoadedKit, lit: CalibratedIntensities, arm: 
     width: CROWD_VIEWPORT.w,
     height: CROWD_VIEWPORT.h,
     pxPerUnit,
-    spec: armSpec(arm),
+    arm,
+    wheat,
     groundTriangles: ground.triangles,
     screen: screenExtent(ground.positions, camera),
     meshes,
@@ -412,11 +451,12 @@ export function buildMonoScene(kit: LoadedKit, lit: CalibratedIntensities, arm: 
 
 /** THE REAL FOREST's scene, fitted: the spacing export's shipped layout through the shipped
  *  pipeline (the spacing page's own memoised build), with this arm's material. */
-export function buildForestScene(kit: LoadedKit, lit: CalibratedIntensities, arm: string, layout: SpacingArm): WheatScene {
+export function buildForestScene<M>(kit: LoadedKit, lit: CalibratedIntensities, table: WheatArmTable<M>, arm: string, layout: SpacingArm): WheatScene {
   const t0 = performance.now();
   const build = spacingGroundBuild(layout);
   const buildMs = performance.now() - t0;
-  const ground = groundMesh(build, arm);
+  const wheat = table.wheat(arm);
+  const ground = groundMesh(build, wheat, table.depth(arm));
   const scene = new THREE.Scene();
   scene.add(ground.mesh);
   let meshes = 0;
@@ -433,7 +473,8 @@ export function buildForestScene(kit: LoadedKit, lit: CalibratedIntensities, arm
     width: CROWD_VIEWPORT.w,
     height: CROWD_VIEWPORT.h,
     pxPerUnit: fit.pxPerUnit,
-    spec: armSpec(arm),
+    arm,
+    wheat,
     groundTriangles: ground.triangles,
     screen: screenExtent(ground.positions, camera),
     meshes,
@@ -446,7 +487,8 @@ export function buildForestScene(kit: LoadedKit, lit: CalibratedIntensities, arm
 
 export interface WheatReading {
   arm: string;
-  spec: WheatArmSpec;
+  /** What the arm's material wore — the reading describes itself. */
+  wheat: GroundWheatLayer | null;
   picture: WheatPictureId;
   zoom: CrowdZoom;
   elevationDeg: number;
@@ -513,13 +555,13 @@ export function wheatMargins(step = 0.0005): WheatMargins {
   return {
     fac: SHIPPED_WHEAT_MIX,
     step,
-    rungs: wheatLadderReports(SHIPPED_WHEAT_MIX, step),
+    rungs: wheatLadderReports(SHIPPED_WHEAT_MIX, step, SHIPPED_WHEAT_LIFT),
     green: { fac: SHIPPED_GRASS.mix, ...greenReferenceMargin(SHIPPED_GRASS.mix, grassReachableColours(), GRASS_STATUS_GATE) },
     shadow: wheatShadowMargin(SHIPPED_TOKENS, derived, SHADOW_DEPTH),
   };
 }
 
-export interface WheatRunner {
+export interface WheatRunner<M = WheatMargins> {
   identity(): RendererIdentity;
   calibration(): LightCalibration;
   kits(): KitFacts[];
@@ -529,7 +571,7 @@ export interface WheatRunner {
   warm(): void;
   read(arm: string, picture: WheatPictureId): WheatReading;
   sensitivity(picture: WheatPictureId): string[];
-  margins(): WheatMargins;
+  margins(): M;
   cost(spec: WheatCostSpec): Promise<WheatCostReading>;
   snapshot(arm: string, picture: WheatPictureId): string;
   reference(url: string): Promise<ReferenceReading>;
@@ -541,7 +583,19 @@ async function fetchJsonFromPage(url: string): Promise<unknown> {
   return res.json();
 }
 
-export async function createWheatRunner(): Promise<WheatRunner> {
+/** THE YELLOWNESS LADDER as a table — this page's own arms over the shared runner. */
+export const YELLOWNESS_TABLE: WheatArmTable<WheatMargins> = {
+  control: CONTROL_ARM,
+  shipped: SHIPPED_ARM,
+  armsFor,
+  wheat: armWheat,
+  depth: armDepth,
+  neighbour: neighbourArm,
+  caption: armCaption,
+  margins: () => wheatMargins(),
+};
+
+export async function createWheatRunner<M>(table: WheatArmTable<M>): Promise<WheatRunner<M>> {
   const { manifest, arms: layouts } = await loadSpacingArms(fetchJsonFromPage);
   const layout = shippedLayoutArm(layouts, manifest.shippedRatio);
   const t0 = performance.now();
@@ -563,7 +617,7 @@ export async function createWheatRunner(): Promise<WheatRunner> {
     const k = `${arm}|${pic}`;
     const hit = cache.get(k);
     if (hit !== undefined) return hit;
-    const built = pic === 'forest' ? buildForestScene(kit, lit, arm, layout) : buildMonoScene(kit, lit, arm, pic);
+    const built = pic === 'forest' ? buildForestScene(kit, lit, table, arm, layout) : buildMonoScene(kit, lit, table, arm, pic);
     cache.set(k, built);
     return built;
   };
@@ -592,7 +646,7 @@ export async function createWheatRunner(): Promise<WheatRunner> {
     forestMix: () => islandStatusMix(spacingStream(layout)),
     layout: () => ({ id: layout.record.id, islands: layout.record.islands, head: manifest.studio.head, generatedAt: manifest.generatedAt }),
     warm() {
-      for (const arm of armsFor('yellow')) render(arm, 'yellow');
+      for (const arm of table.armsFor('yellow')) render(arm, 'yellow');
     },
     read(arm, pic) {
       const s = render(arm, pic);
@@ -601,13 +655,13 @@ export async function createWheatRunner(): Promise<WheatRunner> {
       const triangles = info.triangles;
       const buf = pixels(arm, pic);
       const census = familyCensus(buf, bg);
-      const delta = visibleDeltaDistribution(buf, pixels(CONTROL_ARM, pic));
-      const neighbour = neighbourArm(arm);
+      const delta = visibleDeltaDistribution(buf, pixels(table.control, pic));
+      const neighbour = table.neighbour(arm);
       const vsNeighbour = neighbour === null ? null : visibleDeltaDistribution(buf, pixels(neighbour, pic));
-      const vsShipped = visibleDeltaDistribution(buf, pixels(SHIPPED_ARM, pic));
+      const vsShipped = visibleDeltaDistribution(buf, pixels(table.shipped, pic));
       return {
         arm,
-        spec: s.spec,
+        wheat: s.wheat,
         picture: pic,
         zoom: picture(pic).zoom,
         elevationDeg: viewElevationDeg(s.camera),
@@ -632,9 +686,9 @@ export async function createWheatRunner(): Promise<WheatRunner> {
       };
     },
     sensitivity(pic) {
-      return sensitivityReasons(pixels(CONTROL_ARM, pic));
+      return sensitivityReasons(pixels(table.control, pic));
     },
-    margins: () => wheatMargins(),
+    margins: () => table.margins(),
     async cost(spec) {
       const s = sceneFor(spec.arm, spec.picture);
       renderer.setSize(s.width, s.height, false);
@@ -713,8 +767,14 @@ const REFERENCE_TRANSPARENT: readonly [number, number, number] = [-1, -1, -1];
 // ---------------------------------------------------------------- the page
 
 export async function mountShippedWheat(root: HTMLElement): Promise<void> {
-  const runner = await createWheatRunner();
+  const runner = await createWheatRunner(YELLOWNESS_TABLE);
   window.wheatRunner = runner;
+  await mountWheatPage(root, runner, YELLOWNESS_TABLE);
+}
+
+/** THE PAGE'S BODY, shared by both ladders: the renderer line, the reference, and one row of
+ *  captioned frames per picture. The caller has already parked the runner on `window`. */
+export async function mountWheatPage<M>(root: HTMLElement, runner: WheatRunner<M>, table: WheatArmTable<M>): Promise<void> {
   runner.warm();
   const id = runner.identity();
   const cal = runner.calibration();
@@ -723,7 +783,7 @@ export async function mountShippedWheat(root: HTMLElement): Promise<void> {
   head.className = 'numbers';
   head.textContent =
     `${id.vendor} — ${id.renderer} · software=${id.software} · light probe ${cal.probe.toFixed(3)} → scale ${cal.scale.toFixed(3)} · ` +
-    `signed elevation ${RENDER_ELEV_DEG}° · ships: wheat ${SHIPPED_WHEAT.anchor} at ${SHIPPED_WHEAT.mix} on rows [${SHIPPED_WHEAT.rows.join(', ')}] · ` +
+    `signed elevation ${RENDER_ELEV_DEG}° · ships: wheat ${SHIPPED_WHEAT.anchor} lifted ${SHIPPED_WHEAT.lift.toFixed(2)} at ${SHIPPED_WHEAT.mix} on rows [${SHIPPED_WHEAT.rows.join(', ')}] · ` +
     `real forest ${runner.layout().islands} islands: ${Object.entries(mix).map(([s, n]) => `${n} ${s}`).join(', ')}`;
   root.appendChild(head);
   const refHead = document.createElement('h2');
@@ -747,7 +807,7 @@ export async function mountShippedWheat(root: HTMLElement): Promise<void> {
     root.appendChild(h);
     const row = document.createElement('div');
     row.className = 'row';
-    for (const arm of armsFor(pic.id)) {
+    for (const arm of table.armsFor(pic.id)) {
       const r = runner.read(arm, pic.id);
       const fig = document.createElement('figure');
       const img = document.createElement('img');
@@ -756,7 +816,7 @@ export async function mountShippedWheat(root: HTMLElement): Promise<void> {
       fig.appendChild(img);
       const cap = document.createElement('figcaption');
       cap.textContent =
-        `${arm} — ${armCaption(arm)} · ${r.families} families (largest ${(r.largestShare * 100).toFixed(1)}%) · ` +
+        `${arm} — ${table.caption(arm)} · ${r.families} families (largest ${(r.largestShare * 100).toFixed(1)}%) · ` +
         `MICRO ${r.stats.micro.toFixed(2)} · moved>${VISIBLE_DELTA} vs today ${r.visible.toLocaleString()} · vs shipped ${r.touchedVsShipped.toLocaleString()} touched`;
       fig.appendChild(cap);
       row.appendChild(fig);
@@ -767,6 +827,6 @@ export async function mountShippedWheat(root: HTMLElement): Promise<void> {
 
 declare global {
   interface Window {
-    wheatRunner?: WheatRunner;
+    wheatRunner?: WheatRunner<WheatMargins>;
   }
 }

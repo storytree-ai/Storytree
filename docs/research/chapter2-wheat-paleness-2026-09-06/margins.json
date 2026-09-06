@@ -1,0 +1,283 @@
+{
+  "anchor": "#b0b040",
+  "fac": 0.85,
+  "step": 0.0005,
+  "rungs": [
+    {
+      "id": "1.00",
+      "anchor": "#b0b040",
+      "lift": 1,
+      "fac": 0.85,
+      "reach": 3533,
+      "ceiling": {
+        "ceiling": 0.0085,
+        "step": 0.0005
+      },
+      "worstMargin": -54.3678196499493,
+      "worstAt": "building@0.77",
+      "worstColour": "#5f6731",
+      "worstReadsAs": "unhealthy",
+      "readsAs": {
+        "building": 0.29589583923011603,
+        "healthy": 0.3201528446079819,
+        "mapped": 0.33857911123690915,
+        "unhealthy": 0.04537220492499292
+      },
+      "readsAsFlat": {
+        "building": 0.30059439569770735,
+        "healthy": 0.32550240588734786,
+        "mapped": 0.33342768185677896,
+        "unhealthy": 0.040475516558165864
+      },
+      "unpaintedWorstMargin": 0.9305036895841567,
+      "stops": {
+        "cool": [
+          {
+            "hex": "#535f2b",
+            "hue": 73.84615384615385
+          },
+          {
+            "hex": "#7d8538",
+            "hue": 66.23376623376623
+          },
+          {
+            "hex": "#b2a848",
+            "hue": 54.33962264150942
+          }
+        ],
+        "warm": [
+          {
+            "hex": "#6e5c25",
+            "hue": 45.20547945205479
+          },
+          {
+            "hex": "#9f8235",
+            "hue": 43.58490566037736
+          },
+          {
+            "hex": "#cba049",
+            "hue": 40.153846153846175
+          }
+        ],
+        "warmLight": {
+          "hex": "#cba049",
+          "hue": 40.153846153846175
+        },
+        "clampedChannels": 0
+      },
+      "luma": {
+        "field": 134.00551013207135,
+        "flat": 171.833,
+        "ratio": 0.7798589917656757
+      }
+    },
+    {
+      "id": "1.50",
+      "anchor": "#b0b040",
+      "lift": 1.5,
+      "fac": 0.85,
+      "reach": 4744,
+      "ceiling": {
+        "ceiling": 0.0135,
+        "step": 0.0005
+      },
+      "worstMargin": -30.95375673704875,
+      "worstAt": "building@0.77",
+      "worstColour": "#8b7533",
+      "worstReadsAs": "mapped",
+      "readsAs": {
+        "building": 0.5912942664418213,
+        "healthy": 0.3194983136593592,
+        "mapped": 0.08920741989881956
+      },
+      "readsAsFlat": {
+        "building": 0.5954890387858347,
+        "healthy": 0.32314502529510963,
+        "mapped": 0.08136593591905565
+      },
+      "unpaintedWorstMargin": 0.9305036895841567,
+      "stops": {
+        "cool": [
+          {
+            "hex": "#657335",
+            "hue": 73.54838709677419
+          },
+          {
+            "hex": "#97a045",
+            "hue": 65.93406593406594
+          },
+          {
+            "hex": "#d5c957",
+            "hue": 54.285714285714306
+          }
+        ],
+        "warm": [
+          {
+            "hex": "#856f2e",
+            "hue": 44.82758620689653
+          },
+          {
+            "hex": "#bf9d41",
+            "hue": 43.80952380952381
+          },
+          {
+            "hex": "#f3c059",
+            "hue": 40.12987012987011
+          }
+        ],
+        "warmLight": {
+          "hex": "#f3c059",
+          "hue": 40.12987012987011
+        },
+        "clampedChannels": 0
+      },
+      "luma": {
+        "field": 156.10140709954172,
+        "flat": 171.833,
+        "ratio": 0.9084483603239292
+      }
+    },
+    {
+      "id": "2.00",
+      "anchor": "#b0b040",
+      "lift": 2,
+      "fac": 0.85,
+      "reach": 5099,
+      "ceiling": {
+        "ceiling": 0.025,
+        "step": 0.0005
+      },
+      "worstMargin": -24.574866634338978,
+      "worstAt": "building@0.77",
+      "worstColour": "#7b8641",
+      "worstReadsAs": "healthy",
+      "readsAs": {
+        "building": 0.7657972151402236,
+        "healthy": 0.23255540302020003,
+        "mapped": 0.0016473818395763874
+      },
+      "readsAsFlat": {
+        "building": 0.7705432437732889,
+        "healthy": 0.22926063934104726,
+        "mapped": 0.00019611688566385565
+      },
+      "unpaintedWorstMargin": 0.9305036895841567,
+      "stops": {
+        "cool": [
+          {
+            "hex": "#73833e",
+            "hue": 73.91304347826087
+          },
+          {
+            "hex": "#acb64f",
+            "hue": 65.8252427184466
+          },
+          {
+            "hex": "#f2e564",
+            "hue": 54.50704225352112
+          }
+        ],
+        "warm": [
+          {
+            "hex": "#987f36",
+            "hue": 44.69387755102042
+          },
+          {
+            "hex": "#d9b34c",
+            "hue": 43.82978723404257
+          },
+          {
+            "hex": "#ffda66",
+            "hue": 45.49019607843137
+          }
+        ],
+        "warmLight": {
+          "hex": "#ffda66",
+          "hue": 45.49019607843137
+        },
+        "clampedChannels": 1
+      },
+      "luma": {
+        "field": 173.43204710445002,
+        "flat": 171.833,
+        "ratio": 1.009305820793736
+      }
+    },
+    {
+      "id": "3.00",
+      "anchor": "#b0b040",
+      "lift": 3,
+      "fac": 0.85,
+      "reach": 5260,
+      "ceiling": {
+        "ceiling": 0.0555,
+        "step": 0.0005
+      },
+      "worstMargin": -19.19966385035356,
+      "worstAt": "building@0.77",
+      "worstColour": "#8f9d4d",
+      "worstReadsAs": "healthy",
+      "readsAs": {
+        "building": 0.9663688212927757,
+        "healthy": 0.03363117870722433
+      },
+      "readsAsFlat": {
+        "building": 0.9693916349809886,
+        "healthy": 0.030608365019011406
+      },
+      "unpaintedWorstMargin": 0.9305036895841567,
+      "stops": {
+        "cool": [
+          {
+            "hex": "#8b9e4c",
+            "hue": 73.90243902439025
+          },
+          {
+            "hex": "#ceda60",
+            "hue": 65.9016393442623
+          },
+          {
+            "hex": "#ffff79",
+            "hue": 60
+          }
+        ],
+        "warm": [
+          {
+            "hex": "#b79942",
+            "hue": 44.61538461538461
+          },
+          {
+            "hex": "#ffd65c",
+            "hue": 44.90797546012271
+          },
+          {
+            "hex": "#ffff7b",
+            "hue": 60
+          }
+        ],
+        "warmLight": {
+          "hex": "#ffff7b",
+          "hue": 60
+        },
+        "clampedChannels": 5
+      },
+      "luma": {
+        "field": 196.89266361873536,
+        "flat": 171.833,
+        "ratio": 1.1458373165732738
+      }
+    }
+  ],
+  "green": {
+    "fac": 0.85,
+    "worstMargin": -33.48454077446983,
+    "worstAt": "healthy@0.77"
+  },
+  "shadow": {
+    "token": "#d8c069",
+    "derived": 0.78,
+    "deep": 0.55,
+    "marginDerived": 3.002764214048085,
+    "marginDeep": -39.86014032490985
+  }
+}

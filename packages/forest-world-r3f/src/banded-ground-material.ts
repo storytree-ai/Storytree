@@ -196,6 +196,13 @@ export interface GroundWheatLayer {
    *  stops: a page comparing rungs compiles one shader per rung, which is the shape the stops
    *  already impose. */
   anchor: string;
+  /** HOW PALE the field is — the stop-luma lift on the six rebased stops (`WheatPalette.lift`,
+   *  one rung of `WHEAT_LIFTS`), orthogonal to the anchor: the anchor decides the hue, the lift
+   *  the brightness. Written into the source with the stops it scales. `1` is the derivation as
+   *  it stood on 2026-09-06 morning; below 1 would darken a field the recipe already darkens
+   *  and is refused, as is a lift that is not a finite number. No default — a wheat handed
+   *  without its lift is the shape a comparison page's control goes stale in. */
+  lift: number;
 }
 
 /**
@@ -858,6 +865,15 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         'matches nothing draws the flat yellow at the painted yellow’s cost',
     );
   }
+  // ⚠ A LIFT BELOW 1 OR NOT A NUMBER IS REFUSED. The ladder runs from the derivation (1) upward
+  // (`wheat-paleness-ladder`); a lift under 1 darkens a field the recipe already darkens, and NaN
+  // would write `NaN` into six stop constants and compile a shader that draws black.
+  if (wheat !== undefined && !(Number.isFinite(wheat.lift) && wheat.lift >= 1)) {
+    throw new Error(
+      `banded-ground-material: the wheat layer's lift is ${wheat.lift}; the paleness ladder runs from 1 ` +
+        '(the derivation as it stands) upward, and a lift below it darkens a field the recipe already darkens',
+    );
+  }
   const strayWheatRow = wheat?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
   if (strayWheatRow !== undefined) {
     throw new Error(
@@ -1011,7 +1027,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // Appended AFTER the grass source, because `wheatGlsl()` calls the grass's scalar, drift, ramps
   // and transfer — it declares no field of its own. Before the sand's, so a sanded-and-wheated
   // shader carries the recipe's order grass → wheat → sand → wear → rock.
-  const wheatSource = wheat === undefined ? '' : `      ${wheatGlsl(wheat.anchor).split('\n').join('\n      ')}\n`;
+  const wheatSource = wheat === undefined ? '' : `      ${wheatGlsl(wheat).split('\n').join('\n      ')}\n`;
   // Appended AFTER the grass source, because `sandGlsl()` calls `st_grassScalar` and
   // `st_grassSrgb`, and GLSL ES 1.0 resolves calls against declarations already seen.
   const sandSource = sand === undefined ? '' : `      ${sandGlsl().split('\n').join('\n      ')}\n`;
