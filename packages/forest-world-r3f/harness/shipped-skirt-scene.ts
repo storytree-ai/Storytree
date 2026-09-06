@@ -46,6 +46,7 @@ import {
   SHIPPED_LAYERS,
   SHIPPED_SAND_MIX,
   SHIPPED_SHADOW_DEPTH,
+  SHIPPED_WHEAT,
   shippedGroundBuild,
   type ShippedGroundBuild,
 } from '../src/ForestWorldCanvas.js';
@@ -503,6 +504,9 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
     tokens: SKIRT_GROUND_TOKENS,
     grain: 'normal',
     grass: SHIPPED_GRASS,
+    // THE WHEAT — layer 1 on the in-progress rows (2026-09-06), as the canvas passes it. Its
+    // rows are the status rows, which this table carries first and in the map's own order.
+    wheat: SHIPPED_WHEAT,
   };
   const shadow = build.field === null ? null : groundAtlasTexture(build.field);
   if (shadow !== null) opts.shadowAtlas = shadow;

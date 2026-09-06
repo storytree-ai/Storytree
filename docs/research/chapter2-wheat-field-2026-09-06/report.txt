@@ -1,0 +1,67 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation: 50° on every arm
+ships: wheat #b0b040 at 0.85 → the shipped arm coincides with: wheat-mustard
+real forest: 35 islands from spacing-0 (studio d65d7487, exported 2026-09-05T22:24:25.521Z) — 25 healthy, 10 proposed
+
+THE ARMS
+  today              the map as it shipped — green islands painted, the in-progress yellow FLAT, the deep shadow on the green alone (CONTROL)
+  wheat-straw        the wheat at 0.85 on the in-progress rows, rebased onto straw #d9d18a: bleached straw — the palest rung, nearest the in-progress yellow; the stack above and the deep shadow as the green wears them
+  wheat-wheat        the wheat at 0.85 on the in-progress rows, rebased onto wheat #d6b271: the authored wheat token — the shipped app’s own wheat, a warm tan; the stack above and the deep shadow as the green wears them
+  wheat-light-straw  the wheat at 0.85 on the in-progress rows, rebased onto light-straw #c6c06a: light straw — a true yellow, on the 2026-08-27 instrument’s bar exactly; the stack above and the deep shadow as the green wears them
+  wheat-mustard      the wheat at 0.85 on the in-progress rows, rebased onto mustard #b0b040: the measured mustard — the boldest yellow, 1.8x the straw’s separation; the stack above and the deep shadow as the green wears them
+  shipped            the wheat at 0.85 on the in-progress rows, rebased onto mustard #b0b040: the measured mustard — the boldest yellow, 1.8x the straw’s separation; the stack above and the deep shadow as the green wears them (SHIPS)
+
+THE REFERENCE — the approved Cycles render, through this page’s own census
+  land-combined-1948px.png: 1948×1280 · colour families 23 · largest holds 53.7% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and a GREEN island — the wheat has no reference render; the reference is the STANDARD of paint, not of colour.
+
+── green @ 8 px/unit ─────────────────────────────────
+arm                 fam  largest   top3   MICRO  STRUCT   land px  moved>20 vs today  touched   vs neighbour  vs shipped   stamp ms
+today                63     4.1%  12.0%   3.67   19.17    215288                  0        0             —           0         30
+shipped              63     4.1%  12.0%   3.67   19.17    215288                  0        0             0           0         30
+
+── yellow @ 8 px/unit ─────────────────────────────────
+arm                 fam  largest   top3   MICRO  STRUCT   land px  moved>20 vs today  touched   vs neighbour  vs shipped   stamp ms
+today                20    24.7%  47.6%   2.84   34.28    215230                  0        0             —      172249         26
+wheat-straw          51     4.8%  13.2%   3.16   22.83    215230             172103   172249             —      172230         26
+wheat-wheat          54     5.9%  14.3%   2.69   20.46    215230             172249   172249            33      172190         26
+wheat-light-straw    55     4.4%  12.0%   2.80   20.99    215230             172247   172249             0      172135         26
+wheat-mustard        55     4.8%  12.1%   2.44   19.27    215230             172249   172249         20119           0         26
+shipped              55     4.8%  12.1%   2.44   19.27    215230             172249   172249         20119           0         26
+
+── forest @ fit ─────────────────────────────────
+arm                 fam  largest   top3   MICRO  STRUCT   land px  moved>20 vs today  touched   vs neighbour  vs shipped   stamp ms
+today                43     7.6%  18.0%  12.57   28.01     36615                  0        0             —        8037        699
+wheat-straw          42     6.0%  14.8%  12.46   15.50     36615               8010     8037             —        8036          0
+wheat-wheat          41     5.6%  13.7%  11.87   14.32     36615               8037     8037            24        8036          0
+wheat-light-straw    42     6.1%  14.7%  12.00   14.56     36615               8033     8037             0        8034          0
+wheat-mustard        42     6.2%  14.7%  11.57   13.77     36615               8036     8037          1181           0          0
+shipped              42     6.2%  14.7%  11.57   13.77     36615               8036     8037          1181           0          0
+
+THE READER MODEL, PRINTED — per rung at the shipped strength 0.85, ceiling walked on a 0.0005 grid (ADR-0492's yellow reads 0.008 / 0.009 / 0.0095 at 0.002 / 0.001 / 0.0005 — the step travels with the number):
+  rung          anchor   reach   ceiling@step        worst margin  at            reads as   worst colour   reads-as shares over the ladder (flat 0.90 only)
+  straw         #d9d18a   5443   0.0135@0.0005         -30.75  building@0.77 mapped     #8d7454        building 59.3% · mapped 4.1% · unknown 36.6%  (building 59.8% · mapped 3.7% · unknown 36.5%)
+  wheat         #d6b271   4741   0.0090@0.0005         -48.50  building@0.77 mapped     #8c6547        building 48.7% · mapped 37.4% · unhealthy 0.0% · unknown 13.9%  (building 49.3% · mapped 36.8% · unknown 14.0%)
+  light-straw   #c6c06a   4553   0.0105@0.0005         -40.04  building@0.77 mapped     #846c43        building 48.9% · healthy 16.9% · mapped 21.5% · unhealthy 0.2% · unknown 12.5%  (building 49.3% · healthy 17.3% · mapped 21.0% · unhealthy 0.0% · unknown 12.5%)
+  mustard       #b0b040   3533   0.0085@0.0005         -54.37  building@0.77 unhealthy  #5f6731        building 29.6% · healthy 32.0% · mapped 33.9% · unhealthy 4.5%  (building 30.1% · healthy 32.6% · mapped 33.3% · unhealthy 4.0%)
+  the GREEN on the SAME instrument at its shipped 0.85: worst margin -33.48 at healthy@0.77 — the shipped grass reads foreign too; the instrument is a proxy and the look is the fence (ADR-0489 D3/D4, ADR-0503 D1, ADR-0506).
+  the unpainted yellow's own tightest margin: 0.93 — the ladder's spend, not the layer's.
+  THE SHADOW on the yellow #d8c069: margin 3.0 at the derived rung 0.78 (what shipped) → -39.9 at the deep rung 0.55 (what the painted islands wear now) — printed, not a fence.
+  ⚠ the reader table is the FLAT six-token table: "reads as healthy" means nearer the flat green than the flat yellow, which a viewer comparing two PAINTED islands never does. The picture decides.
+
+THE LADDER'S ANCHORS, for the record: straw #d9d18a · wheat #d6b271 · light-straw #c6c06a · mustard #b0b040
+
+FRAME COST — GPU ms per frame, 60 frames on the GPU's own clock (REPORTS, ADR-0517 D4):
+  yellow  today      2.688 ms · 3 draws · 16,660 tris
+  yellow  shipped    0.389 ms · 3 draws · 16,660 tris
+  forest  today      0.411 ms · 5 draws · 720,432 tris
+  forest  shipped    0.415 ms · 5 draws · 720,432 tris
+
+THE MOUNT-TIME STAMP — wall-clock ms for the shipped ground build, per picture (the field is the same on every arm; the wheat adds no field):
+  green       30 ms
+  yellow      26 ms
+  forest     699 ms
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row, an arc intent or an earlier evidence sheet.
