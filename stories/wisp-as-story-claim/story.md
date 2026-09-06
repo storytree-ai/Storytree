@@ -90,7 +90,7 @@ edges:
 # decider of this story's render but because it RETIRED the cross-story realisation of E2 (the whole
 # chat-subagent-spawn story and its spawn code, 2026-07-31) while deliberately KEEPING this story's own
 # packages/agent seam (spawn-claim.ts) — a reader cannot judge capability E's live scope without it.
-decisions: [200, 212, 138, 142, 121, 33, 128, 137, 45, 99, 70, 175]
+decisions: [200, 212, 138, 142, 121, 33, 128, 137, 529, 99, 70, 175]
 ---
 
 # The forest wisp IS the claim — graded, coloured by subagent, cleared on merge
@@ -146,10 +146,21 @@ ADR-0137 / ADR-0030), cleared on the CI merge, staleness as one trace-driven bac
 
 **The honesty wall (ADR-0138 §5, non-negotiable):** a claim's presence or colour is **never** a proof.
 Only a real build's `CONFIRM_GREEN` + signed verdict paints the green **bloom**
-(ADR-0045 /
+(~~ADR-0045~~ → ADR-0529 /
 ADR-0099). A
 claimed-but-not-proven story must look **visibly different** from a proven-green one, or the map silently
 inflates proof. This wall is the load-bearing constraint on capabilities B, C, and the appearance UAT F.
+
+> ⚠ **CORRECTED 2026-09-06 (ADR-0529): THERE IS NO BLOOM ANY MORE.** The verdict bloom was retired,
+> owner-directed — it had not in fact been drawn on any surface since ADR-0227 replaced the
+> procedural tree with the baked hero tree on 2026-07-23, and the owner chose retirement over
+> restoration because the map is glanced at rather than watched, so a signal that decays within
+> hours reached nobody. **The honesty wall itself is UNWEAKENED and this story's constraint is
+> unchanged in force** — what a wisp must stay visibly distinct from is now the island's proven-green
+> HUE (ADR-0040), which is the durable record and was always the thing that mattered. Read "the
+> green bloom" above as "proven green" until the deletion unit on
+> `forest-geometry-rebuild-arc` rewrites this paragraph and the sibling references in
+> `render-claim-as-wisp.md`, `colour-by-subagent.md` and `appearance-uat.md`.
 
 **The DAG.** `A → {B, C, D, E} → F`. A (the claim-store work-time deltas) is the root every other piece
 stands on. B (render the claim as a wisp), C (colour by subagent/intent), D (CI clear on merge), and E

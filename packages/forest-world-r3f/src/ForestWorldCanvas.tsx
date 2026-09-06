@@ -71,7 +71,7 @@ import {
 import { dressMapWithCover } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
-import { WHEAT_STATUS_GATE, wheatAnchor } from './land-wheat.js';
+import { WHEAT_STATUS_GATE, wheatAnchor, wheatLift } from './land-wheat.js';
 import { ROCK_SLOPE_RAMP } from './land-rock.js';
 import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
 import { islandPaths } from './island-path.js';
@@ -379,11 +379,41 @@ export const SHIPPED_WHEAT_ANCHOR = wheatAnchor('mustard').hex;
  *  scale-back on either never moves the other. Never 1.0 (ADR-0490 D5). */
 export const SHIPPED_WHEAT_MIX = SHIPPED_GRASS_MIX;
 
-/** THE WHEAT AS THE SHIPPED GROUND WEARS IT — the anchor, the factor and the gate in one value. */
+/**
+ * HOW PALE THE SHIPPED WHEAT IS — which rung of `WHEAT_LIFTS` the in-progress islands wear: the
+ * stop-luma lift on the six rebased stops, in linear space, ratio-preserving, with the mustard
+ * anchor above held fixed (`wheat-paleness-ladder`, 2026-09-06). Chosen from a rendered ladder by
+ * the look under the owner's standing bold-and-scale-back direction (ADR-0503 D3), and shown to
+ * him with the sheet it was chosen from (`docs/research/chapter2-wheat-paleness-2026-09-06/`).
+ *
+ * ⚠ WHY A SECOND LADDER: the yellowness sheet found every anchor's field darker and duller than
+ * the flat token, because the recipe's ramps sit below the token they mix into. The anchor cannot
+ * fix that (a paler anchor goes peach); a lift on the stops can, without moving the hue the
+ * owner picked — ratio-preserving, so the cool→warm drift and the dark-to-light ladder keep
+ * their proportions and only the brightness moves.
+ *
+ * ⚠ THE LADDER, one in-progress island @ 8 px/unit and the real forest fitted, on the RTX 2060:
+ * 1.00 (as derived) / 1.25 / 1.50 / 2.00. THE PICK IS 2.00 — the boldest rung, and the one at
+ * which the field's mean delivered brightness reaches the flat token's (the sheet prints both):
+ * the island stops reading as a darker island beside the green and reads as a pale gold field.
+ * At 2.00 the warm light stop's red clamps at linear white, which bends its delivered hue toward
+ * YELLOW (40° → 45°), away from the peach the pale anchors showed (22° and below); every lower
+ * rung keeps 40°.
+ * Scaling back is one edit here along rungs already rendered.
+ *
+ * ⚠ THE READER MODEL PRINTS AND DOES NOT FENCE (ADR-0503 D1 / ADR-0506). Its margin is on the
+ * sheet per rung, with the grid step it was walked at, negative where it is negative. The look
+ * decides (ADR-0489 D3).
+ */
+export const SHIPPED_WHEAT_LIFT = wheatLift('2.00').lift;
+
+/** THE WHEAT AS THE SHIPPED GROUND WEARS IT — the anchor, the lift, the factor and the gate in
+ *  one value. */
 export const SHIPPED_WHEAT: GroundWheatLayer = {
   mix: SHIPPED_WHEAT_MIX,
   rows: WHEAT_GATE_ROWS,
   anchor: SHIPPED_WHEAT_ANCHOR,
+  lift: SHIPPED_WHEAT_LIFT,
 };
 
 /**

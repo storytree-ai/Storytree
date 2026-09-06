@@ -26,8 +26,17 @@
 // Pure and renderer-free, like its siblings: the reachable set is enumerated from the layer's
 // two scalars, never sampled off an island.
 
-import { GRASS_COOL, GRASS_WARM, type RampStop } from '../src/land-grass.js';
-import { WHEAT_ANCHORS, WHEAT_STATUS_GATE, wheatColourOf, wheatCool, wheatWarm } from '../src/land-wheat.js';
+import { linearToSrgb255 } from '../src/land-grain.js';
+import { GRASS_COOL, GRASS_WARM, rampLinear, type RampStop } from '../src/land-grass.js';
+import {
+  WHEAT_ANCHORS,
+  WHEAT_LIFTS,
+  WHEAT_STATUS_GATE,
+  wheatColourOf,
+  wheatCool,
+  wheatWarm,
+  type WheatPalette,
+} from '../src/land-wheat.js';
 import { deliveredForLevel, toHex, type Rgb255 } from '../src/shade-ladder.js';
 import { readMarginAt } from '../src/shadow-rung.js';
 import { marginAgainstRows, ownFamily, shippedLadder, shippedReaderTable } from './grain-status-reading.js';
@@ -43,7 +52,7 @@ import {
 import { nearestStatusIn, readerRows } from './shadow-ladder.js';
 
 /**
- * EVERY COLOUR THE WHEAT CAN DELIVER for one anchor, deduplicated — the same walk
+ * EVERY COLOUR THE WHEAT CAN DELIVER for one palette (anchor + lift), deduplicated — the same walk
  * `grassReachableColours` makes over `(t, d)`, on the rebased ramps.
  *
  * ⚠ THE GRASS'S STEP COUNTS ARE REUSED, AND THAT IS CHECKED RATHER THAN ASSUMED: a rebased ramp
@@ -51,12 +60,12 @@ import { nearestStatusIn, readerRows } from './shadow-ladder.js';
  * {@link wheatReachStepBound} states the widest step for each anchor and the test holds it
  * under one channel unit — which is what makes the walk an enumeration rather than a survey.
  */
-export function wheatReachableColours(anchorHex: string): readonly Rgb255[] {
+export function wheatReachableColours(palette: WheatPalette): readonly Rgb255[] {
   const seen = new Map<number, Rgb255>();
   for (let i = 0; i <= GRASS_REACH_T_STEPS; i += 1) {
     const t = i / GRASS_REACH_T_STEPS;
     for (let j = 0; j <= GRASS_REACH_D_STEPS; j += 1) {
-      const c = wheatColourOf(anchorHex, t, j / GRASS_REACH_D_STEPS);
+      const c = wheatColourOf(palette, t, j / GRASS_REACH_D_STEPS);
       seen.set(c.r * 65536 + c.g * 256 + c.b, c);
     }
   }
@@ -65,16 +74,16 @@ export function wheatReachableColours(anchorHex: string): readonly Rgb255[] {
 
 /** The widest consecutive-sample step, in delivered channel units, either rebased ramp takes
  *  across `t` at the grass's step count — under 1.0 is what the walk's exhaustiveness rests on. */
-export function wheatReachStepBound(anchorHex: string): number {
-  return Math.max(reachStepBound(wheatCool(anchorHex), GRASS_REACH_T_STEPS), reachStepBound(wheatWarm(anchorHex), GRASS_REACH_T_STEPS));
+export function wheatReachStepBound(palette: WheatPalette): number {
+  return Math.max(reachStepBound(wheatCool(palette), GRASS_REACH_T_STEPS), reachStepBound(wheatWarm(palette), GRASS_REACH_T_STEPS));
 }
 
 /** The widest delivered-channel span a rebased ramp covers — reported beside the green's so a
  *  reader can see how far the anchor stretched the recipe's range. */
-export function wheatRampSpan(anchorHex: string) {
+export function wheatRampSpan(palette: WheatPalette) {
   return {
-    cool: rampChannelSpan(wheatCool(anchorHex)),
-    warm: rampChannelSpan(wheatWarm(anchorHex)),
+    cool: rampChannelSpan(wheatCool(palette)),
+    warm: rampChannelSpan(wheatWarm(palette)),
     greenCool: rampChannelSpan(GRASS_COOL),
     greenWarm: rampChannelSpan(GRASS_WARM),
   };
@@ -93,8 +102,8 @@ export interface WheatCeiling {
   step: number;
 }
 
-export function wheatCeiling(anchorHex: string, step = 0.0005, top = 1.0): WheatCeiling {
-  const reach = wheatReachableColours(anchorHex);
+export function wheatCeiling(palette: WheatPalette, step = 0.0005, top = 1.0): WheatCeiling {
+  const reach = wheatReachableColours(palette);
   const table = shippedReaderTable();
   const ladder = shippedLadder();
   let best = 0;
@@ -113,10 +122,12 @@ export interface ReadShares {
   [status: string]: number;
 }
 
-/** The whole report for one rung of the ladder at one strength. */
+/** The whole report for one rung of EITHER ladder at one strength — the yellowness ladder's
+ *  rungs differ in the anchor at one lift, the paleness ladder's in the lift at one anchor. */
 export interface WheatRungReport {
   id: string;
   anchor: string;
+  lift: number;
   fac: number;
   /** Distinct delivered colours the wheat can produce on this anchor. */
   reach: number;
@@ -134,13 +145,17 @@ export interface WheatRungReport {
   readsAsFlat: ReadShares;
   /** The unpainted yellow's own margin at its tightest rung — the ladder's spend, not the layer's. */
   unpaintedWorstMargin: number;
+  /** The six stops as delivered, with the two light stops' hues — the second finding of the
+   *  yellowness sheet travels with every rung (`wheat-paleness-ladder`). */
+  stops: WheatStopReport;
+  /** The field's mean delivered luma against the flat token's — the first finding, as a number. */
+  luma: WheatFieldLuma;
 }
 
-/** One rung's report. `fac` is the strength the wheat is judged at — the shipped one. */
-export function wheatRungReport(id: string, fac: number, step = 0.0005): WheatRungReport {
-  const anchor = WHEAT_ANCHORS.find((a) => a.id === id);
-  if (anchor === undefined) throw new Error(`wheat-status-reading: no wheat anchor "${id}"`);
-  const reach = wheatReachableColours(anchor.hex);
+/** One rung's report for a palette, under a caption id. `fac` is the strength the wheat is judged
+ *  at — the shipped one. */
+export function wheatPaletteReport(id: string, palette: WheatPalette, fac: number, step = 0.0005): WheatRungReport {
+  const reach = wheatReachableColours(palette);
   const table = shippedReaderTable();
   const rows = readerRows(table);
   const ladder = shippedLadder();
@@ -172,10 +187,11 @@ export function wheatRungReport(id: string, fac: number, step = 0.0005): WheatRu
   }
   return {
     id,
-    anchor: anchor.hex,
+    anchor: palette.anchor,
+    lift: palette.lift,
     fac,
     reach: reach.length,
-    ceiling: wheatCeiling(anchor.hex, step),
+    ceiling: wheatCeiling(palette, step),
     worstMargin: verdict.worstMargin,
     worstAt: verdict.worstAt,
     worstColour,
@@ -183,7 +199,118 @@ export function wheatRungReport(id: string, fac: number, step = 0.0005): WheatRu
     readsAs: shares(counts, reach.length * ladder.length),
     readsAsFlat: shares(flatCounts, reach.length),
     unpaintedWorstMargin: verdict.ungrassedWorstMargin,
+    stops: wheatStopReport(palette),
+    luma: wheatFieldLuma(palette, fac),
   };
+}
+
+/** One rung of the YELLOWNESS ladder — an anchor by id, at the given lift (the shipped one). */
+export function wheatRungReport(id: string, fac: number, step = 0.0005, lift = 1): WheatRungReport {
+  const anchor = WHEAT_ANCHORS.find((a) => a.id === id);
+  if (anchor === undefined) throw new Error(`wheat-status-reading: no wheat anchor "${id}"`);
+  return wheatPaletteReport(id, { anchor: anchor.hex, lift }, fac, step);
+}
+
+/** One rung of the PALENESS ladder — a lift by id, on the given anchor (the shipped one). */
+export function wheatLiftReport(id: string, anchorHex: string, fac: number, step = 0.0005): WheatRungReport {
+  const rung = WHEAT_LIFTS.find((l) => l.id === id);
+  if (rung === undefined) throw new Error(`wheat-status-reading: no wheat lift "${id}"`);
+  return wheatPaletteReport(id, { anchor: anchorHex, lift: rung.lift }, fac, step);
+}
+
+// ---------------------------------------------------------------- the two findings, as numbers
+
+/** HSV hue in degrees of a delivered colour, 0 for a grey — the number the yellowness sheet's
+ *  second finding is stated in (a ~28° turn toward yellow on the green, heading for orange on a
+ *  yellow anchor). */
+export function hueDegrees(c: Rgb255): number {
+  const mx = Math.max(c.r, c.g, c.b);
+  const mn = Math.min(c.r, c.g, c.b);
+  const d = mx - mn;
+  if (d === 0) return 0;
+  let h: number;
+  if (mx === c.r) h = ((((c.g - c.b) / d) % 6) + 6) % 6;
+  else if (mx === c.g) h = (c.b - c.r) / d + 2;
+  else h = (c.r - c.g) / d + 4;
+  return h * 60;
+}
+
+export interface WheatStopReading {
+  hex: string;
+  hue: number;
+}
+
+/** The six stops as delivered, cool then warm, dark → light, each with its hue — and the warm
+ *  light stop named, since it is the one the peach finding is about. */
+export interface WheatStopReport {
+  cool: WheatStopReading[];
+  warm: WheatStopReading[];
+  warmLight: WheatStopReading;
+  /** How many of the 18 stop channels sit at linear white — where the lift stops preserving
+   *  ratios and the hue starts to move. */
+  clampedChannels: number;
+}
+
+function stopReading(linear: readonly number[]): WheatStopReading {
+  const c = { r: linearToSrgb255(linear[0]!), g: linearToSrgb255(linear[1]!), b: linearToSrgb255(linear[2]!) };
+  return { hex: toHex(c), hue: hueDegrees(c) };
+}
+
+export function wheatStopReport(palette: WheatPalette): WheatStopReport {
+  const cool = wheatCool(palette);
+  const warm = wheatWarm(palette);
+  let clampedChannels = 0;
+  for (const stop of [...cool, ...warm]) for (const ch of stop.linear) if (ch >= 1) clampedChannels += 1;
+  const warmLight = warm[warm.length - 1];
+  if (warmLight === undefined) throw new Error('wheat-status-reading: the warm ramp has no stops');
+  return {
+    cool: cool.map((s) => stopReading(s.linear)),
+    warm: warm.map((s) => stopReading(s.linear)),
+    warmLight: stopReading(warmLight.linear),
+    clampedChannels,
+  };
+}
+
+/** The field's brightness against the flat token's — the mean Rec.709 luma (delivered bytes)
+ *  of every reachable wheat colour mixed at `fac` into the lit flat token, beside the lit flat
+ *  token's own. The first finding of the yellowness sheet as one number per rung: the ratio is
+ *  below 1 where the field is darker than the flat island it replaces. */
+export interface WheatFieldLuma {
+  field: number;
+  flat: number;
+  ratio: number;
+}
+
+function lumaOf(c: Rgb255): number {
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+
+export function wheatFieldLuma(palette: WheatPalette, fac: number): WheatFieldLuma {
+  const base = deliveredForLevel(statusToken(WHEAT_STATUS_GATE[0]!), FLAT_RUNG);
+  const cool = wheatCool(palette);
+  const warm = wheatWarm(palette);
+  let sum = 0;
+  let n = 0;
+  // The WHOLE walk, not the deduplicated reach set: a colour the ramps deliver twice as often
+  // weighs twice, which is what "the field's mean" has to mean.
+  for (let i = 0; i <= GRASS_REACH_T_STEPS; i += 1) {
+    const t = i / GRASS_REACH_T_STEPS;
+    const c = rampLinear(cool, t);
+    const w = rampLinear(warm, t);
+    for (let j = 0; j <= GRASS_REACH_D_STEPS; j += 1) {
+      const d = j / GRASS_REACH_D_STEPS;
+      const px = {
+        r: linearToSrgb255(c[0] + (w[0] - c[0]) * d),
+        g: linearToSrgb255(c[1] + (w[1] - c[1]) * d),
+        b: linearToSrgb255(c[2] + (w[2] - c[2]) * d),
+      };
+      sum += lumaOf(grassMixedColour(base, px, fac));
+      n += 1;
+    }
+  }
+  const flat = lumaOf(base);
+  const field = sum / n;
+  return { field, flat, ratio: field / flat };
 }
 
 /** The lit flat-ground rung — the reader's own reference level. */
@@ -200,9 +327,14 @@ function byStatus(a: [string, number], b: [string, number]): number {
   return a[0].localeCompare(b[0]);
 }
 
-/** The whole ladder's reports at one strength. */
-export function wheatLadderReports(fac: number, step = 0.0005): WheatRungReport[] {
-  return WHEAT_ANCHORS.map((a) => wheatRungReport(a.id, fac, step));
+/** The whole YELLOWNESS ladder's reports at one strength and one lift (the shipped one). */
+export function wheatLadderReports(fac: number, step = 0.0005, lift = 1): WheatRungReport[] {
+  return WHEAT_ANCHORS.map((a) => wheatRungReport(a.id, fac, step, lift));
+}
+
+/** The whole PALENESS ladder's reports at one strength on one anchor (the shipped one). */
+export function wheatLiftReports(anchorHex: string, fac: number, step = 0.0005): WheatRungReport[] {
+  return WHEAT_LIFTS.map((l) => wheatLiftReport(l.id, anchorHex, fac, step));
 }
 
 /**
