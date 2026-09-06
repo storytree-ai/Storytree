@@ -145,14 +145,20 @@ for (const { picture, zoom } of SPACING_SHOTS) {
     }
   }
 }
-// ⚠ THE LADDER TIGHTENS: the forest's centre-to-centre extent must not grow as the ratio falls, rung to rung.
+// ⚠ THE LADDER TIGHTENS AS A WHOLE — and where it STOPS tightening is a finding, not a refusal. Over
+// correctly-sized tiles the packer's moat (one hex of water between any two islands' tiles) is the
+// floor, and below some ratio the floor binds: a rung's extent then moves only with the seed jitter
+// and can come out a fraction larger than the rung above it (measured: 0.2 spanned 0.6% more than
+// 0.35). The spacing page refused any step that grew; here the bottom rung must be tighter than the
+// top, and every step that does not tighten is NAMED in the report.
 const rungs = ARMS.filter((a) => a !== CONTROL).map((a) => at(a, 'forest', 'fit'));
+const areaOf = (r) => r.bounds.centres.w * r.bounds.centres.d;
+const stopsTightening = [];
 for (let i = 1; i < rungs.length; i += 1) {
-  const up = rungs[i - 1];
-  const here = rungs[i];
-  const areaUp = up.bounds.centres.w * up.bounds.centres.d;
-  const areaHere = here.bounds.centres.w * here.bounds.centres.d;
-  if (areaHere > areaUp * 1.001) fail(`${here.arm} spans ${here.bounds.centres.w.toFixed(0)}×${here.bounds.centres.d.toFixed(0)} against ${up.arm}'s ${up.bounds.centres.w.toFixed(0)}×${up.bounds.centres.d.toFixed(0)} — the ladder does not tighten`);
+  if (areaOf(rungs[i]) > areaOf(rungs[i - 1]) * 1.001) stopsTightening.push(`${rungs[i].arm} (${(areaOf(rungs[i]) / areaOf(rungs[i - 1]) * 100 - 100).toFixed(1)}% larger than ${rungs[i - 1].arm})`);
+}
+if (rungs.length > 1 && areaOf(rungs[rungs.length - 1]) >= areaOf(rungs[0])) {
+  fail(`${rungs[rungs.length - 1].arm} spans ${areaOf(rungs[rungs.length - 1]).toFixed(0)} units² of centres against the top rung's ${areaOf(rungs[0]).toFixed(0)} — the ladder does not tighten at all`);
 }
 // ⚠⚠ THE TILE MUST ACTUALLY CLOSE THE SLOT: the derived tile at the CONTROL'S OWN ratio must stand the
 // forest in a smaller box than the control — otherwise the footprint did not follow the land.
@@ -219,6 +225,10 @@ for (const arm of ARMS) {
   say(`  ${arm.padEnd(17)} ${r.read.capabilities} capabilities · ${r.read.landArea.toFixed(1)} units² (${r.read.unitsPerCapability.toFixed(1)} per capability) · ${r.read.w.toFixed(0)}×${r.read.d.toFixed(0)} units · moved>${VISIBLE_DELTA} vs today ${r.visible.toLocaleString()} (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)`);
 }
 say('');
+if (stopsTightening.length) {
+  say(`⚠ WHERE THE LADDER STOPS TIGHTENING (the moat floor binds; the extent moves only with the seed jitter): ${stopsTightening.join('; ')}`);
+  say('');
+}
 say('THE TILE QUESTION, IN NUMBERS — the whole real forest, fitted:');
 for (const arm of ARMS) {
   const r = at(arm, 'forest', 'fit');

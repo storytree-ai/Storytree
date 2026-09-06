@@ -76,7 +76,10 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 // the first capture of a run rests on a partial forest's median island and reports a different
 // scale from every later one (measured: 2.182 against 1.787 on the same arm). One throwaway load
 // fills the cache; every capture below then mounts on the whole corpus.
-await page.goto(`${URL_}/?sceneExport=1#/tree`, { waitUntil: 'networkidle', timeout: 120_000 });
+// (`warmup=1` is read by nothing; it keeps this URL distinct from the first capture's, because a
+// navigation to the SAME url is a hash change that never remounts the map — measured: the arm whose
+// url matched the warm-up's kept the warm-up's half-streamed resting scale.)
+await page.goto(`${URL_}/?sceneExport=1&warmup=1#/tree`, { waitUntil: 'networkidle', timeout: 120_000 });
 await page.waitForSelector('g.world-camera', { timeout: 90_000 });
 await page.waitForFunction((min) => new Set([...document.querySelectorAll('[data-story-id]')].map((e) => e.getAttribute('data-story-id'))).size >= min, MIN_ISLANDS, { timeout: 120_000 });
 await page.waitForTimeout(2000);
