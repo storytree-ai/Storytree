@@ -120,7 +120,13 @@ for (const row of result.rows) {
     fail(`${where}: land per capability ranges ${row.bounds.unitsPerCapability.min}–${row.bounds.unitsPerCapability.max} against the shipped ${LAND_AREA_PER_CAPABILITY} — an island changed size`);
   }
   if (row.read.id !== READ_ISLAND) fail(`${where} centred the read zoom on ${row.read.id}`);
-  if (row.nearest.water < 0) fail(`${where}: ${row.nearest.a} and ${row.nearest.b} OVERLAP by ${(-row.nearest.water).toFixed(1)} units`);
+  // ⚠ Two 3D islands overlapping is a FINDING of the ladder, not a defect of the instrument: the lattice
+  // floor keeps 2D tiles apart, and a 3D island is sized to its ratio regardless of its tile, so a
+  // rung tight enough to overlap in 3D is simply not a rung that can ship (ADR-0528 D5). It is
+  // recorded on every arm and REFUSED only on the shipped pick.
+  if (row.tightest.overlap && row.arm === shippedArm) {
+    fail(`${where}: the SHIPPED pick stands ${row.tightest.a} and ${row.tightest.b} OVERLAPPING in 3D — pick a rung with water between every pair`);
+  }
   if (row.trails.dropped.length !== 0) fail(`${where}: ${row.trails.dropped.length} trails DROPPED at this rung: ${JSON.stringify(row.trails.dropped)}`);
 }
 
@@ -191,14 +197,14 @@ say('');
 for (const { picture, zoom } of SPACING_SHOTS) {
   say(`── ${picture} @ ${zoom === 'fit' ? 'fit (each arm at its own fit)' : `${zoom} px/unit`} ─────────────────────────────────`);
   say(
-    'arm                ratio  islands  centres span (units)  ground extent (units)  nearest pair (units, water)     px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour',
+    'arm                ratio  islands  centres span (units)  ground extent (units)  tightest pair (units, water)    px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour',
   );
   for (const arm of ARMS) {
     const r = at(arm, picture, zoom);
     say(
       `${arm.padEnd(17)} ${(r.ratio === null ? '—' : String(r.ratio)).padStart(6)}  ${String(r.bounds.islands).padStart(7)}  ` +
         `${`${r.bounds.centres.w.toFixed(0)}×${r.bounds.centres.d.toFixed(0)}`.padStart(20)}  ${`${r.bounds.ground.w.toFixed(0)}×${r.bounds.ground.d.toFixed(0)}`.padStart(21)}  ` +
-        `${`${r.nearest.distance.toFixed(0)}, ${r.nearest.water.toFixed(0)}`.padStart(14)} ${`${r.nearest.a}↔${r.nearest.b}`.slice(0, 16).padEnd(16)}  ` +
+        `${`${r.tightest.centres.toFixed(0)}, ${r.tightest.overlap ? 'OVERLAP' : r.tightest.water.toFixed(0)}`.padStart(14)} ${`${r.tightest.a}↔${r.tightest.b}`.slice(0, 16).padEnd(16)}  ` +
         `${r.pxPerUnit.toFixed(3).padStart(7)}  ${pct(r.landShare, 2).padStart(10)}  ${pct(r.landShareOfBox).padStart(9)}  ` +
         `${(r.read.w * r.pxPerUnit).toFixed(0).padStart(9)}  ${r.pineHeightPx.toFixed(1).padStart(7)}  ${String(r.counts.capabilityTrees).padStart(5)}  ${String(r.counts.cover).padStart(5)}  ` +
         `${String(r.triangles).padStart(7)}  ${String(r.families).padStart(3)}  ${r.stats.micro.toFixed(2).padStart(5)}  ${String(r.visible).padStart(17)}  ${(r.visibleVsNeighbour === null ? '—' : String(r.visibleVsNeighbour)).padStart(12)}` +
@@ -218,7 +224,7 @@ for (const arm of ARMS) {
   const r = at(arm, 'forest', 'fit');
   say(
     `  ${arm.padEnd(17)} land ${pct(r.landShare, 2)} of the frame (${pct(r.landShareOfBox)} of its own box) · centres span ${r.bounds.centres.w.toFixed(0)}×${r.bounds.centres.d.toFixed(0)} units ` +
-      `(${pct((r.bounds.centres.w * r.bounds.centres.d) / (control0.bounds.centres.w * control0.bounds.centres.d), 0)} of today's area) · nearest pair ${r.nearest.water.toFixed(0)} units of water · ` +
+      `(${pct((r.bounds.centres.w * r.bounds.centres.d) / (control0.bounds.centres.w * control0.bounds.centres.d), 0)} of today's area) · tightest pair ${r.tightest.overlap ? 'OVERLAPS' : `${r.tightest.water.toFixed(0)} units of water`} (${r.tightest.a}↔${r.tightest.b}) · ` +
       `island ${(r.read.w * r.pxPerUnit).toFixed(0)} px wide · pine ${r.pineHeightPx.toFixed(1)} px` +
       (arm === shippedArm ? '   ← SHIPPED' : arm === CONTROL ? '   ← TODAY (before this landing)' : ''),
   );
