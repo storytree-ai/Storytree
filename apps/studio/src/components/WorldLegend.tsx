@@ -2,7 +2,7 @@
 // rework; vocabulary recalibrated by ADR-0038).
 //
 // Games-style: ONE entry per world model (story trees, test-coverage flora,
-// proof marks, activity blooms, in-flight builds), representative state
+// proof marks, in-flight builds), representative state
 // icons side by side, a single caption. Clicking an entry expands a drawer
 // fanning out that model's FULL state vocabulary — states that don't occur in
 // the current world render dimmed ("not in world yet"), and entries whose model
@@ -27,7 +27,7 @@
 // build-wisps-are-the-harness (ADR-0048).
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { anyInFlight, anyRecentLanding } from '../lib/activity';
+import { anyInFlight } from '../lib/activity';
 import { resolveSprite, type SpriteDef, type SpriteStyleSheet } from '../lib/sprite-sheet';
 import type { BuildActivity, ClaimActivity, SubagentColourState, TreeStory } from '../types';
 
@@ -64,7 +64,7 @@ function useSprite(kind: string, status?: string): SpriteDef | null {
 // ADR-0212 retired the `building` row: the build wisp is no longer its own drawable, so it is no
 // longer its own legend row — the band it contributes is taught inside `claim`, where the one
 // session body now lives.
-export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'claim';
+export type RowKey = 'tree' | 'flora' | 'proof' | 'claim';
 
 /**
  * Status fan order: the growth ladder. `building`, `retired` and `unhealthy`
@@ -258,7 +258,7 @@ function BuildBandIcon({
 
 /** The story-CLAIM wisp (ADR-0138 §5) — the world's OWN `world-claim-wisp state-<x>` classes (the
  *  hollow ring + core), so the legend swatch can never drift from the live claim wisp AND can never be
- *  mistaken for the green bloom (the §5 honesty wall, in the legend too). `state` picks the role hue.
+ *  mistaken for the proven-green HUE (the §5 honesty wall, in the legend too). `state` picks the role hue.
  *  This is the WORK grade's icon (the classic orbit) — see {@link HoverWispIcon}/{@link QueueWispIcon}
  *  for the other two grades (ADR-0200 D7). */
 function ClaimWispIcon({ state }: { state: SubagentColourState }): React.JSX.Element {
@@ -306,21 +306,6 @@ function DepartingWispIcon(): React.JSX.Element {
       <g className="world-departing-wisp">
         <circle className="world-departing-wisp-glow" r={5.5} />
         <circle className="world-departing-wisp-dot" r={2.2} />
-      </g>
-    </svg>
-  );
-}
-
-/** The recently-landed bloom (ADR-0045) — the world's `world-bloom` classes, so
- *  the legend swatch can never drift from the live halo + sparkles. */
-function BloomIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="-11 -11 22 22" aria-hidden="true">
-      <g className="world-bloom verdict-pass bloom-crown">
-        <circle className="bloom-ring" r={7.5} />
-        <circle className="bloom-spark" cx={5} cy={-3} r={1.5} />
-        <circle className="bloom-spark" cx={-4.5} cy={2.5} r={1.3} />
-        <circle className="bloom-spark" cx={-1} cy={-6.5} r={1.2} />
       </g>
     </svg>
   );
@@ -434,7 +419,6 @@ function legendModel(
     const t = totals(st);
     return t.stories > 0 || t.caps > 0;
   };
-  const recentLandings = anyRecentLanding(stories, now);
   const building = anyInFlight(builds, now);
   const rows: LegendRow[] = [
     {
@@ -466,18 +450,9 @@ function legendModel(
       icons: <>{facts.anyProven && <PlantIcon status="healthy" />}</>,
     },
     {
-      // The world's live-activity layer (ADR-0045): a signed verdict landing
-      // on a territory in the last few hours. Drops out once the last bloom
-      // ages past the window — the durable record stays the plant hue.
-      key: 'activity',
-      label: 'activity',
-      visible: recentLandings,
-      icons: <BloomIcon />,
-    },
-    {
       // The coordination layer (ADR-0138 §5): a claim wisp orbits while a SESSION is working a story
-      // ("someone is here"), coloured by what the orchestrator is doing. NOT a proof — only the green
-      // bloom is a signed verdict (the §5 honesty wall). Drops out when nothing is claimed (flag off
+      // ("someone is here"), coloured by what the orchestrator is doing. NOT a proof — only a signed
+      // verdict paints the proven-green HUE (the §5 honesty wall). Drops out when nothing is claimed (flag off
       // → no claims → no row), so `main` never shows it until the owner attests.
       // ADR-0212: the retired `building` row folded in here — a live build is now a BAND on this same
       // body, so the row is visible when anything is claimed OR building.
@@ -497,7 +472,6 @@ export function legendRowLabel(key: RowKey): string {
       tree: 'story trees',
       flora: 'test coverage',
       proof: 'proof',
-      activity: 'activity',
       claim: 'sessions working',
     } as const
   )[key];
@@ -631,28 +605,6 @@ export function LegendDrawerBody({
       </>,
     );
   }
-  if (rowKey === 'activity') {
-    return region(
-      'activity',
-      <>
-        <div className="legend-fan">
-          <Tile
-            icon={<BloomIcon />}
-            label="recently landed"
-            note="a signed verdict landed here in the last few hours"
-          />
-        </div>
-        <p className="legend-cap">
-          Activity marks real <strong>signed-verdict</strong> events landing on a territory, not
-          who is online; the bloom <strong>fades as the event ages</strong> and is gone within a
-          few hours. The durable result is the plant <strong>colour</strong> (a signed pass greens
-          it, ADR-0040) — the bloom only announces the moment it landed, so it never re-states what
-          the hue already records. A brand-new verdict blooms on the next world load (the geometry
-          is a one-shot read); aged-out blooms vanish without a refetch.
-        </p>
-      </>,
-    );
-  }
   if (rowKey === 'claim') {
     return region(
       'sessions working',
@@ -680,9 +632,9 @@ export function LegendDrawerBody({
           instead of stomping it, ADR-0138). Its colour says what the orchestrator is doing:{' '}
           <strong>authoring</strong> (amber), <strong>proving</strong> (teal), or{' '}
           <strong>supplementing</strong> (violet). It is <strong>NOT a proof</strong>: a claim — even
-          a “proving” one — never greens the story. Only the green <strong>bloom</strong> is a signed
-          verdict (ADR-0045), and only a signed pass paints the crown. The ring self-clears when the
-          session’s branch merges or its claim goes stale.
+          a “proving” one — never greens the story. Only a <strong>signed verdict</strong> paints the
+          proven-green <strong>colour</strong> (ADR-0040), and that colour is the durable record. The
+          ring self-clears when the session’s branch merges or its claim goes stale.
         </p>
         {/* ADR-0200 D7: the claim's GRADE — a SEPARATE dimension from the colour above (geometry ⟂
             colour): which shape a claim takes, not what the orchestrator is doing. */}
@@ -739,7 +691,7 @@ export function LegendDrawerBody({
           observes green. With several runs on one story, <strong>red wins</strong> — a green
           elsewhere never masks a failing run. Note what does <em>not</em> change: the{' '}
           <strong>colour</strong>. A green run leaves the ring teal/amber/violet, because a build
-          going green is not a signed verdict — only the <strong>bloom</strong> is.
+          going green is not a signed verdict, and only a signed verdict greens the story itself.
         </p>
       </>,
     );
