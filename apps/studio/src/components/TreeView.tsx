@@ -260,6 +260,11 @@ const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 // ---------- world building ----------
 
 const MARGIN = tileUnits(60); // authored as 60 on the radius-27 tile (ADR-0528)
+/** The water between any two islands' tiles, in hexes (ADR-0528 D5) — see the growth floor in
+ *  `buildWorld`. One is the smallest separation the lattice can express, and it is derived from what
+ *  the 3D map does with a tile rather than picked by eye: the island is sized to its ratio about its
+ *  centre and wears a coast outset, so touching tiles overlap in 3D and one hex apart does not. */
+const MOAT_HEXES = 1;
 // `resting-view-still-clips-five-islands`: the resting camera fit's own `padding: 16` guarantees only
 // 16px of headroom at whichever vertical edge `buildWorld`'s bounds happen to sit snug against — but
 // TWO pieces of UI chrome are PERMANENTLY docked over the map at rest, and 16px does not clear either:
@@ -676,6 +681,15 @@ export function buildWorld(
 
   // Snap seeds to the hex lattice, then enforce a growth floor: two seeds
   // closer than their combined ring reach would strangle each other's quota.
+  //
+  // ADR-0528 D5: the floor also leaves room for the MOAT — one hex of water between any two
+  // islands' tiles, which the growth below keeps (`foreignAdjacent`). The 3D map sizes every
+  // island to its land ratio about its own centre and its ground carries a coast outset, so an
+  // island outgrows its tiles a little; two islands whose tiles TOUCH therefore overlap in 3D
+  // (measured on the real forest at gap ratio 0 and 0.2 before the moat existed). One hex of
+  // water is the smallest separation the lattice can express, and it is what makes the tightest
+  // rung of the gap ladder a layout with water between every pair rather than a lottery of the
+  // seed jitter.
   const seeds: Axial[] = stories.map((_, i) => pixelToHex(seedPx.get(i) ?? { x: 0, y: 0 }));
   for (let pass = 0; pass < 24; pass++) {
     let moved = false;
@@ -684,7 +698,7 @@ export function buildWorld(
         const a = seeds[i];
         const b = seeds[j];
         if (!a || !b) continue;
-        const floor = ringsOf(quotas[i] ?? 3) + ringsOf(quotas[j] ?? 3) + 1;
+        const floor = ringsOf(quotas[i] ?? 1) + ringsOf(quotas[j] ?? 1) + 1 + MOAT_HEXES;
         if (hexDist(a, b) < floor) {
           seeds[j] = { q: b.q + 1, r: b.r }; // deterministic eastward nudge
           moved = true;
@@ -703,6 +717,13 @@ export function buildWorld(
     owner.set(axialKey(seed), i);
     tilesByStory[i]?.push(seed);
   });
+  // THE MOAT (ADR-0528 D5): a hex adjacent to another story's tile is never claimed, so two islands'
+  // tiles are always at least one hex apart. See the growth-floor note above for why.
+  const foreignAdjacent = (h: Axial, mine: number): boolean =>
+    AXIAL_DIRS.some((d) => {
+      const o = owner.get(axialKey({ q: h.q + d.q, r: h.r + d.r }));
+      return o !== undefined && o !== mine;
+    });
   let progress = true;
   while (progress) {
     progress = false;
@@ -718,7 +739,7 @@ export function buildWorld(
         for (const d of AXIAL_DIRS) {
           const cand = { q: t.q + d.q, r: t.r + d.r };
           const key = axialKey(cand);
-          if (owner.has(key)) continue;
+          if (owner.has(key) || foreignAdjacent(cand, i)) continue;
           const cost = hexDist(seed, cand) + rand01(hash(`${story.id}:${key}`)) * 1.4;
           if (cost < bestCost) {
             bestCost = cost;

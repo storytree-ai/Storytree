@@ -200,6 +200,11 @@ for (const arm of ARMS) {
     });
     console.log(`${arm.id.padEnd(18)} ${view.id.padEnd(8)} islands ${r.islands2d.length}  scale ${r.camera.scale}  → ${r.png}`);
   }
+  // ⚠ EVERY ISLAND DREW ITS WHOLE QUOTA. The moat (`MOAT_HEXES`, TreeView.tsx) forbids a hex beside
+  // another island's tile, so a seed floor too tight could hem an island in below its quota — and a
+  // drawn island smaller than its land is the mapper scaling it up past its tile again.
+  const short = bridgeJson.world.islands.filter((i) => i.tiles < Math.max(1, i.capabilities));
+  if (short.length) fail(`${arm.id}: ${short.length} island(s) drew fewer tiles than their quota — ${short.map((i) => `${i.id} ${i.tiles}/${Math.max(1, i.capabilities)}`).join(', ')}`);
   armRecords.push({
     id: arm.id,
     spacing: arm.spacing,
