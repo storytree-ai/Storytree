@@ -13,7 +13,7 @@ import { COVER_CASTS } from '../src/ground-casters.js';
 import { RENDER_ELEV_DEG, isDressingRole } from '../src/kit-vocabulary.js';
 import { LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.js';
 import { SHADOW_PENUMBRA, SHADOW_PENUMBRA_RUNGS } from '../src/land-shadow.js';
-import { SHADOW_DEPTH, SHADOW_DEPTH_RUNGS, SHADOW_EDGE, deepestAdmissibleRung } from '../src/shadow-rung.js';
+import { SHADOW_DEPTH, SHADOW_DEPTH_RUNGS, SHADOW_DEPTH_SCALE_BACK_RUNGS, SHADOW_EDGE, deepestAdmissibleRung } from '../src/shadow-rung.js';
 import { groundSanity } from './ground-sanity.js';
 import { orientedCamera } from './shipped-crowd-scene.js';
 import { cameraAgreement, cameraElevationDeg } from './shipped-land-ratio-scene.js';
@@ -70,7 +70,9 @@ test('the arms: the control first, then the shape ladder, the edge ladder, the d
   assert.deepEqual(EDGE_ARMS, EDGE_LADDER.map(edgeArmId));
   assert.deepEqual(DEPTH_ARMS, [depthArmId(derivedDepth()), ...DEPTH_LADDER.map(depthArmId)]);
   assert.deepEqual([...EDGE_LADDER], [...SHADOW_PENUMBRA_RUNGS]);
-  assert.deepEqual([...DEPTH_LADDER], [...SHADOW_DEPTH_RUNGS]);
+  assert.deepEqual([...DEPTH_LADDER], [...new Set([...SHADOW_DEPTH_RUNGS, ...SHADOW_DEPTH_SCALE_BACK_RUNGS])].sort((a, b) => b - a));
+  for (const rung of SHADOW_DEPTH_RUNGS) assert.ok(DEPTH_LADDER.includes(rung));
+  for (const rung of SHADOW_DEPTH_SCALE_BACK_RUNGS) assert.ok(DEPTH_LADDER.includes(rung));
   // The control: cylinders, no cover, hard edge, derived rung — the map as it shipped.
   assert.deepEqual(armSpec(CONTROL_ARM), { id: CONTROL_ARM, ladder: 'control', profiles: false, cover: false, penumbra: 1.2, edge: 'hard', depth: null });
   const shipped = armSpec(SHIPPED_ARM);

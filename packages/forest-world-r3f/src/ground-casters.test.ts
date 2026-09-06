@@ -14,6 +14,10 @@ import {
   COVER_POOLS,
   DOME_PROFILE,
   ROLE_SILHOUETTE,
+  TREE_SHADOW_WIDTH,
+  TREE_SHADOW_WIDTH_RUNGS,
+  narrowedSilhouette,
+  roleSilhouettes,
   caveArchCaster,
   caveMouthHalfWidth,
   groundBounds,
@@ -158,13 +162,13 @@ const placed = (role: KitPlacement['role'], x: number, z: number, scale: number)
   scale,
 });
 
-test('a placement casts its role’s SILHOUETTE over its half-footprint and height, at its own point', () => {
+test('a placement casts its role’s SILHOUETTE over its half-footprint and height, at its own point — the trees narrowed to the shipped width', () => {
   assert.deepEqual(placementCaster(placed('tree', 30, -6, 1), FOOT, HEIGHTS), {
     x: 30,
     z: -6,
     radius: FOOT.tree / 2,
     height: HEIGHTS.tree,
-    profile: ROLE_SILHOUETTE.tree,
+    profile: narrowedSilhouette(ROLE_SILHOUETTE.tree, TREE_SHADOW_WIDTH),
     pool: true,
   });
   assert.deepEqual(placementCaster(placed('deadTree', 1, 2, 1), FOOT, HEIGHTS), {
@@ -172,9 +176,18 @@ test('a placement casts its role’s SILHOUETTE over its half-footprint and heig
     z: 2,
     radius: FOOT.deadTree / 2,
     height: HEIGHTS.deadTree,
-    profile: ROLE_SILHOUETTE.deadTree,
+    profile: narrowedSilhouette(ROLE_SILHOUETTE.deadTree, TREE_SHADOW_WIDTH),
     pool: true,
   });
+  // The narrowing reaches the stamp: the caster's widest half-width is the crown's × the width,
+  // and NOT its radius, which sizes the pool and is untouched.
+  const tree = placementCaster(placed('tree', 0, 0, 1), FOOT, HEIGHTS);
+  assert.ok(Math.abs(profileMaxWidth(tree.profile!) - TREE_SHADOW_WIDTH) < 1e-12);
+  assert.equal(tree.radius, FOOT.tree / 2);
+  // An explicit table is honoured — the width ladder's arms pass one per rung.
+  const wide = placementCaster(placed('tree', 0, 0, 1), FOOT, HEIGHTS, roleSilhouettes(1));
+  assert.deepEqual(wide.profile, ROLE_SILHOUETTE.tree);
+  assert.deepEqual(placementCaster(placed('tree', 0, 0, 1), FOOT, HEIGHTS, roleSilhouettes(TREE_SHADOW_WIDTH)), tree);
   assert.deepEqual(placementCaster(placed('bloom', 1, 2, 1), FOOT, HEIGHTS), {
     x: 1,
     z: 2,
@@ -185,6 +198,44 @@ test('a placement casts its role’s SILHOUETTE over its half-footprint and heig
   });
   // ⚠ THE PROFILE IS THE ROLE'S, BY IDENTITY — a copy would be a second table that agrees today.
   assert.equal(placementCaster(placed('bush', 0, 0, 4.5), FOOT, HEIGHTS).profile, ROLE_SILHOUETTE.bush);
+});
+
+test('⚠⚠ THE TREE’S SHADOW IS NARROWED TO A RUNG OF THE WIDTH LADDER (the owner: "a triangle for what the tree casts … too large"); the bloom and the cover keep their read forms', () => {
+  assert.ok(TREE_SHADOW_WIDTH_RUNGS.includes(TREE_SHADOW_WIDTH), 'the shipped width is not a rung the owner was shown');
+  assert.deepEqual([...TREE_SHADOW_WIDTH_RUNGS], [1, 0.8, 0.65, 0.5]);
+  assert.equal(TREE_SHADOW_WIDTH_RUNGS[0], 1, 'the first rung is the shadow as it shipped after PR #1841');
+  for (let i = 1; i < TREE_SHADOW_WIDTH_RUNGS.length; i += 1) assert.ok(TREE_SHADOW_WIDTH_RUNGS[i]! < TREE_SHADOW_WIDTH_RUNGS[i - 1]!, 'the ladder descends');
+  assert.ok(TREE_SHADOW_WIDTH < 1 && TREE_SHADOW_WIDTH > 0, `the pick (${TREE_SHADOW_WIDTH}) is a narrowing, and still a shadow`);
+  // narrowedSilhouette scales every RADIUS and no HEIGHT — the same form, narrower.
+  assert.deepEqual(narrowedSilhouette([[0, 0.08], [0.25, 1], [1, 0.04]], 0.5), [[0, 0.04], [0.25, 0.5], [1, 0.02]]);
+  assert.deepEqual(narrowedSilhouette(ROLE_SILHOUETTE.tree, 1), ROLE_SILHOUETTE.tree);
+  assert.deepEqual(narrowedSilhouette([], 0.5), []);
+  assert.ok(Math.abs(profileHalfWidth(narrowedSilhouette(ROLE_SILHOUETTE.tree, 0.5), 0.25) - 0.5) < 1e-12);
+  assert.ok(Math.abs(profileHalfWidth(narrowedSilhouette(ROLE_SILHOUETTE.tree, 0.5), 0.6) - profileHalfWidth(ROLE_SILHOUETTE.tree, 0.6) * 0.5) < 1e-12);
+  // roleSilhouettes: the two tree roles narrowed to the width, EVERY other role its read form by
+  // identity — the owner named the tree's triangle, and a narrowed bloom would be a second change.
+  const shipped = roleSilhouettes();
+  assert.deepEqual(shipped, roleSilhouettes(TREE_SHADOW_WIDTH), 'the default IS the shipped width');
+  assert.deepEqual(shipped.tree, narrowedSilhouette(ROLE_SILHOUETTE.tree, TREE_SHADOW_WIDTH));
+  assert.deepEqual(shipped.deadTree, narrowedSilhouette(ROLE_SILHOUETTE.deadTree, TREE_SHADOW_WIDTH));
+  for (const role of KIT_ROLES) {
+    if (role === 'tree' || role === 'deadTree') continue;
+    assert.equal(shipped[role], ROLE_SILHOUETTE[role], `${role} is not its read form by identity`);
+  }
+  assert.deepEqual(Object.keys(shipped).sort(), [...KIT_ROLES].sort(), 'every role has a silhouette');
+  const half = roleSilhouettes(0.5);
+  assert.ok(Math.abs(profileMaxWidth(half.tree) - 0.5) < 1e-12);
+  assert.ok(Math.abs(profileMaxWidth(half.deadTree) - 0.5) < 1e-12);
+  assert.equal(profileMaxWidth(half.bloom), profileMaxWidth(ROLE_SILHOUETTE.bloom));
+  // And the trunk narrows with the crown — the whole profile is one form.
+  assert.ok(Math.abs(profileHalfWidth(half.tree, 0.05) - 0.04) < 1e-12);
+  // The list builder hands one table to every placement: a rung passed there reaches every tree.
+  const list = [placed('tree', 1, 1, 1), placed('bloom', 2, 2, 1), placed('deadTree', 3, 3, 1)];
+  const narrow = placementCasters(list, FOOT, HEIGHTS, true, roleSilhouettes(0.5));
+  assert.deepEqual(narrow, list.map((p) => placementCaster(p, FOOT, HEIGHTS, roleSilhouettes(0.5))));
+  assert.ok(Math.abs(profileMaxWidth(narrow[0]!.profile!) - 0.5) < 1e-12);
+  assert.equal(narrow[1]!.profile, ROLE_SILHOUETTE.bloom);
+  assert.deepEqual(placementCasters(list, FOOT, HEIGHTS), placementCasters(list, FOOT, HEIGHTS, true, roleSilhouettes()));
 });
 
 test('the placement’s scale reaches BOTH the radius and the height of its caster', () => {

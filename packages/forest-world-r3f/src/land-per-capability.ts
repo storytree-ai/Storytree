@@ -104,6 +104,31 @@ export const LAND_AREA_PER_CAPABILITY = 318;
  */
 export const LAND_SCALE = Math.sqrt(LAND_AREA_PER_CAPABILITY / TUNED_LAND_AREA_PER_CAPABILITY);
 
+/**
+ * ⚠⚠ THE FLOOR: THE FEWEST CAPABILITIES AN ISLAND IS SIZED AS IF IT HELD — ONE.
+ *
+ * The owner, 2026-09-06, on finding the zero-capability islands: **"no capabilities should just be
+ * 1 hex which should be the minimum."** Until then `landRatioFactor` LEFT a story with no
+ * capabilities at the size the drawing gave it — three hex tiles of the old radius-27 lattice,
+ * ≈ 5,680 units² — while every island that held work shrank to `capabilities × 318`. Measured on
+ * the real forest (`docs/research/chapter2-one-hex-floor-2026-09-06/`): the four islands holding
+ * NO work were the third- to sixth-largest things on the map, bigger than a sixteen-capability
+ * story and eighteen times the one-capability one.
+ *
+ * ONE HEX OF THE DERIVED SIZE, NOT OF TODAY'S TILE. Under ADR-0528 the 2D tile itself follows the
+ * ratio — one hex per capability, a hex being exactly `LAND_AREA_PER_CAPABILITY` units² — so "one
+ * hex" and "one capability's worth of land" are the same quantity, and the floor is written in the
+ * ratio's own terms: an island is sized as if it held at least this many capabilities. That is
+ * correct on today's radius-27 drawing (the mapper scales the three tiles down to 318) and stays
+ * correct once the tile lands (one derived hex is 318 already, factor ≈ 1); writing it as 1,894
+ * units² of today's tile would have left a zero-capability island six times a one-capability one.
+ *
+ * ⚠ ZERO IS THE MAP AS IT STOOD, typed as history for the comparison page's control arm: a floor of
+ * 0 counts nothing an island does not hold, so a zero-capability island is left as drawn exactly as
+ * before. The shipped canvas never passes it.
+ */
+export const LAND_FLOOR_CAPABILITIES = 1;
+
 /** A ground ring's area by the shoelace, absolute, in units² — fewer than three points sum to
  *  zero on their own, so there is no guard to mutate. */
 export function ringArea(points: readonly Transform3D[]): number {
@@ -149,17 +174,23 @@ export function islandLand(descriptors: readonly Descriptor3D[]): Map<string, Is
 }
 
 /**
- * THE FACTOR ONE ISLAND SCALES BY, edge to edge: `√(capabilities × ratio / area)`, so that its
- * scaled area is exactly `capabilities × ratio`. An island holding no capability or drawing no land
- * has nothing to derive a size from and is left as drawn (factor 1) — the size is a reading of the
- * capability count, and where there is none there is no reading to draw.
+ * THE FACTOR ONE ISLAND SCALES BY, edge to edge: `√(counted × ratio / area)`, where `counted` is
+ * the island's capabilities or the floor, whichever is more — so that its scaled area is exactly
+ * `max(floor, capabilities) × ratio`. An island holding no capability is sized as ONE
+ * ({@link LAND_FLOOR_CAPABILITIES}); an island drawing no land has nothing to derive a size from
+ * and is left as drawn (factor 1). With a floor of 0 — the comparison page's control — a
+ * zero-capability island is left as drawn too, which is the rule as it stood until 2026-09-06.
  */
-export function landRatioFactor(land: IslandLand, areaPerCapability: number): number {
+export function landRatioFactor(land: IslandLand, areaPerCapability: number, floorCapabilities: number = LAND_FLOOR_CAPABILITIES): number {
   if (!Number.isFinite(areaPerCapability) || areaPerCapability <= 0) {
     throw new Error(`land-per-capability: the ratio must be a positive finite number of units² per capability, got ${areaPerCapability}`);
   }
-  if (land.capabilities === 0 || land.area === 0) return 1;
-  const factor = Math.sqrt((land.capabilities * areaPerCapability) / land.area);
+  if (!Number.isFinite(floorCapabilities) || floorCapabilities < 0) {
+    throw new Error(`land-per-capability: the floor must be a non-negative finite number of capabilities, got ${floorCapabilities}`);
+  }
+  const counted = Math.max(floorCapabilities, land.capabilities);
+  if (counted === 0 || land.area === 0) return 1;
+  const factor = Math.sqrt((counted * areaPerCapability) / land.area);
   // ⚠ REFUSED, NOT DRAWN. No island on this map is a hundred times too small or too large for its
   // capabilities — the drawing's own ratio is within a factor of three of any rung — so a factor
   // past this is an arithmetic fault (a ratio multiplied where it should divide), and the honest
@@ -187,12 +218,43 @@ export function sizeIslandsByCapability<T extends Descriptor3D>(
   /** REQUIRED rather than defaulted: the one caller that means "the shipped ratio" says so
    *  (`worldTo3D`), so a caller that forgot the ratio is a refusal and not a silent default. */
   areaPerCapability: number,
+  /** The fewest capabilities an island is sized as if it held — {@link LAND_FLOOR_CAPABILITIES}
+   *  unless a COMPARISON arm asks for the map as it stood (0). The shipped mapper never passes it. */
+  floorCapabilities: number = LAND_FLOOR_CAPABILITIES,
 ): T[] {
   const land = islandLand(descriptors);
   return scaleAboutIslands(descriptors, (island: string, _centre: IslandCentre): IslandScale => {
     // Every island the scale is asked about has ring vertices (`islandCentres` reads the same
     // cells), so it is in the land map.
-    const f = landRatioFactor(land.get(island) as IslandLand, areaPerCapability);
+    const f = landRatioFactor(land.get(island) as IslandLand, areaPerCapability, floorCapabilities);
     return { x: f, z: f };
   });
+}
+
+/** One island drawn larger than another that holds MORE capabilities — the reading the floor
+ *  exists to make impossible. */
+export interface IslandSizeInversion {
+  /** The island with FEWER capabilities and MORE land. */
+  smaller: IslandLand;
+  /** The island with more capabilities and less land. */
+  larger: IslandLand;
+}
+
+/**
+ * THE INVARIANT, AS A READER: no island with fewer capabilities is drawn larger than one with more.
+ * Every pair that breaks it, so a report can name them; empty is the invariant holding. Equal
+ * capability counts are never an inversion (two four-capability islands may differ by the coast's
+ * lobing), and an area within `tolerance` units² of the other is read as equal — the floor makes a
+ * zero-capability island EXACTLY a one-capability one, and the shoelace over two different rings
+ * agrees to rounding, not to the bit.
+ */
+export function islandSizeInversions(lands: Iterable<IslandLand>, tolerance = 1e-6): IslandSizeInversion[] {
+  const all = [...lands];
+  const out: IslandSizeInversion[] = [];
+  for (const a of all) {
+    for (const b of all) {
+      if (a.capabilities < b.capabilities && a.area > b.area + tolerance) out.push({ smaller: a, larger: b });
+    }
+  }
+  return out;
 }

@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SHADOW_CONTACT_BAND, buildGroundOcclusion } from './contact-shade.js';
+import { CONTACT_SPREAD, SHADOW_CONTACT_BAND, buildGroundOcclusion } from './contact-shade.js';
 import {
   OCCLUSION_PAD,
   SHADOW_GRES,
@@ -664,7 +664,14 @@ test('the penumbra and the contact band reach every tile: an atlas built at anot
   const full = buildAtlasOcclusion({ cells, relief: 0, casters, contactBand: 'full' });
   assert.notDeepEqual([...wide.data], [...base.data], 'the penumbra did not reach the tiles');
   assert.notDeepEqual([...full.data], [...base.data], 'the contact band did not reach the tiles');
-  // And the default IS the authored pair: the same atlas as naming them.
-  const named = buildAtlasOcclusion({ cells, relief: 0, casters, penumbra: SHADOW_PENUMBRA, contactBand: SHADOW_CONTACT_BAND });
+  // The spread too: the derived pool (1) is wider than the shipped one, and no pool at all (0) is
+  // narrower — every tile's builder is handed it.
+  const derived = buildAtlasOcclusion({ cells, relief: 0, casters, contactSpread: 1 });
+  const none = buildAtlasOcclusion({ cells, relief: 0, casters, contactSpread: 0 });
+  assert.notDeepEqual([...derived.data], [...base.data], 'the spread did not reach the tiles');
+  assert.ok(atlasCoverage(derived, 0.25) > atlasCoverage(base, 0.25), 'the derived pool is not wider than the shipped one');
+  assert.ok(atlasCoverage(none, 0.25) < atlasCoverage(base, 0.25), 'no pool is not narrower than the shipped one');
+  // And the default IS the authored triple: the same atlas as naming them.
+  const named = buildAtlasOcclusion({ cells, relief: 0, casters, penumbra: SHADOW_PENUMBRA, contactBand: SHADOW_CONTACT_BAND, contactSpread: CONTACT_SPREAD });
   assert.deepEqual([...named.data], [...base.data]);
 });

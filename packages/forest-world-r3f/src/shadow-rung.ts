@@ -246,10 +246,22 @@ export const SHADOW_EDGE: ShadowEdge = 'soft';
  * in the same report), so the ladder brackets it. The pick is this constant; a scale-back is one
  * edit to a rung already on the sheet.
  */
-export const SHADOW_DEPTH = 0.55;
+export const SHADOW_DEPTH = 0.62;
 
-/** The depth ladder the owner was shown, beyond the derived rung. */
+/** The depth ladder the owner was shown on the cast-shadow sheet, beyond the derived rung. */
 export const SHADOW_DEPTH_RUNGS: readonly number[] = [0.65, 0.55, 0.45];
+
+/**
+ * THE SCALE-BACK LADDER (2026-09-06, the owner on the shipped map: *"Shadows still look overdone
+ * … both look too large depending on the land color"*): the same lever laddered UPWARD from the
+ * 0.55 that shipped after PR #1841 — HIGHER IS LIGHTER — toward the derived rung, and judged on
+ * three grounds rather than the green alone, because the same rung reads heavier on pale sand and
+ * on the mustard wheat than on mid-green: a rung is a fraction of the lit colour, so the pale
+ * grounds lose more absolute light to it. Rendered on the RTX 2060
+ * (`docs/research/chapter2-shadow-scale-back-2026-09-06/`); the pick is {@link SHADOW_DEPTH},
+ * which must be a rung of one of the two ladders.
+ */
+export const SHADOW_DEPTH_SCALE_BACK_RUNGS: readonly number[] = [0.7, 0.62, 0.55];
 
 /** What a material is told about depth and edge. Absent, it wears the one derived rung with a
  *  hard edge on every token — the material as it was until 2026-09-06. */
