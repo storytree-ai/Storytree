@@ -2,10 +2,11 @@
 // (increment `traversal-panel-wide-reflow`, ADR-0354 D3/D4).
 //
 // THE TIME AXIS ROTATED, and that is the one thing the owner was asked to judge before this was
-// built: time now runs LEFT → RIGHT, depth indents DOWNWARD, subagent lanes are rows below it, and
-// the one playhead occupancy bar became a vertical track at the right. The verdict is in — the panel
-// stays at the bottom and the rotation is accepted as proposed, with the loss of resemblance to the
-// signed narrow mock knowingly accepted. `docs/design/context-traversal/bottom-panel-traversal-
+// built: time now runs LEFT → RIGHT, depth indents DOWNWARD, and subagent lanes are rows below it.
+// The verdict is in — the panel stays at the bottom and the rotation is accepted as proposed, with
+// the loss of resemblance to the signed narrow mock knowingly accepted. (The rotation also put the
+// one playhead occupancy bar in a vertical track at the right; ADR-0524 has since REMOVED that
+// track — see below.) `docs/design/context-traversal/bottom-panel-traversal-
 // composition.html` is authoritative for LAYOUT; `session-traversal-playback.html` remains normative
 // for GRAMMAR only.
 //
@@ -17,16 +18,23 @@
 // the ~1,100px the panel gives it: the entire trace at once, no scrolling in either direction. A
 // plain 90° reading would merely have moved the old 360px crowding onto the new scarce vertical.
 //
-// THE SIGNED GRAMMAR SURVIVES THE RE-FLOW UNCHANGED (ADR-0354 D3 reopened LAYOUT only): one playhead
-// occupancy bar with the over-threshold portion coloured and NO marker/tick/arc for the threshold
-// itself — THREE portions since ADR-0456 D4, because ADR-0411 D3 set a SECOND mark beside the one
-// the bar already drew, and the clause applies to two thresholds exactly as it did to one. The pair
-// is ~700K soft / 850K hard since ADR-0499 D1 tuned it, and the numbers are never written here: they
-// are imported from `@storytree/context-traversal-transcript/marks`, so a future tune moves the
-// colours without touching this file; plain node
+// THE SIGNED GRAMMAR SURVIVES THE RE-FLOW UNCHANGED (ADR-0354 D3 reopened LAYOUT only): plain node
 // marks with no per-node gauge; solid full-payload and grey dotted front-matter edges; a magnifying
 // glass for search; branching carried by animation rather than drawn loop-backs; and explicit-only
 // forks stating a raw `M of N` and never a percentage.
+//
+// ⚠ ONE CLAUSE OF THAT GRAMMAR IS WITHDRAWN, NOT NARROWED (ADR-0524 D1, owner-directed). The list
+// used to open with "one playhead occupancy bar with the over-threshold portion coloured and NO
+// marker/tick/arc for the threshold itself" — three portions since ADR-0456 D4, keyed to ADR-0411
+// D3's two marks. THAT BAR IS GONE. Its reading — "how close am I to handing over" — was never the
+// panel's to give: `storytree context` prints resident tokens, peak, the band and the marks, and
+// ADR-0411 D5 is what tells a session to check it at an increment boundary. The panel is the
+// OWNER's surface, the CLI verb is the SESSION's, and what was removed is a duplicate display, not
+// the rule. In its place, ACROSS THE TOP, is the horizontal COMPOSITION bar: the whole window as one
+// row of segments, with the knowledge-graph slice highlighted because that is what this picture
+// draws. See `CompositionBar` below. A future session reaching for the vertical bar is reaching for
+// something decided against; if fullness is ever wanted here again it returns as its OWN element,
+// never as a restained composition bar — the two readings cannot share one mark.
 //
 // ⚠ CLAUSE 5 HAS SINCE BEEN NARROWED TWICE MORE, both by ADR-0482 and both owner-directed at the
 // LOOK, so this paragraph no longer transcribes it whole. (a) "no depth ever inferred from order,
@@ -76,20 +84,10 @@ import {
   offerRingGeometry,
   ringHeadroom,
 } from '../lib/traversalOfferRings';
-import {
-  bandGuidance,
-  bandOf,
-  formatTokens,
-  HARD_MARK_TOKENS,
-  occupancyAt,
-  occupancyFill,
-  preferredOccupancy,
-  SOFT_MARK_TOKENS,
-  type OccupancySeries,
-} from '../lib/traversalOccupancy';
+import { formatTokens } from '../lib/traversalOccupancy';
 import { buildTraversalSpine, type TraversalEdge, type TraversalMark } from '../lib/traversalSpine';
 import { formatClock, formatDuration, timeAt } from '../lib/traversalTime';
-import type { TraversalReplayPayload } from '../types';
+import type { ContextCompositionPayload, TraversalReplayPayload } from '../types';
 
 /** Playback speed along the axis, in axis units per second — unchanged by the rotation. */
 const PLAY_UNITS_PER_SECOND = 90;
@@ -133,22 +131,25 @@ export function TraversalSpine({
   replay,
   compact = false,
   knowledge,
-  transcriptOccupancy = null,
+  composition = null,
 }: {
   replay: TraversalReplayPayload;
   /** The host's own measurement that the panel is dragged small. OR-ed with this component's. */
   compact?: boolean;
   /**
-   * This window's occupancy read from its own HOST TRANSCRIPT, supplied by the mount (ADR-0456 D2).
+   * What this window is MADE OF, read from its own host transcript and supplied by the mount
+   * (ADR-0524 D1). Drawn as the horizontal bar across the top of the panel.
    *
-   * PREFERRED over the trace-sourced series the replay carries, and the preference is the whole
-   * point of the repoint: occupancy reaches a trace only through an explicit `storytree traversal
-   * ingest` (2 of 697 local traces), while the transcripts are ambient (25 of the 30 most recent
-   * traces). `null` means the mount has not read it yet — which is NOT an absence, and must never
-   * render as "this window was never observed"; the trace-sourced series is what draws until it
-   * arrives, and it already knows how to say "none observed".
+   * `null` means the mount has not read it yet, or matched no transcript for this window. Either
+   * way the bar DRAWS NOTHING rather than a bar of zeroes: a zero-width composition would assert an
+   * empty window, which is a claim about the session rather than about the observation.
+   *
+   * ⚠ IT IS THE WINDOW'S INTAKE, NOT WHAT IS RESIDENT NOW, and the render must never say
+   * "resident". That quantity was the VERTICAL occupancy bar this element replaced; ADR-0524
+   * removed it because it duplicated a reading `storytree context` administers, and re-labelling
+   * this one "resident" would put the duplicate straight back.
    */
-  transcriptOccupancy?: OccupancySeries | null;
+  composition?: ContextCompositionPayload | null;
   /**
    * ADR-0363 D2's READ-ONLY depth-from-work join, supplied by the mount (`TraversalReplay`), which is
    * where the corpus lives. OPTIONAL and absent-by-default: with no corpus to join against, the
@@ -166,16 +167,9 @@ export function TraversalSpine({
   const model = useMemo(() => buildTraversalSpine(replay), [replay]);
   const { scale, marks, edges, depth, offers } = model;
 
-  // ONE bar, two possible sources, and the trace is the FALLBACK rather than the equal (ADR-0456 D2).
-  // The rule is a proven function rather than a ternary here, because its interesting case is the
-  // one a component would get wrong: when NEITHER source has readings, the transcript still wins,
-  // since it is the only one carrying a reason for the absence.
-  const occupancy = preferredOccupancy(model.occupancy, transcriptOccupancy);
-
   // The playhead lives in AXIS UNITS — one source of truth for "where are we", from which the clock
-  // and the occupancy reading are both derived. Mirrored in a ref so the animation frame reads it
-  // without re-subscribing, and so the end-of-playback stop never sits inside a state updater React
-  // is free to call twice.
+  // is derived. Mirrored in a ref so the animation frame reads it without re-subscribing, and so the
+  // end-of-playback stop never sits inside a state updater React is free to call twice.
   const [playPos, setPlayPos] = useState(0);
   const [playing, setPlaying] = useState(false);
   const positionRef = useRef(0);
@@ -249,6 +243,33 @@ export function TraversalSpine({
   }, []);
 
   const isCompact = compact || selfCompact;
+
+  // ── the knowledge-graph segment's destination (ADR-0524 D4) ────────────────────────────────────
+  //
+  // "Clicking a category opens the surface that visualises it", and the knowledge graph's surface is
+  // the traversal DIRECTLY BELOW — already on screen. So the honest action is not a navigation: it
+  // brings the plot into view, moves focus to it, and marks it briefly, which is what "this is that
+  // surface" looks like when the surface is a sibling element. Inventing a route to somewhere else
+  // would be a bigger lie than doing nothing.
+  const [indicated, setIndicated] = useState(false);
+  const indicateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const indicatePlot = useCallback((): void => {
+    const el = scrollRef.current;
+    // OPTIONAL CALLS, and not merely for jsdom. Bringing the plot into view is a convenience; the
+    // signal is the focus move and the ring, which is what tells a reader the click did something.
+    // An environment missing either must not throw inside a click handler on the panel's chrome.
+    el?.scrollIntoView?.({ block: 'nearest' });
+    el?.focus?.({ preventScroll: true });
+    setIndicated(true);
+    if (indicateTimer.current !== null) clearTimeout(indicateTimer.current);
+    indicateTimer.current = setTimeout(() => setIndicated(false), 1400);
+  }, []);
+  useEffect(
+    () => (): void => {
+      if (indicateTimer.current !== null) clearTimeout(indicateTimer.current);
+    },
+    [],
+  );
 
   // ── the drawn vertical (ADR-0482 D1–D3, `traversal-panel-depth-on-the-axis`) ───────────────────
   //
@@ -334,7 +355,6 @@ export function TraversalSpine({
 
   const nothingToDraw = marks.length === 0 && anchoredOffers.anchored.length === 0;
   const atMs = timeAt(scale, playPos);
-  const observed = occupancyAt(occupancy, atMs);
 
   return (
     <div
@@ -343,6 +363,15 @@ export function TraversalSpine({
       data-compact={isCompact ? 'true' : 'false'}
     >
       <div className="traversal-plot-column">
+        {/* THE COMPOSITION BAR (ADR-0524 D1). It is the FIRST row of the panel and the whole width of
+            the window, with the knowledge-graph slice highlighted because that is what the picture
+            below it draws. Before this element the panel stated no denominator at all: it draws at
+            most 10.4% of a window's tool traffic — about 5% of the window — and every reading of it
+            silently over-claimed by roughly twentyfold. The bar is the denominator, drawn rather
+            than written, which is the form the owner chose over the counts chip that was
+            recommended to him. */}
+        <CompositionBar composition={composition} onShowTraversal={indicatePlot} />
+
         <div className="traversal-transport">
           <button
             type="button"
@@ -420,7 +449,12 @@ export function TraversalSpine({
               </svg>
             </div>
 
-            <div className="traversal-plot-scroll" ref={scrollRef}>
+            <div
+              className={`traversal-plot-scroll${indicated ? ' is-indicated' : ''}`}
+              ref={scrollRef}
+              tabIndex={-1}
+              data-indicated={indicated ? 'true' : 'false'}
+            >
               <svg
                 className="traversal-spine-map"
                 viewBox={`0 0 ${geometry.width} ${geometry.height}`}
@@ -509,12 +543,6 @@ export function TraversalSpine({
         </div>
       </div>
 
-      <OccupancyTrack
-        observed={observed?.residentTokens ?? null}
-        scaleTokens={occupancy.scaleTokens}
-        observationCount={occupancy.observationCount}
-        note={occupancy.note}
-      />
     </div>
   );
 }
@@ -1049,129 +1077,134 @@ function OfferRings({
     </g>
   );
 }
-
 /**
- * The one playhead occupancy bar — a VERTICAL track at the right, so the time axis owns the
- * horizontal and the bar stops competing with the picture for area.
+ * THE COMPOSITION BAR — the whole context window as one horizontal row, with the knowledge-graph
+ * slice highlighted (ADR-0524 D1/D2; `context-window-composition-arc`).
  *
- * Three states, and they are three because collapsing any two would assert something nobody
- * observed: a reading, "nothing observed YET at this playhead", and "this session has no series at
- * all". The last is the ordinary case rather than an edge case — the field is populated only by the
- * host-transcript adapter, which is not ambient. A flat zero bar would say the window was empty,
- * which is a claim about the session, not about the observation.
- */
-/**
- * WHICH RECORDER the occupancy reading came from (ADR-0484 D5), said on the reading itself.
+ * It replaces the VERTICAL occupancy bar that stood at the right of this panel. That bar drew how
+ * FULL the window was; this one draws what it is full OF, and the substitution is a decision rather
+ * than a redesign: the fullness reading was a duplicate. `storytree context` prints resident tokens,
+ * peak, the band and the two marks, and ADR-0411 D5 is what tells a session to check it at an
+ * increment boundary. The panel is the OWNER's surface; the CLI verb is the SESSION's. What was
+ * removed is a second display of one quantity, never the rule.
  *
- * One constant, used on both the observed and the unobserved label, so the bar cannot state its tier
- * one way when it has a number and another way when it does not.
+ * ★ WHY A BAR AND NOT A LEGEND, WHICH IS THE SAME QUESTION AS "WHY IS IT CLICKABLE" (D4). Every
+ * segment is meant to open the surface that visualises that category, so the element has to be a
+ * row of addressable regions rather than a key beside a picture — it is the future navigation spine
+ * for per-category surfaces. Today exactly ONE of them leads anywhere, and the consequence ADR-0524
+ * recorded is that an inert segment must not appear actionable. That is honoured STRUCTURALLY and
+ * not with styling: the knowledge-graph segment is a `<button>`, every other segment is a plain
+ * `<span>`. Giving a segment a destination later is making it a button; nothing here has to be
+ * un-faked first.
+ *
+ * ★★ THE WIDTHS ARE `flex-grow`, WHICH IS NOT A SHORTCUT. A percentage per segment rounds each one
+ * independently and the row then fails to fill; `flex-grow: <tokens>` over `flex-basis: 0` makes the
+ * browser divide the exact width in the exact ratio, so the bar IS the window with no residue. It
+ * also means a sliver stays a sliver — there is no minimum width, deliberately. A 2%
+ * knowledge-graph segment SHOULD be nearly invisible: that is the reading this element exists to
+ * deliver, and padding it to a legible minimum would restore the over-claim in a new place.
+ *
+ * ★★★ THE ORDER AND THE LABELS ARE THE PACKAGE'S, never this file's. `buildCompositionBar` declares
+ * both (`COMPOSITION_SEGMENT_ORDER`), so a render cannot reshuffle the bar and quietly break the one
+ * reading a bar is good at — comparing two windows. This component draws the array it is handed, in
+ * the order it is handed it.
+ *
+ * ★★★★ IT SAYS "ENTERING", NEVER "RESIDENT". The composition covers everything that entered the
+ * window over its life (the transcript is append-only and keeps what a compaction dropped), while
+ * the harness floor is what was resident at the first request. Labelling the total "resident" would
+ * put back the exact duplicate reading D1 removed the vertical bar to be rid of.
  */
-const OCCUPANCY_TIER =
-  'This reading is HARNESS-DERIVED: it is read out of the host harness’s own transcript, not ' +
-  'recorded by storytree.';
-
-function OccupancyTrack({
-  observed,
-  scaleTokens,
-  observationCount,
-  note,
+function CompositionBar({
+  composition,
+  onShowTraversal,
 }: {
-  observed: number | null;
-  scaleTokens: number;
-  observationCount: number;
-  /** The source's own sentence about what it read, or looked for and did not find. May be empty. */
-  note: string;
-}): React.JSX.Element {
-  if (observationCount === 0) {
-    // The track keeps its column and goes DASHED rather than disappearing, so the picture's geometry
-    // does not change shape depending on whether a window happened to be readable. It draws no fill
-    // at all — a flat zero bar would say the window was empty, which is a claim about the session
-    // rather than about the observation. The sentence naming the absence no longer renders as PROSE
-    // anywhere in the panel (ADR-0393 D1 deleted the notes); it rides the `aria-label` instead, so
-    // the reason survives for a reader who asks without returning six paragraphs to the picture.
-    return (
-      <div className="traversal-occupancy is-unobserved">
-        <span className="traversal-occupancy-cap">resident</span>
-        <div
-          className="traversal-occupancy-track is-unobserved"
-          role="img"
-          aria-label={
-            note === ''
-              ? `no context occupancy was observed for this session. ${OCCUPANCY_TIER}`
-              : `no context occupancy was observed for this session — ${note}. ${OCCUPANCY_TIER}`
-          }
-        />
-        <span className="traversal-occupancy-readout is-unobserved">
-          none
-          <br />
-          observed
-        </span>
-      </div>
-    );
+  composition: ContextCompositionPayload | null;
+  /** What the knowledge-graph segment does — see the mount's `indicatePlot`. */
+  onShowTraversal: () => void;
+}): React.JSX.Element | null {
+  // NOTHING READ, NOTHING DRAWN. A window whose transcript was not matched, or one not read yet,
+  // gets no bar at all rather than an empty one: a zero-width composition would assert an empty
+  // window, which is a claim about the session rather than about the observation. The picture below
+  // is unaffected, which is why this returns null instead of holding an empty column open — the
+  // vertical bar kept its column because the geometry depended on it, and this one sits above.
+  if (composition === null || composition.segments.length === 0 || composition.totalTokens <= 0) {
+    return null;
   }
 
-  const fill = observed === null ? null : occupancyFill(observed, scaleTokens);
-  const band = observed === null ? null : bandOf(observed);
+  const total = composition.totalTokens;
+  const share = (tokens: number): number => (tokens / total) * 100;
+  const knowledge = composition.segments.find((segment) => segment.key === 'knowledge-graph');
+
+  const caption = (tokens: number, label: string): string =>
+    `${label} — ${formatTokens(tokens)} of ${formatTokens(total)} estimated tokens entering this window (${share(tokens).toFixed(1)}%)`;
+
   return (
-    <div className="traversal-occupancy" data-testid="traversal-occupancy">
-      <span className="traversal-occupancy-cap">resident</span>
+    <div className="traversal-composition" data-testid="traversal-composition">
       <div
-        className="traversal-occupancy-track"
-        role="img"
-        aria-label={
-          observed === null
-            ? 'no context observation yet at the playhead'
-            : // The tier rides the reading itself (ADR-0484 D5 deliverable 1). This bar is the
-              // panel's most prominent number and is HARNESS-DERIVED whichever way it was filled —
-              // `residentInputTokens` has one producer, the host-transcript adapter, and the
-              // window's own transcript the mount prefers (ADR-0456 D2) is the SAME harness file.
-              // There is no storytree-recorded occupancy for it to be confused with.
-              `${formatTokens(observed)} tokens resident in the session window at the playhead — ${bandGuidance(bandOf(observed))}. ${OCCUPANCY_TIER}`
+        className="traversal-composition-bar"
+        data-testid="traversal-composition-bar"
+        data-total-tokens={total}
+      >
+        {composition.segments.map((segment) => {
+          const isKnowledge = segment.key === 'knowledge-graph';
+          const shared = {
+            className: `traversal-composition-segment${isKnowledge ? ' is-knowledge' : ''}`,
+            style: { flexGrow: segment.tokens },
+            'data-testid': `traversal-composition-segment-${segment.key}`,
+            'data-segment': segment.key,
+            'data-tokens': segment.tokens,
+          } as const;
+
+          // THE ONE SEGMENT WITH A DESTINATION. Its accessible name carries the share, so the
+          // denominator reaches a screen reader as a number rather than as a width.
+          if (isKnowledge) {
+            return (
+              <button
+                key={segment.key}
+                type="button"
+                {...shared}
+                title={`${caption(segment.tokens, segment.label)} — this is what the traversal below draws`}
+                aria-label={`show the traversal: ${caption(segment.tokens, segment.label)}`}
+                onClick={onShowTraversal}
+              >
+                <span className="traversal-composition-figure">{share(segment.tokens).toFixed(1)}%</span>
+              </button>
+            );
+          }
+
+          // INERT, and a `<span>` says so to every reader — no role, no tab stop, no pointer
+          // cursor. `title` still carries the figures, because being un-navigable is not a reason
+          // to be unreadable.
+          return (
+            <span key={segment.key} {...shared} title={caption(segment.tokens, segment.label)}>
+              <span className="traversal-composition-name">{segment.label}</span>
+            </span>
+          );
+        })}
+      </div>
+
+      {/* The counts chip, in the shape already accepted on this panel when the depth reading was
+          re-homed (ADR-0393 D1): a short label on a line that states counts, never a paragraph. It
+          names the highlighted slice and the denominator, which together are the sentence the bar
+          draws — kept as digits so it cannot drift back into the prose the owner deleted here. */}
+      <span
+        className="traversal-composition-total small muted"
+        data-testid="traversal-composition-total"
+        title={
+          `${formatTokens(total)} estimated tokens ENTERED this window over its life — intake, not what is resident now ` +
+          `(bytes converted at ${composition.charsPerToken} chars/token; the harness floor is exact, read from the first request's own usage).` +
+          (composition.residualAbsence === null
+            ? ''
+            : ` The harness floor could not be read here (${composition.residualAbsence}), so it is absent from the bar rather than drawn as zero.`)
         }
       >
-        {fill !== null && (
-          <>
-            {/* THREE portions, and the colour is the WHOLE signal for both marks — no marker, tick,
-                or arc is drawn at either boundary anywhere (ADR-0393 D1, carried to two marks by
-                ADR-0456 D4). Each segment simply starts where the fill splits. */}
-            <span
-              className="traversal-occupancy-fill is-calm"
-              data-testid="traversal-occupancy-calm"
-              style={{ height: `${fill.calmFraction * 100}%` }}
-            />
-            <span
-              className="traversal-occupancy-fill is-soft"
-              data-testid="traversal-occupancy-soft"
-              style={{
-                bottom: `${fill.softStartFraction * 100}%`,
-                height: `${fill.softFraction * 100}%`,
-              }}
-            />
-            <span
-              className="traversal-occupancy-fill is-hard"
-              data-testid="traversal-occupancy-hard"
-              style={{
-                bottom: `${fill.hardStartFraction * 100}%`,
-                height: `${fill.hardFraction * 100}%`,
-              }}
-            />
-          </>
-        )}
-      </div>
-      <span
-        className={`traversal-occupancy-readout${band === null || band === 'calm' ? '' : ` is-${band}`}`}
-        data-testid="traversal-occupancy-readout"
-      >
-        {observed === null ? '—' : formatTokens(observed)}
-        <br />
-        <span className="traversal-occupancy-threshold">
-          {formatTokens(SOFT_MARK_TOKENS)} · {formatTokens(HARD_MARK_TOKENS)}
-        </span>
+        {knowledge === undefined
+          ? `no knowledge-graph read · ${formatTokens(total)} in`
+          : `knowledge graph ${share(knowledge.tokens).toFixed(1)}% · ${formatTokens(total)} in`}
       </span>
     </div>
   );
 }
-
 /** The grammar, said once, where a reader meets the picture. */
 function Legend(): React.JSX.Element {
   return (
@@ -1208,14 +1241,17 @@ function Legend(): React.JSX.Element {
         </svg>
         offer rings — one solid ring per branch the read could have taken, innermost offered first
       </span>
+      {/* The bar at the TOP, not the vertical track at the right — that one is gone (ADR-0524 D1),
+          and with it the "resident context, colouring past …" key that named its two marks. The
+          quantity changed, so the key had to: this row draws COMPOSITION, and the only thing a
+          reader needs told is which slice is highlighted and why. */}
       <span className="traversal-legend-key">
         <span className="traversal-legend-bar" aria-hidden="true">
-          <span className="traversal-legend-bar-calm" />
-          <span className="traversal-legend-bar-soft" />
-          <span className="traversal-legend-bar-hard" />
+          <span className="traversal-legend-bar-knowledge" />
+          <span className="traversal-legend-bar-rest" />
         </span>
-        resident context, colouring past {formatTokens(SOFT_MARK_TOKENS)} and{' '}
-        {formatTokens(HARD_MARK_TOKENS)}
+        the bar above is the whole window; the highlighted slice is the knowledge graph this picture
+        draws
       </span>
       <span className="traversal-legend-key">∥ folded idle span</span>
     </div>

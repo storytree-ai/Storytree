@@ -4202,16 +4202,21 @@ button.legend-tile:hover {
    The row template is what makes the picture RE-FLOW into a dragged dock rather than overflow it:
    without it the implicit row is `auto`, the SVG sizes the row, and the row sizes the SVG.
    APPEARANCE IS OPERATOR-ATTESTED (ADR-0070) — nothing here is self-signed. */
+/* ONE COLUMN since ADR-0524 D1. The 58px right-hand track held the vertical resident-occupancy bar
+   and is removed with it — the picture takes the width back, which is the axis the bottom panel has
+   to spare. The composition bar that replaced it is a ROW, not a column: it runs across the top,
+   where it costs the scarce vertical about ten pixels instead of costing the picture 58 horizontal
+   ones. */
 .traversal-spine {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
 }
 .traversal-plot-column {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
 }
@@ -4277,19 +4282,17 @@ button.legend-tile:hover {
   border-radius: 4px;
   overflow: hidden;
 }
-/* Three keys since ADR-0456 D4, one per band, because ADR-0411 D3 set a second mark beside the
-   bar's own. The widths are legend proportions, not the marks' real positions on a track. */
-.traversal-legend-bar-calm {
-  width: 55%;
+/* TWO keys since ADR-0524, and they are a different quantity from the three they replaced. The old
+   calm/soft/hard trio keyed the vertical RESIDENT bar and its two marks; that bar is removed. These
+   two key the horizontal COMPOSITION bar: the highlighted slice and everything else. The widths are
+   legend proportions, deliberately near the real ones — the knowledge graph is a sliver. */
+.traversal-legend-bar-knowledge {
+  width: 12%;
   background: var(--accent);
 }
-.traversal-legend-bar-soft {
-  width: 17%;
-  background: var(--warn);
-}
-.traversal-legend-bar-hard {
-  width: 17%;
-  background: var(--danger);
+.traversal-legend-bar-rest {
+  width: 88%;
+  background: color-mix(in srgb, var(--text) 22%, transparent);
 }
 /* `.traversal-gaps` held the six explanatory notes and is retired with them (ADR-0393 D1). The
    compact rule that folded them went too: there is nothing left under the picture to fold, which
@@ -4346,75 +4349,143 @@ button.legend-tile:hover {
   white-space: nowrap;
 }
 
-/* THE ONE PLAYHEAD OCCUPANCY BAR — vertical now, so the time axis owns the horizontal and the bar
-   stops competing with the picture for area. It keeps its column even when unobserved (dashed, no
-   fill) so the picture's geometry does not change shape depending on whether a session was ingested. */
-.traversal-occupancy {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 4px;
-  justify-items: center;
-  padding: 8px 6px 4px 4px;
-  border-left: 1px solid var(--border);
-  min-height: 0;
+/* THE COMPOSITION BAR (ADR-0524 D1/D2) — horizontal, across the TOP of the panel, and the whole
+   width of it is the context window. It replaces the vertical resident-occupancy track that stood in
+   a 58px column at the right; that quantity is `storytree context`'s to administer, and drawing it
+   here as well was the duplication ADR-0524 removed.
+
+   THE WIDTHS ARE `flex-grow` ON A ZERO BASIS, which is what makes the row divide EXACTLY in the
+   segments' ratio with no rounding residue — and, deliberately, with NO minimum width. A 2% slice
+   must look like 2%: padding it to something legible would restore in a new place the very
+   over-claim this element exists to remove.
+
+   THE PALETTE IS ONE HIGHLIGHT AND A NEUTRAL RAMP, not a categorical scheme. Only the knowledge
+   graph carries meaning here (it is what the picture below draws); giving the other eleven segments
+   distinct hues would imply a vocabulary the data does not have. The ramp separates neighbours by
+   value alone, and every shade is mixed from `--text` so both themes get it for free. */
+.traversal-composition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0 5px;
 }
-.traversal-occupancy-cap {
-  color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 0.04em;
-}
-.traversal-occupancy-track {
-  position: relative;
-  width: 13px;
-  min-height: 0;
+.traversal-composition-bar {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg);
   overflow: hidden;
+  background: var(--bg);
 }
-.traversal-occupancy-track.is-unobserved {
-  border-style: dashed;
-}
-.traversal-occupancy-fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-}
-/* THREE portions, one per band of ADR-0411 D3's two marks (ADR-0456 D4). The COLOUR is the whole
-   signal for both: no marker, tick or danger arc is drawn at 400k or at 500k anywhere, by the
-   design's own words — the clause applied to two thresholds rather than weakened for them. The
-   palette is the one the retired Context tab used for the same three bands, which is why it reads
-   as one vocabulary rather than two (that tab is gone — ADR-0456 D1). */
-.traversal-occupancy-fill.is-calm {
-  bottom: 0;
-  background: var(--accent);
-}
-.traversal-occupancy-fill.is-soft {
-  background: var(--warn);
-}
-.traversal-occupancy-fill.is-hard {
-  background: var(--danger);
-}
-.traversal-occupancy-readout {
-  color: var(--text);
-  font-size: 9.5px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  line-height: 1.2;
-}
-.traversal-occupancy-readout.is-soft {
-  color: var(--warn);
-}
-.traversal-occupancy-readout.is-hard {
-  color: var(--danger);
-}
-.traversal-occupancy-readout.is-unobserved {
-  color: var(--muted);
-}
-.traversal-occupancy-threshold {
-  color: var(--muted);
+.traversal-composition-segment {
+  flex-basis: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--bg) 70%, transparent);
+  overflow: hidden;
+  white-space: nowrap;
+  font: inherit;
   font-size: 8.5px;
+  line-height: 12px;
+  text-align: left;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.traversal-composition-segment:last-child {
+  border-right: 0;
+}
+/* A LABEL APPEARS ONLY WHERE IT FITS, and this is a container query rather than a hand-tuned width
+   list because the segments' widths come from the DATA — one window's `shell` is 200px and the
+   next's is 12px. Without it a 13px segment renders the first letter of "other tools" and the bar
+   reads as speckle. Hiding the text is the right failure: the width IS the reading, and every
+   segment carries its full figures in `title` regardless. */
+.traversal-composition-segment {
+  container-type: inline-size;
+}
+.traversal-composition-name,
+.traversal-composition-figure {
+  display: none;
+}
+@container (min-width: 64px) {
+  /* A BLOCK with an ellipsis, not an inline span: a segment wide enough for a label is rarely wide
+     enough for the WHOLE label, and a hard clip leaves "project guidance (CLAU" — which reads as a
+     rendering defect rather than as a truncation. The full text is on the segment's `title`. */
+  .traversal-composition-name {
+    display: block;
+    padding: 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@container (min-width: 34px) {
+  .traversal-composition-figure {
+    display: inline;
+    padding: 0 3px;
+  }
+}
+/* THE NEUTRAL RAMP. Separating neighbours by VALUE keeps the accent the only thing on the row that
+   reads as a signal — which is the whole grammar of a bar with one highlighted slice. */
+.traversal-composition-segment[data-segment='file-read'],
+.traversal-composition-segment[data-segment='assistant-thinking'],
+.traversal-composition-segment[data-segment='harness-catalogue'],
+.traversal-composition-segment[data-segment='harness-reminder'] {
+  background: color-mix(in srgb, var(--text) 26%, transparent);
+}
+.traversal-composition-segment[data-segment='shell'],
+.traversal-composition-segment[data-segment='assistant-text'],
+.traversal-composition-segment[data-segment='hook-injection'],
+.traversal-composition-segment[data-segment='unclassified'] {
+  background: color-mix(in srgb, var(--text) 36%, transparent);
+}
+.traversal-composition-segment[data-segment='harness-floor'] {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+}
+/* THE ONE SEGMENT WITH A DESTINATION (ADR-0524 D4). It is a `<button>`; every other segment is a
+   `<span>`, so "inert must not look actionable" is answered by the ELEMENT rather than by a rule a
+   later reader could style away. Hover, cursor and focus ring therefore belong to this rule alone —
+   nothing here needs a `:not()` to hold the others back. */
+.traversal-composition-segment.is-knowledge {
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.traversal-composition-segment.is-knowledge:hover {
+  filter: brightness(1.12);
+}
+.traversal-composition-segment.is-knowledge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.traversal-composition-figure {
+  font-variant-numeric: tabular-nums;
+}
+/* The counts chip, in the shape ADR-0393 D1 accepted for the depth reading: digits on a line that
+   already states counts, never a paragraph. It folds with the rest of the chrome when the dock is
+   dragged small — the bar itself never does, because the bar IS the reading. */
+.traversal-composition-total {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.traversal-spine.is-compact .traversal-composition-total {
+  display: none;
+}
+/* WHERE THE KNOWLEDGE-GRAPH SEGMENT LEADS. Its surface is the picture directly below, so the click
+   marks that picture rather than navigating: a brief ring, then gone. `prefers-reduced-motion` is
+   not consulted because nothing here moves — the ring appears and is removed on a timer. */
+.traversal-plot-scroll:focus {
+  outline: none;
+}
+.traversal-plot-scroll.is-indicated {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 .traversal-spine-empty {
   margin: 0;

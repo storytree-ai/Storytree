@@ -60,6 +60,8 @@ import { useNowTick } from '../lib/poll';
 import { useSessionClaimGroups } from '../lib/sessionClaims';
 import { assetHref, docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
+import { ISLAND_SPACING_RATIO, gapBetween, loneSwing, type LegacySpacing } from '../lib/islandSpacing.js';
+import { readSceneExport, sceneExportBridge } from '../lib/sceneExport.js';
 import {
   WorldLegend,
   LegendDrawerBody,
@@ -273,31 +275,25 @@ function islandDiametersOf(world: { territories: readonly Territory[] }): number
 
 const FIT_PADDING_TOP = 40;
 const FIT_PADDING_BOTTOM = 48;
-// `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` (owner look verdict, 2026-08-16):
-// all three cut roughly in half. Measured against the live corpus at 1600x1000 (`?rankGap=78
-// &islandGap=96&rankSwing=235` reproduces the prior values for an in-app side-by-side): the
-// resting composition's content extent grows 552.7x869.3 -> 563.0x863.8px (unused frame width
-// 65.5% -> 64.8%), the topmost five islands' own canopy rects grow ~8-13% (26.4-28.5px ->
-// 27.5-32.1px — the direct answer to "an individual island stops being readable"), and the
-// closest same-rank island pair tightens 47.2px -> 41.1px centre-to-centre. `RANK_GAP` alone
-// drives the zoom (it shrinks the world's VERTICAL extent, which `fitWorld`'s 'contain' fit is
-// bound by — see the increment note below); `ISLAND_GAP` mostly re-shapes the horizontal
-// spacing between islands rather than the zoom, since width was never the tight constraint.
-// `world-cave` stayed 0 and every one of 227 island parcels stayed present at every value tried
-// from these defaults down to `rankGap=10&islandGap=20&rankSwing=60` — the hex-lattice growth
-// floor (below, the `floor = ringsOf(...) + ringsOf(...) + 1` pass) is what actually protects
-// island integrity, not these seed-spacing constants, so there was room to cut them this far
-// without risking a collision/cave regression.
-const RANK_GAP = 40; // vertical clearance between grown territories of adjacent ranks (gives rivers room)
-const ISLAND_GAP = 60; // horizontal clearance between territories sharing a rank (gives rivers room)
-const RANK_SWING = 140; // lateral swing for a lone island, so its roads read as diagonals
+// ADR-0521 (owner-directed 2026-09-05): the three absolute spacing constants that used to stand
+// here — `RANK_GAP` 40, `ISLAND_GAP` 60, `RANK_SWING` 140, halved on the owner's 2026-08-16 look
+// (`islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`) — are RETIRED. Every gap is now
+// a fraction of the islands it separates (`lib/islandSpacing.ts`): the same input the island's own
+// size comes from, so the layout is derived end to end and the 3D map, which reads these positions
+// and lays out nothing of its own, inherits it. What the 2026-08-16 note measured still holds in
+// kind: the row gap drives the resting zoom (it sets the world's VERTICAL extent, which `fitWorld`'s
+// 'contain' fit is bound by), the in-row gap re-shapes the horizontal spacing, and the hex-lattice
+// growth floor below (`floor = ringsOf(...) + ringsOf(...) + 1`) is what protects island integrity,
+// not the gaps — which is why rung 0 of the ladder is a legal layout and not a collision.
 
-/** The three row/rank spacing knobs `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`
- *  tunes — see `readSpacingTuning` and `buildWorld`'s `spacing` opt. */
+/** The spacing dial `buildWorld` takes — see `readSpacingTuning` and `buildWorld`'s `spacing` opt.
+ *  `ratio` is the ADR-0521 fraction (absent ⇒ the shipped `ISLAND_SPACING_RATIO`); `legacy` is an
+ *  INSTRUMENT'S option — the three pre-ADR-0521 absolute gaps, so a comparison page's control arm
+ *  can stand the map as it stood before this landing. When both are given, `legacy` wins, because a
+ *  control that silently took the ratio would compare the ladder against one of its own rungs. */
 interface SpacingTuning {
-  rankGap: number;
-  islandGap: number;
-  rankSwing: number;
+  ratio: number;
+  legacy?: LegacySpacing;
 }
 const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
@@ -514,17 +510,24 @@ export function buildWorld(
      *  When a single building story is passed with `buildings: false`, it lays out as one plain
      *  island — exactly the one-island Territory the Shared Islands panel renders per building. */
     buildings?: boolean;
-    /** `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` — a live-tunable override
-     *  of the row/rank spacing constants, exactly the `readSubstrateTuning` dial pattern below
-     *  (mesh jitter/relax/etc): absent ⇒ the module defaults (unchanged callers, unchanged tests). */
+    /** ADR-0521 — the spacing dial, exactly the `readSubstrateTuning` dial pattern below (mesh
+     *  jitter/relax/etc): absent ⇒ the shipped `ISLAND_SPACING_RATIO` (unchanged callers). `legacy`
+     *  stands the three pre-ADR-0521 absolute gaps for an instrument's control arm. */
     spacing?: Partial<SpacingTuning>;
   },
 ): HexWorld {
   const plantsScatter = opts?.plantsScatter ?? false;
   const buildings = opts?.buildings ?? false;
-  const rankGap = opts?.spacing?.rankGap ?? RANK_GAP;
-  const islandGap = opts?.spacing?.islandGap ?? ISLAND_GAP;
-  const rankSwing = opts?.spacing?.rankSwing ?? RANK_SWING;
+  // ADR-0521: every gap is a fraction of the islands it separates — `gapBetween` over the two
+  // estimated radii — and a lone island's swing is the offset a same-row neighbour would have had.
+  // The `legacy` triple is the pre-ADR-0521 map, for a comparison page's control arm only.
+  const spacingRatio = opts?.spacing?.ratio ?? ISLAND_SPACING_RATIO;
+  const legacy = opts?.spacing?.legacy;
+  const rankGapFor = (below: number, tallest: number): number =>
+    legacy ? legacy.rankGap : gapBetween(below, tallest, spacingRatio);
+  const islandGapFor = (left: number, right: number): number =>
+    legacy ? legacy.islandGap : gapBetween(left, right, spacingRatio);
+  const rankSwingFor = (lone: number): number => (legacy ? legacy.rankSwing : loneSwing(lone, spacingRatio));
 
   // ADR-0102 (per-island icon stamps, owner-directed 2026-06-25): a story tagged `render: building`
   // (today `library` and `cli`) PROMOTES every edge incident to it from a road to a per-island icon
@@ -592,7 +595,7 @@ export function buildWorld(
         ...(byRank[r - 1] ?? []).map((i) => estRadius(quotas[i] ?? 3)),
         HEX_R,
       );
-      yCursor -= below + tallest + rankGap;
+      yCursor -= below + tallest + rankGapFor(below, tallest);
     }
     rowY.push(yCursor);
   }
@@ -633,24 +636,31 @@ export function buildWorld(
       });
     }
     const sequence = display.map((idx) => ({ idx, w: estRadius(quotas[idx] ?? 3) }));
-    const total =
-      sequence.reduce((sum, s) => sum + 2 * s.w, 0) + islandGap * Math.max(0, sequence.length - 1);
+    // ADR-0521: the gap between two neighbours is a fraction of THEIR two radii, so a row of big
+    // islands breathes more than a row of small ones and the row's total is the sum of its pairs.
+    const gapAfter = (k: number): number => {
+      const here = sequence[k];
+      const next = sequence[k + 1];
+      return here && next ? islandGapFor(here.w, next.w) : 0;
+    };
+    const total = sequence.reduce((sum, s, k) => sum + 2 * s.w + gapAfter(k), 0);
     // A lone island would otherwise sit directly on top of its dependencies,
     // stacking every road into one vertical corridor — swing it to an
     // alternating side so roads sweep as separated diagonals (the dbt-DAG read).
     let rowCenter =
       r === 0 ? 0 : display.reduce((sum, i) => sum + baryOf(i), 0) / Math.max(display.length, 1);
-    if (r > 0 && sequence.length === 1) rowCenter += (r % 2 === 1 ? 1 : -1) * rankSwing;
+    const lone = sequence.length === 1 ? sequence[0] : undefined;
+    if (r > 0 && lone) rowCenter += (r % 2 === 1 ? 1 : -1) * rankSwingFor(lone.w);
     let xCursor = rowCenter - total / 2;
-    for (const s of sequence) {
+    sequence.forEach((s, k) => {
       const story = stories[s.idx];
       const seedH = hash(story?.id ?? String(s.idx));
       seedPx.set(s.idx, {
         x: xCursor + s.w + (rand01(seedH) - 0.5) * 44,
         y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * 30,
       });
-      xCursor += 2 * s.w + islandGap;
-    }
+      xCursor += 2 * s.w + gapAfter(k);
+    });
   }
 
   // Snap seeds to the hex lattice, then enforce a growth floor: two seeds
@@ -1460,15 +1470,20 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
   return out;
 }
 
-/** Live row/rank spacing overrides from the URL — the same "let the owner dial the look in
- *  directly" pattern as `readSubstrateTuning`, for
- *  `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`'s staged-variant comparison.
- *  Absent params ⇒ `buildWorld`'s own defaults (`RANK_GAP`/`ISLAND_GAP`/`RANK_SWING`), so a bare
- *  `#/tree` is unaffected. `?rankGap=78&islandGap=96&rankSwing=235` reproduces the pre-repair
- *  spacing exactly, for an in-app side-by-side against the new default. */
+/** Live spacing overrides from the URL — the same "let the owner dial the look in directly"
+ *  pattern as `readSubstrateTuning`. `?spacing=<ratio>` sets the ADR-0521 fraction (a ladder rung
+ *  for an in-app side-by-side; the scene-export driver walks the ladder through it). All three of
+ *  `?rankGap=&islandGap=&rankSwing=` together stand the pre-ADR-0521 ABSOLUTE gaps — the control arm
+ *  (`?rankGap=40&islandGap=60&rankSwing=140` is the map as it stood before this landing); one or two
+ *  of them is not a layout and is ignored. Absent ⇒ `buildWorld`'s own default, so a bare `#/tree`
+ *  is the shipped ratio. */
 function readSpacingTuning(): Partial<SpacingTuning> {
   if (typeof window === 'undefined') return {};
-  const q = new URLSearchParams(window.location.search);
+  return parseSpacingTuning(new URLSearchParams(window.location.search));
+}
+
+/** The pure half of `readSpacingTuning`, so the dial's grammar is testable without a window. */
+export function parseSpacingTuning(q: URLSearchParams): Partial<SpacingTuning> {
   const out: Partial<SpacingTuning> = {};
   const num = (key: string): number | null => {
     const raw = q.get(key);
@@ -1476,12 +1491,14 @@ function readSpacingTuning(): Partial<SpacingTuning> {
     const v = Number(raw);
     return Number.isFinite(v) && v >= 0 ? v : null;
   };
-  const rg = num('rankGap');
-  const ig = num('islandGap');
-  const rs = num('rankSwing');
-  if (rg !== null) out.rankGap = rg;
-  if (ig !== null) out.islandGap = ig;
-  if (rs !== null) out.rankSwing = rs;
+  const ratio = num('spacing');
+  if (ratio !== null) out.ratio = ratio;
+  const rankGap = num('rankGap');
+  const islandGap = num('islandGap');
+  const rankSwing = num('rankSwing');
+  if (rankGap !== null && islandGap !== null && rankSwing !== null) {
+    out.legacy = { rankGap, islandGap, rankSwing };
+  }
   return out;
 }
 
@@ -2951,6 +2968,21 @@ export function TreeView({
     [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, vegetation],
   );
   const scene = useMemo(() => (sceneInput ? buildScene(sceneInput) : null), [sceneInput]);
+
+  // `?sceneExport=1` — the SCENE-EXPORT BRIDGE (ADR-0521's ladder instrument). Behind the flag only,
+  // the built scene graph and the layout's own bookkeeping are parked on `window` for a driver to
+  // read, so the 3D comparison page renders the REAL forest as this map lays it out rather than a
+  // synthetic crowd. Same shape as the camera-rasterisation probe above: nothing is written without
+  // the flag, and the bridge is removed when the scene changes or the view unmounts.
+  const sceneExport = useMemo(() => readSceneExport(search), [search]);
+  useEffect(() => {
+    if (!sceneExport || !world || !scene) return;
+    const bridge = sceneExportBridge(world, scene, spacingTuning);
+    window.__storytreeSceneExport = bridge;
+    return () => {
+      if (window.__storytreeSceneExport === bridge) delete window.__storytreeSceneExport;
+    };
+  }, [sceneExport, world, scene, spacingTuning]);
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which

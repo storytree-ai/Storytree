@@ -1,0 +1,2027 @@
+[
+  {
+    "arm": "today",
+    "ladder": "control",
+    "spec": {
+      "id": "today",
+      "ladder": "control",
+      "profiles": false,
+      "cover": false,
+      "penumbra": 1.2,
+      "edge": "hard",
+      "depth": null
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 21,
+      "scene": 21,
+      "cover": 0,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 23.600000023841858,
+    "fieldFull": 0.40826238607808574,
+    "fieldSoft": 0.4223080673592619,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 39.5828,
+      "micro": 4.254034823020365,
+      "struct": 21.9452294857976,
+      "mean": 99.13231448757307
+    },
+    "landPx": 215288,
+    "families": 55,
+    "largestShare": 0.048804392255954815,
+    "green": {
+      "count": 188492,
+      "p05": 55.57999999999999,
+      "p50": 96.23,
+      "p95": 126.03999999999999,
+      "ratio": 0.4409711202792764,
+      "bins": [
+        0,
+        0.0076554973155359375,
+        0.020849691233580204,
+        0.060586125671116015,
+        0.14517326995310145,
+        0.262366572586635,
+        0.3073552193196528,
+        0.1563461579271269,
+        0.037136854614519446,
+        0.0025253061137873226,
+        0.00000530526494493135,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 84438
+  },
+  {
+    "arm": "shape-cylinder",
+    "ladder": "shape",
+    "spec": {
+      "id": "shape-cylinder",
+      "ladder": "shape",
+      "profiles": false,
+      "cover": false,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 21,
+      "scene": 21,
+      "cover": 0,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 18,
+    "fieldFull": 0.23328207628548925,
+    "fieldSoft": 0.41497580917376137,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 40.8672,
+      "micro": 4.151214782837691,
+      "struct": 23.848309881490742,
+      "mean": 92.4820069599514
+    },
+    "landPx": 215288,
+    "families": 57,
+    "largestShare": 0.033508602430232994,
+    "green": {
+      "count": 178613,
+      "p05": 53.36,
+      "p50": 87.10999999999999,
+      "p95": 126.25,
+      "ratio": 0.42265346534653464,
+      "bins": [
+        0,
+        0.008078919227603815,
+        0.02200287773006444,
+        0.1269392485429392,
+        0.23706001242910651,
+        0.21652959191100313,
+        0.20756047992027457,
+        0.14135589234826132,
+        0.03784718917436021,
+        0.002620190019763399,
+        0.0000055986966234260665,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 71907,
+    "visible": 41140,
+    "delta": {
+      "frame": 4096000,
+      "touched": 71907,
+      "visible": 41140,
+      "overstatement": 1.7478609625668449,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 30767,
+          "shareOfMoved": 0.427872112589873
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 41097,
+          "shareOfMoved": 0.5715298927781718
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 43,
+          "shareOfMoved": 0.0005979946319551643
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 35,
+      "p99": 38,
+      "max": 62
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 35331
+  },
+  {
+    "arm": "shape-cone",
+    "ladder": "shape",
+    "spec": {
+      "id": "shape-cone",
+      "ladder": "shape",
+      "profiles": true,
+      "cover": false,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 21,
+      "scene": 21,
+      "cover": 0,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 34.299999952316284,
+    "fieldFull": 0.16528522671867382,
+    "fieldSoft": 0.3648876720549076,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 4.2360159901898085,
+      "struct": 23.71173844325625,
+      "mean": 94.9413948357383
+    },
+    "landPx": 215288,
+    "families": 60,
+    "largestShare": 0.03485099030136375,
+    "green": {
+      "count": 182466,
+      "p05": 53.36,
+      "p50": 90.78,
+      "p95": 127.19999999999999,
+      "ratio": 0.41949685534591197,
+      "bins": [
+        0,
+        0.007908322646410839,
+        0.021538259182532635,
+        0.10232043229971612,
+        0.21251082393432202,
+        0.2230607346026109,
+        0.2305799436607368,
+        0.1567141275634913,
+        0.04274220950752469,
+        0.0026196661295803053,
+        0.0000054804730744357856,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 70747,
+    "visible": 29358,
+    "delta": {
+      "frame": 4096000,
+      "touched": 70747,
+      "visible": 29358,
+      "overstatement": 2.4098031201035495,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 41389,
+          "shareOfMoved": 0.5850283404243289
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 29311,
+          "shareOfMoved": 0.4143073204517506
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 47,
+          "shareOfMoved": 0.0006643391239204489
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 9,
+      "p90": 34,
+      "p99": 37,
+      "max": 66
+    },
+    "touchedVsNeighbour": 16588,
+    "visibleVsNeighbour": 15309,
+    "touchedVsShipped": 21652
+  },
+  {
+    "arm": "shape-cover",
+    "ladder": "shape",
+    "spec": {
+      "id": "shape-cover",
+      "ladder": "shape",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.9019634102323484,
+      "struct": 24.290026443002137,
+      "mean": 91.57499000127514
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.04142822637583145,
+    "green": {
+      "count": 181828,
+      "p05": 53.36,
+      "p50": 84.78,
+      "p95": 126.72,
+      "ratio": 0.42108585858585856,
+      "bins": [
+        0,
+        0.007936071452141584,
+        0.021613832853025938,
+        0.1341982532943221,
+        0.2660921310249246,
+        0.20375299733814373,
+        0.18970125613216887,
+        0.1332633037815958,
+        0.04093978925138043,
+        0.002496865169280859,
+        0.000005499703016037134,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 84438,
+    "visible": 49624,
+    "delta": {
+      "frame": 4096000,
+      "touched": 84438,
+      "visible": 49624,
+      "overstatement": 1.7015556988553926,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 34814,
+          "shareOfMoved": 0.4123025178237287
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 40460,
+          "shareOfMoved": 0.47916814704280064
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9164,
+          "shareOfMoved": 0.10852933513347071
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": 21652,
+    "visibleVsNeighbour": 20096,
+    "touchedVsShipped": 0
+  },
+  {
+    "arm": "edge-0.15",
+    "ladder": "edge",
+    "spec": {
+      "id": "edge-0.15",
+      "ladder": "edge",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.15,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 65.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.44025428496418256,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.9249979125374828,
+      "struct": 24.351979375608355,
+      "mean": 91.68936867356557
+    },
+    "landPx": 215288,
+    "families": 58,
+    "largestShare": 0.041860205863773176,
+    "green": {
+      "count": 181783,
+      "p05": 53.36,
+      "p50": 84.78999999999999,
+      "p95": 126.88999999999999,
+      "ratio": 0.4205217117188116,
+      "bins": [
+        0,
+        0.007938036009967928,
+        0.021619183311970866,
+        0.13488059939598313,
+        0.26643855586055903,
+        0.1974056980025635,
+        0.19154706435695307,
+        0.13616784847868063,
+        0.041500030255854505,
+        0.0024974832630113926,
+        0.00000550106445597223,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 83388,
+    "visible": 49620,
+    "delta": {
+      "frame": 4096000,
+      "touched": 83388,
+      "visible": 49620,
+      "overstatement": 1.6805320435308344,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 33768,
+          "shareOfMoved": 0.4049503525687149
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 40396,
+          "shareOfMoved": 0.4844342111574807
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9224,
+          "shareOfMoved": 0.11061543627380438
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 2688
+  },
+  {
+    "arm": "edge-0.6",
+    "ladder": "edge",
+    "spec": {
+      "id": "edge-0.6",
+      "ladder": "edge",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.9019634102323484,
+      "struct": 24.290026443002137,
+      "mean": 91.57499000127514
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.04142822637583145,
+    "green": {
+      "count": 181828,
+      "p05": 53.36,
+      "p50": 84.78,
+      "p95": 126.72,
+      "ratio": 0.42108585858585856,
+      "bins": [
+        0,
+        0.007936071452141584,
+        0.021613832853025938,
+        0.1341982532943221,
+        0.2660921310249246,
+        0.20375299733814373,
+        0.18970125613216887,
+        0.1332633037815958,
+        0.04093978925138043,
+        0.002496865169280859,
+        0.000005499703016037134,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 84438,
+    "visible": 49624,
+    "delta": {
+      "frame": 4096000,
+      "touched": 84438,
+      "visible": 49624,
+      "overstatement": 1.7015556988553926,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 34814,
+          "shareOfMoved": 0.4123025178237287
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 40460,
+          "shareOfMoved": 0.47916814704280064
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9164,
+          "shareOfMoved": 0.10852933513347071
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": 2688,
+    "visibleVsNeighbour": 2092,
+    "touchedVsShipped": 0
+  },
+  {
+    "arm": "edge-1.2",
+    "ladder": "edge",
+    "spec": {
+      "id": "edge-1.2",
+      "ladder": "edge",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 1.2,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 68.39999997615814,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.4687582042530848,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.872760119148614,
+      "struct": 24.1295719800434,
+      "mean": 91.29359418822375
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.041177399576381404,
+    "green": {
+      "count": 181840,
+      "p05": 53.36,
+      "p50": 84.5,
+      "p95": 126.60999999999999,
+      "ratio": 0.42145170207724514,
+      "bins": [
+        0,
+        0.007935547734271887,
+        0.021612406511218655,
+        0.13360096788385395,
+        0.266657501099868,
+        0.21477672679278487,
+        0.18527826660800703,
+        0.1277881654201496,
+        0.03985371755389353,
+        0.0024912010558732953,
+        0.000005499340079190497,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 86481,
+    "visible": 50315,
+    "delta": {
+      "frame": 4096000,
+      "touched": 86481,
+      "visible": 50315,
+      "overstatement": 1.7187916128391136,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 36166,
+          "shareOfMoved": 0.4181959043026792
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 41223,
+          "shareOfMoved": 0.4766711763277483
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9092,
+          "shareOfMoved": 0.1051329193695725
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 27,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": 3685,
+    "visibleVsNeighbour": 2695,
+    "touchedVsShipped": 3685
+  },
+  {
+    "arm": "edge-2.4",
+    "ladder": "edge",
+    "spec": {
+      "id": "edge-2.4",
+      "ladder": "edge",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 2.4,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 71.79999995231628,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.5030004125567266,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.8190840018816896,
+      "struct": 23.680879510552103,
+      "mean": 90.58789404051349
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.040963732302775814,
+    "green": {
+      "count": 181808,
+      "p05": 53.36,
+      "p50": 84.17999999999999,
+      "p95": 125.9,
+      "ratio": 0.42382843526608416,
+      "bins": [
+        0,
+        0.007936944468890258,
+        0.021616210507788437,
+        0.13306895186130424,
+        0.2693005808325266,
+        0.23733279063627563,
+        0.17545982575024202,
+        0.11588598961541846,
+        0.0369565695678958,
+        0.002436636451641292,
+        0.000005500308017248966,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 91484,
+    "visible": 52854,
+    "delta": {
+      "frame": 4096000,
+      "touched": 91484,
+      "visible": 52854,
+      "overstatement": 1.7308812956446058,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 38630,
+          "shareOfMoved": 0.4222596300992523
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 43816,
+          "shareOfMoved": 0.4789471382974072
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9038,
+          "shareOfMoved": 0.09879323160334047
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 27,
+      "p90": 40,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": 7544,
+    "visibleVsNeighbour": 5368,
+    "touchedVsShipped": 11207
+  },
+  {
+    "arm": "depth-78",
+    "ladder": "depth",
+    "spec": {
+      "id": "depth-78",
+      "ladder": "depth",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": null
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 4.176952091887109,
+      "struct": 22.337418294119374,
+      "mean": 99.78058894968193
+    },
+    "landPx": 215288,
+    "families": 53,
+    "largestShare": 0.05689587900858385,
+    "green": {
+      "count": 188595,
+      "p05": 55.6,
+      "p50": 96.83999999999999,
+      "p95": 126.67999999999998,
+      "ratio": 0.43890116829807396,
+      "bins": [
+        0,
+        0.007651316312733636,
+        0.020838304302871234,
+        0.060553036930989686,
+        0.13824332564490044,
+        0.2580450171001352,
+        0.30300379119276755,
+        0.16940533948407965,
+        0.03984729181579575,
+        0.00240727484821973,
+        0.000005302367507091917,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 51093,
+    "visible": 5272,
+    "delta": {
+      "frame": 4096000,
+      "touched": 51093,
+      "visible": 5272,
+      "overstatement": 9.69138846737481,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 45821,
+          "shareOfMoved": 0.8968156107490263
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 5272,
+          "shareOfMoved": 0.10318438925097372
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 9,
+      "p90": 21,
+      "p99": 28,
+      "max": 36
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 75065
+  },
+  {
+    "arm": "depth-65",
+    "ladder": "depth",
+    "spec": {
+      "id": "depth-65",
+      "ladder": "depth",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.65
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.948159513141535,
+      "struct": 22.85512793235469,
+      "mean": 95.17737288191911
+    },
+    "landPx": 215288,
+    "families": 56,
+    "largestShare": 0.05840548474601464,
+    "green": {
+      "count": 187699,
+      "p05": 55.55,
+      "p50": 87.57,
+      "p95": 126.53999999999999,
+      "ratio": 0.4389916232021495,
+      "bins": [
+        0,
+        0.0076878406384690385,
+        0.02093777803824208,
+        0.07436906962743542,
+        0.2355313560541079,
+        0.27166900196591354,
+        0.21287273773435128,
+        0.13484888038828124,
+        0.03965924165818678,
+        0.0024187662161226217,
+        0.0000053276788901379335,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 82079,
+    "visible": 16774,
+    "delta": {
+      "frame": 4096000,
+      "touched": 82079,
+      "visible": 16774,
+      "overstatement": 4.893227614164779,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 65305,
+          "shareOfMoved": 0.7956359117435641
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 14954,
+          "shareOfMoved": 0.18219032882954228
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 1820,
+          "shareOfMoved": 0.0221737594268936
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 17,
+      "p90": 29,
+      "p99": 44,
+      "max": 57
+    },
+    "touchedVsNeighbour": 75065,
+    "visibleVsNeighbour": 2259,
+    "touchedVsShipped": 75065
+  },
+  {
+    "arm": "depth-55",
+    "ladder": "depth",
+    "spec": {
+      "id": "depth-55",
+      "ladder": "depth",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.9019634102323484,
+      "struct": 24.290026443002137,
+      "mean": 91.57499000127514
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.04142822637583145,
+    "green": {
+      "count": 181828,
+      "p05": 53.36,
+      "p50": 84.78,
+      "p95": 126.72,
+      "ratio": 0.42108585858585856,
+      "bins": [
+        0,
+        0.007936071452141584,
+        0.021613832853025938,
+        0.1341982532943221,
+        0.2660921310249246,
+        0.20375299733814373,
+        0.18970125613216887,
+        0.1332633037815958,
+        0.04093978925138043,
+        0.002496865169280859,
+        0.000005499703016037134,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 84438,
+    "visible": 49624,
+    "delta": {
+      "frame": 4096000,
+      "touched": 84438,
+      "visible": 49624,
+      "overstatement": 1.7015556988553926,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 34814,
+          "shareOfMoved": 0.4123025178237287
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 40460,
+          "shareOfMoved": 0.47916814704280064
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9164,
+          "shareOfMoved": 0.10852933513347071
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": 75065,
+    "visibleVsNeighbour": 0,
+    "touchedVsShipped": 0
+  },
+  {
+    "arm": "depth-45",
+    "ladder": "depth",
+    "spec": {
+      "id": "depth-45",
+      "ladder": "depth",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.45
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 4.017958172467844,
+      "struct": 26.494180428505206,
+      "mean": 87.99423910391461
+    },
+    "landPx": 215288,
+    "families": 58,
+    "largestShare": 0.06553546876741853,
+    "green": {
+      "count": 179365,
+      "p05": 46.480000000000004,
+      "p50": 83.17999999999999,
+      "p95": 126.89,
+      "ratio": 0.36630152100244306,
+      "bins": [
+        0,
+        0.008045047807543278,
+        0.05189418225406294,
+        0.21444540462186046,
+        0.17096981016363283,
+        0.21575000696902963,
+        0.15978033618598947,
+        0.1350765199453628,
+        0.041501965266356314,
+        0.0025311515624564435,
+        0.000005575223705851197,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 84438,
+    "visible": 50322,
+    "delta": {
+      "frame": 4096000,
+      "touched": 84438,
+      "visible": 50322,
+      "overstatement": 1.6779539763920353,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 34116,
+          "shareOfMoved": 0.4040360974916507
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 10039,
+          "shareOfMoved": 0.11889196807124754
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 40091,
+          "shareOfMoved": 0.47479807669532675
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 192,
+          "shareOfMoved": 0.00227385774177503
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 39,
+      "p90": 56,
+      "p99": 73,
+      "max": 90
+    },
+    "touchedVsNeighbour": 75065,
+    "visibleVsNeighbour": 0,
+    "touchedVsShipped": 75065
+  },
+  {
+    "arm": "shipped",
+    "ladder": "shipped",
+    "spec": {
+      "id": "shipped",
+      "ladder": "shipped",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "one",
+    "zoom": 8,
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "groundTriangles": 5610,
+    "counts": {
+      "casters": 129,
+      "scene": 21,
+      "cover": 108,
+      "placements": 129
+    },
+    "land": {
+      "island": "crowd-story-00",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 3,
+    "buildMs": 72.5,
+    "fieldFull": 0.2871957394141694,
+    "fieldSoft": 0.45210591456325244,
+    "box": {
+      "w": 752,
+      "h": 406,
+      "x0": 900,
+      "y0": 621,
+      "pixels": 215288
+    },
+    "stats": {
+      "pixels": 215288,
+      "anchor": 41.3028,
+      "micro": 3.9019634102323484,
+      "struct": 24.290026443002137,
+      "mean": 91.57499000127514
+    },
+    "landPx": 215288,
+    "families": 59,
+    "largestShare": 0.04142822637583145,
+    "green": {
+      "count": 181828,
+      "p05": 53.36,
+      "p50": 84.78,
+      "p95": 126.72,
+      "ratio": 0.42108585858585856,
+      "bins": [
+        0,
+        0.007936071452141584,
+        0.021613832853025938,
+        0.1341982532943221,
+        0.2660921310249246,
+        0.20375299733814373,
+        0.18970125613216887,
+        0.1332633037815958,
+        0.04093978925138043,
+        0.002496865169280859,
+        0.000005499703016037134,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 84438,
+    "visible": 49624,
+    "delta": {
+      "frame": 4096000,
+      "touched": 84438,
+      "visible": 49624,
+      "overstatement": 1.7015556988553926,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 34814,
+          "shareOfMoved": 0.4123025178237287
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 40460,
+          "shareOfMoved": 0.47916814704280064
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9164,
+          "shareOfMoved": 0.10852933513347071
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 42,
+      "p99": 58,
+      "max": 73
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 0
+  },
+  {
+    "arm": "today",
+    "ladder": "control",
+    "spec": {
+      "id": "today",
+      "ladder": "control",
+      "profiles": false,
+      "cover": false,
+      "penumbra": 1.2,
+      "edge": "hard",
+      "depth": null
+    },
+    "picture": "forest",
+    "zoom": "fit",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 0.543221346881027,
+    "drawCalls": 7,
+    "triangles": 1373728,
+    "groundTriangles": 196350,
+    "counts": {
+      "casters": 584,
+      "scene": 584,
+      "cover": 0,
+      "placements": 2852
+    },
+    "land": {
+      "island": "crowd-story-17",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 6,
+    "buildMs": 505.7000000476837,
+    "fieldFull": 0.31599556243066296,
+    "fieldSoft": 0.32696314451341874,
+    "box": {
+      "w": 1165,
+      "h": 1443,
+      "x0": 684,
+      "y0": 137,
+      "pixels": 34199
+    },
+    "stats": {
+      "pixels": 34199,
+      "anchor": 45.8316,
+      "micro": 14.153924170096014,
+      "struct": 25.04685839424134,
+      "mean": 119.87069497354287
+    },
+    "landPx": 34199,
+    "families": 47,
+    "largestShare": 0.10438901722272581,
+    "green": {
+      "count": 17457,
+      "p05": 76.12,
+      "p50": 106.49999999999999,
+      "p95": 130.98,
+      "ratio": 0.5811574286150558,
+      "bins": [
+        0,
+        0,
+        0.001374806667812339,
+        0.013805350289282236,
+        0.056538924213782434,
+        0.155467720685112,
+        0.4257317981325543,
+        0.27014951022512457,
+        0.07297932061637166,
+        0.0038380019476427795,
+        0.00011456722231769491,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 13942
+  },
+  {
+    "arm": "shipped",
+    "ladder": "shipped",
+    "spec": {
+      "id": "shipped",
+      "ladder": "shipped",
+      "profiles": true,
+      "cover": true,
+      "penumbra": 0.6,
+      "edge": "soft",
+      "depth": 0.55
+    },
+    "picture": "forest",
+    "zoom": "fit",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 0.543221346881027,
+    "drawCalls": 7,
+    "triangles": 1373728,
+    "groundTriangles": 196350,
+    "counts": {
+      "casters": 2852,
+      "scene": 584,
+      "cover": 2268,
+      "placements": 2852
+    },
+    "land": {
+      "island": "crowd-story-17",
+      "capabilities": 11,
+      "landArea": 3498.0000000000014,
+      "unitsPerCapability": 318.0000000000001
+    },
+    "meshes": 6,
+    "buildMs": 1672.6000000238419,
+    "fieldFull": 0.1985553345699598,
+    "fieldSoft": 0.3364057027676772,
+    "box": {
+      "w": 1165,
+      "h": 1443,
+      "x0": 684,
+      "y0": 137,
+      "pixels": 34199
+    },
+    "stats": {
+      "pixels": 34199,
+      "anchor": 45.7558,
+      "micro": 16.580733491845578,
+      "struct": 30.364176860673872,
+      "mean": 113.0227178280067
+    },
+    "landPx": 34199,
+    "families": 50,
+    "largestShare": 0.05438755519167227,
+    "green": {
+      "count": 16406,
+      "p05": 64.39999999999999,
+      "p50": 90.46,
+      "p95": 130.13,
+      "ratio": 0.4948897256589564,
+      "bins": [
+        0,
+        0,
+        0.0014628794343532854,
+        0.045654029013775445,
+        0.34377666707302207,
+        0.16823113495062783,
+        0.18346946239180786,
+        0.1904790930147507,
+        0.062964768986956,
+        0.0039010118249420945,
+        0.000060953309764720226,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "touched": 13942,
+    "visible": 7673,
+    "delta": {
+      "frame": 4096000,
+      "touched": 13942,
+      "visible": 7673,
+      "overstatement": 1.8170207220122507,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 6269,
+          "shareOfMoved": 0.44964854396786685
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 5722,
+          "shareOfMoved": 0.4104145746664754
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 1951,
+          "shareOfMoved": 0.1399368813656577
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 29,
+      "p90": 48,
+      "p99": 62,
+      "max": 77
+    },
+    "touchedVsNeighbour": null,
+    "visibleVsNeighbour": null,
+    "touchedVsShipped": 0
+  }
+]

@@ -45,6 +45,8 @@ import {
   SHIPPED_GRASS,
   SHIPPED_LAYERS,
   SHIPPED_SAND_MIX,
+  SHIPPED_SHADOW_DEPTH,
+  SHIPPED_WHEAT,
   shippedGroundBuild,
   type ShippedGroundBuild,
 } from '../src/ForestWorldCanvas.js';
@@ -502,9 +504,15 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
     tokens: SKIRT_GROUND_TOKENS,
     grain: 'normal',
     grass: SHIPPED_GRASS,
+    // THE WHEAT — layer 1 on the in-progress rows (2026-09-06), as the canvas passes it. Its
+    // rows are the status rows, which this table carries first and in the map's own order.
+    wheat: SHIPPED_WHEAT,
   };
   const shadow = build.field === null ? null : groundAtlasTexture(build.field);
   if (shadow !== null) opts.shadowAtlas = shadow;
+  // THE SHADOW'S DEPTH AND EDGE — the shipped picks, mirrored the way `buildGroundMaterial` sets
+  // them (only where there is a field to read). Landed 2026-09-06 with the cast-shadow row.
+  if (shadow !== null) opts.shadowDepth = SHIPPED_SHADOW_DEPTH;
   // LAYER 2 — the shore sand through the build's own distance-to-coast field. Offered only where
   // there is an atlas to sample it through, the way `buildGroundMaterial` offers it; the thunk is
   // memoised inside the build, so ten arms pay the field once per size.

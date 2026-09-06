@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  booleanFieldsForKind,
   EPHEMERAL_KINDS,
   KIND_SPECS,
   Knowledge,
   knownFieldsForKind,
+  stringFieldsForKind,
+  arrayFieldsForKind,
   type KnowledgeKind,
 } from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
@@ -806,6 +809,37 @@ test("knownFieldsForKind: exact schema fields per kind (KIND_SPECS body + schema
   // A rendered LibraryAsset (category, not kind) and an unknown kind are both null.
   assert.equal(knownFieldsForKind("template"), null);
   assert.equal(knownFieldsForKind("from-the-future"), null);
+});
+
+test("booleanFieldsForKind reads the real schema — an ADR's loadBearing in, its neighbours out", () => {
+  // The motivating field, and the reason the helper exists: a `--set` value is always a string, so
+  // without a boolean set `--set loadBearing=true` stores the four characters and the strict schema
+  // refuses them — leaving the ADR-0086 calibrate-set tag unwritable on an already-written decision.
+  const adr = booleanFieldsForKind("adr");
+  assert.ok(adr?.has("loadBearing"), "the z.boolean().default(false) tag");
+  assert.equal(adr?.has("supersedes"), false, "an array field");
+  assert.equal(adr?.has("body"), false, "a prose field");
+  assert.equal(adr?.has("number"), false, "a number field");
+  assert.equal(adr?.has("status"), false, "an enum-fenced field refuses off-set values itself");
+
+  // The three type sets are DISJOINT by construction — they read the same schema shape through the
+  // same unwrapper, so a field can only ever be in one. That is what lets the CLI's `--set` chain
+  // dispatch on them in any order without one branch shadowing another.
+  for (const kind of KINDS) {
+    const bools = booleanFieldsForKind(kind);
+    const strings = stringFieldsForKind(kind);
+    const arrays = arrayFieldsForKind(kind);
+    assert.ok(bools && strings && arrays, `${kind} resolves all three type sets`);
+    for (const f of bools!) {
+      assert.equal(strings!.has(f), false, `${kind}.${f} is boolean, so not also string`);
+      assert.equal(arrays!.has(f), false, `${kind}.${f} is boolean, so not also array`);
+    }
+  }
+
+  // A rendered LibraryAsset (category, not kind) and an unknown kind are both null — the same
+  // contract its three neighbours keep, so a non-Knowledge doc has nothing coerced.
+  assert.equal(booleanFieldsForKind("template"), null);
+  assert.equal(booleanFieldsForKind("not-a-kind"), null);
 });
 
 test("open-question kind (ADR-0434 D1): an OPTIONAL lifecycle, so a question can END by recording its answer", () => {

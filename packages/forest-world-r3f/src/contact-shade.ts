@@ -49,6 +49,7 @@ import {
   stampBox,
   SHADOW_GRES,
   SHADOW_TEXTURE_MAX,
+  type CanopyShadowOptions,
   type GroundBounds,
   type ShadowCaster,
   type ShadowField,
@@ -228,6 +229,9 @@ export function buildContactField(opts: ContactFieldOptions): ShadowField {
   const spread = opts.spread ?? CONTACT_SPREAD;
 
   for (const c of opts.casters) {
+    // A caster that pools nothing (`pool: false`, the ground cover's) is skipped HERE, where the
+    // pool is stamped, so the cast term still sees it and the rule lives in one place.
+    if (c.pool === false) continue;
     const reach = contactReach(c.radius, c.height) * spread;
     const box = stampBox(grid, c.x - reach, c.x + reach, c.z - reach, c.z + reach);
     for (const j of box.rows) {
@@ -322,6 +326,52 @@ export interface GroundOcclusionOptions {
    *  below is index-for-index and two fields built under different caps are two different grids.
    *  Defaults to {@link SHADOW_TEXTURE_MAX}. */
   max?: number;
+  /** The cast term's soft-edge width, in ground units — the contact term has no edge of its own
+   *  to soften. Defaults to `SHADOW_PENUMBRA`; supplied by the ladder that rendered the rungs. */
+  penumbra?: number;
+  /** WHICH RUNG THE CONTACT TERM LANDS ON — see {@link ContactBand}. Defaults to
+   *  {@link SHADOW_CONTACT_BAND}; a comparison's control passes `full`. */
+  contactBand?: ContactBand;
+}
+
+/**
+ * WHERE THE CONTACT POOL IS DRAWN. `full`: the contact term is merged at its own value, so a
+ * fragment inside a pool (sky occlusion past 0.5) lands on the FULL shadow rung exactly as the
+ * sun shadow does — the one mechanism the field had until 2026-09-06, when the full rung was
+ * the shallow derived one and the two were indistinguishable. `soft`: the contact term is packed
+ * into the material's SOFT band (`0.25 < occ ≤ 0.5`), so a pool darkens to the halfway rung and
+ * only the CAST term reaches the full one.
+ *
+ * ⚠⚠ WHY, MEASURED. With the depth ladder (`SHADOW_DEPTH`) the full rung is deep, and the first
+ * run on the RTX 2060 (2026-09-06) merged the pools at full: 51.75% of the island's field sat past
+ * the full threshold, every bush and every tree wore a ring of full darkness around its foot
+ * (`contactReach` is 1.7 units past a tree's crown radius, 0.75 past a bush's), and the island
+ * read as dark blotches. The approved render's contact darkening is the SKY's share — a soft
+ * partial darkening under and around an object — while its sun shadow is the deep one. Packing
+ * the pool into the soft band is that distinction, and it is what `land-shadow.ts`'s header
+ * always said the two terms were.
+ */
+export type ContactBand = 'full' | 'soft';
+export const SHADOW_CONTACT_BAND: ContactBand = 'soft';
+
+/** The soft band's floor and span: a contact value `c ∈ [0.5, 1]` (nothing below the reach is
+ *  written) lands at `0.25 + c / 4 ∈ [0.375, 0.5]` — inside `(0.25, 0.5]`, never past it. */
+export const CONTACT_SOFT_FLOOR = 0.25;
+export const CONTACT_SOFT_SCALE = 0.25;
+
+/** The largest byte the soft band may hold. ⚠ 127, NOT `round(0.5 × 255) = 128`: the material
+ *  reads `occ > 0.5` for the full rung and 128 / 255 is 0.502, so a pool packed to the band's own
+ *  top would land on the FULL rung — measured on the first test of the packing, not reasoned. */
+export const CONTACT_SOFT_MAX_BYTE = 127;
+
+/** The contact field re-packed into the soft band, sample for sample; zero stays zero. */
+export function packContactSoft(field: ShadowField): ShadowField {
+  const data = new Uint8Array(field.data.length);
+  field.data.forEach((v, p) => {
+    data[p] =
+      v === 0 ? 0 : Math.min(CONTACT_SOFT_MAX_BYTE, Math.round((CONTACT_SOFT_FLOOR + (CONTACT_SOFT_SCALE * v) / 255) * 255));
+  });
+  return { minX: field.minX, minZ: field.minZ, w: field.w, h: field.h, gres: field.gres, data };
 }
 
 /**
@@ -347,13 +397,21 @@ export function buildGroundOcclusion(opts: GroundOcclusionOptions): ShadowField 
   // the grid as surely as the resolution does, so two terms defaulting it separately could be
   // built on grids the merge then refuses.
   const max = opts.max ?? SHADOW_TEXTURE_MAX;
-  const cast = buildCanopyShadowField({
+  const castOpts: CanopyShadowOptions = {
     bounds: opts.bounds,
     relief: opts.relief,
     casters: opts.casters,
     gres,
     max,
-  });
+  };
+  // By statement: under `exactOptionalPropertyTypes` an absent `penumbra` and a `penumbra:
+  // undefined` are different inputs, and only the first is "the authored width".
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — passing `undefined` through
+  // meets the cast builder's own `?? SHADOW_PENUMBRA` default, so the field is byte-identical; the
+  // statement exists for the type, not the runtime.
+  if (opts.penumbra !== undefined) castOpts.penumbra = opts.penumbra;
+  const cast = buildCanopyShadowField(castOpts);
   const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres, max });
-  return mergeOcclusion(cast, contact);
+  const band = opts.contactBand ?? SHADOW_CONTACT_BAND;
+  return mergeOcclusion(cast, band === 'soft' ? packContactSoft(contact) : contact);
 }

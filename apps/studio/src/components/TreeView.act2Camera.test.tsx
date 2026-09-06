@@ -290,7 +290,16 @@ describe('act2-regrow-camera-projects-the-existing-cursor', () => {
     expect(rootTransformWrites).toBe(1);
     expect(view.panLayer.style.transform).toBe('none');
     expect(view.panLayer.style.willChange).toBe('');
-    expect(composedCameraValues(view.camera, view.panLayer)).toEqual(beforeFold);
+    // "No camera jump" is a statement about the PICTURE, so the composed values are held to the
+    // precision a transform string round-trips at, not to bit equality: the fold multiplies the
+    // compositor's scale into the SVG camera and both legs are parsed back out of `transform`
+    // strings, so the product can land one ulp off its factors (it did, on 2026-09-06, when the
+    // ADR-0521 layout moved the fixture world's extent onto such a rounding edge — 1.7442324778214051
+    // against …053). A jump the eye could see is ten orders of magnitude larger than this tolerance.
+    const afterFold = composedCameraValues(view.camera, view.panLayer);
+    expect(afterFold.tx).toBeCloseTo(beforeFold.tx, 6);
+    expect(afterFold.ty).toBeCloseTo(beforeFold.ty, 6);
+    expect(afterFold.scale).toBeCloseTo(beforeFold.scale, 9);
   });
 });
 

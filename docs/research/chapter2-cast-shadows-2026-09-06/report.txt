@@ -1,0 +1,85 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation (read off the crowd camera, which reads frameWorld): 50° on every arm
+ships: cover casts true · penumbra 0.6 · edge soft · depth 0.55 → the shipped arm coincides with: shape-cover, edge-0.6, depth-55
+
+THE ARMS
+  today        cylinders, cover casts nothing · hard edge, contact pools at the full rung · derived rung (0.78) on every token (CONTROL)
+  shape-cylinder cylinders, cover casts nothing · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung
+  shape-cone   silhouettes, cover casts nothing · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung
+  shape-cover  silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung
+  edge-0.15    silhouettes, cover casts · soft edge, penumbra 0.15 · green islands at 0.55, others at the derived rung
+  edge-0.6     silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung
+  edge-1.2     silhouettes, cover casts · soft edge, penumbra 1.2 · green islands at 0.55, others at the derived rung
+  edge-2.4     silhouettes, cover casts · soft edge, penumbra 2.4 · green islands at 0.55, others at the derived rung
+  depth-78     silhouettes, cover casts · soft edge, penumbra 0.6 · derived rung (0.78) on every token
+  depth-65     silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.65, others at the derived rung
+  depth-55     silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung
+  depth-45     silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.45, others at the derived rung
+  shipped      silhouettes, cover casts · soft edge, penumbra 0.6 · green islands at 0.55, others at the derived rung (SHIPS)
+
+THE REFERENCE — the approved Cycles render, through this page’s own readers
+  land-combined-1948px.png: 1948×1280, island box 1936×1144 px · green pixels 865,857 · grass luma p05 66.7 / p50 134.1 / p95 149.3 · darkest/brightest 0.447 · MICRO 2.54
+  ⚠ measured, never differenced: another resolution and framing; the ratio is the instrument the depth ladder is read against.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm           casters  scene  cover   stamp ms   field full   field soft   grass p05   p50    p95   p05/p95   fam  MICRO  moved>20 vs today  vs neighbour  vs shipped
+today              21     21      0         24       40.83%       42.23%       55.6   96.2  126.0     0.441   55   4.25                  0             —       84438
+shape-cylinder       21     21      0         18       23.33%       41.50%       53.4   87.1  126.3     0.423   57   4.15              41140             —       35331
+shape-cone         21     21      0         34       16.53%       36.49%       53.4   90.8  127.2     0.419   60   4.24              29358         15309       21652
+shape-cover       129     21    108         73       28.72%       45.21%       53.4   84.8  126.7     0.421   59   3.90              49624         20096           0
+edge-0.15         129     21    108         66       28.72%       44.03%       53.4   84.8  126.9     0.421   58   3.92              49620             —        2688
+edge-0.6          129     21    108         73       28.72%       45.21%       53.4   84.8  126.7     0.421   59   3.90              49624          2092           0
+edge-1.2          129     21    108         68       28.72%       46.88%       53.4   84.5  126.6     0.421   59   3.87              50315          2695        3685
+edge-2.4          129     21    108         72       28.72%       50.30%       53.4   84.2  125.9     0.424   59   3.82              52854          5368       11207
+depth-78          129     21    108         73       28.72%       45.21%       55.6   96.8  126.7     0.439   53   4.18               5272             —       75065
+depth-65          129     21    108         73       28.72%       45.21%       55.5   87.6  126.5     0.439   56   3.95              16774          2259       75065
+depth-55          129     21    108         73       28.72%       45.21%       53.4   84.8  126.7     0.421   59   3.90              49624             0           0
+depth-45          129     21    108         73       28.72%       45.21%       46.5   83.2  126.9     0.366   58   4.02              50322             0       75065
+shipped           129     21    108         73       28.72%       45.21%       53.4   84.8  126.7     0.421   59   3.90              49624             —           0
+
+── forest @ fit ─────────────────────────────────
+arm           casters  scene  cover   stamp ms   field full   field soft   grass p05   p50    p95   p05/p95   fam  MICRO  moved>20 vs today  vs neighbour  vs shipped
+today             584    584      0        506       31.60%       32.70%       76.1  106.5  131.0     0.581   47  14.15                  0             —       13942
+shipped          2852    584   2268       1673       19.86%       33.64%       64.4   90.5  130.1     0.495   50  16.58               7673             —           0
+
+THE GREEN LUMA HISTOGRAM — share of green pixels (grass, crowns and cover alike; the background excluded) per 16-luma bin, the reference beside the arms at one island:
+  arm               0   16   32   48   64   80   96  112  128  144  160  176  192  208  224  240
+  reference       0.0  0.0  0.9  3.6  2.5  3.7  3.5 14.2 58.0 12.4  1.0  0.0  0.0  0.0  0.0  0.0
+  today           0.0  0.8  2.1  6.1 14.5 26.2 30.7 15.6  3.7  0.3  0.0  0.0  0.0  0.0  0.0  0.0
+  shape-cover     0.0  0.8  2.2 13.4 26.6 20.4 19.0 13.3  4.1  0.2  0.0  0.0  0.0  0.0  0.0  0.0
+  depth-78        0.0  0.8  2.1  6.1 13.8 25.8 30.3 16.9  4.0  0.2  0.0  0.0  0.0  0.0  0.0  0.0
+  depth-65        0.0  0.8  2.1  7.4 23.6 27.2 21.3 13.5  4.0  0.2  0.0  0.0  0.0  0.0  0.0  0.0
+  depth-55        0.0  0.8  2.2 13.4 26.6 20.4 19.0 13.3  4.1  0.2  0.0  0.0  0.0  0.0  0.0  0.0
+  depth-45        0.0  0.8  5.2 21.4 17.1 21.6 16.0 13.5  4.2  0.3  0.0  0.0  0.0  0.0  0.0  0.0
+  ⚠ the reference is another resolution and framing; read the SHAPE of the row — where its dark mass sits against ours — not any one cell.
+
+THE READER MODEL, PRINTED — margin per token per depth rung (positive reads as its own token; negative is REPORTED, not a fence: ADR-0503 D1 / ADR-0506):
+  token         0.78    0.65    0.55    0.45
+  #8cb85e       13.3   -20.4   -37.9   -61.0
+  #b7684e       14.8    -8.9   -25.1   -36.0
+  #d8c069        3.0   -20.6   -49.5   -72.3
+  #57544a       11.5    -9.5   -24.1   -28.8
+  #9ca3af        4.1   -36.4   -42.4   -67.0
+  #737274        0.2   -25.5   -27.3   -44.8
+  #2e333b       30.8    30.6    30.6    30.5
+  ⚠ only the green token (#8cb85e) is ever sent below 0.77; every other token keeps the derived rung, so its deeper columns are what WOULD happen, not what ships.
+
+THE MOUNT-TIME STAMP — wall-clock ms for the whole shipped ground build (coast clip, occlusion field, relief, skirt), per distinct field:
+  one     today            21 casters      24 ms
+  one     shape-cylinder     21 casters      18 ms
+  one     shape-cone       21 casters      34 ms
+  one     shape-cover     129 casters      73 ms
+  one     edge-0.15       129 casters      66 ms
+  one     edge-1.2        129 casters      68 ms
+  one     edge-2.4        129 casters      72 ms
+  forest  today           584 casters     506 ms
+  forest  shipped        2852 casters    1673 ms
+
+FRAME COST — GPU ms per frame, one island at 8 px/unit, 60 frames on the GPU's own clock (REPORTS, ADR-0517 D4):
+  today        2.234 ms · 4 draws · 54,514 tris
+  shipped      0.343 ms · 4 draws · 54,514 tris
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row, an arc intent or an earlier evidence sheet.
+ladders: edge (soft) 0.15 / 0.6 / 1.2 / 2.4 ground units · depth 0.65 / 0.55 / 0.45 on the green islands

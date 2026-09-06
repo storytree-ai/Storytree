@@ -10,6 +10,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COVER_CASTS,
+  COVER_POOLS,
+  DOME_PROFILE,
+  ROLE_SILHOUETTE,
   caveArchCaster,
   caveMouthHalfWidth,
   groundBounds,
@@ -17,7 +21,8 @@ import {
   placementCaster,
   placementCasters,
 } from './ground-casters.js';
-import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, type KitPlacement } from './kit-vocabulary.js';
+import { profileHalfWidth, profileMaxWidth } from './land-shadow.js';
+import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, KIT_ROLES, isDressingRole, type KitPlacement } from './kit-vocabulary.js';
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 
 const at = (kind: InstanceDescriptor['kind'], x: number, z: number): InstanceDescriptor => ({
@@ -153,25 +158,33 @@ const placed = (role: KitPlacement['role'], x: number, z: number, scale: number)
   scale,
 });
 
-test('a placement casts a cylinder of its role’s half-footprint and height, at its own point', () => {
+test('a placement casts its role’s SILHOUETTE over its half-footprint and height, at its own point', () => {
   assert.deepEqual(placementCaster(placed('tree', 30, -6, 1), FOOT, HEIGHTS), {
     x: 30,
     z: -6,
     radius: FOOT.tree / 2,
     height: HEIGHTS.tree,
+    profile: ROLE_SILHOUETTE.tree,
+    pool: true,
   });
   assert.deepEqual(placementCaster(placed('deadTree', 1, 2, 1), FOOT, HEIGHTS), {
     x: 1,
     z: 2,
     radius: FOOT.deadTree / 2,
     height: HEIGHTS.deadTree,
+    profile: ROLE_SILHOUETTE.deadTree,
+    pool: true,
   });
   assert.deepEqual(placementCaster(placed('bloom', 1, 2, 1), FOOT, HEIGHTS), {
     x: 1,
     z: 2,
     radius: FOOT.bloom / 2,
     height: HEIGHTS.bloom,
+    profile: ROLE_SILHOUETTE.bloom,
+    pool: true,
   });
+  // ⚠ THE PROFILE IS THE ROLE'S, BY IDENTITY — a copy would be a second table that agrees today.
+  assert.equal(placementCaster(placed('bush', 0, 0, 4.5), FOOT, HEIGHTS).profile, ROLE_SILHOUETTE.bush);
 });
 
 test('the placement’s scale reaches BOTH the radius and the height of its caster', () => {
@@ -198,20 +211,36 @@ test('every SCENE placement casts, in placement order, and none is dropped', () 
   assert.deepEqual(placementCasters([], FOOT, HEIGHTS), []);
 });
 
-test('⚠⚠ GROUND COVER CASTS NOTHING — the dressing roles are dropped, and the scene roles beside them are not', () => {
-  // The decision `cover-dressing.ts`'s header argues, asserted at the line that enforces it. Two
-  // halves, and BOTH have to be here: a list of cover alone would pass on a function that dropped
-  // everything, and a list of scene props alone would pass on one that dropped nothing.
+test('⚠⚠ GROUND COVER CASTS — since 2026-09-06, by `COVER_CASTS` — and `coverCasts: false` is the field as it stood before', () => {
+  // The reversal `ground-casters.ts`'s `COVER_CASTS` argues, asserted at the line that enforces
+  // it. BOTH halves have to be here: cover alone would pass on a function that kept everything,
+  // scene props alone on one that kept nothing, and the `false` branch is what every comparison
+  // page's control arm is built from.
+  assert.equal(COVER_CASTS, true, 'the shipped decision is that the cover casts');
   const scene = [placed('tree', 1, 1, 1), placed('bloom', 2, 2, 1)];
   const cover = [placed('bush', 3, 3, 4.5), placed('tuft', 4, 4, 4.5), placed('flowerPatch', 5, 5, 4.5)];
   const mixed = [scene[0]!, cover[0]!, scene[1]!, cover[1]!, cover[2]!];
 
-  assert.deepEqual(placementCasters(cover, FOOT, HEIGHTS), [], 'ground cover cast a shadow');
-  assert.equal(placementCasters(scene, FOOT, HEIGHTS).length, 2, 'a scene prop stopped casting');
-  // ⚠ AND THE ORDER OF THE SURVIVORS IS THE SCENE PROPS' OWN — a drop that reordered the list
-  // would put a shadow under the wrong tree, which is a defect no count can see.
+  // The default is the shipped decision: every placement casts, in placement order.
   assert.deepEqual(
     placementCasters(mixed, FOOT, HEIGHTS),
+    mixed.map((p) => placementCaster(p, FOOT, HEIGHTS)),
+  );
+  assert.equal(placementCasters(cover, FOOT, HEIGHTS).length, 3, 'ground cover stopped casting');
+  // And every cover caster wears a DOME, never a cylinder or a tree's cone — and POOLS NOTHING
+  // (`COVER_POOLS`): its sun shadow, no ambient halo. Scene casters pool.
+  assert.equal(COVER_POOLS, false);
+  for (const c of placementCasters(cover, FOOT, HEIGHTS)) {
+    assert.deepEqual(c.profile, DOME_PROFILE());
+    assert.equal(c.pool, false);
+  }
+  for (const c of placementCasters(scene, FOOT, HEIGHTS)) assert.equal(c.pool, true);
+
+  // The control: dressing roles dropped, and the ORDER of the survivors is the scene props' own —
+  // a drop that reordered the list would put a shadow under the wrong tree.
+  assert.deepEqual(placementCasters(cover, FOOT, HEIGHTS, false), [], 'the control cast from cover');
+  assert.deepEqual(
+    placementCasters(mixed, FOOT, HEIGHTS, false),
     scene.map((p) => placementCaster(p, FOOT, HEIGHTS)),
   );
 
@@ -224,5 +253,53 @@ test('⚠⚠ GROUND COVER CASTS NOTHING — the dressing roles are dropped, and 
     FOOT.bush * bigBush.scale > FOOT.bloom * bloom.scale,
     'the fixture no longer separates the class test from a size test',
   );
-  assert.deepEqual(placementCasters([bigBush, bloom], FOOT, HEIGHTS), [placementCaster(bloom, FOOT, HEIGHTS)]);
+  assert.deepEqual(placementCasters([bigBush, bloom], FOOT, HEIGHTS, false), [placementCaster(bloom, FOOT, HEIGHTS)]);
+});
+
+// ---------------------------------------------------------------------------
+// the silhouettes (2026-09-06)
+// ---------------------------------------------------------------------------
+
+test('every role has a profile that starts at its foot, ends at its tip, ascends in height and never widens past its radius', () => {
+  for (const role of KIT_ROLES) {
+    const profile = ROLE_SILHOUETTE[role];
+    assert.ok(profile.length >= 2, `${role} has no profile`);
+    assert.equal(profile[0]![0], 0, `${role} does not start at its foot`);
+    assert.equal(profile[profile.length - 1]![0], 1, `${role} does not end at its tip`);
+    for (let k = 1; k < profile.length; k += 1) {
+      assert.ok(profile[k]![0] >= profile[k - 1]![0], `${role} descends at ${k}`);
+    }
+    for (const [h, r] of profile) {
+      assert.ok(h >= 0 && h <= 1 && r >= 0 && r <= 1, `${role} leaves the unit box at ${h},${r}`);
+    }
+    assert.equal(profileMaxWidth(profile), 1, `${role} never reaches its own radius`);
+  }
+});
+
+test('THE FORMS: a pine is a cone over a thin trunk, a bloom a thread with a head over its rosette, the cover a dome', () => {
+  const tree = ROLE_SILHOUETTE.tree;
+  // Thin at the foot (the trunk), widest low, a point at the tip — the reference's cone.
+  assert.ok(profileHalfWidth(tree, 0.05) < 0.15, 'the trunk is not thin');
+  assert.equal(profileHalfWidth(tree, 0.25), 1, 'the crown is not widest at a quarter height');
+  assert.ok(profileHalfWidth(tree, 0.6) < profileHalfWidth(tree, 0.4), 'the crown does not taper');
+  assert.ok(profileHalfWidth(tree, 1) < 0.1, 'the tip is not a point');
+  const bloom = ROLE_SILHOUETTE.bloom;
+  assert.equal(profileHalfWidth(bloom, 0.05), 1, 'the rosette is not the footprint');
+  assert.ok(profileHalfWidth(bloom, 0.5) < 0.1, 'the stem is not a thread');
+  assert.ok(profileHalfWidth(bloom, 0.85) > profileHalfWidth(bloom, 0.5), 'there is no head');
+  for (const role of KIT_ROLES.filter(isDressingRole)) {
+    const dome = ROLE_SILHOUETTE[role];
+    assert.equal(profileHalfWidth(dome, 0), 1, `${role} is not full width at the foot`);
+    assert.ok(profileHalfWidth(dome, 0.5) > 0.8, `${role} is not round`);
+    assert.equal(profileHalfWidth(dome, 1), 0, `${role} has a flat top`);
+  }
+});
+
+test('DOME_PROFILE is the quarter circle, sampled, and a fresh array each call', () => {
+  const a = DOME_PROFILE();
+  const b = DOME_PROFILE();
+  assert.notEqual(a, b, 'two roles would alias one array');
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 5);
+  for (const [t, r] of a) assert.ok(Math.abs(r - Math.sqrt(1 - t * t)) < 1e-12);
 });

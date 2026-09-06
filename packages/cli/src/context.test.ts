@@ -65,6 +65,12 @@ function composition(overrides: Partial<WindowComposition> = {}): WindowComposit
       { category: "human-prompt", bytes: 8_000, records: 1 },
     ],
     accountedBytes: 950_000,
+    // ADR-0524's SECOND cut. `storytree context` renders the record-type slices above and reads none
+    // of these — the bar in the studio panel is their only consumer — so the fixture states them as
+    // empty rather than inventing traffic this reader would never look at.
+    toolSubjects: [],
+    otherToolNames: [],
+    knowledgeSurfaces: [],
     unclassifiedLabels: [],
     bookkeeping: { bytes: 4_000, records: 6, kinds: ["last-prompt", "queue-operation"] },
     sidechainLinesExcluded: 0,

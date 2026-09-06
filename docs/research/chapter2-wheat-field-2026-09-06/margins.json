@@ -1,0 +1,125 @@
+{
+  "fac": 0.85,
+  "step": 0.0005,
+  "rungs": [
+    {
+      "id": "straw",
+      "anchor": "#d9d18a",
+      "fac": 0.85,
+      "reach": 5443,
+      "ceiling": {
+        "ceiling": 0.0135,
+        "step": 0.0005
+      },
+      "worstMargin": -30.751446094802606,
+      "worstAt": "building@0.77",
+      "worstColour": "#8d7454",
+      "worstReadsAs": "mapped",
+      "readsAs": {
+        "building": 0.5927613448465919,
+        "mapped": 0.04133749770347235,
+        "unknown": 0.3659011574499357
+      },
+      "readsAsFlat": {
+        "building": 0.5980158001102334,
+        "mapped": 0.0365607201910711,
+        "unknown": 0.3654234796986956
+      },
+      "unpaintedWorstMargin": 0.9305036895841567
+    },
+    {
+      "id": "wheat",
+      "anchor": "#d6b271",
+      "fac": 0.85,
+      "reach": 4741,
+      "ceiling": {
+        "ceiling": 0.009,
+        "step": 0.0005
+      },
+      "worstMargin": -48.504998627051734,
+      "worstAt": "building@0.77",
+      "worstColour": "#8c6547",
+      "worstReadsAs": "mapped",
+      "readsAs": {
+        "building": 0.4870280531533432,
+        "mapped": 0.3737186247627083,
+        "unhealthy": 0.00016874077198903185,
+        "unknown": 0.1390845813119595
+      },
+      "readsAsFlat": {
+        "building": 0.492723054207973,
+        "mapped": 0.36764395697110314,
+        "unknown": 0.13963298882092384
+      },
+      "unpaintedWorstMargin": 0.9305036895841567
+    },
+    {
+      "id": "light-straw",
+      "anchor": "#c6c06a",
+      "fac": 0.85,
+      "reach": 4553,
+      "ceiling": {
+        "ceiling": 0.0105,
+        "step": 0.0005
+      },
+      "worstMargin": -40.0362493505573,
+      "worstAt": "building@0.77",
+      "worstColour": "#846c43",
+      "worstReadsAs": "mapped",
+      "readsAs": {
+        "building": 0.488842521414452,
+        "healthy": 0.16885569953876564,
+        "mapped": 0.2153964419064353,
+        "unhealthy": 0.0020426092686141005,
+        "unknown": 0.12486272787173293
+      },
+      "readsAsFlat": {
+        "building": 0.49264221392488466,
+        "healthy": 0.1726334285086756,
+        "mapped": 0.2095321765868658,
+        "unhealthy": 0.00021963540522732265,
+        "unknown": 0.12497254557434659
+      },
+      "unpaintedWorstMargin": 0.9305036895841567
+    },
+    {
+      "id": "mustard",
+      "anchor": "#b0b040",
+      "fac": 0.85,
+      "reach": 3533,
+      "ceiling": {
+        "ceiling": 0.0085,
+        "step": 0.0005
+      },
+      "worstMargin": -54.3678196499493,
+      "worstAt": "building@0.77",
+      "worstColour": "#5f6731",
+      "worstReadsAs": "unhealthy",
+      "readsAs": {
+        "building": 0.29589583923011603,
+        "healthy": 0.3201528446079819,
+        "mapped": 0.33857911123690915,
+        "unhealthy": 0.04537220492499292
+      },
+      "readsAsFlat": {
+        "building": 0.30059439569770735,
+        "healthy": 0.32550240588734786,
+        "mapped": 0.33342768185677896,
+        "unhealthy": 0.040475516558165864
+      },
+      "unpaintedWorstMargin": 0.9305036895841567
+    }
+  ],
+  "green": {
+    "fac": 0.85,
+    "worstMargin": -33.48454077446983,
+    "worstAt": "healthy@0.77"
+  },
+  "shadow": {
+    "token": "#d8c069",
+    "derived": 0.78,
+    "deep": 0.55,
+    "marginDerived": 3.002764214048085,
+    "marginDeep": -39.86014032490985
+  }
+}

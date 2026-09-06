@@ -57,7 +57,9 @@ import {
   type AtlasField,
 } from './shadow-atlas.js';
 import { groundBounds, groundCasters, placementCasters } from './ground-casters.js';
-import type { ShadowCaster } from './land-shadow.js';
+import { SHADOW_PENUMBRA, type ShadowCaster } from './land-shadow.js';
+import { SHADOW_CONTACT_BAND, type ContactBand } from './contact-shade.js';
+import { SHADOW_DEPTH, SHADOW_EDGE, type ShadowDepthOptions } from './shadow-rung.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, roleHeights, type LoadedKit } from './kit-mesh.js';
 import {
   KIT_FOOTPRINTS_2026_08_29,
@@ -69,6 +71,7 @@ import {
 import { dressMapWithCover } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
+import { WHEAT_STATUS_GATE, wheatAnchor, wheatLift } from './land-wheat.js';
 import { ROCK_SLOPE_RAMP } from './land-rock.js';
 import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
 import { islandPaths } from './island-path.js';
@@ -84,6 +87,7 @@ import {
   type BandedGroundMaterialOptions,
   type GroundGrassLayer,
   type GroundRockLayer,
+  type GroundWheatLayer,
 } from './banded-ground-material.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
@@ -237,7 +241,7 @@ const linearColourOf = (material: string | undefined): LinearRgb =>
  *  rim's azimuths, more than half the cliff is piled on the ladder's DARKEST rung, where a rung
  *  cannot move it and only a token can. `src/stepped-skirt.ts` carries the measurement and the
  *  selection rule; `docs/research/chapter2-skirt-tonal-range-2026-09-01/` carries the pictures. */
-const GROUND_TOKENS: readonly string[] = [
+export const GROUND_TOKENS: readonly string[] = [
   ...GROUND_COLOUR.values(),
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
@@ -268,6 +272,37 @@ const groundRowOf = (material: string | undefined): number =>
  *  be exactly that second ordering, and it would fail the way this file warns about twice
  *  already: by dressing a different status's parcels and looking entirely correct. */
 export const GRASS_GATE_ROWS: readonly number[] = GRASS_STATUS_GATE.map(groundRowOf);
+
+/** THE RAMP ROWS THE WHEAT DRESSES — {@link WHEAT_STATUS_GATE} resolved through the SAME
+ *  {@link groundRowOf}, for the reason `GRASS_GATE_ROWS` gives. `building` and `proposed` share
+ *  one authored token (ADR-0462) and therefore two rows of one colour; both are named, so the
+ *  wheat cannot draw two colours for one authored state. */
+export const WHEAT_GATE_ROWS: readonly number[] = WHEAT_STATUS_GATE.map(groundRowOf);
+
+/** EVERY STATUS THAT WEARS A PAINTED STACK — the grass's tokens and the wheat's, the gate the
+ *  shadow's depth follows (`paint-every-land-type-arc`: every land type is painted, and the deep
+ *  shadow is part of the stack a painted island wears). Derived from the two layer gates rather
+ *  than listed, so a token cannot be painted without its shadow or shadowed without its paint. */
+export const PAINTED_STATUS_GATE: readonly string[] = [...GRASS_STATUS_GATE, ...WHEAT_STATUS_GATE];
+
+/**
+ * HOW DEEP AND HOW SOFT THE SHIPPED SHADOW IS DRAWN — `shadow-rung.ts`'s picks, gated to the
+ * SAME tokens the painted layers dress ({@link PAINTED_STATUS_GATE}, resolved through the same
+ * colour table the rows are built from). The green AND the wheat islands wear `SHADOW_DEPTH`;
+ * every other token keeps the derived rung it wore before. Until 2026-09-06 the depth followed
+ * the grass gate alone, and the 14 yellow islands kept the derived rung because they were flat
+ * (ADR-0492 D3's deploy gate); painted, they wear the stack's shadow as the green does — a wheat
+ * island in a pale shadow beside a green one in a deep shadow would read as two treatments,
+ * not one. The reader model's margin for the yellow at the deep rung is printed on the wheat
+ * sheet (`docs/research/chapter2-wheat-field-2026-09-06/`), negative, as a report (ADR-0503 D1).
+ * The edge applies to every token: a soft rung is SHALLOWER than the derived one, so it is
+ * admissible wherever the derived rung is.
+ */
+export const SHIPPED_SHADOW_DEPTH: ShadowDepthOptions = {
+  deep: SHADOW_DEPTH,
+  deepTokens: PAINTED_STATUS_GATE.map((status) => GROUND_COLOUR.get(status) ?? GROUND_COLOUR.get(UNKNOWN_STATUS)!),
+  edge: SHADOW_EDGE,
+};
 
 /**
  * HOW MUCH GRASS THE SHIPPED GROUND WEARS — the delivered strength of layer 1, chosen from a
@@ -313,6 +348,72 @@ export const SHIPPED_GRASS_MIX = 0.85;
 export const SHIPPED_GRASS: GroundGrassLayer = {
   mix: SHIPPED_GRASS_MIX,
   rows: GRASS_GATE_ROWS,
+};
+
+/**
+ * HOW YELLOW THE SHIPPED WHEAT IS — which rung of `WHEAT_ANCHORS` the 14 in-progress islands
+ * wear, chosen from a rendered ladder by the look under the owner's standing bold-and-scale-back
+ * direction (ADR-0503 D3), and shown to him with the sheet it was chosen from
+ * (`docs/research/chapter2-wheat-field-2026-09-06/`).
+ *
+ * ⚠ THE LADDER, one yellow island @ 8 px/unit and the real forest fitted, on the RTX 2060:
+ * `straw` (#d9d18a) / `wheat` (#d6b271, the authored token) / `light-straw` (#c6c06a) /
+ * `mustard` (#b0b040) — ordered by the 2026-08-27 instrument's separation from the nearest proof
+ * state, ascending. The mustard ships: it is the boldest yellow, the one the 2026-08-27 run
+ * measured at 1.8x the straw's separation, and on the sheet (`crop-8px.png`) the two pale rungs'
+ * warm half drifts to PEACH and reads as a sandy clay, the light straw to a muddy khaki, where the
+ * mustard's stays gold and olive — the only rung that is still a YELLOW island beside a green one.
+ * Every rung is darker than the flat token, because the recipe's ramps sit below the token it
+ * mixes into (the green wore the same darkening as its approved look); a paler field would be a
+ * stop-luma lever, not a different anchor. Scaling back is one edit here along rungs already
+ * rendered.
+ *
+ * ⚠ THE READER MODEL PRINTS AND DOES NOT FENCE (ADR-0503 D1 / ADR-0506, applied to the wheat by
+ * this row). Its margin on every rung is negative at the shipped strength — as the green's own
+ * is — and is on the sheet with the grid step it was walked at. The look decides (ADR-0489 D3).
+ */
+export const SHIPPED_WHEAT_ANCHOR = wheatAnchor('mustard').hex;
+
+/** HOW MUCH WHEAT THE IN-PROGRESS GROUND WEARS — the wheat's own factor, set equal to the grass's
+ *  so the two painted tokens carry the treatment at one strength, but its OWN constant so a
+ *  scale-back on either never moves the other. Never 1.0 (ADR-0490 D5). */
+export const SHIPPED_WHEAT_MIX = SHIPPED_GRASS_MIX;
+
+/**
+ * HOW PALE THE SHIPPED WHEAT IS — which rung of `WHEAT_LIFTS` the in-progress islands wear: the
+ * stop-luma lift on the six rebased stops, in linear space, ratio-preserving, with the mustard
+ * anchor above held fixed (`wheat-paleness-ladder`, 2026-09-06). Chosen from a rendered ladder by
+ * the look under the owner's standing bold-and-scale-back direction (ADR-0503 D3), and shown to
+ * him with the sheet it was chosen from (`docs/research/chapter2-wheat-paleness-2026-09-06/`).
+ *
+ * ⚠ WHY A SECOND LADDER: the yellowness sheet found every anchor's field darker and duller than
+ * the flat token, because the recipe's ramps sit below the token they mix into. The anchor cannot
+ * fix that (a paler anchor goes peach); a lift on the stops can, without moving the hue the
+ * owner picked — ratio-preserving, so the cool→warm drift and the dark-to-light ladder keep
+ * their proportions and only the brightness moves.
+ *
+ * ⚠ THE LADDER, one in-progress island @ 8 px/unit and the real forest fitted, on the RTX 2060:
+ * 1.00 (as derived) / 1.25 / 1.50 / 2.00. THE PICK IS 2.00 — the boldest rung, and the one at
+ * which the field's mean delivered brightness reaches the flat token's (the sheet prints both):
+ * the island stops reading as a darker island beside the green and reads as a pale gold field.
+ * At 2.00 the warm light stop's red clamps at linear white, which bends its delivered hue toward
+ * YELLOW (40° → 45°), away from the peach the pale anchors showed (22° and below); every lower
+ * rung keeps 40°.
+ * Scaling back is one edit here along rungs already rendered.
+ *
+ * ⚠ THE READER MODEL PRINTS AND DOES NOT FENCE (ADR-0503 D1 / ADR-0506). Its margin is on the
+ * sheet per rung, with the grid step it was walked at, negative where it is negative. The look
+ * decides (ADR-0489 D3).
+ */
+export const SHIPPED_WHEAT_LIFT = wheatLift('2.00').lift;
+
+/** THE WHEAT AS THE SHIPPED GROUND WEARS IT — the anchor, the lift, the factor and the gate in
+ *  one value. */
+export const SHIPPED_WHEAT: GroundWheatLayer = {
+  mix: SHIPPED_WHEAT_MIX,
+  rows: WHEAT_GATE_ROWS,
+  anchor: SHIPPED_WHEAT_ANCHOR,
+  lift: SHIPPED_WHEAT_LIFT,
 };
 
 /**
@@ -464,14 +565,31 @@ export function buildGroundMaterial(
   sandMix: number = SHIPPED_SAND_MIX,
   /** LAYERS 3, 4 AND 6 — see {@link GroundLayerExtras}; the canvas passes the shipped set. */
   extras: GroundLayerExtras = {},
+  /** THE SHADOW'S DEPTH AND EDGE — {@link SHIPPED_SHADOW_DEPTH} unless a COMPARISON arm asks
+   *  otherwise; `null` is the one-rung, hard-edged material the map wore until 2026-09-06, which
+   *  is what a ladder's control arm needs. The canvas never passes it. */
+  shadowDepth: ShadowDepthOptions | null = SHIPPED_SHADOW_DEPTH,
+  /** THE WHEAT — {@link SHIPPED_WHEAT} unless a COMPARISON arm asks otherwise; `null` is the
+   *  material as it drew until 2026-09-06, the yellow islands flat, which is what the wheat
+   *  ladder's control arm needs. The canvas never passes it. */
+  wheat: GroundWheatLayer | null = SHIPPED_WHEAT,
 ) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
   if (shadow !== null) opts.shadowAtlas = shadow;
+  // By statement, and only where there is a field to read: a depth without an occlusion field is
+  // a setting the material would ignore, and an explicit `undefined` is a different input under
+  // `exactOptionalPropertyTypes`.
+  if (shadow !== null && shadowDepth !== null) opts.shadowDepth = shadowDepth;
   // ⚠ BY STATEMENT, and absent means ABSENT: under `exactOptionalPropertyTypes` a `grass:
   // undefined` is a different input from no key at all, and only the second leaves the emitted
   // shader byte-identical to the one every measured figure about this ground was taken against.
   if (grass !== undefined) opts.grass = grass;
+  // ⚠ THE WHEAT RIDES THE GRASS (its structure is the grass's), so it is offered only when there
+  // is a grass to ride — the material refuses the combination anyway, and refusing here as well
+  // would turn an ordinary "this arm wears no grass" into a throw. By statement, absent means
+  // absent, for the grass's own reason.
+  if (wheat !== null && grass !== undefined) opts.wheat = wheat;
   // ⚠ LAYER 2 RIDES LAYER 1, so it is offered only when there is a layer 1 to ride and an atlas to
   // sample through — the material refuses either combination anyway, and refusing here as well
   // would turn an ordinary "this arm wears no grass" into a throw.
@@ -565,9 +683,11 @@ function shippedSkirt(cells: readonly InstanceDescriptor[]): GroundSkirt {
 function buildGroundOcclusionField(
   cells: readonly InstanceDescriptor[],
   casters: readonly ShadowCaster[],
+  penumbra: number,
+  contactBand: ContactBand,
 ): AtlasField | null {
   if (groundBounds(cells) === null) return null;
-  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters });
+  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters, penumbra, contactBand });
 }
 
 /**
@@ -638,6 +758,12 @@ export function shippedGroundBuild(
   /** The visible `trail-strip` descriptors, whose ends dock on the islands (layer 3's connector).
    *  DEFAULTED so every caller that predates the layer is unchanged and wears no path. */
   strips: readonly InstanceDescriptor[] = [],
+  /** The cast shadow's soft-edge width — `SHADOW_PENUMBRA` unless a COMPARISON arm asks
+   *  otherwise; the canvas never passes it. */
+  penumbra: number = SHADOW_PENUMBRA,
+  /** Which rung the contact pools land on — `SHADOW_CONTACT_BAND` unless a COMPARISON arm's
+   *  control asks for the field as it was; the canvas never passes it. */
+  contactBand: ContactBand = SHADOW_CONTACT_BAND,
 ): ShippedGroundBuild {
   // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
   // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
@@ -654,7 +780,7 @@ export function shippedGroundBuild(
   // than by two calls happening to pack the same way. They disagree silently: every island would
   // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
   // set of shadows belonging to the wrong land.
-  const field = buildGroundOcclusionField(clipped, casters);
+  const field = buildGroundOcclusionField(clipped, casters, penumbra, contactBand);
   const input: CellGroundGeometryInput = {
     cells: clipped,
     resolve: linearColourOf,
@@ -1116,9 +1242,9 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // whole descriptor stream, because the signatures, the island ids and the trail docks the cover
   // keeps off the path are all IN it.
   //
-  // ⚠ THE CASTER READER BELOW SEES A LIST IT DOES NOT CAST EVERY MEMBER OF, and that is stated
-  // rather than left to be discovered: `placementCasters` drops the `dressing` roles, which is
-  // where the "ground cover casts nothing" decision is enforced and argued.
+  // ⚠ THE CASTER READER BELOW CASTS FROM EVERY MEMBER OF THIS LIST, cover included, since
+  // 2026-09-06 — `placementCasters` and `COVER_CASTS` in `ground-casters.ts` are where that
+  // reversal is enforced and argued, and each role casts its own silhouette (`ROLE_SILHOUETTE`).
   const placements = useMemo(
     () => dressMapWithCover(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
     [descriptors],

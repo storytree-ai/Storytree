@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>how pale the wheat is — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #e0c96a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>How pale the wheat is &mdash; a stop-luma lift on the rebased ramps</h1>
+      <p>
+        The wheat's six stops are the green's ramps rebased onto the owner's mustard anchor with no
+        free constant, and every rung of that ladder came out DARKER and duller than the flat yellow
+        token &mdash; the recipe's ramps sit below the token they mix into. The anchor cannot fix
+        that (a paler anchor goes peach). This page ladders the one lever that can: a single lift on
+        all six rebased stops in linear space, ratio-preserving, so the hue the owner picked stays
+        and only the field's brightness moves.
+      </p>
+      <p class="numbers">
+        flat         the in-progress islands FLAT, before any wheat (REFERENCE: the flat token every rung is measured against)
+        lift-1.00    the wheat as it shipped after the yellowness ladder: the mustard, the stops untouched (CONTROL)
+        lift-1.50    half again: the light stops now above the anchor, the dark stops still below it
+        lift-2.00    doubled: the field's mean brightness reaches the flat token's; the warm light stop clamps
+        lift-3.00    tripled: the overshoot rung, both light stops clamped to a flat lemon
+        shipped      what ships — one rung of the ladder, read off the source
+      </p>
+      <p>
+        The green island is a proof of no change: shipped must equal the control, byte for byte. The
+        ladder is read on one in-progress island at 8 px/unit and on the REAL forest, fitted. Under
+        each arm: colour families, MICRO, pixels moved past 20/255 against <code>lift-1.00</code>
+        (ADR-0490 D6), and pixels touched against <code>shipped</code>. The driver's report carries,
+        per rung, the field's mean brightness against the flat token's, the warm light stop's hue
+        (the peach finding), and the reader model's margin &mdash; printed with its grid step,
+        negative where it is negative, and not a fence (ADR-0503 D1, ADR-0506, ADR-0489 D3).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedWheatLift } from './shipped-wheat-lift-scene.ts';
+      try {
+        await mountShippedWheatLift(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
