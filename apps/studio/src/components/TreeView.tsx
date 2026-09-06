@@ -691,7 +691,11 @@ export function buildWorld(
   // rung of the gap ladder a layout with water between every pair rather than a lottery of the
   // seed jitter.
   const seeds: Axial[] = stories.map((_, i) => pixelToHex(seedPx.get(i) ?? { x: 0, y: 0 }));
-  for (let pass = 0; pass < 24; pass++) {
+  // Each nudge moves one seed one hex EAST, so the passes converge; the bound is a guard against a
+  // pathological input, not a budget — at 24 a crowded rank ran out of passes with two seeds still
+  // inside each other's floor, and the moat below then had nothing to keep (measured on a 60-island
+  // sweep at ratio 0.1: two adjacent tiles).
+  for (let pass = 0; pass < 400; pass++) {
     let moved = false;
     for (let i = 0; i < seeds.length; i++) {
       for (let j = i + 1; j < seeds.length; j++) {
