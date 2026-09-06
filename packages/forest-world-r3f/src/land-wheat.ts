@@ -93,6 +93,10 @@ export const GRASS_TOKEN_REFERENCE = '#8cb85e';
  */
 export function srgbToLinear(byte: number): number {
   const c = byte / 255;
+  // Stryker disable next-line EqualityOperator: EQUIVALENT AT THE KNEE, provably — the two branches
+  // agree at c === 0.04045 by construction (that is what makes it the knee: both give 0.0031308),
+  // so `<=` and `<` can differ only there, where they return the same number; and no integer byte
+  // even lands on it (0.04045 × 255 = 10.31). The mirror of `linearToSrgb255`'s own claim.
   if (c <= 0.04045) return c / 12.92;
   return Math.pow((c + 0.055) / 1.055, 2.4);
 }

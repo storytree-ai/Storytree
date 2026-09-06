@@ -869,7 +869,13 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // wheatGate` and mixes at `uGrassMix * grassGate + uWheatMix * wheatGate`; a row both gates name
   // would deliver the SUM of two layers at the sum of two factors — a colour neither layer's
   // instrument ever measured, on a token that reads as whichever it happens to land near.
-  const sharedRow = wheat === undefined || grass === undefined ? undefined : wheat.rows.find((row) => grass.rows.includes(row));
+  // The grass rows to test against — `[]` only when there is no grass, and then there is no wheat
+  // either (refused above), so nothing is ever tested against the empty list.
+  // Stryker disable next-line ConditionalExpression,ArrayDeclaration: EQUIVALENT — a wheat without a grass was
+  // refused above, so this branch is reached with `grass` defined whenever `wheat` is; the `[]` arm
+  // exists only to type the constant and no `find` ever runs over it.
+  const grassRows: readonly number[] = grass === undefined ? [] : grass.rows;
+  const sharedRow = wheat?.rows.find((row) => grassRows.includes(row));
   if (sharedRow !== undefined) {
     throw new Error(
       `banded-ground-material: row ${sharedRow} is named by BOTH the grass gate and the wheat ` +
@@ -1121,10 +1127,11 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // gate so the sand, the path and the rock below composite over the wheat exactly as over the
   // grass — the stack, not one layer of it. Every line the sand, wear and rock stages emit is
   // untouched by that promotion, which is what keeps their goldens standing.
+  // ⚠ NOT GATED ON `grass` HERE: it is spliced only inside `grassStage`, which is empty without the
+  // grass, so a grass-less paint line is computed and never emitted — a condition on it would be a
+  // branch no material can observe.
   const paintLine =
-    grass === undefined
-      ? ''
-      : wheat === undefined
+    wheat === undefined
         ? '        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'
         : `        // THE WHEAT FIELD — layer 1 re-palettised onto the in-progress yellow (src/land-wheat.ts),
         // on its own rows at its own factor, through this same seam (ADR-0490 D5): a mix INTO
