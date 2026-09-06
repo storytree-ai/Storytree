@@ -73,8 +73,10 @@ test('validateTileManifest refuses: no control, a derived tile no smaller than t
   const rising = manifest();
   rising.arms = [rising.arms[0]!, rising.arms[3]!, rising.arms[1]!];
   assert.throws(() => validateTileManifest(rising), /does not descend/);
-  const noSource = manifest();
-  noSource.arms[1] = { ...noSource.arms[1]!, source: undefined as unknown as TileArmRecord['source'] };
+  // `validateTileManifest` takes `unknown`, so the arm without a source is built as the plain
+  // object it is rather than asserted into a type it does not satisfy.
+  const withoutSource = manifest().arms.map(({ source: _source, ...rest }, i): unknown => (i === 1 ? rest : { source: _source, ...rest }));
+  const noSource = { ...manifest(), arms: withoutSource };
   assert.throws(() => validateTileManifest(noSource), /carries no source head/);
   assert.throws(() => validateTileManifest(null), /not an object/);
 });

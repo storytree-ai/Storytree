@@ -63,4 +63,15 @@ rep("""        x: cursor + w + (rand01(seed) - 0.5) * 40,
     """        x: cursor + w + (rand01(seed) - 0.5) * tileUnits(40),
         y: (rowY[r] ?? 0) + (rand01(seed + 1) - 0.5) * tileUnits(26),""")
 open(P, 'w').write(s)
+
+# act2-walkthrough.ts: the disc's coast is smoothed with the beach on the shipped tile
+W = '/home/mickh/code/Storytree/.claude/worktrees/tile/web/src/scripts/act2-walkthrough.ts'
+w = open(W).read()
+old = "  const rawCoast = smoothCoast(segs, seedId).loops;"
+assert w.count(old) == 1
+w = w.replace(old, "  const rawCoast = smoothCoast(segs, seedId, COAST_OUTSET_ON_TILE).loops; // the beach on the shipped tile (ADR-0528)")
+old = "  HEX_R,\n"
+assert w.count(old) == 1
+w = w.replace(old, "  HEX_R,\n  COAST_OUTSET_ON_TILE,\n")
+open(W, 'w').write(w)
 print('WEB PATCH APPLIED')

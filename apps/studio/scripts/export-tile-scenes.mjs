@@ -6,7 +6,10 @@
 // Run the studio on a port of your own (never 5173 — a sibling worktree may own it), then from
 // `apps/studio`:
 //
-//   ST_STUDIO_URL=http://127.0.0.1:<port> node scripts/export-tile-scenes.mjs
+//   ST_STUDIO_URL=http://127.0.0.1:<port> node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/export-tile-scenes.mjs
+//
+// (under the tsx loader, unlike its spacing sibling: it reads `PRE_ADR0528_TILE` from the engine, whose
+// `.js` imports resolve to `.ts` only through tsx.)
 //
 // It writes, into docs/research/chapter2-tile-footprint-2026-09-06/:
 //   scenes/tile-spacing-<r>.json   the scene graph on the derived tile at gap ratio r (pruned to what
