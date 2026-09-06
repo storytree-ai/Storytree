@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Outcome, ProofMode } from "./enums.js";
 import { CriterionId, CriterionRevisionId } from "./criterion-binding.js";
 import { StoryBaselineScope } from "./story-baseline.js";
+import { Anchor } from "./anchor.js";
 
 /**
  * The verdict DATA shapes (ADR-0068 §3) — the published SHAPE readers validate
@@ -127,9 +128,19 @@ const VerdictData = z
     /**
      * ADR-0016 binding anchor: the content-hash (hashSpan) of the proved span at sign time — what
      * lets a verdict know WHICH code it proved, so drift is computable later. OPTIONAL for back-compat:
-     * verdicts predating ADR-0016 (and every current caller until gate-emits-change wires it) carry none.
+     * verdicts predating ADR-0016 carry none, and so does every verdict signed before ADR-0534 gave
+     * the gate's binding seam its first caller (2026-09-06) — the `--real` path now supplies one.
+     * The unit-level VERSION: `hashSpan` over the spans of `anchors` below, joined in order.
      */
     boundHash: z.string().optional(),
+    /**
+     * ADR-0534: the IDENTITY half of the binding — one re-anchorable {@link Anchor} per top-level
+     * declaration the leaf's authored commit changed (`symbol` grain), or one per file where a change
+     * could not be named (`file` grain, no `symbol`). Without this a `boundHash` is a version with no
+     * way to re-locate what it versions (ADR-0016 D1 keeps the two distinct and needs both). Present
+     * only together with `boundHash`; absent on every verdict that carries no binding.
+     */
+    anchors: z.array(Anchor).optional(),
     /**
      * ADR-0127 (per-contract coverage axis, Option A of ADR-0122): which DECLARED `## Contracts` this
      * green covered vs over-claimed, attested at sign time. OPTIONAL/additive — only a `--real`

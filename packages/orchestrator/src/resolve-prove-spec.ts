@@ -28,6 +28,7 @@ import type { ContractCoverageAxis, StoryBaselineScope } from "@storytree/proof-
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
 import { classifyDeclaredCoverage, readTestSurface } from "./proof/contract-coverage.js";
+import { computeProvedBinding } from "./proof/proved-span.js";
 import type { TestSurfaceRead } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
 import type { ExpectedRed } from "./phase-machine.js";
@@ -839,15 +840,27 @@ function resolveReal(
   if ((real.addDeps ?? []).length > 0) {
     commitScope.spineOutputGlobs = ["pnpm-lock.yaml", "**/package.json"];
   }
+  // ADR-0534: what the scoped commit CHANGED, captured here because this closure is the one place
+  // the spine holds both ends of the diff — the base it cut from and the commit it just made. The
+  // gate's binding thunk (below) reads it AFTER this has run; an injected treeState (offline tests)
+  // never sets it, so those verdicts sign unbound exactly as before.
+  let proved: { baseSha: string; headSha: string; files: string[] } | undefined;
   const treeState =
     opts.treeState ??
     (async (): Promise<TreeState> => {
+      const base = await gitTreeState(opts.workspace)();
       const commit = await commitAuthored({
         worktreeRoot: opts.workspace,
         message: `storytree real build ${opts.runId}: ${spec.id} (authored by the gated leaf)`,
         author: commitAuthor,
         scope: commitScope,
       });
+      proved = {
+        baseSha: base.commitSha,
+        headSha: commit.commitSha,
+        // The IMPLEMENT fence is the source/test split itself: source-shaped and never a test path.
+        files: commit.staged.filter((p) => scope.isWriteAllowed("IMPLEMENT", p)),
+      };
       if (commit.outOfScope.length > 0) {
         // Surfaced, not swept: the gate's clean-tree read is about to refuse over exactly these,
         // and a reader of the build log should see WHICH paths rather than a bare "not clean".
@@ -885,6 +898,13 @@ function resolveReal(
   // ADR-0416 D6: forwarded only when the caller supplied it (a story node). The gate then consults
   // the thunk at GATE, so an aborted walk establishes no baseline.
   if (opts.storyBaseline !== undefined) proveSpec.storyBaseline = opts.storyBaseline;
+  // ADR-0534: the gate's ADR-0016 binding seam gets its first caller. Only on the DEFAULT tree seam
+  // (the one that actually commits): the thunk binds the top-level declarations the spine's own
+  // scoped commit changed, at GATE, from the attested commit's bytes — see `proof/proved-span.ts`.
+  if (opts.treeState === undefined) {
+    proveSpec.binding = async () =>
+      proved === undefined ? undefined : await computeProvedBinding({ workspace: opts.workspace, ...proved });
+  }
   return liveAuthor !== undefined
     ? { ok: true, spec: proveSpec, liveAuthor }
     : { ok: true, spec: proveSpec };

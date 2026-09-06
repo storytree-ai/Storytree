@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 import { rollupStatus, workEvent } from "./proof/rollup.js";
+import { hashSpan } from "./proof/anchor-compute.js";
+import { topLevelStatements } from "./proof/proved-span.js";
 import {
   ClaudeAgentAuthor,
   CodexPhaseAuthor,
@@ -795,6 +797,33 @@ test("REAL mode offline walk: fresh worktree + real proof command + spine commit
     const tree = await gitTreeState(worktree.root)();
     assert.equal(tree.clean, true);
     assert.equal(tree.commitSha, result.verdict.commitSha);
+
+    // ADR-0534: the DEFAULT tree seam is the binding's first caller. The verdict binds the top-level
+    // declarations the spine's own scoped commit changed in the IMPLEMENT-scope file — at symbol grain,
+    // each anchored to the attested commit — and never the test file.
+    assert.equal(typeof result.verdict.boundHash, "string", "a --real walk stamps boundHash");
+    assert.equal(result.verdict.boundHash!.length, 32, "the unit hash is hashSpan's 128-bit hex");
+    assert.ok(result.verdict.anchors !== undefined, "the anchors ride with the hash");
+    assert.deepEqual(
+      result.verdict.anchors.map((a) => [a.file, a.symbol]),
+      [
+        [real.sourceFile, "VerdictLike"],
+        [real.sourceFile, "verdictLine"],
+      ],
+      "one symbol-grain anchor per changed top-level declaration, in source order",
+    );
+    for (const a of result.verdict.anchors) {
+      assert.equal(a.boundCommit, result.verdict.commitSha, "each anchor names the attested commit");
+      assert.equal(a.boundHash.length, 32);
+    }
+    // The anchors re-hash from the committed file: the binding is a fact about the attested bytes.
+    const committed = await fs.readFile(path.join(worktree.root, real.sourceFile), "utf8");
+    const relocated = topLevelStatements(committed, real.sourceFile).filter((st) => st.name !== undefined);
+    assert.deepEqual(
+      relocated.map((st) => hashSpan(st.text)),
+      result.verdict.anchors.map((a) => a.boundHash),
+      "re-locating each declaration by name reproduces the hash it was bound at",
+    );
   } finally {
     await worktree.remove();
   }

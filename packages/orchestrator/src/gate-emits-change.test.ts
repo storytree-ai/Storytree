@@ -152,3 +152,58 @@ test(
     assert.equal(changes.length, 0, "no ChangeEvent must be emitted when no binding is supplied");
   },
 );
+
+// ── ADR-0534: the binding may be a GATE-time THUNK, and it carries the anchors ────────────────────
+
+test(
+  "(h) a thunk binding is consulted at GATE: verdict.boundHash and verdict.anchors stamped from what it returns",
+  async () => {
+    const store = new InMemoryStore();
+    let consulted = 0;
+    const binding: ProvenBinding = {
+      boundHash: "0123456789abcdef0123456789abcdef",
+      anchors: [
+        { file: "packages/x/src/a.ts", symbol: "alpha", boundHash: "aaaa", boundCommit: "cafe" },
+        { file: "packages/x/src/a.ts", boundHash: "bbbb", boundCommit: "cafe" },
+      ],
+    };
+    const spec = buildSpec(store, {
+      binding: async () => {
+        consulted += 1;
+        return binding;
+      },
+    });
+    const result = await proveUnit(spec);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(consulted, 1, "the thunk is evaluated exactly once, at GATE");
+    assert.equal(result.verdict.boundHash, binding.boundHash);
+    assert.deepEqual(result.verdict.anchors, binding.anchors);
+    // The stored signing row carries the same two fields.
+    const events = await store.readEvents({ id: "run-1:unit-1" });
+    const doc = events[0]?.doc as { boundHash?: string; anchors?: unknown } | undefined;
+    assert.equal(doc?.boundHash, binding.boundHash);
+    assert.deepEqual(doc?.anchors, binding.anchors);
+  },
+);
+
+test("(i) a thunk returning undefined stamps neither boundHash nor anchors — the unbound verdict of every pre-ADR-0534 caller", async () => {
+  const store = new InMemoryStore();
+  const spec = buildSpec(store, { binding: () => undefined });
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.verdict.boundHash, undefined);
+  assert.equal(result.verdict.anchors, undefined);
+  assert.equal(Object.hasOwn(result.verdict, "anchors"), false, "the key is absent, not undefined-valued");
+});
+
+test("(j) a value binding with an EMPTY anchors list stamps boundHash but leaves anchors off", async () => {
+  const store = new InMemoryStore();
+  const spec = buildSpec(store, { binding: { boundHash: "feed", anchors: [] } });
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.verdict.boundHash, "feed");
+  assert.equal(Object.hasOwn(result.verdict, "anchors"), false);
+});
