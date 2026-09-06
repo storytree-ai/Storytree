@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-09-06T03:05:41.262Z",
+  "rows": [
+    {
+      "arm": "today",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.2949230829127141,
+      "contentExtentPx": {
+        "w": 546.8946533203125,
+        "h": 972.1699676513672
+      },
+      "medianIslandWidthPx": 45.87481689453125,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-today-fit.png"
+    },
+    {
+      "arm": "today",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6868624861140084,
+      "contentExtentPx": {
+        "w": 1396.9410018920898,
+        "h": 2483.2278442382812
+      },
+      "medianIslandWidthPx": 117.17877197265625,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-today-resting.png"
+    },
+    {
+      "arm": "spacing-0.5",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.228,
+      "contentExtentPx": {
+        "w": 467.24041748046875,
+        "h": 885.3924293518066
+      },
+      "medianIslandWidthPx": 45.6456298828125,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.5-fit.png"
+    },
+    {
+      "arm": "spacing-0.5",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.5553492536212992,
+      "contentExtentPx": {
+        "w": 1138.0770874023438,
+        "h": 2156.5877075195312
+      },
+      "medianIslandWidthPx": 111.180908203125,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.5-resting.png"
+    },
+    {
+      "arm": "spacing-0.35",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.24050632911392406,
+      "contentExtentPx": {
+        "w": 464.87469482421875,
+        "h": 882.855411529541
+      },
+      "medianIslandWidthPx": 43.65191650390625,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.35-fit.png"
+    },
+    {
+      "arm": "spacing-0.35",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6686577743206861,
+      "contentExtentPx": {
+        "w": 1292.4486389160156,
+        "h": 2454.5222778320312
+      },
+      "medianIslandWidthPx": 121.361328125,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.35-resting.png"
+    },
+    {
+      "arm": "spacing-0.2",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.2574089754445385,
+      "contentExtentPx": {
+        "w": 467.35174560546875,
+        "h": 881.9345359802246
+      },
+      "medianIslandWidthPx": 47.78070068359375,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.2-fit.png"
+    },
+    {
+      "arm": "spacing-0.2",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6519542896307874,
+      "contentExtentPx": {
+        "w": 1183.6880340576172,
+        "h": 2244.0843505859375
+      },
+      "medianIslandWidthPx": 116.04791259765625,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.2-resting.png"
+    },
+    {
+      "arm": "spacing-0.1",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.2668227033352838,
+      "contentExtentPx": {
+        "w": 464.751708984375,
+        "h": 880.9417762756348
+      },
+      "medianIslandWidthPx": 47.49444580078125,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.1-fit.png"
+    },
+    {
+      "arm": "spacing-0.1",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6519542896307874,
+      "contentExtentPx": {
+        "w": 1135.5738525390625,
+        "h": 2152.491943359375
+      },
+      "medianIslandWidthPx": 116.76507568359375,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0.1-resting.png"
+    },
+    {
+      "arm": "spacing-0",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.2793261868300153,
+      "contentExtentPx": {
+        "w": 466.11163330078125,
+        "h": 878.2908668518066
+      },
+      "medianIslandWidthPx": 48.68658447265625,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0-fit.png"
+    },
+    {
+      "arm": "spacing-0",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6519542896307873,
+      "contentExtentPx": {
+        "w": 1087.9160766601562,
+        "h": 2049.9527587890625
+      },
+      "medianIslandWidthPx": 113.6356201171875,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/old-tile/2d-spacing-0-resting.png"
+    }
+  ]
+}

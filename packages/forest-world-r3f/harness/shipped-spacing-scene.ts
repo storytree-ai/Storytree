@@ -598,14 +598,20 @@ export interface SpacingRunner {
   snapshot(arm: string, picture: SpacingPictureId, zoom: CrowdZoom): string;
 }
 
-async function fetchJsonFromPage(url: string): Promise<unknown> {
+export async function fetchJsonFromPage(url: string): Promise<unknown> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`shipped-spacing-scene: ${url} answered ${res.status} — run the export driver first, and serve the harness from THIS worktree`);
   return res.json();
 }
 
-export async function createSpacingRunner(fetchJson: FetchJson = fetchJsonFromPage): Promise<SpacingRunner> {
-  const { manifest, arms } = await loadSpacingArms(fetchJson);
+/** How a runner finds its arms — the spacing ladder by default; the tile page (`shipped-tile-scene.ts`)
+ *  passes its own loader, because its manifest carries a tile per arm and a control that is NOT the
+ *  legacy triple. Everything downstream of the load — the shipped pipeline, the readings, the cost
+ *  clock — is the same instrument, which is the point: two ladders, one ruler. */
+export type ArmLoader = (fetchJson: FetchJson) => Promise<{ manifest: SpacingManifest; arms: SpacingArm[] }>;
+
+export async function createSpacingRunner(fetchJson: FetchJson = fetchJsonFromPage, load: ArmLoader = loadSpacingArms): Promise<SpacingRunner> {
+  const { manifest, arms } = await load(fetchJson);
   const armOf = (id: string): SpacingArm => {
     const found = arms.find((a) => a.record.id === id);
     if (!found) throw new Error(`shipped-spacing-scene: no arm "${id}"`);

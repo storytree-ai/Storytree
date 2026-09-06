@@ -159,7 +159,13 @@ import {
   polyPath,
   ringsOf,
   estRadius,
+  tileQuota,
+  tileUnits,
+  TILE_SCALE,
+  TREE_SCALE,
+  PLATE_SCALE,
   crownRadius,
+  crownRadiusWorld,
   storyTreeReach,
   storyEdges,
   rankStories,
@@ -251,7 +257,7 @@ const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
 // ---------- world building ----------
 
-const MARGIN = 60;
+const MARGIN = tileUnits(60); // authored as 60 on the radius-27 tile (ADR-0528)
 // `resting-view-still-clips-five-islands`: the resting camera fit's own `padding: 16` guarantees only
 // 16px of headroom at whichever vertical edge `buildWorld`'s bounds happen to sit snug against — but
 // TWO pieces of UI chrome are PERMANENTLY docked over the map at rest, and 16px does not clear either:
@@ -297,9 +303,9 @@ interface SpacingTuning {
 }
 const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
-const LANE_GAP = 13; // px centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
+const LANE_GAP = tileUnits(13); // ground units (13 on the radius-27 tile) centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
 const LANE_WINDOW = 0.4; // fraction of each river's length over which it blends from its true dock/mouth into the shared corridor
-const MOUTH_FLARE = 14; // px offshore the merged trunk fuses before diving head-on into the single coast mouth
+const MOUTH_FLARE = tileUnits(14); // ground units (14 on the radius-27 tile) offshore the merged trunk fuses before diving head-on into the single coast mouth
 
 interface CapSpot {
   cap: TreeCapability;
@@ -559,7 +565,10 @@ export function buildWorld(
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
   // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
   // (centred, everything orbits + spokes converge), not by a distinct size/skin.
-  const quotas = stories.map((s) => Math.max(3, s.capabilities.length + 2));
+  // ADR-0528 D1: one tile per capability — a drawn island IS `capabilities × 318 units²`, the island
+  // the 3D map sizes it to (ADR-0520). The retired `max(3, capabilities + 2)` was the last by-eye
+  // number on the layout path; `tileQuota` carries the rule and its floor.
+  const quotas = stories.map((s) => tileQuota(s.capabilities.length));
 
   // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
   const edgeList = storyEdges(stories);
@@ -656,8 +665,8 @@ export function buildWorld(
       const story = stories[s.idx];
       const seedH = hash(story?.id ?? String(s.idx));
       seedPx.set(s.idx, {
-        x: xCursor + s.w + (rand01(seedH) - 0.5) * 44,
-        y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * 30,
+        x: xCursor + s.w + (rand01(seedH) - 0.5) * tileUnits(44),
+        y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * tileUnits(30),
       });
       xCursor += 2 * s.w + gapAfter(k);
     });
@@ -685,7 +694,7 @@ export function buildWorld(
 
   // Grow territories round-robin: each story claims its cheapest frontier hex
   // (closest to seed, hash-jittered for organic coastlines) until its quota —
-  // a tile per capability plus breathing room — is met.
+  // a tile per capability (ADR-0528) — is met.
   const owner = new Map<string, number>();
   const tilesByStory: Axial[][] = stories.map(() => []);
   seeds.forEach((seed, i) => {
@@ -771,12 +780,13 @@ export function buildWorld(
     // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
     const centerTile = groundHeroTile(tiles) ?? seed;
     const treeSpot = hexCenter(centerTile);
-    const crownR = crownRadius(story.capabilities.length);
+    // The tree's crown radius in GROUND units — its drawing frame scaled onto the tile (ADR-0528).
+    const crownR = crownRadiusWorld(story.capabilities.length);
     // A GROUND radius. `crownR` is the tree's screen HALF-WIDTH, and the camera foreshortens only
     // the depth axis, so a horizontal half-width is already a ground magnitude; `HEX_R` is a ground
     // radius by definition. The one screen quantity in this expression was the island `radius`, and
     // it is replaced by its declared ground twin (`studio-island-layout-moves-to-ground-space`).
-    const ringR = Math.max(crownR * 0.9, Math.min(crownR + 18, groundRadius - HEX_R * 0.55));
+    const ringR = Math.max(crownR * 0.9, Math.min(crownR + tileUnits(18), groundRadius - HEX_R * 0.55));
     // Front 240° arc only (centred south) — a plant behind the tree would
     // vanish under the canopy.
     const ARC = (Math.PI * 4) / 3;
@@ -796,7 +806,7 @@ export function buildWorld(
             crownR * 0.95,
             ringR * (0.62 + rand01(hash(`${story.id}:${cap.id}:rb`)) * 0.72),
           )
-        : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * 10;
+        : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * tileUnits(10);
       // `angle` is a GROUND bearing and `rr` a GROUND radius, so the ring is a circle on the land;
       // `groundPolarOffset` projects it ONCE, through the declared camera, into the screen offset the
       // already-projected `treeSpot` needs. The retired `* 0.66` was a hand-picked top-down squash
@@ -849,7 +859,7 @@ export function buildWorld(
       Math.max(...centers.map((p) => p.y), centroid.y) +
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
-      8;
+      tileUnits(8);
     // `smoothCoast` outset + smoothed in GROUND space (see the boundary comment above); project
     // the loop to screen once here and regenerate the `d` strings from the projected points —
     // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
@@ -868,8 +878,8 @@ export function buildWorld(
     const stamps = carried.map((icon, si) => {
       const side = si % 2 === 0 ? -1 : 1;
       const tier = Math.floor(si / 2); // each side-pair steps further out
-      let bx = treeSpot.x + side * (crownR + 17 + tier * 26);
-      let by = treeSpot.y + 7 + tier * 6; // a touch in front of the trunk base, lower per tier
+      let bx = treeSpot.x + side * (crownR + tileUnits(17 + tier * 26));
+      let by = treeSpot.y + tileUnits(7 + tier * 6); // a touch in front of the trunk base, lower per tier
       for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
         bx += (treeSpot.x - bx) * 0.3;
         by += (treeSpot.y - by) * 0.3;
@@ -1019,7 +1029,7 @@ export function buildWorld(
       ...territories.map((t) => t.treeSpot.y - storyTreeReach(t.story.capabilities.length)),
     ) - MARGIN;
   const maxY =
-    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + 34)) +
+    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + tileUnits(34))) +
     hexHalfHeight +
     TILE_DEPTH +
     MARGIN / 2;
@@ -4015,7 +4025,7 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
   const lean = (rand01(seed) - 0.5) * 2;
   const w = h * 0.42;
   return (
-    <g className="hex-conifer" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+    <g className="hex-conifer" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}>
       <ellipse className="flora-shadow" cx={1} cy={1} rx={w * 0.9} ry={2.4} />
       <path
         className={`conifer-body c-${seed % 3}`}
@@ -5094,7 +5104,7 @@ function StoryTree({
   return (
     <g
       className={`story-tree st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)})`}
+      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)}) scale(${TREE_SCALE})`}
     >
       <title>{`${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`}</title>
       <ellipse
@@ -5298,7 +5308,7 @@ function GardenPlant({
   return (
     <g
       className={`garden-flora st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}
+      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -5363,7 +5373,7 @@ function TerritoryFlora({
       const a = rand01(f.seed + i * 7) * Math.PI * 2;
       const rr = rand01(f.seed + i * 13) * HEX_R * 0.55;
       const x = f.x + Math.cos(a) * rr;
-      const y = f.y + Math.sin(a) * rr * 0.8 + 4;
+      const y = f.y + Math.sin(a) * rr * 0.8 + tileUnits(4);
       drawables.push({
         y,
         el: (
@@ -5422,7 +5432,7 @@ function TerritoryFlora({
 
       <g
         className="world-plate"
-        transform={`translate(${t.centroid.x - plate.w / 2} ${t.labelY})`}
+        transform={`translate(${t.centroid.x - (plate.w * PLATE_SCALE) / 2} ${t.labelY}) scale(${PLATE_SCALE})`}
       >
         <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
         <rect className="world-plate-bg" width={plate.w} height={plate.h} rx={plate.rx} />
@@ -5478,7 +5488,7 @@ function TerritoryFlora({
                 dur="6s"
                 repeatCount="indefinite"
               />
-              <g transform={`translate(${t.radius * 0.72 + 10} 0)`}>
+              <g transform={`translate(${t.radius * 0.72 + tileUnits(10)} 0) scale(${TILE_SCALE})`}>
                 <circle className="world-wisp-hit" r={12} fill="transparent" />
                 <circle className="world-wisp-glow" r={6.5} />
                 <circle className="world-wisp-dot" r={2.8} />
@@ -5496,7 +5506,7 @@ function TerritoryFlora({
           index math) so the legacy inline render can't drift from the scene render. Never a bloom. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
-          const orbitR = t.radius * 0.72 + 22;
+          const orbitR = t.radius * 0.72 + tileUnits(22);
           const treeDx = t.treeSpot.x - t.centroid.x;
           const treeDy = t.treeSpot.y - t.centroid.y;
           let queueIndex = 0;
@@ -5507,12 +5517,12 @@ function TerritoryFlora({
             if (grade === 'exploring') {
               // HOVERING: at rest beside/above the tree, per-key jitter, NO orbit animation.
               const k = hash(c.sessionId);
-              const hx = treeDx + (rand01(k + 1) - 0.5) * 18;
-              const hy = treeDy - (orbitR + 12) + (rand01(k + 2) - 0.5) * 10;
+              const hx = treeDx + (rand01(k + 1) - 0.5) * tileUnits(18);
+              const hy = treeDy - (orbitR + tileUnits(12)) + (rand01(k + 2) - 0.5) * tileUnits(10);
               return (
                 <g key={`claim:${c.sessionId}`} className={`world-hover-wisp state-${state}`}>
                   <title>{title}</title>
-                  <g transform={`translate(${hx.toFixed(1)} ${hy.toFixed(1)})`}>
+                  <g transform={`translate(${hx.toFixed(1)} ${hy.toFixed(1)}) scale(${TILE_SCALE})`}>
                     <circle className="world-hover-wisp-hit" r={12} fill="transparent" />
                     <circle className="world-hover-wisp-glow" r={6.5} />
                     <circle className="world-hover-wisp-dot" r={2.8} />
@@ -5523,12 +5533,12 @@ function TerritoryFlora({
             if (grade === 'waiting') {
               // QUEUED: a visible ordered line just outside the orbit ring, index-placed in the
               // SAME claimedAt-ascending order the scene path sorts to (orderClaimsForScene above).
-              const qx = orbitR + 14 + queueIndex * 16;
+              const qx = orbitR + tileUnits(14) + queueIndex * tileUnits(16);
               queueIndex += 1;
               return (
                 <g key={`claim:${c.sessionId}`} className={`world-queue-wisp state-${state}`}>
                   <title>{title}</title>
-                  <g transform={`translate(${qx.toFixed(1)} 0)`}>
+                  <g transform={`translate(${qx.toFixed(1)} 0) scale(${TILE_SCALE})`}>
                     <circle className="world-queue-wisp-hit" r={12} fill="transparent" />
                     <circle className="world-queue-wisp-glow" r={6.5} />
                     <circle className="world-queue-wisp-dot" r={2.8} />
@@ -5549,7 +5559,7 @@ function TerritoryFlora({
                   dur="9s"
                   repeatCount="indefinite"
                 />
-                <g transform={`translate(${orbitR} 0)`}>
+                <g transform={`translate(${orbitR} 0) scale(${TILE_SCALE})`}>
                   <circle className="world-claim-wisp-hit" r={12} fill="transparent" />
                   <circle className="world-claim-wisp-glow" r={6.5} />
                   <circle className="world-claim-wisp-dot" r={2.8} />
@@ -5566,14 +5576,14 @@ function TerritoryFlora({
           inline render can't drift. Never a bloom, never an orbit — stationary by construction. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
-          const orbitR = t.radius * 0.72 + 22;
+          const orbitR = t.radius * 0.72 + tileUnits(22);
           const treeDx = t.treeSpot.x - t.centroid.x;
           const treeDy = t.treeSpot.y - t.centroid.y;
           return departures.map((d) => {
             const ageRatio = departureAgeRatio(d.ageMs);
             const k = hash(d.sessionId);
-            const x = treeDx + (rand01(k + 1) - 0.5) * 18;
-            const y = treeDy - (orbitR + 12) - ageRatio * 24;
+            const x = treeDx + (rand01(k + 1) - 0.5) * tileUnits(18);
+            const y = treeDy - (orbitR + tileUnits(12)) - ageRatio * tileUnits(24);
             return (
               <g
                 key={`departure:${d.sessionId}`}
@@ -5581,7 +5591,7 @@ function TerritoryFlora({
                 opacity={Number((1 - ageRatio).toFixed(2))}
               >
                 <title>{departureWispTitle(d, now)}</title>
-                <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+                <g transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${TILE_SCALE})`}>
                   <circle className="world-departing-wisp-hit" r={12} fill="transparent" />
                   <circle className="world-departing-wisp-glow" r={6.5} />
                   <circle className="world-departing-wisp-dot" r={2.8} />
