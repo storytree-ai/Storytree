@@ -273,6 +273,10 @@ test('islandSizeInversions names every pair drawn the wrong way round, and nothi
   assert.deepEqual(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-9 }, { island: 'y', capabilities: 1, area: 318 }]), []);
   assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-3 }, { island: 'y', capabilities: 1, area: 318 }]).length, 1);
   assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-3 }, { island: 'y', capabilities: 1, area: 318 }], 1e-2).length, 0, 'the tolerance is the caller’s');
+  // EXACTLY at the tolerance is equal, not inverted: the comparison is strict, so the floor's own
+  // case — two areas a tolerance apart — never reads as an inversion.
+  assert.deepEqual(islandSizeInversions([{ island: 'x', capabilities: 0, area: 319 }, { island: 'y', capabilities: 1, area: 318 }], 1), []);
+  assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 319.5 }, { island: 'y', capabilities: 1, area: 318 }], 1).length, 1);
   assert.deepEqual(islandSizeInversions([]), []);
   assert.deepEqual(islandSizeInversions([a]), []);
   // Order: by the smaller island first, in input order — so a report is stable.

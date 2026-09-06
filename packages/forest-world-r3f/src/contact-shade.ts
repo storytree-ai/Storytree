@@ -248,6 +248,13 @@ export function buildContactField(opts: ContactFieldOptions): ShadowField {
   const spread = opts.spread ?? 1;
   // A spread of nothing pools nothing: the field stays empty rather than each foot's own sample
   // being divided by zero (`d / 0`) and written as whatever `NaN` stores in a byte.
+  // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT, and provably so
+  // rather than by inspection — the guard is legibility, not behaviour. WITHOUT it a spread of 0
+  // gives every caster a reach of 0, so `d > reach` skips every sample but a foot standing exactly
+  // on a texel, whose `0 / 0` is NaN, whose byte a `Uint8Array` stores as 0 — the same empty field;
+  // a NEGATIVE spread inverts the stamp box (`x − reach > x + reach`) so its `span` is empty and
+  // nothing is written at all. `<` vs `<=` differs only at exactly 0, which the NaN path delivers
+  // identically. No field a test can read separates the three.
   if (spread <= 0) return field;
 
   for (const c of opts.casters) {
