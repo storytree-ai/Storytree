@@ -1,0 +1,120 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+layout (forest picture): spacing-0 — 35 islands, exported 2026-09-05T22:24:25.521Z from studio d65d7487610ab390062e62205c94b659fefd9f6b
+elevation: 50° on every arm
+ships: pool 0.5 of the derived reach · cone 0.65 of the crown · depth 0.62 → the shipped arm coincides with: pool-0.5, width-0.65, depth-62
+control (typed as history — the map after PR #1841 / #1845): pool 1 · cone 1 · depth 0.55
+
+THE ARMS
+  today        the contact pool at its derived reach · the cone as wide as the crown · the painted islands at 0.55 (CONTROL — the map after PR #1841 / #1845)
+  pool-1       the contact pool at its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  pool-0.7     the contact pool’s edge at 0.7 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  pool-0.5     the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  pool-0.25    the contact pool’s edge at 0.25 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  pool-0       no contact pool (the trees cast and do not pool) · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  width-1      the contact pool’s edge at 0.5 of its derived reach · the cone as wide as the crown · the painted islands at 0.62
+  width-0.8    the contact pool’s edge at 0.5 of its derived reach · the cone at 0.8 of the crown’s width · the painted islands at 0.62
+  width-0.65   the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  width-0.5    the contact pool’s edge at 0.5 of its derived reach · the cone at 0.5 of the crown’s width · the painted islands at 0.62
+  depth-78     the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the derived rung (0.78) on every token
+  depth-70     the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.7
+  depth-62     the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62
+  depth-55     the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.55
+  shipped      the contact pool’s edge at 0.5 of its derived reach · the cone at 0.65 of the crown’s width · the painted islands at 0.62 (SHIPS)
+
+── green @ 8 px/unit ─────────────────────────────────
+arm           casters  stamp ms   field full   field soft   pool band   land p05   p50    p95   p05/p95   fam  moved>20 vs today  touched  vs neighbour  vs shipped
+today             129        36       28.73%       45.21%      16.48%      50.4   83.5  115.3     0.437   63                  0        0             —       76262
+pool-1            129        27       23.89%       43.96%      20.07%      50.4   86.7  115.8     0.435   64               7013    75307             —       26661
+pool-0.7          129        24       23.89%       33.95%      10.06%      50.4   87.7  117.3     0.429   65              11553    76060          1766        8012
+pool-0.5          129        22       23.89%       30.10%       6.21%      50.4   88.2  118.1     0.426   67              13623    76262           761           0
+pool-0.25         129        21       23.89%       27.78%       3.89%      50.4   88.5  118.8     0.424   66              15363    76510           648        6039
+pool-0            129        23       23.89%       27.03%       3.14%      50.4   88.5  119.0     0.423   65              15777    76510           244        6972
+width-1           129        22       28.73%       34.53%       5.80%      50.4   86.4  117.9     0.427   67               6306    76062             —        8913
+width-0.8         129        21       25.90%       31.81%       5.91%      50.4   87.4  118.1     0.427   67              10731    76224          2427        4347
+width-0.65        129        22       23.89%       30.10%       6.21%      50.4   88.2  118.1     0.426   67              13623    76262          1145           0
+width-0.5         129        20       22.06%       28.78%       6.72%      50.4   88.8  118.3     0.426   67              16303    76273           908        3878
+depth-78          129        22       23.89%       30.10%       6.21%      50.4   93.9  118.8     0.424   60              49578    76262             —       48468
+depth-70          129        22       23.89%       30.10%       6.21%      50.4   90.7  118.3     0.426   62              21454    76262             0       48468
+depth-62          129        22       23.89%       30.10%       6.21%      50.4   88.2  118.1     0.426   67              13623    76262             0           0
+depth-55          129        22       23.89%       30.10%       6.21%      50.4   87.3  118.0     0.427   67              12680    30897             0       48468
+shipped           129        22       23.89%       30.10%       6.21%      50.4   88.2  118.1     0.426   67              13623    76262             —           0
+
+── yellow @ 8 px/unit ─────────────────────────────────
+arm           casters  stamp ms   field full   field soft   pool band   land p05   p50    p95   p05/p95   fam  moved>20 vs today  touched  vs neighbour  vs shipped
+today              11        17       15.27%       32.77%      17.50%      57.5   99.7  145.0     0.397   55                  0        0             —       61901
+pool-1             11        16        9.35%       31.22%      21.87%      59.2  102.9  145.3     0.408   49               9692    60946             —       33032
+pool-0.7           11        14        9.35%       19.35%       9.99%      59.2  104.5  147.0     0.403   49              15925    61699          3893        9979
+pool-0.5           11        16        9.35%       14.56%       5.20%      59.2  105.2  147.8     0.401   52              18629    61901          1769           0
+pool-0.25          11        18        9.35%       11.62%       2.27%      59.2  105.7  148.3     0.399   51              21019    62149          1408        7458
+pool-0             11        18        9.35%       10.71%       1.35%      59.2  105.7  148.4     0.399   51              21468    62149           285        8483
+width-1            11        15       15.27%       20.21%       4.94%      59.2  103.4  147.5     0.401   51               8624    61701             —       11862
+width-0.8          11        14       11.81%       16.76%       4.95%      59.2  104.5  147.8     0.401   52              14756    61863          4285        5918
+width-0.65         11        16        9.35%       14.56%       5.20%      59.2  105.2  147.8     0.401   52              18629    61901          2536           0
+width-0.5          11        12        7.02%       12.73%       5.72%      59.2  105.7  148.0     0.400   50              22407    61912          2359        5545
+depth-78           11        16        9.35%       14.56%       5.20%      59.2  107.2  148.0     0.400   49              35323    61901             —       26193
+depth-70           11        16        9.35%       14.56%       5.20%      59.2  106.2  147.9     0.400   51              26932    61901             0       26193
+depth-62           11        16        9.35%       14.56%       5.20%      59.2  105.2  147.8     0.401   52              18629    61901             0           0
+depth-55           11        16        9.35%       14.56%       5.20%      57.9  104.7  147.8     0.392   51              18300    38450             0       26193
+shipped            11        16        9.35%       14.56%       5.20%      59.2  105.2  147.8     0.401   52              18629    61901             —           0
+
+── forest @ fit ─────────────────────────────────
+arm           casters  stamp ms   field full   field soft   pool band   land p05   p50    p95   p05/p95   fam  moved>20 vs today  touched  vs neighbour  vs shipped
+today            1361       484       10.70%       18.69%       7.99%      60.6   95.8  132.3     0.458   49                  0        0             —       10972
+shipped          1361       468        8.31%       11.02%       2.70%      63.8  101.4  135.8     0.470   49               2313    10972             —           0
+
+THE LAND LUMA HISTOGRAM — share of land pixels per 16-luma bin (crowns and cover included, the background excluded), the depth ladder on both mono grounds:
+  arm                     0   16   32   48   64   80   96  112  128  144  160  176  192  208  224  240
+  green/today           0.0  1.1  3.2 14.4 25.6 26.3 22.2  5.7  1.1  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  green/depth-78        0.0  1.1  3.1  6.0 13.4 30.9 34.7  8.8  1.5  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  green/depth-70        0.0  1.1  3.1  6.0 17.4 32.5 29.6  8.3  1.5  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  green/depth-62        0.0  1.1  3.1  8.3 23.1 26.6 28.0  8.0  1.4  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  green/depth-55        0.0  1.1  3.1 12.9 21.9 24.3 26.9  7.9  1.4  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  green/shipped         0.0  1.1  3.1  8.3 23.1 26.6 28.0  8.0  1.4  0.4  0.0  0.0  0.0  0.0  0.0  0.0
+  yellow/today          0.0  0.4  2.3  6.0 16.1 19.7 24.0 16.8  9.4  4.3  1.0  0.0  0.0  0.0  0.0  0.0
+  yellow/depth-78       0.0  0.4  2.2  3.7  7.1 18.0 28.2 20.8 12.6  5.6  1.3  0.1  0.0  0.0  0.0  0.0
+  yellow/depth-70       0.0  0.4  2.2  3.7  8.4 18.9 27.4 20.4 11.9  5.5  1.3  0.1  0.0  0.0  0.0  0.0
+  yellow/depth-62       0.0  0.4  2.2  3.7 10.9 18.6 26.4 19.5 11.5  5.4  1.3  0.1  0.0  0.0  0.0  0.0
+  yellow/depth-55       0.0  0.4  2.2  5.3 11.8 17.5 25.5 19.2 11.3  5.4  1.3  0.1  0.0  0.0  0.0  0.0
+  yellow/shipped        0.0  0.4  2.2  3.7 10.9 18.6 26.4 19.5 11.5  5.4  1.3  0.1  0.0  0.0  0.0  0.0
+
+THE READER MODEL, PRINTED — margin per token per depth rung (positive reads as its own token; negative is REPORTED, not a fence: ADR-0503 D1 / ADR-0506):
+  token         0.78     0.7    0.62    0.55
+  #8cb85e       13.3    -9.1   -26.4   -37.9
+  #b7684e       14.8     1.4   -15.2   -25.1
+  #d8c069        3.0   -10.4   -29.6   -49.5
+  #57544a       11.5    -2.0   -14.9   -24.1
+  #9ca3af        4.1   -22.1   -41.0   -42.4
+  #737274        0.2   -17.2   -26.6   -27.3
+  #2e333b       30.8    30.7    30.6    30.6
+  ⚠ the painted tokens (the green and the wheat’s yellow) are sent to the shipped depth; every other token keeps the derived rung.
+
+THE MOUNT-TIME STAMP — wall-clock ms for the whole shipped ground build, per distinct field:
+  green   today           129 casters      36 ms
+  green   pool-1          129 casters      27 ms
+  green   pool-0.7        129 casters      24 ms
+  green   pool-0.5        129 casters      22 ms
+  green   pool-0.25       129 casters      21 ms
+  green   pool-0          129 casters      23 ms
+  green   width-1         129 casters      22 ms
+  green   width-0.8       129 casters      21 ms
+  green   width-0.5       129 casters      20 ms
+  yellow  today            11 casters      17 ms
+  yellow  pool-1           11 casters      16 ms
+  yellow  pool-0.7         11 casters      14 ms
+  yellow  pool-0.5         11 casters      16 ms
+  yellow  pool-0.25        11 casters      18 ms
+  yellow  pool-0           11 casters      18 ms
+  yellow  width-1          11 casters      15 ms
+  yellow  width-0.8        11 casters      14 ms
+  yellow  width-0.5        11 casters      12 ms
+  forest  today          1361 casters     484 ms
+  forest  shipped        1361 casters     468 ms
+
+FRAME COST — GPU ms per frame, the green island at 8 px/unit, 60 frames on the GPU's own clock (REPORTS, ADR-0517 D4):
+  today        2.085 ms · 4 draws · 54,514 tris
+  shipped      1.399 ms · 4 draws · 54,514 tris
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row, an arc intent or an earlier evidence sheet.
+ladders: pool 1 / 0.7 / 0.5 / 0.25 / 0 of the derived reach · cone 1 / 0.8 / 0.65 / 0.5 of the crown · depth derived / 0.7 / 0.62 / 0.55 (higher is lighter)

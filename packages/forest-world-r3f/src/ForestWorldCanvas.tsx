@@ -58,7 +58,7 @@ import {
 } from './shadow-atlas.js';
 import { groundBounds, groundCasters, placementCasters } from './ground-casters.js';
 import { SHADOW_PENUMBRA, type ShadowCaster } from './land-shadow.js';
-import { SHADOW_CONTACT_BAND, type ContactBand } from './contact-shade.js';
+import { CONTACT_SPREAD, SHADOW_CONTACT_BAND, type ContactBand } from './contact-shade.js';
 import { SHADOW_DEPTH, SHADOW_EDGE, type ShadowDepthOptions } from './shadow-rung.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, roleHeights, type LoadedKit } from './kit-mesh.js';
 import {
@@ -685,9 +685,10 @@ function buildGroundOcclusionField(
   casters: readonly ShadowCaster[],
   penumbra: number,
   contactBand: ContactBand,
+  contactSpread: number,
 ): AtlasField | null {
   if (groundBounds(cells) === null) return null;
-  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters, penumbra, contactBand });
+  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters, penumbra, contactBand, contactSpread });
 }
 
 /**
@@ -764,6 +765,9 @@ export function shippedGroundBuild(
   /** Which rung the contact pools land on — `SHADOW_CONTACT_BAND` unless a COMPARISON arm's
    *  control asks for the field as it was; the canvas never passes it. */
   contactBand: ContactBand = SHADOW_CONTACT_BAND,
+  /** How far the contact pools spread — `CONTACT_SPREAD` unless a COMPARISON arm asks for a rung
+   *  of its ladder; the canvas never passes it. */
+  contactSpread: number = CONTACT_SPREAD,
 ): ShippedGroundBuild {
   // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
   // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
@@ -780,7 +784,7 @@ export function shippedGroundBuild(
   // than by two calls happening to pack the same way. They disagree silently: every island would
   // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
   // set of shadows belonging to the wrong land.
-  const field = buildGroundOcclusionField(clipped, casters, penumbra, contactBand);
+  const field = buildGroundOcclusionField(clipped, casters, penumbra, contactBand, contactSpread);
   const input: CellGroundGeometryInput = {
     cells: clipped,
     resolve: linearColourOf,

@@ -44,6 +44,8 @@
     "measure-shipped-wheat-lift": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-wheat-lift-measure.mjs",
     "measure-land-ratio-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-land-ratio-cost.mjs",
     "measure-shipped-spacing": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-spacing-measure.mjs",
+    "measure-shipped-island-floor": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-island-floor-measure.mjs",
+    "measure-shipped-shadow-scale": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-shadow-scale-measure.mjs",
     "measure-spacing-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-spacing-cost.mjs",
     "measure-shipped-tile": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-tile-measure.mjs",
     "measure-tile-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-tile-cost.mjs",

@@ -293,6 +293,7 @@
       "packages/orchestrator/src/proof/proof-status.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/usage-event.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/anchor-compute.ts": "boundhash-on-verdict",
+      "packages/orchestrator/src/proof/proved-span*.ts": "boundhash-on-verdict",
       "packages/orchestrator/src/proof/source-drift.ts": "source-drift",
       "packages/orchestrator/src/proof/attestations.ts": "attestation-signals",
       "packages/orchestrator/src/proof/verdict-line.ts": "verdict-line",

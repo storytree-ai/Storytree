@@ -1,0 +1,1695 @@
+{
+  "today": {
+    "arm": "today",
+    "floor": 0,
+    "islands": [
+      {
+        "id": "drive-machinery",
+        "capabilities": 26,
+        "tiles": 28,
+        "drawn": 52980.037444010726,
+        "area": 8267.999999999767,
+        "perCapability": 317.999999999991,
+        "rank": 1
+      },
+      {
+        "id": "studio",
+        "capabilities": 20,
+        "tiles": 22,
+        "drawn": 41697.74873879383,
+        "area": 6360.000000000058,
+        "perCapability": 318.0000000000029,
+        "rank": 2
+      },
+      {
+        "id": "storage-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5688.904697486199,
+        "area": 5688.904697486199,
+        "perCapability": null,
+        "rank": 3
+      },
+      {
+        "id": "website",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5684.197372400202,
+        "area": 5684.197372400202,
+        "perCapability": null,
+        "rank": 4
+      },
+      {
+        "id": "feedback-graduation",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5678.67138208478,
+        "area": 5678.67138208478,
+        "perCapability": null,
+        "rank": 5
+      },
+      {
+        "id": "proof-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5675.250530936755,
+        "area": 5675.250530936755,
+        "perCapability": null,
+        "rank": 6
+      },
+      {
+        "id": "library-tech-tree-overlay",
+        "capabilities": 16,
+        "tiles": 18,
+        "drawn": 34097.40691470192,
+        "area": 5087.999999999825,
+        "perCapability": 317.9999999999891,
+        "rank": 7
+      },
+      {
+        "id": "desktop",
+        "capabilities": 12,
+        "tiles": 14,
+        "drawn": 26517.23934097105,
+        "area": 3816.0000000002037,
+        "perCapability": 318.000000000017,
+        "rank": 8
+      },
+      {
+        "id": "library",
+        "capabilities": 12,
+        "tiles": 14,
+        "drawn": 26515.923628990306,
+        "area": 3815.999999999767,
+        "perCapability": 317.9999999999806,
+        "rank": 9
+      },
+      {
+        "id": "library-review",
+        "capabilities": 9,
+        "tiles": 11,
+        "drawn": 20840.731574142934,
+        "area": 2862.0000000001164,
+        "perCapability": 318.00000000001296,
+        "rank": 10
+      },
+      {
+        "id": "website-experience",
+        "capabilities": 9,
+        "tiles": 11,
+        "drawn": 20833.889871845022,
+        "area": 2862,
+        "perCapability": 318,
+        "rank": 11
+      },
+      {
+        "id": "cli",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17036.745097355917,
+        "area": 2226.0000000018626,
+        "perCapability": 318.0000000002661,
+        "rank": 12
+      },
+      {
+        "id": "app-surface",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17036.715859310236,
+        "area": 2226.0000000004657,
+        "perCapability": 318.0000000000665,
+        "rank": 13
+      },
+      {
+        "id": "context-traversal-capture",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17047.007650798652,
+        "area": 2226.0000000003492,
+        "perCapability": 318.0000000000499,
+        "rank": 14
+      },
+      {
+        "id": "wisp-as-story-claim",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17048.29412473498,
+        "area": 2225.999999999942,
+        "perCapability": 317.9999999999917,
+        "rank": 15
+      },
+      {
+        "id": "studio-cloud",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17055.106588987866,
+        "area": 2225.9999999996508,
+        "perCapability": 317.9999999999501,
+        "rank": 16
+      },
+      {
+        "id": "ci-cd",
+        "capabilities": 6,
+        "tiles": 8,
+        "drawn": 15156.504963697284,
+        "area": 1907.9999999998836,
+        "perCapability": 317.9999999999806,
+        "rank": 17
+      },
+      {
+        "id": "studio-members",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13247.757737139007,
+        "area": 1590,
+        "perCapability": 318,
+        "rank": 18
+      },
+      {
+        "id": "binding-staleness",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13254.599439435638,
+        "area": 1589.9999999997672,
+        "perCapability": 317.99999999995345,
+        "rank": 19
+      },
+      {
+        "id": "context-traversal-transcript",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13261.441141731746,
+        "area": 1589.9999999997672,
+        "perCapability": 317.99999999995345,
+        "rank": 20
+      },
+      {
+        "id": "notice-board",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11362.810278397752,
+        "area": 1272.0000000006985,
+        "perCapability": 318.0000000001746,
+        "rank": 21
+      },
+      {
+        "id": "app-guide",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11358.088334291519,
+        "area": 1272.0000000000146,
+        "perCapability": 318.00000000000364,
+        "rank": 22
+      },
+      {
+        "id": "art-factory",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11359.418665293837,
+        "area": 1271.9999999995343,
+        "perCapability": 317.9999999998836,
+        "rank": 23
+      },
+      {
+        "id": "uat-criterion-detail",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11344.419548721518,
+        "area": 1271.9999999990687,
+        "perCapability": 317.99999999976717,
+        "rank": 24
+      },
+      {
+        "id": "agent",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9456.080476875184,
+        "area": 954.0000000009313,
+        "perCapability": 318.0000000003104,
+        "rank": 25
+      },
+      {
+        "id": "terminal-repo-picker",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9482.599382784967,
+        "area": 954.0000000000146,
+        "perCapability": 318.00000000000483,
+        "rank": 26
+      },
+      {
+        "id": "arc",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9465.553603132139,
+        "area": 954,
+        "perCapability": 318,
+        "rank": 27
+      },
+      {
+        "id": "proof-binding-integrity",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9471.035736382357,
+        "area": 954,
+        "perCapability": 318,
+        "rank": 28
+      },
+      {
+        "id": "uat-attestation",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9482.628620828968,
+        "area": 953.9999999999127,
+        "perCapability": 317.9999999999709,
+        "rank": 29
+      },
+      {
+        "id": "context-traversal-spawn",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9474.500444596517,
+        "area": 953.9999999998836,
+        "perCapability": 317.9999999999612,
+        "rank": 30
+      },
+      {
+        "id": "embedded-terminal",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7580.664620478841,
+        "area": 636.0000000000291,
+        "perCapability": 318.00000000001455,
+        "rank": 31
+      },
+      {
+        "id": "terminal-tabs",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7571.191494222323,
+        "area": 636.0000000000073,
+        "perCapability": 318.00000000000364,
+        "rank": 32
+      },
+      {
+        "id": "context-traversal-telemetry",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7558.823801609338,
+        "area": 636,
+        "perCapability": 318,
+        "rank": 33
+      },
+      {
+        "id": "uat-detail-studio",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7579.290432411071,
+        "area": 635.9999999997672,
+        "perCapability": 317.9999999998836,
+        "rank": 34
+      },
+      {
+        "id": "forest-world",
+        "capabilities": 1,
+        "tiles": 3,
+        "drawn": 5675.25053093629,
+        "area": 317.99999999976717,
+        "perCapability": 317.99999999976717,
+        "rank": 35
+      }
+    ],
+    "inversions": [
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "library-tech-tree-overlay",
+        "largerCapabilities": 16,
+        "largerArea": 5087.999999999825
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "desktop",
+        "largerCapabilities": 12,
+        "largerArea": 3816.0000000002037
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "library",
+        "largerCapabilities": 12,
+        "largerArea": 3815.999999999767
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "library-review",
+        "largerCapabilities": 9,
+        "largerArea": 2862.0000000001164
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "website-experience",
+        "largerCapabilities": 9,
+        "largerArea": 2862
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "cli",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000018626
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "app-surface",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000004657
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "context-traversal-capture",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000003492
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "wisp-as-story-claim",
+        "largerCapabilities": 7,
+        "largerArea": 2225.999999999942
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "studio-cloud",
+        "largerCapabilities": 7,
+        "largerArea": 2225.9999999996508
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "ci-cd",
+        "largerCapabilities": 6,
+        "largerArea": 1907.9999999998836
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "studio-members",
+        "largerCapabilities": 5,
+        "largerArea": 1590
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "binding-staleness",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "context-traversal-transcript",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "notice-board",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000006985
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "app-guide",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000000146
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "art-factory",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999995343
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "uat-criterion-detail",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999990687
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "agent",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000009313
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "terminal-repo-picker",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000000146
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "arc",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "proof-binding-integrity",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "uat-attestation",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999999127
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "context-traversal-spawn",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999998836
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "embedded-terminal",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000291
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "terminal-tabs",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000073
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "context-traversal-telemetry",
+        "largerCapabilities": 2,
+        "largerArea": 636
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "uat-detail-studio",
+        "largerCapabilities": 2,
+        "largerArea": 635.9999999997672
+      },
+      {
+        "smaller": "storage-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5688.904697486199,
+        "larger": "forest-world",
+        "largerCapabilities": 1,
+        "largerArea": 317.99999999976717
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "library-tech-tree-overlay",
+        "largerCapabilities": 16,
+        "largerArea": 5087.999999999825
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "desktop",
+        "largerCapabilities": 12,
+        "largerArea": 3816.0000000002037
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "library",
+        "largerCapabilities": 12,
+        "largerArea": 3815.999999999767
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "library-review",
+        "largerCapabilities": 9,
+        "largerArea": 2862.0000000001164
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "website-experience",
+        "largerCapabilities": 9,
+        "largerArea": 2862
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "cli",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000018626
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "app-surface",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000004657
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "context-traversal-capture",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000003492
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "wisp-as-story-claim",
+        "largerCapabilities": 7,
+        "largerArea": 2225.999999999942
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "studio-cloud",
+        "largerCapabilities": 7,
+        "largerArea": 2225.9999999996508
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "ci-cd",
+        "largerCapabilities": 6,
+        "largerArea": 1907.9999999998836
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "studio-members",
+        "largerCapabilities": 5,
+        "largerArea": 1590
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "binding-staleness",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "context-traversal-transcript",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "notice-board",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000006985
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "app-guide",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000000146
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "art-factory",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999995343
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "uat-criterion-detail",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999990687
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "agent",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000009313
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "terminal-repo-picker",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000000146
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "arc",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "proof-binding-integrity",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "uat-attestation",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999999127
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "context-traversal-spawn",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999998836
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "embedded-terminal",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000291
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "terminal-tabs",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000073
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "context-traversal-telemetry",
+        "largerCapabilities": 2,
+        "largerArea": 636
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "uat-detail-studio",
+        "largerCapabilities": 2,
+        "largerArea": 635.9999999997672
+      },
+      {
+        "smaller": "website",
+        "smallerCapabilities": 0,
+        "smallerArea": 5684.197372400202,
+        "larger": "forest-world",
+        "largerCapabilities": 1,
+        "largerArea": 317.99999999976717
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "library-tech-tree-overlay",
+        "largerCapabilities": 16,
+        "largerArea": 5087.999999999825
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "desktop",
+        "largerCapabilities": 12,
+        "largerArea": 3816.0000000002037
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "library",
+        "largerCapabilities": 12,
+        "largerArea": 3815.999999999767
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "library-review",
+        "largerCapabilities": 9,
+        "largerArea": 2862.0000000001164
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "website-experience",
+        "largerCapabilities": 9,
+        "largerArea": 2862
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "cli",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000018626
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "app-surface",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000004657
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "context-traversal-capture",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000003492
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "wisp-as-story-claim",
+        "largerCapabilities": 7,
+        "largerArea": 2225.999999999942
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "studio-cloud",
+        "largerCapabilities": 7,
+        "largerArea": 2225.9999999996508
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "ci-cd",
+        "largerCapabilities": 6,
+        "largerArea": 1907.9999999998836
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "studio-members",
+        "largerCapabilities": 5,
+        "largerArea": 1590
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "binding-staleness",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "context-traversal-transcript",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "notice-board",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000006985
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "app-guide",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000000146
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "art-factory",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999995343
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "uat-criterion-detail",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999990687
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "agent",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000009313
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "terminal-repo-picker",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000000146
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "arc",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "proof-binding-integrity",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "uat-attestation",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999999127
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "context-traversal-spawn",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999998836
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "embedded-terminal",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000291
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "terminal-tabs",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000073
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "context-traversal-telemetry",
+        "largerCapabilities": 2,
+        "largerArea": 636
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "uat-detail-studio",
+        "largerCapabilities": 2,
+        "largerArea": 635.9999999997672
+      },
+      {
+        "smaller": "feedback-graduation",
+        "smallerCapabilities": 0,
+        "smallerArea": 5678.67138208478,
+        "larger": "forest-world",
+        "largerCapabilities": 1,
+        "largerArea": 317.99999999976717
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "library-tech-tree-overlay",
+        "largerCapabilities": 16,
+        "largerArea": 5087.999999999825
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "desktop",
+        "largerCapabilities": 12,
+        "largerArea": 3816.0000000002037
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "library",
+        "largerCapabilities": 12,
+        "largerArea": 3815.999999999767
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "library-review",
+        "largerCapabilities": 9,
+        "largerArea": 2862.0000000001164
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "website-experience",
+        "largerCapabilities": 9,
+        "largerArea": 2862
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "cli",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000018626
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "app-surface",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000004657
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "context-traversal-capture",
+        "largerCapabilities": 7,
+        "largerArea": 2226.0000000003492
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "wisp-as-story-claim",
+        "largerCapabilities": 7,
+        "largerArea": 2225.999999999942
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "studio-cloud",
+        "largerCapabilities": 7,
+        "largerArea": 2225.9999999996508
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "ci-cd",
+        "largerCapabilities": 6,
+        "largerArea": 1907.9999999998836
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "studio-members",
+        "largerCapabilities": 5,
+        "largerArea": 1590
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "binding-staleness",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "context-traversal-transcript",
+        "largerCapabilities": 5,
+        "largerArea": 1589.9999999997672
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "notice-board",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000006985
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "app-guide",
+        "largerCapabilities": 4,
+        "largerArea": 1272.0000000000146
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "art-factory",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999995343
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "uat-criterion-detail",
+        "largerCapabilities": 4,
+        "largerArea": 1271.9999999990687
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "agent",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000009313
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "terminal-repo-picker",
+        "largerCapabilities": 3,
+        "largerArea": 954.0000000000146
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "arc",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "proof-binding-integrity",
+        "largerCapabilities": 3,
+        "largerArea": 954
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "uat-attestation",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999999127
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "context-traversal-spawn",
+        "largerCapabilities": 3,
+        "largerArea": 953.9999999998836
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "embedded-terminal",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000291
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "terminal-tabs",
+        "largerCapabilities": 2,
+        "largerArea": 636.0000000000073
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "context-traversal-telemetry",
+        "largerCapabilities": 2,
+        "largerArea": 636
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "uat-detail-studio",
+        "largerCapabilities": 2,
+        "largerArea": 635.9999999997672
+      },
+      {
+        "smaller": "proof-protocol",
+        "smallerCapabilities": 0,
+        "smallerArea": 5675.250530936755,
+        "larger": "forest-world",
+        "largerCapabilities": 1,
+        "largerArea": 317.99999999976717
+      }
+    ],
+    "largest": {
+      "id": "drive-machinery",
+      "capabilities": 26,
+      "tiles": 28,
+      "drawn": 52980.037444010726,
+      "area": 8267.999999999767,
+      "perCapability": 317.999999999991,
+      "rank": 1
+    },
+    "smallest": {
+      "id": "forest-world",
+      "capabilities": 1,
+      "tiles": 3,
+      "drawn": 5675.25053093629,
+      "area": 317.99999999976717,
+      "perCapability": 317.99999999976717,
+      "rank": 35
+    },
+    "zero": [
+      {
+        "id": "storage-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5688.904697486199,
+        "area": 5688.904697486199,
+        "perCapability": null,
+        "rank": 3
+      },
+      {
+        "id": "website",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5684.197372400202,
+        "area": 5684.197372400202,
+        "perCapability": null,
+        "rank": 4
+      },
+      {
+        "id": "feedback-graduation",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5678.67138208478,
+        "area": 5678.67138208478,
+        "perCapability": null,
+        "rank": 5
+      },
+      {
+        "id": "proof-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5675.250530936755,
+        "area": 5675.250530936755,
+        "perCapability": null,
+        "rank": 6
+      }
+    ],
+    "ratioHeld": true,
+    "ratioError": 1.862645149230957e-9,
+    "totalLand": 87281.02398290898,
+    "islandsCount": 35
+  },
+  "shipped": {
+    "arm": "shipped",
+    "floor": 1,
+    "islands": [
+      {
+        "id": "drive-machinery",
+        "capabilities": 26,
+        "tiles": 28,
+        "drawn": 52980.037444010726,
+        "area": 8267.999999999767,
+        "perCapability": 317.999999999991,
+        "rank": 1
+      },
+      {
+        "id": "studio",
+        "capabilities": 20,
+        "tiles": 22,
+        "drawn": 41697.74873879383,
+        "area": 6360.000000000058,
+        "perCapability": 318.0000000000029,
+        "rank": 2
+      },
+      {
+        "id": "library-tech-tree-overlay",
+        "capabilities": 16,
+        "tiles": 18,
+        "drawn": 34097.40691470192,
+        "area": 5087.999999999825,
+        "perCapability": 317.9999999999891,
+        "rank": 3
+      },
+      {
+        "id": "desktop",
+        "capabilities": 12,
+        "tiles": 14,
+        "drawn": 26517.23934097105,
+        "area": 3816.0000000002037,
+        "perCapability": 318.000000000017,
+        "rank": 4
+      },
+      {
+        "id": "library",
+        "capabilities": 12,
+        "tiles": 14,
+        "drawn": 26515.923628990306,
+        "area": 3815.999999999767,
+        "perCapability": 317.9999999999806,
+        "rank": 5
+      },
+      {
+        "id": "library-review",
+        "capabilities": 9,
+        "tiles": 11,
+        "drawn": 20840.731574142934,
+        "area": 2862.0000000001164,
+        "perCapability": 318.00000000001296,
+        "rank": 6
+      },
+      {
+        "id": "website-experience",
+        "capabilities": 9,
+        "tiles": 11,
+        "drawn": 20833.889871845022,
+        "area": 2862,
+        "perCapability": 318,
+        "rank": 7
+      },
+      {
+        "id": "cli",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17036.745097355917,
+        "area": 2226.0000000018626,
+        "perCapability": 318.0000000002661,
+        "rank": 8
+      },
+      {
+        "id": "app-surface",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17036.715859310236,
+        "area": 2226.0000000004657,
+        "perCapability": 318.0000000000665,
+        "rank": 9
+      },
+      {
+        "id": "context-traversal-capture",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17047.007650798652,
+        "area": 2226.0000000003492,
+        "perCapability": 318.0000000000499,
+        "rank": 10
+      },
+      {
+        "id": "wisp-as-story-claim",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17048.29412473498,
+        "area": 2225.999999999942,
+        "perCapability": 317.9999999999917,
+        "rank": 11
+      },
+      {
+        "id": "studio-cloud",
+        "capabilities": 7,
+        "tiles": 9,
+        "drawn": 17055.106588987866,
+        "area": 2225.9999999996508,
+        "perCapability": 317.9999999999501,
+        "rank": 12
+      },
+      {
+        "id": "ci-cd",
+        "capabilities": 6,
+        "tiles": 8,
+        "drawn": 15156.504963697284,
+        "area": 1907.9999999998836,
+        "perCapability": 317.9999999999806,
+        "rank": 13
+      },
+      {
+        "id": "studio-members",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13247.757737139007,
+        "area": 1590,
+        "perCapability": 318,
+        "rank": 14
+      },
+      {
+        "id": "binding-staleness",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13254.599439435638,
+        "area": 1589.9999999997672,
+        "perCapability": 317.99999999995345,
+        "rank": 15
+      },
+      {
+        "id": "context-traversal-transcript",
+        "capabilities": 5,
+        "tiles": 7,
+        "drawn": 13261.441141731746,
+        "area": 1589.9999999997672,
+        "perCapability": 317.99999999995345,
+        "rank": 16
+      },
+      {
+        "id": "notice-board",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11362.810278397752,
+        "area": 1272.0000000006985,
+        "perCapability": 318.0000000001746,
+        "rank": 17
+      },
+      {
+        "id": "app-guide",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11358.088334291519,
+        "area": 1272.0000000000146,
+        "perCapability": 318.00000000000364,
+        "rank": 18
+      },
+      {
+        "id": "art-factory",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11359.418665293837,
+        "area": 1271.9999999995343,
+        "perCapability": 317.9999999998836,
+        "rank": 19
+      },
+      {
+        "id": "uat-criterion-detail",
+        "capabilities": 4,
+        "tiles": 6,
+        "drawn": 11344.419548721518,
+        "area": 1271.9999999990687,
+        "perCapability": 317.99999999976717,
+        "rank": 20
+      },
+      {
+        "id": "agent",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9456.080476875184,
+        "area": 954.0000000009313,
+        "perCapability": 318.0000000003104,
+        "rank": 21
+      },
+      {
+        "id": "terminal-repo-picker",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9482.599382784967,
+        "area": 954.0000000000146,
+        "perCapability": 318.00000000000483,
+        "rank": 22
+      },
+      {
+        "id": "arc",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9465.553603132139,
+        "area": 954,
+        "perCapability": 318,
+        "rank": 23
+      },
+      {
+        "id": "proof-binding-integrity",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9471.035736382357,
+        "area": 954,
+        "perCapability": 318,
+        "rank": 24
+      },
+      {
+        "id": "uat-attestation",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9482.628620828968,
+        "area": 953.9999999999127,
+        "perCapability": 317.9999999999709,
+        "rank": 25
+      },
+      {
+        "id": "context-traversal-spawn",
+        "capabilities": 3,
+        "tiles": 5,
+        "drawn": 9474.500444596517,
+        "area": 953.9999999998836,
+        "perCapability": 317.9999999999612,
+        "rank": 26
+      },
+      {
+        "id": "embedded-terminal",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7580.664620478841,
+        "area": 636.0000000000291,
+        "perCapability": 318.00000000001455,
+        "rank": 27
+      },
+      {
+        "id": "terminal-tabs",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7571.191494222323,
+        "area": 636.0000000000073,
+        "perCapability": 318.00000000000364,
+        "rank": 28
+      },
+      {
+        "id": "context-traversal-telemetry",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7558.823801609338,
+        "area": 636,
+        "perCapability": 318,
+        "rank": 29
+      },
+      {
+        "id": "uat-detail-studio",
+        "capabilities": 2,
+        "tiles": 4,
+        "drawn": 7579.290432411071,
+        "area": 635.9999999997672,
+        "perCapability": 317.9999999998836,
+        "rank": 30
+      },
+      {
+        "id": "feedback-graduation",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5678.67138208478,
+        "area": 318,
+        "perCapability": null,
+        "rank": 31
+      },
+      {
+        "id": "proof-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5675.250530936755,
+        "area": 318,
+        "perCapability": null,
+        "rank": 32
+      },
+      {
+        "id": "website",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5684.197372400202,
+        "area": 318,
+        "perCapability": null,
+        "rank": 33
+      },
+      {
+        "id": "forest-world",
+        "capabilities": 1,
+        "tiles": 3,
+        "drawn": 5675.25053093629,
+        "area": 317.99999999976717,
+        "perCapability": 317.99999999976717,
+        "rank": 34
+      },
+      {
+        "id": "storage-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5688.904697486199,
+        "area": 317.99999999976717,
+        "perCapability": null,
+        "rank": 35
+      }
+    ],
+    "inversions": [],
+    "largest": {
+      "id": "drive-machinery",
+      "capabilities": 26,
+      "tiles": 28,
+      "drawn": 52980.037444010726,
+      "area": 8267.999999999767,
+      "perCapability": 317.999999999991,
+      "rank": 1
+    },
+    "smallest": {
+      "id": "storage-protocol",
+      "capabilities": 0,
+      "tiles": 3,
+      "drawn": 5688.904697486199,
+      "area": 317.99999999976717,
+      "perCapability": null,
+      "rank": 35
+    },
+    "zero": [
+      {
+        "id": "feedback-graduation",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5678.67138208478,
+        "area": 318,
+        "perCapability": null,
+        "rank": 31
+      },
+      {
+        "id": "proof-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5675.250530936755,
+        "area": 318,
+        "perCapability": null,
+        "rank": 32
+      },
+      {
+        "id": "website",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5684.197372400202,
+        "area": 318,
+        "perCapability": null,
+        "rank": 33
+      },
+      {
+        "id": "storage-protocol",
+        "capabilities": 0,
+        "tiles": 3,
+        "drawn": 5688.904697486199,
+        "area": 317.99999999976717,
+        "perCapability": null,
+        "rank": 35
+      }
+    ],
+    "ratioHeld": true,
+    "ratioError": 1.862645149230957e-9,
+    "totalLand": 65826.00000000081,
+    "islandsCount": 35
+  }
+}

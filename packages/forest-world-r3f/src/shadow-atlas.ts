@@ -442,6 +442,8 @@ export interface AtlasOcclusionOptions {
   penumbra?: number;
   /** Which rung the contact term lands on, handed to every tile's builder unchanged. */
   contactBand?: ContactBand;
+  /** How far the contact pool spreads, handed to every tile's builder unchanged. */
+  contactSpread?: number;
 }
 
 /**
@@ -476,6 +478,8 @@ export function buildAtlasOcclusion(opts: AtlasOcclusionOptions): AtlasField {
     if (opts.penumbra !== undefined) tileOpts.penumbra = opts.penumbra;
     // Stryker disable next-line ConditionalExpression: EQUIVALENT — the same, for the band.
     if (opts.contactBand !== undefined) tileOpts.contactBand = opts.contactBand;
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — the same, for the spread.
+    if (opts.contactSpread !== undefined) tileOpts.contactSpread = opts.contactSpread;
     const field = buildGroundOcclusion(tileOpts);
     blitTile(data, layout.w, tile, field);
   }

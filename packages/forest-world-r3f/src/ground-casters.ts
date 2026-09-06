@@ -105,6 +105,46 @@ export function DOME_PROFILE(): SilhouetteProfile {
 }
 
 /**
+ * HOW WIDE A TREE'S CAST SHADOW IS, as a fraction of the silhouette {@link ROLE_SILHOUETTE} reads
+ * off the crown's footprint — the multiplier every radius in the `tree` and `deadTree` profiles is
+ * scaled by before it is stamped. One is the shadow as it shipped after PR #1841: the cone as
+ * wide as the crown's footprint at a quarter of its height.
+ *
+ * ⚠⚠ THE REASON (2026-09-06, the owner on the shipped map): *"a triangle for what the tree casts
+ * … too large depending on the land color."* The footprint the silhouette was read off is the
+ * crown's FULL extent — the outermost leaf cards — and a cone that wide casts a triangle 10 units
+ * across at its base on an island 88 units wide. The mass that actually blocks the sun is the
+ * crown's dense core, narrower than its outermost cards; the ladder {@link TREE_SHADOW_WIDTH_RUNGS}
+ * narrows the cast silhouette toward that core, rendered on the RTX 2060 on a green island, an
+ * in-progress wheat island and the sand band (`docs/research/chapter2-shadow-scale-back-2026-09-06/`).
+ * The pick is this constant; a scale-back is one edit to a rung already on the sheet. The
+ * caster's `radius` — what sizes its contact pool — is untouched: the two marks the owner named
+ * are two levers.
+ */
+export const TREE_SHADOW_WIDTH = 0.65;
+
+/** The width ladder the owner was shown, descending: 1 is the shadow as it shipped after PR #1841. */
+export const TREE_SHADOW_WIDTH_RUNGS: readonly number[] = [1, 0.8, 0.65, 0.5];
+
+/** A profile with every radius scaled by `width` — the same form, narrower. */
+export function narrowedSilhouette(profile: SilhouetteProfile, width: number): SilhouetteProfile {
+  return profile.map(([h, r]) => [h, r * width] as const);
+}
+
+export type RoleSilhouettes = Readonly<Record<KitRole, SilhouetteProfile>>;
+
+/** THE SILHOUETTES THE CASTERS WEAR: {@link ROLE_SILHOUETTE} with the two tree roles narrowed to
+ *  `treeWidth` ({@link TREE_SHADOW_WIDTH} unless the ladder that rendered the rungs passes one).
+ *  The bloom and the cover keep their read forms: the owner named the tree's triangle. */
+export function roleSilhouettes(treeWidth: number = TREE_SHADOW_WIDTH) {
+  return {
+    ...ROLE_SILHOUETTE,
+    tree: narrowedSilhouette(ROLE_SILHOUETTE.tree, treeWidth),
+    deadTree: narrowedSilhouette(ROLE_SILHOUETTE.deadTree, treeWidth),
+  } satisfies RoleSilhouettes;
+}
+
+/**
  * DOES THE GROUND COVER CAST? YES, since 2026-09-06 — a decision reversed, with both halves of the
  * reason it was refused re-measured.
  *
@@ -201,6 +241,9 @@ export function placementCaster(
   placement: KitPlacement,
   footprint: RoleFootprints,
   heights: RoleHeights,
+  /** The silhouettes the roles cast — the shipped ones ({@link roleSilhouettes}) unless the
+   *  ladder that rendered the width rungs passes a narrower table. */
+  silhouettes: RoleSilhouettes = roleSilhouettes(),
 ): ShadowCaster {
   return {
     x: placement.at.x,
@@ -208,8 +251,8 @@ export function placementCaster(
     radius: propRadius(footprint, placement.role) * placement.scale,
     height: heights[placement.role] * placement.scale,
     // THE FORM, from the role — so the shadow is the object's own silhouette rather than a
-    // cylinder its size ({@link ROLE_SILHOUETTE}).
-    profile: ROLE_SILHOUETTE[placement.role],
+    // cylinder its size ({@link ROLE_SILHOUETTE}, the trees narrowed to {@link TREE_SHADOW_WIDTH}).
+    profile: silhouettes[placement.role],
     // THE POOL, from the role class — the cover casts and does not pool ({@link COVER_POOLS}).
     pool: isDressingRole(placement.role) ? COVER_POOLS : true,
   };
@@ -234,11 +277,14 @@ export function placementCasters(
   footprint: RoleFootprints,
   heights: RoleHeights,
   coverCasts: boolean = COVER_CASTS,
+  /** The silhouettes the roles cast — built ONCE here and handed to every placement, rather than
+   *  once per placement: the forest stands ~2,850 casters. */
+  silhouettes: RoleSilhouettes = roleSilhouettes(),
 ): ShadowCaster[] {
   const out: ShadowCaster[] = [];
   for (const placement of placements) {
     if (!coverCasts && isDressingRole(placement.role)) continue;
-    out.push(placementCaster(placement, footprint, heights));
+    out.push(placementCaster(placement, footprint, heights, silhouettes));
   }
   return out;
 }

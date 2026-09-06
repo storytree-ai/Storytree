@@ -18,6 +18,7 @@ import { execFile } from "node:child_process";
 import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
 import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
+  Anchor,
   ChangeEvent,
   ContractCoverageAxis,
   EvidenceRef,
@@ -61,7 +62,22 @@ export interface ProvenBinding {
   priorHash?: string;
   /** The described "changed: why" for the emitted ChangeEvent; absent = an undescribed (demoted) change. */
   description?: string;
+  /**
+   * ADR-0534: the IDENTITY half — the re-anchorable {@link Anchor}s whose spans `boundHash` versions
+   * (one per changed top-level declaration, or one per file where a change could not be named).
+   * Stamped onto `verdict.anchors`; without it the hash could never be re-located.
+   */
+  anchors?: Anchor[];
 }
+
+/**
+ * ADR-0534: a binding may be supplied as a VALUE (the original ADR-0016 seam, kept for callers that
+ * already hold the hash) or as a THUNK consulted at GATE — because in a real build the proved bytes
+ * do not exist until the walk has authored and the spine has committed them, so no binding can be
+ * computed at resolve time. Same lazy, signed-green-only pattern as `contractCoverage` and
+ * `storyBaseline`: an aborted walk never evaluates it. A thunk returning `undefined` stamps nothing.
+ */
+export type BindingSupplier = ProvenBinding | (() => ProvenBinding | undefined | Promise<ProvenBinding | undefined>);
 
 /** The full input to {@link proveUnit}. Every seam the gate touches is injected for determinism. */
 export interface ProveSpec {
@@ -88,8 +104,11 @@ export interface ProveSpec {
   prompts: PhasePrompts;
   /** The owned-loop run id this verdict is tied to. */
   runId: string;
-  /** ADR-0016 (optional): the binding proved — stamps verdict.boundHash + emits a ChangeEvent. Absent = unchanged. */
-  binding?: ProvenBinding;
+  /**
+   * ADR-0016 (optional): the binding proved — stamps verdict.boundHash (+ verdict.anchors) and emits a
+   * ChangeEvent. Absent = unchanged. A value or a GATE-time thunk ({@link BindingSupplier}, ADR-0534).
+   */
+  binding?: BindingSupplier;
   /** ADR-0016 (optional): the change-log sink the emitted ChangeEvent is appended to. Absent = no emission. */
   changeStore?: ChangeStore;
   /**
@@ -299,6 +318,9 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ADR-0416 D6: the scope this pass covers, on the same lazy, signed-green-only path as the coverage
   // axis above — an aborted walk establishes no baseline.
   const baseline = spec.storyBaseline?.();
+  // ADR-0534: the binding, resolved on the same lazy path — a thunk runs only here, AFTER the tree
+  // seam has committed the authored files, so what it hashes is the attested commit's bytes.
+  const binding = typeof spec.binding === "function" ? await spec.binding() : spec.binding;
 
   const verdict: Verdict = {
     unitId: spec.unitId,
@@ -313,7 +335,10 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     evidence: [toEvidence(redObs), toEvidence(greenObs)],
     at: spec.now(),
   };
-  if (spec.binding !== undefined) verdict.boundHash = spec.binding.boundHash;
+  if (binding !== undefined) {
+    verdict.boundHash = binding.boundHash;
+    if (binding.anchors !== undefined && binding.anchors.length > 0) verdict.anchors = binding.anchors;
+  }
   if (coverage !== undefined) verdict.contractCoverage = coverage;
   if (baseline !== undefined) verdict.storyBaseline = baseline;
 
@@ -329,16 +354,16 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ADR-0016: record WHAT code this proof attests — a ChangeEvent advancing the unit's bound hash
   // (provenance: the attested commit). Only when a binding AND a change-log sink are present; both are
   // absent for every pre-ADR-0016 caller, so existing behaviour is unchanged.
-  if (spec.binding !== undefined && spec.changeStore !== undefined) {
+  if (binding !== undefined && spec.changeStore !== undefined) {
     const change: ChangeEvent = {
       unitId: spec.unitId,
-      hashBefore: spec.binding.priorHash ?? spec.binding.boundHash,
-      hashAfter: spec.binding.boundHash,
+      hashBefore: binding.priorHash ?? binding.boundHash,
+      hashAfter: binding.boundHash,
       author: signer.signer,
       at: spec.now(),
       commitSha: tree.commitSha,
     };
-    if (spec.binding.description !== undefined) change.description = spec.binding.description;
+    if (binding.description !== undefined) change.description = binding.description;
     await spec.changeStore.appendChangeEvent(change);
   }
 

@@ -16,12 +16,14 @@ import { RECIPE_ISLAND_AREA } from './dressing-ground.js';
 import {
   HEX_TILE_AREA,
   LAND_AREA_PER_CAPABILITY,
+  LAND_FLOOR_CAPABILITIES,
   LAND_AREA_PER_CAPABILITY_RUNGS,
   LAND_SCALE,
   MAX_LAND_FACTOR,
   TUNED_FIXTURE,
   TUNED_LAND_AREA_PER_CAPABILITY,
   islandLand,
+  islandSizeInversions,
   landRatioFactor,
   ringArea,
   sizeIslandsByCapability,
@@ -153,14 +155,13 @@ test('islandLand counts DISTINCT parcels per island and sums the rings’ areas;
   assert.equal(islandLand([noIsland]).size, 0, 'a cell on no island contributes to no island');
 });
 
-test('landRatioFactor: √(capabilities × ratio / area), so the scaled area is exactly capabilities × ratio; nothing to derive from ⇒ 1; a bad ratio refuses', () => {
+test('landRatioFactor: √(capabilities × ratio / area), so the scaled area is exactly capabilities × ratio; no land to derive from ⇒ 1; a bad ratio refuses', () => {
   const land = { island: 'a', capabilities: 4, area: 1600 };
   assert.equal(landRatioFactor(land, 400), 1, 'already at the ratio');
   assert.equal(landRatioFactor(land, 100), 0.5);
   assert.equal(landRatioFactor(land, 1600), 2);
   const f = landRatioFactor(land, 318);
   assert.ok(Math.abs(f * f * 1600 - 4 * 318) < 1e-9);
-  assert.equal(landRatioFactor({ island: 'a', capabilities: 0, area: 1600 }, 318), 1);
   assert.equal(landRatioFactor({ island: 'a', capabilities: 3, area: 0 }, 318), 1);
   for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(() => landRatioFactor(land, bad), /positive finite number/);
@@ -174,6 +175,118 @@ test('landRatioFactor: √(capabilities × ratio / area), so the scaled area is 
   assert.throws(() => landRatioFactor(land, 1600 * 101 * 101 / 4), /past 100× either way/);
   assert.throws(() => landRatioFactor(land, 1600 / (4 * 101 * 101)), /past 100× either way/);
   assert.equal(MAX_LAND_FACTOR, 100);
+});
+
+test('⚠⚠ THE FLOOR: an island holding NO capability is sized as ONE — the owner’s "no capabilities should just be 1 hex which should be the minimum" — and a floor of 0 is the rule as it stood', () => {
+  assert.equal(LAND_FLOOR_CAPABILITIES, 1);
+  const none = { island: 'bare', capabilities: 0, area: 1600 };
+  // Sized as one: √(1 × 400 / 1600) = 0.5, so the scaled area is exactly one capability's worth.
+  assert.equal(landRatioFactor(none, 400), 0.5);
+  assert.equal(landRatioFactor(none, 400, LAND_FLOOR_CAPABILITIES), 0.5, 'the default IS the shipped floor');
+  assert.equal(landRatioFactor(none, 400, 1), 0.5);
+  // The floor is a floor: an island holding MORE than it is unchanged by it.
+  const four = { island: 'a', capabilities: 4, area: 1600 };
+  assert.equal(landRatioFactor(four, 100, 1), 0.5);
+  assert.equal(landRatioFactor(four, 100, 0), 0.5);
+  assert.equal(landRatioFactor(four, 100, 4), 0.5, 'a floor equal to the count is the count');
+  // A floor ABOVE the count lifts it: a one-capability island floored at 2 is sized as two.
+  assert.equal(landRatioFactor({ island: 'a', capabilities: 1, area: 1600 }, 200, 2), 0.5);
+  // ⚠ ZERO IS THE MAP AS IT STOOD — the comparison page's control: nothing to count, left as drawn.
+  assert.equal(landRatioFactor(none, 400, 0), 1);
+  // No land is still no reading, whatever the floor.
+  assert.equal(landRatioFactor({ island: 'a', capabilities: 0, area: 0 }, 318), 1);
+  assert.equal(landRatioFactor({ island: 'a', capabilities: 0, area: 0 }, 318, 0), 1);
+  // A garbage floor refuses rather than sizing an island as minus-one capabilities.
+  for (const bad of [-1, Number.NaN, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => landRatioFactor(none, 400, bad), /non-negative finite number of capabilities/);
+  }
+  // And the floor is well inside the refusal: a three-tile zero-capability island of today's
+  // drawing (≈ 5,682 units²) sized to 318 is a factor of 0.237, nowhere near 1/100.
+  const drawnToday = 3 * HEX_TILE_AREA;
+  const f = landRatioFactor({ island: 'website', capabilities: 0, area: drawnToday }, LAND_AREA_PER_CAPABILITY);
+  assert.ok(Math.abs(f - Math.sqrt(LAND_AREA_PER_CAPABILITY / drawnToday)) < 1e-12, `${f}`);
+  assert.ok(f > 1 / MAX_LAND_FACTOR && f < 1);
+});
+
+test('⚠⚠ THE INVARIANT THE FLOOR EXISTS FOR: on today’s drawing, no island with fewer capabilities is drawn larger than one with more — and without the floor, the zero-capability island outsizes everything up to six', () => {
+  // Today's 2D drawing gives a story `max(3, capabilities + 2)` tiles of the radius-27 lattice —
+  // the drawing the mapper receives until ADR-0528's tile lands. One square cell per island of that
+  // area, at capability counts spanning the real corpus (0 … 26).
+  const counts = [0, 1, 2, 3, 4, 6, 7, 11, 16, 26];
+  const drawn = counts.flatMap((caps, i) => {
+    const area = Math.max(3, caps + 2) * HEX_TILE_AREA;
+    const side = Math.sqrt(area);
+    const cells = [cell(`isle-${caps}`, undefined, i * 1000, 0, side)];
+    // `caps` distinct parcels, each a tiny cell so the area is the big cell's to within a rounding.
+    for (let k = 0; k < caps; k += 1) cells.push(cell(`isle-${caps}`, `isle-${caps}/p${k}`, i * 1000, 0, 1e-3));
+    return cells;
+  });
+  const drawnLand = islandLand(drawn);
+  assert.equal(drawnLand.get('isle-0')!.capabilities, 0);
+  assert.equal(drawnLand.get('isle-26')!.capabilities, 26);
+  // AS DRAWN the zero-capability island is the size of a one-capability one (both three tiles) —
+  // the drawing's own floor.
+  assert.ok(Math.abs(drawnLand.get('isle-0')!.area - drawnLand.get('isle-1')!.area) < 1e-6);
+
+  // THE RULE AS IT STOOD (floor 0): the zero-capability island is left at three tiles while every
+  // other shrinks to its ratio — it is larger than every island up to six capabilities.
+  const before = islandLand(sizeIslandsByCapability(drawn, LAND_AREA_PER_CAPABILITY, 0));
+  assert.ok(Math.abs(before.get('isle-0')!.area - 3 * HEX_TILE_AREA) < 1e-6, 'left as drawn');
+  const inverted = islandSizeInversions(before.values());
+  assert.deepEqual(
+    inverted.map((p) => [p.smaller.capabilities, p.larger.capabilities]),
+    [[0, 1], [0, 2], [0, 3], [0, 4], [0, 6], [0, 7], [0, 11], [0, 16]],
+    'the zero-capability island outsizes everything up to sixteen capabilities',
+  );
+  assert.ok(before.get('isle-0')!.area / before.get('isle-1')!.area > 17, `${before.get('isle-0')!.area / before.get('isle-1')!.area}× the one-capability island`);
+
+  // WITH THE FLOOR: every island is exactly max(1, capabilities) × the ratio, so the areas are
+  // non-decreasing in capability count and the zero-capability island EQUALS the one-capability one.
+  const after = islandLand(sizeIslandsByCapability(drawn, LAND_AREA_PER_CAPABILITY));
+  assert.deepEqual(islandSizeInversions(after.values()), []);
+  for (const caps of counts) {
+    assert.ok(Math.abs(after.get(`isle-${caps}`)!.area - Math.max(LAND_FLOOR_CAPABILITIES, caps) * LAND_AREA_PER_CAPABILITY) < 1e-6, `${caps}`);
+  }
+  assert.ok(Math.abs(after.get('isle-0')!.area - after.get('isle-1')!.area) < 1e-6);
+  const sorted = counts.map((caps) => after.get(`isle-${caps}`)!.area);
+  for (let i = 1; i < sorted.length; i += 1) assert.ok(sorted[i]! >= sorted[i - 1]! - 1e-6);
+  // ⚠ ADR-0528 (the tile follows the ratio, one hex per capability, `max(1, caps)` tiles) is what
+  // makes the 2D drawing itself obey this; the mapper obeys it today on either drawing, because the
+  // floor is written in the ratio's terms rather than in today's tile. On a one-hex-per-capability
+  // drawing every factor is ~1 and the invariant still holds exactly.
+  const derivedTile = counts.flatMap((caps, i) => {
+    const area = Math.max(1, caps) * LAND_AREA_PER_CAPABILITY;
+    const side = Math.sqrt(area);
+    const cells = [cell(`isle-${caps}`, undefined, i * 1000, 0, side)];
+    for (let k = 0; k < caps; k += 1) cells.push(cell(`isle-${caps}`, `isle-${caps}/p${k}`, i * 1000, 0, 1e-3));
+    return cells;
+  });
+  const onDerived = islandLand(sizeIslandsByCapability(derivedTile, LAND_AREA_PER_CAPABILITY));
+  assert.deepEqual(islandSizeInversions(onDerived.values()), []);
+  assert.ok(Math.abs(onDerived.get('isle-0')!.area - LAND_AREA_PER_CAPABILITY) < 1e-6);
+});
+
+test('islandSizeInversions names every pair drawn the wrong way round, and nothing else', () => {
+  const a = { island: 'a', capabilities: 1, area: 100 };
+  const b = { island: 'b', capabilities: 2, area: 50 };
+  const c = { island: 'c', capabilities: 3, area: 300 };
+  const d = { island: 'd', capabilities: 3, area: 200 };
+  assert.deepEqual(islandSizeInversions([a, b, c, d]), [{ smaller: a, larger: b }]);
+  // Equal capability counts are never an inversion (c and d), nor is an equal area (the floor's
+  // own case), nor a difference inside the tolerance.
+  assert.deepEqual(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 }, { island: 'y', capabilities: 1, area: 318 }]), []);
+  assert.deepEqual(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-9 }, { island: 'y', capabilities: 1, area: 318 }]), []);
+  assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-3 }, { island: 'y', capabilities: 1, area: 318 }]).length, 1);
+  assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 318 + 1e-3 }, { island: 'y', capabilities: 1, area: 318 }], 1e-2).length, 0, 'the tolerance is the caller’s');
+  // EXACTLY at the tolerance is equal, not inverted: the comparison is strict, so the floor's own
+  // case — two areas a tolerance apart — never reads as an inversion.
+  assert.deepEqual(islandSizeInversions([{ island: 'x', capabilities: 0, area: 319 }, { island: 'y', capabilities: 1, area: 318 }], 1), []);
+  assert.equal(islandSizeInversions([{ island: 'x', capabilities: 0, area: 319.5 }, { island: 'y', capabilities: 1, area: 318 }], 1).length, 1);
+  assert.deepEqual(islandSizeInversions([]), []);
+  assert.deepEqual(islandSizeInversions([a]), []);
+  // Order: by the smaller island first, in input order — so a report is stable.
+  const e = { island: 'e', capabilities: 0, area: 1000 };
+  assert.deepEqual(islandSizeInversions([e, a, b]).map((p) => `${p.smaller.island}>${p.larger.island}`), ['e>a', 'e>b', 'a>b']);
 });
 
 test('⚠⚠ sizeIslandsByCapability: every island’s area becomes capabilities × ratio, isotropically, about its OWN centre — the centres (the layout) do not move', () => {
@@ -207,18 +320,27 @@ test('⚠⚠ sizeIslandsByCapability: every island’s area becomes capabilities
   assert.equal(extent(a).w, 80);
 });
 
-test('⚠ a ratio equal to an island’s own density leaves it byte-identical; the default ratio is the shipped constant; an island with no parcels stays as drawn while its neighbour scales', () => {
+test('⚠ a ratio equal to an island’s own density leaves it byte-identical; the default ratio is the shipped constant; an island with no parcels is sized as ONE beside its neighbour — and a floor of 0 leaves it as drawn', () => {
   const a = [cell('a', 'a/p1', 0, 0), cell('a', 'a/p2', 20, 0)];
   const same = sizeIslandsByCapability(a, 400);
   assert.deepEqual(same, a);
   const explicit = sizeIslandsByCapability(a, LAND_AREA_PER_CAPABILITY);
   assert.ok(Math.abs(islandLand(explicit).get('a')!.area - 2 * LAND_AREA_PER_CAPABILITY) < 1e-9);
-  // There is NO default ratio here — the one caller that means the shipped one says so (`worldTo3D`),
+  // There is NO default ratio here — the one caller that means "the shipped one" says so (`worldTo3D`),
   // and `world-to-3d.test.ts` holds that its default IS the shipped constant.
   const mixed = [cell('bare', undefined, 0, 0), cell('b', 'b/p', 300, 0)];
   const out = sizeIslandsByCapability(mixed, 100);
-  assert.deepEqual(out[0], mixed[0], 'no capability, no reading, no change');
+  // The bare island: 400 units² drawn, sized as ONE capability → 100, about its own centre (0, 0).
+  assert.ok(Math.abs(islandLand(out).get('bare')!.area - 100) < 1e-9, 'one capability’s worth');
+  assert.equal(islandLand(out).get('bare')!.capabilities, 0, 'it still holds none — the size is the floor’s, not a counted capability');
+  assert.deepEqual(out[0]!.transform, { x: 0, y: 0, z: 0 }, 'about its own centre');
+  assert.deepEqual(out[0]!.points![0], { x: -5, y: 0, z: -5 });
   assert.ok(Math.abs(islandLand(out).get('b')!.area - 100) < 1e-9);
+  // The default floor IS the shipped one; 0 is the map as it stood — the bare island left as drawn.
+  assert.deepEqual(sizeIslandsByCapability(mixed, 100, LAND_FLOOR_CAPABILITIES), out);
+  const before = sizeIslandsByCapability(mixed, 100, 0);
+  assert.deepEqual(before[0], mixed[0], 'floor 0: no capability, no reading, no change');
+  assert.ok(Math.abs(islandLand(before).get('b')!.area - 100) < 1e-9, 'its neighbour scales either way');
   assert.deepEqual(sizeIslandsByCapability([], 100), []);
 });
 

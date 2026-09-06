@@ -56,14 +56,30 @@ import {
 } from './land-shadow.js';
 
 /**
- * How far the contact pool is allowed to spread, as a multiplier on the DERIVED extent.
+ * How far the contact pool is allowed to spread, as a multiplier on the DERIVED extent — the
+ * pool's visible edge sits at `contactReach × CONTACT_SPREAD` from the caster's axis.
  *
- * ONE, AND THAT IS THE POINT — the falloff below is derived from each caster's own geometry
- * rather than dialled, so this exists to make a deliberate widening VISIBLE as a widening rather
- * than to hide it inside the derivation. If a pass ever raises it, that is an appearance call and
- * ADR-0392 D2 requires it recorded with its reason.
+ * IT WAS ONE, AND THAT WAS THE POINT — the falloff below is derived from each caster's own
+ * geometry rather than dialled, so this exists to make a deliberate change VISIBLE as a change
+ * rather than to hide it inside the derivation, and ADR-0392 D2 requires the reason recorded.
+ *
+ * ⚠⚠ THE REASON (2026-09-06, the owner on the shipped map): *"you have a full circle under the
+ * tree that is quite large."* The derivation models every caster as a CYLINDER of its crown's
+ * radius from foot to tip, so a pine's pool is the sky a solid 10-unit-wide column would hide —
+ * its edge 2.0 units past the crown, a 14-unit disc under an 18-unit tree on an 88-unit island.
+ * The pine is a cone on a trunk 8% of that width; near the ground it hides a fraction of the sky
+ * the cylinder does, and the pool the reference paints is a tight dark foot. The ladder
+ * {@link CONTACT_SPREAD_RUNGS} narrows the pool's edge toward that foot, rendered on the RTX 2060
+ * on a green island, an in-progress wheat island and the sand band
+ * (`docs/research/chapter2-shadow-scale-back-2026-09-06/`); the pick is this constant, and a
+ * scale-back is one edit to a rung already on the sheet.
  */
-export const CONTACT_SPREAD = 1;
+export const CONTACT_SPREAD = 0.5;
+
+/** The pool ladder the owner was shown, as fractions of the derived reach: 1 is the pool as it
+ *  shipped after PR #1841; 0 is no pool at all — the trees casting and not pooling, as the ground
+ *  cover already does. Descending, so each rung is a smaller circle than the one before. */
+export const CONTACT_SPREAD_RUNGS: readonly number[] = [1, 0.7, 0.5, 0.25, 0];
 
 /**
  * The fraction of the sky a vertical cylinder hides from a ground point at horizontal distance
@@ -191,7 +207,10 @@ export interface ContactFieldOptions {
    *  {@link SHADOW_TEXTURE_MAX} — the SAME one the cast field is built under, for the same
    *  reason the bounds are the same: the merge is index-for-index. */
   max?: number;
-  /** Widen (or narrow) the derived pool. See {@link CONTACT_SPREAD}. */
+  /** Widen (or narrow) the derived pool, as a multiplier on the reach. ⚠ DEFAULTS TO ONE — the
+   *  DERIVED pool, which is what this builder's goldens pin; the SHIPPED pick ({@link CONTACT_SPREAD})
+   *  is applied by {@link buildGroundOcclusion}, where the shipped field is assembled, so the
+   *  derivation and the appearance call stay two things. */
   spread?: number;
 }
 
@@ -226,7 +245,17 @@ export function buildContactField(opts: ContactFieldOptions): ShadowField {
   const field = emptyField(grid);
   const { minX, minZ, w, gres } = grid;
   const data = field.data;
-  const spread = opts.spread ?? CONTACT_SPREAD;
+  const spread = opts.spread ?? 1;
+  // A spread of nothing pools nothing: the field stays empty rather than each foot's own sample
+  // being divided by zero (`d / 0`) and written as whatever `NaN` stores in a byte.
+  // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT, and provably so
+  // rather than by inspection — the guard is legibility, not behaviour. WITHOUT it a spread of 0
+  // gives every caster a reach of 0, so `d > reach` skips every sample but a foot standing exactly
+  // on a texel, whose `0 / 0` is NaN, whose byte a `Uint8Array` stores as 0 — the same empty field;
+  // a NEGATIVE spread inverts the stamp box (`x − reach > x + reach`) so its `span` is empty and
+  // nothing is written at all. `<` vs `<=` differs only at exactly 0, which the NaN path delivers
+  // identically. No field a test can read separates the three.
+  if (spread <= 0) return field;
 
   for (const c of opts.casters) {
     // A caster that pools nothing (`pool: false`, the ground cover's) is skipped HERE, where the
@@ -332,6 +361,9 @@ export interface GroundOcclusionOptions {
   /** WHICH RUNG THE CONTACT TERM LANDS ON — see {@link ContactBand}. Defaults to
    *  {@link SHADOW_CONTACT_BAND}; a comparison's control passes `full`. */
   contactBand?: ContactBand;
+  /** HOW FAR THE POOL SPREADS, as a multiplier on the derived reach — {@link CONTACT_SPREAD}
+   *  unless the ladder that rendered the rungs passes one. */
+  contactSpread?: number;
 }
 
 /**
@@ -411,7 +443,10 @@ export function buildGroundOcclusion(opts: GroundOcclusionOptions): ShadowField 
   // statement exists for the type, not the runtime.
   if (opts.penumbra !== undefined) castOpts.penumbra = opts.penumbra;
   const cast = buildCanopyShadowField(castOpts);
-  const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres, max });
+  // ⚠ THE SHIPPED SPREAD IS APPLIED HERE, not defaulted inside the contact builder: that builder's
+  // own default is the DERIVED pool (spread 1), so its goldens pin the derivation, and this is the
+  // one place the appearance call ({@link CONTACT_SPREAD}) meets the field the material receives.
+  const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres, max, spread: opts.contactSpread ?? CONTACT_SPREAD });
   const band = opts.contactBand ?? SHADOW_CONTACT_BAND;
   return mergeOcclusion(cast, band === 'soft' ? packContactSoft(contact) : contact);
 }

@@ -18,6 +18,7 @@ import {
   arcState,
   briefingLead,
   defaultLaneId,
+  findLane,
   isGated,
   laneBars,
   laneCounts,
@@ -27,6 +28,8 @@ import {
   questionFields,
   questionRowStats,
   questionWordBudget,
+  queueChips,
+  shortLabel,
   wordCount,
   BLOCKED_IS_DERIVABLE,
   QUESTION_WORD_BUDGET_FIELDS,
@@ -742,6 +745,148 @@ describe('arcLanes — nesting a queued arc under its blocker (ADR-0523, inc-05)
     const underB = underA?.[0]?.queued;
     expect(underB?.map((l) => l.arc.id)).toEqual(['a']);
     expect(underB?.[0]?.queued).toEqual([]);
+  });
+});
+
+describe('shortLabel — the short name already existed, and it is the id (inc-07)', () => {
+  it('drops the house `-arc` suffix and de-kebabs the rest', () => {
+    expect(shortLabel('land-ground-stack-arc')).toBe('Land ground stack');
+    expect(shortLabel('mount-the-land-on-a-real-surface-arc')).toBe('Mount the land on a real surface');
+  });
+
+  it('capitalises the FIRST word only — a name, not a heading', () => {
+    // "Land Ground Stack" would read as a proper noun the corpus does not have.
+    expect(shortLabel('forest-geometry-rebuild-arc')).toBe('Forest geometry rebuild');
+  });
+
+  it('is materially shorter than the title it replaces — the whole reason it exists', () => {
+    // The measured pair from the live store on 2026-09-06: title 61 chars, short label 17.
+    const title = 'The shipped ground wears the approved material, layer by layer';
+    expect(shortLabel('land-ground-stack-arc').length).toBeLessThan(title.length / 2);
+  });
+
+  it('leaves an id that does not carry the suffix alone', () => {
+    expect(shortLabel('some-initiative')).toBe('Some initiative');
+  });
+
+  it('strips the suffix only at the END, never mid-id', () => {
+    expect(shortLabel('arc-queue-and-question-legibility-arc')).toBe('Arc queue and question legibility');
+  });
+
+  it('never returns empty — a malformed id falls back to itself rather than a blank chip', () => {
+    expect(shortLabel('-arc')).toBe('-arc');
+    expect(shortLabel('--')).toBe('--');
+  });
+
+  it('collapses repeated separators rather than emitting empty words', () => {
+    expect(shortLabel('a--b-arc')).toBe('A b');
+  });
+});
+
+describe('queueChips — the row’s chip run: direct children, depth as a count (inc-07)', () => {
+  it('is EMPTY for an ungated arc — the density property, in the derivation rather than the render', () => {
+    const lanes = arcLanes([lane({ id: 'a' }), lane({ id: 'b' })], NOW);
+    expect(lanes.every((l) => queueChips(l).length === 0)).toBe(true);
+  });
+
+  it('names each direct child by its short label, with its long title kept for the hover', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({
+          id: 'mount-the-land-arc',
+          title: 'The land treatment reaches a surface somebody opens',
+          gates: [{ id: 'blocker', shut: true }],
+        }),
+      ],
+      NOW,
+    );
+    const chips = queueChips(lanes[0]!);
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.label).toBe('Mount the land');
+    expect(chips[0]?.title).toBe('The land treatment reaches a surface somebody opens');
+  });
+
+  it('carries the count of what each child in turn holds up, and never hoists those into the run', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'middle-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'leaf-one-arc', gates: [{ id: 'middle-arc', shut: true }] }),
+        lane({ id: 'leaf-two-arc', gates: [{ id: 'middle-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+    const chips = queueChips(lanes[0]!);
+    // ONE chip, not three: the run answers "what is lined up behind THIS arc", and depth rides as
+    // a count. Hoisting the grandchildren would make a set of siblings read as a chain.
+    expect(chips.map((c) => c.id)).toEqual(['middle-arc']);
+    expect(chips[0]?.gates).toBe(2);
+  });
+
+  it('reports zero gates for a leaf', () => {
+    const lanes = arcLanes(
+      [lane({ id: 'blocker' }), lane({ id: 'leaf-arc', gates: [{ id: 'blocker', shut: true }] })],
+      NOW,
+    );
+    expect(queueChips(lanes[0]!)[0]?.gates).toBe(0);
+  });
+
+  it('carries the queued arc’s OWN counts — the signal a chip gives up by drawing no bars', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({
+          id: 'part-done-arc',
+          gates: [{ id: 'blocker', shut: true }],
+          increments: [landed('c', '2026-08-01'), parked('p', '2026-08-05')],
+        }),
+      ],
+      NOW,
+    );
+    expect(queueChips(lanes[0]!)[0]?.counts).toEqual({ landed: 1, queued: 1 });
+  });
+
+  it('falls back to the id when an arc carries no title at all', () => {
+    const lanes = arcLanes(
+      [lane({ id: 'blocker' }), lane({ id: 'bare-arc', title: '', gates: [{ id: 'blocker', shut: true }] })],
+      NOW,
+    );
+    expect(queueChips(lanes[0]!)[0]?.title).toBe('bare-arc');
+  });
+});
+
+describe('findLane — the selection guard has to see THROUGH the queue (inc-07)', () => {
+  const LANES = () =>
+    arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'middle-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'leaf-arc', gates: [{ id: 'middle-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+
+  it('finds a top-level lane', () => {
+    expect(findLane(LANES(), 'blocker')?.arc.id).toBe('blocker');
+  });
+
+  it('finds a QUEUED lane, which is absent from the top-level list by construction', () => {
+    // The bug this closes: a chip pick failed a `lanes.some(...)` guard and silently snapped the
+    // panel back to the default, because a queued arc is never a member of that list.
+    expect(findLane(LANES(), 'middle-arc')?.arc.id).toBe('middle-arc');
+  });
+
+  it('finds one nested deeper than a single level', () => {
+    expect(findLane(LANES(), 'leaf-arc')?.arc.id).toBe('leaf-arc');
+  });
+
+  it('returns null for an id nothing carries — never a wrong lane', () => {
+    expect(findLane(LANES(), 'no-such-arc')).toBeNull();
+  });
+
+  it('returns null over an empty list', () => {
+    expect(findLane([], 'anything')).toBeNull();
   });
 });
 

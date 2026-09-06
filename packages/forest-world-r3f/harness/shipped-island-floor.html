@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>one hex is the minimum: the zero-capability islands, before and after — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>One hex is the minimum: the zero-capability islands, before and after</h1>
+      <p>
+        The mapper sizes every island to <code>capabilities &times; 318</code> &mdash; and left an island
+        holding NO capability at the size the drawing gave it, three tiles of the old lattice. So the
+        stories with the least work in them were among the largest things on the map. The owner's
+        decision: <em>"no capabilities should just be 1 hex which should be the minimum."</em>
+      </p>
+      <p class="numbers">
+        today     an island holding no capability left AS DRAWN; every other island at capabilities × 318 (CONTROL)
+        shipped   every island sized as if it held at least ONE capability — a story with none draws 318 units²
+      </p>
+      <p>
+        The real forest, fitted, on the same frame for both arms; then the zero-capability island
+        <code>website</code> and its neighbours at 8 px/unit. Under each arm: the largest island and
+        what it holds, where the zero-capability islands rank, how many pairs are drawn the wrong way
+        round (fewer capabilities, more land), and pixels moved past 20/255 against <code>today</code>.
+        The per-island table &mdash; capability count and drawn area, every island &mdash; is in the
+        driver's report.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedIslandFloor } from './shipped-island-floor-scene.ts';
+      try {
+        await mountShippedIslandFloor(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
