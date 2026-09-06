@@ -23,11 +23,16 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
+  buildCompositionBar,
   CHARS_PER_TOKEN,
   categoryLabel,
+  COMPOSITION_SEGMENT_ORDER,
   MANDATORY_CATEGORIES,
   readWindowComposition,
+  readWindowSeriesWithComposition,
+  segmentLabel,
   type CompositionCategory,
+  type CompositionSegmentKey,
 } from "./context-composition.js";
 
 const WINDOW = "1b2c3d4e-0000-4000-8000-000000000001";
@@ -369,6 +374,9 @@ test("an unreadable file is an empty composition with its own absence, and never
     windowId: undefined,
     slices: [],
     accountedBytes: 0,
+    toolSubjects: [],
+    otherToolNames: [],
+    knowledgeSurfaces: [],
     unclassifiedLabels: [],
     bookkeeping: { bytes: 0, records: 0, kinds: [] },
     sidechainLinesExcluded: 0,
@@ -420,4 +428,452 @@ test("every category has a plain-language label, and the mandatory set names onl
     "harness-reminder",
     "file-change-notice",
   ]);
+});
+
+// ── THE SECOND CUT (ADR-0524) ────────────────────────────────────────────────────────────────────
+//
+// The subject cut re-slices `tool-output` alone. The cases below are the ways it could lie:
+//   • it must SUM to the `tool-output` slice — a re-cut that does not is a second quantity, and a
+//     bar drawing both cuts at once would double-count;
+//   • a result whose call was never seen must land under `unattributed`, never be distributed;
+//   • the record-type cut must be UNCHANGED by its presence — `storytree context`'s remedy line
+//     rests on that cut and this increment does not get to move it.
+
+// Inference, not an open dictionary: the anti-slop rule refuses widening a known shape to
+// `Record<string, unknown>`, and the inferred literal type carries an implicit index signature that
+// satisfies every caller here anyway.
+function toolUse(id: string, name: string, input: Record<string, unknown>) {
+  return { type: "tool_use", id, name, input };
+}
+
+function toolResult(id: string, text: string) {
+  return { type: "tool_result", tool_use_id: id, content: text };
+}
+
+test("the subject cut splits tool output by what the call was ABOUT, and SUMS to the tool-output slice", () => {
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "pnpm storytree library artifact adr-0524 --pg" })], 1000),
+    user([toolResult("t1", "the decision document, at length".repeat(20))]),
+    assistant("a2", [toolUse("t2", "Read", { file_path: "/repo/src/x.ts" })], 1200),
+    user([toolResult("t2", "file contents".repeat(40))]),
+    assistant("a3", [toolUse("t3", "Bash", { command: "pnpm gate --scope" })], 1400),
+    user([toolResult("t3", "gate output".repeat(10))]),
+    assistant("a4", [toolUse("t4", "WebFetch", { url: "https://example.test" })], 1600),
+    user([toolResult("t4", "page text")]),
+  ]);
+
+  const composition = readWindowComposition(file);
+  const subjects = new Map(composition.toolSubjects.map((s) => [s.subject, s]));
+
+  assert.equal(subjects.get("knowledge-graph")?.records, 1);
+  assert.equal(subjects.get("file-read")?.records, 1);
+  assert.equal(subjects.get("shell")?.records, 1);
+  assert.equal(subjects.get("other-tool")?.records, 1);
+  assert.deepEqual(composition.otherToolNames, ["WebFetch"], "the other-tool residual names its tools");
+
+  // THE INVARIANT. A re-cut of one slice sums to that slice — anything else is a second quantity.
+  const toolOutput = composition.slices.find((s) => s.category === "tool-output");
+  assert.equal(
+    composition.toolSubjects.reduce((sum, s) => sum + s.bytes, 0),
+    toolOutput?.bytes,
+  );
+  assert.equal(
+    composition.toolSubjects.reduce((sum, s) => sum + s.records, 0),
+    toolOutput?.records,
+  );
+
+  // The knowledge-graph surface breakdown is by LABEL, exactly — never a threshold (ADR-0524 D5).
+  assert.deepEqual(
+    composition.knowledgeSurfaces.map((s) => s.surface),
+    ["library-artifact"],
+  );
+  assert.equal(composition.knowledgeSurfaces[0]?.bytes, subjects.get("knowledge-graph")?.bytes);
+});
+
+test("a tool result whose call was never seen is UNATTRIBUTED, never distributed into a named subject", () => {
+  // Its call sits before a compaction boundary, or in a transcript that begins mid-conversation.
+  // Charging it to a subject would inflate whichever one the guess favoured — the same posture the
+  // record-type cut takes with an attachment label it does not know.
+  const file = writeTranscript([
+    user([toolResult("orphan", "output whose call this transcript never recorded")]),
+    assistant("a1", [toolUse("t1", "Read", { file_path: "/x" })], 900),
+    user([toolResult("t1", "contents")]),
+  ]);
+
+  const composition = readWindowComposition(file);
+  const subjects = new Map(composition.toolSubjects.map((s) => [s.subject, s]));
+  assert.equal(subjects.get("unattributed")?.records, 1);
+  assert.equal(subjects.get("file-read")?.records, 1);
+  assert.equal(subjects.get("knowledge-graph"), undefined, "nothing is invented for the orphan");
+  assert.equal(
+    composition.toolSubjects.reduce((sum, s) => sum + s.bytes, 0),
+    composition.slices.find((s) => s.category === "tool-output")?.bytes,
+  );
+});
+
+test("the RECORD-TYPE cut is unchanged by the subject cut — the call's own bytes stay in tool-calls", () => {
+  const call = toolUse("t1", "Bash", { command: "pnpm storytree arc show my-arc --pg" });
+  const result = toolResult("t1", "the arc, at length".repeat(30));
+  const file = writeTranscript([assistant("a1", [call], 1000), user([result])]);
+
+  const composition = readWindowComposition(file);
+  // A knowledge-graph CALL is `tool-calls` and its OUTPUT is `tool-output`: the subject axis never
+  // moves a byte between record types, which is what keeps `storytree context`'s reading intact.
+  assert.equal(composition.slices.find((s) => s.category === "tool-calls")?.bytes, bytesOf(call));
+  assert.equal(composition.slices.find((s) => s.category === "tool-output")?.bytes, bytesOf(result));
+  assert.equal(composition.toolSubjects.length, 1);
+  assert.equal(composition.toolSubjects[0]?.subject, "knowledge-graph");
+});
+
+test("a window with no tool traffic has an EMPTY subject cut, not a zeroed one", () => {
+  const file = writeTranscript([user("just a prompt"), assistant("a1", [{ type: "text", text: "an answer" }], 800)]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(composition.toolSubjects, []);
+  assert.deepEqual(composition.otherToolNames, []);
+  assert.deepEqual(composition.knowledgeSurfaces, []);
+});
+
+// ── THE BAR (ADR-0524 D1/D2) ─────────────────────────────────────────────────────────────────────
+//
+// The ways a bar could lie about the window it claims to be:
+//   • drawing BOTH `tool-output` and its subject slices would double-count 56% of the window;
+//   • a size-sorted order would reshuffle between windows and destroy the one reading a bar is good
+//     at — comparing two of them;
+//   • a harness floor drawn as ZERO when it cannot be read would say the preamble is free;
+//   • the segments must SUM to the stated total, or every share drawn against it is wrong.
+
+test("the bar replaces tool-output with its subjects and never draws both — the 56% double-count", () => {
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "storytree library artifact adr-0524" })], 1000),
+    user([toolResult("t1", "the decision".repeat(50))]),
+    assistant("a2", [toolUse("t2", "Read", { file_path: "/x.ts" })], 1100),
+    user([toolResult("t2", "contents".repeat(50))]),
+  ]);
+
+  const composition = readWindowComposition(file);
+  const bar = buildCompositionBar(composition);
+  const keys = bar.segments.map((s) => s.key);
+
+  assert.ok(!keys.includes("tool-output" as CompositionSegmentKey), "the record-type slice is not drawn");
+  assert.ok(keys.includes("knowledge-graph") && keys.includes("file-read"), "its subjects are");
+  assert.equal(
+    bar.segments.reduce((sum, s) => sum + s.tokens, 0),
+    bar.totalTokens,
+    "the segments sum to the stated total",
+  );
+  // The knowledge graph leads, because it is what the traversal below the bar draws.
+  assert.equal(keys[0], "knowledge-graph");
+});
+
+test("the order is DECLARED, not size-sorted — a bigger segment does not jump the queue", () => {
+  // File reads dwarf the knowledge-graph read here. A size-sorted bar would put them first and
+  // reshuffle the moment a window's mix changed.
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "storytree arc show a" })], 1000),
+    user([toolResult("t1", "short")]),
+    assistant("a2", [toolUse("t2", "Read", { file_path: "/x.ts" })], 1100),
+    user([toolResult("t2", "an enormous file".repeat(500))]),
+  ]);
+
+  const bar = buildCompositionBar(readWindowComposition(file));
+  const keys = bar.segments.map((s) => s.key);
+  assert.equal(keys.indexOf("knowledge-graph") < keys.indexOf("file-read"), true);
+  const fileReads = bar.segments.find((s) => s.key === "file-read");
+  const knowledge = bar.segments.find((s) => s.key === "knowledge-graph");
+  assert.ok((fileReads?.tokens ?? 0) > (knowledge?.tokens ?? 0), "and it is genuinely the bigger one");
+});
+
+test("the harness floor is a segment when it can be read, and ABSENT — never zero — when it cannot", () => {
+  // A window whose only request is `<synthetic>` carries an all-zero usage: no floor can be read.
+  const synthetic = writeTranscript([
+    user("hello"),
+    assistant("syn", [{ type: "text", text: "" }], 0, "<synthetic>"),
+  ]);
+  const absent = buildCompositionBar(readWindowComposition(synthetic));
+  assert.equal(absent.residualTokens, null);
+  assert.equal(absent.residualAbsence, "no-readable-request");
+  assert.ok(!absent.segments.some((s) => s.key === "harness-floor"), "no zero-width floor is drawn");
+
+  // A window with a real request has one, read off that request's own usage.
+  const real = writeTranscript([
+    user("hello"),
+    assistant("m1", [{ type: "text", text: "hi" }], 90_000),
+  ]);
+  const bar = buildCompositionBar(readWindowComposition(real));
+  const floor = bar.segments.find((s) => s.key === "harness-floor");
+  assert.ok((floor?.tokens ?? 0) > 80_000, "the floor is the largest thing in a fresh window");
+  assert.equal(floor?.bytes, null, "it is a subtraction, not a byte count");
+  assert.equal(floor?.records, null);
+  assert.equal(bar.segments.at(-1)?.key, "harness-floor", "and it is drawn last");
+});
+
+test("a category with no bytes is OMITTED, so the bar names only what this window actually held", () => {
+  const bar = buildCompositionBar(readWindowComposition(writeTranscript([user("just a prompt")])));
+  assert.deepEqual(
+    bar.segments.map((s) => s.key),
+    ["human-prompt"],
+  );
+});
+
+test("every declared key has a label and appears exactly once — a render cannot invent its own order", () => {
+  assert.equal(new Set(COMPOSITION_SEGMENT_ORDER).size, COMPOSITION_SEGMENT_ORDER.length);
+  for (const key of COMPOSITION_SEGMENT_ORDER) assert.ok(segmentLabel(key).length > 0, key);
+  assert.equal(segmentLabel("knowledge-graph"), "knowledge graph", "ADR-0524 D3's naming");
+  assert.ok(segmentLabel("harness-floor").includes("system prompt"));
+  // `tool-output` is deliberately not a segment key: its subjects are the segments.
+  assert.ok(!(COMPOSITION_SEGMENT_ORDER as readonly string[]).includes("tool-output"));
+});
+
+test("the bar converts bytes at the fold's OWN calibration, never a second estimator", () => {
+  const result = toolResult("t1", "x".repeat(3800));
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Read", { file_path: "/x" })], 5_000),
+    user([result]),
+  ]);
+  const composition = readWindowComposition(file);
+  const bar = buildCompositionBar(composition);
+  assert.equal(bar.charsPerToken, CHARS_PER_TOKEN);
+  const fileReads = bar.segments.find((s) => s.key === "file-read");
+  assert.equal(fileReads?.tokens, Math.round(bytesOf(result) / CHARS_PER_TOKEN));
+  assert.equal(fileReads?.bytes, bytesOf(result));
+  // …and the RECORD-TYPE half of the bar carries its measurements too. The two halves reach a
+  // segment by different routes — one through the subject cut, one through the category slices — so
+  // asserting one says nothing about the other.
+  const calls = bar.segments.find((s) => s.key === "tool-calls");
+  assert.equal(calls?.bytes, bytesOf(toolUse("t1", "Read", { file_path: "/x" })));
+  assert.equal(calls?.tokens, Math.round((calls?.bytes ?? 0) / CHARS_PER_TOKEN));
+  assert.equal(calls?.records, 1);
+});
+
+test("the subject slices and the surface rows are ordered LARGEST FIRST, ties by name", () => {
+  // ⚠ THE FIXTURE HAS TO DEFEAT THREE WRONG ANSWERS AT ONCE, and each one is a live mutant:
+  //   (a) ALPHABETICAL — so byte order and name order must disagree;
+  //   (b) NO SORT AT ALL — a tally is a Map and a Map keeps first-insertion order, so the emission
+  //       order must differ from the answer too;
+  //   (c) THE REVERSE of insertion order — and this one is not obvious. Under bun/JSC a comparator
+  //       mutated to return `false` REVERSES the array (`[1,3,2]` → `[2,3,1]`), where the same
+  //       comparator under node/V8 leaves it alone. A fixture emitted smallest-first therefore
+  //       passes a reversing mutant by coincidence, which is exactly how this test read green while
+  //       proving nothing.
+  // The arrangement that beats all three is MIDDLE-OUT: emit the middle-sized thing first. Three
+  // items minimum — with two, the reverse of insertion IS the sorted answer and (c) is unreachable.
+  //
+  // Subjects — emitted kg (middle), file-read (smallest), shell (largest):
+  //   sorted  [shell, knowledge-graph, file-read]   insertion [knowledge-graph, file-read, shell]
+  //   reverse [shell, file-read, knowledge-graph]   alpha     [file-read, knowledge-graph, shell]
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "storytree adr list" })], 1000),
+    user([toolResult("t1", "decisions".repeat(34))]),
+    assistant("a2", [toolUse("t2", "Bash", { command: "storytree arc show a" })], 1050),
+    user([toolResult("t2", "arc".repeat(20))]),
+    assistant("a3", [toolUse("t3", "Bash", { command: "storytree library artifact x" })], 1100),
+    user([toolResult("t3", "artifact".repeat(120))]),
+    assistant("a4", [toolUse("t4", "Read", { file_path: "/x" })], 1150),
+    user([toolResult("t4", "file")]),
+    assistant("a5", [toolUse("t5", "Bash", { command: "pnpm gate" })], 1200),
+    user([toolResult("t5", "gate".repeat(900))]),
+  ]);
+
+  const composition = readWindowComposition(file);
+  assert.deepEqual(
+    composition.toolSubjects.map((s) => s.subject),
+    ["shell", "knowledge-graph", "file-read"],
+    "descending by bytes — not alphabetical, not insertion order, not its reverse",
+  );
+  const bytes = composition.toolSubjects.map((s) => s.bytes);
+  assert.ok((bytes[0] ?? 0) > (bytes[1] ?? 0) && (bytes[1] ?? 0) > (bytes[2] ?? 0));
+
+  // Same three traps, same middle-out arrangement — emitted adr (middle), arc (smallest),
+  // library-artifact (largest):
+  //   sorted  [library-artifact, adr, arc]   insertion [adr, arc, library-artifact]
+  //   reverse [library-artifact, arc, adr]   alpha     [adr, arc, library-artifact]
+  assert.deepEqual(
+    composition.knowledgeSurfaces.map((s) => s.surface),
+    ["library-artifact", "adr", "arc"],
+  );
+  const surfaceBytes = composition.knowledgeSurfaces.map((s) => s.bytes);
+  assert.ok((surfaceBytes[0] ?? 0) > (surfaceBytes[1] ?? 0) && (surfaceBytes[1] ?? 0) > (surfaceBytes[2] ?? 0));
+});
+
+test("the other-tool names come back SORTED, whatever order the window used them in", () => {
+  // The residual is only actionable if a reader can scan it, and a set preserves insertion order —
+  // so an unsorted list is stable, plausible, and different for every window.
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "WebFetch", { url: "u" })], 1000),
+    user([toolResult("t1", "a")]),
+    assistant("a2", [toolUse("t2", "Edit", { file_path: "/x" })], 1100),
+    user([toolResult("t2", "b")]),
+    assistant("a3", [toolUse("t3", "TodoWrite", {})], 1200),
+    user([toolResult("t3", "c")]),
+  ]);
+  assert.deepEqual(readWindowComposition(file).otherToolNames, ["Edit", "TodoWrite", "WebFetch"]);
+});
+
+test("a surface read TWICE counts two records and sums both payloads", () => {
+  // The per-surface tally is an accumulation, and an accumulation that only ever sees one item is
+  // indistinguishable from an assignment.
+  const first = toolResult("t1", "one");
+  const second = toolResult("t2", "two".repeat(30));
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "storytree adr list" })], 1000),
+    user([first]),
+    assistant("a2", [toolUse("t2", "Bash", { command: "storytree adr pull 524" })], 1100),
+    user([second]),
+  ]);
+
+  const composition = readWindowComposition(file);
+  assert.deepEqual(composition.knowledgeSurfaces, [
+    { surface: "adr", bytes: bytesOf(first) + bytesOf(second), records: 2 },
+  ]);
+  assert.equal(composition.toolSubjects[0]?.records, 2);
+});
+
+test("a tool_use with NO usable id is remembered for nothing — its result is unattributed", () => {
+  // A malformed or truncated call. Remembering it under some fallback key would let the NEXT
+  // unidentifiable result inherit a subject that was never its own.
+  const file = writeTranscript([
+    assistant("a1", [{ type: "tool_use", name: "Bash", input: { command: "storytree arc show a" } }], 1000),
+    user([toolResult("t1", "output whose call named no id")]),
+  ]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(
+    composition.toolSubjects.map((s) => s.subject),
+    ["unattributed"],
+  );
+  assert.deepEqual(composition.knowledgeSurfaces, []);
+});
+
+test("two malformed records do not JOIN each other — an idless call and an idless result stay apart", () => {
+  // THE CASE THE ONE REMAINING GUARD EXISTS FOR. The call/result map is keyed by `unknown` so the
+  // lookup needs no guard of its own; what that buys is a single guard on the WRITE side, and this
+  // is what it prevents. Without it the idless call is stored under `undefined`, the idless result
+  // looks `undefined` up, and the two MATCH — charging a knowledge-graph subject to output that had
+  // nothing to do with it. Both records are malformed; neither says they belong together.
+  const file = writeTranscript([
+    assistant("a1", [{ type: "tool_use", name: "Bash", input: { command: "storytree arc show a" } }], 1000),
+    user([{ type: "tool_result", content: "output that named no call" }]),
+  ]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(
+    composition.toolSubjects.map((s) => s.subject),
+    ["unattributed"],
+  );
+  assert.deepEqual(composition.knowledgeSurfaces, [], "and no surface is credited");
+});
+
+test("a tool_result with NO tool_use_id is unattributed, not charged to the last call seen", () => {
+  const file = writeTranscript([
+    assistant("a1", [toolUse("t1", "Bash", { command: "storytree arc show a" })], 1000),
+    user([{ type: "tool_result", content: "output naming no call" }]),
+  ]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(
+    composition.toolSubjects.map((s) => s.subject),
+    ["unattributed"],
+    "the open knowledge-graph call is not a default",
+  );
+});
+
+test("an UNNAMED tool is other-tool and is named as `<unnamed>` rather than dropped", () => {
+  // The `other-tool` residual is only useful if it can be acted on, which means every tool behind it
+  // has a name — including the one the transcript failed to give.
+  const file = writeTranscript([
+    assistant("a1", [{ type: "tool_use", id: "t1", input: { url: "u" } }], 1000),
+    user([toolResult("t1", "output")]),
+  ]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(composition.otherToolNames, ["<unnamed>"]);
+  assert.equal(composition.toolSubjects[0]?.subject, "other-tool");
+});
+
+test("the bar OMITS a zero-byte category and keeps a floor of zero out too", () => {
+  // Two different zeroes, and both are omissions rather than segments: a category with no bytes
+  // contributed nothing, and a floor of zero means the visible bytes already accounted for the whole
+  // first request — never that the harness is free.
+  const file = writeTranscript([
+    user("a prompt long enough that the visible half exceeds the request's own resident figure"),
+    assistant("m1", [{ type: "text", text: "hi" }], 1),
+  ]);
+  const bar = buildCompositionBar(readWindowComposition(file));
+  assert.ok(!bar.segments.some((s) => s.key === "harness-floor"));
+  assert.equal(bar.residualTokens, 0, "read, and it is zero — which is not the same as unreadable");
+  assert.equal(bar.residualAbsence, null);
+});
+
+// ── THE SHARED WIRE (ADR-0524 D1) ────────────────────────────────────────────────────────────────
+//
+// `readWindowSeriesWithComposition` is what the studio route AND the desktop backend's copy of that
+// route both call. `check:mirror-conformance` holds their answers byte-identical; this pins the
+// answer itself, so a field silently dropped from the wire fails HERE rather than as a cross-surface
+// divergence with no owner.
+
+test("the shared wire carries the occupancy series AND the composition, from ONE window resolution", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-wire-"));
+  const dir = path.join(root, "some-project");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, `${WINDOW}.jsonl`),
+    [
+      assistant("m1", [toolUse("t1", "Bash", { command: "storytree library artifact adr-0524 --pg" })], 120_000),
+      user([toolResult("t1", "the decision".repeat(40))]),
+      assistant("m2", [toolUse("t2", "Bash", { command: "pnpm gate" })], 130_000),
+      user([toolResult("t2", "gate output".repeat(100))]),
+      // An other-tool and an unknown attachment label, so the wire's two pass-through lists have
+      // something to carry. Asserting only their KEYS would let an emptied array through.
+      assistant("m3", [toolUse("t3", "WebFetch", { url: "https://example.test" })], 140_000),
+      user([toolResult("t3", "page")]),
+      attachment({ type: "some_future_attachment", payload: "p" }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const read = readWindowSeriesWithComposition({ windowId: WINDOW, root });
+  assert.equal(read.windowId, WINDOW);
+  assert.ok(read.observations.length > 0, "the occupancy half still answers");
+
+  const wire = read.composition;
+  assert.ok(wire !== null);
+  // EVERY field, named. A wire assembled field-by-field in two places is how two surfaces drift; the
+  // remedy was one function, and this is what stops a field being dropped from it silently.
+  assert.deepEqual(Object.keys(wire).sort(), [
+    "charsPerToken",
+    "knowledgeSurfaces",
+    "otherToolNames",
+    "residualAbsence",
+    "residualTokens",
+    "segments",
+    "totalTokens",
+    "unclassifiedLabels",
+  ]);
+  assert.equal(wire.charsPerToken, CHARS_PER_TOKEN);
+  assert.equal(wire.residualAbsence, null);
+  assert.ok((wire.residualTokens ?? 0) > 0, "the harness floor is read, not guessed");
+  assert.deepEqual(
+    wire.segments.map((s) => s.key),
+    ["knowledge-graph", "shell", "other-tool", "tool-calls", "unclassified", "harness-floor"],
+  );
+  assert.equal(
+    wire.totalTokens,
+    wire.segments.reduce((sum, s) => sum + s.tokens, 0),
+  );
+  assert.deepEqual(wire.knowledgeSurfaces.map((s) => s.surface), ["library-artifact"]);
+  assert.deepEqual(wire.otherToolNames, ["WebFetch"], "the residual's tools reach the wire");
+  assert.deepEqual(
+    wire.unclassifiedLabels,
+    ["attachment:some_future_attachment"],
+    "and so does the remedy for an unknown label",
+  );
+  const first = wire.segments[0];
+  assert.deepEqual(Object.keys(first ?? {}).sort(), ["bytes", "key", "label", "records", "tokens"]);
+  assert.equal(first?.label, "knowledge graph");
+});
+
+test("the shared wire answers `composition: null` when the window matched no transcript", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-wire-"));
+  fs.mkdirSync(path.join(root, "some-project"), { recursive: true });
+  const read = readWindowSeriesWithComposition({ windowId: WINDOW, root });
+  // Never an empty bar: there is nothing to compose, and zero-width segments would assert an empty
+  // window. The occupancy half says the same thing its own way.
+  assert.equal(read.composition, null);
+  assert.equal(read.absence, "no-transcript-root");
 });

@@ -2,6 +2,26 @@
 // `traversal-panel-spine-render`; REPOINTED at the host transcripts by ADR-0456 D2), and the honesty
 // rules that come with it.
 //
+// ⚠⚠ NOTHING DRAWS THIS ANY MORE, AND THE MODULE IS KEPT DELIBERATELY (ADR-0524 D1, 2026-09-06).
+// The vertical occupancy track was REMOVED from the traversal panel and replaced by a horizontal
+// COMPOSITION bar, so `buildTranscriptOccupancySeries`, `preferredOccupancy`, `occupancyAt`,
+// `occupancyFill`, `bandOf`, `bandGuidance` and the two mark re-exports now have no caller outside
+// this module and its tests. Two things still do: `formatTokens` (the composition bar and three
+// other surfaces) and `buildOccupancySeries` (`traversalSpine.ts`'s model field, itself read only by
+// that module's tests).
+//
+// WHY IT IS NOT DELETED, which is a judgment and should be re-made rather than inherited. ADR-0524's
+// own consequence says that if the owner wants fullness visible on this panel again "it returns as
+// its own element and not as a restained composition bar". What the rules below encode is the part a
+// rebuild would get wrong: that the plotted quantity must be one that can FALL (ADR-0248 D1 — a
+// billing total reads six times full with a negative remainder), that a series spanning two windows
+// is REFUSED rather than spliced, and that a child window is never summed into its parent. Deleting
+// them would discard the reasoning and keep only the easy half.
+//
+// ⚠ SO READ THE TESTS BESIDE THIS FILE PRECISELY: they prove a QUANTITY and its refusals, and since
+// 2026-09-06 they prove nothing at all about the panel. A green suite here is not evidence that any
+// bar renders.
+//
 // 1. THE QUANTITY IS `residentInputTokens`, and nothing else (ADR-0248 D1). `cumulativeInputTokens` is
 //    a BILLING TOTAL: monotonic by construction, and measured at 613% and 504% of a declared 200,000
 //    window on two real builds. A bar built from it reads six times full with a negative remainder. The

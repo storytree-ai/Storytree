@@ -66,6 +66,10 @@ function seriesPayload(
     sidechainRequests: 0,
     absence: null,
     note: '',
+    // ADR-0524 widened the route to carry what the window is MADE OF beside how full it was. This
+    // fold reads only the occupancy half, so the fixture states the composition's absence rather
+    // than a shape it would never look at.
+    composition: null,
     ...over,
   };
 }

@@ -135,6 +135,44 @@ function writeTranscript(root: string, windowId: string, tokens: number): void {
   );
 }
 
+/** A transcript carrying real tool traffic — what the COMPOSITION fold classifies (ADR-0524). The
+ * plain {@link writeTranscript} above records only a `usage`, which is all the occupancy half needs
+ * and gives the subject cut nothing to cut. */
+function writeToolTranscript(root: string, windowId: string): void {
+  const dir = path.join(root, PROJECT);
+  fs.mkdirSync(dir, { recursive: true });
+  const line = (at: string, message: unknown): string =>
+    JSON.stringify({ type: "assistant", sessionId: windowId, timestamp: at, isSidechain: false, cwd: "/c", message });
+  const result = (at: string, id: string, text: string): string =>
+    JSON.stringify({
+      type: "user",
+      sessionId: windowId,
+      timestamp: at,
+      isSidechain: false,
+      cwd: "/c",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: text }] },
+    });
+  fs.writeFileSync(
+    path.join(dir, `${windowId}.jsonl`),
+    [
+      line("2026-09-06T10:00:00.000Z", {
+        id: "m1",
+        model: "claude-opus-5",
+        content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "storytree library artifact adr-0524 --pg" } }],
+        usage: { input_tokens: 120_000, output_tokens: 8 },
+      }),
+      result("2026-09-06T10:00:01.000Z", "t1", "the decision document".repeat(30)),
+      line("2026-09-06T10:01:00.000Z", {
+        id: "m2",
+        model: "claude-opus-5",
+        content: [{ type: "tool_use", id: "t2", name: "Bash", input: { command: "pnpm gate --scope" } }],
+        usage: { input_tokens: 130_000, output_tokens: 8 },
+      }),
+      result("2026-09-06T10:01:01.000Z", "t2", "gate output".repeat(120)),
+    ].join("\n") + "\n",
+  );
+}
+
 // ---------- 1. PRESENCE: the three routes the compiled bundle calls are SERVED here ----------
 
 test("traversal-routes: GET /api/traversal/sessions answers the local trace index, not 'unknown endpoint'", async () => {
@@ -212,6 +250,55 @@ test("traversal-routes: GET /api/context-windows?session= answers one window's o
     assert.equal(body.windowId, "window-alpha");
     assert.equal(body.observations?.length, 1);
     assert.equal(body.peakTokens, 110_300);
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: the same answer carries what the window is MADE OF (ADR-0524 D1)", async () => {
+  // The route was widened to serve the composition beside the occupancy, because the panel's
+  // vertical occupancy bar was replaced by a horizontal composition bar. It is asserted HERE, on the
+  // desktop copy, and not only against the studio: `check:mirror-conformance` compares the two
+  // surfaces' PAYLOADS, so a field the desktop and the studio are both missing compares equal — the
+  // same blind spot two absent routes have (see this file's header).
+  const h = await harness();
+  try {
+    writeToolTranscript(h.transcriptRoot, "window-composed");
+
+    const res = await fetch(`${h.base}/api/context-windows?session=window-composed`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      windowId?: string;
+      composition?: { segments?: { key: string; tokens: number }[]; totalTokens?: number } | null;
+    };
+    assert.equal(body.windowId, "window-composed");
+    const keys = body.composition?.segments?.map((s) => s.key) ?? [];
+    // The KNOWLEDGE-GRAPH segment is the point of the change: in the record-type cut those bytes sit
+    // invisibly inside `tool-output`, and the bar exists to give them their own width.
+    assert.ok(keys.includes("knowledge-graph"), `knowledge-graph missing from [${keys.join(", ")}]`);
+    assert.ok(keys.includes("shell"));
+    assert.ok(!keys.includes("tool-output"), "the record-type slice is replaced by its subjects, never drawn beside them");
+    assert.equal(
+      body.composition?.totalTokens,
+      body.composition?.segments?.reduce((sum, s) => sum + s.tokens, 0),
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: a window with no transcript answers `composition: null`, never an empty bar", async () => {
+  // A bar of zero-width segments would assert an EMPTY window — a claim about the session rather
+  // than about the observation. The occupancy half takes the same posture with its own `absence`.
+  const h = await harness();
+  try {
+    writeTranscript(h.transcriptRoot, "window-elsewhere", 1_000);
+
+    const res = await fetch(`${h.base}/api/context-windows?session=window-absent`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { composition?: unknown; absence?: string };
+    assert.equal(body.composition, null);
+    assert.equal(body.absence, "no-window-transcript");
   } finally {
     await h.close();
   }

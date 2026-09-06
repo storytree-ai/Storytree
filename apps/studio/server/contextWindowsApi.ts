@@ -2,7 +2,18 @@
 // `make-the-single-window-meter-useful` / `merge-the-context-meter-into-the-traversal-surface`) —
 // ADR-0452 D1/D2, repointed by ADR-0456 D2.
 //
-//   GET /api/context-windows?session=<windowId> → ONE window's whole occupancy series, with instants
+//   GET /api/context-windows?session=<windowId> → ONE window's occupancy series AND its composition
+//
+// ★ IT CARRIES TWO READINGS OF ONE FILE SINCE ADR-0524, and that is deliberate rather than
+//   accreted. The panel's vertical occupancy bar is REMOVED and a horizontal COMPOSITION bar takes
+//   its place, so what the panel needs from this route changed — but the window still has to be
+//   resolved to a transcript, and `readWindowOccupancySeries` is what does that (a walk over every
+//   transcript, then one read). Composing here reuses that resolution: `scan.file` names the file,
+//   so the composition costs a read rather than a second walk. A SEPARATE route would have paid the
+//   walk twice and given two readers of one transcript a way to disagree, which is the failure
+//   `context-window-composition-arc` exists to remove. The occupancy half STAYS on the wire: the
+//   composition's harness floor is derived from the same resident figure, and `storytree context`
+//   reads the same pair.
 //
 // ★ IT SERVES THE REPLAY PANEL'S OWN BAR, and it is a REPOINT rather than a new surface. That bar
 // has been in the owner-signed design since `traversal-panel-spine-render` and had never drawn a
@@ -50,6 +61,9 @@ function loadTranscripts(): Promise<TranscriptModule> {
 
 export type { WindowSeriesRead } from '@storytree/context-traversal-transcript';
 
+export type { WindowSeriesWithComposition } from '@storytree/context-traversal-transcript';
+type WindowSeriesWithComposition = import('@storytree/context-traversal-transcript').WindowSeriesWithComposition;
+
 /**
  * A window id may only be a flat token. It is matched against a transcript FILE's base name inside
  * the transcript root, so an id carrying a separator or a `..` segment would be a filesystem escape
@@ -65,11 +79,13 @@ const WINDOW_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * Named beside {@link readContextWindows} for the same reason it is named at all: the integration
  * suite and the handler reach for one body, so neither can be bounded differently from the other.
  */
-export async function readWindowSeries(
-  windowId: string,
-): Promise<import('@storytree/context-traversal-transcript').WindowSeriesRead> {
-  const { readWindowOccupancySeries } = await loadTranscripts();
-  return readWindowOccupancySeries({ windowId });
+export async function readWindowSeries(windowId: string): Promise<WindowSeriesWithComposition> {
+  const { readWindowSeriesWithComposition } = await loadTranscripts();
+  // The ASSEMBLY lives in the package, not here (ADR-0524). The desktop backend serves a
+  // byte-identical copy of this route and `check:mirror-conformance` holds the two together; a
+  // payload each side built for itself is precisely how they drift, which that check caught on this
+  // increment's first gate run.
+  return readWindowSeriesWithComposition({ windowId });
 }
 
 /**

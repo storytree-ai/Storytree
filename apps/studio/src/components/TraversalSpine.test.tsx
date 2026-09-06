@@ -10,9 +10,10 @@
 //   • the marks appear as the playhead reaches them, and not before;
 //   • a full payload read and a front-matter read draw DIFFERENT edges, discriminated by event kind;
 //   • a search is its own mark;
-//   • the occupancy bar colours each portion past its own mark (ADR-0411 D3's 400k and 500k), holds
-//     its reading, prefers the window's own HOST TRANSCRIPT over the replayed trace (ADR-0456 D2),
-//     and SAYS SO when there is no series rather than drawing a flat zero;
+//   • the COMPOSITION bar (ADR-0524) draws each segment in the exact ratio of its tokens with no
+//     minimum width, keeps the package's declared order, makes only the knowledge-graph segment
+//     actionable, and draws NOTHING rather than a bar of zeroes when nothing was read — and the
+//     vertical resident-occupancy bar it replaced is gone from element, stylesheet and legend alike;
 //   • the events this increment defers are named on the surface rather than silently omitted.
 
 import { readFileSync } from 'node:fs';
@@ -22,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import type {
+  ContextCompositionPayload,
   GuidanceAsset,
   TraversalDecisionPointReport,
   TraversalEventEnvelope,
@@ -30,7 +32,6 @@ import type {
   TraversalReplayPayload,
 } from '../types';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
-import { buildTranscriptOccupancySeries } from '../lib/traversalOccupancy';
 import { buildTraversalSpine } from '../lib/traversalSpine';
 import {
   TraversalSpine,
@@ -39,6 +40,22 @@ import {
 } from './TraversalSpine';
 
 afterEach(cleanup);
+
+/**
+ * The shipped stylesheet, resolved from THIS FILE and never from `process.cwd()`.
+ *
+ * ⚠ THE CWD FORM LOOKS IDENTICAL AND IS NOT. `check:mutation-diff` runs these tests inside a Stryker
+ * SANDBOX, where the working directory is `.stryker-tmp/sandbox-<id>` — so a `resolve(process.cwd(),
+ * 'src', 'index.css')` read that passes every local run answers `ENOENT` there and reds the whole
+ * rung with "There were failed tests in the initial test run", naming the tests rather than the path.
+ * One helper, used by every stylesheet assertion below, so there is no second spelling to get wrong.
+ */
+function readStylesheet(): string {
+  return readFileSync(
+    resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'),
+    'utf8',
+  );
+}
 
 const SESSION = 'kind-hamilton-e938be';
 const T0 = Date.parse('2026-08-11T08:00:00.000Z');
@@ -329,250 +346,153 @@ describe('the picture draws the signed grammar', () => {
   });
 });
 
-describe('the one playhead occupancy bar', () => {
-  it('SAYS there is no series rather than drawing a flat zero', () => {
-    render(
-      // A trace with model requests, none of which carried a resident figure — the ordinary state of
-      // a session that was never `traversal ingest`ed.
-      <TraversalSpine
-        replay={replay([visit('full_payload_read', 0, 'a'), occupancyEvent(1_000), occupancyEvent(2_000)])}
-      />,
-    );
+describe('the composition bar replaces the vertical occupancy bar (ADR-0524)', () => {
+  // THE WAYS THIS ELEMENT COULD LIE, which is what each case below is:
+  //   • drawing a bar for a window nothing was read for would assert an empty window;
+  //   • padding a sliver to a legible minimum would restore the twentyfold over-claim it exists to
+  //     remove — a 2% knowledge-graph slice must LOOK like 2%;
+  //   • making an inert segment look actionable would promise surfaces that do not exist (D4);
+  //   • labelling the total "resident" would put back the duplicate reading D1 removed.
 
+  function composition(
+    segments: readonly { key: string; label: string; tokens: number }[],
+    extra: Partial<ContextCompositionPayload> = {},
+  ): ContextCompositionPayload {
+    return {
+      segments: segments.map((s) => ({ ...s, bytes: s.tokens * 4, records: 1 })),
+      totalTokens: segments.reduce((sum, s) => sum + s.tokens, 0),
+      residualTokens: 97_000,
+      residualAbsence: null,
+      charsPerToken: 3.8,
+      otherToolNames: [],
+      unclassifiedLabels: [],
+      knowledgeSurfaces: [],
+      ...extra,
+    };
+  }
+
+  const TYPICAL = composition([
+    { key: 'knowledge-graph', label: 'knowledge graph', tokens: 20_000 },
+    { key: 'shell', label: 'shell', tokens: 48_000 },
+    { key: 'assistant-thinking', label: 'thinking (as recorded)', tokens: 67_000 },
+    { key: 'harness-floor', label: 'harness floor (system prompt and tool definitions)', tokens: 97_000 },
+  ]);
+
+  it('the VERTICAL occupancy bar is gone — element, styles and legend key together', () => {
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a'), occupancyEvent(1_000, 300_000)])} />);
+    // Not merely unmounted: the whole reading is withdrawn from this panel. `storytree context` is
+    // where a session reads fullness, and drawing it here as well was the duplication D1 removed.
+    expect(document.querySelector('.traversal-occupancy')).toBeNull();
     expect(screen.queryByTestId('traversal-occupancy')).toBeNull();
-    // The TRACK is what says it now (ADR-0393 D1 deleted the sentence that used to sit below the
-    // picture). It keeps its column, goes dashed, and draws NO FILL — a flat zero bar would say the
-    // window was empty, which is a claim about the session rather than about the observation.
-    const track = document.querySelector('.traversal-occupancy.is-unobserved');
-    expect(track).not.toBeNull();
-    const absentLabel = track?.querySelector('[role="img"]')?.getAttribute('aria-label');
-    expect(absentLabel).toContain('no context occupancy was observed for this session');
-    // …and it says WHOSE observation is missing (ADR-0484 D5): the series has one producer, the host
-    // harness transcript, so the absence is an absence in a SECONDARY source and not in our own log.
-    expect(absentLabel).toContain('HARNESS-DERIVED');
-    expect(track?.textContent).toContain('none');
-    expect(track?.textContent).toContain('observed');
-    // And the deleted paragraph really is deleted, not merely hidden.
-    expect(screen.queryByTestId('traversal-occupancy-absent')).toBeNull();
+    expect(screen.queryByTestId('traversal-occupancy-readout')).toBeNull();
+    const css = readStylesheet();
+    expect(css).not.toContain('.traversal-occupancy');
+    // And the legend no longer keys a bar the picture does not draw.
+    expect(screen.getByTestId('traversal-legend').textContent ?? '').not.toContain('resident context');
   });
 
-  it('holds the reading at the playhead and colours each portion past its own mark', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 900_000),
-          visit('full_payload_read', 20_000, 'b'),
-          visit('full_payload_read', 40_000, 'c'),
-        ])}
-      />,
-    );
-
-    scrubTo(1);
-    // Scale is the base 1M ceiling — chosen ABOVE the hard mark so at-the-limit and past-it cannot
-    // draw alike (ADR-0499 D1 moved it up with the marks). 700k calm + 150k soft + 50k hard, as
-    // fractions of 1M.
-    expect((screen.getByTestId('traversal-occupancy-calm') as HTMLElement).style.height).toBe(
-      `${(700_000 / 1_000_000) * 100}%`,
-    );
-    const soft = screen.getByTestId('traversal-occupancy-soft') as HTMLElement;
-    expect(soft.style.height).toBe(`${(150_000 / 1_000_000) * 100}%`);
-    expect(soft.style.bottom).toBe(`${(700_000 / 1_000_000) * 100}%`);
-    const hard = screen.getByTestId('traversal-occupancy-hard') as HTMLElement;
-    expect(hard.style.height).toBe(`${(50_000 / 1_000_000) * 100}%`);
-    expect(hard.style.bottom).toBe(`${(850_000 / 1_000_000) * 100}%`);
-    // The word "resident" caps the track above the readout in the vertical composition, so the claim
-    // is read off the whole block rather than the numeric line alone.
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('900.0k');
-    expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
-  });
-
-  it('draws NOTHING at either mark — the colour is the whole signal (ADR-0393 D1 / ADR-0456 D4)', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 550_000),
-          visit('full_payload_read', 20_000, 'b'),
-        ])}
-      />,
-    );
-
-    scrubTo(1);
-    // Every child of the track is a FILL. A marker, tick, or danger arc at 400k or 500k is the one
-    // thing the signed grammar rules out, and it would arrive here as a fourth kind of child.
-    const track = document.querySelector('.traversal-occupancy-track') as HTMLElement;
-    const kinds = [...track.children].map((child) => child.className);
-    expect(kinds).toEqual([
-      'traversal-occupancy-fill is-calm',
-      'traversal-occupancy-fill is-soft',
-      'traversal-occupancy-fill is-hard',
-    ]);
-  });
-
-  it('has no soft portion at exactly the soft mark, and no hard portion at exactly the hard one', () => {
-    const { unmount } = render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 700_000),
-          visit('full_payload_read', 20_000, 'b'),
-        ])}
-      />,
-    );
-
-    scrubTo(1);
-    expect((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height).toBe('0%');
-    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
-    unmount();
+  it('draws NOTHING when nothing was read — never a bar of zeroes', () => {
+    // A window whose transcript was not matched, or one the mount has not read yet. An empty bar
+    // would assert an empty window, which is a claim about the session rather than the observation.
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} />);
+    expect(screen.queryByTestId('traversal-composition')).toBeNull();
 
     render(
       <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 850_000),
-          visit('full_payload_read', 20_000, 'b'),
-        ])}
+        replay={replay([visit('full_payload_read', 0, 'a')])}
+        composition={composition([], { totalTokens: 0, residualTokens: null, residualAbsence: 'no-readable-request' })}
       />,
     );
+    expect(screen.queryByTestId('traversal-composition')).toBeNull();
+  });
 
-    scrubTo(1);
-    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
-    expect((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height).toBe(
-      `${(150_000 / 1_000_000) * 100}%`,
+  it('gives every segment a width in the exact ratio of its tokens — no minimum, so a sliver stays one', () => {
+    render(
+      <TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={TYPICAL} />,
+    );
+    // `flex-grow: <tokens>` on a zero basis: the browser divides the row in the exact ratio, with no
+    // per-segment rounding and no floor. A floor is what would make a 9% slice look like 20%.
+    const knowledge = screen.getByTestId('traversal-composition-segment-knowledge-graph');
+    const floor = screen.getByTestId('traversal-composition-segment-harness-floor');
+    expect((knowledge as HTMLElement).style.flexGrow).toBe('20000');
+    expect((floor as HTMLElement).style.flexGrow).toBe('97000');
+    expect(knowledge.getAttribute('data-tokens')).toBe('20000');
+    const css = readStylesheet();
+    const rule = css.slice(
+      css.indexOf('.traversal-composition-segment {'),
+      css.indexOf('}', css.indexOf('.traversal-composition-segment {')),
+    );
+    expect(rule).toContain('flex-basis: 0');
+    expect(rule).not.toContain('min-width: 1');
+  });
+
+  it('draws the segments in the PACKAGE’s order and never re-sorts by size', () => {
+    // A size-sorted bar reshuffles between windows and destroys the one reading a bar is good at:
+    // comparing two of them. The order is `COMPOSITION_SEGMENT_ORDER`'s, and this component draws
+    // the array it is handed, in the order it is handed it.
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={TYPICAL} />);
+    const drawn = [...document.querySelectorAll('[data-segment]')].map((el) => el.getAttribute('data-segment'));
+    expect(drawn).toEqual(['knowledge-graph', 'shell', 'assistant-thinking', 'harness-floor']);
+  });
+
+  it('makes ONLY the knowledge-graph segment actionable — the rest are inert and say so structurally', () => {
+    // ADR-0524 D4 creates an expectation the product does not meet: segments that look clickable and
+    // are not. The remedy is the ELEMENT, not styling a later reader could undo — the one segment
+    // with a destination is a `<button>`, every other is a `<span>`.
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={TYPICAL} />);
+    expect(screen.getByTestId('traversal-composition-segment-knowledge-graph').tagName).toBe('BUTTON');
+    for (const key of ['shell', 'assistant-thinking', 'harness-floor']) {
+      const el = screen.getByTestId(`traversal-composition-segment-${key}`);
+      expect(el.tagName, key).toBe('SPAN');
+      expect(el.getAttribute('role'), key).toBeNull();
+      expect(el.getAttribute('tabindex'), key).toBeNull();
+    }
+    // Every segment is still READABLE — being un-navigable is not a reason to be unreadable.
+    expect(screen.getByTestId('traversal-composition-segment-shell').getAttribute('title')).toContain('shell');
+  });
+
+  it('the knowledge-graph segment points at the picture below, which is the surface it names', () => {
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={TYPICAL} />);
+    const button = screen.getByTestId('traversal-composition-segment-knowledge-graph');
+    expect(document.querySelector('.traversal-plot-scroll')?.getAttribute('data-indicated')).toBe('false');
+    fireEvent.click(button);
+    // Not a navigation: its surface is already on screen, so the honest action marks it. Inventing a
+    // route elsewhere would be a bigger lie than doing nothing.
+    expect(document.querySelector('.traversal-plot-scroll')?.getAttribute('data-indicated')).toBe('true');
+  });
+
+  it('states the share and the denominator as DIGITS, and never calls the total "resident"', () => {
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={TYPICAL} />);
+    const chip = screen.getByTestId('traversal-composition-total');
+    // 20,000 of 232,000 — the twentyfold over-claim, now visible as a number as well as a width.
+    expect(chip.textContent).toContain('8.6%');
+    expect(chip.textContent).toContain('232.0k');
+    // The composition is the window's INTAKE. Labelling it "resident" would restore the exact
+    // duplicate reading the vertical bar was removed for.
+    expect(chip.textContent).not.toContain('resident');
+    expect(chip.getAttribute('title')).toContain('intake');
+    expect(chip.getAttribute('title')).toContain('3.8');
+  });
+
+  it('says so when the harness floor could not be read, rather than drawing it as zero', () => {
+    const noFloor = composition([{ key: 'shell', label: 'shell', tokens: 1_000 }], {
+      residualTokens: null,
+      residualAbsence: 'no-readable-request',
+    });
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={noFloor} />);
+    expect(screen.queryByTestId('traversal-composition-segment-harness-floor')).toBeNull();
+    expect(screen.getByTestId('traversal-composition-total').getAttribute('title')).toContain(
+      'could not be read',
     );
   });
 
-  it('prefers the window\u2019s own HOST TRANSCRIPT over the replayed trace (ADR-0456 D2)', () => {
-    // The whole repoint, in one assertion. The trace carries nothing — the ordinary state, since
-    // occupancy reaches a trace only through an explicit `storytree traversal ingest` (2 of 697 local
-    // traces on this machine). Before this, the bar drew its honest "none observed" here. The host
-    // transcript is ambient and answers for 25 of the 30 most recent traces.
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000),
-          visit('full_payload_read', 20_000, 'b'),
-        ])}
-        transcriptOccupancy={buildTranscriptOccupancySeries({
-          windowId: 'the-session',
-          scan: { root: '/transcripts', windowFilesFound: 9, file: '/transcripts/the-session.jsonl' },
-          observations: [{ at: at(1_000), residentTokens: 781_000 }],
-          peakTokens: 781_000,
-          syntheticObservations: 0,
-          sidechainRequests: 0,
-          absence: null,
-          note: '1 reading(s) from this window’s own host transcript',
-        })}
-      />,
-    );
-
-    scrubTo(1);
-    expect(document.querySelector('.traversal-occupancy.is-unobserved')).toBeNull();
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('781.0k');
-    // Past the soft mark, short of the hard one: the middle band is coloured and the top is not.
-    expect(
-      Number.parseFloat((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height),
-    ).toBeGreaterThan(0);
-    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
-  });
-
-  it('keeps the TRACE series when the transcript answered an absence — the ingested case must not regress', () => {
-    // The 2-in-697 shape: this trace really was ingested and carries the series, while the window's
-    // transcript is gone (a project directory removed, say). An empty transcript answer overwriting
-    // a real trace series would silently delete the only reading that exists.
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 240_900),
-          visit('full_payload_read', 20_000, 'b'),
-        ])}
-        transcriptOccupancy={buildTranscriptOccupancySeries({
-          windowId: 'the-session',
-          scan: { root: '/transcripts', windowFilesFound: 9, file: null },
-          observations: [],
-          peakTokens: 0,
-          syntheticObservations: 0,
-          sidechainRequests: 0,
-          absence: 'no-window-transcript',
-          note: 'no host transcript named "the-session"',
-        })}
-      />,
-    );
-
-    scrubTo(1);
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('240.9k');
-  });
-
-  it('carries the source\u2019s own absence sentence into the track\u2019s label rather than losing it', () => {
-    render(
-      <TraversalSpine
-        replay={replay([visit('full_payload_read', 0, 'a'), visit('full_payload_read', 20_000, 'b')])}
-        transcriptOccupancy={buildTranscriptOccupancySeries({
-          windowId: 'sweet-lovelace-f6a3fa',
-          scan: { root: '/transcripts', windowFilesFound: 9, file: null },
-          observations: [],
-          peakTokens: 0,
-          syntheticObservations: 0,
-          sidechainRequests: 0,
-          absence: 'no-window-transcript',
-          note: 'a trace keyed by a worktree slot pools every window that ran in it',
-        })}
-      />,
-    );
-
-    // ADR-0393 D1 deleted the prose under the picture; the REASON still has to reach a reader who
-    // asks, so it rides the label rather than returning as a paragraph.
-    const track = document.querySelector('.traversal-occupancy-track.is-unobserved');
-    expect(track?.getAttribute('aria-label')).toContain('worktree slot');
-  });
-
-  it('reads "— resident" before the first observation rather than zero', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          visit('full_payload_read', 20_000, 'b'),
-          occupancyEvent(40_000, 300_000),
-        ])}
-      />,
-    );
-
-    scrubTo(0);
-    // An em dash, never a zero: "nothing observed YET at this playhead" is not "the window was
-    // empty". The word "resident" caps the vertical track above this readout.
-    const readout = screen.getByTestId('traversal-occupancy-readout');
-    expect(readout.textContent).toContain('—');
-    expect(readout.textContent).not.toMatch(/\b0\b/);
-    expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
-  });
-
-  it('falls when the series recedes — the quantity is resident context, not a billing total', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 240_900),
-          visit('full_payload_read', 20_000, 'b'),
-          occupancyEvent(21_000, 228_100),
-          visit('full_payload_read', 40_000, 'c'),
-        ])}
-      />,
-    );
-
-    // The bar is a VERTICAL track since the rotation, so its fill is a height. The claim is
-    // unchanged: the plotted quantity is resident context and it must be free to FALL.
-    const safeFill = (): number =>
-      Number.parseFloat((screen.getByTestId('traversal-occupancy-calm') as HTMLElement).style.height);
-
-    scrubTo(0.5);
-    const first = safeFill();
-    scrubTo(1);
-    const second = safeFill();
-    // The billing total rose across those two events; the plotted bar FELL.
-    expect(second).toBeLessThan(first);
+  it('says so when a window did NO knowledge-graph reading at all', () => {
+    const none = composition([{ key: 'shell', label: 'shell', tokens: 1_000 }]);
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} composition={none} />);
+    // A zero share and "no read at all" are different facts. The chip states the second rather than
+    // printing "0.0%", which reads as a measurement of a thing that never happened.
+    expect(screen.getByTestId('traversal-composition-total').textContent).toContain('no knowledge-graph read');
+    expect(screen.queryByTestId('traversal-composition-segment-knowledge-graph')).toBeNull();
   });
 });
 
@@ -971,7 +891,7 @@ describe('the legend and the stylesheet say the same thing', () => {
   // DASHED. It survived review because nothing is ever followed in practice, so the state that
   // disagreed was the only state anyone ever saw — the picture looked like a texture and nobody
   // could tell it was lying. The pair is pinned here rather than left to a reader's eye.
-  const css = readFileSync(resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'), 'utf8');
+  const css = readStylesheet();
 
   function ruleBody(selector: string): string | null {
     const at = css.indexOf(`${selector} {`);
@@ -1441,27 +1361,5 @@ describe('the picture says which recorder wrote what it draws (ADR-0484 D5)', ()
     );
     render(<TraversalSpine replay={clean} />);
     expect(screen.queryByTestId('traversal-provenance-chip')).toBeNull();
-  });
-});
-
-describe('the occupancy bar names its own recorder (ADR-0484 D5)', () => {
-  it('says the reading is harness-derived, on the reading itself', () => {
-    // The bar is the panel's most prominent number and it is harness-derived whichever way it was
-    // filled: `residentInputTokens` has one producer, and the window's own transcript the mount
-    // prefers (ADR-0456 D2) is the SAME harness file. Nothing storytree records can fill it.
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'arc'),
-          occupancyEvent(1_000, 120_000),
-          visit('full_payload_read', 20_000, 'plan'),
-        ])}
-      />,
-    );
-    scrubTo(1);
-    const label = document.querySelector('.traversal-occupancy-track')?.getAttribute('aria-label');
-    expect(label).toContain('HARNESS-DERIVED');
-    expect(label).toContain('not');
-    expect(label).toContain('recorded by storytree');
   });
 });
