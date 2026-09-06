@@ -175,6 +175,7 @@
       "packages/cli/src/probe-decision-reads.ts": "cli",
       "packages/cli/src/probe-re-reads.ts": "cli",
       "packages/cli/src/leaf-test-strength*.ts": "cli",
+      "packages/cli/src/verdict-contradiction*.ts": "cli",
       "packages/cli/src/claude-region.ts": "cli",
       "packages/cli/src/*coverage*.ts": "cli",
       "packages/cli/src/db-cli.ts": "cli",
@@ -761,6 +762,12 @@
         "reads": ["checkout"],
         "because": "`pnpm leaf-test-strength` resolves a signed verdict's `unitId` to the file pair the leaf was scoped to author, and it must read the CHECKOUT's `stories/**` because those paths are only meaningful against the tree it is about to mutate — the files it then hands to Stryker are this checkout's files. It also reads the live store, but for `events.verdict`, which is not the work hierarchy: the hierarchy read is checkout-only, and that is what this camp names.",
         "$note": "Not a gate rung and not a threshold — a by-hand reading for `verdict-accuracy-arc` (docs/research/leaf-test-strength-2026-09-05.md). The gap between the proof's commit and the tree now is REPORTED per pair (`testChangedSinceProof`, from git) rather than resolved, precisely because this reader sits in one camp and says so."
+      },
+      "packages/cli/src/verdict-contradiction.run.ts": {
+        "camp": "prove",
+        "reads": ["checkout"],
+        "because": "`pnpm verdict-contradiction` resolves a signed verdict's `unitId` to the file pair the leaf was scoped to author, and it must read the CHECKOUT's `stories/**` because those paths are only meaningful against the tree whose git history it then walks. It also reads the live store, but for `events.verdict`, which is not the work hierarchy: the hierarchy read is checkout-only, and that is what this camp names.",
+        "$note": "Not a gate rung and not a threshold — a by-hand reading for `verdict-accuracy-arc` increment 2 (docs/research/verdict-contradiction-2026-09-06.md). Shares `leaf-test-strength.run.ts`'s population resolver on purpose: two instruments on one arc disagreeing about which verdicts resolve to a pair would make both unreadable."
       },
       "packages/cli/src/load-hierarchy.ts": {
         "camp": "bridge",
