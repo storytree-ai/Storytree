@@ -173,7 +173,10 @@ test('a WHEATED material uploads the caller`s mix and splices the generated whea
 
 test('a lift below 1, or not a finite number, is REFUSED with the ladder`s floor named', () => {
   for (const lift of [0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.throws(() => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift } }), /lift is .* the paleness ladder runs from 1/);
+    assert.throws(
+      () => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift } }),
+      /lift is .* the paleness ladder runs from 1 \(the derivation as it stands\) upward, and a lift below it darkens a field the recipe already darkens/,
+    );
   }
   // Exactly 1 is the floor, and admitted.
   assert.doesNotThrow(() => createBandedGroundMaterial({ ...grassed(), wheat: { ...WHEAT, lift: 1 } }));
