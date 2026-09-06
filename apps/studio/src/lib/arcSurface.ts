@@ -512,6 +512,102 @@ export function defaultLaneId(lanes: readonly ArcLane[]): string | null {
   return (waiting ?? lanes[0])?.arc.id ?? null;
 }
 
+/**
+ * The lane with this id, searched THROUGH the queue tree — `null` when no lane carries it.
+ *
+ * A queued arc is not a member of the top-level list (see {@link arcLanes}'s nesting rule), so a
+ * `lanes.find(...)` over that list can only ever answer about arcs nothing is blocking. The chip run
+ * makes a queued arc directly selectable, which means the selection guard has to be able to SEE one:
+ * without this, clicking a chip failed the guard and silently snapped the panel back to
+ * {@link defaultLaneId}.
+ *
+ * Termination rides on {@link arcLanes}'s own `ancestors` bound — the tree it returns is finite even
+ * on cyclic data, so this walk cannot be the thing that hangs the tab.
+ */
+export function findLane(lanes: readonly ArcLane[], id: string): ArcLane | null {
+  for (const lane of lanes) {
+    if (lane.arc.id === id) return lane;
+    const nested = findLane(lane.queued, id);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
+/** The house suffix every arc id carries (`storytree arc new` appends it — `packages/arc/src/arc.ts`). */
+const ARC_ID_SUFFIX = '-arc';
+
+/**
+ * PURE: the SHORT name for an arc — its own id, de-kebabbed, with the house `-arc` suffix dropped.
+ *
+ * THE SHORT NAME ALREADY EXISTED AND IS NOT A NEW FIELD (owner, 2026-09-06: "Do we have arc titles?
+ * if not we should add them"). Arcs DO carry a `title`, and it is what the lane draws — but the
+ * authoring convention writes it as an END-STATE SENTENCE ("The shipped ground wears the approved
+ * material, layer by layer"), so it reads as a description and runs long. Measured against the live
+ * store on 2026-09-06 over all 134 arcs: `title` is a median 62 chars, p90 86, max 115, while the id
+ * minus this suffix is a median 23, p90 35, max 57 — a third of the length, because ids were
+ * hand-picked as short English phrases. `id` already rides {@link ArcRollupSummary}, so a chip label
+ * derived here costs no schema change, no backfill across 134 rows, and — the reason that matters —
+ * creates no SECOND authored name that can drift from the first.
+ *
+ * Only the first word is capitalised: this is a name, not a heading, and title-casing every word
+ * ("Land Ground Stack") reads as a proper noun the corpus does not have.
+ *
+ * Never returns empty: an id that de-kebabs to nothing (all punctuation) falls back to the id itself,
+ * so a malformed row draws something findable rather than a blank chip.
+ */
+export function shortLabel(id: string): string {
+  const stem = id.endsWith(ARC_ID_SUFFIX) ? id.slice(0, -ARC_ID_SUFFIX.length) : id;
+  const words = stem.split('-').filter((word) => word.length > 0);
+  const first = words[0];
+  if (first === undefined) return id;
+  return [first.charAt(0).toUpperCase() + first.slice(1), ...words.slice(1)].join(' ');
+}
+
+/**
+ * One arc queued behind another, as the lane row's chip run draws it (owner-directed 2026-09-06).
+ *
+ * `gates` is how DEPTH survives without nesting: a queued arc that itself holds others up carries the
+ * count as a `+N`, rather than opening a second level of rows. That is the owner's own bound from the
+ * inc-05 conversation — "its not like you would need to see more than one layer deep".
+ */
+export interface QueueChip {
+  id: string;
+  /** {@link shortLabel} of the arc's id — never its long title, which is the thing being escaped. */
+  label: string;
+  /** The arc's own long title, for the chip's hover — the detail stays reachable, just not inline. */
+  title: string;
+  /** How many arcs THIS one in turn holds up. Zero for a leaf; drawn as `+N` when above zero. */
+  gates: number;
+  /**
+   * The queued arc's own unit counts. It draws no bars of its own here, so this is what a hover has
+   * to carry: an arc that landed work and was THEN gated would otherwise lose that signal entirely.
+   */
+  counts: LaneCounts;
+}
+
+/**
+ * PURE: one lane's DIRECT queue, flattened to the chip run the row draws.
+ *
+ * DIRECT CHILDREN ONLY, AND THE TREE IS NOT WALKED FLAT. `ArcLane.queued` is recursive and one arc
+ * can gate several, so a chip run is a SET, never a chain — which is why the row draws no connector
+ * arrows between chips: an arrow would assert a running order the data does not carry. Anything a
+ * child gates in turn is summarised as {@link QueueChip.gates} rather than hoisted into this run,
+ * which keeps one row's chips answering exactly one question ("what is lined up behind this?").
+ *
+ * Empty for almost every arc — the density property ADR-0523 earned and this rendering must preserve:
+ * an ungated arc costs no chip line at all, and with 121 closed arcs in the store that is the
+ * difference between a scannable list and 121 three-line blocks.
+ */
+export function queueChips(lane: ArcLane): QueueChip[] {
+  return lane.queued.map((child) => ({
+    id: child.arc.id,
+    label: shortLabel(child.arc.id),
+    title: child.arc.title || child.arc.id,
+    gates: child.queued.length,
+    counts: child.counts,
+  }));
+}
+
 // ---------- D3: the briefing panel's payload ----------
 
 /**
