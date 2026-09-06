@@ -29,7 +29,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LAND_AREA_PER_CAPABILITY, islandLand } from './land-per-capability.js';
+import { LAND_AREA_PER_CAPABILITY, LAND_FLOOR_CAPABILITIES, islandLand, islandSizeInversions } from './land-per-capability.js';
 import { islandCentres } from './true-footprint.js';
 
 import {
@@ -178,7 +178,11 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
   // the per-island footprint restoration (ADR-0517 D1, `true-footprint.test.ts`) is the identity
   // and every transform below is the World geometry's exactly. The default — the drawing
   // unprojected — is pinned at the end of this file.
-  const descs = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  // ⚠ The drawing's OWN placement: the footprint restoration switched off (plan view) AND the
+  // ratio switched off (`null`) — since 2026-09-06 an island holding no capability is sized as one
+  // (`LAND_FLOOR_CAPABILITIES`), so the fixture's bare territory no longer sits at the drawing's size by
+  // itself. The mapper's default is held by its own tests at the bottom of this file.
+  const descs = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null });
 
   // kind family → typed descriptor branch, transforms derived from the World geometry: each
   // cell-ground sits at ITS OWN parcel ring's centroid — the relaxed-mesh ground, the one
@@ -370,8 +374,8 @@ test('worldTo3D filters under-island runs into trail-ghost-strip — never a tra
 
 test('worldTo3D maps cave portals to cave-arch descriptors — rim placement, bearing, mouth width', () => {
   assert.ok(CAVE_TRAILS.caves.length > 0, 'the walled-in fixture forces cave portals');
-  // The walk's own placement — the footprint restoration switched off as above.
-  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  // The walk's own placement — the footprint restoration and the ratio switched off as above.
+  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null });
   const arches = descs.filter((d): d is InstanceDescriptor => d.kind === 'cave-arch');
   assert.equal(arches.length, CAVE_TRAILS.caves.length, 'one cave-arch per portal');
   // match by island + edge set (portal order is preserved by buildScene)
@@ -1295,8 +1299,11 @@ test('a cave portal with NO status ANYWHERE above it falls back to `unknown`', (
 
 test('⚠⚠ by default the mapper restores the island’s true footprint: the drawing’s z stretched by 1/sin 20° about the island’s centre', () => {
   const scene = buildScene(mkInput());
-  const drawn = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(asInstance);
-  const shipped = worldTo3D(scene).filter(asInstance);
+  // ⚠ The ratio is switched off on BOTH sides: this test is about the restoration alone, and the
+  // ratio's factor reads the island's area, which the restoration changes — so with it on, the two
+  // would differ by a scale as well as a stretch. The ratio's own default is the next test's.
+  const drawn = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null }).filter(asInstance);
+  const shipped = worldTo3D(scene, { landAreaPerCapability: null }).filter(asInstance);
   assert.equal(drawn.length, shipped.length);
   const cells = drawn.filter((d) => d.kind === 'cell-ground');
   assert.ok(cells.length > 0);
@@ -1314,7 +1321,10 @@ test('⚠⚠ by default the mapper restores the island’s true footprint: the d
   for (const [i, d] of shipped.entries()) {
     const b = drawn[i]!;
     assert.equal(d.kind, b.kind);
-    assert.equal(d.transform.x, b.transform.x, 'x never moves');
+    // ⚠ To rounding, not to the bit: since the ratio is switched off here, the plan-view side is
+    // handed back untouched while the shipped side goes through the restoration's own
+    // `c + (x − c) · 1` on x — the same number, one ulp apart.
+    assert.ok(Math.abs(d.transform.x - b.transform.x) < 1e-9, 'x never moves');
     if (d.kind === 'cell-ground') {
       assert.ok(Math.abs(d.transform.z - cz - (b.transform.z - cz) * stretch) < 1e-9, 'a cell stretches about its island');
       for (const [j, p] of (d.points ?? []).entries()) {
@@ -1344,7 +1354,7 @@ test('⚠⚠ by default the mapper restores the island’s true footprint: the d
    ladder rung; `null` is the instrument's "as the drawing gave it". The arithmetic itself is
    `land-per-capability.test.ts`'s — what is pinned here is the mapper's default and its option. */
 
-test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_AREA_PER_CAPABILITY; a rung is honoured; `null` leaves the drawing’s size; an island with no parcels stays as drawn; the centre holds still', () => {
+test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_AREA_PER_CAPABILITY; a rung is honoured; `null` leaves the drawing’s size; an island with no parcels is sized as ONE capability; the centre holds still', () => {
   // Two islands: one partitioned into three capability parcels, one with bare cells and no parcel.
   const twoIslands: SceneG = {
     el: 'g',
@@ -1366,11 +1376,22 @@ test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_ARE
   assert.ok(a.area > 0 && Math.abs(a.area - 3 * LAND_AREA_PER_CAPABILITY) > 1, 'the drawing is NOT already at the ratio — the option is not a no-op');
   assert.ok(Math.abs(islandLand(shipped).get('isle-a')!.area - 3 * LAND_AREA_PER_CAPABILITY) < 1e-6);
   assert.ok(Math.abs(islandLand(rung).get('isle-a')!.area - 3 * 100) < 1e-6);
-  // The bare island has no capability to read a size off, so it is exactly the drawing's.
+  // ⚠ THE BARE ISLAND IS SIZED AS ONE CAPABILITY (the owner, 2026-09-06: "no capabilities should
+  // just be 1 hex which should be the minimum" — `LAND_FLOOR_CAPABILITIES`). Until then it was left
+  // at the drawing's size, and on the real forest that made the islands holding NO work the
+  // third- to sixth-largest things on the map.
   const bDrawn = asDrawn.filter((d) => d.island === 'isle-b');
   const bShipped = shipped.filter((d) => d.island === 'isle-b');
   assert.ok(bDrawn.length > 0);
-  assert.deepEqual(bShipped, bDrawn);
+  assert.equal(islandLand(asDrawn).get('isle-b')!.capabilities, 0);
+  assert.ok(Math.abs(islandLand(shipped).get('isle-b')!.area - LAND_FLOOR_CAPABILITIES * LAND_AREA_PER_CAPABILITY) < 1e-6, 'one capability’s worth of land');
+  assert.ok(Math.abs(islandLand(rung).get('isle-b')!.area - LAND_FLOOR_CAPABILITIES * 100) < 1e-6, 'and one rung’s worth on a rung');
+  assert.notDeepEqual(bShipped, bDrawn, 'it is no longer left as drawn');
+  // So the bare island is exactly as large as a one-capability island would be, and smaller than
+  // isle-a's three: no island with fewer capabilities is drawn larger than one with more.
+  assert.deepEqual(islandSizeInversions(islandLand(shipped).values()), []);
+  assert.ok(islandLand(shipped).get('isle-b')!.area < islandLand(shipped).get('isle-a')!.area);
+  assert.ok(islandLand(asDrawn).get('isle-b')!.area > 0);
   // The centres hold still: the layout is the drawing's.
   const cDrawn = islandCentres(asDrawn);
   const cShipped = islandCentres(shipped);

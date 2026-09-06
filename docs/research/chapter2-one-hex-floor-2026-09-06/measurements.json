@@ -1,0 +1,318 @@
+[
+  {
+    "arm": "today",
+    "floor": 0,
+    "picture": "forest",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 0.6568388721235456,
+    "drawCalls": 5,
+    "triangles": 720432,
+    "groundTriangles": 149962,
+    "meshes": 4,
+    "placements": 1361,
+    "casters": 1361,
+    "buildMs": 516.0999999046326,
+    "box": {
+      "w": 1020,
+      "h": 1548,
+      "x0": 770,
+      "y0": 26,
+      "pixels": 36615
+    },
+    "landPx": 36615,
+    "landShare": 0.008939208984375,
+    "families": 45,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsShipped": 8705
+  },
+  {
+    "arm": "shipped",
+    "floor": 1,
+    "picture": "forest",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 0.6568388721235456,
+    "drawCalls": 5,
+    "triangles": 720400,
+    "groundTriangles": 149930,
+    "meshes": 4,
+    "placements": 1361,
+    "casters": 1361,
+    "buildMs": 500.5,
+    "box": {
+      "w": 1020,
+      "h": 1535,
+      "x0": 770,
+      "y0": 39,
+      "pixels": 28643
+    },
+    "landPx": 28643,
+    "landShare": 0.006992919921875,
+    "families": 46,
+    "touched": 8705,
+    "visible": 8240,
+    "delta": {
+      "frame": 4096000,
+      "touched": 8705,
+      "visible": 8240,
+      "overstatement": 1.0564320388349515,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 465,
+          "shareOfMoved": 0.053417576105686385
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 277,
+          "shareOfMoved": 0.0318207926479035
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 509,
+          "shareOfMoved": 0.058472142446869615
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 7094,
+          "shareOfMoved": 0.8149339460080414
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 360,
+          "shareOfMoved": 0.04135554279149914
+        }
+      ],
+      "p50": 98,
+      "p90": 139,
+      "p99": 180,
+      "max": 211
+    },
+    "touchedVsShipped": 0
+  },
+  {
+    "arm": "today",
+    "floor": 0,
+    "picture": "one",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 5,
+    "triangles": 720432,
+    "groundTriangles": 149962,
+    "meshes": 4,
+    "placements": 1361,
+    "casters": 1361,
+    "buildMs": 516.0999999046326,
+    "box": {
+      "w": 1684,
+      "h": 600,
+      "x0": 0,
+      "y0": 448,
+      "pixels": 348010
+    },
+    "landPx": 348010,
+    "landShare": 0.08496337890625,
+    "families": 39,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsShipped": 320864
+  },
+  {
+    "arm": "shipped",
+    "floor": 1,
+    "picture": "one",
+    "elevationDeg": 49.99999999999999,
+    "pxPerUnit": 8,
+    "drawCalls": 5,
+    "triangles": 720400,
+    "groundTriangles": 149930,
+    "meshes": 4,
+    "placements": 1361,
+    "casters": 1361,
+    "buildMs": 500.5,
+    "box": {
+      "w": 1395,
+      "h": 363,
+      "x0": 0,
+      "y0": 660,
+      "pixels": 53788
+    },
+    "landPx": 53788,
+    "landShare": 0.0131318359375,
+    "families": 57,
+    "touched": 320864,
+    "visible": 305596,
+    "delta": {
+      "frame": 4096000,
+      "touched": 320864,
+      "visible": 305596,
+      "overstatement": 1.0499613869291482,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 15268,
+          "shareOfMoved": 0.04758402313752867
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 11263,
+          "shareOfMoved": 0.03510209933180413
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 13340,
+          "shareOfMoved": 0.04157524683354941
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 270753,
+          "shareOfMoved": 0.8438247980452778
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 10240,
+          "shareOfMoved": 0.03191383265184003
+        }
+      ],
+      "p50": 99,
+      "p90": 143,
+      "p99": 172,
+      "max": 199
+    },
+    "touchedVsShipped": 0
+  }
+]

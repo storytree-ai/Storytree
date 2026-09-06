@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the shadow scaled back: pool, cone, depth on three grounds — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The shadow scaled back: the pool, the cone, the depth &mdash; on three grounds</h1>
+      <p>
+        <em>"Shadows still look overdone, you have a full circle under the tree that is quite large
+        and a triangle for what the tree casts, both look too large depending on the land color."</em>
+        Two marks, two levers, and the depth laddered lighter; every rung rendered on a green island,
+        an in-progress island wearing the mustard wheat, and the green island's sand band. All inside
+        the analytic ground field: no shadow map, no second pass, one draw call, one mount-time stamp.
+      </p>
+      <p class="numbers">
+        today       the derived pool, the cone as wide as the crown, 0.55 deep — the map after #1841 / #1845 (CONTROL)
+        pool-&lt;r&gt;    THE CIRCLE: the contact pool's edge at r of its derived reach (1 / 0.7 / 0.5 / 0.25 / 0 = none)
+        width-&lt;w&gt;   THE TRIANGLE: the tree's cast silhouette at w of the crown's footprint (1 / 0.8 / 0.65 / 0.5)
+        depth-&lt;d&gt;   HOW DARK: the painted islands' full-shadow rung — HIGHER IS LIGHTER (0.78 derived / 0.70 / 0.62 / 0.55)
+        shipped     what ships — one rung of each ladder, read off the source
+      </p>
+      <p>
+        Under each arm: casters, the mount-time stamp in ms, the field's occupancy past the full and
+        soft thresholds, the darkest land as a share of the brightest, and pixels moved past 20/255
+        against <code>today</code> (ADR-0490 D6). The reader model's margin per token per depth rung
+        is in the driver's report &mdash; printed, not a fence.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedShadowScale } from './shipped-shadow-scale-scene.ts';
+      try {
+        await mountShippedShadowScale(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

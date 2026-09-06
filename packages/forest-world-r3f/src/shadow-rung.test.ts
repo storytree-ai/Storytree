@@ -29,6 +29,7 @@ import {
 import {
   SHADOW_DEPTH,
   SHADOW_DEPTH_RUNGS,
+  SHADOW_DEPTH_SCALE_BACK_RUNGS,
   SHADOW_EDGE,
   halfRungFor,
   readMarginAt,
@@ -473,8 +474,15 @@ test('THE INSTRUMENT, NOT THE FENCE: the reader’s margin on a shadowed healthy
   // The yellow keeps the derived rung, where its margin is positive (that is what `deepest
   // AdmissibleRung` derived), so the deploy-gate islands never wear a negative margin.
   assert.ok(readMarginAt('#d8c069', 0.77, SHIPPED_TOKENS) > 0);
-  // The picks and the ladder, as shipped.
-  assert.ok(SHADOW_DEPTH_RUNGS.includes(SHADOW_DEPTH), 'the shipped depth is not a rung the owner was shown');
+  // The picks and the two ladders, as shipped: the cast-shadow sheet's, and the scale-back
+  // sheet's (2026-09-06, "shadows still look overdone" — laddered UPWARD from 0.55, higher is
+  // lighter). The pick has to be a rung of ONE of them, and it is below the derived rung.
+  assert.ok([...SHADOW_DEPTH_RUNGS, ...SHADOW_DEPTH_SCALE_BACK_RUNGS].includes(SHADOW_DEPTH), 'the shipped depth is not a rung the owner was shown');
   assert.deepEqual([...SHADOW_DEPTH_RUNGS], [0.65, 0.55, 0.45]);
+  assert.deepEqual([...SHADOW_DEPTH_SCALE_BACK_RUNGS], [0.7, 0.62, 0.55]);
+  assert.equal(SHADOW_DEPTH_SCALE_BACK_RUNGS[SHADOW_DEPTH_SCALE_BACK_RUNGS.length - 1], 0.55, 'the scale-back ladder starts where PR #1841 left the depth');
+  for (let i = 1; i < SHADOW_DEPTH_SCALE_BACK_RUNGS.length; i += 1) assert.ok(SHADOW_DEPTH_SCALE_BACK_RUNGS[i]! < SHADOW_DEPTH_SCALE_BACK_RUNGS[i - 1]!, 'descends');
+  assert.ok(SHADOW_DEPTH < 0.77 && SHADOW_DEPTH > 0.3);
+  assert.ok(readMarginAt(HEALTHY, SHADOW_DEPTH, SHIPPED_TOKENS) < 0, 'the margin at the shipped depth is printed, and negative');
   assert.ok(SHADOW_EDGE === 'soft' || SHADOW_EDGE === 'hard');
 });

@@ -15,6 +15,7 @@ import test from 'node:test';
 
 import {
   CONTACT_SPREAD,
+  CONTACT_SPREAD_RUNGS,
   buildContactField,
   buildGroundOcclusion,
   packContactSoft,
@@ -183,13 +184,66 @@ test('mergeOcclusion REFUSES a grid mismatch rather than resampling one onto the
 test('spread widens the pool without lifting the whole field toward the threshold', () => {
   smallGrid(BOUNDS);
   const casters: ShadowCaster[] = [{ x: 0, z: 0, radius: 2, height: 10 }];
-  assert.equal(CONTACT_SPREAD, 1);
+  // The builder's OWN default is the derived pool (spread 1): naming it changes nothing.
   const tight = buildContactField({ bounds: BOUNDS, casters });
+  assert.deepEqual(buildContactField({ bounds: BOUNDS, casters, spread: 1 }).data, tight.data);
   const wide = buildContactField({ bounds: BOUNDS, casters, spread: 2 });
   assert.ok(contactCoverage(wide) > contactCoverage(tight));
   // The value AT the prop is unchanged — a widening moves the edge outward, it does not brighten
   // and then darken everything at once.
   assert.equal(sampleShadowField(wide, 0, 0), sampleShadowField(tight, 0, 0));
+  // And a NARROWING moves the edge inward by exactly the spread: the pool's edge is where the
+  // derived occlusion crosses the threshold, `contactReach`, scaled.
+  const reach = contactReach(2, 10);
+  const half = buildContactField({ bounds: BOUNDS, casters, spread: 0.5 });
+  assert.ok(contactCoverage(half) < contactCoverage(tight));
+  assert.ok(sampleShadowField(half, (reach * 0.5) - 0.4, 0) > 0.5, 'inside the halved reach the pool is there');
+  assert.equal(sampleShadowField(half, reach * 0.5 + 0.4, 0), 0, 'past it there is nothing');
+  assert.ok(sampleShadowField(tight, reach * 0.5 + 0.4, 0) > 0.5, 'where the derived pool still is');
+  assert.equal(sampleShadowField(half, 0, 0), sampleShadowField(tight, 0, 0), 'the value at the prop is unchanged');
+});
+
+test('⚠ a spread of NOTHING pools nothing — the field stays empty rather than each foot being divided by zero', () => {
+  smallGrid(BOUNDS);
+  // A caster standing EXACTLY on a grid point, so the one sample a zero reach still visits is its
+  // own foot: `d / 0` there is NaN, and a byte written from NaN is whatever the typed array makes
+  // of it. The guard answers before the arithmetic is reached.
+  const casters: ShadowCaster[] = [{ x: 0, z: 0, radius: 2, height: 10 }];
+  const none = buildContactField({ bounds: BOUNDS, casters, spread: 0 });
+  assert.ok([...none.data].every((v) => v === 0));
+  assert.equal(contactCoverage(none), 0);
+  assert.deepEqual([none.w, none.h, none.gres], [buildContactField({ bounds: BOUNDS, casters }).w, buildContactField({ bounds: BOUNDS, casters }).h, 3]);
+  // The guard is on `<= 0`, so a negative spread pools nothing either — never a mirrored pool.
+  assert.ok([...buildContactField({ bounds: BOUNDS, casters, spread: -1 }).data].every((v) => v === 0));
+  // And the smallest positive spread still stamps the foot.
+  assert.ok(contactCoverage(buildContactField({ bounds: BOUNDS, casters, spread: 0.05 })) > 0);
+});
+
+test('⚠⚠ THE SHIPPED SPREAD IS APPLIED BY buildGroundOcclusion — a rung of the ladder, narrower than the derived pool, and one edit from any other rung', () => {
+  smallGrid(BOUNDS);
+  assert.ok(CONTACT_SPREAD_RUNGS.includes(CONTACT_SPREAD), 'the shipped spread is not a rung the owner was shown');
+  assert.deepEqual([...CONTACT_SPREAD_RUNGS], [1, 0.7, 0.5, 0.25, 0]);
+  assert.equal(CONTACT_SPREAD_RUNGS[0], 1, 'the first rung is the pool as it shipped after PR #1841');
+  assert.equal(CONTACT_SPREAD_RUNGS[CONTACT_SPREAD_RUNGS.length - 1], 0, 'the last rung is no pool at all');
+  for (let i = 1; i < CONTACT_SPREAD_RUNGS.length; i += 1) assert.ok(CONTACT_SPREAD_RUNGS[i]! < CONTACT_SPREAD_RUNGS[i - 1]!, 'the ladder descends');
+  assert.ok(CONTACT_SPREAD < 1 && CONTACT_SPREAD > 0, `the pick (${CONTACT_SPREAD}) is a narrowing, and still a pool`);
+  const casters: ShadowCaster[] = [{ x: 0, z: 0, radius: 2, height: 10 }];
+  const shipped = buildGroundOcclusion({ bounds: BOUNDS, relief: 0, casters, contactBand: 'full' });
+  const named = buildGroundOcclusion({ bounds: BOUNDS, relief: 0, casters, contactBand: 'full', contactSpread: CONTACT_SPREAD });
+  const derived = buildGroundOcclusion({ bounds: BOUNDS, relief: 0, casters, contactBand: 'full', contactSpread: 1 });
+  assert.deepEqual(shipped.data, named.data, 'the default IS the shipped pick');
+  assert.notDeepEqual([...shipped.data], [...derived.data], 'and the shipped pick is not the derived pool');
+  // The narrowing reaches the field the material receives: on the LIT side, where only the pool
+  // can darken, the derived pool is there and the shipped one has ended.
+  const dir = shadowDirection();
+  const reach = contactReach(2, 10);
+  const at = (f: ShadowField, d: number): number => sampleShadowField(f, -dir.x * d, -dir.z * d);
+  assert.ok(at(derived, reach - 0.4) > 0.5);
+  assert.equal(at(shipped, reach - 0.4), 0);
+  assert.ok(at(shipped, reach * CONTACT_SPREAD - 0.4) > 0.5);
+  // The cast term is untouched by the spread: the core of the sun shadow reads 1 on both.
+  assert.equal(sampleShadowField(shipped, dir.x * 2, dir.z * 2), 1);
+  assert.equal(sampleShadowField(derived, dir.x * 2, dir.z * 2), 1);
 });
 
 test('THE ONE FIELD: buildGroundOcclusion is exactly the merge of the two terms', () => {
@@ -197,7 +251,9 @@ test('THE ONE FIELD: buildGroundOcclusion is exactly the merge of the two terms'
   const casters: ShadowCaster[] = [{ x: 0, z: 0, radius: 7, height: 19 }];
   // ⚠ `contactBand: 'full'` names the field as it stood until 2026-09-06 — this test is about the
   // MERGE, and the shipped default re-packs the contact term first (held by the band tests below).
-  const merged = buildGroundOcclusion({ bounds: BOUNDS, relief: 2.2, casters, contactBand: 'full' });
+  // ⚠ `contactSpread: 1` for the same reason: the merge of the two DERIVED terms; the shipped
+  // spread is held by its own test above.
+  const merged = buildGroundOcclusion({ bounds: BOUNDS, relief: 2.2, casters, contactBand: 'full', contactSpread: 1 });
   const expected = mergeOcclusion(
     buildCanopyShadowField({ bounds: BOUNDS, relief: 2.2, casters }),
     buildContactField({ bounds: BOUNDS, casters }),
@@ -313,7 +369,9 @@ test('GOLDEN: the merged field is the union, and neither term alone', () => {
   // with the tuned relief `h(LAND_SCALE·p)` and this one with the shipped relief.
   // ⚠ `contactBand: 'full'`: the golden is the union as it was stamped until 2026-09-06; the shipped
   // default packs the contact term into the soft band, which the band tests below hold.
-  const merged = fieldSignature(buildGroundOcclusion({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER], contactBand: 'full', penumbra: 1.2 }));
+  // ⚠ `contactSpread: 1` since 2026-09-06: the golden pins the merge of the two DERIVED terms; the
+  // shipped spread (`CONTACT_SPREAD`) is a pick held by its own test.
+  const merged = fieldSignature(buildGroundOcclusion({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER], contactBand: 'full', penumbra: 1.2, contactSpread: 1 }));
   assert.deepEqual(merged, {
     w: 114,
     h: 66,
@@ -474,7 +532,7 @@ test('GOLDEN: the CONTACT field on the same edge fixture', () => {
 test('GOLDEN: and the merged field, which is what the material receives', () => {
   smallGrid(EDGE_BOUNDS);
   assert.deepEqual(
-    fieldSignature(buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, contactBand: 'full', penumbra: 1.2 })),
+    fieldSignature(buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, contactBand: 'full', penumbra: 1.2, contactSpread: 1 })),
     // ⚠ nonZero / sum REGENERATED 2026-09-05: the CAST half moved with LAND_SCALE (see the cast
     // golden above — 629 → 563 texels); the CONTACT half reads no relief and is unchanged. The old
     // union (1048 / 219068) is reproduced by the same pluggable-relief diff with the tuned relief.
@@ -494,7 +552,7 @@ test('no stamp WRAPS onto a neighbouring row — the failure a clamp exists to p
   // coordinates, so a wrapped write lands nowhere near either of them.
   // ⚠ `penumbra: 1.2` and the full band: the written-sample count (997) was taken on the field as
   // it stood until 2026-09-06; the wrap check itself holds at any width.
-  const f = buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, penumbra: 1.2, contactBand: 'full' });
+  const f = buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, penumbra: 1.2, contactBand: 'full', contactSpread: 1 });
   const far = 3 + 1.2 + 12 * shadowOffsetPerUnitHeight() + 1;
   let written = 0;
   for (let p = 0; p < f.data.length; p += 1) {
@@ -602,8 +660,10 @@ test('packContactSoft maps a pool’s [0.5, 1] into (0.25, 0.5] sample for sampl
 test('buildGroundOcclusion: by default the contact pool never reaches the full threshold and the cast shadow does; `full` is the field as it was', () => {
   const bounds = { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
   const caster = { x: 0, z: 0, radius: 2, height: 6 };
-  const soft = buildGroundOcclusion({ bounds, relief: 0, casters: [caster] });
-  const full = buildGroundOcclusion({ bounds, relief: 0, casters: [caster], contactBand: 'full' });
+  // ⚠ `contactSpread: 1` — the band is tested on the DERIVED pool, whose edge sits outside the
+  // crown; the shipped spread pulls a 2-unit caster's pool inside its own radius.
+  const soft = buildGroundOcclusion({ bounds, relief: 0, casters: [caster], contactSpread: 1 });
+  const full = buildGroundOcclusion({ bounds, relief: 0, casters: [caster], contactBand: 'full', contactSpread: 1 });
   const cast = buildCanopyShadowField({ bounds, relief: 0, casters: [caster] });
   // Under the default band, every sample past 0.5 is the CAST term's own — the pool contributed
   // nothing past it.

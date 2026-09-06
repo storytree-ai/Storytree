@@ -89,6 +89,7 @@ import { atlasCoverage } from '../src/shadow-atlas.js';
 import {
   SHADOW_DEPTH,
   SHADOW_DEPTH_RUNGS,
+  SHADOW_DEPTH_SCALE_BACK_RUNGS,
   SHADOW_EDGE,
   deepestAdmissibleRung,
   readMarginAt,
@@ -159,9 +160,11 @@ export function depthArmId(depth: number): string {
   return `depth-${Math.round(depth * 100)}`;
 }
 
-/** The two ladders the source declares, read rather than restated. */
+/** The two ladders the source declares, read rather than restated. ⚠ The depth ladder is the
+ *  UNION of the cast-shadow sheet's rungs and the scale-back sheet's (`SHADOW_DEPTH_SCALE_BACK_RUNGS`,
+ *  2026-09-06), descending — so the shipped depth is a rung here whichever sheet it was picked on. */
 export const EDGE_LADDER: readonly number[] = [...SHADOW_PENUMBRA_RUNGS];
-export const DEPTH_LADDER: readonly number[] = [...SHADOW_DEPTH_RUNGS];
+export const DEPTH_LADDER: readonly number[] = [...new Set([...SHADOW_DEPTH_RUNGS, ...SHADOW_DEPTH_SCALE_BACK_RUNGS])].sort((a, b) => b - a);
 
 /** The shipped picks, as an arm's fields — what every ladder rides for the levers it does not vary. */
 const SHIPPED_PICKS = {

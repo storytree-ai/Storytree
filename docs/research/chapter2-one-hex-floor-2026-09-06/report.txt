@@ -1,0 +1,84 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+layout: spacing-0 — 35 islands, exported 2026-09-05T22:24:25.521Z from studio d65d7487610ab390062e62205c94b659fefd9f6b
+elevation: 50° on every arm · 318 units² per capability · floor 1 (control 0)
+
+THE ARMS
+  today    an island holding no capability LEFT AS DRAWN — three tiles of the radius-27 lattice — while every other island is sized to capabilities × 318 (CONTROL: the mapper as it shipped after ADR-0520)
+  shipped  every island sized as if it held at least 1 capability — a story with none draws one capability’s worth of land, 318 units², the floor of the map (SHIPS)
+
+THE OWNER’S QUESTION, ANSWERED PER ARM
+  today:
+    largest island: drive-machinery — 26 capabilities, 8268 units² (rank 1 of 35)
+    most work:      drive-machinery — 26 capabilities, 8268 units² (rank 1)
+    YES — the biggest island is the one with the most work in it
+    smallest island: forest-world — 1 capabilities, 318 units²
+    zero-capability islands: storage-protocol rank #3 (5689 units²), website rank #4 (5684 units²), feedback-graduation rank #5 (5679 units²), proof-protocol rank #6 (5675 units²)
+    pairs drawn the wrong way round (fewer capabilities, more land): 116
+      storage-protocol: larger than 29 island(s) holding work, up to library-tech-tree-overlay (16 capabilities, 5088 units²) — 1.12× its size
+      website: larger than 29 island(s) holding work, up to library-tech-tree-overlay (16 capabilities, 5088 units²) — 1.12× its size
+      feedback-graduation: larger than 29 island(s) holding work, up to library-tech-tree-overlay (16 capabilities, 5088 units²) — 1.12× its size
+      proof-protocol: larger than 29 island(s) holding work, up to library-tech-tree-overlay (16 capabilities, 5088 units²) — 1.12× its size
+    every island at max(0, capabilities) × 318: yes
+    total land: 87281 units²
+  shipped:
+    largest island: drive-machinery — 26 capabilities, 8268 units² (rank 1 of 35)
+    most work:      drive-machinery — 26 capabilities, 8268 units² (rank 1)
+    YES — the biggest island is the one with the most work in it
+    smallest island: storage-protocol — 0 capabilities, 318 units²
+    zero-capability islands: feedback-graduation rank #31 (318 units²), proof-protocol rank #32 (318 units²), website rank #33 (318 units²), storage-protocol rank #35 (318 units²)
+    pairs drawn the wrong way round (fewer capabilities, more land): 0
+    every island at max(1, capabilities) × 318: yes
+    total land: 65826 units²
+
+EVERY ISLAND — capability count, the 2D drawing’s tiles, land as drawn, land on each arm and its rank (largest first on the shipped arm)
+  island                             caps tiles    drawn    today rank  shipped rank  per cap
+  drive-machinery                      26    28    52980     8268    1     8268    1    318.0
+  studio                               20    22    41698     6360    2     6360    2    318.0
+  library-tech-tree-overlay            16    18    34097     5088    7     5088    3    318.0
+  desktop                              12    14    26517     3816    8     3816    4    318.0
+  library                              12    14    26516     3816    9     3816    5    318.0
+  library-review                        9    11    20841     2862   10     2862    6    318.0
+  website-experience                    9    11    20834     2862   11     2862    7    318.0
+  cli                                   7     9    17037     2226   12     2226    8    318.0
+  app-surface                           7     9    17037     2226   13     2226    9    318.0
+  context-traversal-capture             7     9    17047     2226   14     2226   10    318.0
+  wisp-as-story-claim                   7     9    17048     2226   15     2226   11    318.0
+  studio-cloud                          7     9    17055     2226   16     2226   12    318.0
+  ci-cd                                 6     8    15157     1908   17     1908   13    318.0
+  studio-members                        5     7    13248     1590   18     1590   14    318.0
+  binding-staleness                     5     7    13255     1590   19     1590   15    318.0
+  context-traversal-transcript          5     7    13261     1590   20     1590   16    318.0
+  notice-board                          4     6    11363     1272   21     1272   17    318.0
+  app-guide                             4     6    11358     1272   22     1272   18    318.0
+  art-factory                           4     6    11359     1272   23     1272   19    318.0
+  uat-criterion-detail                  4     6    11344     1272   24     1272   20    318.0
+  agent                                 3     5     9456      954   25      954   21    318.0
+  terminal-repo-picker                  3     5     9483      954   26      954   22    318.0
+  arc                                   3     5     9466      954   27      954   23    318.0
+  proof-binding-integrity               3     5     9471      954   28      954   24    318.0
+  uat-attestation                       3     5     9483      954   29      954   25    318.0
+  context-traversal-spawn               3     5     9475      954   30      954   26    318.0
+  embedded-terminal                     2     4     7581      636   31      636   27    318.0
+  terminal-tabs                         2     4     7571      636   32      636   28    318.0
+  context-traversal-telemetry           2     4     7559      636   33      636   29    318.0
+  uat-detail-studio                     2     4     7579      636   34      636   30    318.0
+  feedback-graduation                   0     3     5679     5679    5      318   31        —   ← no capabilities
+  proof-protocol                        0     3     5675     5675    6      318   32        —   ← no capabilities
+  website                               0     3     5684     5684    4      318   33        —   ← no capabilities
+  forest-world                          1     3     5675      318   35      318   34    318.0
+  storage-protocol                      0     3     5689     5689    3      318   35        —   ← no capabilities
+
+── forest @ fit ─────────────────────────────────
+arm       casters  placements  stamp ms  land px    land % of frame   island box (px)   fam  moved>20 vs today  touched  vs shipped
+today        1361        1361       516    36615             0.89%         1020×1548    45                  0        0        8705
+shipped      1361        1361       501    28643             0.70%         1020×1535    46               8240     8705           0
+
+── one @ 8 px/unit ─────────────────────────────────
+arm       casters  placements  stamp ms  land px    land % of frame   island box (px)   fam  moved>20 vs today  touched  vs shipped
+today        1361        1361       516   348010             8.50%          1684×600    39                  0        0      320864
+shipped      1361        1361       501    53788             1.31%          1395×363    57             305596   320864           0
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row, an arc intent or an earlier evidence sheet.
+⚠ The 2D studio map itself still draws a zero-capability story at 3 tiles until ADR-0528’s derived tile lands; this page reaches only the 3D mapper.
