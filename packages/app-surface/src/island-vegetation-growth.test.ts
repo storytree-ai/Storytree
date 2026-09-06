@@ -542,3 +542,56 @@ describe('code varies the ONE shared track per island (ADR-0292 D3)', () => {
     expect(a.matureHeight).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The two ROOTING routes, told apart at their own fork (ADR-0528).
+//
+// `rootOf` reads an object's own placement when it HAS one and measures its geometry otherwise, and
+// ADR-0528 added the second half of that condition: a `parcel-flora` item now carries a transform
+// that places nothing (the tile re-basing, scaled about its own drift spot), so it must keep taking
+// the measured route. The tests above hold the parcel half. This holds the OTHER half — that the
+// route still forks on whether a transform is there at all, which no parcel fixture can show,
+// because a fixture whose every child carries a transform never enters the measured branch by the
+// route this condition guards.
+
+describe('the rooting fork itself — a transform-less object is MEASURED, not placed at the origin', () => {
+  /** A vegetation child with real geometry and NO transform of its own. */
+  const mkBareFlora = (): SceneNode => ({
+    el: 'g',
+    kind: 'flora',
+    children: [
+      { el: 'circle', cx: 40, cy: 60, r: 4 },
+      { el: 'circle', cx: 48, cy: 66, r: 4 },
+    ],
+  } as unknown as SceneNode);
+
+  const planOf = (child: SceneNode): IslandVegetationPlan =>
+    deriveIslandVegetationPlan({ el: 'g', children: [child] } as unknown as SceneNode, {
+      storyId: 'lib',
+      caps: 2,
+      radius: 60,
+      status: 'healthy' as SceneStatus,
+    })!;
+
+  it('roots a transform-less object at its own ground contact — the absent transform is not read as translate(0 0)', () => {
+    const plan = planOf(mkBareFlora());
+    const obj = plan.objects.find((o) => o.role === 'plant');
+    expect(obj).toBeDefined();
+    // MEASURED, because there is no placement to read.
+    expect(obj!.rootMode).toBe('measured');
+    // Bottom-centre of its own marks: x midway across them, y at the lowest they reach.
+    const bounds = wrapperContentBounds(mkBareFlora())!;
+    expect(obj!.anchor.x).toBeCloseTo((bounds.minX + bounds.maxX) / 2, 6);
+    expect(obj!.anchor.y).toBeCloseTo(bounds.maxY, 6);
+    // THE GUARD, and the defect it names: reading the absent transform as an identity would root
+    // this at (0, 0) and the plant would grow in from the map's corner.
+    expect(obj!.anchor.x === 0 && obj!.anchor.y === 0).toBe(false);
+  });
+
+  it('still roots an object that HAS a placement transform in that placement', () => {
+    const placed = { ...(mkBareFlora() as Record<string, unknown>), transform: 'translate(12 34)' } as unknown as SceneNode;
+    const obj = planOf(placed).objects.find((o) => o.role === 'plant')!;
+    expect(obj.rootMode).toBe('placement');
+    expect(obj.anchor).toEqual({ x: 12, y: 34 });
+  });
+});

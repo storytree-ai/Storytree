@@ -25,6 +25,8 @@ import { LAND_CAMERA_ELEVATION_DEG, uprightForeshortening } from './camera.js';
  * an island with no capability parcels as drawn (ADR-0520 D1).
  */
 export function tileQuota(capabilities: number): number {
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE HEX_TILES_PER_CAPABILITY IS 1 —
+  // the same `k = 1` equivalence `HEX_R` carries; re-picking `k` makes the mutant killable.
   return Math.max(1, capabilities) * HEX_TILES_PER_CAPABILITY;
 }
 
@@ -39,6 +41,8 @@ export function tileQuota(capabilities: number): number {
  * those without any help.
  */
 export const TREE_ART_RUNG = 1;
+// Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE TREE_ART_RUNG IS 1 — the rung is
+// the owner's dial and ships at 1, so `×` and `÷` agree; moving it off 1 makes the mutant killable.
 export const TREE_SCALE = TILE_SCALE * TREE_ART_RUNG;
 
 /** The nameplate's rung (ADR-0528 D2) — the 2D map is a WORKING tool and the plate is what an

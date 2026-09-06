@@ -81,6 +81,10 @@ export const HEX_UNIT_AREA = (3 * Math.sqrt(3)) / 2;
  * The hex circumradius, centre → corner, in the GROUND plane — DERIVED: the radius at which
  * `HEX_TILES_PER_CAPABILITY` hexes cover exactly `LAND_AREA_PER_CAPABILITY`. ≈ 11.06.
  */
+// Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE HEX_TILES_PER_CAPABILITY IS 1 —
+// the `k` lever of ADR-0528 D1's model ships at 1 (one hex per capability), so dividing by it and
+// multiplying by it give the same radius and no test can separate them. Re-picking `k` makes the
+// mutant killable, and the landing that re-picks it owes this line its test.
 export const HEX_R = Math.sqrt(LAND_AREA_PER_CAPABILITY / HEX_TILES_PER_CAPABILITY / HEX_UNIT_AREA);
 export const HEX_W = Math.sqrt(3) * HEX_R;
 /** One hex's ground-plane area — `LAND_AREA_PER_CAPABILITY / HEX_TILES_PER_CAPABILITY` by construction. */
