@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  FIX_WORDS,
   type CommitClass,
   type UnitCommit,
   classTally,
@@ -10,6 +12,7 @@ import {
   orderForDisplay,
   renderReport,
   share,
+  subjectWords,
 } from "./verdict-contradiction.js";
 
 /** A commit in the shape the ladder consumes, with sane defaults so each test names only what it means. */
@@ -60,6 +63,12 @@ test("known conventional prefixes map to their classes, and an unknown one is un
   assert.equal(classifyCommitMessage("test(arc): kill the remaining lifecycle mutants"), "test-only");
   assert.equal(classifyCommitMessage("docs: restate the ceremony"), "housekeeping");
   assert.equal(classifyCommitMessage("chore(deps): bump the pinned runner"), "housekeeping");
+  // The whole housekeeping family, spelled out with literal expectations rather than looped over
+  // the table: a loop that reads its expected value FROM the map cannot see that map's value
+  // being changed, so only literals pin these.
+  assert.equal(classifyCommitMessage("style(ui): reflow the panel"), "housekeeping");
+  assert.equal(classifyCommitMessage("build(pkg): pin the bundler"), "housekeeping");
+  assert.equal(classifyCommitMessage("ci: add the mutation rung to the workflow"), "housekeeping");
   // `retire(...)` is a house prefix this module does not know. It must NOT become noise.
   assert.equal(classifyCommitMessage("retire(citations): remove the references field"), "unclassified");
   assert.equal(classifyCommitMessage("Make Codex worktree bootstrap gate-safe"), "unclassified");
@@ -95,12 +104,16 @@ test("a commit touching only the test file is in no rung — the source is what 
 });
 
 test("re-proof commits are excluded from every rung and counted on their own", () => {
+  // TWO re-proofs against ONE ordinary commit, deliberately asymmetric: with one of each, a
+  // partition that selected the WRONG side still reported a count of 1 and the test passed by
+  // coincidence. Any fixture whose two halves are the same size cannot see an inverted predicate.
   const commits: readonly UnitCommit[] = [
     commit({ subject: "storytree real build real-abc: u1", unitId: "u1", testLinesAdded: 216 }),
+    commit({ subject: "storytree real build real-def: u3", unitId: "u3", testLinesAdded: 8 }),
     commit({ subject: "fix(u2): repair it", unitId: "u2", testLinesAdded: 3 }),
   ];
-  const l = ladder(commits, 2);
-  assert.equal(l.reProofs.length, 1);
+  const l = ladder(commits, 3);
+  assert.equal(l.reProofs.length, 2);
   for (const r of l.rungs) {
     assert.ok(
       r.commits.every((c) => !c.subject.startsWith("storytree ")),
@@ -138,11 +151,15 @@ test("a rung counts distinct UNITS, not commits — forty over three is a differ
 });
 
 test("the source-only reading is reported alongside, so the narrowing is shown rather than asserted", () => {
+  // A NON-fix commit is included on purpose: with every fixture commit fix-shaped, dropping the
+  // filter entirely produced the same number and the assertion proved nothing about filtering.
   const commits: readonly UnitCommit[] = [
     commit({ subject: "fix(a): touched source only", unitId: "u1", touchedTest: false, testLinesAdded: 0 }),
     commit({ subject: "fix(b): touched both, test grew", unitId: "u2", touchedTest: true, testLinesAdded: 7 }),
+    commit({ subject: "refactor(c): plain noise", unitId: "u3", touchedTest: true, testLinesAdded: 4 }),
   ];
-  const l = ladder(commits, 2);
+  const l = ladder(commits, 3);
+  assert.equal(l.rungs[0]?.commits.length, 3);
   assert.equal(l.sourceOnlyFixShaped.length, 2);
   assert.equal(l.rungs[l.rungs.length - 1]?.commits.length, 1);
 });
@@ -270,4 +287,107 @@ test("the report prints rows and distinct commits as separate columns, and says 
   assert.match(md, /is not a count of distinct events/u);
   // The widest rung: 2 rows, 1 distinct commit, 2 units.
   assert.match(md, /\| `touched-source` \| 2 \| 1 \| 2 \|/u);
+});
+
+test("a prefix-looking word MID-subject does not classify it — the regex is anchored", () => {
+  // Unanchored, this reads `docs:` out of the middle and files a sentence as housekeeping.
+  assert.equal(classifyCommitMessage("Update the docs: something happened"), "unclassified");
+  assert.equal(classifyCommitMessage("Rewrite this feat(x): not a prefix"), "unclassified");
+});
+
+test("whitespace around the prefix is tolerated, and leading whitespace is trimmed", () => {
+  assert.equal(classifyCommitMessage("feat : spaced before the colon"), "feature");
+  assert.equal(classifyCommitMessage("   feat(x): indented subject"), "feature");
+});
+
+test("the subject tokeniser splits on runs of separators, emitting no empty words", () => {
+  // Pinned directly because the alternative — asserting only the CLASS — cannot see the
+  // difference: an extra empty string between two separators matches no repair word either way,
+  // so the split's exact contract is invisible from the outside.
+  assert.deepEqual(subjectWords("fix(a):  the  thing"), ["fix", "a", "the", "thing"]);
+  assert.deepEqual(subjectWords("no-op change"), ["no-op", "change"]);
+});
+
+test("the ladder is always exactly four rungs, in the documented order", () => {
+  const l = ladder([], 0);
+  assert.equal(l.rungs.length, 4);
+  assert.deepEqual(
+    l.rungs.map((r) => r.key),
+    ["touched-source", "co-changed-pair", "oracle-grew", "fix-shaped-or-unclassified"],
+  );
+});
+
+test("the rendered report matches its committed golden, byte for byte", () => {
+  // A CHARACTERISATION test over the whole document, not a spot-check. The report is ~40 prose
+  // strings, every one of which is part of what this instrument delivers — a caveat silently
+  // deleted from it is exactly the failure the increment warned about, and no `assert.match` on a
+  // handful of phrases can see that. The expected text is FROZEN in
+  // `verdict-contradiction.golden.md`: regenerate it deliberately when the wording changes,
+  // reading the diff, rather than letting a re-run overwrite the thing being asserted.
+  const golden = readFileSync(new URL("./verdict-contradiction.golden.md", import.meta.url), "utf8");
+  const c = (over: Partial<UnitCommit> & { readonly subject: string }): UnitCommit =>
+    commit({ unitId: "alpha", ...over });
+  const l = ladder(
+    [
+      c({ sha: "1".repeat(40), subject: "fix(alpha): repair the thing", unitId: "alpha", testLinesAdded: 12 }),
+      c({ sha: "2".repeat(40), subject: "feat(beta): add a thing", unitId: "beta", testLinesAdded: 3 }),
+      c({ sha: "3".repeat(40), subject: "storytree real build real-x: alpha", unitId: "alpha" }),
+    ],
+    4,
+  );
+  const rendered = renderReport(l, {
+    verdictsSeen: 665,
+    verdictsWithBoundHash: 0,
+    verdictsResolved: 178,
+    unitsResolved: 108,
+    unitsProofCommitMissing: 5,
+    takenOn: "2026-09-06",
+  });
+  assert.equal(rendered.replace(/\r\n/gu, "\n").trimEnd(), golden.replace(/\r\n/gu, "\n").trimEnd());
+});
+
+test("a subject that merely MENTIONS a spine build is not a re-proof", () => {
+  // The `^` anchor on RE_PROOF_SUBJECT. Unanchored, this ordinary repair would be filed as a spine
+  // re-proof and dropped from the shortlist entirely — the worst direction for this instrument to
+  // fail in, since re-proofs are the one class it discards.
+  assert.equal(classifyCommitMessage("fix(gate): make storytree real build honest about its scope"), "fix-shaped");
+  assert.equal(classifyCommitMessage("docs: explain how storytree real build signs a verdict"), "housekeeping");
+});
+
+test("every word in FIX_WORDS actually classifies a subject as fix-shaped", () => {
+  // Data-driven over the exported list rather than a handful of spot-checks: a word silently
+  // emptied or mistyped in the table is invisible to any test that names its own words, and the
+  // table is the entire substance of the heuristic.
+  assert.ok(FIX_WORDS.length > 20, "the table should be generous — over-reporting is the instruction");
+  for (const word of FIX_WORDS) {
+    assert.equal(classifyCommitMessage(`chore(x): something ${word} here`), "fix-shaped", `FIX_WORDS entry ${JSON.stringify(word)} does not classify`);
+  }
+});
+
+test("a pipe in a commit subject is escaped so it cannot break the markdown table", () => {
+  const md = renderReport(
+    ladder([commit({ subject: "fix(a): handle a | b correctly", unitId: "u1" })], 1),
+    INPUTS,
+  );
+  // A plain substring, NOT a regex. The first version of this assertion was
+  // `assert.match(md, /… handle a \\| b correctly/u)`, in which the surviving `|` is an
+  // ALTERNATION rather than an escaped pipe — so the pattern also matched on " b correctly" alone
+  // and passed against the unescaped output too. It could not fail; the mutation rung is what
+  // caught it.
+  assert.ok(
+    md.includes("| fix(a): handle a \\| b correctly |"),
+    "a pipe must be escaped, or it silently splits the row into an extra column",
+  );
+});
+
+test("the empty-shortlist sentence is emitted in full, not merely gestured at", () => {
+  const md = renderReport(ladder([commit({ subject: "refactor(x): noise", unitId: "u1" })], 12), INPUTS);
+  assert.ok(
+    md.includes(
+      "**Empty.** No later commit touched a proved unit's source AND its declared test file, added " +
+        "lines to that test, and read as a repair. Over 12 units this is a measured absence, not an " +
+        "unmeasured one.",
+    ),
+    "the empty-shortlist finding must read as a measured absence, in full",
+  );
 });

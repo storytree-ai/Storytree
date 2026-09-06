@@ -42,7 +42,20 @@
  * number this produces — the arc's stated posture is "measure first, decide never".
  */
 
-/** The house prefix on a commit the SPINE itself made when it re-proved a unit. */
+/**
+ * The house prefix on a commit the SPINE itself made when it re-proved a unit.
+ *
+ * The `^` ANCHOR is load-bearing and stays proven: without it, an ordinary commit that merely
+ * MENTIONS a spine build in its subject would be filed as a re-proof and dropped from the
+ * shortlist entirely.
+ */
+// Stryker disable next-line Regex: EQUIVALENT on the two whitespace-quantifier weakenings - the spine
+// emits this prefix with exactly one space between each word (`storytree real build <run-id>: <unit>`),
+// so a single-character class and a one-or-more class accept precisely the same subjects, and asserting
+// a two-space tolerance would be inventing a requirement to satisfy the tool. NOTE this ALSO suppresses
+// the anchor mutant, which is NOT equivalent - Stryker cannot disable one mutant of a mutator without
+// its siblings on the same line. The anchor stays covered by behaviour rather than by the report: the
+// test "a subject that merely MENTIONS a spine build is not a re-proof" fails if the anchor is removed.
 const RE_PROOF_SUBJECT = /^storytree\s+(?:real|node|story)\s+build\b/i;
 
 /**
@@ -53,7 +66,7 @@ const RE_PROOF_SUBJECT = /^storytree\s+(?:real|node|story)\s+build\b/i;
  *
  * The list is deliberately generous. Over-reporting is the instruction; the shortlist is hand-read.
  */
-const FIX_WORDS: readonly string[] = [
+export const FIX_WORDS: readonly string[] = [
   "fix",
   "fixes",
   "fixed",
@@ -154,17 +167,37 @@ export type CommitClass =
  * source. That red is about the new test, not about the old code being broken. Counted and
  * reported in its own right; never counted as a fix.
  */
+/**
+ * Split a commit subject into lowercase words for {@link FIX_WORDS} matching.
+ *
+ * WHOLE WORDS, never substrings — "prefix" and "suffix" must not read as "fix", and this repo's
+ * commits discuss prefixes constantly, so that is the single most likely false positive in the
+ * whole heuristic. Runs of separators collapse (`+`), so no empty words are emitted; hyphens are
+ * kept inside a word so `no-op` survives as one token rather than becoming `no` and `op`.
+ *
+ * Exported so its contract can be asserted directly. From the outside it is invisible — an extra
+ * empty token matches no repair word either way — so a test on the resulting CLASS alone cannot
+ * tell a correct tokeniser from a sloppy one.
+ */
+export function subjectWords(subject: string): readonly string[] {
+  // The `+` is what collapses runs of separators. It is deliberately the ONLY mechanism doing so —
+  // adding a defensive empty-token filter beside it would make weakening the `+` unobservable.
+  return subject.toLowerCase().split(/[^a-z0-9-]+/u);
+}
+
 export function classifyCommitMessage(subject: string): CommitClass {
   if (RE_PROOF_SUBJECT.test(subject.trim())) return "re-proof";
 
-  // Word-boundary matching, so "prefix" and "suffix" do not read as "fix" — the single most
-  // likely false positive in a repo whose commits talk about prefixes constantly.
-  const words = subject.toLowerCase().split(/[^a-z0-9-]+/u);
-  if (words.some((w) => FIX_WORDS.includes(w))) return "fix-shaped";
+  if (subjectWords(subject).some((w) => FIX_WORDS.includes(w))) return "fix-shaped";
 
-  const prefix = /^([a-z]+)\s*[(:]/u.exec(subject.trim().toLowerCase());
-  if (prefix !== null) {
-    const mapped = PREFIX_CLASSES.get(prefix[1] ?? "");
+  // ANCHORED at the start: a conventional prefix is the FIRST word or it is not one, and an
+  // unanchored match would read `feat` out of the middle of a sentence.
+  const word = /^([a-z]+)\s*[(:]/u.exec(subject.trim().toLowerCase())?.[1];
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT - when `word` is undefined the map
+  // lookup returns undefined and control reaches the same `return "unclassified"` below, so forcing
+  // this guard true changes no output. It is a TYPE narrowing (Map.get wants a string), not a branch.
+  if (word !== undefined) {
+    const mapped = PREFIX_CLASSES.get(word);
     if (mapped !== undefined) return mapped;
   }
   return "unclassified";
@@ -218,8 +251,15 @@ export interface Rung {
 export interface Ladder {
   /** Units with a resolvable proof commit — the denominator every rate below is over. */
   readonly unitsConsidered: number;
-  /** Every rung, widest first. Each is a strict subset of the one before it. */
-  readonly rungs: readonly Rung[];
+  /**
+   * The four rungs, widest first; each a strict subset of the one before it.
+   *
+   * A FIXED-LENGTH tuple rather than an array, because the ladder is always exactly these four —
+   * which lets the renderer index the widest and the shortlist directly instead of guarding
+   * fallbacks that can never be reached, and makes "the shortlist is the last rung" a fact the
+   * type carries rather than a convention.
+   */
+  readonly rungs: readonly [Rung, Rung, Rung, Rung];
   /**
    * The reading the increment's own fallback option (a) would have produced on its own: fix-shaped
    * commits touching the SOURCE file, ignoring the test file entirely. Reported so the document can
@@ -481,14 +521,14 @@ export function renderReport(l: Ladder, inputs: ReportInputs): string {
     "The increment's fallback option was file grain alone — \"did a later fix touch that FILE\". " +
       `Taken on its own that reading returns **${l.sourceOnlyFixShaped.length}** commits over ` +
       `**${distinctUnits(l.sourceOnlyFixShaped)}** units. The ladder's shortlist is ` +
-      `**${l.rungs[l.rungs.length - 1]?.commits.length ?? 0}**, because it also requires the unit's ` +
+      `**${l.rungs[3].commits.length}**, because it also requires the unit's ` +
       "own declared test file to have been touched and to have grown. Both are reported: the " +
       "narrowing is shown, not asserted.",
   );
   out.push("");
   out.push("### How the classifier read the widest rung");
   out.push("");
-  const widest = l.rungs[0]?.commits ?? [];
+  const widest = l.rungs[0].commits;
   const tally = classTally(widest);
   out.push("| class | commits |");
   out.push("|---|---:|");
@@ -502,7 +542,7 @@ export function renderReport(l: Ladder, inputs: ReportInputs): string {
   out.push("");
   out.push("## The shortlist — the useful output");
   out.push("");
-  const shortlist = l.rungs[l.rungs.length - 1]?.commits ?? [];
+  const shortlist = l.rungs[3].commits;
   if (shortlist.length === 0) {
     out.push(
       "**Empty.** No later commit touched a proved unit's source AND its declared test file, added " +
