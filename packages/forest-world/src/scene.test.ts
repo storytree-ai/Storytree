@@ -1027,6 +1027,27 @@ test('parcels sub-partition the island cells by nearest seed (equal-weight Voron
   assert.deepEqual(scene, parcelScene(parcelsAB(3, 3), CELLS_AB));
 });
 
+test('ADR-0528: NO CAPABILITY STARVES — a parcel whose seed shares a hex with another’s keeps the cell nearest it; islands where nobody starves are byte-for-byte the Voronoi', () => {
+  // seed B sits EXACTLY on seed A (both capabilities on one hex): the plain Voronoi breaks every
+  // tie toward the lowest index, so capB gets nothing.
+  const starving: Parcels = [
+    { capId: 'capA', status: 'healthy', testCount: 3, theme: 'meadow', seed: { x: 0, y: 0 } },
+    { capId: 'capB', status: 'unhealthy', testCount: 3, theme: 'meadow', seed: { x: 0, y: 0 } },
+  ];
+  const cells = [cellAt(0, 0, 0), cellAt(6, 6, 0), cellAt(-4, 4, 0), cellAt(8, -6, 0)];
+  const parcels = allByKind(mustByKind(parcelScene(starving, cells), 'ground-mesh'), 'parcel');
+  const capA = parcels.find((p) => p.id === 'capA');
+  const capB = parcels.find((p) => p.id === 'capB');
+  assert.ok(capA && capB, 'both capabilities own ground');
+  assert.equal(children(capB!).length, 1, 'the starving parcel takes exactly one cell');
+  assert.equal(children(capA!).length, 3);
+  // the cell it takes is the one nearest ITS seed, and it wears capB's status
+  assert.equal(children(capB!)[0]!.status, 'unhealthy');
+  // CONTROL: the well-separated fixture is untouched by the repair — 4/4, as the Voronoi test pins.
+  const fair = allByKind(mustByKind(parcelScene(parcelsAB(3, 3), CELLS_AB), 'ground-mesh'), 'parcel');
+  assert.deepEqual(fair.map((p) => children(p).length), [4, 4]);
+});
+
 test('every parcel cell wears its ASSIGNED cap status — not the per-territory status', () => {
   const scene = parcelScene(parcelsAB(3, 3), CELLS_AB);
   const parcels = allByKind(mustByKind(scene, 'ground-mesh'), 'parcel');

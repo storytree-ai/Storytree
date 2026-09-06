@@ -73,5 +73,28 @@ w = w.replace(old, "  const rawCoast = smoothCoast(segs, seedId, COAST_OUTSET_ON
 old = "  HEX_R,\n"
 assert w.count(old) == 1
 w = w.replace(old, "  HEX_R,\n  COAST_OUTSET_ON_TILE,\n")
+old = """    const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - 6) }, elevationDeg);
+    const nearTree = Math.hypot(toTree.x, toTree.y) < 42;
+    const inGarden = c.y > cy + 8; // SCREEN: the band the limbs + name plate own (see above)"""
+assert w.count(old) == 1
+w = w.replace(old, """    // ADR-0528: the keep-out (42), the sprite's anchor nudge (6) and the garden band (8) were authored
+    // on the radius-27 tile and re-base with it — the same lengths, on the derived tile.
+    const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - tileUnits(6)) }, elevationDeg);
+    const nearTree = Math.hypot(toTree.x, toTree.y) < tileUnits(42);
+    const inGarden = c.y > cy + tileUnits(8); // SCREEN: the band the limbs + name plate own (see above)""")
+old = "  HEX_R,\n  COAST_OUTSET_ON_TILE,\n"
+assert w.count(old) == 1
+w = w.replace(old, "  HEX_R,\n  COAST_OUTSET_ON_TILE,\n  tileUnits,\n")
 open(W, 'w').write(w)
+# the camera test's control replays the retired screen-space predicate — its lengths re-base too
+T = '/home/mickh/code/Storytree/.claude/worktrees/tile/web/src/scripts/act2-walkthrough.camera.test.ts'
+t = open(T).read()
+old = """      const nearTree = Math.hypot(c.x - cx, c.y - (cy - 6)) < 42;
+      const inGarden = c.y > cy + 8;"""
+assert t.count(old) == 1
+t = t.replace(old, """      // Its lengths were authored on the radius-27 tile and re-base with it (ADR-0528) — the defect
+      // being pinned is the SPACE the gap is measured in, not the size of the keep-out.
+      const nearTree = Math.hypot(c.x - cx, c.y - (cy - tileUnits(6))) < tileUnits(42);
+      const inGarden = c.y > cy + tileUnits(8);""")
+open(T, 'w').write(t)
 print('WEB PATCH APPLIED')

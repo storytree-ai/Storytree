@@ -71,6 +71,16 @@ const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 })
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
 
+// ⚠ WARM THE MAP BEFORE THE FIRST CAPTURE. The studio computes its resting frame ONCE on mount from
+// the islands it has at that moment; on a cold payload cache the corpus is still streaming in, so
+// the first capture of a run rests on a partial forest's median island and reports a different
+// scale from every later one (measured: 2.182 against 1.787 on the same arm). One throwaway load
+// fills the cache; every capture below then mounts on the whole corpus.
+await page.goto(`${URL_}/?sceneExport=1#/tree`, { waitUntil: 'networkidle', timeout: 120_000 });
+await page.waitForSelector('g.world-camera', { timeout: 90_000 });
+await page.waitForFunction((min) => new Set([...document.querySelectorAll('[data-story-id]')].map((e) => e.getAttribute('data-story-id'))).size >= min, MIN_ISLANDS, { timeout: 120_000 });
+await page.waitForTimeout(2000);
+
 async function capture(arm, view) {
   const q = new URLSearchParams({ ...Object.fromEntries(Object.entries(arm.rungs).map(([k, v]) => [k, String(v)])), sceneExport: '1' });
   if (view.query) for (const [k, v] of new URLSearchParams(view.query)) q.set(k, v);
@@ -100,7 +110,8 @@ async function capture(arm, view) {
     }
     const plate = [...document.querySelectorAll('.world-plate-id')].find((e) => e.textContent === readIsland);
     const pr = plate ? plate.getBoundingClientRect() : null;
-    const tree = document.querySelector(`[data-story-id="${readIsland}"] .world-tree, [data-story-id="${readIsland}"] [data-kind="baked-art"]`);
+    // the story tree is the unified vocabulary's `<use>` of the autumn-tree def (ADR-0227)
+    const tree = document.querySelector(`[data-story-id="${readIsland}"] use`);
     const tr = tree ? tree.getBoundingClientRect() : null;
     const widths = [...byId.values()].map((i) => i.w).sort((p, q) => p - q);
     return {

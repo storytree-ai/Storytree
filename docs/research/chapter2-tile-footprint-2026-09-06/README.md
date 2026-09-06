@@ -52,7 +52,36 @@ engine, which the lattice derives from, and is re-exported unchanged.
 
 ## Part two — the 2D art pass (ADR-0528 D2)
 
-_(filled in from the run — see below)_
+**The pass has two halves: every prop is RE-BASED with the tile, then the props' rungs are LADDERED
+at the working zoom.** The first half is what "a constant swap that leaves the props where they
+fell" would have skipped; the second is the judgment.
+
+### 2a — the re-basing: every 2D length, classified (the three classes the 3D side already keeps)
+
+The 2D drawing had no `LAND_SCALE`; every prop, keep-out, offset and stroke was a literal in ground
+units judged against the radius-27 tile. The tile is now an INPUT of the drawing (`SceneInput.tile`,
+resolved once per `buildScene` into a `TileArt` bundle and threaded to every builder), and every
+literal was classified exactly as `land-scale-has-three-classes-of-constant` does on the 3D side:
+
+| class | rule | what is in it |
+| --- | --- | --- |
+| **a tile-relative length** | `× TILE_SCALE` (`tileUnits(<old value>)` / `art.units(<old value>)` — the old value stays visible at the site) | the coast outset (7); the UAT-flower keep-outs (spacing 15, tree well 36, plate band 14); the wisp orbits' offsets (10 / 22 / 12 / 18 / 14 / 16 / 24) and the hover orbit (9); the drift-bed spread (7 + tests × 0.55); the conifer y-offset (4); the coast-hex inset (0.6); the trail casing/shadow widen (2.5 / 5); the hit rect's corner (14); the packer's seed jitter (44 / 30), plant-ring offsets (18 / ±10), stamp offsets (17 + 26·tier / 7 + 6·tier), plate baseline (+8), bounds (+34), margin (60), river lanes (13 / 14); the tile extrusion (8); the garden's plate band (18) |
+| **a prop drawn in its own frame** | its group gets `scale(<family rung>)`, the geometry inside is untouched | the story tree (`TREE_ART_RUNG`), the capability plants, the conifers, the UAT flowers (× their 0.6 / 1.0 wrappers), every wisp body, the nameplate (`PLATE_ART_RUNG` — box AND text scale together), the parcel flora — scaled ABOUT ITS OWN SPOT, because the designer surfaces draw their marks in absolute coordinates (`translate(p) scale(s) translate(−p)`), and the harness plant reader now honours that transform rather than folding only its first translate |
+| **a 3D contract or a screen quantity — NOT re-based** | left as it stands, named where it stands | `trailFillWidth` (the ONE width rule the 3D mapper reads directly; the 2D stroke is the rule × `TRAIL_ART_RUNG`); the cave portal (the mapper recovers its mouth width from the drawn arch); `COAST_OUTSET` itself (the 3D beach is `COAST_OUTSET × LAND_SCALE` and must not move — the 2D packer re-bases it at the draw site as `COAST_OUTSET_ON_TILE`); the resting view's island count (ADR-0471, in islands, not pixels); the fit paddings, drag slop, pan-fold threshold, panel widths (CSS px chrome); every dimensionless ratio (`0.72·radius`, `0.62·√quota`, the ring fractions) |
+
+**Why the working zoom is unchanged by construction, and why that was the point.** The resting view
+is pinned to island COUNT — the frame's short side spans nine median islands (ADR-0471) — so a
+uniformly re-based drawing opens at the same on-screen composition it did: the same island pixels,
+the same nameplate pixels, the same trail pixels. The 2D captures below show it. What the pass then
+has to JUDGE is the one thing uniform re-basing cannot hide: a story's island is drawn on
+`capabilities` hexes now, not `capabilities + 2`, so a one-capability story stands on ONE hex under a
+full-size tree where it stood on three, and the whole map's small islands shrink relative to its big
+ones. That is the truth of the ratio (land ∝ capabilities, which the 3D map already told), and it is
+what the ladder in 2b is for.
+
+### 2b — the ladder (the rungs are live dials: `?treeRung=` `?plateRung=` `?floraRung=` `?trailRung=`)
+
+_(filled in from the art-ladder run — `art/`)_
 
 ## Part three — the gap re-laddered over correctly-sized tiles (ADR-0528 D5)
 
@@ -64,4 +93,17 @@ _(filled in from the run)_
 
 ## Files
 
-_(filled in from the run)_
+_(the inventory is filled in from the run)_
+
+Reproduce, on the RTX 2060 box: run the studio on a port of your own (`pnpm --filter studio dev
+--port <n> --strictPort --host 127.0.0.1`, live store) and the r3f harness on another
+(`pnpm --filter @storytree/forest-world-r3f exec vite harness --port <m> --strictPort --host 127.0.0.1`).
+The CONTROL comes first, from the untouched tree: `ST_STUDIO_URL=… ST_SPACING_EVIDENCE_OUT=<this
+dir>/old-tile ST_SPACING_SCENES_OUT=<this dir>/old-tile/scenes node scripts/export-spacing-scenes.mjs`
+from `apps/studio` at the merge-base. Then, on this branch and from `apps/studio`, under the tsx
+loader (`node --import ../../scripts/tsx-cache-off.mjs --import tsx …`): `scripts/export-tile-scenes.mjs`
+(the ladder; it carries the control in), `scripts/measure-2d-tile.mjs` (the 2D numbers),
+`scripts/export-tile-art-ladder.mjs` (the art rungs). From `packages/forest-world-r3f`, with
+`DISPLAY=:0` and `ST_TILE_URL=http://127.0.0.1:<m>/shipped-tile.html`: `pnpm measure-shipped-tile`
+and `pnpm measure-tile-cost`. ⚠ Do not commit between starting the studio and finishing a capture —
+the studio banners a checkout that moved under it, and the banner lands in every capture.

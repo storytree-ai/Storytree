@@ -111,6 +111,16 @@ const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 })
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
 
+// ⚠ WARM THE MAP BEFORE THE FIRST CAPTURE. The studio computes its resting frame ONCE on mount from
+// the islands it has at that moment; on a cold payload cache the corpus is still streaming in, so
+// the first capture of a run rests on a partial forest's median island and reports a different
+// scale from every later one (measured: 2.182 against 1.787 on the same arm). One throwaway load
+// fills the cache; every capture below then mounts on the whole corpus.
+await page.goto(`${URL_}/?sceneExport=1#/tree`, { waitUntil: 'networkidle', timeout: 120_000 });
+await page.waitForSelector('g.world-camera', { timeout: 90_000 });
+await page.waitForFunction((min) => new Set([...document.querySelectorAll('[data-story-id]')].map((e) => e.getAttribute('data-story-id'))).size >= min, MIN_ISLANDS, { timeout: 120_000 });
+await page.waitForTimeout(2000);
+
 /** Load one arm+view, wait for the corpus to settle, read the bridge and the delivered camera. */
 async function capture(arm, view) {
   const url = `${URL_}/?${arm.query}${view.query ? `&${view.query}` : ''}&sceneExport=1${view.hash}`;

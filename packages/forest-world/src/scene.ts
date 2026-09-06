@@ -2579,6 +2579,34 @@ function buildTerritorySurface(
     const idx = nearestParcel(cen, seeds);
     groups[idx]!.push({ poly: c.poly, cx: cen.x, cy: cen.y });
   }
+  // ⚠ NO CAPABILITY STARVES (ADR-0528). An island is drawn on ONE hex per capability now, so two
+  // capability seeds can share a hex and the Voronoi above can hand every cell of that hex to one of
+  // them — the other has no ground, no colour, and in 3D no tree (measured on the tile ladder: one
+  // rung stood 202 trees against the control's 203). A parcel that would starve takes the cell
+  // nearest its seed from whichever parcel holds two or more, in parcel order, so the repair is
+  // deterministic and reaches only the islands where a parcel actually starved; every other
+  // partition is byte-for-byte what the Voronoi gave it. It cannot run dry while there are at least
+  // as many cells as parcels, which the mesh guarantees (several cells per hex).
+  parcels.forEach((_parcel, i) => {
+    if (groups[i]!.length > 0) return;
+    const seed = seeds[i]!;
+    let from = -1;
+    let at = -1;
+    let bd = Infinity;
+    groups.forEach((cells, j) => {
+      if (cells.length < 2) return;
+      cells.forEach((cell, k) => {
+        const d = (cell.cx - seed.x) ** 2 + (cell.cy - seed.y) ** 2;
+        if (d < bd) {
+          bd = d;
+          from = j;
+          at = k;
+        }
+      });
+    });
+    if (from < 0) return;
+    groups[i]!.push(groups[from]!.splice(at, 1)[0]!);
+  });
   const ground: SceneNode[] = [];
   const flora: ParcelFloraMark[] = [];
   parcels.forEach((parcel, i) => {
