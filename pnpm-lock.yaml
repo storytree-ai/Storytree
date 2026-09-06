@@ -667,6 +667,9 @@ importers:
       pg:
         specifier: ^8.13.1
         version: 8.21.0
+      typescript5:
+        specifier: npm:typescript@5.7.3
+        version: typescript@5.7.3
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -686,9 +689,6 @@ importers:
       typescript:
         specifier: ~7.0.2
         version: 7.0.2
-      typescript5:
-        specifier: npm:typescript@5.7.3
-        version: typescript@5.7.3
 
   packages/procedural-architecture:
     devDependencies:
