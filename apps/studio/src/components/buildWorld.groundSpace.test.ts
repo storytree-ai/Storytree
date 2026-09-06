@@ -217,14 +217,16 @@ const cap = (id: string): TreeCapability => ({
 });
 
 /**
- * An eight-capability island — an eight-tile territory since ADR-0528 (one tile per capability),
- * big enough that no plant is walked inward by the keep-IN loop, so every cap spot below is the
- * ring's own answer rather than the walk's. `crownRadius(8) = min(32, 18 + 17.6) = 32` in the tree's
- * own frame, i.e. `32 · TREE_SCALE` on the ground, so `ringR = min(32 · TREE_SCALE + tileUnits(18),
- * groundRadius − HEX_R·0.55) = 50 · TILE_SCALE` when the island is roomy enough, and each plant's own
- * radius wobbles ±5 · TILE_SCALE around it — `RING_R` / `RING_WOBBLE` below.
+ * A nineteen-capability island — a nineteen-tile territory since ADR-0528 (one tile per capability;
+ * it was eight capabilities on ten tiles before the `+ 2` went), two full hex rings, so the whole
+ * ring circle below lies on owned land and no plant is walked inward by the keep-IN loop: every cap
+ * spot is the ring's own answer rather than the walk's. `crownRadius(19) = min(32, 18 + 41.8) = 32`
+ * in the tree's own frame, i.e. `32 · TREE_SCALE` on the ground, so `ringR = min(32 · TREE_SCALE +
+ * tileUnits(18), groundRadius − HEX_R·0.55) = 50 · TILE_SCALE`, and each plant's own radius wobbles
+ * ±5 · TILE_SCALE around it — `RING_R` / `RING_WOBBLE` below.
  */
-const RING_R = Math.min(crownRadiusWorld(8) + tileUnits(18), 50 * TILE_SCALE);
+const RING_CAPS = 19;
+const RING_R = Math.min(crownRadiusWorld(RING_CAPS) + tileUnits(18), 50 * TILE_SCALE);
 const RING_WOBBLE = tileUnits(5);
 const RING_FIXTURE: TreeStory = {
   id: 'ring-fixture',
@@ -235,7 +237,7 @@ const RING_FIXTURE: TreeStory = {
   uatWitness: 'machine',
   dependsOn: [],
   consumedBy: [],
-  capabilities: Array.from({ length: 8 }, (_, j) => cap(`ring-fixture-c${j}`)),
+  capabilities: Array.from({ length: RING_CAPS }, (_, j) => cap(`ring-fixture-c${j}`)),
 };
 
 /** Every capability's offset from the story tree, measured back on the GROUND PLANE. */
@@ -253,7 +255,7 @@ function capGroundOffsets(): { r: number; screenR: number }[] {
 describe('the capability ring is a CIRCLE on the ground', () => {
   it('seats every plant at the SAME ground radius, within its own wobble', () => {
     const rs = capGroundOffsets().map((o) => o.r);
-    expect(rs).toHaveLength(8);
+    expect(rs).toHaveLength(RING_CAPS);
     // The value, not merely the shape: `ringR` is RING_R here and the per-plant wobble is
     // ±RING_WOBBLE, so a ground radius outside this band means either the squash is back or
     // `ringR` read the wrong radius. Under the retired formula these ran from 45 to 106 (at 27).
@@ -299,10 +301,15 @@ describe('the capability ring is a CIRCLE on the ground', () => {
       `tree ${t.treeSpot.x.toFixed(2)},${t.treeSpot.y.toFixed(2)}`,
       ...t.caps.map((c) => `${c.cap.id.slice(-2)} ${c.x.toFixed(2)},${c.y.toFixed(2)}`),
     ].join(' | ');
+    // Re-recorded 2026-09-06 (ADR-0528): the LATTICE moved (HEX_R 27 → ≈ 11.06, derived from the
+    // land ratio), the QUOTA moved (one tile per capability, the `+ 2` retired), and this fixture
+    // itself grew from eight to nineteen capabilities so its ring still lies on owned land. Every
+    // coordinate below is therefore in the new tile's units; nothing about the ring rule changed.
     expect(digest).toBe(
-      'tree 0.00,-138.52 | c0 45.08,-141.39 | c1 51.25,-134.21 | c2 32.31,-125.76' +
-        ' | c3 20.21,-121.75 | c4 -17.78,-122.41 | c5 -34.87,-125.40 | c6 -46.37,-133.79' +
-        ' | c7 -49.18,-140.84',
+      'tree 0.00,-68.11 | c0 17.44,-70.50 | c1 21.19,-69.59 | c2 20.18,-67.71 | c3 21.32,-66.68' +
+        ' | c4 18.00,-64.66 | c5 16.66,-63.61 | c6 12.36,-62.81 | c7 9.63,-61.98 | c8 4.85,-61.93' +
+        ' | c9 -1.09,-61.08 | 10 -5.71,-61.13 | 11 -9.01,-62.29 | 12 -12.58,-62.52 | 13 -14.61,-63.52' +
+        ' | 14 -19.77,-64.59 | 15 -21.02,-66.24 | 16 -18.66,-68.14 | 17 -21.42,-69.30 | 18 -20.54,-70.86',
     );
   });
 });
@@ -401,7 +408,7 @@ describe('fixture arithmetic', () => {
     expect(TILE_SCALE).toBeCloseTo(HEX_R / 27, 9);
     const world = buildWorld([RING_FIXTURE], { buildings: false });
     const t = world.territories[0]!;
-    expect(t.tiles).toHaveLength(8); // one tile per capability
+    expect(t.tiles).toHaveLength(RING_CAPS); // one tile per capability
     // the island is roomy enough that the crown rule, not the shore, sets the ring
     expect(t.groundRadius - HEX_R * 0.55).toBeGreaterThan(RING_R);
     expect(RING_R).toBeCloseTo(50 * TILE_SCALE, 6);

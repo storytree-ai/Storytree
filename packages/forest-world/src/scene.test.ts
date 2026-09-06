@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { hash, rand01 } from './rng.js';
 import { unprojectGround } from './camera.js';
+import { TILE_SCALE, tileUnits } from './hex.js';
 import { crownRadius } from './sizing.js';
 import { routeTrails, trailFillWidth, type TrailIsland } from './routing.js';
 import type { RelaxedCell } from './substrate.js';
@@ -35,6 +36,7 @@ import {
   type SceneVegetationInput,
   type SceneVegHeroTrees,
   type GardenHeroId,
+  TRAIL_STROKE_SCALE,
 } from './scene.js';
 import { BASE_TRAILS, isle, legacyInput, shippedInput, shippedTerritory } from './scene-fixture.js';
 
@@ -258,9 +260,11 @@ test('each segment path carries id / data-usage / data-edges + its pass width fr
     assert.ok(fill.el === 'path' && fill.d === seg.d, 'the fill draws the segment d verbatim');
     assert.equal(fill.usage, seg.usage);
     assert.equal(fill.edges, 'library->cli');
-    assert.equal(fill.strokeWidth, w);
-    assert.equal(byId('trail-casing-pass', seg.id).strokeWidth, w + 2.5);
-    assert.equal(byId('trail-shadow-pass', seg.id).strokeWidth, w + 5);
+    // the ONE width rule, stroked at the 2D drawing's scale (ADR-0528: the 3D mapper reads the rule
+    // directly, so the rule itself never moved; the 2D stroke is the rule × TRAIL_STROKE_SCALE).
+    assert.equal(fill.strokeWidth, w * TRAIL_STROKE_SCALE);
+    assert.equal(byId('trail-casing-pass', seg.id).strokeWidth, w * TRAIL_STROKE_SCALE + tileUnits(2.5));
+    assert.equal(byId('trail-shadow-pass', seg.id).strokeWidth, w * TRAIL_STROKE_SCALE + tileUnits(5));
   }
 });
 
@@ -694,7 +698,7 @@ test('an exploring claim WINDOW-SHOPS: a small local orbit beside the tree, rest
   assert.equal(wisp.transform, undefined);
   const orbitArm = children(wisp)[0];
   assert.ok(orbitArm && orbitArm.el === 'g');
-  assert.match(orbitArm.transform ?? '', /^translate\([\d.]+ 0\)$/);
+  assert.match(orbitArm.transform ?? '', /^translate\([\d.]+ 0\) scale\([\d.]+\)$/);
   // per-key jitter: two hoverers on one island never stack exactly.
   const two = buildScene(
     mkInput({
@@ -731,8 +735,8 @@ test('waiting claims QUEUE: queue-wisps in INPUT order along a line — index-pl
   const spotOf = (q: SceneNode) => {
     const inner = children(q)[0];
     assert.ok(inner && inner.el === 'g');
-    const m = /^translate\((-?[\d.]+) (-?[\d.]+)\)$/.exec(inner.transform ?? '');
-    assert.ok(m, 'a queue wisp sits at a plain translate');
+    const m = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\([\d.]+\)$/.exec(inner.transform ?? '');
+    assert.ok(m, 'a queue wisp sits at a plain translate (+ the body\'s drawing scale)');
     return { x: Number(m[1]), y: Number(m[2]) };
   };
   const spots = queue.map(spotOf);
@@ -760,7 +764,8 @@ test('a work claim — and a grade-ABSENT claim — keeps today\'s orbit unchang
   assert.equal(wisp.colourState, 'proving');
   const inner = children(wisp)[0];
   assert.ok(inner && inner.el === 'g');
-  assert.equal(inner.transform, `translate(${(60 * 0.72 + 22).toFixed(1)} 0)`);
+  // radius·0.72 + 22-on-the-old-tile, the body drawn at the tile's scale (ADR-0528)
+  assert.equal(inner.transform, `translate(${(60 * 0.72 + tileUnits(22)).toFixed(1)} 0) scale(${TILE_SCALE.toFixed(1)})`);
   assert.ok(firstByKind(wisp, 'claim-wisp-hit') && firstByKind(wisp, 'claim-wisp-glow') && firstByKind(wisp, 'claim-wisp-dot'));
 });
 
@@ -1211,7 +1216,12 @@ function markerScene(
   );
 }
 
-const MARKER_TRANSFORM = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(0\.6\)$/;
+/** The tall flower's wrapper: translate + the 0.6 drawing scale re-based onto the derived tile (ADR-0528). */
+const MARKER_SCALE_TEXT = (0.6 * TILE_SCALE).toFixed(1);
+const MARKER_TRANSFORM = new RegExp(`^translate\\((-?[\\d.]+) (-?[\\d.]+)\\) scale\\(${MARKER_SCALE_TEXT.replace('.', '\\.')}\\)$`);
+/** The small (unified vocabulary) flower's wrapper: the 1.0 drawing scale re-based onto the tile. */
+const SMALL_MARKER_SCALE_TEXT = (1.0 * TILE_SCALE).toFixed(1);
+const SMALL_MARKER_TRANSFORM = new RegExp(`^translate\\((-?[\\d.]+) (-?[\\d.]+)\\) scale\\(${SMALL_MARKER_SCALE_TEXT.replace('.', '\\.')}\\)$`);
 
 /** The flower wrapper's base point (the translate part of `translate(x y) scale(s)`). */
 function markerSpot(m: SceneG) {
@@ -1274,7 +1284,7 @@ test('the flowers respect the keep-outs, and the human-witness signpost seal is 
       return Math.hypot(d.x, d.y);
     };
     assert.ok(onGround(s, t.centroid) <= t.groundRadius * 0.85 + 1, 'inside the island');
-    assert.ok(onGround(s, t.treeSpot) > 30, 'clear of the tree well');
+    assert.ok(onGround(s, t.treeSpot) > tileUnits(30), 'clear of the tree well');
   }
 });
 
@@ -1376,7 +1386,7 @@ test('ADR-0226 §4: the UAT flowers render SMALL under the flag (still 1:1, stat
   assert.ok(markerShadowRxs(markerScene(THREE_CRITERIA)).every((rx) => rx === 5.2), 'flag-off keeps the tall footprint');
   // the vocabulary scatter wears the larger 1.0 wrapper (ADR-0226 promotion — the owner found 0.6 too
   // small); the flag-OFF tall path keeps the historical 0.6.
-  for (const m of flowers) assert.match(m.transform ?? '', /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(1\.0\)$/);
+  for (const m of flowers) assert.match(m.transform ?? '', SMALL_MARKER_TRANSFORM);
   for (const m of flowersOf(markerScene(THREE_CRITERIA))) assert.match(m.transform ?? '', MARKER_TRANSFORM);
 });
 
@@ -1538,7 +1548,7 @@ test('garden PRESENT → procedural flora + tree suppressed; the UAT criteria re
   assert.deepEqual(flowers.map((fl) => fl.id).sort(), ['c1', 'c2', 'c3'], 'each flower keeps its criterion id');
   // and they wear the SMALL vocabulary body + wrapper (scale 1.0), not the tall bed daisy.
   assert.ok(
-    flowers.every((fl) => /scale\(1\.0\)$/.test((fl as SceneG).transform ?? '')),
+    flowers.every((fl) => SMALL_MARKER_TRANSFORM.test((fl as SceneG).transform ?? '')),
     'garden UAT flowers use the unified small-flower wrapper',
   );
 });
@@ -1681,11 +1691,14 @@ test('garden heroes are FITTED to the island — a small island shrinks them wit
       (u) => (u as { defId: string }).defId !== 'garden-hero-stepping-stone',
     );
   };
-  const small = heroesOf(20);
+  // "small" is small relative to the crown-scaled hero, which draws at the tile's scale since
+  // ADR-0528 — so the fixture's radius re-bases with it (20 on the radius-27 tile).
+  const SMALL_R = tileUnits(20);
+  const small = heroesOf(SMALL_R);
   assert.equal(small.length, 3);
   for (const u of small) {
     const halfW = (scaleOf(u) * HERO_W) / 2;
-    assert.ok(halfW <= 0.5 * 20, `${(u as { defId: string }).defId} half-width ${halfW} overflows the small island`);
+    assert.ok(halfW <= 0.5 * SMALL_R, `${(u as { defId: string }).defId} half-width ${halfW} overflows the small island`);
   }
   // the SAME heroes on a much larger island are bigger — the fit is island-relative, not fixed.
   const large = heroesOf(400);

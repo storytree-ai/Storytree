@@ -7,7 +7,7 @@
 // deterministic geometry (hash/rand01 only).
 
 import { hash, rand01 } from './rng.js';
-import type { Pt } from './hex.js';
+import { tileUnits, type Pt } from './hex.js';
 
 export interface BoundarySeg {
   x1: number;
@@ -23,6 +23,16 @@ export interface BoundarySeg {
  *  one beach width; a second constant holding 7 is how the 2D panel and the 3D canvas come to
  *  disagree about where an island ends. */
 export const COAST_OUTSET = 7;
+
+/**
+ * THE BEACH ON THE SHIPPED TILE (ADR-0528). `COAST_OUTSET` is the beach width AUTHORED on the tuned
+ * radius-27 tile, and it stays that number because the 3D side reads it in that basis
+ * (`forest-world-r3f`'s `GROUND_COAST_OUTSET = COAST_OUTSET × LAND_SCALE`, the shipped island's own
+ * beach — which must not move). The 2D drawing re-bases it onto the derived tile HERE, and the
+ * packers that draw the shipped map pass this to {@link smoothCoast}; a scene laid out on another
+ * tile (the r3f harness fixture) passes the outset for its own.
+ */
+export const COAST_OUTSET_ON_TILE = tileUnits(COAST_OUTSET);
 /** Chaikin passes: 2 rounds the hex silhouette into an organic blob. Exported for the same
  *  reason as {@link COAST_OUTSET}. */
 export const COAST_SMOOTH_ITERS = 2;
@@ -101,12 +111,12 @@ export function loopSignedArea(loop: Pt[]): number {
  * can never wander into a neighbour — and (perturbing only the outset MAGNITUDE
  * along the normal) the offset can never self-intersect.
  */
-export function jitteredOutset(storyId: string, i: number, n: number): number {
+export function jitteredOutset(storyId: string, i: number, n: number, outset: number = COAST_OUTSET): number {
   const theta = (i / Math.max(n, 1)) * Math.PI * 2;
   const phase = rand01(hash(`${storyId}:coast:phase`)) * Math.PI * 2;
   const wave = Math.sin(theta * COAST_NOISE_WAVES + phase); // [-1,1], coherent
   const wobble = (rand01(hash(`${storyId}:coast:${i}`)) - 0.5) * 0.6;
-  return COAST_OUTSET * (1 + COAST_NOISE_AMP * (0.7 * wave + wobble));
+  return outset * (1 + COAST_NOISE_AMP * (0.7 * wave + wobble));
 }
 
 /**
@@ -208,10 +218,10 @@ export interface SmoothedCoast {
   paths: string[];
 }
 
-export function smoothCoast(segs: BoundarySeg[], storyId: string): SmoothedCoast {
+export function smoothCoast(segs: BoundarySeg[], storyId: string, outset: number = COAST_OUTSET): SmoothedCoast {
   const loops = boundaryRingLoops(segs).map((l) =>
     chaikinClosed(
-      outsetLoop(l, (i) => jitteredOutset(storyId, i, l.length)),
+      outsetLoop(l, (i) => jitteredOutset(storyId, i, l.length, outset)),
       COAST_SMOOTH_ITERS,
     ),
   );

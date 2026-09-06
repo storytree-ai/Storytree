@@ -21,9 +21,18 @@
 //     all-healthy research surface, and under ADR-0040 green comes from a signed verdict. A
 //     MIXED set (`criteriaStates`) shows all three authored verdict forms on one island and is
 //     labelled where it appears, exactly like the foreign-status capability.
+//
+// ⚠ DRAWN ON THE TUNED TILE, NOT THE SHIPPED LATTICE (ADR-0528). The engine's `HEX_R` is derived
+// from the land ratio now (one hex per capability, ≈ 11.06); this island is THE island every
+// ground-unit constant in this package was tuned on (`TUNED_FIXTURE`: thirteen hexes of radius 27
+// over eleven capabilities), so it is built with `hexR: PRE_ADR0528_TILE.hexR` and stays exactly
+// what it was. The shipped mapper sizes it to `11 × LAND_AREA_PER_CAPABILITY` regardless
+// (ADR-0520 D1), so every comparison page renders the same island it did; what the tuned drawing
+// keeps honest is the pre-mapper geometry these tests read (rim lengths, insets, the census).
 
 import {
   LAND_CAMERA_ELEVATION_DEG,
+  PRE_ADR0528_TILE,
   buildRelaxedCells,
   buildScene,
   groundFlattening,
@@ -215,18 +224,20 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
   // so a plan-view island is unprojected everywhere rather than in the one place a reader checks.
   const elevation = opts.cameraElevationDeg === undefined ? {} : { elevationDeg: opts.cameraElevationDeg };
   const elevationDeg = opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
-  const centres = ISLAND_TILES.map((h) => hexCenter(h, elevation));
+  // the tuned tile (see the header): the lattice this island's constants were judged on
+  const lattice = { ...elevation, hexR: PRE_ADR0528_TILE.hexR };
+  const centres = ISLAND_TILES.map((h) => hexCenter(h, lattice));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   const drawTiles = ISLAND_TILES.map((h) => ({ h, owner: 0 }));
   // 'mesh' is the shipped studio substrate — the relaxed decomposition the parcels ride on.
-  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh', {}, elevation);
+  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh', { hexR: PRE_ADR0528_TILE.hexR }, elevation);
 
   const parcels: SceneParcelInput[] = islandCapabilities(opts).map((cap, i) => ({
     ...cap,
     // Seeds spread over the tiles so the Voronoi sub-partition gives every capability a
     // real parcel rather than slivers.
-    seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!, elevation),
+    seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!, lattice),
   }));
 
   const territory: SceneTerritoryInput = {
@@ -271,6 +282,8 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     wheatSets: [new Set<string>()],
     trails: { segments: [], edges: [], caves: [], dropped: [] },
     territories: [territory],
+    // the tuned tile (see the header): the props, keep-outs and strokes re-base with the lattice
+    tile: { hexR: PRE_ADR0528_TILE.hexR },
     // Presence alone selects the ADR-0226 unified vocabulary: SMALL meadow flowers folded into
     // the grass rather than the pre-ADR-0226 tall markers, and the human-witness signpost
     // retired as redundant with them. `heroTrees` is absent, so the island keeps its own

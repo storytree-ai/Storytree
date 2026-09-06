@@ -6,12 +6,12 @@
       "children": [
         {
           "el": "path",
-          "d": "M 0.0 -9.0 L 22.9 -4.5 L 22.9 4.5 L 0.0 9.0 L -22.9 4.5 L -22.9 -4.5 Z",
+          "d": "M 0.0 -3.7 L 9.4 -1.8 L 9.4 1.8 L 0.0 3.7 L -9.4 1.8 L -9.4 -1.8 Z",
           "kind": "empty"
         },
         {
           "el": "path",
-          "d": "M 46.8 -9.0 L 69.6 -4.5 L 69.6 4.5 L 46.8 9.0 L 23.9 4.5 L 23.9 -4.5 Z",
+          "d": "M 19.2 -3.7 L 28.5 -1.8 L 28.5 1.8 L 19.2 3.7 L 9.8 1.8 L 9.8 -1.8 Z",
           "kind": "empty"
         }
       ],
@@ -105,12 +105,12 @@
           "children": [
             {
               "el": "path",
-              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "d": "M 257.21 85.87 C 255.43 86.95 253.58 87.75 251.86 89.1 C 249.94 90.61 248.88 93.63 246.34 94.65 C 242.96 96 237.14 94.44 232.5 94.31 C 227.81 94.18 222.48 92.22 218.32 93.87 C 213.92 95.62 210.75 101.38 207.05 105.16 C 203.38 108.9 199.83 112.69 196.2 116.43 C 192.56 120.17 188.86 123.84 185.25 127.6 C 181.64 131.36 178.12 135.21 174.53 139 C 170.94 142.79 167.42 146.64 163.72 150.31 C 160.01 153.98 155.22 158.57 152.29 161.02 C 150.6 162.43 149.5 163.1 148.1 164.14",
               "kind": "trail-shadow",
-              "id": "tbv58gy",
+              "id": "t12fxnan",
               "usage": 1,
               "edges": "library->cli",
-              "strokeWidth": 8
+              "strokeWidth": 3.2780369122017197
             }
           ],
           "kind": "trail-shadow-pass"
@@ -120,12 +120,12 @@
           "children": [
             {
               "el": "path",
-              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "d": "M 257.21 85.87 C 255.43 86.95 253.58 87.75 251.86 89.1 C 249.94 90.61 248.88 93.63 246.34 94.65 C 242.96 96 237.14 94.44 232.5 94.31 C 227.81 94.18 222.48 92.22 218.32 93.87 C 213.92 95.62 210.75 101.38 207.05 105.16 C 203.38 108.9 199.83 112.69 196.2 116.43 C 192.56 120.17 188.86 123.84 185.25 127.6 C 181.64 131.36 178.12 135.21 174.53 139 C 170.94 142.79 167.42 146.64 163.72 150.31 C 160.01 153.98 155.22 158.57 152.29 161.02 C 150.6 162.43 149.5 163.1 148.1 164.14",
               "kind": "trail-casing",
-              "id": "tbv58gy",
+              "id": "t12fxnan",
               "usage": 1,
               "edges": "library->cli",
-              "strokeWidth": 5.5
+              "strokeWidth": 2.2536503771386824
             }
           ],
           "kind": "trail-casing-pass"
@@ -135,12 +135,12 @@
           "children": [
             {
               "el": "path",
-              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "d": "M 257.21 85.87 C 255.43 86.95 253.58 87.75 251.86 89.1 C 249.94 90.61 248.88 93.63 246.34 94.65 C 242.96 96 237.14 94.44 232.5 94.31 C 227.81 94.18 222.48 92.22 218.32 93.87 C 213.92 95.62 210.75 101.38 207.05 105.16 C 203.38 108.9 199.83 112.69 196.2 116.43 C 192.56 120.17 188.86 123.84 185.25 127.6 C 181.64 131.36 178.12 135.21 174.53 139 C 170.94 142.79 167.42 146.64 163.72 150.31 C 160.01 153.98 155.22 158.57 152.29 161.02 C 150.6 162.43 149.5 163.1 148.1 164.14",
               "kind": "trail-fill",
-              "id": "tbv58gy",
+              "id": "t12fxnan",
               "usage": 1,
               "edges": "library->cli",
-              "strokeWidth": 3,
+              "strokeWidth": 1.2292638420756448,
               "spur": true
             }
           ],
@@ -160,8 +160,8 @@
               "kind": "trail-edge",
               "from": "library",
               "to": "cli",
-              "title": "cli depends on library",
-              "segments": "tbv58gy:R"
+              "segments": "t12fxnan:R",
+              "title": "cli depends on library"
             }
           ],
           "kind": "trail-edges"
@@ -199,7 +199,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(80.2 184.0)"
+              "transform": "translate(80.1 181.6) scale(0.4)"
             },
             {
               "el": "g",
@@ -225,7 +225,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(72.6 186.7)"
+              "transform": "translate(76.9 182.7) scale(0.4)"
             },
             {
               "el": "g",
@@ -251,7 +251,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(69.4 186.9)"
+              "transform": "translate(75.7 182.8) scale(0.4)"
             },
             {
               "el": "g",
@@ -414,7 +414,7 @@
               "kind": "tree",
               "status": "healthy",
               "title": "library — healthy",
-              "transform": "translate(100.0 190.0)"
+              "transform": "translate(100.0 190.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -502,7 +502,7 @@
               "status": "healthy",
               "id": "library#cap-a",
               "title": "cap a",
-              "transform": "translate(90.0 205.0)"
+              "transform": "translate(90.0 205.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -528,7 +528,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(132.2 208.9)"
+              "transform": "translate(125.0 209.6) scale(0.4)"
             },
             {
               "el": "g",
@@ -554,7 +554,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(110.0 213.4)"
+              "transform": "translate(115.9 211.4) scale(0.4)"
             },
             {
               "el": "g",
@@ -655,7 +655,7 @@
               "status": "unhealthy",
               "id": "library#cap-b",
               "title": "cap b",
-              "transform": "translate(110.0 215.0)"
+              "transform": "translate(110.0 215.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -688,7 +688,7 @@
               ],
               "kind": "plate",
               "title": "The library",
-              "transform": "translate(40.0 260.0)"
+              "transform": "translate(75.4 260.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -721,7 +721,7 @@
                           "kind": "wisp-dot"
                         }
                       ],
-                      "transform": "translate(53.2 0)"
+                      "transform": "translate(47.3 0) scale(0.4)"
                     }
                   ],
                   "kind": "wisp",
@@ -765,7 +765,7 @@
                           "kind": "claim-wisp-dot"
                         }
                       ],
-                      "transform": "translate(65.2 0)"
+                      "transform": "translate(52.2 0) scale(0.4)"
                     }
                   ],
                   "kind": "claim-wisp",
@@ -865,7 +865,7 @@
               "kind": "tree",
               "status": "proposed",
               "title": "cli — proposed",
-              "transform": "translate(300.0 50.0)"
+              "transform": "translate(300.0 50.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -891,7 +891,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(286.2 51.4)"
+              "transform": "translate(288.4 53.5) scale(0.4)"
             },
             {
               "el": "g",
@@ -917,7 +917,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(299.3 61.9)"
+              "transform": "translate(293.8 57.8) scale(0.4)"
             },
             {
               "el": "g",
@@ -943,7 +943,7 @@
                 }
               ],
               "kind": "conifer",
-              "transform": "translate(288.6 63.6)"
+              "transform": "translate(289.4 58.5) scale(0.4)"
             },
             {
               "el": "g",
@@ -1004,7 +1004,7 @@
               "status": "proposed",
               "id": "cli#cap-x",
               "title": "cap x",
-              "transform": "translate(295.0 65.0)"
+              "transform": "translate(295.0 65.0) scale(0.4)"
             },
             {
               "el": "g",
@@ -1037,7 +1037,7 @@
               ],
               "kind": "plate",
               "title": "The cli",
-              "transform": "translate(250.0 120.0)"
+              "transform": "translate(279.5 120.0) scale(0.4)"
             }
           ],
           "kind": "territory",
@@ -1053,10 +1053,10 @@
         {
           "el": "rect",
           "x": 40,
-          "y": 107.58,
+          "y": 156.2280247120418,
           "width": 120,
-          "height": 185.42000000000002,
-          "rx": 14,
+          "height": 117.29387755079031,
+          "rx": 5.736564596353009,
           "kind": "hit",
           "id": "library",
           "title": "The library"
@@ -1064,10 +1064,10 @@
         {
           "el": "rect",
           "x": 250,
-          "y": -26.47999999999999,
+          "y": 18.661967119351566,
           "width": 100,
-          "height": 176.48,
-          "rx": 14,
+          "height": 113.63067130140487,
+          "rx": 5.736564596353009,
           "kind": "hit",
           "id": "cli",
           "title": "The cli"

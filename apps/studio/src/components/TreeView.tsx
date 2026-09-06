@@ -161,6 +161,7 @@ import {
   estRadius,
   tileQuota,
   tileUnits,
+  COAST_OUTSET_ON_TILE,
   TILE_SCALE,
   TREE_SCALE,
   PLATE_SCALE,
@@ -864,7 +865,7 @@ export function buildWorld(
     // the loop to screen once here and regenerate the `d` strings from the projected points —
     // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
     // projecting-then-smoothing reproduces exactly what smoothing-then-projecting would draw.
-    const coastGround = smoothCoast(boundary, story.id);
+    const coastGround = smoothCoast(boundary, story.id, COAST_OUTSET_ON_TILE); // the beach on the shipped tile (ADR-0528)
     const coastLoopsScreen = coastGround.loops.map((loop) => loop.map((p) => projectGround(p)));
     const coastPathsScreen = coastLoopsScreen.map(smoothLoopPath);
     const coast = { loops: coastLoopsScreen, paths: coastPathsScreen };
