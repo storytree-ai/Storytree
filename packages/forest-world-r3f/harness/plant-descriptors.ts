@@ -87,6 +87,39 @@ function parseTranslate(t: string | undefined) {
   return { x: parseFloat(m[1]!), y: parseFloat(m[2]!) };
 }
 
+/**
+ * The whole transform LIST of a flora item, as the affine map it is — applied to a point in the
+ * item's own coordinates. Since ADR-0528 a `parcel-flora` item is scaled ABOUT ITS OWN SPOT
+ * (`translate(p) scale(s) translate(-p)`: the marks are drawn in absolute coordinates, so the tile
+ * re-basing pivots them where the drift placed them); reading only the first `translate` would
+ * displace every mark by its own spot. SVG applies the list right to left, so a point goes through
+ * the terms in reverse order. Only `translate` and uniform `scale` occur on a flora item.
+ */
+function parseAffine(t: string | undefined): (x: number, y: number) => { x: number; y: number } {
+  if (!t) return (x, y) => ({ x, y });
+  const terms: Array<{ kind: 'translate'; x: number; y: number } | { kind: 'scale'; s: number }> = [];
+  const re = /(translate|scale)\(\s*([-\d.]+)(?:[\s,]+([-\d.]+))?\s*\)/g;
+  for (let m = re.exec(t); m !== null; m = re.exec(t)) {
+    if (m[1] === 'translate') terms.push({ kind: 'translate', x: parseFloat(m[2]!), y: parseFloat(m[3] ?? '0') });
+    else terms.push({ kind: 'scale', s: parseFloat(m[2]!) });
+  }
+  return (x, y) => {
+    let px = x;
+    let py = y;
+    for (let i = terms.length - 1; i >= 0; i -= 1) {
+      const term = terms[i]!;
+      if (term.kind === 'translate') {
+        px += term.x;
+        py += term.y;
+      } else {
+        px *= term.s;
+        py *= term.s;
+      }
+    }
+    return { x: px, y: py };
+  };
+}
+
 interface Box {
   minX: number;
   minY: number;
@@ -131,13 +164,24 @@ interface Walked {
 
 /** Accumulate a mark subtree's extent, count and families, in coordinates relative to the
  *  flora item's own group (nested translates are folded in as they are met). */
-function walkMarks(node: SceneNode, at: { x: number; y: number }, acc: Walked): void {
+function walkMarks(
+  node: SceneNode,
+  at: { x: number; y: number },
+  acc: Walked,
+  /** The item's own affine (ADR-0528) — mark coordinates pass through it before `at` is added. */
+  map: (x: number, y: number) => { x: number; y: number } = (x, y) => ({ x, y }),
+): void {
   if (node.el === 'g') {
     const t = parseTranslate(node.transform);
     const here = { x: at.x + t.x, y: at.y + t.y };
-    for (const child of node.children) walkMarks(child, here, acc);
+    for (const child of node.children) walkMarks(child, here, acc, map);
     return;
   }
+  // grow the box with a mark coordinate: through the item's affine, then the folded translates
+  const put = (x: number, y: number): void => {
+    const q = map(x, y);
+    acc.box = grow(acc.box, at.x + q.x, at.y + q.y);
+  };
 
   const fam = familyOf(node.kind);
   if (fam) acc.families.add(fam);
@@ -148,22 +192,22 @@ function walkMarks(node: SceneNode, at: { x: number; y: number }, acc: Walked): 
 
   switch (node.el) {
     case 'circle':
-      acc.box = grow(acc.box, at.x + node.cx - node.r, at.y + node.cy - node.r);
-      acc.box = grow(acc.box, at.x + node.cx + node.r, at.y + node.cy + node.r);
+      put(node.cx - node.r, node.cy - node.r);
+      put(node.cx + node.r, node.cy + node.r);
       break;
     case 'ellipse':
-      acc.box = grow(acc.box, at.x + node.cx - node.rx, at.y + node.cy - node.ry);
-      acc.box = grow(acc.box, at.x + node.cx + node.rx, at.y + node.cy + node.ry);
+      put(node.cx - node.rx, node.cy - node.ry);
+      put(node.cx + node.rx, node.cy + node.ry);
       break;
     case 'rect':
-      acc.box = grow(acc.box, at.x + node.x, at.y + node.y);
-      acc.box = grow(acc.box, at.x + node.x + node.width, at.y + node.y + node.height);
+      put(node.x, node.y);
+      put(node.x + node.width, node.y + node.height);
       break;
     case 'path':
-      for (const p of pathPoints(node.d)) acc.box = grow(acc.box, at.x + p.x, at.y + p.y);
+      for (const p of pathPoints(node.d)) put(p.x, p.y);
       break;
     case 'polygon':
-      for (const p of pathPoints(node.points)) acc.box = grow(acc.box, at.x + p.x, at.y + p.y);
+      for (const p of pathPoints(node.points)) put(p.x, p.y);
       break;
     default:
       // text carries no drawn extent for a plant; it never appears inside a flora item.
@@ -179,10 +223,11 @@ function plantOf(
   node: SceneG,
   at: { x: number; y: number },
 ): PlantInstance | null {
-  const t = parseTranslate(node.transform);
-  const here = { x: at.x + t.x, y: at.y + t.y };
+  // The item's whole transform list, as an affine (ADR-0528: `translate(p) scale(s) translate(-p)`
+  // scales the marks about their own spot) — never the first translate alone.
+  const affine = parseAffine(node.transform);
   const acc: Walked = { box: EMPTY_BOX, marks: 0, families: new Set() };
-  for (const child of node.children) walkMarks(child, here, acc);
+  for (const child of node.children) walkMarks(child, at, acc, affine);
 
   const { minX, minY, maxX, maxY } = acc.box;
   if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;

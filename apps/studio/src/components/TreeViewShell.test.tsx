@@ -588,7 +588,12 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       // `1,4,5,6,8,9,8,8,3` at rung 0.1 while the pick was being laddered: the partition is a function
       // of where the seed lands), still one connected wave per ring, still a rise and a taper. Caught
       // here loudly, as this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,11,13,10,6');
+      //
+      // And once more on 2026-09-06 (ADR-0528): the tile follows the land ratio — one hex per
+      // capability, radius ≈ 11.06 — so the fixture's island is drawn on half the cells (52 -> 26,
+      // asserted above) and the adjacency partition is a shorter rise and taper over the same
+      // connected waves: `1,4,5,4,3,4,3,2`. Caught here loudly, as this assertion is for.
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,5,4,3,4,3,2');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [

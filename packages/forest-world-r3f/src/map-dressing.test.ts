@@ -22,6 +22,7 @@ import {
   type SceneParcelInput,
   type SceneStatus,
   type SceneTerritoryInput,
+  PRE_ADR0528_TILE,
 } from '@storytree/forest-world';
 
 import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
@@ -48,6 +49,11 @@ import { shoreField } from './shore-fall.js';
 import { wearField } from './trail-wear.js';
 import type { GPoint } from './parcel-cells.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from './world-to-3d.js';
+
+/** The fixtures here draw on the TUNED tile (ADR-0528), like the harness island: every number this
+ *  file pins was derived on it, and the 3D mapper sizes the islands to the ratio either way. */
+const TUNED_LATTICE = { hexR: PRE_ADR0528_TILE.hexR } as const;
+const TUNED_TILE = { hexR: PRE_ADR0528_TILE.hexR } as const;
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
 
@@ -125,7 +131,7 @@ function territory(
   uat: { total: number; signed: number },
   status: SceneStatus = 'healthy',
 ): SceneTerritoryInput {
-  const centres = tiles.map((h) => hexCenter(h));
+  const centres = tiles.map((h) => hexCenter(h, TUNED_LATTICE));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   const parcels: SceneParcelInput[] = caps.map((capId, i) => ({
@@ -133,7 +139,7 @@ function territory(
     status,
     testCount: 3,
     theme: 'meadow',
-    seed: hexCenter(tiles[i % tiles.length]!),
+    seed: hexCenter(tiles[i % tiles.length]!, TUNED_LATTICE),
   }));
   return {
     id,
@@ -190,7 +196,7 @@ function twoStoryMap(
     width: 1600,
     height: 900,
     empties: [],
-    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh', TUNED_LATTICE),
     drawTiles,
     wheatSets,
     trails: { segments: [], edges: [], caves: [], dropped: [] },
@@ -199,6 +205,7 @@ function twoStoryMap(
       territory(STORY_B, TILES_B, ['beacon-emit'], b),
     ],
     vegetation: {},
+    tile: TUNED_TILE,
   };
   const built = worldTo3D(buildScene(input));
   MAPS.set(key, built);
@@ -483,7 +490,7 @@ function bigMap(aStatus: SceneStatus = 'healthy', bStatus: SceneStatus = 'health
     width: 1600,
     height: 900,
     empties: [],
-    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh', TUNED_LATTICE),
     drawTiles,
     wheatSets,
     trails: { segments: [], edges: [], caves: [], dropped: [] },
@@ -492,6 +499,7 @@ function bigMap(aStatus: SceneStatus = 'healthy', bStatus: SceneStatus = 'health
       territory(STORY_B, RING_B, ['beacon-emit', 'beacon-ack'], { total: 2, signed: 2 }, bStatus),
     ],
     vegetation: {},
+    tile: TUNED_TILE,
   };
   const built = worldTo3D(buildScene(input));
   BIG_MAPS.set(key, built);
