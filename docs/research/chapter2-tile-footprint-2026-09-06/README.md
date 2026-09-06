@@ -81,19 +81,131 @@ what the ladder in 2b is for.
 
 ### 2b — the ladder (the rungs are live dials: `?treeRung=` `?plateRung=` `?floraRung=` `?trailRung=`)
 
-_(filled in from the art-ladder run — `art/`)_
+Every arm varies ONE rung at the shipped spacing and is captured at the resting view (the working
+zoom — the hard requirement) and the fitted view (`art/2d-<arm>-<view>.png`, `art/art-report.txt`).
+Moved = pixels differing by more than 20/255 against the shipped arm at the same view.
+
+| arm | rung moved | resting: median island / read island / nameplate text (px) | moved>20 at resting | moved>20 at fit |
+| --- | --- | --- | --- | --- |
+| **shipped** | tree 1 · plate 1 · flora 1 · trail 1 | **113 / 161 / 10.0** | — | — |
+| tree-0.8 | tree 0.8 | 116 / 161 / 10.0 | 7,763 | 2,242 |
+| tree-0.65 | tree 0.65 | 116 / 161 / 10.0 | 12,079 | 4,826 |
+| tree-1.25 | tree 1.25 | 113 / 125 / 10.0 | 2,784 | 2,468 |
+| plate-1.25 | plate 1.25 | 145 / 201 / 12.0 | 27,897 | 12,493 |
+| plate-1.5 | plate 1.5 | 166 / 241 / 15.0 | 48,016 | 18,493 |
+| trail-3d | trail 2.44 (= 1 / `TILE_SCALE`: the 3D ribbon's own width) | 113 / 161 / 10.0 | 34,449 | 14,122 |
+| flora-1.5 | flora 1.5 | 113 / 161 / 10.0 | 6,330 | 2,808 |
+
+(The "read island" column is the read story's whole `data-story-id` group, so a bigger nameplate or
+tree widens it; the island's LAND is the same on every arm.)
+
+**The pick is rung 1 on every family — today's sizes at the working zoom — and it is a judgment,
+not a default.** Against the control the resting view now delivers the median island at 113 px
+(today 114) and the nameplate's text at 10 px where today's resting scale put it at about 8, so the
+map an operator works in is unchanged in composition and slightly more legible in its labels. The
+ladder shows what each rung would buy and cost:
+
+- **Tree.** The one thing the tile change makes visible is a zero- or one-capability story standing
+  on ONE hex under a full-size tree (it stood on three). `tree-0.8` lets those islands show land
+  under the crown at the cost of every tree reading a touch smaller; `tree-0.65` is a clearly
+  smaller forest; `tree-1.25` grows the crown over the small islands entirely. If the owner wants
+  the small stories to read as land rather than as a tree, 0.8 is the rung — it is the one
+  scale-back this pass recommends looking at.
+- **Nameplate.** `plate-1.25` and `plate-1.5` are the legibility bumps (12 and 15 px text at the
+  working zoom); they also widen every island's footprint on screen and move the most pixels, and
+  at 1.5 the plates begin to crowd on the dense ranks. Today's 10 px already exceeds the pre-change
+  8 px, so the pass does not take one.
+- **Trail.** `trail-3d` strokes the 2D trail at the width the 3D ribbon has relative to its island;
+  on the working map it reads as a heavier road network over the same islands. It is the honest
+  "the two maps agree" rung; the working tool keeps today's lighter line.
+- **Flora.** `flora-1.5` coarsens the grass and shrub marks; at the working zoom it is barely a
+  change and at the fit it is none. Nothing to take.
+
+Both zooms of every arm are committed under `art/`; the dials stay live in the studio URL so a rung
+can be looked at in place before it is picked.
 
 ## Part three — the gap re-laddered over correctly-sized tiles (ADR-0528 D5)
 
-_(filled in from the run — see below)_
+The same five rungs as ADR-0521's ladder, exported from the studio on the derived tile and rendered
+through the shipped 3D pipeline by the spacing page's own instrument (`shipped-tile.html`, through
+`shipped-spacing-scene.ts`'s loader seam — two ladders, one ruler). The control is the map as it
+SHIPPED (old tile, gap ratio 0), exported from the untouched code at main's head `5dfc5871`.
+
+**The whole real forest, fitted** (`sheet-forest-fit.png`; `report.txt`):
+
+| arm | tile | gap | land, % of the fitted frame | % of the forest's own box | layout area vs today | tightest pair: centres / water (units), by the islands' rings | island px | pine px |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `today` — as it shipped | radius 27, `max(3, caps + 2)` | 0 | 0.89% | 2.3% | 100% | 144 / 79 | 33 | 7.6 |
+| `tile-spacing-0.5` | **derived** | 0.5 | 2.90% | 8.1% | 21% | 82 / 19 | 90 | 15.5 |
+| `tile-spacing-0.35` | derived | 0.35 | 3.20% | 9.1% | 19% | 63 / 10 | 107 | 16.2 |
+| `tile-spacing-0.2` | derived | 0.2 | 3.62% | 9.4% | 19% | 47 / 12 | 86 | 17.3 |
+| **`tile-spacing-0.1` — SHIPPED** | **derived** | **0.1** | **3.90%** | **10.4%** | **16%** | **53 / 10** | **89** | **18.0** |
+| `tile-spacing-0` | derived | 0 | 4.30% | 9.8% | 17% | 66 / **1** | 94 | 18.9 |
+
+- **The slot is closed.** Land rose from 0.89% to 3.9% of the fitted frame at the pick — 4.4× — and
+  the layout's centre-to-centre area is 16% of what it was. ADR-0521 recovered a third of the
+  sparseness; the tile was the other two thirds, and this is it. Every arm routes all 90 trails with
+  none dropped, stands the same 203 capability trees and 1,091 cover props, and holds every island
+  at exactly 318 units² per capability (the driver refuses otherwise).
+- **The pick is 0.1, not 0 — and that is the finding D5 asked for.** Before the packer's moat, gap
+  ratio 0 AND 0.2 stood two 3D islands overlapping (measured by the islands' rings, not their boxes:
+  the 3D island outgrows its tile by its coast outset and the mapper's lobing factor, so tiles that
+  touch overlap in 3D, and which rung overlapped was a lottery of the seed jitter). The moat — one
+  hex of water between any two islands' tiles, kept by the growth itself — removes the overlap at
+  every rung; but at 0 the tightest pair still keeps only ONE unit of water and the two islands read
+  as touching. 0.1 is the boldest rung with water between every pair (10 units at its tightest),
+  and it gives up 0.4 points of land share for that. Below 0.35 the moat floor binds and the extent
+  moves only with the seed jitter, which is why the ladder does not tighten monotonically there
+  (0.2 spans 0.5% more than 0.35; 0 spans 4.8% more than 0.1) — printed by the driver as a finding,
+  where the spacing page refused.
+- **The instrument moved with the question.** The spacing page's nearest-pair water was the gap
+  between two axis-aligned boxes; on islands standing side by side that overstates the water and
+  cannot tell touching from overlapping. `tightestPair` reads the rings (the smallest vertex gap;
+  a vertex inside the other's cell is an overlap), and the tile driver refuses only a SHIPPED pick
+  that overlaps, recording every other rung's.
+
+**One island at 8 px/unit — unaffected** (`sheet-one-island.png`): `context-traversal-capture` on
+every arm holds **7 capabilities on 2,226 units² (318.0 per capability), 7 trees, cover at the
+shipped rung**. Its outline is composed from seven hexes instead of nine (57×56 units at the pick
+against 51×63 on the control), and the ground noise is world-anchored, so pixels move; its land,
+its trees, its cover, its ground material and its shadows cannot — ADR-0520 set the island's size
+and this landing does not touch it.
+
+**The 2D studio map** (`sheet-2d-studio.png`, `sheet-2d-fit.png`; `2d-report.txt`): the resting view
+delivers the median island at 113 px (today 114), the read island at 161 px and the nameplate text
+at 10 px; the fitted view's scale rises from 0.279 to 0.705 as the world shrinks. Against the
+control at the same view about 192,000 pixels move (>20/255) at rest — every island's outline is
+re-composed and every island moves — and the map still reads: nameplates clear, trails routed,
+islands separated by their coast rings at every rung. The gaps ADR-0521 derived are unchanged in
+rule; only the tile they sit between changed.
 
 ## Frame cost — TAKEN, RECORDED, AND NOT A GATE (ADR-0517 D4)
 
-_(filled in from the run)_
+`frame-cost.txt` / `frame-cost.json`: GPU clock, 6 arms × 2 pictures × 5 interleaved repeats × 20
+frames per query, two independent runs, every row reproduced within the runs' own noise, nothing
+dropped.
+
+| picture | `today` | `tile-spacing-0.5` | `0.35` | `0.2` | **`0.1` (shipped)** | `0` |
+| --- | --- | --- | --- | --- | --- | --- |
+| the whole real forest, fitted | 0.3999 ms (2.4% of 16.67) | 0.5717 | 0.6072 | 0.6414 | **0.6653 ms (4.0%), +0.2654, 1.66×** | 0.7046 |
+| one island at 8 px/unit | 0.4403 ms (2.6%) | 0.8301 | 0.8506 | 0.8443 | **0.7574 ms (4.5%), +0.3170** | 0.7554 |
+
+Read it as a report: a forest 4.4× denser at the fit is 4.4× more land pixels through the ground
+shader, and the one-island read now has neighbours in frame where it had water. Triangles FALL
+(720k → 687k: one hex per capability decomposes into fewer cells) and the call count is 5 on every
+arm. Nothing here picks the rung.
 
 ## Files
 
-_(the inventory is filled in from the run)_
+`scenes/manifest.json` + six `scenes/<arm>.json` (the real layout per rung, pruned to the mapper's
+kinds; the control carried in from `old-tile/` with its source head) · 12 frames
+`<arm>-<picture>-<zoom>.png` (2560×1600) · 15 studio captures `2d-<arm>-<view>.png` (1600×1000; the
+`island` view is the read story's deep link) · `2d-metrics.json` / `2d-report.txt` ·
+`measurements.json` / `report.txt` · `frame-cost.txt` / `frame-cost.json` · `sheet-forest-fit.png`
+· `sheet-one-island.png` · `sheet-2d-studio.png` · `sheet-2d-fit.png` · `art/` (16 captures,
+`art-metrics.json`, `art-report.txt`, `sheet-art-ladder.png`) · `old-tile/` (the control export: the
+six spacing arms on the old tile, from the untouched tree) · `prep/` (the model script; the patch
+scripts were applied and are kept only for the web recipe).
 
 Reproduce, on the RTX 2060 box: run the studio on a port of your own (`pnpm --filter studio dev
 --port <n> --strictPort --host 127.0.0.1`, live store) and the r3f harness on another

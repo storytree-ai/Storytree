@@ -1,0 +1,517 @@
+{
+  "generatedAt": "2026-09-06T04:48:37.447Z",
+  "studio": {
+    "url": "http://127.0.0.1:5397",
+    "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+    "branch": "claude/tile-footprint"
+  },
+  "readIsland": "context-traversal-capture",
+  "rows": [
+    {
+      "arm": "shipped",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 112.9300537109375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 116.32731628417969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-shipped-resting.png",
+      "movedVsShipped": 0
+    },
+    {
+      "arm": "shipped",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 42.6728515625,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 43.956634521484375
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-shipped-fit.png",
+      "movedVsShipped": 0
+    },
+    {
+      "arm": "tree-0.8",
+      "rungs": {
+        "tree": 0.8,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 0.8
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 116.3270263671875,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 111.88478088378906
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-0.8-resting.png",
+      "movedVsShipped": 7763
+    },
+    {
+      "arm": "tree-0.8",
+      "rungs": {
+        "tree": 0.8,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 0.8
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 43.95648193359375,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 42.277923583984375
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-0.8-fit.png",
+      "movedVsShipped": 2242
+    },
+    {
+      "arm": "tree-0.65",
+      "rungs": {
+        "tree": 0.65,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 0.65
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 116.3271484375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 102.99967956542969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-0.65-resting.png",
+      "movedVsShipped": 12079
+    },
+    {
+      "arm": "tree-0.65",
+      "rungs": {
+        "tree": 0.65,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 0.65
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 43.95660400390625,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 38.9205322265625
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-0.65-fit.png",
+      "movedVsShipped": 4826
+    },
+    {
+      "arm": "tree-1.25",
+      "rungs": {
+        "tree": 1.25,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 1.25
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 112.92996215820312,
+      "readIslandPx": {
+        "w": 125.06292724609375,
+        "h": 152.6887664794922
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-1.25-resting.png",
+      "movedVsShipped": 2784
+    },
+    {
+      "arm": "tree-1.25",
+      "rungs": {
+        "tree": 1.25,
+        "plate": 1,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "tree": 1.25
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 42.6728515625,
+      "readIslandPx": {
+        "w": 47.25750732421875,
+        "h": 57.696533203125
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-tree-1.25-fit.png",
+      "movedVsShipped": 2468
+    },
+    {
+      "arm": "plate-1.25",
+      "rungs": {
+        "tree": 1,
+        "plate": 1.25,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "plate": 1.25
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 145.408935546875,
+      "readIslandPx": {
+        "w": 200.66067504882812,
+        "h": 122.48710632324219
+      },
+      "plateTextPx": {
+        "w": 168.12619018554688,
+        "h": 12.000015258789062
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-plate-1.25-resting.png",
+      "movedVsShipped": 27897
+    },
+    {
+      "arm": "plate-1.25",
+      "rungs": {
+        "tree": 1,
+        "plate": 1.25,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "plate": 1.25
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 54.9456787109375,
+      "readIslandPx": {
+        "w": 75.8236083984375,
+        "h": 46.284210205078125
+      },
+      "plateTextPx": {
+        "w": 63.7598876953125,
+        "h": 5.000030517578125
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-plate-1.25-fit.png",
+      "movedVsShipped": 12493
+    },
+    {
+      "arm": "plate-1.5",
+      "rungs": {
+        "tree": 1,
+        "plate": 1.5,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "plate": 1.5
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 166.2030029296875,
+      "readIslandPx": {
+        "w": 240.79281616210938,
+        "h": 128.6468963623047
+      },
+      "plateTextPx": {
+        "w": 201.375,
+        "h": 15
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-plate-1.5-resting.png",
+      "movedVsShipped": 48016
+    },
+    {
+      "arm": "plate-1.5",
+      "rungs": {
+        "tree": 1,
+        "plate": 1.5,
+        "flora": 1,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "plate": 1.5
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 62.80316162109375,
+      "readIslandPx": {
+        "w": 90.9884033203125,
+        "h": 48.611846923828125
+      },
+      "plateTextPx": {
+        "w": 75.953125,
+        "h": 6
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-plate-1.5-fit.png",
+      "movedVsShipped": 18493
+    },
+    {
+      "arm": "trail-3d",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1,
+        "trail": 2.44
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "trail": 2.44
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 112.9300537109375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 116.32731628417969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-trail-3d-resting.png",
+      "movedVsShipped": 34449
+    },
+    {
+      "arm": "trail-3d",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1,
+        "trail": 2.44
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "trail": 2.44
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 42.6728515625,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 43.956634521484375
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-trail-3d-fit.png",
+      "movedVsShipped": 14122
+    },
+    {
+      "arm": "flora-1.5",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1.5,
+        "trail": 1
+      },
+      "view": "resting",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "flora": 1.5
+        }
+      },
+      "scale": 1.8666109010737266,
+      "islands": 35,
+      "medianIslandWidthPx": 112.9300537109375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 116.32731628417969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-flora-1.5-resting.png",
+      "movedVsShipped": 6330
+    },
+    {
+      "arm": "flora-1.5",
+      "rungs": {
+        "tree": 1,
+        "plate": 1,
+        "flora": 1.5,
+        "trail": 1
+      },
+      "view": "fit",
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1,
+        "rungs": {
+          "flora": 1.5
+        }
+      },
+      "scale": 0.7053364269141531,
+      "islands": 35,
+      "medianIslandWidthPx": 42.6728515625,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 43.956634521484375
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "treePx": null,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/art/2d-flora-1.5-fit.png",
+      "movedVsShipped": 2808
+    }
+  ]
+}

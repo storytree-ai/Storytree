@@ -1,0 +1,25 @@
+THE 2D ART LADDER — one rung per arm at the shipped spacing; moved = pixels differing by more than 20/255 on any channel against the shipped arm at the same view (ADR-0490 D6)
+shipped rungs: tree 1 · plate 1 · flora 1 · trail 1  (× TILE_SCALE 0.4098 on the drawing)
+
+── resting ─────────────────────────────
+arm           rungs (tree/plate/flora/trail)   scale   median island px   read island px   tree px (w×h)   plate text px   moved>20 vs shipped
+shipped       1/1/1/1                         1.867                113              161              —            10.0                    0   ← SHIPPED
+tree-0.8      0.8/1/1/1                       1.867                116              161              —            10.0                 7763
+tree-0.65     0.65/1/1/1                      1.867                116              161              —            10.0                12079
+tree-1.25     1.25/1/1/1                      1.867                113              125              —            10.0                 2784
+plate-1.25    1/1.25/1/1                      1.867                145              201              —            12.0                27897
+plate-1.5     1/1.5/1/1                       1.867                166              241              —            15.0                48016
+trail-3d      1/1/1/2.44                      1.867                113              161              —            10.0                34449
+flora-1.5     1/1/1.5/1                       1.867                113              161              —            10.0                 6330
+
+── fit ─────────────────────────────
+arm           rungs (tree/plate/flora/trail)   scale   median island px   read island px   tree px (w×h)   plate text px   moved>20 vs shipped
+shipped       1/1/1/1                         0.705                 43               61              —             4.0                    0   ← SHIPPED
+tree-0.8      0.8/1/1/1                       0.705                 44               61              —             4.0                 2242
+tree-0.65     0.65/1/1/1                      0.705                 44               61              —             4.0                 4826
+tree-1.25     1.25/1/1/1                      0.705                 43               47              —             4.0                 2468
+plate-1.25    1/1.25/1/1                      0.705                 55               76              —             5.0                12493
+plate-1.5     1/1.5/1/1                       0.705                 63               91              —             6.0                18493
+trail-3d      1/1/1/2.44                      0.705                 43               61              —             4.0                14122
+flora-1.5     1/1/1.5/1                       0.705                 43               61              —             4.0                 2808
+

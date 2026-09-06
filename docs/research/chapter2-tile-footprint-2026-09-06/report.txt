@@ -1,0 +1,53 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation (read off the camera): 50° on every arm · land 318 units² per capability on every island of every arm
+scenes: exported 2026-09-06T04:44:00.166Z from the studio at 75fc26d36654f4ab8bb7a36c17ed17df05f394d8 (claude/tile-footprint) · shipped spacing ratio 0.1 → the shipped arm is tile-spacing-0.1
+derived tile: hex radius 11.0634, 1 tile per capability (max(1, capabilities) × 1 hexes) · control tile: hex radius 27, max(3, capabilities + 2) hexes
+
+THE ARMS
+  today             the map as it SHIPPED — hex radius 27.00, max(3, capabilities + 2) hexes, spacing ratio 0 — TODAY (CONTROL) · 2D world 1968×3265 · trails 90 routed / 0 dropped · source 5dfc5871 (claude/tile-footprint)
+  tile-spacing-0.5  the DERIVED tile — hex radius 11.06, max(1, capabilities) × 1 hexes — every gap 0.5 × the mean radius of the two islands it separates · 2D world 854×1509 · trails 90 routed / 0 dropped · source 75fc26d3 (claude/tile-footprint)
+  tile-spacing-0.35 the DERIVED tile — hex radius 11.06, max(1, capabilities) × 1 hexes — every gap 0.35 × the mean radius of the two islands it separates · 2D world 807×1429 · trails 90 routed / 0 dropped · source 75fc26d3 (claude/tile-footprint)
+  tile-spacing-0.2  the DERIVED tile — hex radius 11.06, max(1, capabilities) × 1 hexes — every gap 0.2 × the mean radius of the two islands it separates · 2D world 816×1344 · trails 90 routed / 0 dropped · source 75fc26d3 (claude/tile-footprint)
+  tile-spacing-0.1  the DERIVED tile — hex radius 11.06, max(1, capabilities) × 1 hexes — every gap 0.1 × the mean radius of the two islands it separates   ← SHIPPED · 2D world 787×1293 · trails 90 routed / 0 dropped · source 75fc26d3 (claude/tile-footprint)
+  tile-spacing-0    the DERIVED tile — hex radius 11.06, max(1, capabilities) × 1 hexes — every gap 0 × the mean radius of the two islands it separates · 2D world 864×1236 · trails 90 routed / 0 dropped · source 75fc26d3 (claude/tile-footprint)
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm                ratio  islands  centres span (units)  ground extent (units)  tightest pair (units, water)    px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour
+today                  0       35             1487×3008              1548×3071         144, 79 feedback-graduat    0.657       0.89%       2.3%         33      7.6    203   1091   720432   52  14.23                  0             —   ← TODAY
+tile-spacing-0.5     0.5       35              671×1409               728×1454          82, 19 app-guide↔wisp-a    1.337       2.90%       8.1%         90     15.5    203   1091   689160   51  10.21             130212        130212
+tile-spacing-0.35   0.35       35              625×1328               680×1378          63, 10 agent↔art-factor    1.403       3.20%       9.1%        107     16.2    203   1091   689216   55   9.86             146600        151271
+tile-spacing-0.2     0.2       35              671×1245               709×1289          47, 12 terminal-repo-pi    1.492       3.62%       9.4%         86     17.3    203   1091   688500   54   9.78             167980        182783
+tile-spacing-0.1     0.1       35              618×1190               661×1235          53, 10 studio-cloud↔uat    1.552       3.90%      10.4%         89     18.0    203   1091   687412   55   9.62             177885        184453   ← SHIPPED
+tile-spacing-0         0       35              683×1129               738×1169           66, 1 notice-board↔stu    1.631       4.30%       9.8%         94     18.9    203   1091   687622   51   9.38             202080        282760
+
+── one @ 8 px/unit ─────────────────────────────────
+arm                ratio  islands  centres span (units)  ground extent (units)  tightest pair (units, water)    px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour
+today                  0       35             1487×3008              1548×3071         144, 79 feedback-graduat    8.000       3.52%      63.8%        406     92.6    203   1091   720432   57   4.15                  0             —   ← TODAY
+tile-spacing-0.5     0.5       35              671×1409               728×1454          82, 19 app-guide↔wisp-a    8.000      10.75%      19.7%        537     92.6    203   1091   689160   62   4.05             447107        447107
+tile-spacing-0.35   0.35       35              625×1328               680×1378          63, 10 agent↔art-factor    8.000      11.01%      19.1%        613     92.6    203   1091   689216   62   4.09             453297        576227
+tile-spacing-0.2     0.2       35              671×1245               709×1289          47, 12 terminal-repo-pi    8.000      10.89%      25.1%        460     92.6    203   1091   688500   59   4.40             454191        552098
+tile-spacing-0.1     0.1       35              618×1190               661×1235          53, 10 studio-cloud↔uat    8.000       9.45%      18.2%        461     92.6    203   1091   687412   63   4.22             379011        518917   ← SHIPPED
+tile-spacing-0         0       35              683×1129               738×1169           66, 1 notice-board↔stu    8.000       9.51%      15.9%        460     92.6    203   1091   687622   66   4.32             363404        471431
+
+THE READ ISLAND (context-traversal-capture) — unaffected on every arm:
+  today             7 capabilities · 2226.0 units² (318.0 per capability) · 51×63 units · moved>20 vs today 0 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  tile-spacing-0.5  7 capabilities · 2226.0 units² (318.0 per capability) · 67×55 units · moved>20 vs today 447,107 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  tile-spacing-0.35 7 capabilities · 2226.0 units² (318.0 per capability) · 77×55 units · moved>20 vs today 453,297 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  tile-spacing-0.2  7 capabilities · 2226.0 units² (318.0 per capability) · 58×72 units · moved>20 vs today 454,191 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  tile-spacing-0.1  7 capabilities · 2226.0 units² (318.0 per capability) · 58×55 units · moved>20 vs today 379,011 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  tile-spacing-0    7 capabilities · 2226.0 units² (318.0 per capability) · 57×56 units · moved>20 vs today 363,404 (its outline is composed from one hex per capability instead of capabilities + 2, and the ground noise is world-anchored, so pixels move; its LAND cannot)
+
+⚠ WHERE THE LADDER STOPS TIGHTENING (the moat floor binds; the extent moves only with the seed jitter): tile-spacing-0.2 (0.5% larger than tile-spacing-0.35); tile-spacing-0 (4.8% larger than tile-spacing-0.1)
+
+THE TILE QUESTION, IN NUMBERS — the whole real forest, fitted:
+  today             land 0.89% of the frame (2.3% of its own box) · centres span 1487×3008 units (100% of today's area) · tightest pair 79 units of water (feedback-graduation↔uat-detail-studio) · island 33 px wide · pine 7.6 px   ← TODAY (before this landing)
+  tile-spacing-0.5  land 2.90% of the frame (8.1% of its own box) · centres span 671×1409 units (21% of today's area) · tightest pair 19 units of water (app-guide↔wisp-as-story-claim) · island 90 px wide · pine 15.5 px
+  tile-spacing-0.35 land 3.20% of the frame (9.1% of its own box) · centres span 625×1328 units (19% of today's area) · tightest pair 10 units of water (agent↔art-factory) · island 107 px wide · pine 16.2 px
+  tile-spacing-0.2  land 3.62% of the frame (9.4% of its own box) · centres span 671×1245 units (19% of today's area) · tightest pair 12 units of water (terminal-repo-picker↔terminal-tabs) · island 86 px wide · pine 17.3 px
+  tile-spacing-0.1  land 3.90% of the frame (10.4% of its own box) · centres span 618×1190 units (16% of today's area) · tightest pair 10 units of water (studio-cloud↔uat-detail-studio) · island 89 px wide · pine 18.0 px   ← SHIPPED
+  tile-spacing-0    land 4.30% of the frame (9.8% of its own box) · centres span 683×1129 units (17% of today's area) · tightest pair 1 units of water (notice-board↔studio-members) · island 94 px wide · pine 18.9 px
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Frame cost is shipped-tile-cost.mjs’s and REPORTS (ADR-0517 D4).

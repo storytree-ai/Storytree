@@ -1,0 +1,354 @@
+{
+  "generatedAt": "2026-09-06T04:44:00.166Z",
+  "readIsland": "context-traversal-capture",
+  "rows": [
+    {
+      "arm": "today",
+      "view": "resting",
+      "islands": 35,
+      "scale": 0.6519542896307873,
+      "contentExtentPx": {
+        "w": 1087.9160766601562,
+        "h": 2049.9527587890625
+      },
+      "medianIslandWidthPx": 113.6356201171875,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-today-resting.png",
+      "movedVsControl": 0,
+      "touchedVsControl": 0
+    },
+    {
+      "arm": "today",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.2793261868300153,
+      "contentExtentPx": {
+        "w": 466.11163330078125,
+        "h": 878.2908668518066
+      },
+      "medianIslandWidthPx": 48.68658447265625,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-today-fit.png",
+      "movedVsControl": 0,
+      "touchedVsControl": 0
+    },
+    {
+      "arm": "tile-spacing-0.5",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.6043737574552683,
+      "contentExtentPx": {
+        "w": 445.1212158203125,
+        "h": 876.5958290100098
+      },
+      "medianIslandWidthPx": 39.465576171875,
+      "readIslandPx": {
+        "w": 51.97613525390625,
+        "h": 39.10302734375
+      },
+      "plateTextPx": {
+        "w": 43.6319580078125,
+        "h": 4
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.5-fit.png",
+      "movedVsControl": 56918,
+      "touchedVsControl": 100336
+    },
+    {
+      "arm": "tile-spacing-0.5",
+      "view": "resting",
+      "islands": 35,
+      "scale": 1.6762776125121097,
+      "contentExtentPx": {
+        "w": 1234.5783996582031,
+        "h": 2431.3065795898438
+      },
+      "medianIslandWidthPx": 109.4609375,
+      "readIslandPx": {
+        "w": 144.15985107421875,
+        "h": 108.45526123046875
+      },
+      "plateTextPx": {
+        "w": 120.6688232421875,
+        "h": 8.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.5-resting.png",
+      "movedVsControl": 185338,
+      "touchedVsControl": 280599
+    },
+    {
+      "arm": "tile-spacing-0.5",
+      "view": "island",
+      "islands": 35,
+      "scale": 1.6762776125121097,
+      "contentExtentPx": {
+        "w": 1234.5783996582031,
+        "h": 2431.3065795898438
+      },
+      "medianIslandWidthPx": 109.4609375,
+      "readIslandPx": {
+        "w": 144.15985107421875,
+        "h": 108.45526123046875
+      },
+      "plateTextPx": {
+        "w": 120.6688232421875,
+        "h": 8.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.5-island.png"
+    },
+    {
+      "arm": "tile-spacing-0.35",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.6382085374387684,
+      "contentExtentPx": {
+        "w": 443.49102783203125,
+        "h": 873.471321105957
+      },
+      "medianIslandWidthPx": 43.55133056640625,
+      "readIslandPx": {
+        "w": 54.3115234375,
+        "h": 45.5042724609375
+      },
+      "plateTextPx": {
+        "w": 45.88232421875,
+        "h": 3.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.35-fit.png",
+      "movedVsControl": 55913,
+      "touchedVsControl": 98452
+    },
+    {
+      "arm": "tile-spacing-0.35",
+      "view": "resting",
+      "islands": 35,
+      "scale": 1.8666109010737266,
+      "contentExtentPx": {
+        "w": 1297.107894897461,
+        "h": 2554.69970703125
+      },
+      "medianIslandWidthPx": 127.3775634765625,
+      "readIslandPx": {
+        "w": 158.84860229492188,
+        "h": 133.08932495117188
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.35-resting.png",
+      "movedVsControl": 199112,
+      "touchedVsControl": 294495
+    },
+    {
+      "arm": "tile-spacing-0.35",
+      "view": "island",
+      "islands": 35,
+      "scale": 1.8666109010737266,
+      "contentExtentPx": {
+        "w": 1297.107894897461,
+        "h": 2554.69970703125
+      },
+      "medianIslandWidthPx": 127.3775634765625,
+      "readIslandPx": {
+        "w": 158.84860229492188,
+        "h": 133.08932495117188
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.35-island.png"
+    },
+    {
+      "arm": "tile-spacing-0.2",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.6785714285714286,
+      "contentExtentPx": {
+        "w": 493.19927978515625,
+        "h": 872.5206909179688
+      },
+      "medianIslandWidthPx": 42.28857421875,
+      "readIslandPx": {
+        "w": 58.35711669921875,
+        "h": 40.673583984375
+      },
+      "plateTextPx": {
+        "w": 48.8076171875,
+        "h": 4
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.2-fit.png",
+      "movedVsControl": 57773,
+      "touchedVsControl": 93794
+    },
+    {
+      "arm": "tile-spacing-0.2",
+      "view": "resting",
+      "islands": 35,
+      "scale": 1.8666109010737275,
+      "contentExtentPx": {
+        "w": 1356.6900939941406,
+        "h": 2400.12548828125
+      },
+      "medianIslandWidthPx": 116.32720947265625,
+      "readIslandPx": {
+        "w": 160.52850341796875,
+        "h": 111.88465881347656
+      },
+      "plateTextPx": {
+        "w": 134.09375,
+        "h": 9.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.2-resting.png",
+      "movedVsControl": 195423,
+      "touchedVsControl": 299279
+    },
+    {
+      "arm": "tile-spacing-0.2",
+      "view": "island",
+      "islands": 35,
+      "scale": 1.8666109010737275,
+      "contentExtentPx": {
+        "w": 1356.6900939941406,
+        "h": 2400.12548828125
+      },
+      "medianIslandWidthPx": 116.32720947265625,
+      "readIslandPx": {
+        "w": 160.52850341796875,
+        "h": 111.88465881347656
+      },
+      "plateTextPx": {
+        "w": 134.09375,
+        "h": 9.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.2-island.png"
+    },
+    {
+      "arm": "tile-spacing-0.1",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.7053364269141531,
+      "contentExtentPx": {
+        "w": 478.65533447265625,
+        "h": 875.9502029418945
+      },
+      "medianIslandWidthPx": 42.6728515625,
+      "readIslandPx": {
+        "w": 60.658935546875,
+        "h": 43.956634521484375
+      },
+      "plateTextPx": {
+        "w": 50.640625,
+        "h": 3.999969482421875
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.1-fit.png",
+      "movedVsControl": 56496,
+      "touchedVsControl": 94214
+    },
+    {
+      "arm": "tile-spacing-0.1",
+      "view": "resting",
+      "islands": 35,
+      "scale": 1.8666109010737266,
+      "contentExtentPx": {
+        "w": 1266.719467163086,
+        "h": 2318.1253662109375
+      },
+      "medianIslandWidthPx": 112.9300537109375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 116.32731628417969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.1-resting.png",
+      "movedVsControl": 192081,
+      "touchedVsControl": 293733
+    },
+    {
+      "arm": "tile-spacing-0.1",
+      "view": "island",
+      "islands": 35,
+      "scale": 1.8666109010737266,
+      "contentExtentPx": {
+        "w": 1266.719467163086,
+        "h": 2318.1253662109375
+      },
+      "medianIslandWidthPx": 112.9300537109375,
+      "readIslandPx": {
+        "w": 160.52853393554688,
+        "h": 116.32731628417969
+      },
+      "plateTextPx": {
+        "w": 134.09371948242188,
+        "h": 10
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0.1-island.png"
+    },
+    {
+      "arm": "tile-spacing-0",
+      "view": "fit",
+      "islands": 35,
+      "scale": 0.7378640776699029,
+      "contentExtentPx": {
+        "w": 547.126220703125,
+        "h": 874.0000381469727
+      },
+      "medianIslandWidthPx": 48.1824951171875,
+      "readIslandPx": {
+        "w": 63.456298828125,
+        "h": 42.471435546875
+      },
+      "plateTextPx": {
+        "w": 52.984375,
+        "h": 4
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0-fit.png",
+      "movedVsControl": 74479,
+      "touchedVsControl": 117026
+    },
+    {
+      "arm": "tile-spacing-0",
+      "view": "resting",
+      "islands": 35,
+      "scale": 1.787386527700596,
+      "contentExtentPx": {
+        "w": 1325.3469848632812,
+        "h": 2117.1592407226562
+      },
+      "medianIslandWidthPx": 116.71630859375,
+      "readIslandPx": {
+        "w": 153.7152099609375,
+        "h": 102.88196563720703
+      },
+      "plateTextPx": {
+        "w": 128.46878051757812,
+        "h": 10.000038146972656
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0-resting.png",
+      "movedVsControl": 196520,
+      "touchedVsControl": 286728
+    },
+    {
+      "arm": "tile-spacing-0",
+      "view": "island",
+      "islands": 35,
+      "scale": 1.787386527700596,
+      "contentExtentPx": {
+        "w": 1325.3469848632812,
+        "h": 2117.1592407226562
+      },
+      "medianIslandWidthPx": 116.71630859375,
+      "readIslandPx": {
+        "w": 153.7152099609375,
+        "h": 102.88196563720703
+      },
+      "plateTextPx": {
+        "w": 128.46878051757812,
+        "h": 10.000038146972656
+      },
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/tile/docs/research/chapter2-tile-footprint-2026-09-06/2d-tile-spacing-0-island.png"
+    }
+  ]
+}

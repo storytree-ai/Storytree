@@ -1,0 +1,201 @@
+{
+  "generatedAt": "2026-09-06T04:44:00.166Z",
+  "studio": {
+    "url": "http://127.0.0.1:5397",
+    "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+    "branch": "claude/tile-footprint"
+  },
+  "shippedRatio": 0.1,
+  "rungs": [
+    0.5,
+    0.35,
+    0.2,
+    0.1,
+    0
+  ],
+  "control": "today",
+  "tile": {
+    "hexR": 11.063374578680804,
+    "quota": "max(1, capabilities) × 1 hexes",
+    "tilesPerCapability": 1
+  },
+  "controlTile": {
+    "hexR": 27,
+    "quota": "max(3, capabilities + 2) hexes"
+  },
+  "arms": [
+    {
+      "id": "today",
+      "spacing": {
+        "ratio": 0
+      },
+      "tile": {
+        "hexR": 27,
+        "quota": "max(3, capabilities + 2) hexes"
+      },
+      "source": {
+        "head": "5dfc587155ad657b65c9a6772f9b9ebb79dcf6ee",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T03:05:41.262Z"
+      },
+      "file": "today.json",
+      "islands": 35,
+      "world": {
+        "width": 1968,
+        "height": 3265
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 105,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1007929
+    },
+    {
+      "id": "tile-spacing-0.5",
+      "spacing": {
+        "ratio": 0.5
+      },
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "source": {
+        "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T04:41:26.586Z"
+      },
+      "file": "tile-spacing-0.5.json",
+      "islands": 35,
+      "world": {
+        "width": 854,
+        "height": 1509
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 101,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1016701
+    },
+    {
+      "id": "tile-spacing-0.35",
+      "spacing": {
+        "ratio": 0.35
+      },
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "source": {
+        "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T04:42:06.586Z"
+      },
+      "file": "tile-spacing-0.35.json",
+      "islands": 35,
+      "world": {
+        "width": 807,
+        "height": 1429
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 106,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1010668
+    },
+    {
+      "id": "tile-spacing-0.2",
+      "spacing": {
+        "ratio": 0.2
+      },
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "source": {
+        "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T04:42:45.865Z"
+      },
+      "file": "tile-spacing-0.2.json",
+      "islands": 35,
+      "world": {
+        "width": 816,
+        "height": 1344
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 101,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1002854
+    },
+    {
+      "id": "tile-spacing-0.1",
+      "spacing": {
+        "ratio": 0.1
+      },
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "source": {
+        "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T04:43:21.763Z"
+      },
+      "file": "tile-spacing-0.1.json",
+      "islands": 35,
+      "world": {
+        "width": 787,
+        "height": 1293
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 103,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1003028
+    },
+    {
+      "id": "tile-spacing-0",
+      "spacing": {
+        "ratio": 0
+      },
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "source": {
+        "head": "75fc26d36654f4ab8bb7a36c17ed17df05f394d8",
+        "branch": "claude/tile-footprint",
+        "generatedAt": "2026-09-06T04:44:00.040Z"
+      },
+      "file": "tile-spacing-0.json",
+      "islands": 35,
+      "world": {
+        "width": 864,
+        "height": 1236
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 106,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 999522
+    }
+  ]
+}

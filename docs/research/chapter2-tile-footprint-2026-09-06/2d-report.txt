@@ -1,0 +1,30 @@
+THE 2D STUDIO MAP — every arm against today at the same view; moved = pixels differing by more than 20/255 on any channel (ADR-0490 D6)
+control tile: hex radius 27, max(3, capabilities + 2) hexes · derived tile: hex radius 11.063, max(1, capabilities) × 1 hexes
+
+── resting ─────────────────────────────
+arm                 scale    median island px   read island px   plate text px   moved>20 vs today   touched
+today               0.652                114                —               —                   0         0   ← TODAY
+tile-spacing-0.5    1.676                109              144             9.0              185338    280599
+tile-spacing-0.35   1.867                127              159            10.0              199112    294495
+tile-spacing-0.2    1.867                116              161            10.0              195423    299279
+tile-spacing-0.1    1.867                113              161            10.0              192081    293733
+tile-spacing-0      1.787                117              154            10.0              196520    286728
+
+── fit ─────────────────────────────
+arm                 scale    median island px   read island px   plate text px   moved>20 vs today   touched
+today               0.279                 49                —               —                   0         0   ← TODAY
+tile-spacing-0.5    0.604                 39               52             4.0               56918    100336
+tile-spacing-0.35   0.638                 44               54             4.0               55913     98452
+tile-spacing-0.2    0.679                 42               58             4.0               57773     93794
+tile-spacing-0.1    0.705                 43               61             4.0               56496     94214
+tile-spacing-0      0.738                 48               63             4.0               74479    117026
+
+── island ─────────────────────────────
+arm                 scale    median island px   read island px   plate text px   moved>20 vs today   touched
+today               (no capture at this view)
+tile-spacing-0.5    1.676                109              144             9.0                   —         —
+tile-spacing-0.35   1.867                127              159            10.0                   —         —
+tile-spacing-0.2    1.867                116              161            10.0                   —         —
+tile-spacing-0.1    1.867                113              161            10.0                   —         —
+tile-spacing-0      1.787                117              154            10.0                   —         —
+
