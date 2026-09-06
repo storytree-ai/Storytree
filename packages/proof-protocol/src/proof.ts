@@ -138,9 +138,11 @@ const VerdictData = z
      * declaration the leaf's authored commit changed (`symbol` grain), or one per file where a change
      * could not be named (`file` grain, no `symbol`). Without this a `boundHash` is a version with no
      * way to re-locate what it versions (ADR-0016 D1 keeps the two distinct and needs both). Present
-     * only together with `boundHash`; absent on every verdict that carries no binding.
+     * only together with `boundHash`, and NEVER EMPTY when present — an identity list with no entries
+     * would be a binding that names nothing, and the gate leaves the key off in that case rather than
+     * stamping `[]`; the schema refuses it so no other writer can. Absent on every unbound verdict.
      */
-    anchors: z.array(Anchor).optional(),
+    anchors: z.array(Anchor).min(1).optional(),
     /**
      * ADR-0127 (per-contract coverage axis, Option A of ADR-0122): which DECLARED `## Contracts` this
      * green covered vs over-claimed, attested at sign time. OPTIONAL/additive — only a `--real`

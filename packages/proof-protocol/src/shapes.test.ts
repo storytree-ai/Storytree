@@ -378,4 +378,9 @@ test("Verdict: anchors (ADR-0534) round-trip beside boundHash, and an anchor-les
   assert.equal(Verdict.parse(base).anchors, undefined);
   // Each anchor is the ADR-0016 shape and stays strict: an unknown key is refused, not swallowed.
   assert.throws(() => Verdict.parse({ ...base, anchors: [{ ...anchors[0], lines: [1, 2] }] }));
+  // Never empty when present: `[]` is a binding that names nothing (the gate omits the key instead).
+  assert.throws(() => Verdict.parse({ ...base, boundHash: "cafe", anchors: [] }));
+  // And the bound is a floor, not a ceiling: one anchor and many both parse.
+  assert.equal(Verdict.parse({ ...base, boundHash: "cafe", anchors: [anchors[0]] }).anchors?.length, 1);
+  assert.equal(Verdict.parse({ ...base, boundHash: "cafe", anchors: [...anchors, ...anchors] }).anchors?.length, 4);
 });
