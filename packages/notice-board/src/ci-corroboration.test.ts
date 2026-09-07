@@ -191,6 +191,24 @@ test("planCorroboration: an older reading can never age a branch back", () => {
   assert.equal(plan.stamps[0]?.observedAt, NOW.toISOString(), "the newest wins whatever the order");
 });
 
+test("planCorroboration: the tie-break is ONLY a tie-break — an older running check never displaces a newer push", () => {
+  // The dangerous half of ranking `check-running` above `push`: applied outside an exact tie it
+  // would let a stale reading win on KIND, ageing a live claim toward the takeover window with the
+  // ledger's own liveness signal. The rank may only decide when the timestamps cannot.
+  const older = new Date(NOW.getTime() - 60_000).toISOString();
+  const plan = planCorroboration(
+    [
+      obs({ ref: "claude/alpha", kind: "push", observedAt: NOW.toISOString() }),
+      obs({ ref: "claude/alpha", kind: "check-running", observedAt: older }),
+    ],
+    CTX,
+  );
+
+  assert.deepEqual(plan.stamps, [
+    { branch: "claude/alpha", observedAt: NOW.toISOString(), kind: "push" },
+  ]);
+});
+
 test("planCorroboration: on an exact tie a RUNNING CHECK outranks a push", () => {
   // Same instant, so the timestamp cannot choose. A push is over the moment it lands; a run in
   // progress is happening now, so it is the stronger thing to say. Reaches the report only — the

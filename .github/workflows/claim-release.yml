@@ -160,11 +160,18 @@ jobs:
         # now DECLARES as a devDependency — `npx tsx` from root would download tsx fresh (no root
         # .bin in this pnpm workspace).
         #
-        # ⚠ THAT DECLARATION IS LOAD-BEARING AND WAS MISSING FOR MONTHS. Until 2026-09-08 this line
-        # was identical and the dependency did not exist, so every run died with
+        # ⚠ THAT DECLARATION IS LOAD-BEARING, AND IT WENT MISSING FOR ~2.5 WEEKS WITHOUT ANYONE
+        # NOTICING. `tsx` was a devDependency of this package from its creation (2026-06-18) until
+        # `c0c58ccd` (2026-08-23, the bun-runtime migration) stripped it from twelve packages as
+        # manifest-unused — a sweep that read scripts under `packages/**` and `apps/**`, never
+        # `.github/workflows/*.yml`, so this cross-workflow invocation was invisible to it. From then
+        # until 2026-09-08 every run of this line died with
         # `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "tsx" not found` (exit 254) and
-        # `continue-on-error` swallowed it: the merge clear ADR-0138 §4 calls guaranteed had never
-        # run once. The comment here claimed the devDep in prose, which is the one place nothing
-        # checks. It is now checked — `packages/notice-board/src/store/ingest-ci-activity.test.ts`
-        # scans every workflow for `pnpm --filter <pkg> exec <bin>` and reds unless <pkg> declares it.
+        # `continue-on-error` swallowed it, so the merge clear ADR-0138 §4 calls GUARANTEED silently
+        # did not happen (confirmed on PR #1663, 2026-08-26, and PR #1877, 2026-09-07).
+        # ⚠ AND THE REDUNDANCY DID NOT HELP: `claim-release.yml` carries the identical line and was
+        # broken for the same window, so ADR-0345 D4's two-caller backstop was not a backstop.
+        # The comment here claimed the devDep in PROSE, which is the one place nothing checks. It is
+        # checked now — `packages/notice-board/src/store/ingest-ci-activity.test.ts` scans every
+        # workflow for `pnpm --filter <pkg> exec <bin>` and reds unless <pkg> declares it.
         run: pnpm --filter @storytree/notice-board exec tsx src/store/ingest-merge.ts

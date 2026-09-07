@@ -53,24 +53,44 @@ worktree's deletion makes miss (ADR-0033 / ADR-0041) — and the whole thing is 
 > "done" fact, cleared keylessly and fail-soft — never changed, which is why this is an in-place
 > correction rather than a supersede.
 
-> **Corrected in place 2026-09-08 — this capability's writer had NEVER RUN, and both its contracts
-> were green throughout.** Measured on the real merge of PR #1877 (2026-09-07, run 34146276659, job
-> `automerge`): the release step printed
-> `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "tsx" not found` and exited 254. `tsx` was never a
-> dependency of `@storytree/notice-board`, so `pnpm --filter @storytree/notice-board exec tsx` could
-> not resolve it — while the step's own comment asserted, in prose, that it could ("a
-> @storytree/notice-board devDep"). `continue-on-error: true` then swallowed the 254, so the job went
-> green and the merge clear ADR-0138 §4 calls *guaranteed* silently did not happen, on every merge
-> since the writer moved here under ADR-0077. The claims this was meant to release are among the
-> corpses `ledger-liveness-honesty-arc` was chartered on. Fixed by declaring the dependency
-> (`packages/notice-board/package.json`); the assertion-in-a-comment is replaced by a real one, which
-> is repo-wide rather than scoped here because the next instance will be a different workflow:
-> `ingest-ci-activity.test.ts` scans every workflow for `pnpm --filter <pkg> exec <bin>` and fails
-> unless `<pkg>` declares `<bin>`. ⚠ Contract 2 below is UNCHANGED and was never wrong — fail-soft IS
-> the contract on the merge path. What this shows is its blind spot: fail-soft plus a wiring claim
-> that only a comment held meant nothing observed the difference between "released nothing because
-> there was nothing to release" and "never ran at all". Read contract 1 as the one that had no
-> witness on the merge path until now.
+> **Corrected in place 2026-09-08 — this capability's writer had NEVER RUN across a shorter window
+> than first suspected, and both its contracts were green throughout.** Measured on the real merge of
+> PR #1877 (2026-09-07, run 34146276659, job `automerge`): the release step printed
+> `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "tsx" not found` and exited 254. `continue-on-error:
+> true` then swallowed the 254, so the job went green and the merge clear ADR-0138 §4 calls
+> *guaranteed* silently did not happen — while the step's own comment asserted, in prose, that `tsx`
+> could resolve ("a @storytree/notice-board devDep").
+>
+> ⚠ **CORRECTION TO THIS CORRECTION, same day: `tsx` was NOT "never a dependency," and the window is
+> NOT "since the writer moved here under ADR-0077."** This repo's own git history shows `tsx` present
+> in `@storytree/notice-board`'s devDependencies continuously from the package's creation (2026-06-18)
+> through at least 2026-08-21. It was stripped on **2026-08-23 09:31** by `c0c58ccd`
+> ("convert the pure-schema set to bun test — 13 packages", `bun-runtime-migration-arc` increment 3),
+> which removed the same devDependency from twelve of thirteen converted packages as apparently
+> manifest-unused. A sibling commit ninety minutes later (`3e6c5aa9`) already found that removal rule
+> too narrow for other packages ("a dependency is not only what the manifest's own scripts use") and
+> restored `tsx` where it broke a package-as-cwd invocation — but its sweep read scripts under
+> `packages/**`/`apps/**`, not `.github/workflows/*.yml`, so this cross-workflow invocation was not
+> among the ones it caught. The exact failure signature is independently confirmed on 2026-08-26
+> (PR #1663) as well as 2026-09-07 (PR #1877). **So the unrealised window is 2026-08-23 → 2026-09-08 —
+> about two and a half weeks, not the roughly eleven implied by "since ADR-0077."** `claim-release.yml`
+> carries the identical invocation and was equally broken for that whole window, though — per this
+> repo's own Actions history — it was never actually exercised inside it (its only two runs recorded
+> there both read `skipped`, and no `push`-triggered run appears at all under an ordinary GITHUB_TOKEN
+> automerge), so it never had the chance to fail loudly either.
+>
+> The claims this was meant to release are among the corpses `ledger-liveness-honesty-arc` measured on
+> 2026-09-05, for whatever share of that measurement falls inside the shorter window — that
+> measurement predates this correction and was not re-run against it. Fixed by declaring the
+> dependency (`packages/notice-board/package.json`); the assertion-in-a-comment is replaced by a real
+> one, which is repo-wide rather than scoped here because the next instance will be a different
+> workflow: `ingest-ci-activity.test.ts` scans every workflow for `pnpm --filter <pkg> exec <bin>` and
+> fails unless `<pkg>` declares `<bin>`. ⚠ Contract 2 below is UNCHANGED and was never wrong —
+> fail-soft IS the contract on the merge path. What this shows is its blind spot: fail-soft plus a
+> wiring claim that only a comment held meant nothing observed the difference between "released
+> nothing because there was nothing to release" and "never ran at all". Read contract 1 as the one
+> that had no witness on the merge path until now. See ADR-0138 §4 and ADR-0345 D4 (both corrected in
+> place, same date) for the decision-level account.
 
 > **Cross-story boundary (ADR-0010 §4):** this capability writes through the **claim-store** seam
 > owned by [`stories/notice-board`](../notice-board/story.md) (the `events.node_claim` ledger). It

@@ -1143,6 +1143,13 @@ test("stampBranchActivity: keyed on the BRANCH, batched through unnest, no audit
   assert.equal(client.events.length, 0, "no claim_event for a liveness reading");
   assert.ok(commits(client) && !rollsBack(client));
   assert.ok(client.released);
+  // The whole batch is ONE transaction, so a partial sweep can never reach the board: either every
+  // observed branch moves forward together or none does.
+  assert.deepEqual(
+    client.calls.map((c) => c.text.trim().split(/\s+/)[0]),
+    ["BEGIN", "UPDATE", "COMMIT"],
+    "opened, wrote once, committed — in that order and nothing else",
+  );
 });
 
 test("stampBranchActivity: keys on the FULL branch — no prefix filter, no tail derivation", async () => {

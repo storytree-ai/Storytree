@@ -141,6 +141,32 @@ export function branchFromRef(ref: string): string | null {
  * statement — a push is over the moment it lands, where a run in progress is happening now. The
  * choice reaches only the report, since the stamp itself is the timestamp both agreed on.
  */
+/**
+ * On an EXACT tie, is the incoming reading the stronger thing to say?
+ *
+ * The tie is the ORDINARY case, not an edge one: a whole run shares a single clock reading, so a
+ * branch that both pushed and has a check running produces two observations at the same
+ * millisecond. A push is over the instant it lands; a run in progress is still happening. The
+ * choice reaches only the REPORT — the stamp itself is the timestamp both agreed on.
+ */
+function strongerKind(candidate: CorroborationKind, held: CorroborationKind): boolean {
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT — forcing either
+  // conjunct TRUE (or widening `&&` to `||`) can only ever replace a stamp with one carrying the
+  // SAME branch, instant and kind, because the only case each admits that this does not is a tie
+  // between two readings of the same kind. An identical replacement is unobservable by
+  // construction. The blanket costs two killable whole-expression mutants of the same mutator; the
+  // property they test is still held, by the EqualityOperator mutants on this line, which stay live
+  // and which `planCorroboration: on an exact tie a RUNNING CHECK outranks a push` kills.
+  return candidate === "check-running" && held === "push";
+}
+
+/** Does `candidate` say something LATER than `held` — or, at the same instant, stronger? */
+function beats(candidate: BranchCorroboration, held: BranchCorroboration): boolean {
+  const a = Date.parse(candidate.observedAt);
+  const b = Date.parse(held.observedAt);
+  return a > b || (a === b && strongerKind(candidate.kind, held.kind));
+}
+
 export function planCorroboration(
   observations: readonly CorroborationObservation[],
   ctx: CorroborationContext,
@@ -180,18 +206,13 @@ export function planCorroboration(
       continue;
     }
 
+    const candidate: BranchCorroboration = {
+      branch,
+      observedAt: new Date(observedMs).toISOString(),
+      kind: observation.kind,
+    };
     const held = best.get(branch);
-    const heldMs = held === undefined ? -1 : Date.parse(held.observedAt);
-    const strictlyNewer = observedMs > heldMs;
-    const winsTheTie =
-      observedMs === heldMs && observation.kind === "check-running" && held?.kind === "push";
-    if (held === undefined || strictlyNewer || winsTheTie) {
-      best.set(branch, {
-        branch,
-        observedAt: new Date(observedMs).toISOString(),
-        kind: observation.kind,
-      });
-    }
+    if (held === undefined || beats(candidate, held)) best.set(branch, candidate);
   }
 
   const stamps = [...best.values()].sort((a, b) => a.branch.localeCompare(b.branch));

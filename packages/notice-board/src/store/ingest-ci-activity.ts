@@ -96,13 +96,13 @@ export function observeInProgressRuns(
   payload: unknown,
   observedAt: string,
 ): CorroborationObservation[] {
-  if (typeof payload !== "object" || payload === null) return [];
-  const runs = (payload as Record<string, unknown>)["workflow_runs"];
+  const runs = (payload as { workflow_runs?: unknown } | null | undefined)?.workflow_runs;
   if (!Array.isArray(runs)) return [];
   const observations: CorroborationObservation[] = [];
   for (const run of runs) {
-    if (typeof run !== "object" || run === null) continue;
-    const branch = (run as Record<string, unknown>)["head_branch"];
+    const branch = (run as { head_branch?: unknown } | null | undefined)?.head_branch;
+    // The trim is load-bearing: a whitespace-only `head_branch` is not a branch, and admitting it
+    // would push a reading the planner can only refuse — a refusal in the report about nothing.
     if (typeof branch !== "string" || branch.trim().length === 0) continue;
     observations.push({ ref: branch, kind: "check-running", observedAt });
   }
@@ -130,15 +130,13 @@ export async function fetchInProgressRuns(
   env: CorroborateEnv,
   log: (msg: string) => void = console.log,
 ): Promise<unknown | null> {
-  const { apiUrl, repository, token } = env;
-  if (
-    apiUrl === undefined ||
-    repository === undefined ||
-    token === undefined ||
-    apiUrl.length === 0 ||
-    repository.length === 0 ||
-    token.length === 0
-  ) {
+  // Absent and blank are collapsed on purpose: a workflow expression that evaluates to nothing
+  // renders as an EMPTY STRING rather than going unset, so an `undefined`-only guard would let a
+  // `Bearer ` with no token reach GitHub and read the 401 as an outage.
+  const apiUrl = env.apiUrl ?? "";
+  const repository = env.repository ?? "";
+  const token = env.token ?? "";
+  if (apiUrl.length === 0 || repository.length === 0 || token.length === 0) {
     log("[ci-corroborate] no GitHub API context — the check-running half is dark this run.");
     return null;
   }
@@ -184,58 +182,171 @@ export async function corroborateClaims(
   return { report: renderCorroboration(plan, written), written };
 }
 
+/** The store, plus how to let it go — the one seam only a real run fills with a live pool. */
+export interface OpenedStore {
+  readonly store: BranchActivityStore;
+  readonly close: () => Promise<void>;
+}
+
 /**
- * Script entry: observe, plan, stamp, report. NEVER invoked during tests (entry-guarded).
+ * Everything {@link runCorroboration} touches outside itself.
  *
- *   STORYTREE_DB_USER=<iam-email> STORYTREE_CORROBORATE_REF=refs/heads/<branch> \
- *   npx tsx packages/notice-board/src/store/ingest-ci-activity.ts
- *
- * Exit 0 when the ledger was told (or had nothing to hear); exit 1 ONLY when the store itself
- * failed, which is the fault worth a red run.
+ * The whole run is behind this seam rather than inside an entry-guarded `main`, because a `main`
+ * nothing can call is a region nothing can prove: the first draft of this file put the pool
+ * lifecycle, the exit code and the failure message there, and `check:mutation-diff` reported 29
+ * mutants that NO TEST REACHED. A silent writer is the defect this whole arc exists to end, so its
+ * own failure path is the last place to leave unwitnessed.
  */
-async function main(): Promise<void> {
-  const env = readCorroborateEnv(process.env);
-  const now = new Date();
+export interface CorroborateDeps {
+  readonly env: CorroborateEnv;
+  readonly now: () => Date;
+  readonly fetchRuns: (env: CorroborateEnv, log: (msg: string) => void) => Promise<unknown>;
+  readonly openStore: () => Promise<OpenedStore>;
+  readonly log: (msg: string) => void;
+}
+
+/** Where the corroborator looks when the workflow could not say what the default branch is. */
+export const DEFAULT_BRANCH_FALLBACK = "main";
+
+/**
+ * The branch never to corroborate. Falls back rather than refusing: an unset value would otherwise
+ * make the default branch corroborable, and being wrong about WHICH branch is the trunk is the one
+ * error that lets a merge read as a session working.
+ */
+export function resolveDefaultBranch(env: CorroborateEnv): string {
+  const declared = env.defaultBranch ?? "";
+  return declared.length > 0 ? declared : DEFAULT_BRANCH_FALLBACK;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * One whole run: observe, plan, stamp, report. Returns the PROCESS EXIT CODE rather than setting
+ * it, so the decision is a value a test can read.
+ *
+ * 0 — the ledger was told, or had nothing to hear.
+ * 1 — the STORE failed. Loud on purpose, and unlike `ingest-merge.ts`, which is fail-soft because it
+ *     runs on the merge path and must never redden a merge that already landed. This gates nothing,
+ *     so a swallowed failure would buy nothing and would rebuild the silent-writer defect exactly.
+ *     A GITHUB failure is NOT this: {@link fetchInProgressRuns} answers null, the push half still
+ *     lands, and someone else's outage never reddens a run of ours.
+ */
+export async function runCorroboration(deps: CorroborateDeps): Promise<number> {
+  const now = deps.now();
   const observedAt = now.toISOString();
 
-  const runs = await fetchInProgressRuns(env);
+  const runs = await deps.fetchRuns(deps.env, deps.log);
   const observations = [
     ...observeInProgressRuns(runs, observedAt),
-    ...observeRef(env, observedAt),
+    ...observeRef(deps.env, observedAt),
   ];
 
-  const defaultBranch =
-    env.defaultBranch !== undefined && env.defaultBranch.length > 0 ? env.defaultBranch : "main";
-
-  let handle: PoolHandle | undefined;
+  let opened: OpenedStore | undefined;
   try {
-    handle = await createPool();
-    const store = new PgClaimStore(handle.pool);
-    const { report } = await corroborateClaims(store, observations, now, defaultBranch);
-    console.log(report);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.log(
-      `::error::[ci-corroborate] the ledger was NOT told (${message}). Claims on the observed ` +
-        `branches keep their old heartbeat and may read as unknown on the board until the next ` +
-        `push. Re-run this workflow, or investigate the store.`,
+    opened = await deps.openStore();
+    const { report } = await corroborateClaims(
+      opened.store,
+      observations,
+      now,
+      resolveDefaultBranch(deps.env),
     );
-    process.exitCode = 1;
+    deps.log(report);
+    return 0;
+  } catch (err) {
+    deps.log(
+      `::error::[ci-corroborate] the ledger was NOT told (${errorMessage(err)}). Claims on the ` +
+        `observed branches keep their old heartbeat and may read as unknown on the board until ` +
+        `the next push. Re-run this workflow, or investigate the store.`,
+    );
+    return 1;
   } finally {
-    if (handle !== undefined) {
+    if (opened !== undefined) {
       try {
-        await closePool(handle.pool, handle.connector);
+        await opened.close();
       } catch (err) {
-        console.log(`[ci-corroborate] pool teardown error (ignored): ${String(err)}`);
+        // A pool that will not close cannot un-write what already committed, so this is noise, not
+        // a fault — but it is SAID, because the alternative is a swallowed error in a writer whose
+        // whole subject is swallowed errors.
+        deps.log(`[ci-corroborate] pool teardown error (ignored): ${errorMessage(err)}`);
       }
     }
   }
 }
 
-const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
-  main().catch((err: unknown) => {
-    console.log(`::error::[ci-corroborate] unexpected error: ${String(err)}`);
-    process.exitCode = 1;
-  });
+/**
+ * The production wiring — the only place a live Cloud SQL pool is opened.
+ *
+ * Exported so a test can prove every field of it EXCEPT `openStore`, which by construction dials the
+ * real database. That is the honest boundary: what can be witnessed offline is, and the one thing
+ * that cannot is the smallest closure this file could reduce it to.
+ */
+export function nodeCorroborateDeps(
+  openPool: () => Promise<PoolHandle> = createPool,
+): CorroborateDeps {
+  return {
+    env: readCorroborateEnv(process.env),
+    now: () => new Date(),
+    fetchRuns: fetchInProgressRuns,
+    openStore: async () => {
+      const handle = await openPool();
+      return {
+        store: new PgClaimStore(handle.pool),
+        close: () => closePool(handle.pool, handle.connector),
+      };
+    },
+    log: console.log,
+  };
 }
+
+/**
+ * Is this module being RUN as a script, rather than imported?
+ *
+ * Its own function so the guard is a thing a test can drive. The alternative is a condition only the
+ * real process can satisfy, which is a condition nothing can prove.
+ */
+export function isScriptEntry(argv1: string | undefined, moduleUrl: string): boolean {
+  if (argv1 === undefined) return false;
+  return moduleUrl === pathToFileURL(argv1).href;
+}
+
+/**
+ * The script entry, AS A FUNCTION — what `.github/workflows/claim-corroborate.yml` reaches through:
+ *
+ *   STORYTREE_DB_USER=<iam-email> STORYTREE_CORROBORATE_REF=refs/heads/<branch>
+ *   pnpm --filter @storytree/notice-board exec tsx src/store/ingest-ci-activity.ts
+ *
+ * Sets `process.exitCode` and returns it, or returns null when this module was merely IMPORTED —
+ * which every test does, so the guard has to hold.
+ *
+ * The catch here is the OUTER one: {@link runCorroboration} already converts every KNOWN failure
+ * into an exit code, so anything reaching this one is an unknown — and an unknown that vanished
+ * silently would be the very defect this writer exists to end.
+ */
+export async function runAsScript(
+  argv1: string | undefined,
+  moduleUrl: string,
+  deps: CorroborateDeps = nodeCorroborateDeps(),
+  log: (msg: string) => void = console.log,
+): Promise<number | null> {
+  if (!isScriptEntry(argv1, moduleUrl)) return null;
+  try {
+    const code = await runCorroboration(deps);
+    process.exitCode = code;
+    return code;
+  } catch (err) {
+    log(`::error::[ci-corroborate] unexpected error: ${errorMessage(err)}`);
+    process.exitCode = 1;
+    return 1;
+  }
+}
+
+// Stryker disable next-line all: UNREACHABLE OFFLINE, and deliberately NOT claimed as equivalent —
+// deleting this call makes the module inert AS A SCRIPT, which is precisely what every test in this
+// package relies on it already being when imported. No test can tell the two apart, because a test
+// that could would be one that runs this writer against the production ledger on import. Everything
+// the call DOES is proven through `runAsScript` above; this is the single irreducible statement that
+// says "this module is also a script", and shrinking the unwitnessed region to it is the whole
+// reason `runAsScript` takes its argv, its deps and its log as parameters.
+void runAsScript(process.argv[1], import.meta.url);
