@@ -47,11 +47,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG, groundFlattening } from './camera.js';
-import { PRE_ADR0528_TILE, type Axial } from './hex.js';
+import {
+  LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
+  groundFlattening,
+  uprightForeshortening,
+} from './camera.js';
+import { PRE_ADR0528_TILE, TILE_DEPTH_WORLD, type Axial } from './hex.js';
 import { buildRelaxedCells, type RelaxedCell } from './substrate.js';
 import {
   buildScene,
+  buildTree,
   type SceneEllipse,
   type SceneG,
   type SceneInput,
@@ -150,7 +156,9 @@ function sceneAt(elevationDeg: number, opts: { relaxed: boolean }): SceneG {
     empties: [
       { q: 3, r: -1 },
       { q: -3, r: 1 },
-      { q: 0, r: 3 },
+      // ADR-0286: a coast hex carries the id of the island it grew out of when the caller
+      // attributed it. Both branches are present so the emission test below can read both.
+      { q: 0, r: 3, owner: 0 },
     ],
     relaxedCells: opts.relaxed
       ? buildRelaxedCells(draw, [new Set<string>()], 'mesh', TILE, { elevationDeg })
@@ -214,7 +222,14 @@ function geometryThroughProjection(drawn: string, ground: string): string | null
  * derived `HEX_R` (≈ 11.06) — so one fixed epsilon is either too loose for the first or a false red
  * on the second. Both were measured out by ~0.001 against a real answer of 1.1547.
  */
-function aspect(d: string): { ratio: number; tol: number } {
+interface Aspect {
+  /** drawn height / drawn width */
+  readonly ratio: number;
+  /** the slack the `toFixed(1)` rounding of both extents forces on that ratio */
+  readonly tol: number;
+}
+
+function aspect(d: string): Aspect {
   const n = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
   const xs = n.filter((_, i) => i % 2 === 0);
   const ys = n.filter((_, i) => i % 2 === 1);
@@ -284,6 +299,132 @@ test('the classic extruded-hex ground follows the camera too — a starved famil
   // invariant anyway, because "the generator has ONE camera" with an exception nobody can see is
   // how a second copy outlives the deletion that was supposed to take it.
   assertHexFollowsTheCamera('tile-top', false, 'the classic ground still reads the module-level `TILE_DEPTH` and the default lattice');
+
+  // The SHAPE of a tile top says nothing about WHERE the tile sits, and a hex's lattice position is
+  // a second reading of the camera: the r axis runs into the ground plane, so a tile's centre y is
+  // `1.5·R·r·sin θ`. Every tile's centre must therefore move by sin between the two builds — which
+  // is what catches a lattice call that dropped its elevation while the corner offsets kept theirs.
+  const centresAt = (elevationDeg: number): number[] =>
+    nodesOfKind(sceneAt(elevationDeg, { relaxed: false }), 'tile-top').map((n) => {
+      const ys = ((n as ScenePath).d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((_, i) => i % 2 === 1);
+      return ys.reduce((a, b) => a + b, 0) / ys.length;
+    });
+  const groundCentres = centresAt(PLAN_VIEW_ELEVATION_DEG);
+  const drawnCentres = centresAt(LAND_CAMERA_ELEVATION_DEG);
+  assert.equal(drawnCentres.length, groundCentres.length, 'the same tiles must be drawn at both cameras');
+  // The centre of the disc sits at y = 0 and says nothing about the camera (0 · anything is 0), so
+  // asserting over every tile without checking that at least one is OFF the axis would pass on a
+  // fixture that could not fail. `TILES` spans r = -2..2, so several are.
+  assert.ok(groundCentres.filter((y) => Math.abs(y) > 1).length >= 4, 'the fixture must contain tiles off the r = 0 axis');
+  for (let i = 0; i < groundCentres.length; i += 1) {
+    const want = (groundCentres[i] as number) * SIN;
+    assert.ok(
+      Math.abs((drawnCentres[i] as number) - want) <= 0.11,
+      `tile ${i}: its centre must ride the same camera as its outline — drawn at ${drawnCentres[i]}, ` +
+        `expected ${want.toFixed(3)} (its ground centre ${groundCentres[i]} times sin 20°)`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 4. THE REST OF WHAT THE CHANGED LINES EMIT — the mutation rung's witnesses.
+// ---------------------------------------------------------------------------
+//
+// Threading the camera rewrote `buildEmpties`' emission line and `buildTree`'s signature whole, so
+// `check:mutation-diff` asks THIS branch's tests about everything those lines decide — not only the
+// camera. The two tests below answer for the rest of each line. They are not restatements of the
+// equivariance claim above: they pin the coast hex's INSET and its ATTRIBUTION, and the signpost
+// default, none of which any test in this file would otherwise notice.
+
+test('an empty coast hex is inset from the lattice, and carries its island id only when attributed', () => {
+  const empties = nodesOfKind(sceneAt(PLAN_VIEW_ELEVATION_DEG, { relaxed: true }), 'empty');
+  assert.equal(empties.length, 3, 'the fixture states three empty hexes');
+
+  // The coast hex is drawn INSIDE its lattice cell — `art.hexR - art.units(0.6)` — which is the gap
+  // that keeps a ring of coast hexes reading as separate tiles rather than as one field. A pointy-top
+  // hex of ground radius R is √3·R wide, and in plan view its drawn width is that exactly.
+  const inset = PRE_ADR0528_TILE.hexR - 0.6;
+  const drawnXs = ((empties[0] as ScenePath).d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((_, i) => i % 2 === 0);
+  const w = Math.max(...drawnXs) - Math.min(...drawnXs);
+  assert.ok(
+    Math.abs(w - Math.sqrt(3) * inset) <= 0.11,
+    `a coast hex must be drawn at the inset radius ${inset} (√3·R = ${(Math.sqrt(3) * inset).toFixed(2)} wide), got ${w.toFixed(2)} ` +
+      '— an inset that GREW instead of shrinking closes the gap between coast hexes',
+  );
+
+  // ADR-0286: attribution is what a per-story hide has to hold on to on this layer. The fixture
+  // states two unattributed hexes and one attributed to territory 0.
+  // `Object.hasOwn` rather than `!== undefined`, and the difference is the whole assertion: an
+  // emission that always took the attributed branch would hand back `{ kind: 'empty', id: undefined }`
+  // for a hex nobody attributed — indistinguishable from `{ kind: 'empty' }` under an `undefined`
+  // check, and a real difference to any consumer that enumerates the node's keys.
+  const withId = empties.filter((n) => Object.hasOwn(n, 'id'));
+  assert.equal(withId.length, 1, 'exactly the attributed hex carries an id KEY — an unattributed one has no key at all');
+  assert.equal((withId[0] as { id?: string }).id, 'story', 'and it is the id of the island it grew out of');
+  for (const n of empties) assert.equal((n as { kind?: string }).kind, 'empty', 'every one is classed `empty`, attributed or not');
+});
+
+test('buildTree draws the human-witness signpost by DEFAULT — the unified vegetation vocabulary is what retires it', () => {
+  // `buildTree`'s signature changed whole to take a camera, so its `unifiedVeg = false` default is a
+  // line this branch owns. The default is what a direct caller gets, and it is `false`: the signpost
+  // is drawn unless ADR-0226's unified vocabulary is in play, which is the only thing that flag does
+  // inside this function.
+  const territory: SceneTerritoryInput = {
+    id: 'story',
+    status: 'healthy',
+    caps: 4,
+    centroid: { x: 0, y: 0 },
+    groundRadius: 70,
+    screenRadius: 70,
+    treeSpot: { x: 0, y: 0 },
+    labelY: 46,
+    coastPaths: [],
+    decor: [],
+    plants: [],
+    treeTitle: 'story',
+    wisps: [],
+    signpost: { outcome: null },
+    plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'story', subText: 'x', title: 'story' },
+  };
+  assert.equal(nodesOfKind(buildTree(territory), 'sign-blank').length, 1, 'the default draws the signpost');
+  assert.equal(nodesOfKind(buildTree(territory, true), 'sign-blank').length, 0, 'the unified vocabulary retires it');
+});
+
+test("a claimed tile's EXTRUSION is an upright world height, so it carries cos θ where the lattice carries sin θ", () => {
+  // ADR-0367 D1's other half, and the half nothing asserted. The classic ground draws a `tile-side`
+  // one extrusion BELOW its `tile-top`; that extrusion is a world HEIGHT, not a ground distance, so
+  // it foreshortens by cos θ and not by sin θ — the two are opposite functions of the camera, and
+  // at plan view (θ = 90°) the extrusion vanishes entirely, which is the reading that separates
+  // them most sharply. Pinning the offset is what stops the depth silently reverting to a screen
+  // constant when the module-level `TILE_DEPTH` is no longer read here.
+  const offsetAt = (elevationDeg: number): number => {
+    const tiles = nodesOfKind(sceneAt(elevationDeg, { relaxed: false }), 'tile');
+    assert.ok(tiles.length > 0, 'the classic-ground fixture must emit tiles');
+    const kids = (tiles[0] as SceneG).children ?? [];
+    const side = kids.find((k) => (k as { kind?: string }).kind === 'tile-side');
+    const top = kids.find((k) => (k as { kind?: string }).kind === 'tile-top');
+    assert.ok(side && top, 'a tile must carry both a side and a top');
+    const firstY = (n: SceneNode): number =>
+      Number(((n as ScenePath).d.match(/-?\d+(?:\.\d+)?/g) ?? [])[1]);
+    return firstY(side as SceneNode) - firstY(top as SceneNode);
+  };
+
+  const world = TILE_DEPTH_WORLD;
+  assert.ok(world > 0, 'the extrusion must be a positive world height');
+  // At the declared camera: exactly `TILE_DEPTH_WORLD · cos 20°`, and BELOW the top (positive y is
+  // down in this coordinate space), which is what fixes the sign.
+  assert.ok(
+    Math.abs(offsetAt(LAND_CAMERA_ELEVATION_DEG) - world * uprightForeshortening(LAND_CAMERA_ELEVATION_DEG)) <= 0.11,
+    `at the declared camera the side must sit ${(world * uprightForeshortening(LAND_CAMERA_ELEVATION_DEG)).toFixed(3)} ` +
+      `below the top, got ${offsetAt(LAND_CAMERA_ELEVATION_DEG).toFixed(3)}`,
+  );
+  // Seen from straight down an upright height projects to NOTHING — the side collapses into the top.
+  // This is the arm that separates cos from sin (sin would be at its MAXIMUM here) and the arm that
+  // catches a divide where a multiply belongs, since dividing by cos 90° diverges.
+  assert.ok(
+    Math.abs(offsetAt(PLAN_VIEW_ELEVATION_DEG)) <= 0.11,
+    `in plan view an upright extrusion has no on-screen height at all, got ${offsetAt(PLAN_VIEW_ELEVATION_DEG)}`,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -301,16 +442,21 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
 
   const problems: string[] = [];
   const walk = (a: SceneNode, b: SceneNode, path: string): void => {
-    const ka = Object.keys(a as object).sort();
-    const kb = Object.keys(b as object).sort();
+    // `Object.entries` rather than an indexed lookup: the node types are a discriminated union, so
+    // there is no key type that indexes all of them, and casting one in to get there would throw
+    // away the very evidence the walk is checking.
+    const fa = new Map<string, unknown>(Object.entries(a));
+    const fb = new Map<string, unknown>(Object.entries(b));
+    const ka = [...fa.keys()].sort();
+    const kb = [...fb.keys()].sort();
     if (ka.join(',') !== kb.join(',')) {
       problems.push(`${path}: field sets differ — ${ka.join('|')} vs ${kb.join('|')}`);
       return;
     }
     for (const k of ka) {
       if (k === 'children') continue;
-      const x = (a as unknown as Record<string, unknown>)[k];
-      const y = (b as unknown as Record<string, unknown>)[k];
+      const x = fa.get(k);
+      const y = fb.get(k);
       if (typeof x === 'string' && typeof y === 'string' && x !== y) {
         // A geometry string (`d`, `points`, a `transform`) is compared COORDINATE-WISE through the
         // projection rather than byte-wise: every number is an alternating x, y pair, so the x's
