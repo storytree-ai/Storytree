@@ -27,7 +27,7 @@ import { readSessionOriginDeclaration } from "./origin-declaration.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
 import type { TraceIdentityGrade } from "./session-identity.js";
-import { resolveSessionOrigin } from "./session-origin.js";
+import { lineCutFor, resolveSessionOrigin, resolveSessionUnits } from "./session-origin.js";
 import type { SessionOrigin, SessionOriginKind } from "./session-origin.js";
 import {
   appendTraversalEvents,
@@ -138,7 +138,7 @@ interface SinkIdentityDraft {
   slot?: string | null;
   origin?: SessionOriginKind;
   cutBy?: string | null;
-  cutFor?: string | null;
+  cutFor?: string | readonly string[] | null;
 }
 
 /**
@@ -213,18 +213,20 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // `unknown` rather than a reassuring default — the increment's own first fence. Nothing here
   // infers: both channels are explicit claims, and the earlier lines of a session that declares
   // late are left exactly as they were written.
+  const declaration = readSessionOriginDeclaration(dir, sessionId);
   const origin =
-    input.origin !== undefined
-      ? input.origin
-      : resolveSessionOrigin({
-          env: process.env,
-          declaration: readSessionOriginDeclaration(dir, sessionId),
-        });
+    input.origin !== undefined ? input.origin : resolveSessionOrigin({ env: process.env, declaration });
   if (origin !== null) {
     identity.origin = origin.kind;
     identity.cutBy = origin.cutBy;
-    identity.cutFor = origin.cutFor;
   }
+  // WHAT THIS SESSION WAS WORKING ON (ADR-0541 D2), stamped OUTSIDE the origin branch above — that
+  // placement is the decision, not a tidy-up. The unit used to ride an established `cut` origin and
+  // was dropped without one, so a human-started session that claimed real work recorded nothing at
+  // all; the units no longer wait for an origin to exist, and a session claiming several records
+  // several. `lineCutFor` returns null when nothing was named, and `appendTraversalEvents` omits the
+  // key for a null — so an unclaimed, undeclared session still writes an unlabelled line.
+  identity.cutFor = lineCutFor(resolveSessionUnits({ origin, declaration }));
   appendTraversalEvents(linkRevisits(descended, replay.events), { dir, sessionId, ...identity });
 }
 

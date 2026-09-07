@@ -40,7 +40,7 @@ import {
   type Axial,
   type Pt,
 } from '@storytree/forest-world';
-import { buildWorld, groundHeroTile, groundPolarOffset, worldToScene } from './TreeView.js';
+import { buildWorld, groundHeroTile, worldToScene } from './TreeView.js';
 import type { TreeCapability, TreeStory } from '../types';
 
 // ---------------------------------------------------------------------------------------------
@@ -163,48 +163,12 @@ describe('groundHeroTile — the story tree stands where the GROUND says the mid
 // THE CAPABILITY RING
 // ---------------------------------------------------------------------------------------------
 
-describe('groundPolarOffset — a GROUND circle, projected once', () => {
-  const sin = groundFlattening(LAND_CAMERA_ELEVATION_DEG); // 0.3420201…
+// `groundPolarOffset`'s own assertions moved to `packages/forest-world/src/camera.test.ts` with the
+// function (ADR-0537 D1): the studio held a deliberate LOCAL copy of that arithmetic to avoid an
+// engine sync, and the decision killed the copy, so the one surviving definition is the one under
+// test. What stays here is what this file is actually about — that the ring the garden lays out is
+// a GROUND circle, witnessed through the layout rather than through the offset function.
 
-  it('leaves the across-screen axis alone and foreshortens the depth axis by sin θ', () => {
-    // Literal values, not a round trip through the function's own inverse.
-    expect(groundPolarOffset(0, 100)).toEqual({ x: 100, y: 0 });
-    const east = groundPolarOffset(0, 100);
-    expect(east.x).toBeCloseTo(100, 9);
-    expect(east.y).toBeCloseTo(0, 9);
-
-    const south = groundPolarOffset(Math.PI / 2, 100);
-    expect(south.x).toBeCloseTo(0, 9);
-    expect(south.y).toBeCloseTo(34.2020143, 6); // 100 · sin 20°, NOT 100 · 0.66
-
-    const west = groundPolarOffset(Math.PI, 100);
-    expect(west.x).toBeCloseTo(-100, 9);
-    expect(west.y).toBeCloseTo(0, 9);
-
-    const north = groundPolarOffset(-Math.PI / 2, 100);
-    expect(north.y).toBeCloseTo(-34.2020143, 6); // the sign survives
-
-    const se = groundPolarOffset(Math.PI / 4, 100);
-    expect(se.x).toBeCloseTo(70.7106781, 6);
-    expect(se.y).toBeCloseTo(70.7106781 * sin, 6);
-  });
-
-  it('CONTROL: the retired 0.66 squash disagrees by the measured 1.93x on the depth axis', () => {
-    const fixed = groundPolarOffset(Math.PI / 2, 100);
-    const retired = retiredSquashOffset(Math.PI / 2, 100);
-    expect(retired.y).toBeCloseTo(66, 9);
-    expect(retired.y / fixed.y).toBeCloseTo(1.9297, 4); // 0.66 / sin 20°
-  });
-
-  it('a ground circle projects to a screen ellipse of the camera\'s own aspect', () => {
-    const rs = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
-      const o = groundPolarOffset((k / 8) * Math.PI * 2, 60);
-      return Math.hypot(o.x, o.y);
-    });
-    expect(Math.max(...rs)).toBeCloseTo(60, 6); // across the screen: untouched
-    expect(Math.min(...rs)).toBeCloseTo(60 * sin, 6); // into the depth: sin θ
-  });
-});
 
 const cap = (id: string): TreeCapability => ({
   id,

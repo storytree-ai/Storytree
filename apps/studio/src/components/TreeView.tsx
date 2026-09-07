@@ -66,7 +66,16 @@ import { useNowTick } from '../lib/poll';
 import { useSessionClaimGroups } from '../lib/sessionClaims';
 import { assetHref, docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
-import { ISLAND_SPACING_RATIO, gapBetween, loneSwing, type LegacySpacing } from '../lib/islandSpacing.js';
+import {
+  packWorld,
+  groundHeroTile,
+  type CapSpot as LayoutCapSpot,
+  type DecorSpot as LayoutDecorSpot,
+  type Territory as LayoutTerritory,
+  type HexWorld as LayoutHexWorld,
+  type PackOptions,
+  type SpacingTuning,
+} from '@storytree/forest-layout';
 import { readSceneExport, sceneExportBridge } from '../lib/sceneExport.js';
 import {
   WorldLegend,
@@ -148,59 +157,36 @@ import {
   hash,
   rand01,
   type Pt,
-  type Axial,
   HEX_R,
-  HEX_W,
   TILE_DEPTH,
-  groundRadiusToScreenHalfHeight,
-  PLAN_VIEW_ELEVATION_DEG,
   projectGround,
   axialKey,
-  AXIAL_DIRS,
   hexCenter,
   pixelToHex,
-  hexDist,
-  hexCorners,
   hexPath,
   polyPath,
-  ringsOf,
-  estRadius,
-  tileQuota,
   tileUnits,
-  COAST_OUTSET_ON_TILE,
   type ArtRungs,
   TILE_SCALE,
   TREE_SCALE,
   PLATE_SCALE,
   crownRadius,
-  crownRadiusWorld,
-  storyTreeReach,
-  storyEdges,
-  rankStories,
-  descendantCounts,
-  smoothCoast,
   smoothLoopPath,
-  type BoundarySeg,
   type SubstrateMode,
   type SubstrateTuning,
   type RelaxedCell,
   MESH_TUNING,
   buildRelaxedCells as buildRelaxedCellsFromTiles,
   buildScene,
-  routeTrails,
-  projectTrailNetwork,
   trailFillWidth,
   wispBand,
   type SceneInput,
-  type SceneEmptyHex,
   type SceneGardenInput,
   type SceneVegHeroTrees,
   type SceneVegetationInput,
   type SceneStatus,
   type ScenePlantInput,
   type SceneTerritoryInput,
-  type TrailIsland,
-  type TrailNetwork,
   type ClaimGrade,
   type BuildPhase,
 } from '@storytree/forest-world';
@@ -265,12 +251,8 @@ const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
 // ---------- world building ----------
 
-const MARGIN = tileUnits(60); // authored as 60 on the radius-27 tile (ADR-0528)
-/** The water between any two islands' tiles, in hexes (ADR-0528 D5) — see the growth floor in
- *  `buildWorld`. One is the smallest separation the lattice can express, and it is derived from what
- *  the 3D map does with a tile rather than picked by eye: the island is sized to its ratio about its
- *  centre and wears a coast outset, so touching tiles overlap in 3D and one hex apart does not. */
-const MOAT_HEXES = 1;
+// `MARGIN` and the one-hex `MOAT_HEXES` moved into `@storytree/forest-layout` with the packer
+// (ADR-0537 D1) — they are its own constants and nothing else here read them.
 // `resting-view-still-clips-five-islands`: the resting camera fit's own `padding: 16` guarantees only
 // 16px of headroom at whichever vertical edge `buildWorld`'s bounds happen to sit snug against — but
 // TWO pieces of UI chrome are PERMANENTLY docked over the map at rest, and 16px does not clear either:
@@ -297,7 +279,7 @@ const FIT_PADDING_BOTTOM = 48;
 // ADR-0521 (owner-directed 2026-09-05): the three absolute spacing constants that used to stand
 // here — `RANK_GAP` 40, `ISLAND_GAP` 60, `RANK_SWING` 140, halved on the owner's 2026-08-16 look
 // (`islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`) — are RETIRED. Every gap is now
-// a fraction of the islands it separates (`lib/islandSpacing.ts`): the same input the island's own
+// a fraction of the islands it separates (`@storytree/forest-layout`'s `spacing.ts`): the same input the island's own
 // size comes from, so the layout is derived end to end and the 3D map, which reads these positions
 // and lays out nothing of its own, inherits it. What the 2026-08-16 note measured still holds in
 // kind: the row gap drives the resting zoom (it sets the world's VERTICAL extent, which `fitWorld`'s
@@ -305,109 +287,21 @@ const FIT_PADDING_BOTTOM = 48;
 // growth floor below (`floor = ringsOf(...) + ringsOf(...) + 1`) is what protects island integrity,
 // not the gaps — which is why rung 0 of the ladder is a legal layout and not a collision.
 
-/** The spacing dial `buildWorld` takes — see `readSpacingTuning` and `buildWorld`'s `spacing` opt.
- *  `ratio` is the ADR-0521 fraction (absent ⇒ the shipped `ISLAND_SPACING_RATIO`); `legacy` is an
- *  INSTRUMENT'S option — the three pre-ADR-0521 absolute gaps, so a comparison page's control arm
- *  can stand the map as it stood before this landing. When both are given, `legacy` wins, because a
- *  control that silently took the ratio would compare the ladder against one of its own rungs. */
-interface SpacingTuning {
-  ratio: number;
-  legacy?: LegacySpacing;
-}
 const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
 const LANE_GAP = tileUnits(13); // ground units (13 on the radius-27 tile) centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
 const LANE_WINDOW = 0.4; // fraction of each river's length over which it blends from its true dock/mouth into the shared corridor
 const MOUTH_FLARE = tileUnits(14); // ground units (14 on the radius-27 tile) offshore the merged trunk fuses before diving head-on into the single coast mouth
 
-interface CapSpot {
-  cap: TreeCapability;
-  x: number;
-  y: number;
-  /** The SAME spot before the camera (ADR-0527 D1) — what `buildScene` is handed, and what it
-   *  projects back to `x`/`y` when it draws at the declared camera. Derived, never un-projected:
-   *  the ground bearing and radius the scatter already reasons in, added to the ground tree spot. */
-  groundSpot: Pt;
-}
-
-/** A conifer-clump spot (wheat is a tile-top fill, tracked in wheatTiles). */
-interface DecorSpot {
-  x: number;
-  y: number;
-  seed: number;
-}
-
-export interface Territory {
-  story: TreeStory;
-  tiles: Axial[];
-  centroid: Pt;
-  /** px from centroid to the farthest tile centre, plus the tile radius — SCREEN-projected (the
-   *  declared land camera), NOT a ground distance. Feeds `SceneTerritoryInput.screenRadius`
-   *  (`scene-territory-radius-states-its-space`). */
-  radius: number;
-  /** The same reach, computed from UNPROJECTED (`PLAN_VIEW_ELEVATION_DEG`) tile centres — an
-   *  isotropic ground-plane magnitude, camera-independent. Feeds `SceneTerritoryInput.groundRadius`.
-   *  Same formula `trailIslands` below already uses for routing; kept here too so every consumer of
-   *  the built `Territory` — not just the router — can read a true ground radius. */
-  groundRadius: number;
-  /** Where the central story tree stands (the tile nearest the centroid). */
-  treeSpot: Pt;
-  /** `centroid` before the camera — the tile centres at `PLAN_VIEW_ELEVATION_DEG`, the same source
-   *  `groundRadius` above is measured from. Feeds `SceneTerritoryInput.centroid` under
-   *  `anchorSpace: 'ground'`. Its projected twin STAYS, because this file's own React renderer draws
-   *  at the declared camera and wants screen — the two are not a redundancy, they are two consumers
-   *  with different needs, exactly like `radius` / `groundRadius`. */
-  groundCentroid: Pt;
-  /** `treeSpot` before the camera. Derived from the same tile, never by un-projecting the drawing —
-   *  which is the move ADR-0527 D2 exists to delete rather than to spread. */
-  groundTreeSpot: Pt;
-  caps: CapSpot[];
-  decor: DecorSpot[];
-  wheatTiles: Set<string>;
-  /** Smoothed organic coastline as closed point loops in the GROUND plane — the island's sand
-   *  fill AND its water moat (one curve, filled then stroked). ADR-0527 D1: the layout hands out
-   *  a SURFACE, and whoever draws it projects for itself. It used to be `coastPaths`, `d` strings
-   *  this function had already projected and smoothed, which made the coast the one island input
-   *  that reached `buildScene` as a finished drawing.
-   *
-   *  The screen-space `coastLoops` that stood beside it is DELETED (ADR-0527 D4): its doc said it
-   *  was "for docking river mouths to the shore", and the river fan went — `RIVER_FAN_STEP`,
-   *  `RIVER_FAN_MAX`, `LANE_GAP`, `LANE_WINDOW` and `MOUTH_FLARE` are all unused constants that
-   *  `pnpm lint` reports. Nothing outside this file's own declaration and assignment ever read it. */
-  coastGroundLoops: Pt[][];
-  labelY: number;
-  /** Per-island ICON STAMPS this island CARRIES (ADR-0102): one entry per promoted edge incident
-   *  to a `render: building` island, "you carry the icon of what you depend on". `icon` is the id
-   *  whose identity glyph is drawn ({@link storyIcon}); `spot` is its seat on owned land. An island
-   *  can carry SEVERAL (studio carries both `library` and `cli`). On the map a carried icon is
-   *  always a BUILDING (promotion is building-incident) → each names a shared island. Empty for an
-   *  island that depends on no building, or when the `buildings` flag is off. */
-  stamps: { icon: string; spot: Pt }[];
-  /** This island IS a building rendered with a bookshelf glyph WITHIN its nameplate (the
-   *  enlarged landmark card, {@link nameplateLayout} building branch). ALWAYS false on the map
-   *  (ADR-0088: building-class stories no longer render in the forest); set true only by the
-   *  Shared Islands PANEL, which builds a one-island Territory per building story and renders it
-   *  with {@link TerritoryFlora}. */
-  buildingGlyph: boolean;
-}
-
-export interface HexWorld {
-  territories: Territory[];
-  /** Pale coast tiles (1–2 rings beyond claimed land), each carrying the index of the territory
-   *  whose land it grew out of (ADR-0286 — the handle the Act 2 regrow's per-story hide needs;
-   *  `SceneEmptyHex.owner`). */
-  empties: SceneEmptyHex[];
-  /** Claimed tiles in global back-to-front draw order, with territory index. */
-  drawTiles: { h: Axial; owner: number }[];
-  /** The `depends_on` edges routed as the ADR-0169 trail network (BOTH layouts — the
-   *  one road model since the docked lines retired): shared segments (a trunk renders
-   *  once), per-edge ordered segment chains, forced cave portals. Hidden by default;
-   *  revealed on island focus (§3). Empty (no segments) when there are no edges. */
-  trails: TrailNetwork;
-  width: number;
-  height: number;
-  offset: Pt;
-}
+// The laid-out world's SHAPE is `@storytree/forest-layout`'s (ADR-0537 D1), specialised here to the
+// studio's own story/capability types — the packer carries the caller's objects through untouched,
+// so `t.story` is still a full `TreeStory` and `c.cap` a full `TreeCapability`. These aliases exist
+// so the several hundred references below, and every importer of this module, read exactly as they
+// did when the four interfaces were declared here.
+export type CapSpot = LayoutCapSpot<TreeCapability>;
+export type DecorSpot = LayoutDecorSpot;
+export type Territory = LayoutTerritory<TreeStory>;
+export type HexWorld = LayoutHexWorld<TreeStory>;
 
 /** A nameplate's resolved box + text/glyph anchors (px, plate-local). */
 export interface NameplateLayout {
@@ -481,56 +375,18 @@ function verdictPhrase(v: TreeVerdict): string {
   return v.outcome === 'pass' ? '✓ proven' : '✗ last run failed';
 }
 
-/**
- * The island's HERO TILE — the tile the story's own tree stands on: the one nearest the island's
- * centroid ON THE GROUND (`studio-island-layout-moves-to-ground-space`, ADR-0367 D1's fault class).
- *
- * It used to be an argmin over PROJECTED centres against the PROJECTED centroid. The declared camera
- * compresses the depth axis by `sin 20° ≈ 0.342`, so a tile displaced along the ground's depth looks
- * NEARER on screen than it is and the argmin systematically preferred it — a hero tree standing
- * where the camera put it rather than where the island's middle is. Measured on the code this
- * replaced: the projected answer differs from this one on 224 of 1,600 synthetic grown islands
- * (14.00%) and on 5 of the shipped corpus's 35 islands (14.29%), each by a whole tile — 46.8 ground
- * px. (The increment cited 26.8% from an earlier sweep; that magnitude did NOT reproduce, though the
- * class and its direction did — see the increment's closure.)
- *
- * A function of the TILE SET ALONE. It reads no camera, so its answer cannot move when the camera
- * does — the invariant is structural here, not merely asserted. `undefined` only for an empty tile
- * set, which `buildWorld` never has (it falls back to the island's seed regardless).
- *
- * Ties break toward the earliest tile in input order, exactly as the `Array.prototype.sort` this
- * replaced did (a stable sort keeps the first of an equal pair).
- */
-export function groundHeroTile(tiles: readonly Axial[]): Axial | undefined {
-  if (!tiles.length) return undefined;
-  const centers = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
-  const centroid: Pt = {
-    x: centers.reduce((s, p) => s + p.x, 0) / centers.length,
-    y: centers.reduce((s, p) => s + p.y, 0) / centers.length,
-  };
-  // ground-space: `centers` are `hexCenter` at PLAN_VIEW_ELEVATION_DEG — the pre-camera tile
-  // positions — so this is a true ground separation and the argmin is camera-independent.
-  const gaps = centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y));
-  let best = 0;
-  for (let k = 1; k < gaps.length; k++) {
-    if ((gaps[k] ?? Infinity) < (gaps[best] ?? Infinity)) best = k;
-  }
-  return tiles[best];
-}
+// `groundHeroTile` moved to `@storytree/forest-layout` with the packer that calls it (ADR-0537 D1).
+// Re-exported so the suites and callers that name it here still find it.
+export { groundHeroTile };
+//
+// `groundPolarOffset` DIED here, and its comment died with it. It was a deliberate LOCAL copy of
+// arithmetic `packages/forest-world/src/scene.ts` already held, and that comment gave the reason in
+// terms: reaching into that package owed an engine sync and a web pin bump for two lines. It was the
+// evidence ADR-0537 rests on and was kept until this landing on purpose. The decision ruled the toll
+// may not draw the boundary, so there is now ONE definition — exported from
+// `@storytree/forest-world`'s `camera.ts`, beside the `projectGround` it is a polar spelling of —
+// read by both the scene scatters and the packer's garden ring.
 
-/**
- * A polar offset of GROUND radius `r` at ground bearing `ang`, returned in SCREEN units — what a
- * layout adds to an already-projected anchor to land `r` away ACROSS THE GROUND.
- *
- * The studio-side twin of the `groundPolarOffset` `packages/forest-world/src/scene.ts` already uses
- * for its own scatters, and a deliberate LOCAL copy rather than a new export from that package:
- * `packages/forest-world/src` reaches the website through a wholesale sync, so touching it would owe
- * this increment an engine sync and a web pin bump for two lines of arithmetic.
- *
- * ⚠ NEVER pass this point-free to `Array.prototype.map` — the third parameter that `.map` supplies
- * would land in a slot this signature does not have today, and adding one later would resurrect the
- * `['1','2'].map(parseInt)` trap `hexCenter` documents.
- */
 /**
  * A ground-space coast loop, drawn for THIS painter at the declared camera — project, then smooth,
  * the same order `buildCoast` applies in the core (ADR-0527 D1). The legacy inline render and the
@@ -541,22 +397,34 @@ function coastScreenPath(loop: Pt[]): string {
   return smoothLoopPath(loop.map((p) => projectGround(p)));
 }
 
-export function groundPolarOffset(ang: number, r: number): Pt {
-  return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r });
-}
-
+/**
+ * The studio's `buildWorld`: the CHROME HALF of the map layout, over `@storytree/forest-layout`'s
+ * chrome-free packer (ADR-0537 D1). The packing itself — the ranked seeding, the growth floor and
+ * its moat, the grower, the garden ring, the coastline, the trail routing — moved into that package
+ * unchanged. What stayed here is the two studio rules it was tangled with, and this is the seam
+ * ADR-0537 required rather than a convenience:
+ *
+ *   • ADR-0076 §2 / ADR-0088 — stories tagged `render: building` (e.g. `library`) are EXCLUDED from
+ *     the laid-out territories (they live in the Shared Islands panel now, not the map). The packer
+ *     is never told what a building IS; it is simply not handed one. With the building gone from
+ *     `stories`, no edge or rank to it exists, so its many inbound roads can never flood the map
+ *     (the reason the earlier edgeless-island machinery existed — now unnecessary).
+ *   • ADR-0102 (owner-directed, 2026-06-25) — a building PROMOTES every edge incident to it from a
+ *     road to a per-island icon STAMP, in BOTH directions: "you carry the icon of what you depend
+ *     on". The promotion is computed from the FULL list, so the buildings' own incident edges are
+ *     visible, BEFORE the buildings are excluded — then handed over, and the packer only seats each
+ *     icon on owned land.
+ *
+ * `buildings` is the DEFAULT since the owner attested it (the component passes `readBuildings`,
+ * default true / escape `?buildings=off`); `false` is the bare-call fallback ⇒ the building is a
+ * normal connected island and no stamps. When a single building story is passed with
+ * `buildings: false`, it lays out as one plain island — exactly the one-island Territory the Shared
+ * Islands panel renders per building.
+ */
 export function buildWorld(
   allStories: TreeStory[],
   opts?: {
     plantsScatter?: boolean;
-    /** ADR-0076 §2 / ADR-0088: stories tagged `render: building` (e.g. `library`) are
-     *  EXCLUDED from the laid-out territories (they live in the Shared Islands panel now, not
-     *  the map) AND their consumers carry a distributed BOOKSHELF STAMP — the on-map "this
-     *  island uses the shared library" marker. The DEFAULT since the owner attested it (the
-     *  component passes `readBuildings`, default true / escape `?buildings=off`); `false` here
-     *  is the bare-call fallback ⇒ the building is a normal connected island and no stamps.
-     *  When a single building story is passed with `buildings: false`, it lays out as one plain
-     *  island — exactly the one-island Territory the Shared Islands panel renders per building. */
     buildings?: boolean;
     /** ADR-0521 — the spacing dial, exactly the `readSubstrateTuning` dial pattern below (mesh
      *  jitter/relax/etc): absent ⇒ the shipped `ISLAND_SPACING_RATIO` (unchanged callers). `legacy`
@@ -564,563 +432,28 @@ export function buildWorld(
     spacing?: Partial<SpacingTuning>;
   },
 ): HexWorld {
-  const plantsScatter = opts?.plantsScatter ?? false;
   const buildings = opts?.buildings ?? false;
-  // ADR-0521: every gap is a fraction of the islands it separates — `gapBetween` over the two
-  // estimated radii — and a lone island's swing is the offset a same-row neighbour would have had.
-  // The `legacy` triple is the pre-ADR-0521 map, for a comparison page's control arm only.
-  const spacingRatio = opts?.spacing?.ratio ?? ISLAND_SPACING_RATIO;
-  const legacy = opts?.spacing?.legacy;
-  const rankGapFor = (below: number, tallest: number): number =>
-    legacy ? legacy.rankGap : gapBetween(below, tallest, spacingRatio);
-  const islandGapFor = (left: number, right: number): number =>
-    legacy ? legacy.islandGap : gapBetween(left, right, spacingRatio);
-  const rankSwingFor = (lone: number): number => (legacy ? legacy.rankSwing : loneSwing(lone, spacingRatio));
-
-  // ADR-0102 (per-island icon stamps, owner-directed 2026-06-25): a story tagged `render: building`
-  // (today `library` and `cli`) PROMOTES every edge incident to it from a road to a per-island icon
-  // STAMP, in BOTH directions — "you carry the icon of what you depend on". The promotion is
-  // computed from the FULL list (so the buildings' incident edges are visible) BEFORE the buildings
-  // are excluded below. `buildings` off ⇒ no buildings, no stamps. `carriedIcons` maps a carrier
-  // island id → the building-icon ids it carries (a depender carries the depended-on building's icon).
   const buildingIds = new Set(
     buildings ? allStories.filter((s) => s.building === true).map((s) => s.id) : [],
   );
-  const carriedIcons: Map<string, string[]> = buildingIds.size
+  const carriedIcons: ReadonlyMap<string, readonly string[]> = buildingIds.size
     ? stampsByCarrier(
         promotedStamps(
           allStories.map((s) => ({ id: s.id, dependsOn: s.dependsOn, consumedBy: s.consumedBy })),
           buildingIds,
         ),
       )
-    : new Map<string, string[]>();
-  // ADR-0088 (Shared Islands panel, amends ADR-0076 §2): EXCLUDE every building-class story
-  // from the laid-out territories whenever the distributed `buildings` flag is on — they no
-  // longer render on the map at all (they live in the permanent left panel). With the building
-  // gone from `stories`, no edge or rank to it exists, so its many inbound roads can never flood
-  // the map (the reason the earlier edgeless-island machinery existed — now unnecessary).
+    : new Map<string, readonly string[]>();
   const excludedIds: ReadonlySet<string> = buildingIds.size ? buildingIds : EMPTY_ID_SET;
   const stories = excludedIds.size
     ? allStories.filter((s) => !excludedIds.has(s.id))
     : allStories;
-
-  // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
-  // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
-  // (centred, everything orbits + spokes converge), not by a distinct size/skin.
-  // ADR-0528 D1: one tile per capability — a drawn island IS `capabilities × 318 units²`, the island
-  // the 3D map sizes it to (ADR-0520). The retired `max(3, capabilities + 2)` was the last by-eye
-  // number on the layout path; `tileQuota` carries the rule and its floor.
-  const quotas = stories.map((s) => tileQuota(s.capabilities.length));
-
-  // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
-  const edgeList = storyEdges(stories);
-  const depsOf = new Map<string, string[]>(stories.map((s) => [s.id, []]));
-  const dependentsOf = new Map<string, string[]>(stories.map((s) => [s.id, []]));
-  for (const e of edgeList) {
-    depsOf.get(e.to)?.push(e.from);
-    dependentsOf.get(e.from)?.push(e.to);
-  }
-
-  // Dependency-ranked seeds (ADR-0036 d.6a): the most-depended-upon stories sit
-  // bottom-centre and dependents fan upward and outward. Rank rows stack from
-  // the bottom; within a row, stories order by the barycenter of their already-
-  // placed dependencies (load-bearing count for the foundation row).
-  // ADR-0088: building-class stories are no longer in `stories` (they live in the Shared
-  // Islands panel), so there is no edgeless island to pin to the foundation row anymore — the
-  // natural dependency ranks drive the layout directly.
-  const naturalRanks = rankStories(stories, depsOf);
-  const ranks = new Map<string, number>(stories.map((s) => [s.id, naturalRanks.get(s.id) ?? 0]));
-  const loadBearing = descendantCounts(stories, dependentsOf);
-  const maxRank = Math.max(0, ...ranks.values());
-  const byRank: number[][] = Array.from({ length: maxRank + 1 }, () => []);
-  stories.forEach((s, i) => byRank[ranks.get(s.id) ?? 0]?.push(i));
-
-  // Row centre-lines, bottom-up: clearance for the tallest territory on each side.
-  const rowY: number[] = [];
-  let yCursor = 0;
-  for (let r = 0; r <= maxRank; r++) {
-    const tallest = Math.max(...(byRank[r] ?? []).map((i) => estRadius(quotas[i] ?? 3)), HEX_R);
-    if (r === 0) yCursor = -tallest;
-    else {
-      const below = Math.max(
-        ...(byRank[r - 1] ?? []).map((i) => estRadius(quotas[i] ?? 3)),
-        HEX_R,
-      );
-      yCursor -= below + tallest + rankGapFor(below, tallest);
-    }
-    rowY.push(yCursor);
-  }
-
-  const seedPx = new Map<number, Pt>();
-  const baryOf = (idx: number): number => {
-    const s = stories[idx];
-    if (!s) return 0;
-    const xs = (depsOf.get(s.id) ?? [])
-      .map((d) => stories.findIndex((o) => o.id === d))
-      .filter((j) => j >= 0 && seedPx.has(j))
-      .map((j) => seedPx.get(j)?.x ?? 0);
-    return xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : 0;
-  };
-  // ADR-0283 D2: DAG ROWS, unconditionally. The `solar` (ADR-0074 §6) and `stress` (ADR-0171)
-  // seedings that used to branch here are retired as selectable arrangements — one layout means
-  // one thing every growth choreography has to be correct against.
-  for (let r = 0; r <= maxRank; r++) {
-    const row = byRank[r] ?? [];
-    const ordered = [...row].sort((a, b) => {
-      const sa = stories[a];
-      const sb = stories[b];
-      if (!sa || !sb) return 0;
-      if (r === 0) {
-        // Foundation row: most load-bearing in the middle, others outward.
-        return (loadBearing.get(sb.id) ?? 0) - (loadBearing.get(sa.id) ?? 0);
-      }
-      return baryOf(a) - baryOf(b) || (hash(sa.id) % 997) - (hash(sb.id) % 997);
-    });
-    // Pack the row left-to-right around its dependency barycenter. The
-    // foundation row interleaves centre-out (most load-bearing in the middle).
-    let display = ordered;
-    if (r === 0) {
-      display = [];
-      ordered.forEach((i, k) => {
-        if (k % 2 === 0) display.push(i);
-        else display.unshift(i);
-      });
-    }
-    const sequence = display.map((idx) => ({ idx, w: estRadius(quotas[idx] ?? 3) }));
-    // ADR-0521: the gap between two neighbours is a fraction of THEIR two radii, so a row of big
-    // islands breathes more than a row of small ones and the row's total is the sum of its pairs.
-    const gapAfter = (k: number): number => {
-      const here = sequence[k];
-      const next = sequence[k + 1];
-      return here && next ? islandGapFor(here.w, next.w) : 0;
-    };
-    const total = sequence.reduce((sum, s, k) => sum + 2 * s.w + gapAfter(k), 0);
-    // A lone island would otherwise sit directly on top of its dependencies,
-    // stacking every road into one vertical corridor — swing it to an
-    // alternating side so roads sweep as separated diagonals (the dbt-DAG read).
-    let rowCenter =
-      r === 0 ? 0 : display.reduce((sum, i) => sum + baryOf(i), 0) / Math.max(display.length, 1);
-    const lone = sequence.length === 1 ? sequence[0] : undefined;
-    if (r > 0 && lone) rowCenter += (r % 2 === 1 ? 1 : -1) * rankSwingFor(lone.w);
-    let xCursor = rowCenter - total / 2;
-    sequence.forEach((s, k) => {
-      const story = stories[s.idx];
-      const seedH = hash(story?.id ?? String(s.idx));
-      seedPx.set(s.idx, {
-        x: xCursor + s.w + (rand01(seedH) - 0.5) * tileUnits(44),
-        y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * tileUnits(30),
-      });
-      xCursor += 2 * s.w + gapAfter(k);
-    });
-  }
-
-  // Snap seeds to the hex lattice, then enforce a growth floor: two seeds
-  // closer than their combined ring reach would strangle each other's quota.
-  //
-  // ADR-0528 D5: the floor also leaves room for the MOAT — one hex of water between any two
-  // islands' tiles, which the growth below keeps (`foreignAdjacent`). The 3D map sizes every
-  // island to its land ratio about its own centre and its ground carries a coast outset, so an
-  // island outgrows its tiles a little; two islands whose tiles TOUCH therefore overlap in 3D
-  // (measured on the real forest at gap ratio 0 and 0.2 before the moat existed). One hex of
-  // water is the smallest separation the lattice can express, and it is what makes the tightest
-  // rung of the gap ladder a layout with water between every pair rather than a lottery of the
-  // seed jitter.
-  const seeds: Axial[] = stories.map((_, i) => pixelToHex(seedPx.get(i) ?? { x: 0, y: 0 }));
-  // Each nudge moves one seed one hex EAST, so the passes converge; the bound is a guard against a
-  // pathological input, not a budget — at 24 a crowded rank ran out of passes with two seeds still
-  // inside each other's floor, and the moat below then had nothing to keep (measured on a 60-island
-  // sweep at ratio 0.1: two adjacent tiles).
-  for (let pass = 0; pass < 400; pass++) {
-    let moved = false;
-    for (let i = 0; i < seeds.length; i++) {
-      for (let j = i + 1; j < seeds.length; j++) {
-        const a = seeds[i];
-        const b = seeds[j];
-        if (!a || !b) continue;
-        const floor = ringsOf(quotas[i] ?? 1) + ringsOf(quotas[j] ?? 1) + 1 + MOAT_HEXES;
-        if (hexDist(a, b) < floor) {
-          seeds[j] = { q: b.q + 1, r: b.r }; // deterministic eastward nudge
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
-  }
-
-  // Grow territories round-robin: each story claims its cheapest frontier hex
-  // (closest to seed, hash-jittered for organic coastlines) until its quota —
-  // a tile per capability (ADR-0528) — is met.
-  const owner = new Map<string, number>();
-  const tilesByStory: Axial[][] = stories.map(() => []);
-  seeds.forEach((seed, i) => {
-    owner.set(axialKey(seed), i);
-    tilesByStory[i]?.push(seed);
-  });
-  // THE MOAT (ADR-0528 D5): a hex adjacent to another story's tile is never claimed, so two islands'
-  // tiles are always at least one hex apart. See the growth-floor note above for why.
-  const foreignAdjacent = (h: Axial, mine: number): boolean =>
-    AXIAL_DIRS.some((d) => {
-      const o = owner.get(axialKey({ q: h.q + d.q, r: h.r + d.r }));
-      return o !== undefined && o !== mine;
-    });
-  let progress = true;
-  while (progress) {
-    progress = false;
-    for (let i = 0; i < stories.length; i++) {
-      const mine = tilesByStory[i];
-      const seed = seeds[i];
-      const story = stories[i];
-      const quota = quotas[i];
-      if (!mine || !seed || !story || quota === undefined || mine.length >= quota) continue;
-      let best: Axial | null = null;
-      let bestCost = Infinity;
-      for (const t of mine) {
-        for (const d of AXIAL_DIRS) {
-          const cand = { q: t.q + d.q, r: t.r + d.r };
-          const key = axialKey(cand);
-          if (owner.has(key) || foreignAdjacent(cand, i)) continue;
-          const cost = hexDist(seed, cand) + rand01(hash(`${story.id}:${key}`)) * 1.4;
-          if (cost < bestCost) {
-            bestCost = cost;
-            best = cand;
-          }
-        }
-      }
-      if (best) {
-        owner.set(axialKey(best), i);
-        mine.push(best);
-        progress = true;
-      }
-    }
-  }
-
-  // Per-territory contents.
-  const territories: Territory[] = stories.map((story, i) => {
-    const tiles = tilesByStory[i] ?? [];
-    const seed = seeds[i] ?? { q: 0, r: 0 };
-    // NOT `tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)` takes an
-    // optional second argument, and `Array.prototype.map` calls its callback with `(element, index,
-    // array)` — so a bare `.map(hexCenter)` feeds each tile's ARRAY INDEX into `elevationDeg`,
-    // silently re-flattening every tile by its own position (0deg for the first tile, 1deg for the
-    // second, ...), never the declared camera. This was the classic `['1','2'].map(parseInt)` trap,
-    // newly load-bearing the moment `hexCenter` grew a second parameter (ADR-0367 D1) — the single
-    // largest driver of `land-camera-consumers-reconcile`'s measured content-extent collapse (a
-    // territory's own `centroid`/`radius` were computed from tiles each seen through a DIFFERENT,
-    // index-derived camera).
-    const centers = tiles.map((h) => hexCenter(h));
-    const centroid: Pt = {
-      x: centers.reduce((s, p) => s + p.x, 0) / Math.max(centers.length, 1),
-      y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
-    };
-    const radius =
-      // Deliberately the SCREEN twin — `scene-territory-radius-states-its-space` split it from
-      // `groundRadius` below. Its honest consumers are screen chrome: the wisp orbit radii and the
-      // panel offsets. `ringR` below used to read it too, which was the open question that split
-      // asked and `studio-island-layout-moves-to-ground-space` has now answered: the ring is a
-      // GROUND circle, so it reads `groundRadius`, and every remaining consumer here wants screen.
-      // screen-space: a screen magnitude by construction, with its ground twin declared beside it
-      Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) +
-      HEX_R;
-    // A true GROUND-plane radius (scene-territory-radius-states-its-space) — same formula as
-    // `radius` above, but over UNPROJECTED tile centres, so it is isotropic and camera-independent.
-    // `radius` is a SCREEN magnitude (foreshortened on r, untouched on q); scene.ts's ground-side
-    // consumers (garden-hero keep-outs, the UAT/grass scatter, the stone-path spacing floor) need
-    // THIS one, not that one — feeding them the screen value silently under-scaled every one of them.
-    const groundTileCenters = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
-    const groundCentroid: Pt = {
-      x: groundTileCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundTileCenters.length, 1),
-      y: groundTileCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundTileCenters.length, 1),
-    };
-    const groundRadius =
-      // ground-space: `groundTileCenters` are `hexCenter` at PLAN_VIEW_ELEVATION_DEG, i.e. the
-      // pre-camera tile positions, so this radius is isotropic and does not move with the camera.
-      Math.max(0, ...groundTileCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
-      HEX_R;
-
-    // The story's own tree takes the tile nearest the centroid ON THE GROUND; capabilities garden
-    // in a ring around it — a CIRCLE on the land, which the camera projects to an ellipse (walked
-    // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
-    const centerTile = groundHeroTile(tiles) ?? seed;
-    const treeSpot = hexCenter(centerTile);
-    // The same tile before the camera (ADR-0527 D1) — the anchor `buildScene` is handed. Taken from
-    // the tile, not from `treeSpot` by un-projection: `hexCenter` projects by scaling y, so these two
-    // are the same point stated in two spaces, and the core projecting this one reproduces that one.
-    const groundTreeSpot = hexCenter(centerTile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
-    // The tree's crown radius in GROUND units — its drawing frame scaled onto the tile (ADR-0528).
-    const crownR = crownRadiusWorld(story.capabilities.length);
-    // A GROUND radius. `crownR` is the tree's screen HALF-WIDTH, and the camera foreshortens only
-    // the depth axis, so a horizontal half-width is already a ground magnitude; `HEX_R` is a ground
-    // radius by definition. The one screen quantity in this expression was the island `radius`, and
-    // it is replaced by its declared ground twin (`studio-island-layout-moves-to-ground-space`).
-    const ringR = Math.max(crownR * 0.9, Math.min(crownR + tileUnits(18), groundRadius - HEX_R * 0.55));
-    // Front 240° arc only (centred south) — a plant behind the tree would
-    // vanish under the canopy.
-    const ARC = (Math.PI * 4) / 3;
-    const caps: CapSpot[] = story.capabilities.map((cap, j) => {
-      const n = story.capabilities.length;
-      // `?plants=scatter` (VISUAL SPIKE): keep the rough angular slot (so plants
-      // never clump) but widen the angle wobble and spread the radius across a
-      // BAND rather than one ring, so the garden reads as an organic orchard
-      // instead of a rigid arc — most visible on the high-cap islands. Plants stay
-      // in the front arc (else they hide under the canopy) and clear of the trunk.
-      const slot = -Math.PI / 6 + ((j + 0.5) / n) * ARC;
-      const jitterA =
-        (rand01(hash(`${story.id}:${cap.id}:a`)) - 0.5) * (ARC / n) * (plantsScatter ? 1.5 : 0.5);
-      const angle = slot + jitterA;
-      const rr = plantsScatter
-        ? Math.max(
-            crownR * 0.95,
-            ringR * (0.62 + rand01(hash(`${story.id}:${cap.id}:rb`)) * 0.72),
-          )
-        : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * tileUnits(10);
-      // `angle` is a GROUND bearing and `rr` a GROUND radius, so the ring is a circle on the land;
-      // `groundPolarOffset` projects it ONCE, through the declared camera, into the screen offset the
-      // already-projected `treeSpot` needs. The retired `* 0.66` was a hand-picked top-down squash
-      // where the camera says `sin 20° ≈ 0.342` — a 1.93x ground ellipse (measured), so a plant
-      // asked for `rr` landed up to 93% further out in ground-y than in ground-x. Each of these is
-      // its capability's parcel seed (`capToParcel`), so the ellipse was skewing the partition that
-      // decides which ground each capability owns.
-      const off = groundPolarOffset(angle, rr);
-      let x = treeSpot.x + off.x;
-      let y = treeSpot.y + off.y;
-      // The keep-IN walk stays in screen space, correctly: a 25% step toward `treeSpot` is an AFFINE
-      // interpolation, so it is the same 25% of the way across the ground — and `pixelToHex` reads
-      // the same declared camera these points were projected through.
-      let steps = 0;
-      for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }))) !== i; k++) {
-        x += (treeSpot.x - x) * 0.25;
-        y += (treeSpot.y - y) * 0.25;
-        steps += 1;
-      }
-      // The SAME spot before the camera (ADR-0527 D1). Each walk step leaves the offset at 75% of
-      // itself (`p += (anchor - p) * 0.25` ⇒ `p - anchor` scales by 0.75), so the walked offset is
-      // the original one shrunk by `0.75^steps` — and the walk's own TEST is the screen point, which
-      // is why the count is taken from the loop above rather than re-run here. `groundPolarOffset` is
-      // linear in `r`, so projecting this lands exactly on `x`/`y`: same point, two spaces.
-      const reach = rr * 0.75 ** steps;
-      const groundSpot: Pt = {
-        x: groundTreeSpot.x + Math.cos(angle) * reach,
-        y: groundTreeSpot.y + Math.sin(angle) * reach,
-      };
-      return { cap, x, y, groundSpot };
-    });
-
-    const decor: DecorSpot[] = [];
-    const wheatTiles = new Set<string>();
-
-    // Territory boundary: every tile edge whose neighbour is foreign soil.
-    //
-    // ADR-0367's fourth named cost: `coast.ts`'s outset (`COAST_OUTSET`) pushes each boundary
-    // vertex along its local edge normal by a FIXED distance — isotropic, only a true "beach
-    // width" in the ground plane, exactly like `routeTrails`'s obstacle radius. Build the
-    // boundary from GROUND-SPACE hex corners (`PLAN_VIEW_ELEVATION_DEG` recovers the
-    // pre-camera, un-flattened positions), so the outset + Chaikin smoothing both run in ground
-    // space; the loop is projected to screen once, below, after `smoothCoast` returns it.
-    const mineSet = new Set(tiles.map(axialKey));
-    const boundary: BoundarySeg[] = [];
-    for (const tile of tiles) {
-      const c = hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
-      const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
-      AXIAL_DIRS.forEach((d, e) => {
-        if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
-        const a = corners[e];
-        const b = corners[(e + 1) % 6];
-        if (a && b) boundary.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
-      });
-    }
-
-    // ADR-0367's named accepted cost: `HEX_R` is a GROUND radius, so a nameplate baseline that adds
-    // it raw sat a cell-radius below the tiles in plan view and ~18 px too low the moment the land
-    // got a camera. The projected half-height is what a cell actually occupies on screen; TILE_DEPTH
-    // is already projected (an upright extrusion, so cos θ) and stays as it is.
-    const labelY =
-      Math.max(...centers.map((p) => p.y), centroid.y) +
-      groundRadiusToScreenHalfHeight(HEX_R) +
-      TILE_DEPTH +
-      tileUnits(8);
-    // `smoothCoast` outsets + smooths in GROUND space (see the boundary comment above), and the
-    // loops now leave in that space (ADR-0527 D1). `buildScene` projects them at the camera it is
-    // asked for and draws the path there, applying the SAME order this function used to —
-    // project, then smooth — which is what makes the map byte-identical across the move
-    // (`projection-equivariance.test.ts` holds that, and records why the OTHER order is the same
-    // curve but not the same bytes).
-    const coast = smoothCoast(boundary, story.id, COAST_OUTSET_ON_TILE); // the beach on the shipped tile (ADR-0528)
-
-    // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
-    // building-incident, "you carry the icon of what you depend on"). Fan the stamps around the
-    // tree — alternate sides and step the radius out per index so several never overlap (studio
-    // carries two) — then walk each inward until it sits on owned land (the garden-plant land-snap,
-    // so it never floats over the sea). Deterministic per (story, icon): a stamp never reshuffles.
-    const carried = carriedIcons.get(story.id) ?? [];
-    const stamps = carried.map((icon, si) => {
-      const side = si % 2 === 0 ? -1 : 1;
-      const tier = Math.floor(si / 2); // each side-pair steps further out
-      let bx = treeSpot.x + side * (crownR + tileUnits(17 + tier * 26));
-      let by = treeSpot.y + tileUnits(7 + tier * 6); // a touch in front of the trunk base, lower per tier
-      for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
-        bx += (treeSpot.x - bx) * 0.3;
-        by += (treeSpot.y - by) * 0.3;
-      }
-      return { icon, spot: { x: bx, y: by } };
-    });
-    return {
-      story,
-      tiles,
-      centroid,
-      radius,
-      groundRadius,
-      treeSpot,
-      groundCentroid,
-      groundTreeSpot,
-      caps,
-      decor,
-      wheatTiles,
-      coastGroundLoops: coast.loops,
-      labelY,
-      stamps,
-      // ADR-0088 (+ owner 2026-06-22 follow-on): building-class stories never render on the map
-      // (they live in the Shared Islands panel) AND the panel's bookshelf landmark now sits
-      // OUTSIDE the name card (SharedIslandCard draws it), so NO nameplate ever carries the
-      // in-card building glyph — it is always false here.
-      buildingGlyph: false,
-    };
-  });
-
-  // The pale coast: up to two rings of unclaimed hexes around the land.
-  //
-  // Each coast hex is ATTRIBUTED to the territory whose land it grew out of (ADR-0286). The moat
-  // is derived from the UNION of claimed tiles, so it has no owner of its own — but the Act 2
-  // regrow hides an island until it forms, and an unowned moat kept drawing the whole forest's
-  // silhouette from frame one. Propagating the owner outward through the ring walk is the honest
-  // attribution: ring 0 inherits the claimed tile it touched, ring 1 inherits the ring-0 hex it
-  // grew from. A hex two islands both reach is claimed by whichever the walk reaches it from
-  // first, which is deterministic because `owner` is built in territory order.
-  const empties: SceneEmptyHex[] = [];
-  const emptySet = new Set<string>();
-  let ring: { h: Axial; owner: number }[] = [...owner.entries()].map(([k, idx]) => {
-    const parts = k.split(',');
-    return { h: { q: Number(parts[0]), r: Number(parts[1]) }, owner: idx };
-  });
-  for (let depth = 0; depth < 2; depth++) {
-    const next: { h: Axial; owner: number }[] = [];
-    for (const t of ring) {
-      for (const d of AXIAL_DIRS) {
-        const cand = { q: t.h.q + d.q, r: t.h.r + d.r };
-        const key = axialKey(cand);
-        if (owner.has(key) || emptySet.has(key)) continue;
-        // Thin the outer ring for an organic coastline.
-        if (depth === 1 && rand01(hash(`coast:${key}`)) < 0.45) continue;
-        emptySet.add(key);
-        empties.push({ ...cand, owner: t.owner });
-        next.push({ h: cand, owner: t.owner });
-      }
-    }
-    ring = next;
-  }
-
-  // Global back-to-front tile order so extrusions layer correctly.
-  const drawTiles = [...owner.entries()]
-    .map(([key, idx]) => {
-      const parts = key.split(',');
-      return { h: { q: Number(parts[0]), r: Number(parts[1]) }, owner: idx };
-    })
-    .sort((a, b) => a.h.r - b.h.r || a.h.q - b.h.q);
-
-  // The `depends_on` edges route as the ADR-0169 TRAIL NETWORK for BOTH layouts — one
-  // deterministic cost-grid pass over the whole world (`routeTrails`, the shared core):
-  // island discs avoided, trunks merged by reuse, caves only when forced. The islands
-  // are obstacle discs at each territory's centroid; the disc radius keeps the old
-  // dock inset (`radius * 0.82`) so trail endpoints land on the coast, not offshore
-  // (the routing docks each end at `centre + bearing * r`). The seed folds the layout
-  // mode + the story ids, so the network is stable across renders and re-routes only
-  // when the world actually changes. Building-tagged stories (ADR-0076 §2 / ADR-0088)
-  // never enter `edgeList`, so no trail to a building can exist — no filter needed.
-  // A world with no edges (the Shared-Islands panel's one-island worlds) skips the
-  // router entirely.
-  //
-  // ADR-0367's third named cost: `routeTrails` reasons in ISOTROPIC screen distances (clearance,
-  // falloff, the obstacle radius itself), which is only true in the GROUND plane — a ground-plane
-  // disc seen through the land's declared camera is an ELLIPSE, and feeding the router the
-  // already-PROJECTED (compressed) centroid with an un-projected radius inflates the effective
-  // obstacle far past the island's real footprint, forcing edges that could route around an
-  // island to give up and tunnel under it instead (`land-camera-consumers-reconcile`'s measured
-  // 0 -> 156 `world-cave` delta). So route with GROUND-SPACE islands (`hexCenter` at
-  // `PLAN_VIEW_ELEVATION_DEG` recovers the pre-camera, un-flattened tile positions exactly) and
-  // project the routed network back to screen space once, at the end, via `projectTrailNetwork`.
-  const trailIslands: TrailIsland[] = territories.map((t) => {
-    const groundCenters = t.tiles.map((tile) => hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
-    const groundCentroid: Pt = {
-      x: groundCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundCenters.length, 1),
-      y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
-    };
-    const groundRadius =
-      // The router's obstacle discs are isotropic, so both the centroid and this radius are built
-      // from PLAN_VIEW_ELEVATION_DEG centres and the network is projected once at the end
-      // (`projectTrailNetwork`). Mixing the two spaces here is the measured 0 -> 156 `world-cave`
-      // regression named in the comment above.
-      // ground-space: pre-camera tile centres, so the obstacle disc stays isotropic
-      Math.max(0, ...groundCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
-      HEX_R;
-    return { id: t.story.id, x: groundCentroid.x, y: groundCentroid.y, r: groundRadius * 0.82 };
-  });
-  const trails: TrailNetwork =
-    edgeList.length && territories.length
-      ? projectTrailNetwork(
-          routeTrails(
-            trailIslands,
-            edgeList.map((e) => ({
-              from: e.from,
-              to: e.to,
-              title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
-            })),
-            `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
-          ),
-          trailIslands,
-        )
-      : { segments: [], edges: [], caves: [], dropped: [] };
-
-  // ADR-0283 D2: the radial `solar` assembly that used to build a `world.solar` layer here — the
-  // hub centre, the rank orbit rings and the `consumed_by` spoke lines — is gone with the layout
-  // it served, and the `HexWorld` field it fed went with it.
-
-  // Scene bounds over every tile (claimed + coast), plus label + tree space.
-  //
-  // `empties.map(hexCenter)` (not the arrow-wrapped form used just above) is the SAME
-  // `Array.prototype.map` arity trap documented on `centers` above: it fed every coast hex's ARRAY
-  // INDEX into `hexCenter`'s `elevationDeg`, so a coast ring's outer hexes (dozens to hundreds of
-  // them, at increasing indices) were flattened at wildly wrong, ever-growing "degree" values —
-  // `Math.sin` swinging through its full range past 90 deg — rather than the declared 20 deg camera.
-  // This is what fed `allCenters`, and therefore `minY`/`maxY` below, values orders of magnitude
-  // outside the map's true extent: the measured content-extent collapse's dominant cause, not the
-  // vertical-squash story this increment's own trap warns against assuming.
-  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map((e) => hexCenter(e))];
-  const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
-  const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
-  // Same reconciliation as the nameplate baseline above (ADR-0367's second named cost): the vertical
-  // bounds must use a cell's PROJECTED half-height, or an angled map is cropped at the top and given
-  // a cell-radius of dead space at the bottom. The x bounds keep `HEX_W / 2` — the q axis runs across
-  // the screen and does not foreshorten.
-  const hexHalfHeight = groundRadiusToScreenHalfHeight(HEX_R);
-  const minY =
-    Math.min(
-      ...allCenters.map((p) => p.y - hexHalfHeight),
-      ...territories.map((t) => t.treeSpot.y - storyTreeReach(t.story.capabilities.length)),
-    ) - MARGIN;
-  const maxY =
-    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + tileUnits(34))) +
-    hexHalfHeight +
-    TILE_DEPTH +
-    MARGIN / 2;
-
-  return {
-    territories,
-    empties,
-    drawTiles,
-    trails,
-    width: Math.ceil(maxX - minX),
-    height: Math.ceil(maxY - minY),
-    offset: { x: -minX, y: -minY },
-  };
+  // Built in steps rather than spread-conditionally: under `exactOptionalPropertyTypes` an absent
+  // `spacing` and one present-and-undefined are different things, and the packer's default depends
+  // on the difference.
+  const packOpts: PackOptions = { plantsScatter: opts?.plantsScatter ?? false, carriedIcons };
+  if (opts?.spacing) packOpts.spacing = opts.spacing;
+  return packWorld(stories, packOpts);
 }
 
 // ---------- relaxed substrate (the island ground) — ADR-0093 shared core ----------

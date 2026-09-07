@@ -958,6 +958,17 @@ export interface TraversalSessionEntry {
   eventCount: number;
   /** `null` when no event in the trace carried a usable timestamp — never a fabricated "now". */
   lastObservedAt: string | null;
+  /**
+   * The units this session RECORDED for itself (ADR-0541 D1) — its declared `cut_for` rider unioned
+   * with the units it claimed at `noticeboard declare`.
+   *
+   * ⚠ IT TRAVELS BESIDE `arcs`, NOT INSTEAD OF IT. An empty `arcs` means two different things and
+   * only this list separates them: units present is a session that claimed real work belonging to no
+   * arc, no units at all is a session that recorded nothing (ADR-0541 D4).
+   */
+  units: string[];
+  /** Every arc those units resolve to. Several are LISTED, never reduced to one. */
+  arcs: string[];
 }
 
 /**
@@ -970,6 +981,12 @@ export interface TraversalSessionEntry {
  */
 export interface TraversalSessionsPayload {
   dir: string;
+  /**
+   * Whether the corpus could be consulted at all (ADR-0541 D1). FALSE makes every row's empty `arcs`
+   * UNKNOWN rather than empty — the offline json backend holds no arcs, and reporting that absence
+   * as "worked on no arc" would be a claim about the work made on the strength of a silent store.
+   */
+  arcsResolved: boolean;
   sessions: TraversalSessionEntry[];
 }
 

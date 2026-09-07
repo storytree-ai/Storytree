@@ -1,7 +1,11 @@
-// islandSpacing.ts — THE FOREST'S SPACING IS A FRACTION OF ISLAND SIZE, NOT THREE NUMBERS BY EYE.
+// spacing.ts — THE FOREST'S SPACING IS A FRACTION OF ISLAND SIZE, NOT THREE NUMBERS BY EYE.
+//
+// Moved here from `apps/studio/src/lib/islandSpacing.ts` with the packer it feeds
+// (`the-packing-moves-to-its-own-package`, ADR-0537 D1). Unchanged apart from that name and the
+// two references below that pointed at its old home.
 //
 // ADR-0521 (owner-directed, 2026-09-05): *"just go straight to C, this really needs to be
-// procedurally determined."* The 2D row packer (`buildWorld`, TreeView.tsx) used to hold three
+// procedurally determined."* The 2D row packer (`packWorld`, `pack.ts`) used to hold three
 // absolute constants — `RANK_GAP` 40, `ISLAND_GAP` 60, `RANK_SWING` 140 units, chosen by eye and
 // halved on the owner's 2026-08-16 call. ADR-0520 then sized every island from a land-per-capability
 // ratio, so half the layout became derived while the gaps stayed hand-picked, and the fitted forest
@@ -22,13 +26,13 @@
 // Changing it is a rendered ladder, never a hand edit.
 //
 // ⚠ THE HEX LATTICE IS THE FLOOR, NOT THE RATIO. Seeds closer than their combined ring reach are
-// nudged apart by `buildWorld`'s growth-floor pass whatever the gap says, so two 2D islands never
+// nudged apart by `packWorld`'s growth-floor pass whatever the gap says, so two 2D islands never
 // interpenetrate and rung 0 is "as close as the tiles allow", not "touching". The 3D island is
 // smaller than its tile footprint (ADR-0520 sizes it in place), so the water between two 3D islands
 // can never fall below the floor's residue — a bound the ladder shows rather than argues.
 
 /** The three absolute gaps the packer held before ADR-0521, in ground units — TYPED AS HISTORY.
- *  A comparison page's control arm stands on them (`buildWorld`'s `spacing.legacy`), because the
+ *  A comparison page's control arm stands on them (`packWorld`'s `spacing.legacy`), because the
  *  picture the owner saw before this landing cannot be composed from the shipped constants any
  *  more. Nothing on the shipped path reads them. */
 export interface LegacySpacing {

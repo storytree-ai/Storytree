@@ -71,6 +71,33 @@ export function projectGround(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVATIO
 }
 
 /**
+ * A polar offset of GROUND radius `r` at ground bearing `ang`, returned in SCREEN units — what a
+ * layout or a scatter adds to an ALREADY-PROJECTED anchor to land `r` away across the ground.
+ *
+ * It replaces `{ cos·r, sin·r·0.7 }` (and the studio layout's `0.66` twin): both were hand-picked
+ * top-down squashes inherited from the wisp orbit, with no relation to the shape the island
+ * actually projects to. At the declared camera the same disc projects at `sin 20° = 0.342`, so the
+ * old offsets over-reached the island's own projected height by roughly a factor of two — which is
+ * what pushed scatter candidates into the water and exhausted the draws.
+ *
+ * ⚠ THIS IS THE ONE DEFINITION, and the SECOND one is why (ADR-0537). `scene.ts` held it privately
+ * and `TreeView.tsx` held a deliberate local copy whose own comment gave the reason in terms: the
+ * copy was cheaper than an engine sync and a web pin bump for two lines of arithmetic. ADR-0537
+ * ruled that the publishing toll may not draw this boundary, so the copy is gone and the export
+ * stands here beside {@link projectGround}, the function it is a polar spelling of.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — the third parameter `.map` supplies would
+ * land in `elevationDeg` (the `['1','2'].map(parseInt)` trap {@link projectGround} documents).
+ */
+export function groundPolarOffset(
+  ang: number,
+  r: number,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): Pt {
+  return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r }, elevationDeg);
+}
+
+/**
  * The inverse of {@link projectGround}: screen space back onto the ground plane.
  *
  * ⚠ Same point-free `.map` trap as {@link projectGround} — never pass this bare to `.map`.

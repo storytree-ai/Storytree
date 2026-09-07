@@ -2233,7 +2233,7 @@ export async function handleApiRequest(
       // LOCAL JSONL trace dir (ADR-0241). Member-readable by the gate's GET rule and read-only by
       // decision. Local by the owner's 2026-08-10 call — the hosted container holds no operator
       // traces, so hosted answers an honest empty list rather than inventing one. See traversalApi.ts.
-      await handleTraversal(req, res, url);
+      await handleTraversal(req, res, url, ctx.backend);
     } else if (url.pathname === '/api/context-windows') {
       // ADR-0452 D1/D2 as repointed by ADR-0456 D2 — ONE host window's occupancy series, read
       // straight from the ambient host transcripts rather than from ingested traces (only 2 of 697

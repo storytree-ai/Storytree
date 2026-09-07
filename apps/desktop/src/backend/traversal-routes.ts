@@ -58,6 +58,48 @@ function loadTraversalReplay(): Promise<SpawnModule> {
   return (spawnModulePromise ??= import("@storytree/context-traversal-spawn"));
 }
 
+// The arc organism, pulled the same lazy way and for the same reasons: it is node-only, and this
+// sidecar starts on every app launch. Only the unit -> arc lookup is wanted here (ADR-0541 D1).
+type ArcModule = typeof import("@storytree/arc");
+let arcModulePromise: Promise<ArcModule> | null = null;
+function loadArc(): Promise<ArcModule> {
+  return (arcModulePromise ??= import("@storytree/arc"));
+}
+
+/**
+ * What the sessions route needs to turn a recorded unit id into an ARC NAME (ADR-0541 D1) — the
+ * desktop's own composition of the studio's `TraversalCorpusCtx`, re-composed rather than imported
+ * (ADR-0176's one-wired-backend rule). The mount was dep-free until this landed, because the trace
+ * dir and transcript root are ambient; the CORPUS is not ambient, so it is injected.
+ *
+ * ABSENT OR NULL-ANSWERING IS A NORMAL STATE: the probes drive this dispatcher with no store at all.
+ */
+export interface TraversalCorpusDeps {
+  readonly docStore?: (() => Promise<LibraryDocStore | null>) | undefined;
+}
+
+/**
+ * DRIVE'S OWN `Store` type, reached structurally so this module needs no `@storytree/storage-protocol`
+ * import — that package is the arc organism's declared dep and not desktop's, and pnpm's strict
+ * isolation will not resolve it from here. The same route `local-backend.ts` takes for the identical
+ * seam, and derived from the same function so the two spellings cannot diverge.
+ */
+type LibraryDocStore = Parameters<ArcModule["loadUnitArcIndex"]>[0];
+
+/**
+ * The unit -> arc lookup for this request, or null when the corpus cannot be consulted.
+ *
+ * ⚠ NULL AND AN EMPTY INDEX ARE DIFFERENT. An empty index resolves every unit to nothing, which the
+ * rail renders as "worked on no arc" — a positive claim about the work. Every failure path returns
+ * null so that claim can only be made against a real corpus.
+ */
+async function loadUnitArcIndexOrNull(deps: TraversalCorpusDeps) {
+  const store = await (deps.docStore?.() ?? Promise.resolve(null));
+  if (store === null) return null;
+  const { loadUnitArcIndex } = await loadArc();
+  return loadUnitArcIndex(store);
+}
+
 type CaptureModule = typeof import("@storytree/context-traversal-capture");
 let captureModulePromise: Promise<CaptureModule> | null = null;
 function loadTraversalSink(): Promise<CaptureModule> {
@@ -121,11 +163,24 @@ interface TraversalSessionsWire {
    * an operator nothing to check.
    */
   readonly dir: string;
+  /**
+   * Whether the corpus could be consulted at all (ADR-0541 D1). FALSE makes every row's empty `arcs`
+   * UNKNOWN rather than empty — a backend with no document store could look nothing up, and
+   * reporting that as "worked on no arc" would be a claim about the work made on a silent store.
+   */
+  readonly arcsResolved: boolean;
   readonly sessions: readonly {
     readonly sessionId: string;
     readonly eventCount: number;
     /** `null` when no event in the trace carried a usable timestamp — never a fabricated "now". */
     readonly lastObservedAt: string | null;
+    /**
+     * The units this session recorded for itself. It travels even when it resolves, because an empty
+     * `arcs` means two different things and only this list separates them (ADR-0541 D4).
+     */
+    readonly units: readonly string[];
+    /** Every arc those units resolve to. Several are LISTED, never reduced to one. */
+    readonly arcs: readonly string[];
   }[];
 }
 
@@ -157,16 +212,29 @@ export async function primeTraversalRoutes(): Promise<void> {
   }
 }
 
-async function serveSessions(res: ServerResponse): Promise<void> {
+async function serveSessions(res: ServerResponse, deps: TraversalCorpusDeps): Promise<void> {
   const { resolveTraversalDir, listTraversalSessionsIncremental } = await loadTraversalSink();
   const dir = resolveTraversalDir();
+  // ONE corpus read for the whole list, never one per row, and through the SAME `resolveUnitArcs`
+  // the studio calls — the substance stays shared code and only the envelope is re-composed here.
+  const index = await loadUnitArcIndexOrNull(deps);
+  const { resolveUnitArcs } = await loadArc();
   const wire: TraversalSessionsWire = {
     dir,
-    sessions: listTraversalSessionsIncremental(dir).map((session) => ({
-      sessionId: session.sessionId,
-      eventCount: session.eventCount,
-      lastObservedAt: session.lastObservedAt ?? null,
-    })),
+    arcsResolved: index !== null,
+    sessions: listTraversalSessionsIncremental(dir).map((session) => {
+      // Already computed by the sink and, until ADR-0541 D1, thrown away one line later.
+      const recorded = session.origin.cutFor;
+      const resolved =
+        index === null ? { units: [...recorded], arcs: [] } : resolveUnitArcs(recorded, index);
+      return {
+        sessionId: session.sessionId,
+        eventCount: session.eventCount,
+        lastObservedAt: session.lastObservedAt ?? null,
+        units: resolved.units,
+        arcs: resolved.arcs,
+      };
+    }),
   };
   // An absent or empty trace dir is an EMPTY LIST, never an error: a machine that has captured
   // nothing yet is a normal state.
@@ -251,7 +319,7 @@ async function serveContextWindows(res: ServerResponse, url: URL): Promise<void>
  * so a copy that collapsed them into 500 would be present, reachable, and still wrong.
  */
 // Stryker restore BlockStatement,CallExpression
-export function createTraversalRoutes(): (
+export function createTraversalRoutes(deps: TraversalCorpusDeps = {}): (
   req: IncomingMessage,
   res: ServerResponse,
   pathname: string,
@@ -290,7 +358,7 @@ export function createTraversalRoutes(): (
       // parsed without some base. Any origin gives the same answer.
       const url = new URL(req.url ?? "/", "http://localhost");
 
-      if (pathname === "/api/traversal/sessions") await serveSessions(res);
+      if (pathname === "/api/traversal/sessions") await serveSessions(res, deps);
       else if (pathname === "/api/traversal") await serveReplay(res, url);
       else await serveContextWindows(res, url);
     } catch (err) {

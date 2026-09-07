@@ -16,6 +16,7 @@ export {
   groundFlattening,
   uprightForeshortening,
   projectGround,
+  groundPolarOffset,
   unprojectGround,
   groundRadiusToScreenHalfHeight,
   spriteUprightScale,

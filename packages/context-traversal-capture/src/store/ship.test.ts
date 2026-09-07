@@ -105,7 +105,8 @@ function capture(
     slot?: string;
     origin?: "human" | "cut";
     cutBy?: string;
-    cutFor?: string;
+    /** A string OR a list — one appended batch carries one identity stamp (ADR-0541 D2). */
+    cutFor?: string | readonly string[];
   },
 ): void {
   ensureShipBaseline(dir, sessionId);
@@ -848,4 +849,39 @@ test("the-two-windows-are-sized-for-what-they-wait-on: a throttle in minutes, a 
   assert.ok(SHIP_THROTTLE_MS >= 60_000, "a throttle shorter than a minute is a process per command");
   assert.ok(SHIP_THROTTLE_MS <= 60 * 60_000, "and one longer than an hour is not a live log");
   assert.ok(SHIP_WATCHDOG_MS >= 60_000, "a watchdog under a cold connector handshake kills every ship");
+});
+
+test("a-multi-unit-line-ships-NO-unit-rather-than-an-arbitrary-one-of-them", async () => {
+  // ⚠ The stated limit of the shared store (ADR-0541). `events.traversal_event.cut_for` is ONE text
+  // column holding one canonical id, and a session claiming several units writes a LIST locally.
+  // The two alternatives are both worse than an absence: picking one would put a guess in a column
+  // a reader would quote as a record, and a delimited encoding would give the same fact two shapes.
+  //
+  // Nothing in scope reads the shared store for arc attribution — the studio panel reads the local
+  // JSONL — and the local line keeps the whole truth, which is what makes the absence affordable.
+  const dir = freshDir("units-runs");
+  const sessionId = "s-multi-unit";
+
+  // One unit is a bare string and still ships, unchanged from before ADR-0541.
+  capture(dir, sessionId, 1, { grade: "window", origin: "cut", cutFor: "map-arc-inc-01" });
+  // A ONE-ELEMENT list is the same fact wearing the list's clothes, and ships identically — the
+  // writer never produces it, but a reader must not treat a shape difference as a value difference.
+  capture(dir, sessionId, 2, { grade: "window", origin: "cut", cutFor: ["map-arc-inc-01"] });
+  // SEVERAL cannot be represented, so the column takes null.
+  capture(dir, sessionId, 3, { grade: "window", origin: "cut", cutFor: ["cap-a", "cap-b"] });
+
+  const store = new RecordingStore();
+  await shipTraversalSession(sessionId, { dir, store, now });
+
+  assert.deepEqual(
+    store.appends.map((entry) => [entry.location.cutFor, entry.eventIds.length]),
+    [
+      ["map-arc-inc-01", 2],
+      [null, 1],
+    ],
+    "the bare string and the one-element list are ONE run; the multi-unit line is its own, with no unit",
+  );
+  // And the ORIGIN still ships on the multi-unit run — losing the unit must not lose the provenance
+  // beside it, which is a separate fact the column can hold perfectly well.
+  assert.equal(store.appends[1]?.location.origin, "cut");
 });

@@ -83,12 +83,41 @@ export interface SessionOrigin {
  */
 export const SessionOriginDeclarationDoc = z.object({
   v: z.literal(1),
-  origin: z.enum(["human", "cut"]),
+  /**
+   * ⚠ NULLABLE SINCE ADR-0541 D2, and the null is a real state rather than a tolerated absence: a
+   * session that CLAIMS WORK writes this file to record the units it claimed, and claiming work is
+   * not a claim of origin. Such a declaration states units and nothing else, so it must not be able
+   * to assert an origin nobody declared — {@link resolveSessionOrigin} falls THROUGH it to the
+   * environment rather than treating it as a `human`/`cut` answer.
+   */
+  //
+  // ⚠ ABSENT AND UNRECOGNISED STAY DIFFERENT, which is why this is a `preprocess` and not a
+  // `.catch(null)`. An ABSENT origin is the units-only declaration and reads as null; an
+  // origin WORD this reader does not know still REJECTS the whole document — "a declaration this
+  // reader cannot understand is no claim at all" — because coercing it to null would quietly accept
+  // a file written by a version whose meaning we cannot vouch for.
+  origin: z.preprocess((v) => (v === undefined ? null : v), z.enum(["human", "cut"]).nullable()),
   // `.catch(null)` covers BOTH an absent key and a value of the wrong shape, in one place: an
   // unusable rider must degrade to "not stated" without ever rejecting the ORIGIN, which is the
   // part that matters. The same rule `TraceLineDoc` follows for `grade` and `slot`.
   cutBy: z.string().min(1).nullable().catch(null),
   cutFor: z.string().min(1).nullable().catch(null),
+  /**
+   * THE UNITS THIS SESSION CLAIMED (ADR-0541 D2) — written by `noticeboard declare` at the moment
+   * it claims, so the arc a session was working on becomes a RECORDED FACT rather than a derived one.
+   *
+   * A SECOND FIELD BESIDE `cutFor`, not a widening of it, because the two are different evidence.
+   * `cutFor` is provenance — "the unit I was CUT to drive" — and the `traversal origin` verb's rules
+   * about it (ADR-0487 clause 1) are explicitly untouched, including its refusal to hang cut riders
+   * on a `human` origin. This is activity: "the units I claimed", recorded whatever the origin. They
+   * meet at the trace line, where {@link resolveSessionUnits} unions them into the one plural rider a
+   * reader sees — which is the level ADR-0541's annotation on ADR-0487 describes.
+   *
+   * `.catch([])` on the same rule as the riders above: every declaration written before this landed
+   * has no such key, and an unusable value must degrade to "claimed nothing" rather than reject the
+   * whole document and un-declare a session's origin.
+   */
+  units: z.array(z.string().min(1)).catch([]),
   /** When the session declared. Read by the `traversal origin` render, never by the resolution. */
   declaredAt: z.string().min(1).nullable().catch(null),
 });
@@ -143,7 +172,13 @@ function originOf(
  */
 export function resolveSessionOrigin(input: SessionOriginInput): SessionOrigin | null {
   const declared = input.declaration;
-  if (declared !== null) return originOf(declared.origin, declared.cutBy, declared.cutFor);
+  // ⚠ A declaration with a NULL origin states no origin and therefore wins NOTHING here (ADR-0541
+  // D2): it is the file a session writes when it CLAIMS WORK, which says what it is working on and
+  // nothing about how it came to exist. Letting it short-circuit would mean claiming work silently
+  // un-declared an origin the environment had established — a claim erasing a claim.
+  if (declared !== null && declared.origin !== null) {
+    return originOf(declared.origin, declared.cutBy, declared.cutFor);
+  }
 
   const word = trimmedEnv(input.env, SESSION_ORIGIN_ENV);
   const cutBy = trimmedEnv(input.env, CUT_BY_SESSION_ENV);
@@ -180,8 +215,15 @@ export interface OriginDeclarationRequest {
   readonly cutFor?: string | undefined;
 }
 
+/**
+ * ⚠ THE VERB'S DECLARATION ALWAYS STATES AN ORIGIN, and the type says so. The persisted document's
+ * `origin` is nullable since ADR-0541 D2 — a session that only CLAIMS WORK writes one with no origin
+ * — but this outcome is the operator-run verb's, whose whole job is to establish one; every path
+ * that cannot is a refusal. Narrowing it here means a render of this result never has to handle a
+ * null it cannot receive, and never has to invent a word for it.
+ */
 export type OriginDeclarationOutcome =
-  | { readonly declaration: SessionOriginDeclaration }
+  | { readonly declaration: SessionOriginDeclaration & { readonly origin: SessionOriginKind } }
   | { readonly refusedBecause: OriginDeclarationRefusal };
 
 /**
@@ -194,10 +236,18 @@ export type OriginDeclarationOutcome =
 export function declareSessionOrigin(
   request: OriginDeclarationRequest,
   declaredAt: string,
+  existing: SessionOriginDeclaration | null = null,
 ): OriginDeclarationOutcome {
   const word = request.origin;
   const cutBy = request.cutBy ?? null;
   const cutFor = request.cutFor ?? null;
+  // ⚠ THE CLAIMED UNITS SURVIVE A RE-DECLARATION, and that is why `existing` is a parameter of the
+  // JUDGE rather than something the caller stitches on afterwards (ADR-0541 D2). Re-declaring an
+  // origin corrects the ORIGIN; it says nothing about the work the session claimed, and the write is
+  // a whole-file replace — so a caller that assembled the document itself would silently delete the
+  // units on the next `traversal origin` run. There is one way to build this document, and it cannot
+  // lose them.
+  const units = existing?.units ?? [];
 
   if (word !== undefined && word !== "human" && word !== "cut") {
     return { refusedBecause: "origin-word-unknown" };
@@ -206,15 +256,58 @@ export function declareSessionOrigin(
     return { refusedBecause: "human-carries-no-cut-riders" };
   }
   if (word === "human") {
-    return { declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, declaredAt } };
+    return { declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, units, declaredAt } };
   }
   // The resolver's own rule, not a second one: naming a cutter IS the claim, so the origin word is
   // not required beside it.
   if (word === "cut" || cutBy !== null) {
-    return { declaration: { v: 1, origin: "cut", cutBy, cutFor, declaredAt } };
+    return { declaration: { v: 1, origin: "cut", cutBy, cutFor, units, declaredAt } };
   }
   if (cutFor !== null) return { refusedBecause: "cut-for-alone-declares-nothing" };
   return { refusedBecause: "nothing-to-declare" };
+}
+
+/**
+ * THE DECLARATION A SESSION WRITES WHEN IT CLAIMS WORK — `noticeboard declare`'s automatic channel
+ * (ADR-0541 D2), the sibling of the operator-run {@link declareSessionOrigin} above.
+ *
+ * ⚠ IT TOUCHES THE ORIGIN HALF NOT AT ALL, and that is the decision. Claiming work is not a claim of
+ * origin: a session that claims `map-arc-inc-01` has said what it is DOING, not how it came to
+ * exist, and stamping an origin here would be exactly the inference ADR-0484 D7 exists to refuse —
+ * arriving through a back door, on a path nobody would think to read as a provenance claim. An
+ * undeclared session that claims work therefore stays `unknown` for origin and gains a unit.
+ *
+ * UNITS ACCUMULATE rather than replace, because a session claims over its lifetime: it declares one
+ * capability, then another, and both are true of the trace. First-seen order, deduped, blanks
+ * dropped — the {@link foldSessionOrigin} rule, applied to the write side.
+ *
+ * Returns `null` when there is NOTHING NEW to record — no usable unit, or every unit already
+ * present. A null is what lets the caller skip the write entirely, so a declare that re-states an
+ * existing claim does not rewrite the file (and, more importantly, does not restamp `declaredAt`
+ * over the moment the session actually first said this).
+ */
+export function withClaimedUnits(
+  existing: SessionOriginDeclaration | null,
+  units: readonly string[],
+  declaredAt: string,
+): SessionOriginDeclaration | null {
+  const merged = [...(existing?.units ?? [])];
+  let added = false;
+  for (const unit of units) {
+    const trimmed = unit.trim();
+    if (trimmed.length === 0 || merged.includes(trimmed)) continue;
+    merged.push(trimmed);
+    added = true;
+  }
+  if (!added) return null;
+  return {
+    v: 1,
+    origin: existing?.origin ?? null,
+    cutBy: existing?.cutBy ?? null,
+    cutFor: existing?.cutFor ?? null,
+    units: merged,
+    declaredAt: existing?.declaredAt ?? declaredAt,
+  };
 }
 
 /**
@@ -290,17 +383,70 @@ export function foldSessionOrigin(claims: readonly SessionOriginClaim[]): TraceO
   const cutBy: string[] = [];
   const cutFor: string[] = [];
   for (const claim of claims) {
-    // A rider is a NON-EMPTY string or it is nothing: `null` (the column's own absence) and `""` (a
-    // caller with nothing to say) both name nobody and must not become an entry a reader could
-    // quote back as a cutter — the rule `slots` already follows.
-    if (typeof claim.cutBy === "string" && claim.cutBy.length > 0 && !cutBy.includes(claim.cutBy)) {
-      cutBy.push(claim.cutBy);
-    }
-    if (typeof claim.cutFor === "string" && claim.cutFor.length > 0 && !cutFor.includes(claim.cutFor)) {
-      cutFor.push(claim.cutFor);
-    }
+    collectNames(claim.cutBy, cutBy);
+    collectNames(claim.cutFor, cutFor);
   }
   return { reading: classifySessionOrigin(claims.map((claim) => claim.origin)), cutBy, cutFor };
+}
+
+/**
+ * Add whatever a rider NAMES to `into` — first-seen order, deduped.
+ *
+ * A rider is a NON-EMPTY string, or a LIST of them, or it names nobody: `null` (the column's own
+ * absence), `""` (a caller with nothing to say) and every other shape all contribute nothing and
+ * must never become an entry a reader could quote back — the rule `slots` already follows.
+ *
+ * ⚠ THE LIST FORM IS WHY THIS IS A FUNCTION. A session that claims SEVERAL units records several
+ * (ADR-0541 D2), and one appended line carries one identity stamp — so the plural has to live inside
+ * the rider itself. This is the one place that decides what names somebody, and it is shared with the
+ * Postgres reader, so both backends learn the list form together or neither does. Written twice
+ * inline, they would not have.
+ */
+function collectNames(value: unknown, into: string[]): void {
+  if (typeof value === "string") {
+    if (value.length > 0 && !into.includes(value)) into.push(value);
+    return;
+  }
+  if (!Array.isArray(value)) return;
+  for (const entry of value) collectNames(entry, into);
+}
+
+/**
+ * THE UNITS THIS SESSION HAS NAMED — the plural rider a trace line carries (ADR-0541 D2).
+ *
+ * TWO SOURCES, ONE READING. The `cutFor` an established origin carries is provenance: the unit a
+ * predecessor cut this session to drive. The declaration's `units` are activity: what the session
+ * claimed on the ledger. They answer the same question a reader of the trace rail is asking — *what
+ * was this session working on* — so they meet here, unioned, first-seen order, deduped.
+ *
+ * ⚠ RECORDED WHATEVER THE ORIGIN, which is the half ADR-0541 D2 moves. Before it, the unit rode an
+ * established `cut` origin and was dropped without one — so a human-started session that claimed
+ * real work recorded nothing, and 20% of the September population would have read as unknown while
+ * being perfectly well known. The units no longer wait for an origin to exist.
+ */
+export function resolveSessionUnits(input: {
+  readonly origin: SessionOrigin | null;
+  readonly declaration: SessionOriginDeclaration | null;
+}): readonly string[] {
+  const units: string[] = [];
+  collectNames(input.origin?.cutFor, units);
+  collectNames(input.declaration?.units, units);
+  return units;
+}
+
+/**
+ * The value a trace line's `cutFor` rider is stamped with for a given unit list, or null to stamp
+ * nothing.
+ *
+ * ONE UNIT STAYS A BARE STRING, and that is deliberate rather than an optimisation: it keeps the
+ * bytes of the overwhelmingly common case identical to every line written before ADR-0541, so a
+ * reader that has not learned the list form still reads them, and the shared store's single-valued
+ * `cut_for` column still receives them. The list form appears only where a single value genuinely
+ * cannot carry the fact.
+ */
+export function lineCutFor(units: readonly string[]): string | readonly string[] | null {
+  if (units.length === 0) return null;
+  return units.length === 1 ? (units[0] ?? null) : units;
 }
 
 /** One line saying what a reading means, for the replay and index renders. */

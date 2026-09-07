@@ -122,6 +122,9 @@ importers:
       '@storytree/drive':
         specifier: workspace:*
         version: link:../../packages/drive
+      '@storytree/forest-layout':
+        specifier: workspace:*
+        version: link:../../packages/forest-layout
       '@storytree/forest-world':
         specifier: workspace:*
         version: link:../../packages/forest-world
@@ -523,6 +526,19 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+
+  packages/forest-layout:
+    dependencies:
+      '@storytree/forest-world':
+        specifier: workspace:*
+        version: link:../forest-world
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
       typescript:
         specifier: ~7.0.2
         version: 7.0.2

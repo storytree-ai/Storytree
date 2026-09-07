@@ -84,8 +84,12 @@ for (const file of files) {
   process.env['STORYTREE_TRAVERSAL_DIR'] = fixture.traceDir;
   process.env['STORYTREE_TRANSCRIPT_DIR'] = fixture.transcriptRoot;
 
-  // NOTHING on the ApiContext is read by these three routes — they hold no store, no policy and no
-  // backend. It is cast rather than faked so that a route which ever started reaching for one fails
+  // NO BACKEND AND NO POLICY, deliberately. Since ADR-0541 D1 the sessions route DOES reach for one
+  // — `ctx.backend.docStore`, to resolve a recorded unit to its arc — and finding none is a state it
+  // reports rather than fails on: `arcsResolved: false`, which the panel renders as "unresolved"
+  // and never as "worked on no arc". That is exactly the shape worth mirroring here, because it is
+  // the one both surfaces answer for the same fixture. It stays cast rather than faked so that a
+  // route reaching for something it has no honest absent answer for still fails
   // loudly here rather than quietly widening what this comparison covers. No policy gate is wired,
   // so a non-GET reaches the handler and its own 405 instead of being refused upstream.
   const ctx = {} as ApiContext;

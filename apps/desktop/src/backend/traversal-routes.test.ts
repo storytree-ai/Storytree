@@ -40,6 +40,7 @@ import path from "node:path";
 import { appendTraversalEvents } from "@storytree/context-traversal-capture";
 
 import { createTraversalRoutes, primeTraversalRoutes } from "./traversal-routes.js";
+import type { TraversalCorpusDeps } from "./traversal-routes.js";
 
 const TRACE_DIR_ENV = "STORYTREE_TRAVERSAL_DIR";
 const TRANSCRIPT_DIR_ENV = "STORYTREE_TRANSCRIPT_DIR";
@@ -58,7 +59,7 @@ interface Harness {
  * dirs. The chain in `backend-entry.ts` hands each mount a PATHNAME, so this harness reproduces that
  * call shape exactly — a server that passed a URL would prove the wrong function's contract.
  */
-async function harness(): Promise<Harness> {
+async function harness(deps: TraversalCorpusDeps = {}): Promise<Harness> {
   const traceDir = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-traversal-"));
   const transcriptRoot = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-transcripts-"));
   const priorTrace = process.env[TRACE_DIR_ENV];
@@ -66,7 +67,7 @@ async function harness(): Promise<Harness> {
   process.env[TRACE_DIR_ENV] = traceDir;
   process.env[TRANSCRIPT_DIR_ENV] = transcriptRoot;
 
-  const routes = createTraversalRoutes();
+  const routes = createTraversalRoutes(deps);
   const server: Server = createServer((req, res) => {
     void (async () => {
       const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -322,7 +323,9 @@ test("traversal-routes: an EMPTY trace dir is an honest empty list, never an err
   try {
     const res = await fetch(`${h.base}/api/traversal/sessions`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { dir: h.traceDir, sessions: [] });
+    // `arcsResolved: false` rides along: this harness injects no document store, so the corpus was
+    // never consulted (ADR-0541 D1). It is a fact about the READ and is stated rather than implied.
+    assert.deepEqual(await res.json(), { dir: h.traceDir, arcsResolved: false, sessions: [] });
   } finally {
     await h.close();
   }
@@ -482,6 +485,145 @@ test("traversal-routes: priming a POPULATED trace dir warms it, and the route st
     const body = (await res.json()) as { dir: string; sessions: { sessionId: string }[] };
     assert.equal(body.dir, h.traceDir);
     assert.deepEqual(body.sessions.map((s) => s.sessionId), ["session-primed"]);
+  } finally {
+    await h.close();
+  }
+});
+
+// ---------- 5. THE ARC EACH SESSION RECORDED (ADR-0541 D1) ----------
+//
+// The one part of these three routes that DOES take a dep. Traces are local files and the mount was
+// dep-free; the CORPUS is not local-file data, so the document store is injected — and this surface
+// resolves through the SAME `resolveUnitArcs` the studio calls, so the substance stays shared code
+// and only the envelope is re-composed here (which is precisely what `check:mirror-conformance`
+// watches).
+
+/** A trace whose lines carry the `cutFor` rider the sink stamps — one unit, or several. */
+function writeUnitTrace(
+  dir: string,
+  sessionId: string,
+  cutFor: string | string[] | null,
+): void {
+  visit += 1;
+  const ok = appendTraversalEvents(
+    [
+      {
+        kind: "front_matter_read",
+        eventId: `event:visit-${visit}`,
+        sessionId,
+        visitId: `visit-${visit}`,
+        nodeId: "node-a",
+        surfaceId: "tree",
+        at: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    { dir, sessionId, origin: "cut", cutBy: "predecessor", cutFor },
+  );
+  assert.equal(ok, true, "the fixture must be written through the sink's own append");
+}
+
+/**
+ * The NARROW store seam the unit -> arc lookup reads through, reached structurally — the
+ * `ArcFixtureStore` route in `local-backend.test.ts`, for the same reason: `@storytree/storage-protocol`
+ * is the arc organism's declared dep and not desktop's, so pnpm's strict isolation will not resolve
+ * `InMemoryStore` from here.
+ */
+type UnitArcStoreSeam = Parameters<typeof import("@storytree/arc").loadUnitArcIndex>[0];
+
+interface FixtureDoc {
+  id: string;
+  kind: string;
+  doc: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A corpus holding arcs and the increments on them — enough to prove the lookup, not the join. */
+function arcCorpus(docs: readonly { id: string; kind: string; arcRef?: string }[]): UnitArcStoreSeam {
+  const rows: FixtureDoc[] = docs.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    doc: d.arcRef === undefined ? { kind: d.kind, id: d.id } : { kind: d.kind, id: d.id, arcRef: d.arcRef },
+    createdAt: "2026-09-05",
+    updatedAt: "2026-09-05",
+  }));
+  return {
+    queryDocs: async (filter) =>
+      filter?.kind === undefined ? rows : rows.filter((r) => r.kind === filter.kind),
+  };
+}
+
+const MAP_ARC_CORPUS = [
+  { id: "map-arc", kind: "arc" },
+  { id: "map-arc-inc-01", kind: "increment", arcRef: "asset:map-arc" },
+] as const;
+
+test("traversal-routes: the sessions index names the ARC a session recorded", async () => {
+  const store = arcCorpus(MAP_ARC_CORPUS);
+  const h = await harness({ docStore: async () => store });
+  try {
+    writeUnitTrace(h.traceDir, "session-on-an-arc", "map-arc-inc-01");
+    const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
+      arcsResolved: boolean;
+      sessions: { sessionId: string; units: string[]; arcs: string[] }[];
+    };
+    assert.equal(body.arcsResolved, true);
+    assert.deepEqual(body.sessions[0]?.units, ["map-arc-inc-01"]);
+    assert.deepEqual(body.sessions[0]?.arcs, ["map-arc"]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: WORKED ON NO ARC stays distinct from ARC NOT RECORDED", async () => {
+  // ⚠ ADR-0541 D4. Both rows carry an empty `arcs`; only `units` separates them, and collapsing
+  // them reports real work belonging to no arc as missing data.
+  const store = arcCorpus(MAP_ARC_CORPUS);
+  const h = await harness({ docStore: async () => store });
+  try {
+    writeUnitTrace(h.traceDir, "session-no-arc", "r3f-world-spike");
+    writeUnitTrace(h.traceDir, "session-unrecorded", null);
+    const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string; units: string[]; arcs: string[] }[];
+    };
+    const noArc = body.sessions.find((s) => s.sessionId === "session-no-arc");
+    const unrecorded = body.sessions.find((s) => s.sessionId === "session-unrecorded");
+    assert.deepEqual(noArc?.units, ["r3f-world-spike"]);
+    assert.deepEqual(noArc?.arcs, []);
+    assert.deepEqual(unrecorded?.units, []);
+    assert.deepEqual(unrecorded?.arcs, []);
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: a session claiming SEVERAL units lists every arc, never one", async () => {
+  const store = arcCorpus([...MAP_ARC_CORPUS, { id: "art-arc", kind: "arc" }]);
+  const h = await harness({ docStore: async () => store });
+  try {
+    writeUnitTrace(h.traceDir, "session-two-arcs", ["map-arc-inc-01", "art-arc"]);
+    const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
+      sessions: { arcs: string[] }[];
+    };
+    assert.deepEqual(body.sessions[0]?.arcs, ["map-arc", "art-arc"]);
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: a backend with NO document store reports arcsResolved:false, not 'no arc'", async () => {
+  // The units still travel — they are local-file data, and the store's absence does not erase what
+  // the session said about itself. What the absence does erase is any right to call it unhomed.
+  const h = await harness({ docStore: async () => null });
+  try {
+    writeUnitTrace(h.traceDir, "session-nostore", "map-arc-inc-01");
+    const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
+      arcsResolved: boolean;
+      sessions: { units: string[]; arcs: string[] }[];
+    };
+    assert.equal(body.arcsResolved, false);
+    assert.deepEqual(body.sessions[0]?.units, ["map-arc-inc-01"]);
+    assert.deepEqual(body.sessions[0]?.arcs, []);
   } finally {
     await h.close();
   }
