@@ -119,6 +119,46 @@ test("library artifact <id> --raw <field> observes the PARTIAL strength, and nev
   }
 });
 
+test("library artifact <id> --full is OBSERVED, as the full payload read it is", () => {
+  // ADR-0533 D4 moved a composed decision's body behind `--full`, which makes this the DEEPEST read
+  // of a decision available. An unlisted token returns null from `classifyArtifactReadFlags` and the
+  // invocation is dropped entirely, so leaving `--full` out would have made that deepest read the
+  // one shape recording nothing — while the now-shallower bare read kept recording as a full
+  // payload. Depth taken from the trace would have fallen exactly as sessions began reading MORE,
+  // and nothing in the data would have said so. Named here rather than left to the allowlist's
+  // generic arms because the direction of the error is the whole point.
+  for (const argv of [
+    ["library", "artifact", "artifact-1", "--full"],
+    ["library", "artifact", "artifact-1", "--full", "--pg"],
+  ]) {
+    const { deps } = harness();
+    const events = observeCliInvocation(argv, deps);
+    assert.equal(events.length, 1, `expected one event for ${JSON.stringify(argv)}`);
+    const [event] = events;
+    assert.equal(event?.kind, "full_payload_read", `${JSON.stringify(argv)} is the whole document`);
+    assert.equal(event && "nodeId" in event ? event.nodeId : undefined, "artifact-1");
+    assertValid(event);
+  }
+  // It takes NO value, so a following token is a stray positional rather than a consumed one — and
+  // the invocation is refused rather than silently reading a node named after it.
+  const { deps } = harness();
+  assert.deepEqual(observeCliInvocation(["library", "artifact", "artifact-1", "--full=yes"], deps), []);
+});
+
+test("--raw still wins over --full — weakest strength, whatever order they arrive in", () => {
+  // Not a shape the CLI accepts (`--raw` short-circuits the render before `--full` is read), but the
+  // classifier is a pure function over tokens and must not depend on that. If the precedence ever
+  // inverted, a one-field read carrying a stray `--full` would record as a whole-document read.
+  for (const argv of [
+    ["library", "artifact", "artifact-1", "--full", "--raw", "body"],
+    ["library", "artifact", "artifact-1", "--raw", "body", "--full"],
+  ]) {
+    const { deps } = harness();
+    const [event] = observeCliInvocation(argv, deps);
+    assert.equal(event?.kind, "front_matter_read", `${JSON.stringify(argv)} is still a field read`);
+  }
+});
+
 test("a flag outside the read allowlist still observes nothing — the widening is an allowlist, not a length change", () => {
   const { deps } = harness();
   const unobserved: readonly (readonly string[])[] = [
