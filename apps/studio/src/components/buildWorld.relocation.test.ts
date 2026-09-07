@@ -1,128 +1,151 @@
-// THE RELOCATION PROOF (`the-packing-moves-to-its-own-package`, ADR-0537 D1).
+// THE RELOCATION PROOF, STUDIO SIDE (`the-packing-moves-to-its-own-package`, ADR-0537 D1).
 //
-// The island packing — `buildWorld`, the derived gaps, the ground polar offset — moved out of
-// `TreeView.tsx` into `@storytree/forest-layout`. The increment's binding constraint is that the
-// move changed the layout's OUTPUT by NOTHING: "this is a relocation; the map it produces must be
-// provably the same."
+// `buildWorld` used to BE the island packing. It is now `chrome ∘ packWorld`: the packing moved
+// into `@storytree/forest-layout` and what stayed here is the two studio rules it was tangled with
+// — the `render: building` exclusion (ADR-0076 §2 / ADR-0088) and the ADR-0102 icon promotion.
+// The increment's binding constraint is that the composition changed the map by NOTHING.
 //
-// ⚠ WHAT MAKES THIS A PROOF RATHER THAN AN ASSERTION. `buildWorld.relocation.golden.json` was
-// captured from the packer as it stood INSIDE `TreeView.tsx` and committed in its own commit before
-// a single line moved. So the claim "the move changed nothing" is checkable from the history — the
-// golden has exactly one commit, the capture, and the relocation commit does not touch it — rather
-// than resting on a test that could have been regenerated alongside the change it was meant to
-// police. A future edit that legitimately changes the map re-captures it, in ITS OWN commit, saying
-// what moved and why.
+// This file makes the EXACT half of that claim, and it is the primary one. The golden was captured
+// under V8, and this suite runs under V8 (vitest), so the comparison here is bit-identical — 0 of
+// 14,057 numbers may differ. The package's own `relocation.test.ts` makes the same comparison under
+// Bun's JavaScriptCore, where `Math.hypot` and `Math.sin` disagree with V8's in the last place, so
+// it carries a measured 64-ULP budget; that budget exists there and must never be needed here.
 //
-// FIVE ARMS, chosen so no branch of the packer is unwitnessed: the SHIPPED map; the `plantsScatter`
-// garden branch; the BARE call the Shared Islands panel makes (`buildings: false` — no exclusion, no
-// stamps); the `legacy` control arm a comparison page stands (the three retired absolute gaps); and
-// the TIGHTEST rung, ratio 0, where the hex growth floor and the one-hex moat are the only thing
-// holding two islands apart. The corpus and the comparison surface are
-// `buildWorld.relocation.fixture.ts`.
+// It also makes the CHROME half, which the packer cannot: that the two values the package's fixture
+// states as literals — which stories are excluded, and which island carries which icon — are the
+// values this file's chrome actually computes. Neither file is the whole proof; together they are.
 //
-// ⚠ WHAT THIS INSTRUMENT CAN AND CANNOT SEE — calibrated by fault-seeding before the move, so the
-// green is read at its true strength. Perturbing a CONTINUOUS quantity by one part in ten thousand
-// (`ringR`'s `crownR * 0.9` → `0.9001`) reds all five arms; widening the moat by one hex reds four;
-// taking the gap ratio 0.1 → 0.5 reds the three arms that read it (`legacy` and `tightest` declare
-// their own gaps and are correctly untouched). But perturbing the gap ratio by 1e-5 reds NOTHING,
-// and that is the packer being QUANTISED rather than the instrument being blind: every gap the
-// ratio feeds ends up in a seed that `pixelToHex` snaps to the lattice, so a sub-hex change to a
-// gap is not a change to the map. Continuous outputs — every garden spot, coast vertex and trail
-// point — carry no such floor and are compared exactly.
+// ⚠ WHAT MAKES THIS A PROOF RATHER THAN AN ASSERTION. `relocation.golden.json` was captured from
+// the packer as it stood in THIS file and committed in its own commit before a single line moved.
+// The relocation commit only renamed it into the package, so `git log --follow -p` on it shows one
+// content commit — the capture. A future edit that legitimately changes the map re-captures it, in
+// its own commit, saying what moved and why.
 
 import { describe, it, expect } from 'vitest';
+import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
+import {
+  CARRIED_ICONS,
+  EXCLUDED_BUILDING_IDS,
+  firstDifference,
+  projectWorld,
+  relocationArms,
+  relocationCorpus,
+  type FixtureStory,
+  type WorldProjection,
+} from '@storytree/forest-layout/relocation';
+import { packWorld } from '@storytree/forest-layout';
+
 import { buildWorld } from './TreeView.js';
-import { PRE_ADR0521_SPACING } from '../lib/islandSpacing.js';
-import { relocationCorpus, projectWorld, type WorldProjection } from './buildWorld.relocation.fixture.js';
+import type { TreeCapability, TreeStory } from '../types';
 
-const golden = JSON.parse(
-  readFileSync(new URL('./buildWorld.relocation.golden.json', import.meta.url), 'utf8'),
-) as Record<string, WorldProjection>;
+const goldenPath = createRequire(import.meta.url).resolve('@storytree/forest-layout/relocation-golden');
+const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as Record<string, WorldProjection>;
 
-const stories = relocationCorpus();
-
-const arms = {
-  shipped: () => projectWorld(buildWorld(stories, { buildings: true })),
-  scatter: () => projectWorld(buildWorld(stories, { buildings: true, plantsScatter: true })),
-  bare: () => projectWorld(buildWorld(stories, { buildings: false })),
-  legacy: () =>
-    projectWorld(buildWorld(stories, { buildings: true, spacing: { legacy: PRE_ADR0521_SPACING } })),
-  tightest: () => projectWorld(buildWorld(stories, { buildings: true, spacing: { ratio: 0 } })),
-} satisfies Record<string, () => WorldProjection>;
-
-/**
- * The first path at which two JSON-serialisable values differ, or `undefined` when they agree —
- * so a broken relocation names the field and the island it broke on instead of dumping two
- * 70,000-line objects at the reader. A depth-first walk, arrays compared by length then by index.
- */
-function firstDifference(a: unknown, b: unknown, path = ''): string | undefined {
-  if (Object.is(a, b)) return undefined;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b)) return `${path}: array vs non-array`;
-    if (a.length !== b.length) return `${path}: length ${a.length} vs ${b.length}`;
-    for (let i = 0; i < a.length; i++) {
-      const d = firstDifference(a[i], b[i], `${path}[${i}]`);
-      if (d) return d;
-    }
-    return undefined;
-  }
-  if (a && b && typeof a === 'object' && typeof b === 'object') {
-    const ka = Object.keys(a as object).sort();
-    const kb = Object.keys(b as object).sort();
-    if (ka.join(',') !== kb.join(',')) return `${path}: keys ${ka.join(',')} vs ${kb.join(',')}`;
-    for (const k of ka) {
-      const d = firstDifference(
-        (a as Record<string, unknown>)[k],
-        (b as Record<string, unknown>)[k],
-        `${path}.${k}`,
-      );
-      if (d) return d;
-    }
-    return undefined;
-  }
-  return `${path}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`;
+/** The package's corpus, dressed in the studio's own richer types. Every field added here —
+ *  title, outcome, status, proofMode, witness, test counts — is one the layout never reads, which
+ *  is exactly why the packer could declare its own narrower input contract and take this straight. */
+function asTreeStories(fixture: readonly FixtureStory[]): TreeStory[] {
+  const cap = (c: { id: string; dependsOn: readonly string[] }): TreeCapability => ({
+    id: c.id,
+    title: c.id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'red-green',
+    dependsOn: [...c.dependsOn],
+    testCount: 0,
+  });
+  return fixture.map((s) => ({
+    id: s.id,
+    title: s.id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'UAT',
+    uatWitness: 'machine',
+    dependsOn: [...s.dependsOn],
+    consumedBy: [...s.consumedBy],
+    building: s.building,
+    capabilities: s.capabilities.map(cap),
+  }));
 }
 
-describe('the island packing produces the same map after moving out of TreeView', () => {
+const stories = asTreeStories(relocationCorpus());
+
+/** The five arms, as the STUDIO enters them — the same five the package compares, but reached
+ *  through `buildWorld`'s own options rather than through pre-computed chrome. */
+const arms = {
+  shipped: () => buildWorld(stories, { buildings: true }),
+  scatter: () => buildWorld(stories, { buildings: true, plantsScatter: true }),
+  bare: () => buildWorld(stories, { buildings: false }),
+  legacy: () =>
+    buildWorld(stories, {
+      buildings: true,
+      spacing: { legacy: { rankGap: 40, islandGap: 60, rankSwing: 140 } },
+    }),
+  tightest: () => buildWorld(stories, { buildings: true, spacing: { ratio: 0 } }),
+} satisfies Record<string, () => ReturnType<typeof buildWorld>>;
+
+describe('buildWorld lays out the same map after the packing moved into its own package', () => {
   // A golden that lost an arm would pass every surviving comparison and prove less than it claims.
-  it('covers every captured arm', () => {
+  it('covers every captured arm, and the package compares the same five', () => {
     expect(Object.keys(golden).sort()).toEqual(Object.keys(arms).sort());
+    expect(Object.keys(relocationArms()).sort()).toEqual(Object.keys(arms).sort());
   });
 
   for (const [arm, build] of Object.entries(arms)) {
-    it(`reproduces the pre-move map exactly — ${arm}`, () => {
+    it(`reproduces the pre-move map BIT FOR BIT — ${arm}`, () => {
       const before = golden[arm];
       expect(before, `no golden captured for arm "${arm}"`).toBeDefined();
-      const after = JSON.parse(JSON.stringify(build())) as WorldProjection;
-      expect(firstDifference(before, after, arm)).toBeUndefined();
+      const after = JSON.parse(JSON.stringify(projectWorld(build()))) as WorldProjection;
+      // Budget 0: this is the runtime the golden was captured on, so nothing may drift at all.
+      expect(firstDifference(before, after, arm, 0)).toBeUndefined();
     });
   }
+});
 
-  // The projection is the comparison SURFACE: a derived field it forgets is a field the four
-  // comparisons above cannot see move. Pin the shape so adding one to `Territory` without adding it
-  // here reds rather than quietly narrowing the proof.
-  it('compares every derived territory field', () => {
-    const t = golden['shipped']?.territories?.[0] as Record<string, unknown> | undefined;
-    expect(Object.keys(t ?? {}).sort()).toEqual(
-      [
-        'buildingGlyph',
-        'caps',
-        'centroid',
-        'coastGroundLoops',
-        'decor',
-        'groundCentroid',
-        'groundRadius',
-        'groundTreeSpot',
-        'labelY',
-        'radius',
-        'stamps',
-        'story',
-        'tiles',
-        'treeSpot',
-        'wheatTiles',
-      ].sort(),
+describe('the chrome half — what the packer is handed, and can never work out for itself', () => {
+  it('excludes exactly the `render: building` stories, and only when `buildings` is on', () => {
+    const shipped = buildWorld(stories, { buildings: true }).territories.map((t) => t.story.id);
+    const bare = buildWorld(stories, { buildings: false }).territories.map((t) => t.story.id);
+
+    expect(bare).toEqual(stories.map((s) => s.id));
+    expect(shipped).toEqual(stories.map((s) => s.id).filter((id) => !EXCLUDED_BUILDING_IDS.includes(id)));
+    // …which is the corpus's own building tags, not a hand-kept list that could drift from them.
+    expect([...EXCLUDED_BUILDING_IDS].sort()).toEqual(
+      stories.filter((s) => s.building === true).map((s) => s.id).sort(),
     );
+    // ORDER is load-bearing, not incidental: the packer breaks row-ordering ties on input order,
+    // so a filter that reordered the survivors would move islands without dropping any.
+    expect(shipped).toEqual(['root-a', 'root-b', 'root-c', 'root-d', 'mid-a', 'mid-b', 'mid-c', 'mid-d', 'solo', 'deep-a', 'deep-b', 'deep-c']);
+  });
+
+  it('computes exactly the carried-icon map the package fixture states as data', () => {
+    const seated = new Map<string, string[]>();
+    for (const t of buildWorld(stories, { buildings: true }).territories) {
+      if (t.stamps.length) seated.set(t.story.id, t.stamps.map((s) => s.icon));
+    }
+    expect([...seated.entries()].sort()).toEqual(
+      [...CARRIED_ICONS.entries()].map(([k, v]) => [k, [...v]]).sort(),
+    );
+    // Promotion is computed from the FULL list, before the buildings are excluded — an island can
+    // carry the icon of a story that is itself no longer on the map, which is the whole point.
+    expect(seated.get('mid-c')).toEqual(['lib', 'toolbelt']);
+    expect(seated.has('lib')).toBe(false);
+  });
+
+  it('carries no stamps at all when `buildings` is off', () => {
+    expect(buildWorld(stories, { buildings: false }).territories.every((t) => t.stamps.length === 0)).toBe(true);
+  });
+
+  it('hands the packer the same thing the package fixture hands it', () => {
+    // The two halves meet HERE: `buildWorld`'s chrome, and `packWorld` called directly on the
+    // fixture's stated inputs, must produce the identical map. If the fixture's literals ever stop
+    // describing what the chrome computes, this is what says so — not a silent pair of greens.
+    const viaChrome = projectWorld(buildWorld(stories, { buildings: true }));
+    const shippedArm = relocationArms()['shipped'];
+    expect(shippedArm).toBeDefined();
+    const direct = projectWorld(packWorld(shippedArm!.stories, shippedArm!.opts));
+    expect(firstDifference(viaChrome, direct, 'shipped', 0)).toBeUndefined();
   });
 });

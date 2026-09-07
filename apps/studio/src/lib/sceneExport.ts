@@ -21,7 +21,7 @@
 import { HEX_R, HEX_TILES_PER_CAPABILITY, TILE_QUOTA_RULE } from '@storytree/forest-world';
 import type { ArtRungs, Pt, SceneG, SceneNode, TrailNetwork } from '@storytree/forest-world';
 
-import type { LegacySpacing } from './islandSpacing.js';
+import type { LegacySpacing } from '@storytree/forest-layout';
 
 /** What the bridge needs of a laid-out world — a structural slice of TreeView's `HexWorld`, so this
  *  module does not import the component it is mounted from. */
