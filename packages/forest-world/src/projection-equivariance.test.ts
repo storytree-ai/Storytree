@@ -618,3 +618,212 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
 
   assert.deepEqual(problems.slice(0, 12), [], `buildScene is not equivariant (${problems.length} findings; first 12 shown)`);
 });
+
+// ---------------------------------------------------------------------------
+// 5. THE CALLER MAY HAND OVER GROUND ANCHORS — ADR-0527 D1, the caller-side half.
+//
+// Until this landing every island ANCHOR (`centroid`, `treeSpot`, each plant spot, each decor
+// seed) arrived already projected, at whatever camera the caller happened to build it at, and
+// `SceneInput.cameraElevationDeg` said so in terms: *"it never re-projects the geometry, which the
+// surface has already done"*. That sentence is what these tests retire.
+//
+// WHY IT MATTERED, and it is not tidiness. Asking `buildScene` for a PLAN-VIEW scene returned one
+// whose lattice, coast and substrate were plan-view while its anchors were still frozen at the
+// declared camera — a scene at two cameras at once. That is precisely the state ADR-0527 D2's
+// deletion needs to not be in: `worldTo3D` cannot map a TRUE ground surface while the surface's own
+// anchors are a drawing, which is why `restoreTrueFootprint` exists at all.
+//
+// THE SEAM IS ONE TAG, NOT A SECOND SET OF GROUND TWINS. `anchorSpace` says which space the
+// anchors above arrived in and defaults to `screen`, so every caller that has not moved — the
+// public website, which authors its anchors by hand rather than deriving them (see below) — is
+// byte-for-byte unchanged and needs to learn nothing. A tag deletes itself when the last caller
+// converts; a twin field has to be carried forever by everyone.
+//
+// ⚠ `labelY` IS NOT AN ANCHOR AND DOES NOT MOVE WITH THE TAG. All four of its consumers are
+// declared screen art (the nameplate band, `scene.ts:1197`), so converting it would be pure tax
+// with no ground-space reading to gain. It stays a screen y under either value of the tag.
+// ---------------------------------------------------------------------------
+
+/** The fixture territory, with its anchors stated in one space or the other. */
+function territoryWithAnchors(
+  space: 'screen' | 'ground',
+  elevationDeg: number,
+  // ⚠ BOTH ARMS ARE NEEDED AND ONE FIXTURE CANNOT CARRY THEM. A parcels-PRESENT island RETIRES its
+  // decorative conifers and its one-plant-per-cap ring (the parcel flora replaces them), so on that
+  // island `decor` and `plants` are never drawn and mutating their projection changes nothing —
+  // measured, as six surviving mutants, when this fixture carried parcels only.
+  opts: { parcels: boolean } = { parcels: true },
+): SceneTerritoryInput {
+  // One ground-plane anchor set, deliberately OFF-AXIS in y so the projection has something to do:
+  // a y of 0 is its own projection at every camera, which is exactly the frozen-path false green
+  // this file's own header warns about.
+  const GROUND_CENTROID = { x: 12, y: 40 };
+  const GROUND_TREE = { x: 12, y: 22 };
+  const GROUND_PLANTS = [
+    { x: -18, y: 55 },
+    { x: 44, y: 31 },
+  ];
+  const GROUND_DECOR = [
+    { x: 27, y: -34 },
+    { x: -41, y: 18 },
+  ];
+  const toScreen = (p: { x: number; y: number }): { x: number; y: number } =>
+    projectGround(p, elevationDeg);
+  const anchors = space === 'ground' ? <T extends { x: number; y: number }>(p: T): T => p : toScreen;
+  const territory: SceneTerritoryInput = {
+    id: 'story',
+    status: 'healthy',
+    caps: 2,
+    centroid: anchors(GROUND_CENTROID),
+    groundRadius: 70,
+    screenRadius: 70 * groundFlattening(elevationDeg),
+    treeSpot: anchors(GROUND_TREE),
+    labelY: 46,
+    coastGroundLoops: [[...COAST_GROUND]],
+    // Conifer seeds and parcel seeds ride the tag with the rest, and they are STATED here rather
+    // than left empty because an empty list exercises neither branch: a diff-scoped mutation run
+    // over this landing reported the decor map and the `parcels` conditional as uncovered, which is
+    // the honest reading of a fixture whose island had no decor and no parcels.
+    decor: GROUND_DECOR.map((p, i) => {
+      const at = anchors(p);
+      return { x: at.x, y: at.y, seed: i + 1 };
+    }),
+    plants: GROUND_PLANTS.map((p, i) => {
+      const at = anchors(p);
+      return { id: `cap-${i}`, status: 'healthy' as const, x: at.x, y: at.y, title: `cap ${i}` };
+    }),
+    treeTitle: 'story',
+    wisps: [],
+    plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'story', subText: 'x', title: 'story' },
+  };
+  if (opts.parcels) {
+    territory.parcels = GROUND_PLANTS.map((p, i) => {
+      const at = anchors(p);
+      return {
+        capId: `cap-${i}`,
+        status: 'healthy' as const,
+        testCount: i + 1,
+        theme: i === 0 ? ('meadow' as const) : ('woodland' as const),
+        // The Voronoi seed is matched against `relaxedCells`, which arrive already projected — so a
+        // seed left in the ground plane re-partitions the island's own ground under its flora.
+        seed: { x: at.x, y: at.y },
+      };
+    });
+  }
+  // Stated only on the ground arm, and ABSENT on the other — the screen arm's whole job is to be
+  // the caller that never learned this field, so writing `anchorSpace: 'screen'` there would test
+  // a different thing than the one that ships.
+  if (space === 'ground') territory.anchorSpace = 'ground';
+  return territory;
+}
+
+/** The fixture scene, with its territory's anchors stated in one space or the other. */
+function sceneWithAnchors(
+  space: 'screen' | 'ground',
+  elevationDeg: number,
+  opts: { parcels: boolean } = { parcels: true },
+): SceneG {
+  const draw = TILES.map((h) => ({ h, owner: 0 }));
+  return buildScene({
+    offset: { x: 0, y: 0 },
+    width: 1200,
+    height: 900,
+    empties: [{ q: 3, r: -1 }, { q: -3, r: 1 }, { q: 0, r: 3, owner: 0 }],
+    relaxedCells: buildRelaxedCells(draw, [new Set<string>()], 'mesh', TILE, { elevationDeg }),
+    drawTiles: draw,
+    wheatSets: [new Set<string>()],
+    trails: { segments: [], edges: [], caves: [], dropped: [] },
+    territories: [territoryWithAnchors(space, elevationDeg, opts)],
+    tile: TILE,
+    cameraElevationDeg: elevationDeg,
+  });
+}
+
+test('GROUND anchors draw the SAME island the caller used to hand over projected — ADR-0527 D6', () => {
+  // The D6 claim for this field, demonstrated rather than assumed, and it is the same shape as the
+  // coast test above: hand over the GROUND anchors and let the core project, against the caller
+  // projecting them itself and handing over the result. The two scenes must be the same scene.
+  //
+  // This is the whole safety argument for the change. `projectGround` is a per-point map, so
+  // projecting at the boundary and projecting at the caller are the same points — but only if the
+  // core really does apply it to every anchor and to nothing else. Comparing the emitted trees
+  // proves that over the actual consumers rather than over the field.
+  // Both islands, because a parcels-PRESENT island retires the conifers and the plant ring: run
+  // only that one and the projection of `decor` and `plants` is asserted by nothing.
+  for (const parcels of [true, false]) {
+    const ground = sceneWithAnchors('ground', LAND_CAMERA_ELEVATION_DEG, { parcels });
+    const screen = sceneWithAnchors('screen', LAND_CAMERA_ELEVATION_DEG, { parcels });
+    assert.deepEqual(
+      ground,
+      screen,
+      `a territory handed GROUND anchors must draw exactly what the same territory handed the ` +
+        `projected ones draws — otherwise the change moves the map (parcels: ${parcels})`,
+    );
+  }
+});
+
+test('GROUND anchors FOLLOW the camera, where projected ones are frozen — ADR-0527 D1', () => {
+  // The claim the byte-identity test above cannot make on its own, and the one the header's own
+  // lesson demands: an anchor set that is genuinely ground data lands somewhere DIFFERENT when the
+  // scene is built at a different camera, where one the caller already projected is frozen and
+  // lands in the same place at every camera. Without this, a `buildScene` that quietly ignored
+  // `anchorSpace` would pass the test above (both arms would be the screen arm) and prove nothing.
+  const atDeclared = sceneWithAnchors('ground', LAND_CAMERA_ELEVATION_DEG);
+  const atPlan = sceneWithAnchors('ground', PLAN_VIEW_ELEVATION_DEG);
+  const treeAt = (s: SceneG): string => {
+    const [tree] = nodesOfKind(s, 'tree');
+    assert.ok(tree, 'the fixture draws a story tree');
+    // `transform` is on `SceneNodeBase`, so every node kind carries it — no narrowing needed.
+    return tree.transform ?? '';
+  };
+  assert.notEqual(
+    treeAt(atDeclared),
+    treeAt(atPlan),
+    'a GROUND tree spot must land at a different screen y once the camera foreshortens it — if ' +
+      'these agree the anchors were never projected and the tag is doing nothing',
+  );
+
+  // And it moves by the CAMERA's own ratio, not by some other amount: the declared-camera depth of
+  // the ground tree spot is `sin 20°` of its plan-view depth. Pinned so a projection applied at the
+  // wrong place (twice, or with the wrong elevation) is a failure rather than merely a difference.
+  const yOf = (s: SceneG): number => {
+    const m = /translate\(\s*-?[\d.]+\s+(-?[\d.]+)/.exec(treeAt(s));
+    assert.ok(m?.[1], 'the tree transform states a y');
+    return Number(m[1]);
+  };
+  assert.ok(
+    Math.abs(yOf(atDeclared) / yOf(atPlan) - SIN) <= 0.02,
+    `the ground tree spot must foreshorten by sin 20° (got ${yOf(atDeclared) / yOf(atPlan)})`,
+  );
+});
+
+test('the anchor tag DEFAULTS to screen, so an unconverted caller is untouched — ADR-0527 D6', () => {
+  // The public website authors its anchors in screen space by hand — `treeSpot: tr({x: cx, y: cy - 6})`
+  // and a plant ring at `cos(a)*r*1.2` / `sin(a)*r*0.85 + 8` — where the studio DERIVES its from
+  // `hexCenter`. Those constants are a LOOK, not a projection (the camera's own ratio is 0.342, not
+  // 0.85), so no un-projection reproduces them and converting that caller is an owner LOOK on a live
+  // public page, not a re-expression. It therefore keeps handing screen anchors, and this pins that
+  // omitting the tag is exactly today's behaviour rather than an unstated default.
+  const tagged = territoryWithAnchors('screen', LAND_CAMERA_ELEVATION_DEG);
+  assert.equal(tagged.anchorSpace, undefined, 'the screen arm states no tag — that is the point');
+  const draw = TILES.map((h) => ({ h, owner: 0 }));
+  const base = {
+    offset: { x: 0, y: 0 },
+    width: 1200,
+    height: 900,
+    empties: [{ q: 3, r: -1 }, { q: -3, r: 1 }, { q: 0, r: 3, owner: 0 }],
+    relaxedCells: buildRelaxedCells(draw, [new Set<string>()], 'mesh', TILE, {
+      elevationDeg: LAND_CAMERA_ELEVATION_DEG,
+    }),
+    drawTiles: draw,
+    wheatSets: [new Set<string>()],
+    trails: { segments: [], edges: [], caves: [], dropped: [] },
+    tile: TILE,
+    cameraElevationDeg: LAND_CAMERA_ELEVATION_DEG,
+  };
+  assert.deepEqual(
+    buildScene({ ...base, territories: [tagged] }),
+    buildScene({ ...base, territories: [{ ...tagged, anchorSpace: 'screen' }] }),
+    'an absent tag must mean `screen` — the unconverted caller may not be asked to learn a field',
+  );
+});

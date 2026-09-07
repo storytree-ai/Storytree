@@ -526,6 +526,40 @@ export interface SceneTerritoryInput {
    *  is the exact bug `groundRadius` exists to make unrepresentable. */
   screenRadius: number;
   treeSpot: Pt;
+  /**
+   * WHICH SPACE THIS ISLAND'S ANCHORS ARRIVED IN (ADR-0527 D1) — `centroid`, `treeSpot`, each
+   * `plants` spot, each `decor` seed and each `parcels` seed. ABSENT ⇒ `screen`, i.e. exactly
+   * today's contract, so a caller that has not moved is byte-for-byte unchanged and has to learn
+   * nothing.
+   *
+   * `ground` means the caller handed over the PRE-CAMERA positions and this file projects them,
+   * once, at the camera the scene is being built at. That is what lets a caller ask for a
+   * PLAN-VIEW scene and get one: until this existed the anchors were frozen at whatever camera
+   * the caller happened to build them at, so a plan-view request returned a scene at two cameras
+   * at once — the lattice, coast and substrate un-flattened while the tree, the plants and the
+   * nameplate stayed foreshortened. `SceneInput.cameraElevationDeg` used to say *"it never
+   * re-projects the geometry, which the surface has already done"*; for the anchors, that
+   * sentence is retired here.
+   *
+   * ⚠ IT IS A TAG, NOT A SECOND SET OF GROUND TWINS, and that is deliberate. `groundRadius` /
+   * `screenRadius` had to be twins because both magnitudes are wanted at once. Only ONE anchor
+   * position is ever wanted, so a tag says which space it is in and then DELETES ITSELF when the
+   * last caller converts — where a twin has to be carried by everyone forever.
+   *
+   * ⚠ `labelY` IS NOT COVERED AND IS ALWAYS A SCREEN Y. All four of its consumers are declared
+   * screen art (the nameplate band, below), so there is no ground reading to gain and converting
+   * it would be pure tax. `groundRadius` / `screenRadius` are not covered either — they already
+   * state their own space in their names.
+   *
+   * WHO HAS NOT MOVED, and why it is not an oversight: the public website builds its own island
+   * inputs and AUTHORS its anchors in screen space by hand — a tree spot nudged `- 6` whose own
+   * source comment says it does not decide whether that means pixels or ground units, and a plant
+   * ring on a hand-picked `0.85` ellipse where the camera's own ratio is `sin 20° ≈ 0.342`. Those
+   * are a LOOK, not a projection, so no un-projection reproduces them and converting that caller
+   * changes a live public page. It keeps handing `screen`, and the remainder is visible HERE
+   * rather than only in an arc nobody opened.
+   */
+  anchorSpace?: 'screen' | 'ground';
   /** The nameplate baseline y (also the delegation hit's bottom). */
   labelY: number;
   /** The smoothed coastline as closed loops in the GROUND plane — the island's sand fill AND its
@@ -3576,7 +3610,51 @@ function buildHits(input: SceneInput, art: TileArt): SceneG {
  * spokes / Shared-Islands panel / building stamps; the website's hit delegation)
  * layered on top.
  */
-export function buildScene(input: SceneInput): SceneG {
+/**
+ * Project a `ground`-tagged island's anchors into the scene's own screen space, ONCE, on the way in
+ * ({@link SceneTerritoryInput.anchorSpace}). A `screen` island — the absent-tag default — is
+ * returned as it arrived, by identity, so an unconverted caller cannot be charged for a field it
+ * never set.
+ *
+ * ⚠ WHY THE BOUNDARY AND NOT THE ~30 CONSUMER SITES. It is the same shape `substrate.ts` and
+ * `routing.ts` already use and the reason the layout commutes with the projection at all: build in
+ * ground space, call `projectGround` exactly once on the way out. Pushing the projection down to
+ * each consumer would instead hand GROUND points to `groundGap`, which un-projects the difference
+ * of two SCREEN points — so it would silently un-project twice, with both spaces spelt `Pt` and no
+ * type error anywhere. Normalising here means every consumer below keeps the screen contract it was
+ * written against and stays correct by construction.
+ *
+ * `labelY` is deliberately absent from this list — it is screen art under either tag (see the field).
+ */
+function anchorsToScreen(t: SceneTerritoryInput, elevationDeg: number): SceneTerritoryInput {
+  if ((t.anchorSpace ?? 'screen') === 'screen') return t;
+  const p = (q: Pt): Pt => projectGround(q, elevationDeg);
+  const projected: SceneTerritoryInput = {
+    ...t,
+    centroid: p(t.centroid),
+    treeSpot: p(t.treeSpot),
+    plants: t.plants.map((pl) => ({ ...pl, ...p({ x: pl.x, y: pl.y }) })),
+    decor: t.decor.map((d) => ({ ...d, ...p({ x: d.x, y: d.y }) })),
+    anchorSpace: 'screen' as const,
+  };
+  // The parcel seeds ride the tag too: they are Voronoi seeds matched against `relaxedCells`, which
+  // the caller hands over ALREADY projected, so a ground seed has to reach that same space or every
+  // island's ground partition shifts under its own flora. Assigned rather than conditionally spread,
+  // so an island with NO parcels keeps the field absent — the core's own back-compat semantics read
+  // absent and empty differently (absent ⇒ conifers + the plant ring).
+  if (t.parcels) projected.parcels = t.parcels.map((pc) => ({ ...pc, seed: p(pc.seed) }));
+  return projected;
+}
+
+export function buildScene(rawInput: SceneInput): SceneG {
+  // Normalise the island anchors into this scene's screen space before anything reads them
+  // (ADR-0527 D1) — see {@link anchorsToScreen} for why it happens here and not per consumer.
+  const input: SceneInput = {
+    ...rawInput,
+    territories: rawInput.territories.map((t) =>
+      anchorsToScreen(t, rawInput.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG),
+    ),
+  };
   // Compute each parcels-present island's surface ONCE (forest-parcels inc 1) — the ground threads to
   // `buildGround`, the flora to `buildTerritoryFlora`. Null (no parcels / no mesh cells) ⇒ today's
   // render on both seams, byte-for-byte.

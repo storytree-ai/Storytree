@@ -40,7 +40,7 @@ import {
   type Axial,
   type Pt,
 } from '@storytree/forest-world';
-import { buildWorld, groundHeroTile, groundPolarOffset } from './TreeView.js';
+import { buildWorld, groundHeroTile, groundPolarOffset, worldToScene } from './TreeView.js';
 import type { TreeCapability, TreeStory } from '../types';
 
 // ---------------------------------------------------------------------------------------------
@@ -412,5 +412,86 @@ describe('fixture arithmetic', () => {
     // the island is roomy enough that the crown rule, not the shore, sets the ring
     expect(t.groundRadius - HEX_R * 0.55).toBeGreaterThan(RING_R);
     expect(RING_R).toBeCloseTo(50 * TILE_SCALE, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE ANCHORS LEAVE IN THE GROUND PLANE — ADR-0527 D1, and the map does not move.
+//
+// The layout now hands `buildScene` the PRE-CAMERA anchors and tags them `anchorSpace: 'ground'`;
+// the core projects them once, at the camera it is asked for. That is what makes a plan-view scene
+// a real one — before it, a caller asking for plan view got an un-flattened lattice under a tree,
+// a plant ring and a nameplate still frozen at the declared camera.
+//
+// ⚠ THESE ARE VALUE ASSERTIONS AGAINST THE SCREEN ANCHOR THAT SHIPPED, deliberately, and for the
+// reason this file's own header gives: a two-camera self-comparison proves equivariance and nothing
+// about the value. What has to be true for the map not to move is that projecting the ground anchor
+// lands ON the screen anchor the studio has always drawn — so that is what is asserted, against the
+// value, not against another build.
+describe('the island anchors leave the layout in the ground plane', () => {
+  const project = (p: Pt): Pt => ({
+    x: p.x,
+    y: p.y * groundFlattening(LAND_CAMERA_ELEVATION_DEG),
+  });
+
+  it('projects the ground anchors exactly onto the screen ones the map already drew', () => {
+    let islands = 0;
+    let capSpots = 0;
+    // A y of 0 is its own projection at every camera, so an anchor set that happened to sit on the
+    // axis would satisfy this test without the projection doing anything. Count the ones that are
+    // genuinely off-axis and require them, or the assertion is decoration.
+    let offAxis = 0;
+    for (let w = 0; w < 5; w++) {
+      for (const t of buildWorld(synthWorld(w, 40), { buildings: false }).territories) {
+        islands++;
+        const c = project(t.groundCentroid);
+        expect(c.x).toBeCloseTo(t.centroid.x, 9);
+        expect(c.y).toBeCloseTo(t.centroid.y, 9);
+        const tree = project(t.groundTreeSpot);
+        expect(tree.x).toBeCloseTo(t.treeSpot.x, 9);
+        expect(tree.y).toBeCloseTo(t.treeSpot.y, 9);
+        if (Math.abs(t.groundTreeSpot.y) > 1) offAxis++;
+        for (const spot of t.caps) {
+          capSpots++;
+          const p = project(spot.groundSpot);
+          // The keep-IN walk runs in screen space and its TEST is the screen point, so the ground
+          // twin is the original offset shrunk by 0.75 per step taken. If that bookkeeping ever
+          // drifts from the walk, this is where it shows — as a plant sitting somewhere else.
+          expect(p.x).toBeCloseTo(spot.x, 9);
+          expect(p.y).toBeCloseTo(spot.y, 9);
+        }
+      }
+    }
+    expect(islands).toBeGreaterThan(50);
+    expect(capSpots).toBeGreaterThan(100);
+    expect(offAxis).toBeGreaterThan(islands / 4);
+  });
+
+  it('the ground anchors are NOT the screen ones — the tag is carrying real work', () => {
+    // The companion the assertion above cannot make about itself. If `groundTreeSpot` were simply
+    // `treeSpot`, every `toBeCloseTo` above would still pass on any island sitting near y = 0, and
+    // the whole change would be a rename. This requires the two to genuinely differ, by the
+    // camera's own ratio, on the islands where there is something to foreshorten.
+    const world = buildWorld(synthWorld(0, 40), { buildings: false });
+    const moved = world.territories.filter(
+      (t) => Math.abs(t.groundTreeSpot.y - t.treeSpot.y) > 1,
+    );
+    expect(moved.length).toBeGreaterThan(world.territories.length / 4);
+    for (const t of moved) {
+      expect(t.treeSpot.y / t.groundTreeSpot.y).toBeCloseTo(
+        groundFlattening(LAND_CAMERA_ELEVATION_DEG),
+        6,
+      );
+    }
+  });
+
+  it('states the tag, so the core knows to project rather than guessing', () => {
+    // An untagged island is read as `screen` — today's contract — so omitting this would draw the
+    // ground anchors as if they were already projected: every island's tree, plants and parcels
+    // seated at `1 / sin 20°` of their depth. Silent, and spelt `Pt` on both sides.
+    const world = buildWorld([RING_FIXTURE], { buildings: false });
+    const scene = worldToScene(world, null, new Date(), new Map());
+    expect(scene.territories.length).toBeGreaterThan(0);
+    for (const t of scene.territories) expect(t.anchorSpace).toBe('ground');
   });
 });
