@@ -34,8 +34,37 @@
 // ⚠ WHICH CHANGES THE BLOCKER, NOT THE DECISION. ADR-0517 D1 rests on the owner's judgement of the
 // island's footprint, and nothing here touches that. What is withdrawn is only the arithmetic
 // reason to believe the whole-stream arm is UNREACHABLE — what stands between the layout and a true
-// spacing is a LOOK, where every island SITS on the studio map and on the public site, and a look
-// is the owner's to give.
+// spacing is a LOOK, and a look is the owner's to give.
+//
+// ⚠⚠ BUT THAT LOOK IS NOT WHERE THIS COMMENT SAID IT WAS, AND THE DIFFERENCE IS THE WHOLE SIZE OF
+// THE ASK. It used to end *"where every island SITS on the studio map and on the public site"*.
+// Measured 2026-09-07 on the real 14-island layout, all three parts of that are wrong:
+//
+//   · THE 2D STUDIO MAP CANNOT CHANGE. `worldTo3D` is not on its path at all — the studio's SVG
+//     painter reads `buildScene` directly. And the layout stack COMMUTES with the projection
+//     (`projection-equivariance.test.ts`, `buildWorld.groundSpace.test.ts`), so a layout that emits
+//     true ground and is flattened at draw time draws the SAME picture, by construction.
+//   · THE PUBLIC SITE CANNOT CHANGE EITHER, for the same reason plus a stronger one: it is the 2D
+//     map, and nothing anywhere mounts the 3D canvas. `apps/studio/src/lib/sceneExport.ts` says it
+//     in terms — *"no product surface mounts the 3D forest over the 2D layout"* — and there is no
+//     `ForestWorldCanvas` consumer in `apps/studio` or in `web/src`.
+//   · THE ISLANDS DO NOT SPREAD APART FROM ONE ANOTHER. Median nearest-neighbour centre gap moves
+//     67.7 → 71.8 units (+6%), minimum 48.2 → 50.7; a row packer's nearest neighbours are beside
+//     each other, and x is untouched by the stretch.
+//
+// WHAT ACTUALLY MOVES IS THE FOREST'S ASPECT, and only in 3D: 381.8 x 359.2 becomes 381.8 x 1050.1,
+// a roughly square plan turned into a corridor nearly three times deeper than it is wide. Each
+// island's own shape is unchanged either way — the repair already makes it true (median 31.7 deep
+// by 33.5 wide). So the owner's look is about the 3D harness pages and NOTHING a visitor or an
+// operator sees today. That is still HIS look — he was shown two arms and approved the one that
+// holds the layout still — but it is a far smaller question than this comment was posing, and
+// posing it too large is its own way of leaving it unanswered.
+//
+// The figures above come from a probe over the 14-island `relocationCorpus` layout, recorded on
+// `the-un-projection-is-deleted-and-the-packer-hands-over-ground` rather than committed as a test:
+// what a test CAN hold is held already — `true-footprint.test.ts` pins that an island's centre is
+// invariant under the stretch ("the layout holds still"), and the forest-level figures are that
+// property read over a real layout. Re-derive them there if they are ever load-bearing again.
 //
 // ⚠ THE WHOLE STREAM, NOT THE CELLS ALONE. The strips dock on the coast, the blooms carry an
 // island's centre, a cave stands on the rim — every one of them was projected by the same
