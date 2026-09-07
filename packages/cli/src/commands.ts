@@ -44,6 +44,7 @@ import type {
   UatTestCriterion,
   ReliabilityGate,
   UatWitnessCensusStory,
+  SessionPopulation,
 } from "@storytree/library";
 import {
   analyzeObservedTests,
@@ -2206,6 +2207,18 @@ export interface RunDeps {
    * its own subject. Defaulted to the fs-backed reader under {@link repoRoot}, so only tests pass it.
    */
   readonly adrSpans?: (repoRelPath: string) => string | undefined;
+  /**
+   * The re-steer tier's session DENOMINATOR (`follow-the-research-arc`, increment
+   * `resteer-session-denominator`) — the sessions that landed in the capture window, so
+   * `resteer list` can report an intervention RATE rather than a bare count.
+   *
+   * A THUNK, and supplied only by the composition root. Unlike {@link adrSpans} this does NOT default
+   * to the real reader, and the difference is the point: `git log` output changes daily and per
+   * machine, so defaulting it would make every test that renders this output non-deterministic —
+   * which is exactly what happened when it was first wired inside the renderer. Absent means the
+   * report states the rate is not computable, which is the honest reading and the pre-existing one.
+   */
+  readonly sessionPopulation?: () => SessionPopulation | null;
   readonly presence?: {
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
@@ -4794,7 +4807,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
       return newResteer(deps, newOpts, ctx);
     }
-    if (sub === "list") return listResteer(deps.store);
+    if (sub === "list") return listResteer(deps.store, deps.sessionPopulation?.() ?? null);
     // `agreement <fileA> <fileB>` — the frame-validation instrument (ADR-0515 D6). A VERB rather than
     // the one-shot script the first measurement could have been, because a reliability figure nobody
     // can re-derive ages silently; `docs/research/mast-agreement-2026-09-05.md` names this command as

@@ -99,6 +99,12 @@ export interface ResteerReport {
   readonly modeDistribution: ReadonlyMap<ResteerMode, number>;
   /** The same, rolled up to MAST's three categories plus `unhoused`. */
   readonly categoryDistribution: ReadonlyMap<MastCategory, number>;
+  /**
+   * The intervention RATE, when the caller supplied a session population; `undefined` when it did
+   * not. Absent by default on purpose — the rows alone cannot produce it, and a report that
+   * fabricated one from the filing sessions would divide by the wrong denominator.
+   */
+  readonly interventionRate: InterventionRateReading | undefined;
   /** Figures these rows structurally cannot support, and why. Always non-empty — see the interface doc. */
   readonly notComputable: readonly string[];
 }
@@ -121,8 +127,137 @@ export const RESTEER_NOT_COMPUTABLE: readonly string[] = [
     "which is a field on this tier.",
 ];
 
-/** Compose the report. Pure: no store, no clock. */
-export function resteerReport(rows: readonly Resteer[]): ResteerReport {
+/**
+ * What stays uncomputable once a {@link SessionPopulation} IS supplied.
+ *
+ * TCR@k does not become answerable just because a denominator arrived — its reason NARROWS, and the
+ * narrowed reason is the more interesting one. The population is drawn from sessions that LANDED, so
+ * every member of it completed by construction; a completion rate over that set would read near 100%
+ * as a selection artifact rather than a finding.
+ */
+export const RESTEER_NOT_COMPUTABLE_WITH_DENOMINATOR: readonly string[] = [
+  "TCR@k — the session denominator SELECTS ON LANDING, so every session in it completed by " +
+    "construction and a completion rate over that population would read ~100% as a selection " +
+    "artifact. It needs a population that includes the sessions which never landed.",
+];
+
+/**
+ * The date the `resteer` capture landed (ADR-0515, `follow-the-research-arc` inc 1) — and therefore
+ * the earliest date a session could possibly have filed a row.
+ *
+ * ⚠ THIS IS THE FLOOR OF EVERY HONEST WINDOW, not a default anyone should widen for a bigger sample.
+ * Sessions before it could not file, so including them only inflates the denominator and drives the
+ * rate toward zero. Move this only if the capture's own start moves.
+ */
+export const RESTEER_CAPTURE_START = "2026-09-05";
+
+/**
+ * Branch stamps that name no session. `(unstamped)` is {@link resteerReport}'s own fallback for a row
+ * with no provenance; `HEAD` is what `git rev-parse --abbrev-ref HEAD` returns from a DETACHED
+ * checkout, so a row carrying it was captured somewhere that could not say which branch it was on.
+ *
+ * Neither may enter either side of the ratio. Counting them in the numerator asserts an attribution
+ * nothing supports; counting them in the denominator is not even possible, since the population is
+ * built from branch names. They are reported on their own.
+ */
+export const UNATTRIBUTABLE_BRANCHES: ReadonlySet<string> = new Set(["(unstamped)", "HEAD"]);
+
+/**
+ * The session population a rate is computed over. SUPPLIED by the caller and never derived here —
+ * this module has no clock, no filesystem and no git, and obtaining the population needs all three.
+ */
+export interface SessionPopulation {
+  /** Distinct session branch names observed in the window, in the SAME naming the rows are stamped with. */
+  readonly branches: readonly string[];
+  /** ISO date the window opens. The CAPTURE's start date, never the repository's — see {@link interventionRate}. */
+  readonly since: string;
+  /** How the branches were obtained, printed beside the rate so the selection bias stays legible. */
+  readonly source: string;
+}
+
+/** An intervention rate, with everything a reader needs to know how far to trust it. */
+export interface InterventionRateReading {
+  /** Distinct branches that filed at least one re-steer AND appear in the population. */
+  readonly interveneSessions: number;
+  /** Size of the population — the denominator. */
+  readonly totalSessions: number;
+  /**
+   * `interveneSessions / totalSessions`. `undefined` on an empty population, never a silent 0: a 0%
+   * intervention rate over no sessions reads as a factory nobody ever had to correct.
+   */
+  readonly rate: number | undefined;
+  /** Rows whose branch stamp names no session ({@link UNATTRIBUTABLE_BRANCHES}). Never in either side. */
+  readonly unattributableRows: number;
+  /**
+   * Filing branches with a real name that are NOT in the population — a session that filed a re-steer
+   * and never landed, or landed outside the window. Excluded from the numerator so the rate cannot
+   * exceed 1, and REPORTED so the exclusion is visible rather than silent.
+   */
+  readonly outsidePopulation: readonly string[];
+  /** Echoed from the population so a quoted rate carries its window and source. */
+  readonly since: string;
+  readonly source: string;
+}
+
+/**
+ * The HUMAN INTERVENTION RATE — what share of sessions the owner had to redirect.
+ *
+ * ⚠ THE WINDOW IS LOAD-BEARING, AND GETTING IT WRONG PRODUCES A REASSURING LIE. The capture landed
+ * 2026-09-05. `main` carries ~1,856 merged PRs across its whole history against ~60 session branches
+ * merged since that date. A rate computed over ALL history divides today's handful of rows by
+ * ~1,600 sessions that COULD NOT have filed one — the arithmetic is valid and the number is
+ * meaningless, and it errs toward "almost nothing needs correcting". The caller must open the window
+ * at the capture's own start; this function only reports what it was given.
+ *
+ * THE UNIT MUST MATCH. {@link ResteerReport.perSession} keys on `provenance.branch`, so the
+ * population must be branches too. Counting the denominator in context windows, worktree slots or
+ * traces produces a ratio whose halves are different objects — and the claim ledger specifically is
+ * NOT a candidate, since its `session_id` is the pooled, reused worktree SLOT.
+ */
+export function interventionRate(
+  rows: readonly Resteer[],
+  population: SessionPopulation,
+): InterventionRateReading {
+  const inPopulation = new Set(population.branches);
+
+  const filed = new Set<string>();
+  let unattributableRows = 0;
+  for (const row of rows) {
+    const branch = row.provenance?.branch ?? "(unstamped)";
+    if (UNATTRIBUTABLE_BRANCHES.has(branch)) unattributableRows += 1;
+    else filed.add(branch);
+  }
+
+  const intervened: string[] = [];
+  const outside: string[] = [];
+  for (const branch of filed) {
+    if (inPopulation.has(branch)) intervened.push(branch);
+    else outside.push(branch);
+  }
+
+  const totalSessions = inPopulation.size;
+  return {
+    interveneSessions: intervened.length,
+    totalSessions,
+    rate: totalSessions === 0 ? undefined : intervened.length / totalSessions,
+    unattributableRows,
+    outsidePopulation: outside.sort(),
+    since: population.since,
+    source: population.source,
+  };
+}
+
+/**
+ * Compose the report. Pure: no store, no clock.
+ *
+ * `population` is OPTIONAL and the report is honest either way: given one, it reports an
+ * {@link interventionRate} and drops the no-denominator caveat; without one it behaves exactly as it
+ * did before the denominator existed, stating that the rate is not computable rather than guessing.
+ */
+export function resteerReport(
+  rows: readonly Resteer[],
+  population?: SessionPopulation,
+): ResteerReport {
   const { defects, taste } = partitionResteers(rows);
   const total = rows.length;
   const defectCount = countDefects(defects);
@@ -165,7 +300,9 @@ export function resteerReport(rows: readonly Resteer[]): ResteerReport {
     perSession,
     modeDistribution,
     categoryDistribution,
-    notComputable: RESTEER_NOT_COMPUTABLE,
+    interventionRate: population === undefined ? undefined : interventionRate(rows, population),
+    notComputable:
+      population === undefined ? RESTEER_NOT_COMPUTABLE : RESTEER_NOT_COMPUTABLE_WITH_DENOMINATOR,
   };
 }
 
