@@ -1,0 +1,72 @@
+STORYTREE'S REAL FOREST, THROUGH THE 3D RENDERER — the first time anyone has seen it
+measured 2026-09-07T22:52:01.946Z
+renderer  Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0) (software=false, timer query=true)
+map       35 islands, exported 2026-09-07T22:11:59.855Z from the studio at 92e1bff7 (claude/real-forest-render)
+tile      max(1, capabilities) × 1 hexes, hex circumradius 11.063 (ADR-0528: derived)
+trails    90 edges routed, 0 dropped
+
+1. THE REAL LAYOUT AGAINST THE SYNTHETIC CROWD — both read by the same function
+   real       661 × 3524 ground units (35 islands), depth/width 5.33
+   synthetic  2139 × 3458 ground units (35 islands), depth/width 1.62
+   ratio      width ×0.31, depth ×1.02, area ×0.31
+
+2. FRAME COST AT THE REAL EXTENT — on the RTX 2060, REPORTING (ADR-0517 D4)
+   fit      2.551 ms/frame · 5 draw calls · 687,408 triangles
+   matched  0.345 ms/frame · 5 draw calls · 687,408 triangles
+   one      0.411 ms/frame · 5 draw calls · 687,408 triangles
+   ⚠ THE ADR-0380 D2 ACCEPTANCE FLOOR (Adreno X1-85) WAS NOT MEASURED. This box has an RTX 2060
+     and no Adreno; nothing above is a floor figure and none of it may be quoted as one.
+
+3. THE SHADOW FIELD AT THE REAL EXTENT
+   occlusion coverage 8.37% of the shipped atlas — one field over the whole forest
+
+4. ARE THE SIX STATUS TERRAINS STILL SEPARABLE AT THE REAL MAP’S ZOOM?
+   4 ARMS, each moving exactly one thing, so a misread can be attributed:
+     map         the frame the map draws — kit meshes and the occlusion field
+     bare        the same ground with nothing standing on it — isolates the props
+     unshadowed  the same bare ground, its occlusion atlas built from no casters — isolates the cast shadow
+     norock      the all-lit ground with the slope-gated rock layer removed — isolates the one layer whose reach follows island size
+   fit      0.575 px/unit · 35 in frame · smallest island rect 107 px², median 538 px²
+              map         1/35 read as their own status family · weakest studio-cloud (healthy) own-share 5.95%, read unhealthy
+              bare        1/35 read as their own status family · weakest studio-cloud (healthy) own-share 5.95%, read unhealthy
+              unshadowed  1/35 read as their own status family · weakest studio-cloud (healthy) own-share 7.14%, read unhealthy
+              norock      31/35 read as their own status family · weakest studio-cloud (healthy) own-share 24.11%, read building
+              map         context-traversal-capture (healthy) delivered rgb( 93, 98, 77) over its rect → unhealthy, rgb( 88, 97, 72) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              bare        context-traversal-capture (healthy) delivered rgb( 95,100, 79) over its rect → unhealthy, rgb( 91, 97, 74) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              unshadowed  context-traversal-capture (healthy) delivered rgb(103,110, 86) over its rect → unhealthy, rgb(100,114, 84) over its core → unknown; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              norock      context-traversal-capture (healthy) delivered rgb( 93,123, 71) over its rect → healthy, rgb( 92,123, 72) over its core → healthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+   matched  1.425 px/unit · 9 in frame · smallest island rect 1737 px², median 3474 px²
+              map         0/9 read as their own status family · weakest context-traversal-capture (healthy) own-share 6.72%, read unhealthy
+              bare        0/9 read as their own status family · weakest context-traversal-transcript (healthy) own-share 8.23%, read unhealthy
+              unshadowed  0/9 read as their own status family · weakest context-traversal-transcript (healthy) own-share 16.62%, read unhealthy
+              norock      8/9 read as their own status family · weakest context-traversal-transcript (healthy) own-share 48.15%, read unhealthy
+              map         context-traversal-capture (healthy) delivered rgb( 90, 98, 75) over its rect → unhealthy, rgb( 90, 96, 74) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              bare        context-traversal-capture (healthy) delivered rgb( 95,101, 80) over its rect → unhealthy, rgb( 93, 99, 78) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              unshadowed  context-traversal-capture (healthy) delivered rgb(103,110, 86) over its rect → unhealthy, rgb(100,113, 83) over its core → unknown; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              norock      context-traversal-capture (healthy) delivered rgb( 93,122, 71) over its rect → healthy, rgb( 91,122, 72) over its core → healthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+   one      8.000 px/unit · 1 in frame · smallest island rect 156160 px², median 156160 px²
+              map         0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 6.54%, read unhealthy
+              bare        0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 9.98%, read unhealthy
+              unshadowed  0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 25.88%, read unhealthy
+              norock      1/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 77.12%, read healthy
+              map         context-traversal-capture (healthy) delivered rgb( 87, 97, 74) over its rect → unhealthy, rgb( 90, 97, 75) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              bare        context-traversal-capture (healthy) delivered rgb( 95,100, 80) over its rect → unhealthy, rgb( 94,101, 79) over its core → unhealthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              unshadowed  context-traversal-capture (healthy) delivered rgb(103,110, 86) over its rect → unhealthy, rgb( 99,113, 83) over its core → unknown; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+              norock      context-traversal-capture (healthy) delivered rgb( 93,122, 71) over its rect → healthy, rgb( 91,122, 72) over its core → healthy; the reader models healthy from rgb(108,142, 72) to rgb(140,184, 94)
+   zero-separation pairs in the palette: building/proposed (ADR-0462 merged proposed/building onto one token — a measured identity, not a defect)
+
+THE PROJECTION THE TWO SURFACES DO NOT SHARE
+   the 2D map draws at 20°; this canvas views true ground at 50°,
+   so depth delivers 2.24× more screen height in 3D. x is untouched by either,
+   which is why the "matched" picture is taken at the 2D map's own 1.4246 px per world x unit.
+
+THE PICTURES
+   3d-fit.png — 0.575 px/unit · land 0.53% of the frame, 3.63% of its own box · 46 colour families · 116,998 ground triangles
+   3d-matched.png — 1.425 px/unit · land 1.14% of the frame, 6.04% of its own box · 53 colour families · 116,998 ground triangles
+   3d-one.png — 8.000 px/unit · land 3.49% of the frame, 67.74% of its own box · 54 colour families · 116,998 ground triangles
+   2d-fit.png / 2d-resting.png — the studio's own SVG map of the same forest, same 2560×1600 buffer
+
+read island at 8 px/unit — map: 0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 6.54%, read unhealthy
+read island at 8 px/unit — bare: 0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 9.98%, read unhealthy
+read island at 8 px/unit — unshadowed: 0/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 25.88%, read unhealthy
+read island at 8 px/unit — norock: 1/1 read as their own status family · weakest context-traversal-capture (healthy) own-share 77.12%, read healthy

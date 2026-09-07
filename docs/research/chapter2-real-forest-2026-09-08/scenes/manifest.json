@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-09-07T22:11:59.855Z",
+  "studio": {
+    "url": "http://127.0.0.1:5417",
+    "head": "92e1bff783dea16562283d2abb52eac285678338",
+    "branch": "claude/real-forest-render"
+  },
+  "control": "shipped",
+  "arms": [
+    {
+      "id": "shipped",
+      "spacing": {},
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "file": "shipped.json",
+      "islands": 35,
+      "world": {
+        "width": 787,
+        "height": 1293
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 103,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1003523
+    }
+  ],
+  "twoD": [
+    {
+      "view": "fit",
+      "islands": 35,
+      "scale": 1.4246309027487822,
+      "viewport": {
+        "w": 2560,
+        "h": 1600
+      },
+      "contentExtentPx": {
+        "w": 909.3418579101562,
+        "h": 1664.1163635253906
+      },
+      "medianIslandWidthPx": 81.0692138671875,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/realforest/docs/research/chapter2-real-forest-2026-09-08/2d-fit.png"
+    },
+    {
+      "view": "resting",
+      "islands": 35,
+      "scale": 3.094644388622231,
+      "viewport": {
+        "w": 2560,
+        "h": 1600
+      },
+      "contentExtentPx": {
+        "w": 2100.0874633789062,
+        "h": 3843.2080078125
+      },
+      "medianIslandWidthPx": 187.22607421875,
+      "png": "/home/mickh/code/Storytree/.claude/worktrees/realforest/docs/research/chapter2-real-forest-2026-09-08/2d-resting.png"
+    }
+  ]
+}
