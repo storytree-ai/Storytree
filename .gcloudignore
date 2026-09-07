@@ -1,6 +1,32 @@
 # What `gcloud builds submit` uploads as the studio image's build context
 # (infra/studio-cloudbuild.yaml). Presence of this file means .gitignore is NOT
-# consulted — list every heavy/irrelevant path explicitly.
+# consulted -- list every heavy/irrelevant path explicitly.
+#
+# READ THAT SECOND SENTENCE AS A SECURITY PROPERTY, NOT A CONVENIENCE NOTE (ADR-0544).
+# apps/studio/Dockerfile is `COPY . .`, so whatever survives this filter is baked into
+# a published image, unread. Because .gitignore is bypassed here, a path being
+# gitignored buys NOTHING -- every credential-shaped path must be repeated below or it
+# ships. This file, not a .dockerignore, is the control: there is no .dockerignore and
+# none is wanted, because the documented build path is `gcloud builds submit`.
+#
+# The exposure this guards is the BY-HAND build (the runbook in studio-cloudbuild.yaml's
+# header), which uploads a working tree as it actually is. The CI path
+# (.github/workflows/deploy-studio.yml) checks out clean, so only committed files exist
+# there and this filter has nothing private to catch.
+
+# -- Credential + private runtime material: the reason this file is security-relevant --
+# Mirrors .gitignore's "Env / secrets" block line for line. .env.example tells you to
+# copy it to .env and paste an API key in, and .gitignore then makes that feel safe.
+# It is only safe here because of the next three lines. Keep the two lists in step.
+.env
+.env.*
+!.env.example
+# App-owned runtime state holding member identities (ADR-0043/0044). Gitignored, never
+# committed, and must not be baked into a published image either.
+apps/studio/data/users.json
+apps/studio/data/attestations.json
+
+# -- Heavy / irrelevant --
 .git
 .gitmodules
 legacy/
