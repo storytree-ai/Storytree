@@ -106,7 +106,13 @@ import {
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import type { TraversalOptions } from "./traversal.js";
-import { resolveTraceIdentity } from "@storytree/context-traversal-capture";
+import {
+  readSessionOriginDeclaration,
+  resolveTraceIdentity,
+  resolveTraversalDir,
+  withClaimedUnits,
+  writeSessionOriginDeclaration,
+} from "@storytree/context-traversal-capture";
 import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
@@ -3698,6 +3704,39 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           // Neither is news, and neither is this verb's business to argue with. A genuine store
           // failure THROWS, and the rider's own guard in `noticeboard.ts` reports that.
           return res.ok ? "→ increment is now ACTIVE (ADR-0386) — execution state, recorded not remembered" : null;
+        },
+        // ADR-0541 D2 — the units this declare claimed land on the session's OWN traversal
+        // declaration, so the trace rail can name the arc from a recorded fact rather than derive it.
+        //
+        // COMPOSED HERE for the same reason the rider above is: `packages/drive` (the ledger) and
+        // `@storytree/context-traversal-capture` (the trace) are separate organisms, and this
+        // dispatch is the one place already holding both. It is bound to `declare` alone — the verb
+        // a session runs to say what it is working on — never to the ledger-surgery verbs.
+        //
+        // ⚠ NOTHING HERE INFERS AN ARC. It records the unit ids the session itself named; the
+        // resolution to an arc happens at READ time, in the corpus, and a unit that resolves to no
+        // arc stays a unit (ADR-0541 D3/D4). The refused shortcut is joining the trace's worktree
+        // SLOT to the claim ledger — a pooled slot answers "every arc ever worked in this worktree".
+        onClaimsDeclared: async (nodeIds) => {
+          const sessionId = resolveDeclaringSessionId();
+          // No trace identity is the primary checkout / CI / the lobby — exactly the runs that
+          // capture no trace at all, so there is no row for a unit to label. Silent, not an error.
+          if (sessionId === null) return null;
+          const dir = resolveTraversalDir();
+          const next = withClaimedUnits(
+            readSessionOriginDeclaration(dir, sessionId),
+            nodeIds,
+            new Date().toISOString(),
+          );
+          // Null means every unit was already on the record: no write, so a re-declare does not
+          // rewrite the file, and no line, because nothing changed.
+          if (next === null) return null;
+          // Fail-silent on the capture path's own contract (ADR-0241 D3): a declaration that cannot
+          // be written leaves the session simply unrecorded, and never touches the claim or the
+          // exit code. `writeSessionOriginDeclaration` returns false rather than throwing.
+          return writeSessionOriginDeclaration(dir, sessionId, next)
+            ? `→ trace records this session's units: ${next.units.join(", ")} (ADR-0541 D2)`
+            : null;
         },
       },
     );

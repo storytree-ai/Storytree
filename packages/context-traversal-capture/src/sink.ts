@@ -56,8 +56,16 @@ export interface TraversalLineIdentity {
   readonly origin?: SessionOriginKind;
   /** The session that cut this one, when it named itself. Only ever present beside `origin: cut`. */
   readonly cutBy?: string | null;
-  /** The arc/increment this session was cut to drive — a canonical identity, never free text. */
-  readonly cutFor?: string | null;
+  /**
+   * The unit(s) this session named for itself — canonical identities, never free text.
+   *
+   * ⚠ A STRING **OR** A LIST since ADR-0541 D2, and the list is not decoration. One appended batch
+   * carries ONE identity stamp, so a session that claims several units at once has nowhere else to
+   * put the plural; `lineCutFor` keeps the single case a bare string so the bytes of every earlier
+   * line, and the shared store's single-valued column, are untouched. Readers go through
+   * `foldSessionOrigin`, which is the one place that decides what a rider names.
+   */
+  readonly cutFor?: string | readonly string[] | null;
 }
 
 export interface TraversalSinkLocation extends TraversalLineIdentity {
@@ -129,8 +137,12 @@ export function appendTraversalEvents(events: readonly unknown[], location: Trav
   // absent `origin` key is what makes a line read back `unknown` rather than `human`, and an absent
   // `grade` is what makes a legacy line legible as one (ADR-0484 D7 / inc-30). Written five times
   // over, that rule had five places to drift and no single place to test.
-  const identity: Record<string, string> = {};
-  const stamp = (key: string, value: string | null | undefined): void => {
+  // `unknown` values rather than `string`, because `cutFor` may be a LIST (ADR-0541 D2). The RULE is
+  // untouched — an attribute is stamped when it NAMES something — and the list form reaches here
+  // already collapsed by `lineCutFor`, which returns null for "names nothing", so this guard still
+  // decides the whole question in one place.
+  const identity: Record<string, unknown> = {};
+  const stamp = (key: string, value: string | readonly string[] | null | undefined): void => {
     // Stryker disable next-line ConditionalExpression: the `undefined` half is EQUIVALENT and the
     // `null` half is not. `JSON.stringify` omits a key whose value is `undefined`, so dropping this
     // conjunct writes the same bytes; dropping the `null` one writes `"cutBy":null` onto every

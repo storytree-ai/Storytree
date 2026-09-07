@@ -30,3 +30,4 @@ export * from "./arc.js";
 export * from "./increment.js";
 export * from "./narrative-staleness.js";
 export * from "./question.js";
+export * from "./unit-arc.js";

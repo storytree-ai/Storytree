@@ -40,6 +40,10 @@ export interface TraversalTraceRow {
   readonly sessionId: string;
   readonly eventCount: number;
   readonly lastObservedAt: string | null;
+  /** The units this session recorded for itself, in first-seen order (ADR-0541 D1). */
+  readonly units: readonly string[];
+  /** The arcs those units resolve to. Several are LISTED, never reduced to one. */
+  readonly arcs: readonly string[];
 }
 
 /** The list the rail renders, and the four states it may honestly be in. */
@@ -53,6 +57,11 @@ export type TraversalTraceList =
       readonly dir: string;
       /** "346 local traces" — the count, said once, at the head of the rail. */
       readonly heading: string;
+      /**
+       * Whether the corpus answered, carried through from the payload (ADR-0541 D1). False means
+       * every row's arc is UNKNOWN rather than absent — see {@link traceArcLabel}.
+       */
+      readonly arcsResolved: boolean;
     };
 
 /**
@@ -94,6 +103,10 @@ export function buildTraversalTraceList(index: TraversalIndexState): TraversalTr
     rows,
     dir,
     heading: `${rows.length} local trace${rows.length === 1 ? '' : 's'}`,
+    // `?? false` rather than `?? true`: a payload from a server that predates the field says
+    // nothing about the corpus, and the safe direction for an unknown is the one that REFUSES to
+    // print "worked on no arc" — a positive claim — over rows nothing resolved.
+    arcsResolved: index.payload.arcsResolved ?? false,
   };
 }
 
@@ -102,6 +115,8 @@ function toRow(entry: TraversalSessionEntry): TraversalTraceRow {
     sessionId: entry.sessionId,
     eventCount: entry.eventCount,
     lastObservedAt: entry.lastObservedAt,
+    units: entry.units ?? [],
+    arcs: entry.arcs ?? [],
   };
 }
 
@@ -152,4 +167,97 @@ function humaniseSpan(ms: number): string {
     return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, '0')}m`;
   }
   return `${Math.floor(hours / 24)}d`;
+}
+
+/**
+ * WHAT THE TRACE ROW SAYS ABOUT THE ARC — the owner's complaint, answered (ADR-0541).
+ *
+ * *"i can't tell what arc each session was working on if any, the left panel just shows me
+ * trace/session ids."* The `if any` is the hard half, and it is why this returns a discriminated
+ * state rather than a string: the four honest answers are genuinely different facts, and two of them
+ * look identical from the arc list alone.
+ *
+ * ⚠ `no-arc` AND `unrecorded` MUST NEVER COLLAPSE (ADR-0541 D4). Both have an empty arc list. The
+ * first is a session that claimed real work belonging to no arc — 20% of the measured September
+ * population, `r3f-world-spike` and 26 other unhomed units — which is a RECORDED FACT about the
+ * work. The second is a session that recorded nothing at all. Rendering the first as the second
+ * reports known work as unknown and inflates September's apparent unknown share from 13% to 33%.
+ * The units list is the only thing that separates them, which is why it rides the wire even when it
+ * resolves cleanly.
+ *
+ * `unresolved` is the fifth, and it is not a state of the SESSION at all — it is a state of this
+ * READ. The offline json backend holds no arcs, so nothing could be looked up; saying "no arc" there
+ * would be a claim about the work made on the strength of a store that never answered.
+ */
+export type TraceArcState =
+  /** Resolved to one or more arcs. Several are listed; the list is never reduced to one. */
+  | { readonly state: 'arcs'; readonly arcs: readonly string[] }
+  /** Units recorded, none of them on an arc — a fact about the work, not missing data. */
+  | { readonly state: 'no-arc'; readonly units: readonly string[] }
+  /** Nothing recorded. The permanent answer for the older two-thirds of the list (ADR-0541 D5). */
+  | { readonly state: 'unrecorded' }
+  /** The corpus could not be consulted, so the units are unresolved rather than unhomed. */
+  | { readonly state: 'unresolved'; readonly units: readonly string[] };
+
+/**
+ * Classify one row. `arcsResolved` is the LIST's flag, not the row's: whether the corpus answered is
+ * one fact about the request, and asking it per row would invite a caller to pass it per row.
+ */
+// Stryker disable next-line BlockStatement: KILLED, NAMEABLE ONLY AS A TIMEOUT — the
+// `traversal-routes.ts` precedent, met here through React rather than through HTTP. An emptied body
+// returns `undefined`, so every consumer throws on `classified.state`; the pure tests below fail on
+// it instantly, but the covering set also includes `TraversalTab.test.tsx`, whose `waitFor` retries
+// the failing render until its own budget expires. Vitest reaches `src/components/` before
+// `src/lib/`, so the runner records a Timeout and attributes no killing test — which
+// `adjudicateMutants` counts as UNPROVEN rather than as a pass. The mutant IS caught; what is
+// missing is the runner's ability to name what caught it.
+export function traceArcState(row: TraversalTraceRow, arcsResolved: boolean): TraceArcState {
+  // Recorded-nothing is decided FIRST and independently of the corpus. A session with no units has
+  // nothing to resolve, so a silent store changes nothing about the answer — and reporting it as
+  // "unresolved" would blame the store for an absence that is the session's own.
+  if (row.units.length === 0) return { state: 'unrecorded' };
+  if (!arcsResolved) return { state: 'unresolved', units: row.units };
+  if (row.arcs.length === 0) return { state: 'no-arc', units: row.units };
+  return { state: 'arcs', arcs: row.arcs };
+}
+
+/**
+ * The rail's one-line label for a row — the rail is 196px wide, so this is terse by construction.
+ *
+ * The two empty-arc states get DIFFERENT WORDS, not a shared blank: "no arc" is an answer and
+ * "not recorded" is the absence of one, and an operator comparing traces has to be able to tell
+ * which they are looking at without opening anything.
+ */
+export function traceArcLabel(row: TraversalTraceRow, arcsResolved: boolean): string {
+  const classified = traceArcState(row, arcsResolved);
+  switch (classified.state) {
+    case 'arcs':
+      return classified.arcs.join(' · ');
+    case 'no-arc':
+      return `no arc · ${classified.units.join(' · ')}`;
+    case 'unresolved':
+      return `arc unresolved · ${classified.units.join(' · ')}`;
+    case 'unrecorded':
+      return 'arc not recorded';
+  }
+}
+
+/**
+ * The full sentence behind the label, for the row's `title`. Says what the short form cannot fit —
+ * above all that a blank row is a session that never said, and NOT a session that did nothing.
+ */
+export function traceArcTitle(row: TraversalTraceRow, arcsResolved: boolean): string {
+  const classified = traceArcState(row, arcsResolved);
+  switch (classified.state) {
+    case 'arcs':
+      return classified.arcs.length === 1
+        ? `Worked on the arc ${classified.arcs[0]} — recorded by the session itself (${row.units.join(', ')}).`
+        : `Worked across ${classified.arcs.length} arcs: ${classified.arcs.join(', ')} — every one listed, none picked as the winner.`;
+    case 'no-arc':
+      return `Claimed real work belonging to NO arc: ${classified.units.join(', ')}. That is a recorded fact about the work, not missing data.`;
+    case 'unresolved':
+      return `Recorded ${classified.units.join(', ')}, but the corpus could not be consulted, so these are unresolved rather than unhomed.`;
+    case 'unrecorded':
+      return 'This session never recorded what it was working on. Traces are attributed going forward only — no arc is ever inferred from a pooled worktree slot (ADR-0541 D3).';
+  }
 }

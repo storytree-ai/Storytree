@@ -133,7 +133,10 @@ const TraceLineDoc = z.object({
   // the `an-unrecognised-origin` case already asserts against real bytes.
   origin: z.enum(["human", "cut"]).optional().catch(undefined),
   cutBy: z.string().nullish().catch(null),
-  cutFor: z.string().nullish().catch(null),
+  // A STRING OR A LIST (ADR-0541 D2). Spelled as a union rather than left to `.catch(null)` because
+  // the two answers it produces are different decisions and only one of them is a degradation: a
+  // single-unit line still ships its unit, and a MULTI-unit line ships none — see `locationOf`.
+  cutFor: z.union([z.string(), z.array(z.string())]).nullish().catch(null),
 });
 
 type TraceLine = z.infer<typeof TraceLineDoc>;
@@ -332,9 +335,28 @@ function locationOf(sessionId: string, line: TraceLine): TraversalEventLocation 
     sessionId,
     slot: line.slot ?? null,
     cutBy: line.cutBy ?? null,
-    cutFor: line.cutFor ?? null,
+    cutFor: shippableCutFor(line.cutFor),
     ...optional,
   };
+}
+
+/**
+ * The unit a line's rider ships to the shared store — `events.traversal_event.cut_for`, ONE TEXT
+ * column holding one canonical id.
+ *
+ * ⚠ A MULTI-UNIT LINE SHIPS NONE OF THEM, and that is a stated limit rather than an oversight
+ * (ADR-0541). The column cannot hold several, and the two alternatives are both worse than an
+ * absence: picking one of them would put a guess in a column a reader would quote as a record, and
+ * inventing a delimited encoding would give the same fact two shapes — a list locally, a joined
+ * string in Postgres — which is precisely the drift `foldSessionOrigin` exists as one function to
+ * prevent. Nothing in scope reads the shared store for arc attribution: the studio panel reads the
+ * LOCAL JSONL sink (`PgTraversalEventStore` has zero references under `apps/studio`), and the local
+ * line keeps the whole truth. Widening the column is a schema question ADR-0541 did not open.
+ */
+function shippableCutFor(cutFor: TraceLine["cutFor"]): string | null {
+  if (typeof cutFor === "string") return cutFor;
+  if (!Array.isArray(cutFor)) return null;
+  return cutFor.length === 1 ? (cutFor[0] ?? null) : null;
 }
 
 /**

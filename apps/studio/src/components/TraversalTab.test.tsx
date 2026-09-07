@@ -41,13 +41,41 @@ import { TraversalTab } from './TraversalTab';
 
 const TRACE_DIR = '/home/op/.storytree/traces';
 
-function answer(sessions: Array<{ sessionId: string; eventCount: number; lastObservedAt: string | null }>) {
-  return { dir: TRACE_DIR, sessions };
+function answer(
+  sessions: Array<{
+    sessionId: string;
+    eventCount: number;
+    lastObservedAt: string | null;
+    units?: string[];
+    arcs?: string[];
+  }>,
+  arcsResolved = true,
+) {
+  return {
+    dir: TRACE_DIR,
+    arcsResolved,
+    sessions: sessions.map((s) => ({ units: [], arcs: [], ...s })),
+  };
 }
 
+// One row per state the rail must keep apart (ADR-0541 D4): an arc it resolved, real work belonging
+// to NO arc, and a session that recorded nothing. `bravo` is the one that would be reported as
+// unknown if the two absences were ever collapsed.
 const THREE = answer([
-  { sessionId: 'alpha-1', eventCount: 12, lastObservedAt: '2026-08-12T10:00:00.000Z' },
-  { sessionId: 'bravo-2', eventCount: 386, lastObservedAt: '2026-08-12T09:55:00.000Z' },
+  {
+    sessionId: 'alpha-1',
+    eventCount: 12,
+    lastObservedAt: '2026-08-12T10:00:00.000Z',
+    units: ['map-arc-inc-01'],
+    arcs: ['map-arc'],
+  },
+  {
+    sessionId: 'bravo-2',
+    eventCount: 386,
+    lastObservedAt: '2026-08-12T09:55:00.000Z',
+    units: ['r3f-world-spike'],
+    arcs: [],
+  },
   { sessionId: 'charlie-3', eventCount: 4, lastObservedAt: '2026-08-11T10:00:00.000Z' },
 ]);
 
@@ -107,12 +135,33 @@ describe('TraversalTab — the whole local index, newest first (ttl-lists-the-wh
   it('offers EVERY trace the index answered, with no claim and no story involved', async () => {
     renderTab({ active: true });
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
-    // The claim-join left 338 of 339 traces unreachable. Every row the index knows is offered now.
+    // The claim-join left 338 of 339 traces unreachable. Every row the index knows is offered now —
+    // and since ADR-0541 D1 each carries the arc the session RECORDED, in one of three shapes the
+    // rail must never blur: a named arc, real work on NO arc, and nothing recorded at all.
     expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
-      'alpha-112newest',
-      'bravo-2386' + '5m earlier',
-      'charlie-34' + '1d earlier',
+      'alpha-112' + 'map-arc' + 'newest',
+      'bravo-2386' + 'no arc · r3f-world-spike' + '5m earlier',
+      'charlie-34' + 'arc not recorded' + '1d earlier',
     ]);
+  });
+
+  it('gives the two ABSENCES different words, so neither reads as the other', async () => {
+    // ⚠ The load-bearing distinction (ADR-0541 D4). 20% of September sessions claimed real work
+    // belonging to no arc; rendering that as "not recorded" reports known work as unknown and
+    // inflates the apparent unknown share from 13% to 33%.
+    renderTab({ active: true });
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
+    const arcCells = screen
+      .getAllByRole('option')
+      .map((row) => row.querySelector('.traversal-tab-row-arc'));
+    expect(arcCells.map((c) => c?.getAttribute('data-arc'))).toEqual([
+      'arcs',
+      'no-arc',
+      'unrecorded',
+    ]);
+    // And the long forms tell an operator WHICH fact they are looking at.
+    expect(arcCells[1]?.getAttribute('title')).toMatch(/recorded fact about the work/);
+    expect(arcCells[2]?.getAttribute('title')).toMatch(/never recorded/);
   });
 
   it('heads the rail with the count', async () => {
