@@ -373,7 +373,11 @@ function composeRead(
     ok: true,
     body: [`${label(number)} — composed statement`, "", ...renderComposedBanner(readings)].join("\n"),
     next: [
-      `storytree library artifact ${id}`,
+      // `--full`, NOT the bare read (ADR-0533 D4). Since the bare read of a composed decision returns
+      // this same statement, the branch that used to mean "and here is the whole record" would now
+      // hand back what the caller is already looking at. The onward branch from a statement is the
+      // record — that is the only thing this surface does not already show.
+      `storytree library artifact ${id} --full   (the record's own text)`,
       `storytree adr compose ${String(number)} --statement @statement.md --pg   (re-affirm)`,
     ],
   };

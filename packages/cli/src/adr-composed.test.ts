@@ -182,7 +182,23 @@ test("adr compose: the whole-log index names which statements carry outstanding 
 // The reader surface
 // ---------------------------------------------------------------------------
 
-test("library artifact: a composed decision leads with the banner AND keeps its whole body (D4)", async () => {
+/**
+ * ⚠ THE CONTRACT THIS TEST PINS WAS RE-DECIDED — read this before "restoring" the old assertions.
+ *
+ * It used to assert that a composed decision "leads with the banner AND KEEPS ITS WHOLE BODY (D4)",
+ * pinning ADR-0428 D4's *additive* clause AS A PROPERTY OF THE BARE READ. **ADR-0533 D4 narrowed
+ * exactly that clause**: a bare single-record read now RETURNS the statement and moves the record's
+ * own text behind `--full`.
+ *
+ * What ADR-0428 D4 still means, unchanged and pinned below: the statement is additive to the RECORD
+ * (nothing edits a body — ADR-0533 D2), and the chain stays live and walkable. What moved is only
+ * what one command PRINTS by default. Both halves are asserted here so the narrowing is legible
+ * from the test rather than only from the decision log — and so a later reader can tell a deliberate
+ * re-decision from a regression, which a deleted assertion could not.
+ *
+ * The full behaviour, including the absences, is `adr-composed-default-read.test.ts`.
+ */
+test("library artifact: a composed decision returns the statement; --full still keeps the whole body", async () => {
   const store = await chain();
   await run(["adr", "compose", "278", "--statement", "The composed position."], {
     store,
@@ -192,11 +208,16 @@ test("library artifact: a composed decision leads with the banner AND keeps its 
   const env = await run(["library", "artifact", "adr-0278"], { store });
   assert.match(env.body, /CURRENT POSITION AT THIS FRONTIER/);
   assert.match(env.body, /The composed position\./);
-  // ADDITIVE: the record's own text is still there in full, and the chain is untouched.
-  assert.match(env.body, /# ADR-0278: The frontier/);
-  assert.match(env.body, /## Decision/);
+  // ADR-0533 D4: the body is DEFERRED on the bare read, and the offer that opens it is right there.
+  assert.doesNotMatch(env.body, /# ADR-0278: The frontier/);
+  assert.match(env.body, /THE RECORD'S OWN TEXT IS NOT ABOVE/);
+
+  // ADR-0428 D4 SURVIVES where it always applied: the record is untouched and one command away.
+  const full = await run(["library", "artifact", "adr-0278", "--full"], { store });
+  assert.match(full.body, /# ADR-0278: The frontier/);
+  assert.match(full.body, /## Decision/);
   assert.ok(
-    env.body.indexOf("CURRENT POSITION") < env.body.indexOf("# ADR-0278:"),
+    full.body.indexOf("CURRENT POSITION") < full.body.indexOf("# ADR-0278:"),
     "the banner is a cover note and sits above the text it covers",
   );
 });

@@ -608,6 +608,47 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
 }
 
 /**
+ * THE FULL-RECORD OFFER a composed decision read prints instead of its body (ADR-0533 D4).
+ *
+ * PURE, and it states the COST rather than merely existing: the character count is what turns the
+ * offer into a decision the reader can make — the whole point of the composed statement is telling
+ * them whether the record is worth opening, and "worth" needs a price.
+ *
+ * ⚠ THIS BLOCK IS THE ONLY THING STANDING BETWEEN ADR-0533 D2 AND ERGONOMIC DEFEAT. D2 keeps the
+ * record's evidence, its traps and the arguments that lost — and that protection dies just as
+ * completely if the full text becomes awkward to reach as if it had been deleted. So the flag is
+ * printed as a pasteable line here AND as the FIRST `next:` offer, never as a mention in prose.
+ */
+interface FullRecordOffer {
+  /** The block printed where the record's body would have been. */
+  readonly block: string[];
+  /** The same offer as one pasteable `next:` branch. */
+  readonly next: string;
+}
+
+function fullRecordOffer(id: string, body: string): FullRecordOffer {
+  const size = `${body.length.toLocaleString("en-US")} characters`;
+  return {
+    block: [
+      // A LEADING separator, not merely a trailing one. The authority stamp above ends without a
+      // blank line (the body it normally precedes opens with its own `# ADR-NNNN:` heading), so
+      // without this the offer's first line reads as one more line of the stamp — and an offer that
+      // does not read as its own block is exactly the "awkward to reach" this exists to prevent.
+      "",
+      `  ⋯ THE RECORD'S OWN TEXT IS NOT ABOVE — ${size}, one command away:`,
+      "",
+      `        storytree library artifact ${id} --full`,
+      "",
+      "    A composed statement is a summary, and a summary can be wrong in a way the record cannot.",
+      "    The evidence, the traps and the arguments that lost are all in the full text — open it when",
+      "    this decision bears on what you are deciding (ADR-0533 D1/D2).",
+      "",
+    ],
+    next: `storytree library artifact ${id} --full   (the record's own text — ${size})`,
+  };
+}
+
+/**
  * `storytree library artifact <id>` — print one artifact to stdout.
  *
  * ADR-0464 D1 removed this render's `offerId` parameter and the block it drove. Every followable ref
@@ -616,8 +657,29 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
  * AUTHORED `depends_on` edge alone (D2, spliced in below), which is a narrower list a person chose
  * rather than "whatever happened to cite this" — and it keeps the titles and kind grouping the offer
  * block stripped off, so the surviving block is strictly more informative than the one deleted.
+ *
+ * ## The composed default (ADR-0533 D4)
+ *
+ * A decision CARRYING a composed statement returns that statement — under its derived staleness
+ * header — and the full document moves behind `--full`. The ladder a session climbed used to run
+ * one-line title → 4,000-token document with nothing between, so the decision to open a record was
+ * made from its title alone; the statement is that missing rung.
+ *
+ * THREE THINGS THIS IS NOT, each a way the change could go wrong:
+ *
+ *   - It is not a reduction. ADR-0533 D2 leaves every record's body untouched; only what a bare read
+ *     PRINTS moves. `--full` and `--raw body` both still return the whole text.
+ *   - It never fires on a record with no statement — 411 of 465 at decision time. There is nothing to
+ *     substitute, so those render exactly as before. The composed statement is the default read
+ *     WHERE ONE EXISTS, which is the only reading under which the other 411 stay readable.
+ *   - It is not `adr list` printing statements. 225 paragraphs is ~270 KB against a 43 KB index — six
+ *     times worse than the thing it would replace, which would defeat the decision outright.
  */
-export async function viewArtifact(store: Store, id: string): Promise<Envelope> {
+export async function viewArtifact(
+  store: Store,
+  id: string,
+  opts: { readonly full?: boolean | undefined } = {},
+): Promise<Envelope> {
   const stored = await store.getDoc(id);
   if (!stored) {
     return {
@@ -641,12 +703,19 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // and every edge stays walkable.
   const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
   if (banner.length > 0) lines.push(...banner);
+  // ADR-0533 D4: the statement STANDS IN FOR the body on a bare read, and only when there is one to
+  // stand in. The condition is `banner.length > 0` rather than a second look at the `composed` field
+  // so the substitution can never outrun what was actually PRINTED — a record whose statement failed
+  // to render would otherwise lose its body to a banner the reader never saw, which is the one way
+  // this change could take text away from someone instead of deferring it.
+  const composedStandsIn = banner.length > 0 && opts.full !== true;
+  const offer = composedStandsIn ? fullRecordOffer(a.id, a.body) : null;
   // ADR-0519's authority stamp, ABOVE the body for the same reason the composed banner is: it is a
   // cover note about the record, and whose call a decision was changes how its text should be read.
   // A reader who reaches the end of a long decision and only then learns an agent derived it has
   // already spent the reading. Absent stamp renders nothing at all.
   if (stored.kind === "adr") lines.push(...authorityBlockFor(stored.doc));
-  lines.push(a.body);
+  lines.push(offer === null ? a.body : offer.block.join("\n"));
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds
   // through. It used to serve the `Sources:` block as well — that block is gone (ADR-0477 D1, the
@@ -719,6 +788,11 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
     const authored = dependsOnEdges(readDependsOnPointers(stored.doc), resolveAsset);
     next = [...emitNodeEnvelope({ id: a.id, headline: a.title, edges: authored }).next, ...next];
   }
+  // FIRST, ahead of the authored edges and the verbs about this row (ADR-0533 D4). Every other line
+  // here goes SOMEWHERE ELSE; this one is the rest of the artifact you are already reading, and the
+  // increment's own words are that the flag "must be obvious and cheap". Buried at position six
+  // among edges it is neither.
+  if (offer !== null) next = [offer.next, ...next];
   // NOTHING IS APPENDED HERE ANY MORE (ADR-0464 D1). The Sources block above used to be printed a
   // SECOND time as navigation — one pasteable `--from-offer` follow-up per followable ref, plus an
   // ASK stanza in the envelope's `note:` telling the agent to run the line as printed (ADR-0320).
@@ -869,6 +943,51 @@ const RAW_READ_VERBS: ReadonlyArray<readonly [area: string, sub: string]> = [
   ["library", "artifact"],
   ["arc", "show"],
 ];
+
+/**
+ * The verbs that honour `--full` (ADR-0533 D4). Exactly one today.
+ *
+ * Same (area, sub) grain as {@link RAW_READ_VERBS} deliberately: a finer, per-sub-verb fence for one
+ * flag would be a second rule for readers to hold, and the confusion it would buy protection against
+ * — `library artifact edit … --full` — is not a read that could be mistaken for a complete one.
+ */
+const FULL_READ_VERBS: ReadonlyArray<readonly [area: string, sub: string]> = [["library", "artifact"]];
+
+function fullIsRead(area: string, sub: string | undefined): boolean {
+  // Stryker disable next-line MethodExpression: EQUIVALENT — `some` and `every` are the same
+  // function over a ONE-element list, and `FULL_READ_VERBS` has one member today. No test can
+  // discriminate them, and adding a second verb purely to make a mutant killable would fabricate a
+  // fence the CLI does not have. The moment a real second verb joins the list this becomes
+  // discriminable and the disable should come off with it.
+  return FULL_READ_VERBS.some(([a, s]) => a === area && s === sub);
+}
+
+/**
+ * `--full` where nothing reads it — REFUSED, following `--raw`'s and `--out`'s rule rather than
+ * inventing one.
+ *
+ * The silent-drop is worse for this flag than for most: `--full` is typed by a reader who has just
+ * been told part of a record is missing, so an ignored one hands back a view they will read AS the
+ * whole thing. That is the same shape as the `--out` deletion-at-exit-0 — a partial answer that
+ * cannot be told from a complete one.
+ */
+function fullUnsupported(area: string, sub: string | undefined): Envelope {
+  const spelled = `${area}${sub === undefined ? "" : ` ${sub}`}`;
+  return {
+    ok: false,
+    body: [
+      `\`--full\` opens the whole record behind a composed decision's statement, and \`${spelled}\` is not that read.`,
+      "",
+      "the verbs that honour it:",
+      ...FULL_READ_VERBS.map(([a, s]) => `  storytree ${a} ${s} <id> --full`),
+      "",
+      "It is refused rather than ignored on purpose: a silently-dropped `--full` returns a view that",
+      "is not the full record, to a caller who asked for the full record and cannot tell the",
+      "difference from what they get back.",
+    ].join("\n"),
+    next: FULL_READ_VERBS.map(([a, s]) => `storytree ${a} ${s} <id> --full`),
+  };
+}
 
 /** Does `<area> <sub>` read one artifact by id? */
 function rawIsRead(area: string, sub: string | undefined): boolean {
@@ -2885,6 +3004,13 @@ export const CLI_OPTIONS = {
   set: { type: "string", multiple: true },
   raw: { type: "string" },
   out: { type: "string" },
+  // `storytree library artifact <id> --full` (ADR-0533 D4) — the whole record, where a composed
+  // decision's bare read now returns its composed statement. BOOLEAN, so it is deliberately absent
+  // from `at-path.ts`'s two classes: expansion is a string-value concern and `at-path.test.ts`
+  // asserts no boolean is filed there. It shares a spelling with `pnpm gate --full`, which parses
+  // its own argv (`gate-run.ts`) and never reaches this table — the two mean the same thing (widen
+  // to everything), so the collision reads as a convention rather than as a clash.
+  full: { type: "boolean", default: false },
   // `storytree lint-panel packet` — the panel spec, the oxlint report its target's sites are sampled
   // from, and the directory the judges' briefs are written to. `--out-dir` rather than `--out`
   // deliberately: `--out` is the output channel of the `--raw` bare-bytes read and is REFUSED
@@ -3248,6 +3374,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   // `--raw <field>` is REFUSED where it is not read, never ignored (the silent-drop defect below).
   if (values.raw !== undefined && !help && !rawIsRead(area, sub)) {
     return rawUnsupported(area, sub);
+  }
+
+  // `--full` follows the same rule (ADR-0533 D4) — see {@link fullUnsupported}. Guarded on `=== true`
+  // rather than `!== undefined` because it is declared with `default: false`, so the parser hands
+  // back a value on EVERY command; testing for presence here would refuse the whole CLI.
+  if (values.full === true && !help && !fullIsRead(area, sub)) {
+    return fullUnsupported(area, sub);
   }
 
   // `--out` without `--raw` is refused for the SAME reason (ADR-0361 D1): it is the output channel of
@@ -5029,7 +5162,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // The bare-bytes read: ONE field's exact stored value on stdout — or, with `--out <path>`, into
     // a file this process opens, which is the channel the documented round trip uses (ADR-0361 D1).
     if (values.raw !== undefined) return rawField(deps.store, third, values.raw, values.out);
-    return viewArtifact(deps.store, third);
+    return viewArtifact(deps.store, third, { full: values.full === true });
   }
 
   return {

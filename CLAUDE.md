@@ -620,7 +620,17 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 The decision log is the append-only decision HISTORY, and it lives in the **live store** as ordinary
 `adr` artifacts — read one with `storytree library artifact adr-NNNN`, or pull the
 whole document out to a file with `storytree adr pull <n> --out <path>`, edit it with ordinary tools,
-and `storytree adr push <n> --file <path> --pg` it back. Every decision carries **structured state**
+and `storytree adr push <n> --file <path> --pg` it back.
+⚠ **That read now returns the COMPOSED STATEMENT where a record carries one** (ADR-0533 D4) — one
+maintained paragraph under a DERIVED staleness header, with the record's own text behind
+`--full`, offered as the first `next:` line and priced in characters. It is the missing rung
+between a one-line title and a 4,000-token document, and it is not a reduction: **nothing edits a
+record's body** (D2), `--full` and `--raw body` still return the whole text, and a decision carrying
+NO statement renders in full exactly as before — which is most of them (54 of 465 composed when this
+landed). **OPEN THE FULL RECORD WHENEVER THE DECISION BEARS ON WHAT YOU ARE DOING.** The statement is
+a summary and can be wrong in a way the record cannot; the evidence, the traps and the arguments that
+lost are what earn these records their keep here, and three premises were refuted on one day in
+2026-09 by context a reader who stopped at the paragraph would have missed. Every decision carries **structured state**
 (`status` proposed/accepted/superseded · `decided` · the outgoing `supersedes` and `dependsOn` edges ·
 the `load_bearing` current-state tag) — the gate validates it as **`pnpm check:adr-health`**, a
 declared rung that reads the rows; its subject is a database, so it cannot live in the
