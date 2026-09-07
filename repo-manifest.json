@@ -441,6 +441,7 @@
       "apps/studio/src/components/SceneView.tsx": "studio-app-surface-adapter",
       "apps/studio/src/components/cameraRasterisationProbe.ts": "camera-rasterisation-probe",
       "apps/studio/src/components/TreeView.tsx": "studio",
+      "apps/studio/src/components/buildWorld.relocation.*": "studio",
       "apps/studio/src/components/Act2IntroControl.tsx": "act2-intro-cursor",
       "apps/studio/src/components/act2Intro.ts": "act2-intro-cursor",
       "apps/studio/src/components/ConnectionsSection.tsx": "studio",
