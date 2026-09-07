@@ -83,6 +83,61 @@ test("the ambient wrappers ARE wired through the worktree-safe launcher: the Ses
 });
 
 // ---------------------------------------------------------------------------
+// the worktree-activity sweep is wired where it can actually fire (ADR-0535 D2)
+// ---------------------------------------------------------------------------
+
+test("the worktree-activity sweep is registered on SessionStart, through a launcher, bounded", () => {
+  // THE COMPLAINT THIS ANSWERS. Liveness used to hang off `statusLine` alone, which desktop and
+  // unattended sessions never draw — so their claims aged into stale-reclaim on a timer whatever
+  // they were doing, and the board told an owner an arc was unheld while a session was 432 tool
+  // calls into it. SessionStart fires for every session type, and because the sweep observes EVERY
+  // claimed worktree rather than only its own, one session's start vouches for all the quiet ones.
+  //
+  // Asserted against the REAL `.claude/settings.json`, like the audit above: the sweep's own logic
+  // is proven in `@storytree/drive`'s unit tests, and the thing those cannot see is whether the
+  // repo actually invokes it. A registration that silently disappears is precisely how the retired
+  // beat spent three weeks dead without anyone noticing.
+  const settings = JSON.parse(fs.readFileSync(settingsFile, "utf8")) as {
+    hooks?: Record<string, Array<{ hooks?: Array<{ command?: string; timeout?: number }> }>>;
+  };
+  const startHooks = (settings.hooks?.["SessionStart"] ?? []).flatMap((entry) => entry.hooks ?? []);
+  const sweep = startHooks.filter((h) => (h.command ?? "").includes("worktree-activity-hook"));
+
+  assert.equal(
+    sweep.length,
+    1,
+    "SessionStart must carry exactly one worktree-activity sweep launcher (ADR-0535 D2)",
+  );
+  // The fresh-worktree lesson, same as the presence launcher: a bare `pnpm exec tsx` dies with
+  // "'tsx' is not recognized" in a worktree that has no node_modules, so the hook never runs at all.
+  assert.ok(
+    sweep.every((h) => !/exec\s+tsx/.test(h.command ?? "")),
+    "the sweep must route through scripts/worktree-activity-hook.sh, not a bare `pnpm exec tsx`",
+  );
+  assert.ok(
+    sweep.every((h) => typeof h.timeout === "number" && h.timeout <= 60),
+    "the sweep launcher must declare a short timeout — it detaches, so it has nothing to wait for",
+  );
+});
+
+test("the worktree-activity launcher exists on disk and detaches its child", () => {
+  // A registered hook whose script is missing fails silently by contract, which would leave the
+  // ledger exactly as dead as it was before this landed. And the detach is the reason session start
+  // never waits on the ~6-11s keyless connector handshake the write needs.
+  const script = fs.readFileSync(path.join(repoRoot(), "scripts", "worktree-activity-hook.sh"), "utf8");
+  // Anchored on the ASSIGNMENT, not on the bare filename: this script's own header comment names
+  // `ambient-presence-entry.ts` in prose, so a filename match would stay green with the code
+  // deleted — the commonest way a source-text check ends up asserting its own rationale.
+  assert.match(
+    script,
+    /^rel_entry="packages\/cli\/src\/ambient-presence-entry\.ts"$/m,
+    "it must invoke the ambient entry",
+  );
+  assert.match(script, /"\$2" sweep/, "in `sweep` mode — not `start`, which prints and returns");
+  assert.match(script, /&\s*\)/, "and launch it detached, so session start never blocks on the store");
+});
+
+// ---------------------------------------------------------------------------
 // a build run never writes session presence (ADR-0199)
 // ---------------------------------------------------------------------------
 

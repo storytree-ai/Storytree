@@ -15,10 +15,20 @@
  * - the statusline glance's presence half (listActive + the declare self-heal) is DELETED: the
  *   glance now reads the CLAIM LEDGER (count/own/overlap from listLiveClaims/claimsBySession).
  * - `withPresence` stays deleted (ADR-0199) — builds never write session state.
- * What STAYS: the statusline itself (the human ambient surface) and the claim HEARTBEAT on the
- * same debounce (ADR-0200 D5 — a live session's claim must never age into stale-reclaim).
+ * What STAYS: the statusline itself (the human ambient surface).
+ *
+ * WHAT RETIRED NEXT (ADR-0535 D3 — the status-bar check-in is retired rather than repaired). The
+ * glance's `bumpHeartbeatsBySession` half is DELETED. It wrote `now()` on the strength of a terminal
+ * drawing its status bar, which failed in both directions at once: desktop and unattended sessions
+ * never draw one, so every claim they held aged into stale-reclaim exactly 2 h after it was taken
+ * whatever the session was doing (measured 2026-09-05: 35 of 40 rows carried a heartbeat identical
+ * to their claim moment, to the millisecond — never refreshed once); and a WEDGED session went on
+ * bumping regardless, because a timer proves a process exists, which is precisely what a hang also
+ * proves. It is replaced, not repaired, by {@link planActivitySweep} + {@link sweepWorktreeActivity}
+ * (ADR-0535 D2): liveness is OBSERVED from file change inside each claimed worktree. That upholds
+ * ADR-0138 D4's intent — liveness observed, not self-reported — while superseding its mechanism.
  */
-import type { ClaimDocT } from "@storytree/notice-board";
+import type { ActivityStamp, ClaimDocT } from "@storytree/notice-board";
 
 import type { SessionIdentity } from "./noticeboard.js";
 
@@ -28,14 +38,15 @@ import type { SessionIdentity } from "./noticeboard.js";
 
 /**
  * The ambient slice of the claim ledger (ADR-0200 D5/D7): the two reads the glance folds
- * (count/own/overlap) plus the session-scoped heartbeat bump the beat fires. Satisfied by
- * `PgClaimStore`; null when offline. NEVER takes or releases a claim — ambient automation only
- * refreshes liveness; only a deliberate claim/declare lights a wisp.
+ * (count/own/overlap) plus the OBSERVED-activity write the sweep fires (ADR-0535 D2, replacing the
+ * retired `bumpHeartbeatsBySession` self-report). Satisfied by `PgClaimStore`; null when offline.
+ * NEVER takes or releases a claim — ambient automation only refreshes liveness; only a deliberate
+ * claim/declare lights a wisp.
  */
 export interface AmbientClaimsLike {
   listLiveClaims(): Promise<ClaimDocT[]>;
   claimsBySession(sessionId: string): Promise<ClaimDocT[]>;
-  bumpHeartbeatsBySession(sessionId: string): Promise<number>;
+  stampActivity(stamps: readonly ActivityStamp[]): Promise<number>;
 }
 
 export interface AmbientDeps {
@@ -61,42 +72,21 @@ export interface HeartbeatState {
 // ---------------------------------------------------------------------------
 
 /**
- * Glance + heartbeat, sourced from the CLAIM LEDGER (ADR-0200 D7). Returns a single status line —
+ * The glance, sourced from the CLAIM LEDGER (ADR-0200 D7). Returns a single status line —
  * live-claim session count, this session's own claimed units, an overlap warning when another
  * session also claims one of them — on success; `""` on any failure.
  *
- * The heartbeat (ADR-0200 D5, kept from ADR-0142): when the debounce window has expired, the beat
- * bumps this session's claim heartbeats (`bumpHeartbeatsBySession`) so a live session's claims
- * never age into the stale-reclaim window, and writes the bump timestamp via
- * `state.writeLastBump`. A failed bump does NOT consume the debounce (the next render retries).
- * Bump-only — the beat never takes, upgrades, or releases a claim.
+ * READ-ONLY since ADR-0535 D3. It used to carry a debounced `bumpHeartbeatsBySession` write, which
+ * is the retired self-report: see this module's header for why it failed in both directions. The
+ * liveness WRITE is now {@link sweepWorktreeActivity}, which the same entry fires alongside this on
+ * the same debounce — so a terminal session keeps its liveness, now observed rather than asserted,
+ * and every OTHER claimed worktree on the box gets vouched for by the same sweep.
  */
-export async function statuslineGlance(
-  deps: AmbientDeps,
-  state: HeartbeatState,
-  debounceMs: number,
-): Promise<string> {
+export async function statuslineGlance(deps: AmbientDeps): Promise<string> {
   const { claims, identity } = deps;
 
   if (claims === null || identity === null) {
     return "";
-  }
-
-  const now = deps.now();
-
-  // Heartbeat: bump the session's claim heartbeats when the debounce window has expired — BEFORE
-  // the reads, so a just-revived claim renders live on this very glance.
-  const lastBump = state.readLastBump();
-  const shouldBump =
-    lastBump === null ||
-    now.getTime() - new Date(lastBump).getTime() >= debounceMs;
-  if (shouldBump) {
-    try {
-      await claims.bumpHeartbeatsBySession(identity.sessionId);
-      state.writeLastBump(now.toISOString());
-    } catch {
-      // fail-silent — and the debounce is NOT consumed, so the next render retries
-    }
   }
 
   // The glance reads: the whole live ledger (count + overlap) and this session's own rows.
@@ -131,6 +121,210 @@ export async function statuslineGlance(
   }
 
   return parts.join(" | ");
+}
+
+// ---------------------------------------------------------------------------
+// Worktree-activity sweep (ADR-0535 D2) — liveness OBSERVED, not self-reported
+// ---------------------------------------------------------------------------
+
+/**
+ * One worktree's activity observation, reduced to what the ledger needs.
+ *
+ * The reading itself is `readIdleSignals`' (`packages/cli/src/worktree.ts`) — deliberately the
+ * SAME instrument the reaper judges idleness with, so the ledger and the reaper can no longer
+ * disagree about whether a directory is in use. This shape is the seam that carries it across the
+ * organism boundary: `drive` never reaches into `cli`, so the CLI composition root observes and
+ * this module decides.
+ */
+export interface WorktreeActivityReading {
+  /**
+   * A human-readable name for this worktree — for a report, never a key.
+   *
+   * NOT necessarily a basename: the sweep walks the whole git registry, where basenames collide
+   * hard (16 `--real` replicas on the dev box are all called `wt`), so the observer disambiguates.
+   */
+  readonly name: string;
+  /**
+   * True when this worktree's stamp is shared, to the second, with two or more others — one pass
+   * touched them all, and a pass is not activity.
+   *
+   * A property of the BATCH, decided by the observer (which alone sees every reading) and carried
+   * HERE rather than as a set of names alongside. A name-keyed set is what the first draft used,
+   * and on the real registry it would have swept fifteen innocent worktrees into a cluster of one
+   * — the failure being silent in the direction that matters, since being wrongly refused is safe
+   * and being wrongly admitted is what fences a node nobody can reclaim.
+   */
+  readonly bulkStamped: boolean;
+  /**
+   * Every session id this worktree could be claimed under (ADR-0033): the path basename for a
+   * Rule-1 `.claude/worktrees/<name>` identity, the git ADMIN-dir basename for a Rule-2 one
+   * (`--real` replicas, Codex trees). Both are resolved because a sweep that assumed Rule 1 would
+   * silently vouch for nothing at all on the identities that do not live under that directory.
+   */
+  readonly sessionIds: readonly string[];
+  /** The newest ADMITTED signal's mtime in ms; 0 when nothing could be stat'd. */
+  readonly mtimeMs: number;
+  /** Which signal produced {@link mtimeMs}, or null when nothing could be read. */
+  readonly binding: string | null;
+  /** True when the reading fell back to the worktree's OWN files (no admin dir resolved). */
+  readonly fellBack: boolean;
+}
+
+/** Why a reading was not allowed to vouch for anything. Every refusal is REPORTED, never silent. */
+export type ActivityRefusalReason = "fell-back" | "no-signal" | "bulk-stamp" | "future";
+
+export interface ActivityRefusal {
+  readonly name: string;
+  readonly reason: ActivityRefusalReason;
+}
+
+export interface ActivitySweepPlan {
+  /** At most one stamp per session id, carrying the NEWEST observation that vouched for it. */
+  readonly stamps: readonly ActivityStamp[];
+  readonly refused: readonly ActivityRefusal[];
+}
+
+/**
+ * PURE: turn observations into the stamps the ledger may be told, and name every refusal.
+ *
+ * FOUR FENCES, ALL AGAINST FALSE FRESHNESS — because that is the direction that does damage.
+ * `heartbeat_at` is not a display value: it decides `isReclaimable` (so the takeover rule that lets
+ * a live session reclaim a dead one's node), `listLiveClaims`, and through `worktree prune --pg`'s
+ * live set whether a directory may be DELETED. A stamp that is too OLD costs nothing new — it
+ * reproduces today's behaviour, where every claim goes stale on a timer. A stamp that is too FRESH
+ * fences a node nobody can reclaim and keeps a dead worktree alive forever.
+ *
+ * 1. `fell-back` — the reading came from the worktree's OWN files because no admin dir resolved.
+ *    Those signals measure the world rather than the worktree: an empty `.codex/` scaffold once
+ *    stamped four unrelated worktrees inside 59 ms and erased 25–40 days of real idleness. A husk
+ *    or orphan therefore vouches for nobody. (It also excludes the primary checkout by
+ *    construction — its `.git` is a directory, not a gitfile — which is correct, since ADR-0033
+ *    Rule 3 gives the lobby no identity to claim under in the first place.)
+ * 2. `no-signal` — nothing could be stat'd. 0 reads as infinitely old, never as "just now".
+ * 3. `bulk-stamp` — one pass touched several worktrees at once. This fault class has bitten TWICE
+ *    (a `git gc` reflog rewrite across 76 worktrees; the `.codex/` scaffold across 4), each time
+ *    costing a bespoke investigation because the machinery reported a verdict and never its
+ *    evidence. Wiring the detector in is what stops the third instance writing a boardful of
+ *    false-live claims instead of announcing itself.
+ * 4. `future` — a reading ahead of `now`. Refused rather than clamped: a claim whose heartbeat
+ *    outlives the staleness window is a fence nobody can ever reclaim, and losing one stamp is the
+ *    cheap direction. `stampClaimActivity` clamps for the same asymmetry read the other way.
+ *
+ * Deduped to the NEWEST observation per session id, so two worktrees resolving to one identity
+ * cannot have the older of them age the claim — the monotonic rule, applied before the write.
+ */
+export function planActivitySweep(
+  readings: readonly WorktreeActivityReading[],
+  now: Date,
+): ActivitySweepPlan {
+  const nowMs = now.getTime();
+  const newest = new Map<string, number>();
+  const refused: ActivityRefusal[] = [];
+
+  for (const reading of readings) {
+    if (reading.fellBack) {
+      refused.push({ name: reading.name, reason: "fell-back" });
+      continue;
+    }
+    if (reading.mtimeMs <= 0 || reading.binding === null) {
+      refused.push({ name: reading.name, reason: "no-signal" });
+      continue;
+    }
+    if (reading.bulkStamped) {
+      refused.push({ name: reading.name, reason: "bulk-stamp" });
+      continue;
+    }
+    if (reading.mtimeMs > nowMs) {
+      refused.push({ name: reading.name, reason: "future" });
+      continue;
+    }
+    for (const sessionId of reading.sessionIds) {
+      if (sessionId.length === 0) continue;
+      const held = newest.get(sessionId);
+      if (held === undefined || reading.mtimeMs > held) newest.set(sessionId, reading.mtimeMs);
+    }
+  }
+
+  const stamps = [...newest.entries()]
+    .map(([sessionId, mtimeMs]) => ({ sessionId, observedAt: new Date(mtimeMs).toISOString() }))
+    .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+
+  return { stamps, refused };
+}
+
+export interface ActivitySweepDeps {
+  /**
+   * Get the ledger slice — a THUNK, not a value, and that is the cost trap encoded in the type.
+   *
+   * The retired ping took its store as an already-open pool, so the keyless Cloud SQL handshake
+   * (~6–11 s on this box) was paid before anything had decided whether there was a word to say.
+   * Called at most once, and only after the debounce has passed AND the plan has something to
+   * write; resolve it to null when offline. A caller that already holds a pool (the statusline,
+   * which opens one for its own reads) hands back what it has and pays nothing.
+   */
+  acquire: () => Promise<AmbientClaimsLike | null>;
+  /** The fs observation, injected so this module stays offline-testable and `cli`-free. */
+  observe: () => readonly WorktreeActivityReading[];
+  now: () => Date;
+}
+
+export interface ActivitySweepResult extends ActivitySweepPlan {
+  /** Claims actually moved forward by the write; 0 when nothing was newer than what is stored. */
+  readonly written: number;
+  /** Why nothing was written, or null when a write was attempted. */
+  readonly skipped: "debounced" | "offline" | "nothing-to-say" | null;
+}
+
+const EMPTY_PLAN: ActivitySweepPlan = { stamps: [], refused: [] };
+
+/**
+ * Observe every registered worktree and tell the ledger what is actually being touched (ADR-0535
+ * D2). Fail-silent on every path, like everything else in this module.
+ *
+ * ⚠ ORDER IS LOAD-BEARING: DEBOUNCE, THEN OBSERVE, THEN CONNECT. The retired ping opened a DB pool
+ * BEFORE checking whether a write was due, and the keyless Cloud SQL handshake measures ~6–11 s on
+ * this box — so on the per-call paths it silently lost its own race every time. Everything up to
+ * the `stampActivity` call here is a handful of `stat`s and one small file read; a caller that has
+ * no pool open must not acquire one until this returns something to write.
+ *
+ * A failed write does NOT consume the debounce (the next fire retries), matching the convention the
+ * retired beat established. A sweep is bump-only: it never takes, upgrades, or releases a claim.
+ */
+export async function sweepWorktreeActivity(
+  deps: ActivitySweepDeps,
+  state: HeartbeatState,
+  debounceMs: number,
+): Promise<ActivitySweepResult> {
+  const now = deps.now();
+  const last = state.readLastBump();
+  if (last !== null) {
+    const elapsed = now.getTime() - new Date(last).getTime();
+    // NaN (an unreadable stamp) falls through to a sweep — the cheap direction.
+    if (Number.isFinite(elapsed) && elapsed < debounceMs) {
+      return { ...EMPTY_PLAN, written: 0, skipped: "debounced" };
+    }
+  }
+
+  let plan: ActivitySweepPlan;
+  try {
+    plan = planActivitySweep(deps.observe(), now);
+  } catch {
+    return { ...EMPTY_PLAN, written: 0, skipped: "nothing-to-say" };
+  }
+
+  // NOTHING TO SAY IS DECIDED BEFORE THE LEDGER IS EVEN ASKED FOR — see `acquire`'s doc.
+  if (plan.stamps.length === 0) return { ...plan, written: 0, skipped: "nothing-to-say" };
+
+  try {
+    const claims = await deps.acquire();
+    if (claims === null) return { ...plan, written: 0, skipped: "offline" };
+    const written = await claims.stampActivity(plan.stamps);
+    state.writeLastBump(now.toISOString());
+    return { ...plan, written, skipped: null };
+  } catch {
+    // fail-silent — and the debounce is NOT consumed, so the next fire retries
+    return { ...plan, written: 0, skipped: "offline" };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -169,9 +363,17 @@ const BLOCKING_EVENTS = ["Stop", "PreToolUse", "UserPromptSubmit"] as const;
  * Keywords that identify a noticeboard/ambient hook command. Includes `presence-hook` so the
  * worktree-safe launcher (`scripts/presence-hook.sh`, which is what the shared settings.json
  * actually invokes) is still recognised by the never-blocking-hooks audit even though its
- * command string never names `ambient-presence` directly.
+ * command string never names `ambient-presence` directly — and `worktree-activity-hook` for the
+ * same reason (ADR-0535 D2): it is a LEDGER-WRITING hook whose command string names neither, so
+ * without the keyword the audit would let it be moved onto `PreToolUse` in silence. What earns a
+ * keyword here is writing to the claim ledger, not the file it happens to live in.
  */
-const PRESENCE_KEYWORDS = ["noticeboard", "ambient-presence", "presence-hook"] as const;
+const PRESENCE_KEYWORDS = [
+  "noticeboard",
+  "ambient-presence",
+  "presence-hook",
+  "worktree-activity-hook",
+] as const;
 
 /**
  * Audit `.claude/settings.json` text for never-blocking-hooks violations.

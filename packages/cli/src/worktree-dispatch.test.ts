@@ -131,6 +131,124 @@ test("run: `worktree prune --pg` keeps a worktree whose session holds a live cla
   assert.match(env.body, /Reaped 0/);
 });
 
+// ── ADR-0535 D2: `worktree activity` — what the ledger is TOLD about liveness ──
+//
+// These go through `run(...)` on purpose. A sub-command missing from the dispatch allow-list does
+// not error anywhere a unit test of the function can see it: it falls through and answers "unknown
+// worktree command", with the implementation perfectly healthy. Only the end-to-end route catches it.
+
+/** Two registered worktrees: one admin-bound and recently touched, one husk with no admin dir. */
+function activityIo(): WorktreeIo {
+  return {
+    ...fakeIo(),
+    runGit(args) {
+      const a = [...args];
+      if (a[0] === "rev-parse" && a.includes("--git-common-dir")) return path.join(PRIMARY, ".git");
+      if (a[0] === "rev-parse" && a.includes("--show-toplevel")) return wt("current");
+      if (a[0] === "worktree" && a[1] === "list") {
+        return [
+          `worktree ${wt("live-one")}`,
+          "HEAD 0000000",
+          "branch refs/heads/claude/live-one",
+          "",
+          `worktree ${wt("husk-one")}`,
+          "HEAD 0000000",
+          "detached",
+          "",
+        ].join("\n");
+      }
+      throw new Error(`unexpected git call: ${a.join(" ")}`);
+    },
+  };
+}
+
+/** The injected idle reader: `live-one` is admin-bound and fresh; `husk-one` fell back. */
+const activityIdle = (dir: string) =>
+  path.basename(dir) === "live-one"
+    ? {
+        dir,
+        admin: path.join(PRIMARY, ".git", "worktrees", "live-one"),
+        signals: new Map([["index", NOW - 60_000]]),
+        binding: "index",
+        mtimeMs: NOW - 60_000,
+        fellBack: false,
+      }
+    : {
+        dir,
+        admin: null,
+        signals: new Map([["<dir>", NOW - 120_000]]),
+        binding: "<dir>",
+        mtimeMs: NOW - 120_000,
+        fellBack: true,
+      };
+
+test("run: `worktree activity` is a READ — it reports the plan and writes nothing", async () => {
+  let stamped = 0;
+  const env = await run(["worktree", "activity"], {
+    store: new InMemoryStore(),
+    presence: {
+      ledger: {
+        take: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+        upgrade: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+        downgrade: async () => true,
+        release: async () => true,
+        claimsFor: async () => [],
+        stampActivity: async () => {
+          stamped += 1;
+          return 3;
+        },
+      },
+    },
+    worktree: { io: activityIo(), now: () => NOW, idle: activityIdle },
+  });
+
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /WORKTREE ACTIVITY/);
+  assert.match(env.body, /live-one/, "the admin-bound worktree vouches for its session");
+  assert.match(env.body, /refused \(fell-back\): husk-one/, "and the husk is refused, by name");
+  assert.match(env.body, /read-only\. Pass --pg/);
+  assert.equal(stamped, 0, "a bare read must never write to the ledger");
+});
+
+test("run: `worktree activity --pg` writes the observed stamps and reports the count", async () => {
+  const batches: { sessionId: string; observedAt: string }[][] = [];
+  const env = await run(["worktree", "activity", "--pg"], {
+    store: new InMemoryStore(),
+    presence: {
+      ledger: {
+        take: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+        upgrade: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+        downgrade: async () => true,
+        release: async () => true,
+        claimsFor: async () => [],
+        stampActivity: async (stamps) => {
+          batches.push(stamps.map((s) => ({ ...s })));
+          return 2;
+        },
+      },
+    },
+    worktree: { io: activityIo(), now: () => NOW, idle: activityIdle },
+  });
+
+  assert.equal(env.ok, true, env.body);
+  assert.equal(batches.length, 1, "one batched write for the whole box");
+  assert.deepEqual(
+    batches[0],
+    [{ sessionId: "live-one", observedAt: new Date(NOW - 60_000).toISOString() }],
+    "the OBSERVED moment travels, not `now` — and the husk contributes nothing",
+  );
+  assert.match(env.body, /wrote 2 claim rows forward/);
+});
+
+test("run: `worktree activity --pg` with no live ledger refuses and points at db:up", async () => {
+  const env = await run(["worktree", "activity", "--pg"], {
+    store: new InMemoryStore(),
+    worktree: { io: activityIo(), now: () => NOW, idle: activityIdle },
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /pnpm db:up/);
+});
+
 test("run: `worktree prune --pg` with a THROWING ledger falls back to the offline heuristic", async () => {
   const io = fakeIo();
   const ledger = {

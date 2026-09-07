@@ -117,8 +117,8 @@ class FakeClaimClient {
   sessionDeleteReturns?: ClaimRow[];
   /** The row a bumpHeartbeat UPDATE returns; undefined = nothing of ours to bump. */
   bumpReturns?: ClaimRow;
-  /** The rows a bumpHeartbeatsBySession UPDATE returns; the session bulk-bump can touch many. */
-  sessionBumpReturns?: ClaimRow[];
+  /** The rows a stampActivity UPDATE returns; one sweep can move many sessions' claims (ADR-0535 D2). */
+  activityStampReturns?: ClaimRow[];
   /** When set, any query whose text includes this fragment throws. */
   failOnPattern?: string;
   /**
@@ -172,10 +172,12 @@ class FakeClaimClient {
       // The post-race-loss winner re-read.
       return { rows: this.winnerRow ? [this.winnerRow] : [] };
     }
-    // The heartbeat bumps are the only UPDATEs whose SET clause STARTS with heartbeat_at — route
-    // them first. The per-unit bump filters on unit_id; the session bulk-bump keys on session_id.
+    // The observed-activity sweep (ADR-0535 D2) writes an OBSERVED moment, not `now()` — route it
+    // ahead of the per-unit bump, which is the only remaining writer of `heartbeat_at = now()`.
+    if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = v.observed")) {
+      return { rows: this.activityStampReturns ?? [] };
+    }
     if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = now()")) {
-      if (text.includes("WHERE session_id =")) return { rows: this.sessionBumpReturns ?? [] };
       return { rows: this.bumpReturns ? [this.bumpReturns] : [] };
     }
     // The promotion flip: the picked waiter becomes the work row.
@@ -933,9 +935,7 @@ test("bumpHeartbeat (nothing of ours): UPDATE matches no row → returns false, 
   assert.ok(commits(client));
 });
 
-// ── releaseClaimsBySession / bumpHeartbeatsBySession (ADR-0142): the session-scoped twins ────
-// `noticeboard done` drops every claim the session holds; the statusline heartbeat keeps every
-// claim the session holds out of the stale-reclaim window without knowing which units they are.
+// ── releaseClaimsBySession (ADR-0142): `noticeboard done` drops every claim the session holds ──
 
 test("releaseClaimsBySession: bulk-DELETE by session → returns the count, one 'released' event per cleared claim, COMMIT", async () => {
   const client = new FakeClaimClient();
@@ -993,29 +993,115 @@ test("releaseClaimsBySession: a DB error mid-transaction → ROLLBACK, no COMMIT
   assert.ok(client.released);
 });
 
-test("bumpHeartbeatsBySession: UPDATE by session alone → returns the count, NO audit event, COMMIT", async () => {
+// ── stampActivity (ADR-0535 D2): OBSERVED liveness replaces the retired self-report ──────────
+// `bumpHeartbeatsBySession` used to live here — the statusline beat writing `now()` on the strength
+// of a terminal drawing its status bar. ADR-0535 D3 retired it (desktop sessions never drew one, so
+// their claims aged out on a timer; a wedged session bumped regardless). These cover its
+// replacement, and above all the two SQL predicates that make reusing `heartbeat_at` safe.
+
+test("stampActivity: one UPDATE over an unnest'd batch → returns the count, NO audit event, COMMIT", async () => {
   const client = new FakeClaimClient();
-  client.sessionBumpReturns = [
+  client.activityStampReturns = [
     heldRow({ unit_id: "unit-alpha", session_id: "sess-A" }),
     heldRow({ unit_id: "unit-beta", session_id: "sess-A" }),
+    heldRow({ unit_id: "unit-gamma", session_id: "sess-B" }),
   ];
-  const count = await storeWith(client).bumpHeartbeatsBySession("sess-A");
+  const count = await storeWith(client).stampActivity([
+    { sessionId: "sess-A", observedAt: "2026-09-07T10:00:00.000Z" },
+    { sessionId: "sess-B", observedAt: "2026-09-07T10:05:00.000Z" },
+  ]);
 
-  assert.equal(count, 2, "returns the number of bumped claims");
-  const bulkBump = client.calls.find(
-    (c) => c.text.includes("SET heartbeat_at = now()") && c.text.includes("WHERE session_id ="),
+  assert.equal(count, 3, "returns the number of claim rows actually moved forward");
+  const stamp = client.calls.find((c) => c.text.includes("SET heartbeat_at = v.observed"));
+  assert.ok(stamp !== undefined, "the batched activity UPDATE was issued");
+  assert.deepEqual(
+    stamp.values,
+    [
+      ["sess-A", "sess-B"],
+      ["2026-09-07T10:00:00.000Z", "2026-09-07T10:05:00.000Z"],
+    ],
+    "the batch travels as two parallel arrays for `unnest` — one round trip, whatever the sweep size",
   );
-  assert.ok(bulkBump !== undefined, "the session bulk-bump UPDATE was issued (session_id filter alone)");
-  assert.equal(client.events.length, 0, "no claim_event for a heartbeat bump");
+  assert.equal(client.events.length, 0, "no claim_event for a liveness reading");
   assert.ok(commits(client) && !rollsBack(client));
   assert.ok(client.released);
 });
 
-test("bumpHeartbeatsBySession (held nothing): returns 0, still COMMITs", async () => {
-  const client = new FakeClaimClient(); // sessionBumpReturns undefined
-  const count = await storeWith(client).bumpHeartbeatsBySession("sess-empty");
+test("stampActivity: the SQL refuses to move a claim BACKWARDS — `observed > heartbeat_at` is in the WHERE", async () => {
+  // THE FENCE THAT MAKES REUSING `heartbeat_at` SAFE. An observed stamp is a reading of the PAST,
+  // so without this predicate a session that claimed 30s ago in a worktree whose last git op was
+  // 40min ago would be aged 40 minutes by its own liveness signal — and a long enough gap hands its
+  // node to the takeover rule while it is still working. Asserted on the STATEMENT rather than on a
+  // returned row because the fake cannot evaluate SQL: the predicate's presence IS the property.
+  const client = new FakeClaimClient();
+  await storeWith(client).stampActivity([
+    { sessionId: "sess-A", observedAt: "2026-09-07T10:00:00.000Z" },
+  ]);
+  const stamp = client.calls.find((c) => c.text.includes("SET heartbeat_at = v.observed"));
+  assert.ok(stamp !== undefined);
+  assert.match(
+    stamp.text,
+    /AND v\.observed > c\.heartbeat_at/,
+    "a stamp must be a floor under liveness, never a ceiling on it",
+  );
+  assert.match(
+    stamp.text,
+    /AND v\.observed <= now\(\)/,
+    "a future reading is refused in SQL too — a claim that cannot go stale is a fence nobody can reclaim",
+  );
+});
+
+test("stampActivity: every RETURNING column is QUALIFIED — an UPDATE…FROM has two relations in scope", async () => {
+  // A REAL failure this suite could not otherwise see, and the reason it is asserted on the text.
+  // The first version returned the shared unqualified column list, and Postgres refused the whole
+  // statement with `column reference "session_id" is ambiguous` — caught only by running it against
+  // the live store. The fake client records statement text and never parses it, so nothing here can
+  // reproduce the refusal; what CAN be held is the property that avoids it. Checked column by
+  // column against the same list the statement is built from, so a new column cannot be added to
+  // one and forgotten in the other.
+  const client = new FakeClaimClient();
+  await storeWith(client).stampActivity([
+    { sessionId: "sess-A", observedAt: "2026-09-07T10:00:00.000Z" },
+  ]);
+  const stamp = client.calls.find((c) => c.text.includes("SET heartbeat_at = v.observed"));
+  const returning = /RETURNING ([\s\S]*)$/.exec(stamp?.text ?? "")?.[1] ?? "";
+  assert.notEqual(returning, "", "precondition: the statement has a RETURNING clause");
+  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "claimed_at", "heartbeat_at"]) {
+    assert.match(
+      returning,
+      new RegExp(`\\bc\\.${col}\\b`),
+      `RETURNING must name c.${col}, not a bare column an UPDATE…FROM cannot resolve`,
+    );
+  }
+});
+
+test("stampActivity (empty batch): writes nothing at all — no client, no transaction", async () => {
+  // The sweep's commonest outcome on a quiet box. Connecting to say nothing is the cost trap the
+  // retired beat fell into (the keyless connector handshake measures ~6-11s here).
+  const client = new FakeClaimClient();
+  const count = await storeWith(client).stampActivity([]);
+  assert.equal(count, 0);
+  assert.equal(client.calls.length, 0, "an empty batch must not even open a transaction");
+});
+
+test("stampActivity (nothing newer to say): returns 0, still COMMITs", async () => {
+  const client = new FakeClaimClient(); // activityStampReturns undefined → the WHERE matched nothing
+  const count = await storeWith(client).stampActivity([
+    { sessionId: "sess-quiet", observedAt: "2026-09-07T10:00:00.000Z" },
+  ]);
   assert.equal(count, 0);
   assert.ok(commits(client));
+});
+
+test("stampActivity: a DB error mid-transaction → ROLLBACK, no COMMIT, client released", async () => {
+  const client = new FakeClaimClient();
+  client.failOnPattern = "SET heartbeat_at = v.observed";
+  await assert.rejects(
+    () => storeWith(client).stampActivity([{ sessionId: "sess-A", observedAt: "2026-09-07T10:00:00.000Z" }]),
+    /Fake-induced failure/,
+  );
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.ok(client.released);
 });
 
 // ── Live-gated: real atomic claim/refuse/reclaim over Postgres ────────────────

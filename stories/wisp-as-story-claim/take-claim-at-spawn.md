@@ -72,8 +72,10 @@ at **workspace creation** (the `exploring` claim, ADR-0200 D3) and at **declare-
 ([`claim-at-declare`](claim-at-declare.md), ADR-0142).
 
 > **ADR-0142 (post-delivery):** as of that ADR the spawn wiring was no longer the only acquisition path —
-> the work-time claim is taken at **declare-time** (`noticeboard declare --node` claims; `done` releases; the
-> statusline heartbeat bumps — the landed [`claim-at-declare`](claim-at-declare.md) capability). That
+> the work-time claim is taken at **declare-time** (`noticeboard declare --node` claims; `done` releases;
+> the heartbeat is refreshed — by the statusline then, by the observed worktree-activity sweep since
+> ADR-0535 D3 retired that self-report — the landed [`claim-at-declare`](claim-at-declare.md)
+> capability). That
 > wiring *neither replaced nor blocked* E2 (ADR-0142 leg 2). What changed since is on E2's side, not this
 > one: the spawn-path acquisition landed and was then retired with its host story (ADR-0175), so
 > declare-time acquisition is no longer one of two coexisting paths — together with ADR-0200's

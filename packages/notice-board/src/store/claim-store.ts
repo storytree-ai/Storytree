@@ -4,6 +4,7 @@ import {
   ClaimRole,
   isReclaimable,
   CLAIM_STALE_RECLAIM_MS,
+  type ActivityStamp,
   type ClaimAcquired,
   type ClaimDeparture,
   type ClaimDocT,
@@ -161,6 +162,20 @@ function rowToDelta(row: DeltaRow): OverlapDelta {
 
 const CLAIM_COLUMNS =
   "unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at";
+
+/**
+ * {@link CLAIM_COLUMNS} qualified to the claim table's alias `c` — required by any statement that
+ * brings a SECOND relation into scope, i.e. `UPDATE … FROM (…) v`.
+ *
+ * DERIVED, never re-typed: a hand-written second list would drift the day a column is added, and it
+ * would drift silently, since the two are never compared. Learned the expensive way — the first
+ * `stampActivity` shipped the unqualified list and Postgres refused it with
+ * `column reference "session_id" is ambiguous`, which NO offline test in this file could have
+ * caught: the fake client records statement text and never parses it.
+ */
+const CLAIM_COLUMNS_QUALIFIED = CLAIM_COLUMNS.split(", ")
+  .map((col) => `c.${col}`)
+  .join(", ");
 
 /** Options for the acquire paths — both injectable so the live test can drive reclaim. */
 export interface ClaimOptions {
@@ -887,21 +902,46 @@ export class PgClaimStore {
   }
 
   /**
-   * Bump the heartbeat on EVERY claim held by `sessionId` — the statusline-heartbeat twin of
-   * {@link bumpHeartbeat} (ADR-0142): the ambient beat that keeps a live session's claims (ALL
-   * grades — one trace-driven clock, ADR-0200 D5) out of the stale window, without knowing which
-   * units it holds. Touches ONLY `heartbeat_at`, appends NO audit event (a heartbeat is a liveness
-   * signal, not a state transition). Returns the number of claims bumped (0 = held nothing). Atomic.
+   * Write OBSERVED worktree activity onto every claim the observed sessions hold (ADR-0535 D2) —
+   * the one thing that refreshes `heartbeat_at` now that the status-bar check-in is retired (D3).
+   *
+   * WHAT REPLACED WHAT. Its predecessor `bumpHeartbeatsBySession` wrote `now()` on the strength of
+   * a terminal rendering its status bar: a SELF-REPORT, which desktop and unattended sessions never
+   * produced (so every claim aged out at 2 h whatever it was doing) and which a wedged session went
+   * on producing regardless (a timer proves a process exists, which is exactly what a hang also
+   * proves). This writes a reading of the FILESYSTEM instead — `readIdleSignals`' newest git-admin
+   * mtime for the claimed worktree — so the signal is observed rather than asserted, and one live
+   * process on the box vouches for every claimed worktree on it, not only its own.
+   *
+   * MONOTONIC, IN SQL, AND THAT IS THE WHOLE SAFETY OF REUSING THIS COLUMN. `observed` is a past
+   * moment, so an unguarded write moves the clock both ways — and backwards is destructive, because
+   * `heartbeat_at` is not a display value: it is the input to `isReclaimable`, to `listLiveClaims`,
+   * and (through `worktree prune --pg`'s live set) to whether a directory may be DELETED. The two
+   * predicates below are the pure {@link stampClaimActivity} rule restated where the write happens:
+   * `observed > heartbeat_at` makes a stamp a floor under liveness and never a ceiling on it, so a
+   * claim can never be aged into the takeover window by its own liveness signal; `observed <= now()`
+   * refuses a future reading, so a skewed clock cannot mint a claim that never goes stale — a fence
+   * nobody can reclaim. Neither is a repeat of the caller's clamp for its own sake: the caller and
+   * the database read different clocks, and only this one is the clock the staleness test uses.
+   *
+   * Touches ONLY `heartbeat_at` and appends NO audit event, exactly as the bump it replaces did —
+   * a liveness reading is not a state transition, and auditing every sweep would flood the log.
+   * Returns the number of claims actually moved (0 = nothing held, or nothing newer to say). Atomic.
    */
-  async bumpHeartbeatsBySession(sessionId: string): Promise<number> {
+  async stampActivity(stamps: readonly ActivityStamp[]): Promise<number> {
+    if (stamps.length === 0) return 0;
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
       const upd = await client.query(
-        `UPDATE events.node_claim SET heartbeat_at = now()
-           WHERE session_id = $1
-         RETURNING ${CLAIM_COLUMNS}`,
-        [sessionId],
+        `UPDATE events.node_claim c
+            SET heartbeat_at = v.observed
+           FROM (SELECT * FROM unnest($1::text[], $2::timestamptz[]) AS t(session_id, observed)) v
+          WHERE c.session_id = v.session_id
+            AND v.observed > c.heartbeat_at
+            AND v.observed <= now()
+        RETURNING ${CLAIM_COLUMNS_QUALIFIED}`,
+        [stamps.map((s) => s.sessionId), stamps.map((s) => s.observedAt)],
       );
       await client.query("COMMIT");
       return (upd.rows as ClaimRow[]).length;
@@ -915,9 +955,18 @@ export class PgClaimStore {
 
   /**
    * Bump the heartbeat on `unitId` IFF held by `sessionId` (a session can only refresh its OWN
-   * claim's liveness) — the store-side mirror of {@link bumpHeartbeat from claim.ts}, the cheap
+   * claim's liveness) — the store-side mirror of {@link bumpHeartbeat from claim.ts}.
+   *
+   * ⚠ NOT WIRED, AND THE CORRECTION MATTERS. This comment used to describe it as "the cheap
    * mid-flight refresh the loops' trace signals call so a live session's claim never ages out
-   * (ADR-0138 §4). The WHERE is already the composite key, so it bumps the session's row at ANY
+   * (ADR-0138 §4)" — present tense, describing wiring that has never existed. The trace-driven
+   * caller ADR-0138 §4 specified was never built (`claim-gated-spawn.ts` is a story spec with no
+   * implementation anywhere in `packages/` or `apps/`), so this method's only callers today are its
+   * own unit tests. ADR-0535 D3 then superseded that MECHANISM outright: liveness is observed from
+   * the filesystem by {@link stampActivity}, not self-reported from inside the loop. Kept because a
+   * single-unit refresh is a coherent store verb; do not read it as evidence of a live beat.
+   *
+   * The WHERE is already the composite key, so it bumps the session's row at ANY
    * grade (a waiting session's queue liveness rides the same beat — ADR-0200 D5). Touches ONLY
    * `heartbeat_at`; it never re-acquires, refuses, or appends a `claim_event` — a heartbeat is a
    * high-frequency liveness signal, not a state transition, so auditing every bump would flood the

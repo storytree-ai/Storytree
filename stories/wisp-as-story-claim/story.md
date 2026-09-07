@@ -62,7 +62,7 @@ edges:
     rationale: "E's spawn-seam acquires a work-time claim via A3's work-time `ClaimRequest` intent helper."
   - from: claim-at-declare
     to: claim-store-work-time
-    rationale: "The declare-time acquisition (ADR-0142) claims via A3's `workClaimRequest` and adds the session-scoped bulk twins of A1/A2 (`releaseClaimsBySession` / `bumpHeartbeatsBySession`) to the same PgClaimStore."
+    rationale: "The declare-time acquisition (ADR-0142) claims via A3's `workClaimRequest` and adds the session-scoped bulk twins of A1/A2 (`releaseClaimsBySession` / the session heartbeat bump) to the same PgClaimStore. The heartbeat half is now `stampActivity` — ADR-0535 D3 retired the status-bar self-report `bumpHeartbeatsBySession` served."
   - from: appearance-uat
     to: render-claim-as-wisp
     rationale: "F witnesses the rendered claim-wisp B produces (one wisp per claimed story)."
@@ -175,7 +175,8 @@ deferred behind ADR-0137 Phase 3, which left the delivered layer with **no live 
 well-behaved session showed no wisp between builds. ADR-0142
 (amends 0138/0033) closed that gap the cheap way: `noticeboard declare --node <story> --pg` now also
 takes the work-time claim ([`claim-at-declare`](claim-at-declare.md), landed PR #535), `done`
-bulk-releases, the statusline heartbeat keeps claims out of stale-reclaim, and CI refuses a PR from an
+bulk-releases, an observed worktree-activity sweep keeps claims out of stale-reclaim (ADR-0535 D2;
+the statusline heartbeat that once did this is retired, since only terminals draw a status bar), and CI refuses a PR from an
 already-merged head branch (*a branch is one landed unit* — what keeps D's branch-keyed clear from ever
 erasing live work).
 

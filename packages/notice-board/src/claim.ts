@@ -332,6 +332,42 @@ export function bumpHeartbeat(claim: ClaimDocT, now: Date): ClaimDocT {
   return { ...claim, heartbeatAt: now.toISOString() };
 }
 
+/**
+ * PURE: refresh a claim's heartbeat to an OBSERVED moment — the monotonic rule behind ADR-0535 D2's
+ * worktree-activity stamp, and the mirror of `PgClaimStore.stampActivity`'s `GREATEST(...)` SQL.
+ *
+ * WHY MONOTONIC, AND WHY IT IS THE WHOLE SAFETY OF REUSING `heartbeatAt`. {@link bumpHeartbeat}
+ * writes `now`, so it can only ever move a claim forward. An OBSERVED stamp is a reading of the
+ * past, so a naive write moves the clock in BOTH directions — and the backwards direction is the
+ * destructive one. A session that claimed thirty seconds ago in a worktree whose last git op was
+ * forty minutes ago would have its own liveness signal age it forty minutes, and a long enough gap
+ * would hand its node to the takeover rule while it was still working. Taking the LATER of the two
+ * makes an activity stamp a floor under liveness that can never be a ceiling on it.
+ *
+ * `observedAt` in the FUTURE is clamped to `now` for the same asymmetry read the other way: a
+ * skewed clock (or a file stamped ahead) must not mint liveness that outlives the staleness window
+ * — a claim that cannot go stale is a fence nobody can ever reclaim.
+ *
+ * Returns a NEW claim; nothing else moves, not even `claimedAt`. No clock read, no store touch, no
+ * mutation of the input.
+ */
+export interface ActivityStamp {
+  /** The session whose claims this reading vouches for (a worktree identity, ADR-0033). */
+  readonly sessionId: string;
+  /** When the worktree was last OBSERVED to change, ISO — a reading of the past, never `now`. */
+  readonly observedAt: string;
+}
+
+export function stampClaimActivity(claim: ClaimDocT, observedAt: Date, now: Date): ClaimDocT {
+  const ceiling = now.getTime();
+  const observed = Math.min(observedAt.getTime(), ceiling);
+  const held = new Date(claim.heartbeatAt).getTime();
+  // NaN-safe: an unparseable stored heartbeat fails BOTH comparisons, so the observed reading wins
+  // — which is the safe direction, since a row nothing can date is a row nothing can protect.
+  if (Number.isFinite(held) && held >= observed) return claim;
+  return { ...claim, heartbeatAt: new Date(observed).toISOString() };
+}
+
 // ---------------------------------------------------------------------------
 // Work-time claim request (ADR-0138 §3) — the claim generalises from build-time
 // ("real" / "live-smoke") to the outer loop's work ("edit" / "orchestrate"), so
