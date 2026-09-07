@@ -3735,6 +3735,25 @@ a.stat:hover {
   margin: 0;
   font-size: 13px;
 }
+/* ADR-0535 D1 — "we have not heard from this holder in N", printed on the row itself. Dimmed and
+   italic rather than alarmed: it reports an ABSENCE OF EVIDENCE, not a failure, and a red-flagged
+   row would over-claim in the same direction the dropped-row bug under-claimed. */
+.claim-unheard {
+  font-style: italic;
+  color: var(--lp-ink-soft, var(--muted));
+}
+/* ADR-0535 D1 — the tidy-up fold: claims old enough that "we don't know" about them is noise. Shut
+   by default and never hidden, which is the whole distinction being drawn. */
+.claim-tidy-up {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.claim-tidy-up > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
 .session-row {
   display: flex;
   align-items: center;
@@ -6345,6 +6364,19 @@ button.legend-tile:hover {
 .arc-state-claimed {
   background: var(--lp-moss);
   color: #fffdf4;
+}
+/* ADR-0535 D1: HELD, but nobody has heard from the holder — the third band, and the state whose
+   absence let `quiet` assert calm over a session that was 432 tool calls in. It reads as MOSS THAT
+   HAS GONE OUT: the same hue as `claimed`, because it is the same claim, but hollow and dimmed
+   because we cannot vouch for it. Deliberately NOT clay — clay is this palette's call to action
+   (`waiting`) and its stuck signal (`blocked`), and an unknown is neither: nothing is asked of the
+   reader and nothing is stuck. `letter-spacing` is trimmed because this chip alone carries an age
+   after the word (`unknown · 5h`), so it has more to fit than any of its siblings. */
+.arc-state-unknown {
+  background: color-mix(in srgb, var(--lp-moss) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--lp-moss) 65%, var(--lp-ink-soft));
+  color: var(--lp-ink-soft);
+  letter-spacing: 0.03em;
 }
 /* ADR-0374 D4: `moving` is GONE and `quiet` is the fall-through. ADR-0351 D1 renamed `running` to
    `moving` because it measured recency and never touched the claim ledger; the owner's fuller call

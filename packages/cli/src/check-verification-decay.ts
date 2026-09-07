@@ -303,7 +303,9 @@ const CEILINGS = {
    *
    * ⚠ `/api/claims`' refutation was withdrawn for the SAME first reason, and it is why that row now
    * exists: it too rested on "the divergent part is the SELECT behind `sessionClaims()`", and both
-   * surfaces in fact call the SAME `PgClaimStore.listLiveClaims()`. What each hand-copies is the
+   * surfaces in fact call the SAME read on the SAME store (`PgClaimStore.listAllClaims()` since
+   * ADR-0535 D1; `listLiveClaims()` before it — the point is that it is ONE call, whichever it is).
+   * What each hand-copies is the
    * ENVELOPE — the 405, the advisory `{ sessions: null }`, the `null`-versus-`[]` distinction — which
    * is the `/api/arcs` argument exactly, and needs no database at all (ADR-0496 D3).
    *

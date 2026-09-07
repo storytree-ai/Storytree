@@ -63,6 +63,8 @@ import {
   arcBriefing,
   arcLanes,
   briefingLead,
+  claimChipLabel,
+  claimChipTitle,
   defaultLaneId,
   findLane,
   parseOptionCards,
@@ -97,13 +99,18 @@ export interface ArcSurfaceProps {
   /** Injected so every recency judgement is reproducible in a test. */
   now: Date;
   /**
-   * Live claims grouped by session (`GET /api/claims`), used ONLY to light `claimed` — the one lane
-   * state on this surface backed by the claim ledger rather than by dates (ADR-0351 D2).
+   * Claims grouped by session (`GET /api/claims`), stale rows INCLUDED and marked (ADR-0535 D1) —
+   * what lights the two ledger-backed lane states, `claimed` and `unknown` (ADR-0351 D2).
    *
    * POSITIVE-ONLY, and the asymmetry is load-bearing: a match proves a session is on this arc, a
-   * non-match proves nothing, so absent/`null` claims simply fall through to the recency states. The
-   * surface never renders "unclaimed". Coverage is genuinely partial — see `arcClaimants` for the
-   * measured reason — which is exactly why this ADDS a state instead of replacing them.
+   * non-match proves nothing, so absent/`null` claims simply fall through. The surface never renders
+   * "unclaimed". Coverage is genuinely partial — see `arcClaimants` for the measured reason — which
+   * is exactly why this ADDS states instead of replacing them.
+   *
+   * ⚠ THE WIRE MUST CARRY THE STALE ROWS FOR ANY OF THIS TO WORK. The studio's own read used to drop
+   * them in SQL, so this prop arrived already emptied of exactly the rows `unknown` exists to
+   * render, and the lane fell through to `quiet` — the word an owner read as "finished" while the
+   * session was 432 tool calls in. A view cannot mark what it was never handed.
    */
   claims?: readonly SessionClaimGroup[] | null;
   /**
@@ -299,7 +306,7 @@ function ArcLaneRow({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }): React.JSX.Element {
-  const { arc, bars, counts, state, claimants, queued } = lane;
+  const { arc, bars, counts, state, queued } = lane;
   const [expanded, setExpanded] = useState(false);
   const { chips, shape } = queueRun(lane);
   const selected = arc.id === selectedId;
@@ -308,9 +315,12 @@ function ArcLaneRow({
   // Not the `arc-lane-queue:<id>` testid: an HTML id reached through `aria-controls` should not carry
   // a colon, which every CSS/query consumer of it then has to escape.
   const queueId = `arc-queue-${arc.id}`;
-  // Named sessions, deduped — one session claiming three of an arc's units is one session on it, not
-  // three. Shown as the chip's tooltip so `claimed` says WHO without widening the lane (ADR-0351 D2).
-  const sessions = [...new Set(claimants.map((c) => c.sessionId))];
+  // Both derived in `lib/arcSurface.ts`, not here: the chip says WHO holds the arc (deduped — one
+  // session claiming three of its units is one session on it, ADR-0351 D2) and, for `unknown`, HOW
+  // LONG since anybody was heard from, on the face of the chip rather than only on hover
+  // (ADR-0535 D1 — the misled owner read a word; he did not hover).
+  const chipLabel = claimChipLabel(lane);
+  const chipTitle = claimChipTitle(lane);
   return (
     <div className="arc-lane-row" data-testid={`arc-lane-row:${arc.id}`}>
       <div className="arc-lane-line">
@@ -346,11 +356,9 @@ function ArcLaneRow({
           <span className="arc-lane-name">
             <span
               className={`arc-state-chip arc-state-${state}`}
-              {...(sessions.length > 0
-                ? { title: `held by ${sessions.join(', ')} — ${claimants.map((c) => c.unitId).join(', ')}` }
-                : {})}
+              {...(chipTitle === null ? {} : { title: chipTitle })}
             >
-              {state}
+              {chipLabel}
             </span>
             {/* The hover fallback STAYS. The row is far wider than the 340px column it replaces, but
                 the longest titles still run past it (max 115 chars), so the ellipsis needs somewhere

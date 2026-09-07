@@ -300,7 +300,7 @@ function buildActivityFixtures() {
  * (ADR-0200 D7), registered by ADR-0496 D3.
  *
  * WHY THIS ROW EXISTS AT ALL, since neither the query nor the fold is re-composed: what the two
- * surfaces hand-copy is the ENVELOPE. `PgClaimStore.listLiveClaims` is one shared implementation
+ * surfaces hand-copy is the ENVELOPE. `PgClaimStore.listAllClaims` is one shared implementation
  * both call, and `groupClaimsBySession` is one shared fold both call — so the drift surface is the
  * 405 that makes the route read-only, the advisory `{ sessions: null }` a down store or a seam-less
  * backend must answer INSTEAD of a 503, and the `null`-versus-`[]` distinction the dock renders as

@@ -895,26 +895,45 @@ export interface SessionClaimEntry {
   /** Elapsed ms since `claimedAt`, stamped by the server at read time. */
   ageMs: number;
   claimedAt: string;
+  /**
+   * The SERVER's liveness verdict for this row — `isReclaimable` at read time, the single
+   * `CLAIM_STALE_RECLAIM_MS` predicate the store enforces in SQL (ADR-0346 D1).
+   *
+   * ⚠ ALWAYS READ, NEVER RECOMPUTED. `groupClaimsBySession` has stamped this since the fold stopped
+   * dropping stale rows; the studio simply did not mirror it, which is how the browser came to be
+   * handed nothing while the command line printed the same row marked STALE (ADR-0535 D1). A client
+   * that re-derived staleness from `heartbeatAgeMs` would be a second read of one table — the exact
+   * fault. See `lib/claimBands.ts`.
+   */
+  stale: boolean;
+  /** Elapsed ms since the holder was last heard from, stamped by the server — what {@link stale} is
+   *  measured on, and what an `unknown` row is required to display (ADR-0535 D1). */
+  heartbeatAgeMs: number;
 }
 
 /**
- * One session's live claims — the studio session dock's claims-grouped-by-session rendering unit
+ * One session's claims — the studio session dock's claims-grouped-by-session rendering unit
  * (ADR-0200 D7). Mirrors the server's `SessionClaimGroup` (packages/notice-board's pure
  * `groupClaimsBySession` fold), oldest-session-first, claims within a group ranked work > waiting >
  * exploring.
+ *
+ * NOT "live claims" any more (ADR-0535 D1): the wire carries every standing row, stale ones
+ * included, and each says so. `lib/claimBands.ts` is what sorts them into what a reader is shown.
  */
 export interface SessionClaimGroup {
   sessionId: string;
   branch: string;
   claims: SessionClaimEntry[];
+  /** Every claim in this group is stale — the session is DARK. Held rows, nobody heard from. */
+  stale: boolean;
 }
 
 /**
- * GET /api/claims — every live claim row folded by session (ADR-0200 D7), sibling to
- * {@link ActivityPayload}: `sessions: null` means the live store didn't answer (down DB / json
- * store) — advisory absence, not an error; the dock renders an honest silent-store note. Fetched
- * only while the session dock is open (not on the world's poll cadence — no new always-on cost
- * class).
+ * GET /api/claims — every standing claim row folded by session (ADR-0200 D7; stale rows INCLUDED
+ * and marked since ADR-0535 D1), sibling to {@link ActivityPayload}: `sessions: null` means the
+ * live store didn't answer (down DB / json store) — advisory absence, not an error; the dock
+ * renders an honest silent-store note. Fetched only while the session dock is open (not on the
+ * world's poll cadence — no new always-on cost class).
  */
 export interface ClaimsPayload {
   sessions: SessionClaimGroup[] | null;
