@@ -19,7 +19,7 @@ import {
   type TraversalIndexState,
   type TraversalTraceRow,
 } from './traversalIndex';
-import type { TraversalSessionsPayload } from '../types';
+import type { TraversalSessionEntry, TraversalSessionsPayload } from '../types';
 
 const TRACE_DIR = '/home/op/.storytree/traces';
 
@@ -264,5 +264,99 @@ describe('buildTraversalTraceList — the arc fields survive the fold', () => {
     const list = buildTraversalTraceList(read([entry('a', null)], false));
     if (list.state !== 'listed') throw new Error('expected a listed index');
     expect(list.arcsResolved).toBe(false);
+  });
+});
+
+describe('traceArcLabel / traceArcTitle — the exact words, because the words ARE the distinction', () => {
+  function row(units: string[], arcs: string[]): TraversalTraceRow {
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs };
+  }
+
+  it('ONE arc: the label is the arc name alone, and the title names the unit that placed it there', () => {
+    const r = row(['map-arc-inc-01'], ['map-arc']);
+    expect(traceArcLabel(r, true)).toBe('map-arc');
+    expect(traceArcTitle(r, true)).toBe(
+      'Worked on the arc map-arc — recorded by the session itself (map-arc-inc-01).',
+    );
+  });
+
+  it('ONE arc reached by TWO units names both, separated — the arc is one, the work was not', () => {
+    // The ordinary shape once `noticeboard declare` records at claim time: a session claims two
+    // capabilities that live on the same arc. The label is still one arc; the title must not run the
+    // two units together into a name nobody can look up.
+    const r = row(['cap-a', 'cap-b'], ['map-arc']);
+    expect(traceArcLabel(r, true)).toBe('map-arc');
+    expect(traceArcTitle(r, true)).toBe(
+      'Worked on the arc map-arc — recorded by the session itself (cap-a, cap-b).',
+    );
+  });
+
+  it('SEVERAL arcs: both names, separated, and the title says none was picked as the winner', () => {
+    const r = row(['inc-a', 'inc-b'], ['map-arc', 'art-arc']);
+    expect(traceArcLabel(r, true)).toBe('map-arc · art-arc');
+    expect(traceArcTitle(r, true)).toBe(
+      'Worked across 2 arcs: map-arc, art-arc — every one listed, none picked as the winner.',
+    );
+  });
+
+  it('NO ARC: the label says so AND names the units, so the claim is checkable', () => {
+    const r = row(['r3f-world-spike', 'terminal-capture-activation'], []);
+    expect(traceArcLabel(r, true)).toBe('no arc · r3f-world-spike · terminal-capture-activation');
+    expect(traceArcTitle(r, true)).toBe(
+      'Claimed real work belonging to NO arc: r3f-world-spike, terminal-capture-activation. ' +
+        'That is a recorded fact about the work, not missing data.',
+    );
+  });
+
+  it('NOT RECORDED: a fixed sentence that says the blank is permanent and will not be inferred away', () => {
+    const r = row([], []);
+    expect(traceArcLabel(r, true)).toBe('arc not recorded');
+    expect(traceArcTitle(r, true)).toBe(
+      'This session never recorded what it was working on. Traces are attributed going forward ' +
+        'only — no arc is ever inferred from a pooled worktree slot (ADR-0541 D3).',
+    );
+  });
+
+  it('UNRESOLVED: the store, not the work, is what could not answer — and the units still show', () => {
+    const r = row(['some-capability', 'another-one'], []);
+    expect(traceArcLabel(r, false)).toBe('arc unresolved · some-capability · another-one');
+    expect(traceArcTitle(r, false)).toBe(
+      'Recorded some-capability, another-one, but the corpus could not be consulted, so these are ' +
+        'unresolved rather than unhomed.',
+    );
+  });
+
+  it('the separators are real: two units do not run together into one name', () => {
+    // The label's join is the only thing keeping `no arc · a · b` from reading as one unit `ab`,
+    // and the title's is the only thing keeping `a, b` from reading as `ab`.
+    expect(traceArcLabel(row(['a', 'b'], []), true)).toContain('a · b');
+    expect(traceArcTitle(row(['a', 'b'], []), true)).toContain('a, b');
+    expect(traceArcLabel(row(['x'], ['a', 'b']), true)).toBe('a · b');
+    expect(traceArcTitle(row(['x'], ['a', 'b']), true)).toContain('a, b');
+  });
+
+  it('a row is classified before it is worded — an unrecorded row ignores the corpus flag entirely', () => {
+    expect(traceArcState(row([], []), false)).toEqual({ state: 'unrecorded' });
+    expect(traceArcLabel(row([], []), false)).toBe('arc not recorded');
+  });
+});
+
+describe('buildTraversalTraceList — a payload from before these fields still reads honestly', () => {
+  it('an entry with no units/arcs keys reads as recording nothing, never as undefined', () => {
+    // A server that predates ADR-0541 (or a desktop mirror mid-deploy) sends the old shape. The row
+    // must come back with real empty arrays: `traceArcState` reads `.length` on both, so an
+    // undefined here is a crash in the rail rather than an honest "not recorded".
+    const legacy = { sessionId: 'old', eventCount: 3, lastObservedAt: null } as TraversalSessionEntry;
+    const list = buildTraversalTraceList({
+      status: 'read',
+      payload: { dir: TRACE_DIR, sessions: [legacy] } as TraversalSessionsPayload,
+    });
+    if (list.state !== 'listed') throw new Error('expected a listed index');
+    expect(list.rows[0]?.units).toEqual([]);
+    expect(list.rows[0]?.arcs).toEqual([]);
+    // ⚠ And the LIST's flag defaults to FALSE, not true: a payload that says nothing about the
+    // corpus must not license "worked on no arc", which is a positive claim about the work.
+    expect(list.arcsResolved).toBe(false);
+    expect(traceArcLabel(list.rows[0]!, list.arcsResolved)).toBe('arc not recorded');
   });
 });

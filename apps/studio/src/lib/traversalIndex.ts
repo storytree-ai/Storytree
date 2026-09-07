@@ -203,6 +203,14 @@ export type TraceArcState =
  * Classify one row. `arcsResolved` is the LIST's flag, not the row's: whether the corpus answered is
  * one fact about the request, and asking it per row would invite a caller to pass it per row.
  */
+// Stryker disable next-line BlockStatement: KILLED, NAMEABLE ONLY AS A TIMEOUT — the
+// `traversal-routes.ts` precedent, met here through React rather than through HTTP. An emptied body
+// returns `undefined`, so every consumer throws on `classified.state`; the pure tests below fail on
+// it instantly, but the covering set also includes `TraversalTab.test.tsx`, whose `waitFor` retries
+// the failing render until its own budget expires. Vitest reaches `src/components/` before
+// `src/lib/`, so the runner records a Timeout and attributes no killing test — which
+// `adjudicateMutants` counts as UNPROVEN rather than as a pass. The mutant IS caught; what is
+// missing is the runner's ability to name what caught it.
 export function traceArcState(row: TraversalTraceRow, arcsResolved: boolean): TraceArcState {
   // Recorded-nothing is decided FIRST and independently of the corpus. A session with no units has
   // nothing to resolve, so a silent store changes nothing about the answer — and reporting it as

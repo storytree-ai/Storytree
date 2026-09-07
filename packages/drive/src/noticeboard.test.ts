@@ -1220,6 +1220,22 @@ test("declare: the units rider's note renders under the claims, and a null adds 
   assert.equal(silent.body, none.body);
 });
 
+test("declare: a units rider with an EMPTY string to say adds no line, exactly as a null does", async () => {
+  // Both are "nothing to report", and the render must not grow a blank indented row for either —
+  // a stray empty line under a claim reads as a truncated message rather than as silence.
+  const base = { identity: CLAIM_IDENTITY, now: nowFn, universe: KNOWS_INCREMENT } as const;
+  const empty = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: makeFakeClaims(),
+    onClaimsDeclared: async () => "",
+  });
+  const none = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: makeFakeClaims(),
+  });
+  assert.equal(empty.body, none.body);
+});
+
 test("declare: a THROWING units rider never costs the claim — the rows stand, the failure is said", async () => {
   const claims = makeFakeClaims();
   const deps: NoticeboardDeps = {

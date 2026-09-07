@@ -145,6 +145,16 @@ test("a declaration written before units existed reads as claiming none, and an 
   // the second is a file this reader cannot vouch for and is rejected whole.
   assert.deepEqual(parseSessionOriginDeclaration({ v: 1, units: ["cap-a"] })?.origin, null);
   assert.equal(parseSessionOriginDeclaration({ v: 1, origin: "agent", units: ["cap-a"] }), null);
+  // A real unit id survives VERBATIM. Asserted as a value rather than a length, because a schema
+  // that quietly rejected every multi-character id would answer `[]` here and read as "claimed
+  // nothing" — the same reassuring direction every rider rule in this module refuses.
+  assert.deepEqual(parseSessionOriginDeclaration({ v: 1, units: ["cap-a", "map-arc-inc-01"] })?.units, [
+    "cap-a",
+    "map-arc-inc-01",
+  ]);
+  // A blank entry names nobody and takes the whole array down to the honest "claimed nothing",
+  // rather than storing an id a reader could quote.
+  assert.deepEqual(parseSessionOriginDeclaration({ v: 1, units: [""] })?.units, []);
 });
 
 // ---------------------------------------------------------------------------
