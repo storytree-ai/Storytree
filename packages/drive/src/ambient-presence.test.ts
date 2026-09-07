@@ -214,7 +214,7 @@ test("statuslineGlance: returns '' when the ledger reads throw", async () => {
 // the retired status-bar beat stays deleted (ADR-0535 D3)
 // ---------------------------------------------------------------------------
 
-test("statuslineGlance is READ-ONLY: rendering the status bar writes nothing to the ledger", async () => {
+test("liveness-is-observed-not-self-reported: statuslineGlance is READ-ONLY: rendering the status bar writes nothing to the ledger", async () => {
   // ADR-0535 D3 retired the self-report rather than repairing it. The glance used to carry a
   // debounced `bumpHeartbeatsBySession`, which failed in both directions at once: desktop and
   // unattended sessions never draw a status bar, so their claims aged out on a timer whatever they
@@ -268,7 +268,7 @@ test("planActivitySweep: an admin-bound past reading vouches for every identity 
   assert.deepEqual(plan.refused, []);
 });
 
-test("planActivitySweep: a FELL-BACK reading vouches for nobody — those signals measure the world, not the worktree", async () => {
+test("liveness-is-observed-not-self-reported: planActivitySweep: a FELL-BACK reading vouches for nobody — those signals measure the world, not the worktree", async () => {
   // The `.codex/` incident: creating an empty child directory stamps its parent, so one scaffold
   // pass erased 25-40 days of real idleness across four unrelated worktrees. A husk with no admin
   // dir has nothing honest to say, and saying it anyway is how a corpse gets vouched for.
@@ -280,7 +280,7 @@ test("planActivitySweep: a FELL-BACK reading vouches for nobody — those signal
   assert.deepEqual(plan.refused, [{ name: "husk", reason: "fell-back" }]);
 });
 
-test("planActivitySweep: an UNREADABLE worktree is refused, never treated as touched just now", async () => {
+test("liveness-is-observed-not-self-reported: planActivitySweep: an UNREADABLE worktree is refused, never treated as touched just now", async () => {
   const plan = planActivitySweep(
     [reading({ name: "gone", mtimeMs: 0, binding: null })],
     NOW,
@@ -289,7 +289,7 @@ test("planActivitySweep: an UNREADABLE worktree is refused, never treated as tou
   assert.deepEqual(plan.refused, [{ name: "gone", reason: "no-signal" }]);
 });
 
-test("planActivitySweep: a BULK-STAMPED worktree is refused — a pass is not activity", async () => {
+test("liveness-is-observed-not-self-reported: planActivitySweep: a BULK-STAMPED worktree is refused — a pass is not activity", async () => {
   // The fault class that has bitten twice (a `git gc` reflog rewrite across 76 worktrees; the
   // `.codex/` scaffold across 4). Two unrelated worktrees cannot be USED at the same second, so a
   // shared stamp is evidence of one pass — and writing it would put a boardful of false-live claims
@@ -308,7 +308,7 @@ test("planActivitySweep: a BULK-STAMPED worktree is refused — a pass is not ac
   ]);
 });
 
-test("planActivitySweep: a FUTURE reading is refused — a claim that cannot go stale is a fence nobody can reclaim", async () => {
+test("liveness-is-observed-not-self-reported: planActivitySweep: a FUTURE reading is refused — a claim that cannot go stale is a fence nobody can reclaim", async () => {
   const plan = planActivitySweep(
     [reading({ name: "skewed", mtimeMs: NOW.getTime() + 3_600_000 })],
     NOW,
@@ -383,7 +383,7 @@ test("sweepWorktreeActivity: a due sweep writes the plan and records the debounc
   assert.equal(state.bumps.length, 1, "the debounce is consumed on success");
 });
 
-test("sweepWorktreeActivity: WITHIN the debounce it does not even OBSERVE — check first, connect second", async () => {
+test("liveness-is-observed-not-self-reported: sweepWorktreeActivity: WITHIN the debounce it does not even OBSERVE — check first, connect second", async () => {
   // The cost trap this ordering exists for: the retired ping opened a DB pool BEFORE deciding
   // whether a write was due, and the keyless Cloud SQL handshake measures ~6-11s on this box, so
   // on a per-call path it silently lost its own race every time. The debounce must be the first
@@ -402,7 +402,7 @@ test("sweepWorktreeActivity: WITHIN the debounce it does not even OBSERVE — ch
   assert.deepEqual(claims.stamped, [], "and certainly no write");
 });
 
-test("sweepWorktreeActivity: with nothing admissible, the LEDGER IS NEVER ASKED FOR — the cost trap, structurally", async () => {
+test("liveness-is-observed-not-self-reported: sweepWorktreeActivity: with nothing admissible, the LEDGER IS NEVER ASKED FOR — the cost trap, structurally", async () => {
   // The sharpest form of the same rule, and the one the type now enforces: `acquire` is a thunk,
   // so a box whose worktrees are all husks decides it has nothing to say BEFORE paying a
   // handshake. The retired ping got this backwards and lost its own race every time.
@@ -495,7 +495,7 @@ test("sweepWorktreeActivity: an UNREADABLE debounce stamp sweeps rather than blo
   assert.equal(result.skipped, null, "a garbage marker must not wedge liveness shut");
 });
 
-test("sweepWorktreeActivity vouches for OTHER sessions, not only its own — the whole point of a sweep", async () => {
+test("liveness-is-observed-not-self-reported: sweepWorktreeActivity vouches for OTHER sessions, not only its own — the whole point of a sweep", async () => {
   // This is what the retired ping could not do at any debounce. A desktop session draws no status
   // bar and observes nothing, so its liveness has to come from somebody else's process noticing
   // that its worktree is changing.

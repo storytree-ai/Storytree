@@ -27,6 +27,12 @@ proof:
   coverage:
     testGlobs:
       - "packages/cli/src/ambient-wiring.test.ts"
+      # ADR-0535 D2's fault-class guard. It has to live here for the same reason the wiring leg
+      # does — it drives a REAL filesystem, building four worktree admin layouts and stamping real
+      # mtimes, which is the only way to show that `detectIdleStampClusters` is actually WIRED into
+      # the sweep rather than merely available to it. The drive package's registered unit cannot
+      # reach it, and a mocked idle reader would prove nothing about the bug it exists to stop.
+      - "packages/cli/src/worktree-idle-signal.test.ts"
   real:
     testFile: "packages/drive/src/ambient-presence.test.ts"
     sourceFile: "packages/drive/src/ambient-presence.ts"

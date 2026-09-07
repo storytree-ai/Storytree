@@ -430,9 +430,29 @@ test("activitySessionIds: BOTH identity rules, on both path separators", () => {
       "vouch for an id nothing holds while the real holder aged out",
   );
   assert.deepEqual(activitySessionIds("C:/code/storytree", null), [], "the primary checkout claims nothing");
+  // The `$` anchor is the whole difference between "this worktree" and "some worktree under it":
+  // without it a nested path would claim `wt-a`, which is a DIFFERENT session's identity.
+  assert.deepEqual(
+    activitySessionIds("C:/code/storytree/.claude/worktrees/wt-a/nested", null),
+    [],
+    "a path BELOW a worktree is not that worktree",
+  );
+  // `resolveAdminDir` returns the TRIMMED text after `gitdir:`, so a malformed gitfile
+  // (`gitdir:` with nothing after it) yields "". An empty session id keys nothing and would make
+  // the sweep's `unnest` batch carry a row that can match no claim, so it is dropped here.
+  assert.deepEqual(activitySessionIds("C:/code/replica", ""), []);
 });
 
-test("the sweep VOUCHES for a genuinely-used worktree and refuses a husk — against real mtimes", () => {
+test("activityDisplayName: a trailing or doubled separator must not name a worktree the empty string", () => {
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/"), "wt-a");
+  assert.equal(activityDisplayName("C:/tmp//storytree-real-XX//wt/"), "storytree-real-XX/wt");
+  assert.equal(activityDisplayName("wt"), "wt", "a single segment has no parent to qualify it");
+  // The `$` anchor again: a path BELOW a session worktree is not that worktree, so it gets the
+  // qualified two-segment form rather than borrowing the session's bare name.
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/nested"), "wt-a/nested");
+});
+
+test("liveness-is-observed-not-self-reported: the sweep VOUCHES for a genuinely-used worktree and refuses a husk — against real mtimes", () => {
   withTempRoot((root) => {
     makeWorktree(root, "in-use", { dir: IDLE, admin: FRESH, reflog: IDLE });
     makeOrphan(root, "husk", NOW - 30_000);
@@ -456,12 +476,16 @@ test("the sweep VOUCHES for a genuinely-used worktree and refuses a husk — aga
   });
 });
 
-test("A BULK STAMP NEVER REACHES THE LEDGER — the third instance of the fault class is refused, not written", () => {
+test("liveness-is-observed-not-self-reported: A BULK STAMP NEVER REACHES THE LEDGER — the third instance of the fault class is refused, not written", () => {
   withTempRoot((root) => {
     // The measured `.codex/` shape (2026-08-19): one pass touched four unrelated worktrees inside a
     // 59 ms window. Reproduced here on the ADMIN signals, which is what would happen if some future
     // repo-wide git housekeeping rewrote them the way `reflog expire --all` once rewrote the logs.
-    const at = NOW - 5 * 60_000;
+    // Pinned to a whole second, and that is load-bearing rather than tidiness: the detector groups
+    // at SECOND granularity, so an unpinned base lands within 60 ms of a boundary about 6% of the
+    // time, splits the four across two seconds, and leaves the stragglers unflagged. That flake red
+    // this suite once already — under `bun test` in the full run, while passing in isolation.
+    const at = Math.floor((NOW - 5 * 60_000) / 1000) * 1000;
     const names = ["swept-a", "swept-b", "swept-c", "swept-d"];
     names.forEach((n, i) => makeWorktree(root, n, { dir: IDLE, admin: at + i * 20, reflog: IDLE }));
 
@@ -496,6 +520,25 @@ test("gatherWorktreeActivity: an unreadable git registry yields an empty observa
     readIdleSignals,
   );
   assert.deepEqual(observation, []);
+});
+
+test("gatherWorktreeActivity asks git for the WHOLE registry in porcelain — not the worktrees directory", () => {
+  // Two properties in one call, both of which a looser assertion would miss. `--porcelain` is what
+  // makes the output parseable at all (the human form is not), and `worktree list` is what reaches
+  // the Rule-2 identities — `--real` replicas and Codex trees — that never appear under
+  // `.claude/worktrees/` and are therefore invisible to the directory scan `worktree idle` uses.
+  const calls: string[][] = [];
+  gatherWorktreeActivity(
+    {
+      ...defaultWorktreeIo,
+      runGit: (args) => {
+        calls.push([...args]);
+        return "";
+      },
+    },
+    readIdleSignals,
+  );
+  assert.deepEqual(calls, [["worktree", "list", "--porcelain"]]);
 });
 
 test("activityDisplayName disambiguates outside .claude/worktrees — sixteen replicas are not all `wt`", () => {

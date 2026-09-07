@@ -86,7 +86,7 @@ test("the ambient wrappers ARE wired through the worktree-safe launcher: the Ses
 // the worktree-activity sweep is wired where it can actually fire (ADR-0535 D2)
 // ---------------------------------------------------------------------------
 
-test("the worktree-activity sweep is registered on SessionStart, through a launcher, bounded", () => {
+test("liveness-is-observed-not-self-reported: the worktree-activity sweep is registered on SessionStart, through a launcher, bounded", () => {
   // THE COMPLAINT THIS ANSWERS. Liveness used to hang off `statusLine` alone, which desktop and
   // unattended sessions never draw — so their claims aged into stale-reclaim on a timer whatever
   // they were doing, and the board told an owner an arc was unheld while a session was 432 tool
@@ -120,7 +120,7 @@ test("the worktree-activity sweep is registered on SessionStart, through a launc
   );
 });
 
-test("the worktree-activity launcher exists on disk and detaches its child", () => {
+test("liveness-is-observed-not-self-reported: the worktree-activity launcher exists on disk and detaches its child", () => {
   // A registered hook whose script is missing fails silently by contract, which would leave the
   // ledger exactly as dead as it was before this landed. And the detach is the reason session start
   // never waits on the ~6-11s keyless connector handshake the write needs.

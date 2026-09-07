@@ -1102,7 +1102,11 @@ export function detectIdleStampClusters(
  */
 export function activitySessionIds(dir: string, admin: string | null): string[] {
   const ids: string[] = [];
-  const rule1 = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)\s*$/.exec(dir);
+  // `deriveIdentity`'s Rule-1 pattern, minus its trailing `\s*`: that guards untrimmed
+  // `rev-parse` output, and these paths come pre-trimmed from `parseWorktreeList`. The `$` is
+  // load-bearing — without it `<root>/.claude/worktrees/foo/nested` would claim the id `foo`,
+  // which belongs to a DIFFERENT session.
+  const rule1 = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)$/.exec(dir);
   if (rule1?.[1] !== undefined) ids.push(rule1[1]);
   if (admin !== null) {
     const rule2 = path.basename(admin);
@@ -1157,10 +1161,16 @@ export function gatherWorktreeActivity(
  * every Codex tree is `<hash>/storytree`, so sixteen rows would otherwise all read `wt`.
  */
 export function activityDisplayName(dir: string): string {
+  // The `+` and the `filter` both matter on real input: a trailing separator or a `//` would
+  // otherwise make the last segment the empty string and name every such worktree "".
   const parts = dir.split(/[/\\]+/).filter((s) => s.length > 0);
   const base = parts[parts.length - 1] ?? dir;
-  if (/[/\\]\.claude[/\\]worktrees[/\\][^/\\]+\s*$/.test(dir)) return base;
   const parent = parts[parts.length - 2];
+  // Decided on the SEGMENTS rather than a second regex over `dir`. A regex mirroring
+  // `activitySessionIds`' would be a duplicated formula, and — because it must be `$`-anchored to
+  // avoid claiming a nested path — a trailing separator would slip past it and render a session
+  // worktree as `worktrees/<name>`.
+  if (parent === "worktrees" && parts[parts.length - 3] === ".claude") return base;
   return parent === undefined ? base : `${parent}/${base}`;
 }
 
@@ -1185,10 +1195,18 @@ export function renderActivitySweep(
   plan: ActivitySweepPlan,
   opts: ActivityRenderOptions,
 ): Envelope {
-  const bindingFor = new Map<string, string>();
+  // The binding reported beside a session must come from the reading whose observation actually
+  // WON — the NEWEST, matching `planActivitySweep`'s dedup. Taking the first reading to carry the
+  // id (the obvious version) names a signal that did not produce the stamp on the same line: two
+  // worktrees can resolve to one identity, and the older one is exactly the reading the plan threw
+  // away. Caught by this file's golden assertion, which is the only place the pairing is visible.
+  const bindingFor = new Map<string, { binding: string; mtimeMs: number }>();
   for (const r of readings) {
     for (const id of r.sessionIds) {
-      if (!bindingFor.has(id)) bindingFor.set(id, r.binding ?? "?");
+      const held = bindingFor.get(id);
+      if (held === undefined || r.mtimeMs > held.mtimeMs) {
+        bindingFor.set(id, { binding: r.binding ?? "?", mtimeMs: r.mtimeMs });
+      }
     }
   }
 
@@ -1204,7 +1222,7 @@ export function renderActivitySweep(
     for (const s of plan.stamps) {
       const ageH = (opts.nowMs - new Date(s.observedAt).getTime()) / 3_600_000;
       lines.push(
-        `  ${ageH.toFixed(1).padStart(7)}h  ${(bindingFor.get(s.sessionId) ?? "?").padEnd(11)}  ${s.sessionId}`,
+        `  ${ageH.toFixed(1).padStart(7)}h  ${(bindingFor.get(s.sessionId)?.binding ?? "?").padEnd(11)}  ${s.sessionId}`,
       );
     }
   }
