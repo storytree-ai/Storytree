@@ -51,13 +51,42 @@ const ARTIFACT_CANARY = "CANARY-ARTIFACT-BODY-9c21e7";
 /** A pinned, far-future instant — proves the adapter used the INJECTED clock, never `Date.now()`. */
 const FIXED_NOW = "2099-01-01T00:00:00.000Z";
 
+/**
+ * ⚠⚠ THE FRONTMATTER IS COMPLETE, AND UNTIL 2026-09-08 IT WAS NOT — which made the assertion two
+ * tests below ("the focused-tree read must succeed against the fixture story") a vacuous green.
+ *
+ * The block used to be `id` + `tier` alone. `loadNodeSpec` REFUSES that — `title`, `outcome`,
+ * `status` and `proof_mode` are all required — so `storytree tree demo-story` was reading NOTHING:
+ * it caught the schema throw in a bare `catch {}`, rendered `(unknown)` in every field with zero
+ * capabilities, and returned `ok: true`. The read this file calls "a genuine successful read" was
+ * the exact failure `story-load-error-surfaces-arc` exists to end, and the swallow is what hid it
+ * here. With the reader now surfacing the message and failing the focused view, the fixture had to
+ * become the valid story it always claimed to be.
+ *
+ * ⚠ NOTHING ELSE ABOUT THE FIXTURE MOVED. The canary body is untouched and still the thing that
+ * must never reach the trace; the adapter's own subject — which visit kind each read records — is
+ * unaffected by what the frontmatter says.
+ */
 function makeStoriesDir(): string {
   const dir = mkdtempSync(path.join(tmpdir(), "orientation-telemetry-story-"));
   const storyDir = path.join(dir, "demo-story");
   mkdirSync(storyDir);
   writeFileSync(
     path.join(storyDir, "story.md"),
-    `---\nid: demo-story\ntier: story\n---\n# Demo story\n\n${STORY_CANARY}\n`,
+    [
+      "---",
+      "id: demo-story",
+      "tier: story",
+      "title: Demo story",
+      "outcome: the fixture story delivers a readable spec",
+      "status: proposed",
+      "proof_mode: UAT",
+      "---",
+      "# Demo story",
+      "",
+      STORY_CANARY,
+      "",
+    ].join("\n"),
     "utf8",
   );
   return dir;

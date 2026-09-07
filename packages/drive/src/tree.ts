@@ -45,6 +45,58 @@ import {
 } from "./tree-attestations.js";
 
 // ---------------------------------------------------------------------------
+// Specs that would not load
+// ---------------------------------------------------------------------------
+
+/**
+ * ONE SPEC THIS RENDER COULD NOT READ, and the loader's own words about why.
+ *
+ * ⚠⚠ THE COST OF NOT HAVING THIS WAS MEASURED, WHICH IS WHY IT EXISTS. Until 2026-09-08 every
+ * `loadNodeSpec` call below sat inside a BARE `catch {}`: a story whose frontmatter failed to parse
+ * rendered as `(unknown)` with zero capabilities and exit 0, indistinguishable on sight from a
+ * cosmetic rendering gap. Attributing one such failure — a single deleted word inside a hashed UAT
+ * canonical span in `stories/terminal-tabs/story.md` — took NINE bisecting round trips, because the
+ * thrown message existed and nothing showed it (friction `story-load-failure-renders-as-unknown`).
+ * The loader has always thrown loudly; only the reader was quiet.
+ */
+interface SpecLoadFailure {
+  /** The spec file, as the reader opened it. */
+  file: string;
+  /** The loader's own message, verbatim — never a summary of it. */
+  reason: string;
+}
+
+/** What a caught spec-load throw carries, whatever was thrown. */
+function specLoadFailure(file: string, err: unknown): SpecLoadFailure {
+  return { file, reason: err instanceof Error ? err.message : String(err) };
+}
+
+/**
+ * The block that names every spec the render could not read.
+ *
+ * ⚠ THE MESSAGE IS PRINTED WHOLE, NEWLINES AND ALL. `loadNodeSpec` throws a one-liner naming the
+ * file, but the frontmatter SCHEMA failure underneath it is a zod report spanning several lines and
+ * naming the offending field — which is the half that answers "what did I break". Truncating to the
+ * first line would keep the old cost and only look like a fix.
+ *
+ * ⚠ AND THE PATH IS NOT PRINTED TWICE. `loadNodeSpec`'s own messages start with the file; the
+ * schema and proof-block failures underneath it do not, so the path is prepended only when the
+ * message does not already open with it.
+ */
+function specFailureLines(failures: readonly SpecLoadFailure[]): string[] {
+  if (failures.length === 0) return [];
+  const out: string[] = [
+    "",
+    `⚠ ${failures.length} spec(s) could not be read — what is shown above is incomplete:`,
+  ];
+  for (const f of failures) {
+    const headed = f.reason.startsWith(f.file) ? f.reason : `${f.file}: ${f.reason}`;
+    for (const line of headed.split("\n")) out.push(`    ${line}`);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Public interface
 // ---------------------------------------------------------------------------
 
@@ -133,6 +185,7 @@ export async function treeCommand(
   // -------------------------------------------------------------------------
   if (storyId === undefined) {
     const lines: string[] = ["Stories:"];
+    const failures: SpecLoadFailure[] = [];
 
     for (const { id, dir } of stories) {
       const storyFile = path.join(dir, "story.md");
@@ -144,12 +197,21 @@ export async function treeCommand(
         title = spec.title;
         status = spec.status;
         capCount = spec.capabilities.length;
-      } catch {
-        // tolerate load failures — still list the story
+      } catch (err) {
+        // Still list the story — the inventory is what was asked for — but SAY WHY its row is a
+        // shell, in the block below.
+        failures.push(specLoadFailure(storyFile, err));
       }
       lines.push(`  ${id}${mark(id)}  ${title}  status=${status}  caps=${capCount}`);
     }
 
+    lines.push(...specFailureLines(failures));
+
+    // ⚠ THE BARE VIEW STAYS ok EVEN WITH A BROKEN STORY, and the asymmetry with the focused view is
+    // deliberate. This command is the inventory of EVERY story, run constantly to orient; failing it
+    // because one unrelated story in the repo is mid-edit would tax every honest session for one
+    // author's broken file. The focused view below is the one whose whole output is that story, so
+    // that is where a failure is the command's own.
     const next: string[] = stories.map(({ id }) => `storytree tree ${id}`);
     return { ok: true, body: lines.join("\n"), next };
   }
@@ -175,6 +237,7 @@ export async function treeCommand(
   let capIds: string[] = [];
   let uatTestCriteria: UatTestCriterion[] = [];
   let reliabilityGates: ReliabilityGate[] = [];
+  const failures: SpecLoadFailure[] = [];
   try {
     const spec = loadNodeSpec(storyFile);
     storyTitle = spec.title;
@@ -183,8 +246,10 @@ export async function treeCommand(
     capIds = spec.capabilities;
     uatTestCriteria = spec.uatTestCriteria;
     reliabilityGates = spec.reliabilityGates;
-  } catch {
-    // tolerate — render what we can
+  } catch (err) {
+    // Render what we can — the crown, the glyphs and the ledger are still worth showing — but the
+    // reason reaches the terminal and the command exits non-zero (see the return).
+    failures.push(specLoadFailure(storyFile, err));
   }
 
   interface CapRow {
@@ -216,8 +281,12 @@ export async function treeCommand(
         status = spec.status;
         authoredStatus = spec.status;
         dependsOn = spec.dependsOn;
-      } catch {
-        // tolerate
+      } catch (err) {
+        // ⚠ `(unreadable)`, NOT `(spec missing)` — the file IS there and will not parse, which is a
+        // different thing to fix and the distinction the old bare catch destroyed.
+        title = "(unreadable)";
+        status = "(unreadable)";
+        failures.push(specLoadFailure(capFile, err));
       }
     }
     capRows.push({
@@ -466,5 +535,12 @@ export async function treeCommand(
   }
   next.push("storytree tree");
 
-  return { ok: true, body: lines.join("\n"), next };
+  lines.push(...specFailureLines(failures));
+
+  // ⚠ NON-ZERO WHEN A SPEC WOULD NOT PARSE. `storytree tree <story>` is the command a session runs
+  // right after editing that story, and when its spec throws every line above is a placeholder — so
+  // the exit code says so rather than leaving a hollow render to be read as a cosmetic gap
+  // (`story-load-error-surfaces-arc`). A capability's spec counts too: this view IS that story's
+  // hierarchy, and a row reading `(unreadable)` makes it wrong in the same way.
+  return { ok: failures.length === 0, body: lines.join("\n"), next };
 }
