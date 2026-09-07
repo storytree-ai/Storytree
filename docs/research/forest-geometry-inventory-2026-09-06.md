@@ -157,6 +157,16 @@ and the `SceneInput.garden` seam.
 ⚠ **This one was missed by the first pass and is not a failed experiment: it is a standing decision
 that silently stopped being drawn.**
 
+> **SETTLED AND DONE — 2026-09-07.** This entry's "Verdict" below asked for an owner call, and it
+> got one. The owner retired the bloom (**ADR-0529**), and when the deletion turned out to empty the
+> fifth frame of the public `?semanticGrowth=demo` walk he chose to drop that frame rather than
+> invent a replacement marker (**ADR-0536** — the walk is five steps: empty, land, proposed, claimed,
+> healthy). The retirement exit named below is the one that was taken, in full: the five kinds,
+> `buildBloom`, both `bloom` inputs, `SceneNode.outcome`, the studio and website painter rows, the
+> `verdictBloom` fold and every stylesheet rule are deleted, on both surfaces. The rest of this
+> entry is left as the 2026-09-06 SNAPSHOT it was written as — it is the evidence the call rested
+> on, and rewriting a dated research record to match the present would destroy that.
+
 - **Runtime.** The crown bloom is built only inside the procedural `buildTree` (`scene.ts:902`). The
   studio DOES fold it — `territory.bloom = { ageRatio, outcome }` from the verdict
   (`TreeView.tsx:1324, :1390`, ADR-0045's `verdictBloom`) — but `buildTerritoryFlora` calls
@@ -272,7 +282,7 @@ Each row lands in its own unit with the named prose corrected in the same landin
 | 3 | `SceneInput.bakedStone`, `BAKED_STONE_DEF`, `loadBakedStone` + `BakedStoneAsset`, the `bakedStone` parameter of `worldToScene` | ~40 | same sentence as row 2 | `sceneAdapter.test.ts:253-270` |
 | 4 | the signpost: `buildSignpost` `:919-935`, the five `sign-*` kinds and painter rows, `SceneTerritoryInput.signpost` | ~60 | ADR-0040 in-place note (drawn by no surface since ADR-0226 D5) | `scene.test.ts` signpost legs (`:1546` is garden-scoped) |
 | 5 | the legacy inline render branch + `readRenderScene` + two click guards | ~100 | none names it | `worldSettings` tests of `readRenderScene` |
-| 6 | **the verdict bloom — PENDING the owner's answer** (restore or retire) | ~90 if retired | ADR-0045 (correct in place or restore the code); `semantic-growth-replay-view.md:349` | `scene.test.ts` bloom legs |
+| 6 | ~~the verdict bloom~~ — **DONE 2026-09-07**, retired in full (ADR-0529, its demo consumer settled by ADR-0536). Also took `SceneNode.outcome`, the studio + website painter rows and stylesheets, and the website's own `worldSvg`/`world.ts` bloom fold (part of row 7's subject) | ~90 (as estimated) | done: ADR-0045 superseded by ADR-0529; `semantic-growth-replay-view.md` re-specified as a five-step walk | `scene.test.ts` bloom legs deleted; the §5 honesty-wall legs re-expressed against the folded `st-*` status |
 | 7 | (website repo) `web/src/lib/world.ts`, `worldToSceneInput`, `renderWorld` | ~630 | none | — |
 
 **Not on the list:** cave portals (alarm, keep); `packages/forest-world-r3f/src` (in flight, keep);

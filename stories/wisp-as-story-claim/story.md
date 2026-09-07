@@ -2,7 +2,7 @@
 id: "wisp-as-story-claim"
 tier: story
 title: "The forest wisp IS the claim — graded (hover / orbit / queue), coloured by subagent, cleared on merge"
-outcome: "The forest map shows one wisp per claimed story, its shape the claim GRADE (an exploring claim hovers, a work claim orbits, waiting claims queue, a released claim fades on departure), coloured by the active subagent and visibly distinct from a proven-green bloom, taken at workspace creation / declare and cleared on the CI merge — so parallel sessions never stomp each other and the map reads the ONE claim ledger, never a presence row."
+outcome: "The forest map shows one wisp per claimed story, its shape the claim GRADE (an exploring claim hovers, a work claim orbits, waiting claims queue, a released claim fades on departure), coloured by the active subagent and visibly distinct from a proven-green island, taken at workspace creation / declare and cleared on the CI merge — so parallel sessions never stomp each other and the map reads the ONE claim ledger, never a presence row."
 # ADR-0200 re-aim (2026-07-16): the noticeboard is the claim ledger, presence retired. The wisp is the
 # render of the GRADED claim (exploring hover / work orbit / waiting queue / departure fade), not a
 # binary claimed/proven. The render LANDED and was owner-attested 2026-07-17 (claim-grade map wisps
@@ -100,7 +100,7 @@ decisions: [200, 212, 138, 142, 121, 33, 128, 137, 529, 99, 70, 175]
 here"), a `work` claim **orbits** the whole island (the exclusive holder), `waiting` claims **queue**
 behind it stationary, and a released claim
 **fades** on departure — coloured by what the orchestrator is currently doing (authoring / proving /
-supplementing), **visibly distinct** from a proven-green bloom, **taken at workspace creation / declare**
+supplementing), **visibly distinct** from a proven-green island, **taken at workspace creation / declare**
 and **cleared on the CI merge**. Parallel sessions never stomp each other and the map reads the **one
 claim ledger**, never a presence row.
 
@@ -129,7 +129,7 @@ machinery + the CLI/dock views; this story owns the **forest-map render**.
 > stage, colour = intent, motion = build phase**), and ADR-0200 D7's *"exploring is stationary by
 > construction"* is **REVERSED**: window shopping now carries its own small local orbit beside the story
 > tree, so position alone separates it from the whole-island work orbit. The §5 wall survives that merge
-> intact — a green build BAND riding a claim body is still never a bloom.
+> intact — a green build BAND riding a claim body is still never a proof.
 
 ## Framing
 
@@ -145,22 +145,25 @@ unify onto the **graded claim**: forced at workspace creation (we own the outer 
 ADR-0137 / ADR-0030), cleared on the CI merge, staleness as one trace-driven backstop across all grades.
 
 **The honesty wall (ADR-0138 §5, non-negotiable):** a claim's presence or colour is **never** a proof.
-Only a real build's `CONFIRM_GREEN` + signed verdict paints the green **bloom**
+Only a real build's `CONFIRM_GREEN` + signed verdict turns the island **proven green**
 (~~ADR-0045~~ → ADR-0529 /
+ADR-0040 /
 ADR-0099). A
 claimed-but-not-proven story must look **visibly different** from a proven-green one, or the map silently
 inflates proof. This wall is the load-bearing constraint on capabilities B, C, and the appearance UAT F.
 
-> ⚠ **CORRECTED 2026-09-06 (ADR-0529): THERE IS NO BLOOM ANY MORE.** The verdict bloom was retired,
-> owner-directed — it had not in fact been drawn on any surface since ADR-0227 replaced the
-> procedural tree with the baked hero tree on 2026-07-23, and the owner chose retirement over
-> restoration because the map is glanced at rather than watched, so a signal that decays within
-> hours reached nobody. **The honesty wall itself is UNWEAKENED and this story's constraint is
-> unchanged in force** — what a wisp must stay visibly distinct from is now the island's proven-green
-> HUE (ADR-0040), which is the durable record and was always the thing that mattered. Read "the
-> green bloom" above as "proven green" until the deletion unit on
-> `forest-geometry-rebuild-arc` rewrites this paragraph and the sibling references in
-> `render-claim-as-wisp.md`, `colour-by-subagent.md` and `appearance-uat.md`.
+> ✅ **REWRITTEN 2026-09-07 (ADR-0536, the deletion unit this paragraph was waiting for).** The
+> interim note that stood here from 2026-09-06 said "THERE IS NO BLOOM ANY MORE — read *the green
+> bloom* above as *proven green* until the deletion unit rewrites this paragraph". That unit has now
+> landed and this paragraph, and the sibling references in `render-claim-as-wisp.md`,
+> `colour-by-subagent.md` and `appearance-uat.md`, are rewritten. **The wall is UNWEAKENED — only its
+> subject moved.** ADR-0529 retired the verdict bloom, owner-directed: it had not in fact been drawn
+> on any surface since ADR-0227 replaced the procedural tree with the baked hero tree on 2026-07-23,
+> and retirement was chosen over restoration because the map is glanced at rather than watched, so a
+> signal that decays within hours reached nobody. What a wisp must stay visibly distinct from is
+> therefore the island's proven-green STATUS hue (ADR-0040) — the durable record, and always the
+> thing that actually mattered. Every clause below that used to name the bloom now names that hue;
+> nothing about what a claim may not do has been narrowed.
 
 **The DAG.** `A → {B, C, D, E} → F`. A (the claim-store work-time deltas) is the root every other piece
 stands on. B (render the claim as a wisp), C (colour by subagent/intent), D (CI clear on merge), and E
@@ -239,7 +242,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > | --- | --- | --- |
 > | 1 (one wisp per claimed story, shaped by grade) | **1** — the COUNT and the ANCHOR: one body per claim, on the STORY's territory, never a second island orbit; **2** — the GRADE→POSITION channel; ~~**3** — contention: the second work claim refused-and-named, or queued~~ (deleted 2026-08-20, ADR-0294 D2) | ~~**4** — whether the three stages READ apart at a glance~~ → `appearance-uat` leg **a** |
 > | 2 (colour shifts by the active subagent) | **5** — the data→colour stamp: role/intent in, one of three mutually distinct non-green tokens out, and the token actually SHIFTING as the active subagent changes | ~~**6** — whether the three colours are DISTINGUISHABLE TO THE EYE~~ → `appearance-uat` leg **b** |
-> | 3 (claimed is visibly distinct from proven-green) | ~~**7** — the STRUCTURAL wall: the claim/hover/queue/departing families emit no bloom kind, no `outcome`, no `bloom`/`verdict` class — even with a GREEN build band riding the work body~~ (deleted 2026-08-20, ADR-0294 D2) | ~~**8** — whether claimed LOOKS clearly different from a bloom to a human eye~~ → `appearance-uat` leg **c** |
+> | 3 (claimed is visibly distinct from proven-green) | ~~**7** — the STRUCTURAL wall: the claim/hover/queue/departing families never wear the proof vocabulary — even with a GREEN build band riding the work body~~ (deleted 2026-08-20, ADR-0294 D2; the wall's subject was the verdict bloom's kinds/classes until ADR-0529 retired it and ADR-0536 re-expressed the surviving contracts against the island's proven-green status hue) | ~~**8** — whether claimed LOOKS clearly different from proven-green to a human eye~~ → `appearance-uat` leg **c** |
 > | 4 (the wisp clears on merge, with a legible departure) | **9** — the merge sweep: every grade released for the branch, audited, oldest live waiter promoted; **10** — the departure WINDOW: a departing body inside `DEPARTURE_WINDOW_MS` fading by age, gone past it, no zombie | ~~**11** — whether the departure reads as *just left* rather than *lost*~~ → `appearance-uat` leg **d** |
 >
 > **THE OWNER'S 2026-07-17 ATTESTATION — PRESERVED, RE-POINTED, AND NOT RE-GRANTED.** The graded
@@ -254,10 +257,14 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 >   from 2026-07-26 until ADR-0348 D6 deleted the story-tier leg.)*
 > - **`appearance-uat` leg d** carries the *departure fade* look claim — a released claim reading as
 >   *just left*. *(Story leg 11 until the same deletion.)*
-> - **The colour and claimed-versus-bloom claims were NEVER in that attestation.** The 2026-07-17
+> - **The colour and claimed-versus-proven-green claims were NEVER in that attestation.** The
+>   2026-07-17
 >   signature covered the grade GEOMETRY and the departure fade; it did not cover colour
->   distinguishability (`appearance-uat` leg b, story leg 6) or claimed-versus-bloom distinctness
->   (`appearance-uat` leg c, story leg 8). Those two are unattested and always were — recorded here
+>   distinguishability (`appearance-uat` leg b, story leg 6) or claimed-versus-proven-green
+>   distinctness
+>   (`appearance-uat` leg c, story leg 8). *(That leg said "claimed-versus-bloom" until ADR-0536;
+>   its subject is the island's proven-green hue now that ADR-0529 retired the bloom. The claim is
+>   unchanged and the attestation gap is unchanged.)* Those two are unattested and always were — recorded here
 >   rather than quietly absorbed by a nearby signature.
 >
 > **Per ADR-0209 D6 all eleven legs returned UNSTAMPED, legs 4 and 11 included.** A substantive change to
@@ -301,19 +308,25 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > `apps/studio/server/inFlightActivity.test.ts`; the SCENE CORE by
 > [`forest-world`](../forest-world/render-core.md)'s `render-core` (greened by `forest-world#gate-1`
 > over `pnpm --filter @storytree/forest-world test`), contract
-> `rc-claim-layer-never-folds-bloom-vocabulary`, at `packages/forest-world/src/scene.test.ts` —
-> “§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim
-> layer”, “§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict
-> outcome” and “ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5
+> `rc-claim-layer-never-folds-proof-vocabulary`, at `packages/forest-world/src/scene.test.ts` —
+> “§5 honesty wall: a claim wisp NEVER carries the proof signal — no folded `status` anywhere on the
+> claim layer”, “§5 honesty wall holds for EVERY grade + the departure layer: no folded status” and
+> “ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5
 > wall holds)”; and the RENDERED DOM by
 > [`app-surface`](../app-surface/app-surface-world-view.md)'s `app-surface-world-view` (greened by
 > `app-surface#gate-1` over `pnpm --filter @storytree/app-surface test`), contract
 > `aswv-claim-wisp-never-painted-as-proven-green`, at
-> `packages/app-surface/src/SceneView.test.tsx` — “§5 HONESTY WALL: a claim wisp is NEVER painted as
-> the proven-green bloom (class-level)”, “§5 HONESTY WALL extended: hover / queue / departing wisps
-> never carry bloom/verdict classes” and “ADR-0212 honesty wall: a GREEN build band never paints the
-> claim body as a proof”. Both were checked against those tests' ACTUAL assertions, not their file
-> existence (ADR-0294 D2's honesty wall). Ordinals **3** and **7** are BURNED, not renumbered, so no
+> `packages/app-surface/src/SceneView.test.tsx` — “§5 HONESTY WALL: a claim wisp NEVER wears the
+> proven-green status class (class-level)”, “§5 HONESTY WALL extended: hover / queue / departing
+> wisps never wear the proven-green status class” and “ADR-0212 honesty wall: a GREEN build band
+> never paints the claim body as a proof”. Both were checked against those tests' ACTUAL assertions,
+> not their file
+> existence (ADR-0294 D2's honesty wall). *(Both contract ids and four of the six test titles named
+> the verdict bloom until 2026-09-07. ADR-0529 retired the bloom and ADR-0536 re-expressed the
+> contracts against the island's proven-green status hue and the folded `status` field — a rename
+> and a re-aim, not a deletion, because an assertion over a deleted drawable kind is guaranteed by
+> the type system and verifies nothing. The citations are updated here so they still RESOLVE; what
+> is proven is unchanged.)* Ordinals **3** and **7** are BURNED, not renumbered, so no
 > surviving leg moves and no binding is re-pointed. This story now carries **FIVE** `machine` legs
 > (1, 2, 5, 9, 10) and no `human` leg.
 >
@@ -324,7 +337,9 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > unchanged assertions, and bound each by id in the test titles themselves. Leg 3's contention walk is
 > [`claim-store-work-time`](claim-store-work-time.md)'s
 > `claim-contention-refuses-or-queues-naming-the-holder`; leg 7's scene-core wall is `render-core`'s
-> `rc-claim-layer-never-folds-bloom-vocabulary` and its rendered-DOM wall is
+> `rc-claim-layer-never-folds-proof-vocabulary` (renamed from
+> `rc-claim-layer-never-folds-bloom-vocabulary` on 2026-09-07 under ADR-0536) and its rendered-DOM
+> wall is
 > `app-surface-world-view`'s `aswv-claim-wisp-never-painted-as-proven-green`. Nothing about what is
 > PROVEN moved — only what can be named.
 >
@@ -473,7 +488,7 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    steady / green pulsing) — a new visual channel on the very drawable this story owns. No UAT leg was
    added when that landed. This re-adjudication does NOT invent one (that would be authoring new scope
    under a re-classification pass); it folded only the honesty-wall consequence — a green BAND is still
-   never a bloom — into machine leg 7, which the ADR-0294 D2 pass then deleted on 2026-08-20, so that
+   never a proof — into machine leg 7, which the ADR-0294 D2 pass then deleted on 2026-08-20, so that
    consequence now sits where it is proven: `scene.test.ts`'s “ADR-0212: folding a GREEN build band
    never turns the claim body into a proof” and `SceneView.test.tsx`'s “ADR-0212 honesty wall: a
    GREEN build band never paints the claim body as a proof”. *(This read “it folds only … into
@@ -516,17 +531,28 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    this call read "the carry is unresolved … Owner/build-time call." It is resolved; the candidate list
    is kept as the history of how it was posed. Adjudicated under
    `prove-unproven-capabilities-arc-inc-25`.)*
-5. **The honesty wall is proven ONE-DIRECTIONALLY, and never with both layers present.** The
+5. **The honesty wall is proven ONE-DIRECTIONALLY — and half of this call's SUBJECT is now
+   DISSOLVED, not answered (ADR-0529 / ADR-0536, 2026-09-07).** The
    capability-tier coverage named in the ADR-0294 D2/D4 pass above — `render-claim-as-wisp`'s
    `claim-activity-is-visibly-distinct-from-proven-green`, `render-core`'s §5 walks in
    `scene.test.ts`, and `app-surface-world-view`'s class-level walls in `SceneView.test.tsx` —
-   asserts that the claim families never reach for bloom vocabulary. Nothing asserts the
-   converse (the bloom renderer never reaches for claim styling), and no test renders one story carrying a
-   claim wisp AND an in-window bloom simultaneously — which is the case a human eye actually has to
-   separate, and the case [`appearance-uat`](appearance-uat.md)'s leg c is asked to judge (story leg 8
-   until ADR-0348 D6 deleted it). Both fields exist on `SceneTerritoryInput`, so the co-presence case is
-   buildable. Whether that capability-tier coverage should WIDEN to the co-presence case, or whether
-   it stays `appearance-uat` leg c's human burden, is a build-time call. *(This call read “Machine leg
+   asserts that the claim families never reach for the proof vocabulary. Nothing asserts the
+   converse, and that half of the call is unchanged and still open in principle.
+   **What is dissolved is the CO-PRESENCE case.** This call read: *"no test renders one story
+   carrying a claim wisp AND an in-window bloom simultaneously — which is the case a human eye
+   actually has to separate … Both fields exist on `SceneTerritoryInput`, so the co-presence case is
+   buildable."* Neither premise survives: ADR-0529 retired the verdict bloom, `buildBloom` and the
+   five bloom kinds are deleted, and `SceneTerritoryInput.bloom` is gone — so there is no in-window
+   bloom to co-present, and the case is not buildable rather than merely unbuilt. It is recorded as
+   DISSOLVED rather than deleted, because the reasoning is what a later reader needs if a
+   per-landing proof mark is ever proposed again (ADR-0536 D1 declined one on the merits available
+   today and named the route back: a fresh decision owing a rendered ladder and a picture).
+   **What remains genuinely open** is the converse direction alone — whether a proof drawable could
+   reach for claim styling — against the surviving proof vocabulary, which is the island's
+   proven-green STATUS hue rather than a transient mark. That is a strictly easier case than the one
+   this call posed, since a status hue is folded once from `status` rather than composed alongside a
+   claim, and whether it earns capability-tier coverage or stays `appearance-uat` leg c's human
+   burden is still a build-time call. *(This call read “Machine leg
    7's existing coverage … Whether leg 7 should widen”. Story leg 7 was deleted by the ADR-0294 D2
    pass on 2026-08-20 as a duplicate of the very capability coverage it was describing; the GAP is
    unchanged and the call stays OPEN — only its address moved. Corrected in place per ADR-0139.)*

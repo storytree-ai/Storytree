@@ -217,10 +217,12 @@ describe('SceneView — the studio scene mapper', () => {
 
   it('preserves the human-witness signpost across the sprite swap — the shipped map must not erase the seal', () => {
     // `shipped-map-render-path-drops-three-delivered-behaviours` defect 1: `sign-blank` is a child of
-    // the `tree` wrapper (same as `bloom-anchor`), but `collectPreservedDescendants` preserved only
-    // `bloom-anchor`. On the shipped map the sprite swap silently dropped the signpost, so a
-    // human-witnessed proof and an unwitnessed one looked identical on the map — the one semantic this
-    // arc exists to protect. Renderer choice may change artwork; it must never erase proof semantics.
+    // the `tree` wrapper, but `collectPreservedDescendants` preserved only the transient verdict
+    // bloom that used to ride alongside it. On the shipped map the sprite swap silently dropped the
+    // signpost, so a human-witnessed proof and an unwitnessed one looked identical on the map — the
+    // one semantic this arc exists to protect. Renderer choice may change artwork; it must never
+    // erase witness semantics. (ADR-0529/0536 retired the bloom, so the signpost is now the ONLY
+    // preserved descendant and this test is the whole of that guarantee.)
     const { root } = renderScene();
     expect(root.querySelector('.story-tree')?.tagName.toLowerCase()).toBe('image'); // the swap did happen
     expect(root.querySelector('.story-sign.sign-blank')).toBeTruthy();
@@ -415,20 +417,20 @@ describe('SceneView — the studio scene mapper', () => {
     ).toBeTruthy();
   });
 
-  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)', () => {
-    // The at-risk state is "proving" (the in-flight hue that must NOT read as the proven-green bloom):
-    // the claim wisp must wear world-claim-wisp, and NOTHING on the claim layer may carry the bloom /
-    // verdict-pass classes that ONLY a signed verdict earns (ADR-0045).
+  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL: a claim wisp NEVER wears the proven-green status class (class-level)', () => {
+    // The at-risk state is "proving" (the in-flight hue that must NOT read as proven). The wall used
+    // to be stated against the verdict bloom's `world-bloom`/`verdict-pass` classes; ADR-0529/0536
+    // deleted those class strings from the mapper outright, so asserting their absence would now
+    // assert something the code cannot produce — a check that verifies nothing. The proof
+    // vocabulary the map still carries is the island's folded STATUS hue (`st-healthy`, composed by
+    // `withFilter`/`territoryClassById`), and THAT is what a coordination drawable must never wear.
     const { root } = renderScene({}, undefined, 'proving');
     const claim = root.querySelector('.world-claim-wisp.state-proving')!;
     expect(claim).toBeTruthy();
-    // the claim wisp itself is not a bloom …
-    expect(claim.classList.contains('world-bloom')).toBe(false);
-    expect(claim.classList.contains('verdict-pass')).toBe(false);
-    // … and no descendant under the claim orbit is one either.
-    expect(claim.closest('.world-claim-wisp')?.querySelector('.world-bloom')).toBeNull();
-    expect(claim.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
-    expect(claim.querySelector('.verdict-pass')).toBeNull();
+    // the claim wisp itself carries no folded status at all …
+    expect(claim.getAttribute('class') ?? '').not.toMatch(/\bst-/);
+    // … and no descendant under the claim orbit carries one either.
+    expect(claim.querySelector('[class*="st-"]')).toBeNull();
   });
 
   it('maps a hovering (exploring-grade) claim to a DISTINCT class family on a SMALL LOCAL orbit (ADR-0212)', () => {
@@ -489,11 +491,12 @@ describe('SceneView — the studio scene mapper', () => {
     expect(claim).toBeTruthy();
     // The INTENT hue survives untouched — green is expressed as motion, never as colour.
     expect(claim?.classList.contains('state-proving')).toBe(true);
-    // and NOTHING bloom-shaped is anywhere on the claim layer: no bloom class, no verdict class.
+    // and NOTHING proof-shaped is anywhere on the claim layer: no folded status class, on the body
+    // or under it. (This asserted the absence of the verdict bloom's classes until ADR-0529/0536
+    // deleted them from the mapper; the surviving proof signal is the `st-healthy` island hue.)
     const cls = claim?.getAttribute('class') ?? '';
-    expect(cls).not.toMatch(/bloom|verdict/);
-    expect(claim?.querySelector('.world-bloom')).toBeNull();
-    expect(claim?.querySelector('[class*="verdict-"]')).toBeNull();
+    expect(cls).not.toMatch(/\bst-/);
+    expect(claim?.querySelector('[class*="st-"]')).toBeNull();
   });
 
   it('an absent grade still orbits (the ADR-0200 D2 back-compat default, regression lock)', () => {
@@ -518,22 +521,23 @@ describe('SceneView — the studio scene mapper', () => {
     expect(root.querySelector('.world-departing-wisp-hit')?.getAttribute('fill')).toBe('transparent');
   });
 
-  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes (ADR-0200 D7)', () => {
-    const hover = renderScene({}, undefined, 'proving', 'exploring').root.querySelector('.world-hover-wisp')!;
-    expect(hover.classList.contains('world-bloom')).toBe(false);
-    expect(hover.classList.contains('verdict-pass')).toBe(false);
-    expect(hover.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
+  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL extended: hover / queue / departing wisps never wear the proven-green status class (ADR-0200 D7)', () => {
+    // Same re-expression as the two walls above: the verdict bloom's classes are gone from the
+    // mapper (ADR-0529/0536), so the falsifiable statement is that no claim-GRADE family carries the
+    // island's folded `st-*` hue — on the body or under it.
+    const noStatus = (el: Element, label: string): void => {
+      expect(el.getAttribute('class') ?? '', label).not.toMatch(/\bst-/);
+      expect(el.querySelector('[class*="st-"]'), label).toBeNull();
+    };
 
-    const queue = renderScene({}, undefined, 'proving', 'waiting').root.querySelector('.world-queue-wisp')!;
-    expect(queue.classList.contains('world-bloom')).toBe(false);
-    expect(queue.classList.contains('verdict-pass')).toBe(false);
-
-    const departing = renderScene({}, undefined, undefined, undefined, [
-      { key: 'd1', title: 'departed', ageRatio: 0.5 },
-    ]).root.querySelector('.world-departing-wisp')!;
-    expect(departing.classList.contains('world-bloom')).toBe(false);
-    expect(departing.classList.contains('verdict-pass')).toBe(false);
-    expect(departing.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
+    noStatus(renderScene({}, undefined, 'proving', 'exploring').root.querySelector('.world-hover-wisp')!, 'hover');
+    noStatus(renderScene({}, undefined, 'proving', 'waiting').root.querySelector('.world-queue-wisp')!, 'queue');
+    noStatus(
+      renderScene({}, undefined, undefined, undefined, [{ key: 'd1', title: 'departed', ageRatio: 0.5 }]).root.querySelector(
+        '.world-departing-wisp',
+      )!,
+      'departing',
+    );
   });
 
   it('selects the story on an island click', () => {

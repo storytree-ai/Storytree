@@ -3500,7 +3500,7 @@ a.stat:hover {
 /* in-flight BUILD wisp (ADR-0048): a leaf agent is mechanically building this
    unit right now (an events.work_event 'building' with no terminal verdict, within
    BUILD_IN_FLIGHT_TTL_MS). A pulsing TEAL "work in progress" wisp — distinct from
-   session presence (indigo fresh / amber stale) and from the green verdict bloom.
+   session presence (indigo fresh / amber stale) and from the proven-green island hue.
    It self-clears when the build lands or the TTL passes. v1 is coarse (one
    'building' state); phase-resolved red→green is ADR-0048 v2. */
 .world-wisp.band-building .world-wisp-glow {
@@ -3549,11 +3549,12 @@ a.stat:hover {
 .world-wisp.role-supplementing .world-wisp-dot { stroke: #8b5cf6; }
 
 /* story-CLAIM wisp (ADR-0138 §5): "a session is working this story" — the COORDINATION signal, a
-   DISTINCT layer from the build wisp (observability) and, critically, from the verdict bloom (proof).
-   §5 HONESTY WALL (non-negotiable): a claim is NEVER a proof — only a signed verdict paints the green
-   bloom (ADR-0045). So the claim wisp is deliberately kept clear of the bloom's look: a HOLLOW ring
+   DISTINCT layer from the build wisp (observability) and, critically, from the proven-green island
+   hue (proof — the whole proof vocabulary since ADR-0529/0536 retired the verdict bloom).
+   §5 HONESTY WALL (non-negotiable): a claim is NEVER a proof — only a signed verdict greens the
+   island. So the claim wisp is deliberately kept clear of that look: a HOLLOW ring
    (stroke, no fill) with a small solid core, orbiting a touch wider + slower than the build wisp, in
-   per-role hues that avoid the healthy-green bloom hue. proving = TEAL/CYAN (the in-flight hue, NOT the
+   per-role hues that avoid the healthy green. proving = TEAL/CYAN (the in-flight hue, NOT the
    healthy green), authoring = AMBER/GOLD, supplementing = VIOLET. The hollow-ring silhouette + the
    non-green hue are what make a claimed-but-not-proven story unmistakable from a proven-green one. */
 .world-claim-wisp {
@@ -3574,7 +3575,7 @@ a.stat:hover {
   opacity: 0.95;
 }
 .world-claim-wisp.state-authoring { --claim-hue: #d9920a; } /* amber / gold — story-author edits */
-.world-claim-wisp.state-proving { --claim-hue: #0e9aa0; }   /* teal / cyan — in-flight, NOT bloom-green */
+.world-claim-wisp.state-proving { --claim-hue: #0e9aa0; }   /* teal / cyan — in-flight, NOT proven-green */
 .world-claim-wisp.state-supplementing { --claim-hue: #8b5cf6; } /* violet — glue / orchestration */
 @keyframes claim-orbit-pulse {
   0%, 100% { opacity: 0.45; }
@@ -3589,9 +3590,10 @@ a.stat:hover {
 
    THIS IS A MOTION CHANNEL ONLY — and that restriction IS the ADR-0138 §5 honesty wall surviving the
    merge. `--claim-hue` is NEVER touched here: colour stays INTENT (amber authoring / teal proving /
-   violet supplementing), so a claimed-and-building story can never drift toward the healthy-green
-   bloom hue no matter what its build is doing. Green is expressed as SPEED (the work is landing),
-   not as colour. The bloom keeps its own silhouette (scale-pulse + spark) and stays the only proof.
+   violet supplementing), so a claimed-and-building story can never drift toward the healthy green
+   no matter what its build is doing. Green is expressed as SPEED (the work is landing), not as
+   colour. The island's proven-green STATUS hue stays the only proof signal on the map (ADR-0529/0536
+   retired the transient verdict bloom that used to carry it alongside).
 
    Red is STEADY — a watchful hold, the one band that stops the breathing entirely, so a failing run
    reads as "stopped here" against every other body on the map. */
@@ -3616,7 +3618,7 @@ a.stat:hover {
    the classic orbit — unchanged). All three still reuse the `--claim-hue` colour pattern (colour
    stays INTENT-driven for every grade — geometry ⟂ colour, the same split the orbit already made),
    but wear DISTINCT SILHOUETTES so grade reads at a glance without relying on colour alone. Same §5
-   HONESTY WALL as world-claim-wisp (non-negotiable): none of these may reuse bloom/verdict-pass. */
+   HONESTY WALL as world-claim-wisp (non-negotiable): none of these may reuse the proven-green hue. */
 
 /* EXPLORING — window shopping: a session reading/planning, on a SMALL LOCAL orbit beside the story
    tree. A dashed hollow ring that breathes slowly, so "someone is here, not yet committed to work"
@@ -3687,7 +3689,7 @@ a.stat:hover {
    MAPPER folds `ageRatio` into the group's `opacity` attribute directly (SceneView.tsx / the legacy
    inline render), so the fade is DATA, not a CSS illusion. A departure carries no colourState (the
    session that held it is gone), so it wears a fixed NEUTRAL slate tone — never a role hue, never the
-   bloom/verdict-pass look (the §5 wall again): "someone just left" must never be mistaken for a claim
+   proven-green look (the §5 wall again): "someone just left" must never be mistaken for a claim
    still held, still less for a proof. Stationary by construction — no orbit, no pulse. */
 .world-departing-wisp {
   cursor: default;
@@ -3703,54 +3705,6 @@ a.stat:hover {
   stroke: #ffffff;
   stroke-width: 0.8;
   opacity: 0.55;
-}
-
-/* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
-   signed verdict just landed on this territory, kin to the hlflash/cflash
-   transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:
-   `verdictBloom`'s ageRatio sets the outer group's inline opacity, and the layer
-   unmounts entirely once the verdict ages past the window. The durable record is
-   the plant HUE (ADR-0040, verdict-derived green) — the bloom never persists, so
-   it can't re-encode the bit the hue already carries (the same-bit-twice ADR-0040
-   used to delete the UAT badges). v1 blooms PASSES only (green); fail withers
-   the plant already, a red bloom is a named owner call left out (ADR-0045 §3).
-   The pulse lives on the INNER group: in SVG a CSS transform/opacity replaces the
-   matching presentation attribute, so position + age-decay sit on the outer group
-   and only the inner one is animated. */
-.world-bloom {
-  pointer-events: none;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: bloom-pulse 2.6s ease-in-out infinite;
-}
-.world-bloom .bloom-ring {
-  fill: none;
-  stroke: var(--bloom-hue, var(--good));
-  stroke-width: 1.4;
-  opacity: 0.55;
-}
-.world-bloom .bloom-spark {
-  fill: var(--bloom-hue, var(--good));
-}
-.world-bloom.verdict-pass {
-  --bloom-hue: var(--crown-healthy-hi);
-}
-@keyframes bloom-pulse {
-  0%,
-  100% {
-    transform: scale(0.94);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.06);
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  /* static faint ring, no animation — the decay still reads via the age opacity */
-  .world-bloom {
-    animation: none;
-  }
 }
 
 /* the session dock — the wisps' clickable detail surface (list / one session) */
@@ -7755,7 +7709,7 @@ button.legend-tile:hover {
   fill: var(--flower-center-failing);
 }
 /* (PENDING draws only a closed `.tall-flower-bud` — no petals, no centre, no glow: dormant reads as the
-   absence of bloom.) */
+   absence of an open flower.) */
 /* -- the proven glow breathe: transform-only (see the deviation note) -- */
 .tall-flower-proven .tall-flower-glow {
   transform-box: fill-box;

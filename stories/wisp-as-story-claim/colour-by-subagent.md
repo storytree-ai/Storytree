@@ -53,7 +53,16 @@ session a spawned subagent runs, so its role sets the colour).
 > are orthogonal: the claim **grade** drives the wisp's GEOMETRY (exploring hovers / work orbits /
 > waiting queues, `render-claim-as-wisp`), while the active subagent role / **intent** drives its COLOUR
 > (this capability). The §5 honesty wall binds both — `"proving"` is a claim colour state, never the
-> proven-green bloom; the mapping must never emit a green/bloom token. Unchanged by ADR-0200 otherwise.
+> island's proven-green hue; the mapping must never emit a green/proof token. Unchanged by ADR-0200
+> otherwise.
+>
+> **RE-EXPRESSED 2026-09-07 (ADR-0536, resting on ADR-0529) — the wall's FORCE is unchanged.** Every
+> clause here that said the mapping must never emit a *green/bloom* token now says a *green/proof*
+> token, and "the proven-green bloom" now reads "the island's proven-green hue". ADR-0529 retired the
+> verdict bloom and ADR-0536 dropped the demo frame that was its last consumer rather than inventing
+> a replacement marker; the proof vocabulary a claim colour must never reach is the island's
+> proven-green STATUS hue (ADR-0040), which is the durable record. The mapping's obligation is
+> identical — three mutually distinct non-proof tokens — and nothing is narrowed.
 
 > **Proof status (honest) — `proposed`.** Today `packages/drive/src/phase-activity.ts`
 > (`phaseActivityWriter`) stamps `building` work-events coloured by `doc.phase` (the five gate phases). The
@@ -74,8 +83,9 @@ and a pure function mapping a subagent role (and/or a claim `intent` like `"edit
 `"real"`) to a stable colour-state token the wisp renders. Type-only imports of `BuildPhase` / `Tier` from
 `@storytree/proof-protocol` are erased, so the module stays builtins-only and offline-buildable. Keep it
 PURE: role in, colour-state token out; no store, no clock. The §5 honesty wall holds here too — `"proving"`
-is a CLAIM colour state, never the proven-green bloom; the mapping must not emit a "green"/"bloom" token (a
-real build's `CONFIRM_GREEN` + signed verdict owns that, ADR-0045 / ADR-0099).
+is a CLAIM colour state, never the island's proven-green hue; the mapping must not emit a
+"green"/proof token (a
+real build's `CONFIRM_GREEN` + signed verdict owns that, ~~ADR-0045~~ → ADR-0529 / ADR-0040 / ADR-0099).
 
 **C2 — wire the mapping into the writer (integration touch, `phase-activity.ts`).** Generalise
 `phaseActivityWriter` (or add a sibling) so the `target` carries the active subagent role / intent and the
@@ -91,7 +101,7 @@ single-file proof runs it install-free.
 
 **Goal —** Run the real `subagentColourState` mapping (no stubs) across the three subagent states —
 authoring, proving, supplementing — proving each maps to a stable, distinct colour-state token, and that
-NONE maps to a proven-green/bloom token (the §5 wall). The writer-wiring (C2) is exercised by the
+NONE maps to a proven-green/proof token (the §5 wall). The writer-wiring (C2) is exercised by the
 `@storytree/drive` package suite against the real `phaseActivityWriter`.
 
 Exercised against its **real collaborator** — the pure mapping itself (ADR-0010 §5): role in, colour-state
@@ -104,8 +114,9 @@ The test-proven leaf behaviours — each one isolated automated test (ADR-0002).
 1. **`subagent-role-maps-to-distinct-colour-state`** — the pure mapping turns each active subagent role /
    intent into a stable, distinct colour-state token, and never a proven-green one.
    - **asserts —** `subagentColourState("authoring")`, `("proving")`, and `("supplementing")` each return a
-     stable token, the three are mutually distinct, and NONE equals the proven-green/bloom token (the §5
-     honesty wall — a claim colour is never a proof, ADR-0138 §5 / ADR-0045). Pure — no store, no clock.
+     stable token, the three are mutually distinct, and NONE equals the island's proven-green token
+     (the §5
+     honesty wall — a claim colour is never a proof, ADR-0138 §5 / ADR-0040). Pure — no store, no clock.
    - **covers —** `packages/drive/src/subagent-colour.ts`
    - **proven by —** `packages/drive/src/subagent-colour.test.ts` (net-new, offline, authored by the leaf).
 2. **`writer-stamps-the-subagent-colour-state`** — `phaseActivityWriter` stamps the active subagent's

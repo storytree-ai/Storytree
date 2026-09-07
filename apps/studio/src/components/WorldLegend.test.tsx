@@ -199,29 +199,17 @@ describe('WorldLegend (adaptive bar)', () => {
     expect(screen.queryByText('awaiting witness')).toBeNull();
   });
 
-  it('a recent signed PASS lights the activity row with the honesty caption (ADR-0045)', () => {
-    // a verdict 2 h before NOW is well inside the 6 h window → it blooms
+  it('ADR-0529: a recent signed PASS lights NO activity row — the retired bloom was the row’s only icon, and the durable record is the hue', () => {
+    // A verdict 2 h before NOW would have been well inside the old 6 h bloom window. There is no
+    // longer a row to light: what a signed pass does is GREEN the unit (ADR-0040's provenStatus),
+    // which the `proof` row already speaks for, and the legend never carried the same bit twice.
     const recent = { outcome: 'pass', at: '2026-06-13T22:00:00.000Z' } as const;
     renderLegend([story('s', 'healthy', [cap('c', 'healthy', { verdict: recent })], { verdict: recent })]);
-    const chip = screen.getByRole('button', { name: 'activity' });
-    expect(chip).toBeTruthy();
-    fireEvent.click(chip);
-    // the honesty contract: real signed-verdict events, NOT presence; fades with age
-    expect(screen.getByText(/not\s+who is online/)).toBeTruthy();
-    expect(screen.getByText(/durable result is the plant/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
+    // …and the row it would have crowded is still there, so this is a deletion and not an outage.
+    expect(screen.getByRole('button', { name: 'proof' })).toBeTruthy();
   });
 
-  it('an aged-out verdict (older than the window) shows no activity row', () => {
-    // a pass a full day before NOW is past the 6 h window — nothing to announce
-    const old = { outcome: 'pass', at: '2026-06-13T00:00:00.000Z' } as const;
-    renderLegend([story('s', 'healthy', [cap('c', 'healthy', { verdict: old })], { verdict: old })]);
-    expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
-  });
-
-  it('offline world (no signed verdicts) shows no activity row', () => {
-    renderLegend(offlineWorld());
-    expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
-  });
 
   it('ADR-0212: an in-flight build lights the CLAIM row — the `building` row is retired, not renamed', () => {
     // 5 min before NOW — well inside the TTL

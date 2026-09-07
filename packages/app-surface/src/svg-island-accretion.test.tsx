@@ -3,7 +3,8 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScene,
@@ -26,6 +27,11 @@ import {
   svgIslandAccretionAtProgress,
   type SvgIslandAccretionState,
 } from './svg-island-accretion.js';
+
+/** This package's own `src/`, derived from THIS FILE — never `process.cwd()`, which under the
+ *  mutation rung's Stryker sandbox is the sandbox ROOT and not the project dir (see the same
+ *  constant in `SemanticGrowthWorldView.test.tsx` for the measured failure). */
+const SRC_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 
 afterEach(cleanup);
 
@@ -358,7 +364,7 @@ describe('connected SVG island accretion renderer and public player', () => {
   it('uses the existing app clock for deterministic Back/Replay and selects exact settled geometry immediately under reduced motion', () => {
     const matureScene = islandScene();
     const emptyScene = withoutPrimaryLand(matureScene);
-    const ordered = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+    const ordered = ['empty', 'land', 'proposed', 'claimed', 'healthy'] as const;
     const frames: readonly SemanticGrowthFrame[] = ordered.map((key, index) => ({
       key,
       model: normalizeWorldPresentationModel({ scene: index === 0 ? emptyScene : matureScene }),
@@ -450,7 +456,7 @@ describe('connected SVG island accretion renderer and public player', () => {
 
     const matureScene = islandScene();
     const emptyScene = withoutPrimaryLand(matureScene);
-    const ordered = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+    const ordered = ['empty', 'land', 'proposed', 'claimed', 'healthy'] as const;
     const frames: readonly SemanticGrowthFrame[] = ordered.map((key, index) => ({
       key,
       model: normalizeWorldPresentationModel({ scene: index === 0 ? emptyScene : matureScene }),
@@ -523,7 +529,7 @@ describe('connected SVG island accretion renderer and public player', () => {
 
   it('keeps the accretion runtime deterministic, SVG-only, and free of PixelLab/network/opacity animation authority', () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'svg-island-accretion.ts'),
+      resolve(SRC_DIR, 'svg-island-accretion.ts'),
       'utf8',
     );
     expect(source).not.toMatch(/Math\.random|Date\.|setTimeout|setInterval|requestAnimationFrame/);

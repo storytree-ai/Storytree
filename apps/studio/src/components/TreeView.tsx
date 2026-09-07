@@ -52,7 +52,7 @@ import { useAppData } from '../lib/appData';
 import { unresolvedAssetReason, unresolvedDocReason } from '../lib/docsIndex';
 import { usePannable } from '../lib/pannable';
 import { readPayloadCache, writeTreeCache } from '../lib/payloadCache';
-import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
+import { isBuildInFlight } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
 import { formatAge } from '../lib/format';
@@ -1102,7 +1102,7 @@ export type { SubstrateMode };
 // because it carries studio chrome — building stamps, bookshelf consumers; the core owns the
 // LOOK, the surface folds its data into the contract). It folds ONLY presentation
 // facts the surface owns — the proof/live-data → status fold is already in the
-// (presented) stories, blooms come from `verdictBloom`, wisps from in-flight builds,
+// (presented) stories, wisps from in-flight builds,
 // nameplate text + tooltips are the studio's vocabulary. The core derives every
 // hash-seeded variant/jitter from the ids. `buildScene(worldToScene(...))` then yields
 // the drawable tree the React mapper (`SceneView`) walks.
@@ -1110,7 +1110,6 @@ export type { SubstrateMode };
 function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
   const cap = spot.cap;
   const st = (cap.status ?? 'unknown') as SceneStatus;
-  const bloom = st === 'unhealthy' ? null : verdictBloom(cap.verdict, now);
   const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
   const plant: ScenePlantInput = {
     id: cap.id,
@@ -1119,7 +1118,6 @@ function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
     y: spot.y,
     title: `${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`,
   };
-  if (bloom) plant.bloom = { ageRatio: bloom.ageRatio, outcome: bloom.outcome };
   return plant;
 }
 
@@ -1224,29 +1222,24 @@ export function resolveBuildPhase(builds: BuildActivity[]): BuildPhase | undefin
 /**
  * The `now` the SCENE should render against, so the 60s age-ticker doesn't rebuild a byte-identical
  * idle map (the studio-map idle-rebuild, ADR-0069 / memory `studio-map-svg-scaling-wall`). The scene
- * only reads `now` to age content that is actually present — a wisp title ("claimed 2m ago") or a
- * verdict bloom fading over its window — so while nothing ages, the scene is identical every tick and
- * the ticker should be frozen OUT of the scene memo.
+ * only reads `now` to age content that is actually present — a wisp title ("claimed 2m ago") — so
+ * while nothing ages, the scene is identical every tick and the ticker should be frozen OUT of the
+ * scene memo.
  *
- * Advance to the live `now` whenever anything ages with it: any build/claim/departure wisp
- * (`hasWisps`), or a bloom in-window right now (`bloomingNow`) — AND for ONE final tick after the last
- * bloom ages out (`wasBlooming`), so the faded bloom actually clears. That falling edge matters
- * because a bloom aging past its window is a now-driven change no poll reports; without the extra
- * tick the scene would freeze one step early and keep a ghost bloom. Otherwise return the frozen
- * `prevSceneNow` so the scene memo sees an unchanged input and skips the rebuild.
+ * Advance to the live `now` whenever anything ages with it, which since ADR-0529 is exactly one
+ * thing: a build / claim / departure wisp. The verdict bloom used to be the other, and it needed a
+ * FALLING EDGE too — one final tick after the last bloom aged out, because a bloom crossing its
+ * window is a now-driven change no poll reports and freezing one step early left a ghost. Nothing
+ * remaining here ages on a window of its own: a wisp's presence is what the poll reports, and its
+ * disappearance arrives as new data rather than as the clock crossing an edge. So the falling-edge
+ * input went with the bloom rather than being kept "just in case" — a parameter no caller can make
+ * true is a parameter no test can hold. Otherwise return the frozen `prevSceneNow` so the scene memo
+ * sees an unchanged input and skips the rebuild.
  *
- * Pure so it is unit-testable; the caller holds `prevSceneNow` / `wasBlooming` in refs. `bloomingNow`
- * and `wasBlooming` are always computed against the LIVE `now` (never the frozen one), so the window
- * edge is judged correctly.
+ * Pure so it is unit-testable; the caller holds `prevSceneNow` in a ref.
  */
-export function nextSceneNow(
-  now: Date,
-  prevSceneNow: Date,
-  hasWisps: boolean,
-  bloomingNow: boolean,
-  wasBlooming: boolean,
-): Date {
-  return hasWisps || bloomingNow || wasBlooming ? now : prevSceneNow;
+export function nextSceneNow(now: Date, prevSceneNow: Date, hasWisps: boolean): Date {
+  return hasWisps ? now : prevSceneNow;
 }
 
 /** ADR-0212's join, surface-side, re-keyed by ADR-0326: fold each live build onto the work body of
@@ -1358,7 +1351,6 @@ function territoryToScene(
   // buildingGlyph is always false on the map (ADR-0088: building islands live in the panel).
   const plate = nameplateLayout(story.id.length, t.buildingGlyph);
   const verdictNote = story.verdict ? ` · UAT ${verdictPhrase(story.verdict)}` : '';
-  const bloom = withered ? null : verdictBloom(story.verdict, now);
   const territory: SceneTerritoryInput = {
     id: story.id,
     status: st,
@@ -1424,7 +1416,6 @@ function territoryToScene(
   if (story.uatCriteria?.length) {
     territory.uatCriteria = story.uatCriteria.map((c) => ({ id: c.id, state: c.state }));
   }
-  if (bloom) territory.bloom = { ageRatio: bloom.ageRatio, outcome: bloom.outcome };
   return territory;
 }
 
@@ -1599,7 +1590,7 @@ function readPlantsScatter(): boolean {
  * `/api/activity`, BY GRADE (`exploring` hovers, `waiting` queues, `work` orbits, ADR-0200 D7).
  * `'demo'` stays the DB-free preview seam: it injects a synthetic claim per grade PLUS a fading
  * departure across a few visible stories, so the whole vocabulary is previewable + deep-linkable
- * without a live DB (a render seam, like injecting `now` for blooms — a demo claim is honest: it
+ * without a live DB (a render seam, like injecting `now` for wisp ages — a demo claim is honest: it
  * never paints green, the §5 wall holds even in demo). `'off'` (and its aliases `0`/`false`) is the
  * one remaining explicit escape hatch — no claim layer, no departure layer at all.
  */
@@ -1616,7 +1607,7 @@ export function readClaimsMode(search: string = defaultSearch()): ClaimsMode {
  * claim per the first few visible stories, cycling both the three colour-state INTENTS and the three
  * GRADES, so the owner sees hover + queue + orbit — each in a distinct colour-state — at once. Honest
  * by construction — a demo claim carries `kind: "claim"` and an intent that folds to a coordination
- * state, so it can NEVER paint the proven-green bloom (the §5 wall holds even in demo). Pure: stories
+ * state, so it can NEVER paint the proven-green HUE (the §5 wall holds even in demo). Pure: stories
  * in, claim activities out. Sibling to {@link demoDepartures} below (SAME story slice, offset by one).
  */
 const DEMO_CLAIM_INTENTS = ['edit', 'real', 'orchestrate'] as const;
@@ -2051,7 +2042,7 @@ export function TreeView({
   // update) — kept current every render, read inside the fetch's .then/.catch closures.
   const storiesRef = useRef<TreeStory[] | null>(stories);
   storiesRef.current = stories;
-  // The shared `now` ticker (lib/poll.ts): ages build/claim wisps and verdict blooms between
+  // The shared `now` ticker (lib/poll.ts): ages build/claim wisps between
   // polls with zero fetches. Self-reported session presence is RETIRED (ADR-0200 D7) — the
   // claim ledger is the one coordination + observability layer; the ticker outlived the
   // presence render it was born in.
@@ -2755,20 +2746,17 @@ export function TreeView({
   }, [stories]);
 
   // ── The scene's `now`, frozen while the map is idle (studio-map idle-rebuild, ADR-0069) ──
-  // The scene reads `now` only to age content that is present (wisp titles, verdict blooms). While
+  // The scene reads `now` only to age content that is present (wisp titles). While
   // nothing ages, the 60s ticker would still rebuild a byte-identical scene ~1×/min. `nextSceneNow`
-  // freezes the scene's `now` in that idle case (advancing it only when a wisp exists or a bloom is/was
-  // in-window) so the scene memo — and every `…ByStory` fold feeding it — stays identity-stable. The
-  // gate predicates use the LIVE `now`; only the SCENE reads `sceneNow`. Refs hold the previous scene-now
-  // and the previous blooming flag (the "storing info from previous renders" pattern — a pure derivation,
-  // safe to compute during render). Other surfaces (the Shared-Islands panel) keep the live `now`.
-  const bloomingNow = useMemo(() => anyRecentLanding(stories ?? [], now), [stories, now]);
+  // freezes the scene's `now` in that idle case (advancing it only when a wisp exists) so the scene
+  // memo — and every `…ByStory` fold feeding it — stays identity-stable. The gate predicates use the
+  // LIVE `now`; only the SCENE reads `sceneNow`. A ref holds the previous scene-now (the "storing
+  // info from previous renders" pattern — a pure derivation, safe to compute during render). Other
+  // surfaces (the Shared-Islands panel) keep the live `now`.
   const hasWisps = rawBuilds.length > 0 || rawClaims.length > 0 || rawDepartures.length > 0;
   const sceneNowRef = useRef(now);
-  const wasBloomingRef = useRef(bloomingNow);
-  const sceneNow = nextSceneNow(now, sceneNowRef.current, hasWisps, bloomingNow, wasBloomingRef.current);
+  const sceneNow = nextSceneNow(now, sceneNowRef.current, hasWisps);
   sceneNowRef.current = sceneNow;
-  wasBloomingRef.current = bloomingNow;
 
   /**
    * In-flight builds grouped by the story territory their unit resolves to
@@ -4098,71 +4086,6 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
 }
 
 /**
- * The recently-landed bloom (ADR-0045): a transient, decaying halo + sparkle
- * announcing that a signed PASS landed on this territory inside BLOOM_WINDOW.
- * It is a pure decoration off `verdict.at` (already on the wire) — the durable
- * record stays the plant HUE (ADR-0040); this layer fades to nothing and never
- * re-encodes that bit (see lib/activity.ts for the through-line).
- *
- * Geometry is seeded by the unit id, so it never jitters between the now-ticker
- * re-renders (the same purity rule the wisp orbit phase obeys). The CSS pulse
- * lives on the INNER group; the outer group carries the translate AND the
- * age-decay opacity — in SVG a CSS transform/opacity replaces the matching
- * presentation attribute, so the animated and the positioned facts must sit on
- * different elements (else the scale keyframe would snap the bloom to the origin
- * and the opacity keyframe would clobber the decay).
- */
-function LandingBloom({
-  unitId,
-  bloom,
-  cx,
-  cy,
-  r,
-  kind,
-}: {
-  unitId: string;
-  bloom: VerdictBloom;
-  cx: number;
-  cy: number;
-  r: number;
-  kind: 'crown' | 'plant';
-}): React.JSX.Element {
-  // Bright when fresh, dimming with age — but never to zero here: verdictBloom
-  // returns null at the window edge, which unmounts the whole layer.
-  const ageOpacity = (0.3 + 0.65 * bloom.ageRatio).toFixed(2);
-  const sparks = Array.from({ length: kind === 'crown' ? 4 : 3 }, (_, i) => {
-    const a = rand01(hash(`${unitId}:bloom:a${i}`)) * Math.PI * 2;
-    const rr = r * (0.78 + rand01(hash(`${unitId}:bloom:r${i}`)) * 0.5);
-    return {
-      x: Math.cos(a) * rr,
-      y: Math.sin(a) * rr * 0.7, // top-down squash, same as the wisp orbit
-      r: (kind === 'crown' ? 1.5 : 1) * (0.8 + rand01(hash(`${unitId}:bloom:s${i}`)) * 0.5),
-    };
-  });
-  return (
-    <g
-      className="world-bloom-anchor"
-      transform={`translate(${cx.toFixed(1)} ${cy.toFixed(1)})`}
-      opacity={ageOpacity}
-      aria-hidden="true"
-    >
-      <g className={`world-bloom verdict-${bloom.outcome} bloom-${kind}`}>
-        <circle className="bloom-ring" r={r.toFixed(1)} />
-        {sparks.map((s, i) => (
-          <circle
-            key={i}
-            className="bloom-spark"
-            cx={s.x.toFixed(1)}
-            cy={s.y.toFixed(1)}
-            r={s.r.toFixed(1)}
-          />
-        ))}
-      </g>
-    </g>
-  );
-}
-
-/**
  * The central story tree — the story ITSELF (ADR-0036 d.6b, vocabulary
  * recalibrated by ADR-0038). Crown size grows with capability count; GROWTH
  * and foliage carry the lifecycle: `proposed` (which `building` wears in the
@@ -5115,10 +5038,6 @@ function StoryTree({
   const st = story.status ?? 'unknown';
   const caps = story.capabilities.length;
   const withered = st === 'unhealthy';
-  // The recently-landed bloom (ADR-0045): only a PASS within the window blooms,
-  // and never on a withered crown (the rare authored-unhealthy-over-a-pass
-  // disagreement renders the result, not a green announcement).
-  const bloom = withered ? null : verdictBloom(story.verdict, now);
   // The not-yet-full form: a small tree in the status hue. `proposed` hasn't earned
   // full growth, and a claimed-but-empty story (zero capabilities) renders the SAME
   // small form rather than a distinct sapling stage (owner 2026-06-21 — the sapling
@@ -5209,16 +5128,6 @@ function StoryTree({
           </g>
         </>
       )}
-      {bloom && (
-        <LandingBloom
-          unitId={story.id}
-          bloom={bloom}
-          cx={0}
-          cy={cy}
-          r={R * 1.18}
-          kind="crown"
-        />
-      )}
     </g>
   );
 }
@@ -5248,9 +5157,6 @@ function GardenPlant({
   // The presented status already folds the verdict in (provenStatus) — the
   // flora only ever reads the world it was handed.
   const dead = st === 'unhealthy';
-  // Recently-landed bloom (ADR-0045): a PASS within the window, never on a
-  // withered plant — a smaller sparkle than the crown's, at the plant base.
-  const bloom = dead ? null : verdictBloom(cap.verdict, now);
   const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
 
   let body: React.JSX.Element;
@@ -5380,7 +5286,6 @@ function GardenPlant({
       {dead && <ellipse className="dead-ground" cx={0} cy={0.5} rx={8} ry={3.2} />}
       <ellipse className="flora-shadow" cx={1} cy={1} rx={dead ? 6 : 8} ry={dead ? 2.2 : 2.6} />
       {body}
-      {bloom && <LandingBloom unitId={cap.id} bloom={bloom} cx={0} cy={-5} r={8} kind="plant" />}
     </g>
   );
 }
@@ -5564,7 +5469,7 @@ function TerritoryFlora({
           GRADED by geometry (`exploring` hovers stationary, `waiting` queues in a line, `work` orbits
           — a touch wider + slower than the build wisp), coloured by what the orchestrator is doing.
           Mirrors the shared scene path's buildClaimWisps EXACTLY (same orbitR / hash-jitter / queue-
-          index math) so the legacy inline render can't drift from the scene render. Never a bloom. */}
+          index math) so the legacy inline render can't drift from the scene render. Never proven-green. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
           const orbitR = t.radius * 0.72 + tileUnits(22);
@@ -5634,7 +5539,7 @@ function TerritoryFlora({
       {/* Claim DEPARTURES (ADR-0200 D7 wisp-out legibility): a recently-released claim still fading
           out, resting where the hover family rests and drifting upward with age. Mirrors the shared
           scene path's buildDepartingWisps EXACTLY (same orbitR / hash-jitter math) so the legacy
-          inline render can't drift. Never a bloom, never an orbit — stationary by construction. */}
+          inline render can't drift. Never proven-green, never an orbit — stationary by construction. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
         {(() => {
           const orbitR = t.radius * 0.72 + tileUnits(22);

@@ -338,26 +338,19 @@ describe('nextSceneNow (studio-map idle-freeze of the age ticker)', () => {
   const t0 = new Date('2026-07-22T00:00:00.000Z'); // the frozen previous scene-now
   const t1 = new Date('2026-07-22T00:01:00.000Z'); // one 60s tick later (live now)
 
-  it('idle (no wisps, no bloom, was not blooming) → FREEZES at the previous scene-now', () => {
-    expect(nextSceneNow(t1, t0, false, false, false)).toBe(t0);
+  it('idle (no wisps) → FREEZES at the previous scene-now', () => {
+    expect(nextSceneNow(t1, t0, false)).toBe(t0);
   });
 
   it('any wisp present → advances to the live now (a title ages every minute)', () => {
-    expect(nextSceneNow(t1, t0, true, false, false)).toBe(t1);
+    expect(nextSceneNow(t1, t0, true)).toBe(t1);
   });
 
-  it('a bloom in-window now → advances to the live now (the bloom is fading)', () => {
-    expect(nextSceneNow(t1, t0, false, true, false)).toBe(t1);
-  });
-
-  it('the falling edge: not blooming now but WAS last tick → one final advance so the bloom clears', () => {
-    // The bloom just aged past its window — a now-driven change no poll reports. Without this extra
-    // advance the scene would freeze one tick early and keep a ghost bloom.
-    expect(nextSceneNow(t1, t0, false, false, true)).toBe(t1);
-  });
-
-  it('after the falling edge, a fully-idle tick freezes again (no perpetual advance)', () => {
-    // wasBlooming is false now (cleared last tick), and nothing else ages → frozen.
-    expect(nextSceneNow(t1, t0, false, false, false)).toBe(t0);
+  it('freezing is not sticky — the frozen value is the one it was HANDED, so a later tick resumes from wherever the caller last advanced to', () => {
+    // The caller holds `prevSceneNow` in a ref, so an idle tick after an active one freezes at the
+    // ACTIVE tick's value rather than at some earlier baseline. This is what makes the freeze a
+    // pause rather than a rewind — and it is the only remaining behaviour here, since ADR-0529
+    // retired the verdict bloom and with it the falling-edge tick this function used to owe it.
+    expect(nextSceneNow(t1, t1, false)).toBe(t1);
   });
 });

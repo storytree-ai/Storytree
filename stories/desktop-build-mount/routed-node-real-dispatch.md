@@ -82,8 +82,10 @@ ADR-0144 the node branch must instead drive the node's REAL proof with persist s
 - **FLIP the node branch opts.** The node arm of `routedBuildRunner` becomes
   `deps.nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', ...actorOpt })`. It must
   NOT pass `live: true`, must NOT pass `real: false`, and must NOT omit `verdictStore` — the real
-  drive's verdict PERSISTS to `events.work_event`/`events.verdict` (the build wisps and blooms
-  honestly, ADR-0048). And it must NOT pass `openPr` — see the ADR-0136 wall below.
+  drive's verdict PERSISTS to `events.work_event`/`events.verdict` (the build wisps, and the island
+  greens, honestly — ADR-0048; this read "wisps and blooms" until ADR-0529 retired the verdict bloom
+  and ADR-0536 settled its last consumer, leaving the island's proven-green status hue as the
+  verdict-sourced signal). And it must NOT pass `openPr` — see the ADR-0136 wall below.
 - **MAKE `NodeBuildLikeOpts.live` OPTIONAL.** The interface (same file) currently requires
   `live: boolean`; the real dispatch no longer passes it, so it becomes `live?: boolean`. This is
   deliberately compile-safe for the two adapters that construct routed deps —

@@ -26,9 +26,10 @@
  *   - the claim/presence wisp (a session working the story), entering at `claimed` — rides
  *     ALONGSIDE its existing SVG `animateTransform` orbit (SceneView.tsx), never replaced by it:
  *       `wisp-in`                          on `.world-claim-wisp`
- *   - the signed-proof bloom (the real proof identity, never a claim), entering at `signed-proof` —
- *     a single finite pulse, never an infinite loop:
- *       `bloom-pulse`    0.94 <-> 1.06 -> 1  on `.world-bloom`
+ *   (The walk had a SIXTH role here — the signed-proof bloom, a single finite `bloom-pulse` on
+ *   `.world-bloom`, entering at a `signed-proof` frame between `claimed` and `healthy`. ADR-0529
+ *   retired the verdict bloom and ADR-0536 dropped the frame with it rather than inventing a
+ *   replacement mark, so the walk is five steps and no role enters after `claimed`.)
  * Each profile is wired ONLY to its own role's selector, qualified by its own entering frame key —
  * never re-grouped with another role's classes under the same animation name, so a family's
  * identity stays legible in the stylesheet itself.
@@ -243,35 +244,6 @@
   animation: wisp-in 320ms ease-out;
 }
 
-/* --- the signed-proof bloom: entering at `signed-proof` -- a single finite pulse, never a claim
-   and never an infinite loop. ---------------------------------------------------------------------- */
-@keyframes bloom-pulse {
-  0% {
-    scale: 0.94;
-    opacity: 0.85;
-  }
-  45% {
-    scale: 1.06;
-  }
-  75% {
-    scale: 0.94;
-  }
-  100% {
-    scale: 1;
-    opacity: 1;
-  }
-}
-
-[data-semantic-growth-frame='signed-proof'][data-motion='full'] .world-bloom {
-  animation-name: bloom-pulse;
-  animation-duration: 900ms;
-  animation-timing-function: ease-in-out;
-  animation-delay: 160ms;
-  animation-iteration-count: 1;
-  animation-fill-mode: forwards;
-  transform-box: fill-box;
-  transform-origin: center;
-}
 
 /* proposed -> claimed -> healthy: ease the territory colourway across frames instead of a snap.
  * Applies whenever motion is full -- regardless of which frame is current (a colourway ease is not
@@ -286,7 +258,7 @@
 }
 
 /* Reduced motion: no spatial translation/scale/orbit -- no delayed hidden content -- every marker
- * (ground -- story identity -- claim -- bloom -- territory colourway) renders at rest immediately.
+ * (ground -- story identity -- claim -- territory colourway) renders at rest immediately.
  * The cursor/model are never affected -- only this staging.
  *
  * Scoped to the same named hooks the full-motion rules above animate — NEVER a universal `*`
@@ -309,7 +281,6 @@
 [data-semantic-growth-frame][data-motion='reduced'] .world-plate,
 [data-semantic-growth-frame][data-motion='reduced'] .parcel,
 [data-semantic-growth-frame][data-motion='reduced'] .world-claim-wisp,
-[data-semantic-growth-frame][data-motion='reduced'] .world-bloom,
 [data-semantic-growth-frame][data-motion='reduced'] .st-proposed,
 [data-semantic-growth-frame][data-motion='reduced'] .st-claimed,
 [data-semantic-growth-frame][data-motion='reduced'] .st-healthy {

@@ -113,8 +113,11 @@ the deterministic lock. The board survives; its *data model* changed.
   CI merge releases by branch.
 - **Views, not stores.** The forest map renders claims by grade (hover / queued / orbit) by default; the
   studio dock is claims-grouped-by-session; the CLI board renders the ledger; the statusline reads it.
-  The ADR-0138 §5 honesty wall is untouched — no claim state is ever a proof (the proving colour + the
-  verdict bloom stay work-event- and verdict-sourced).
+  The ADR-0138 §5 honesty wall is untouched — no claim state is ever a proof (the proving colour stays
+  work-event-sourced and the island's proven-green status hue stays verdict-sourced). *(This read "the
+  proving colour + the verdict bloom" until 2026-09-07; ADR-0529 retired the verdict bloom and ADR-0536
+  dropped the demo frame that was its last consumer, so the verdict-sourced half of the sentence now
+  names the durable proven-green hue. The wall is unchanged in force.)*
 
 ## The claim ledger machinery (landed, arc incs 1–5)
 

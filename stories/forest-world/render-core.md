@@ -96,30 +96,41 @@ The test-proven leaf behaviours — each **one isolated automated test** in the
      seed (the per-parcel SURFACES density ∝ `testCount`, not parcel area).
    - **covers —** `packages/forest-world/src/scene.ts` (the parcel SURFACES)
    - **proven by —** `packages/forest-world/src/scene.test.ts`.
-8. **`rc-claim-layer-never-folds-bloom-vocabulary`** — the scene fold's CLAIM layers never wear the
-   bloom's visual vocabulary: no bloom drawable kind and no verdict `outcome`, in any grade, on the
+8. **`rc-claim-layer-never-folds-proof-vocabulary`** — the scene fold's CLAIM layers never wear the
+   proof vocabulary: no folded `status`, in any grade, on the
    departure layer, or under a green build band (the ADR-0138 §5 honesty wall, in the scene core)
    - **asserts —** the layers `buildScene` folds for claims and departures carry the wall in three
-     directions. **(a) Every colour-state:** for `authoring` / `proving` / `supplementing`, the
-     `claim-wisps` orbit contains none of `bloom-anchor` / `bloom-crown` / `bloom-plant` /
-     `bloom-ring` / `bloom-spark`, and NO node in the walked subtree carries an `outcome` — `proving`
-     is the at-risk hue that must not read as the proven-green bloom. **(b) Every grade plus the
-     departure layer:** with `exploring` / `waiting` / `work` claims and a departure present, no node
-     under `claim-wisps` OR `departing-wisps` has a `kind` containing `bloom`, and none carries an
-     `outcome`. **(c) Under a GREEN band (ADR-0212):** folding a claim whose `phase` is `GATE` leaves
+     directions. **(a) Every colour-state:** for `authoring` / `proving` / `supplementing`, NO node
+     in the walked `claim-wisps` subtree carries a folded `status` — `proving`
+     is the at-risk hue that must not read as the island's proven-green one. **(b) Every grade plus
+     the departure layer:** with `exploring` / `waiting` / `work` claims and a departure present, no
+     node under `claim-wisps` OR `departing-wisps` carries a folded `status`. **(c) Under a GREEN
+     band (ADR-0212):** folding a claim whose `phase` is `GATE` leaves
      `colourState` still `proving` (green is expressed as MOTION, never overwritten into the claim's
-     colour), leaves `outcome` `undefined`, and emits no `bloom` descendant — so a green band never
-     turns the claim body into a proof. One-directional by design: the CONVERSE (a bloom renderer
+     colour) and leaves `status` unset — so a green band never
+     turns the claim body into a proof.
+   - **note — RENAMED AND RE-EXPRESSED 2026-09-07 under ADR-0536, unchanged in FORCE (ADR-0529 is
+     what moved).** This contract was `rc-claim-layer-never-folds-bloom-vocabulary` and asserted that
+     no claim-layer node carried a bloom drawable KIND (`bloom-anchor` / `bloom-crown` /
+     `bloom-plant` / `bloom-ring` / `bloom-spark`) or a verdict `outcome`. ADR-0529 retired the
+     verdict bloom; the five kinds are deleted from the kind union and `SceneNode.outcome` is
+     deleted with them, since `buildBloom` was its only writer. **A "no bloom kind" assertion over a
+     union that no longer contains one is guaranteed by the type system and verifies nothing**, which
+     is the reason this is a re-expression rather than a deletion (ADR-0536 D5): the surviving,
+     refutable form of the same wall is that no claim-layer node carries a folded `status`, because
+     `status` is what the island's proven-green hue is folded from and it is a field a careless
+     future fold really could reach for. One-directional by design: the CONVERSE (a proof drawable
      reaching for claim styling) is not this contract's claim and remains uncovered here.
    - **covers —** `packages/forest-world/src/scene.ts` (`buildScene`, the `claim-wisps` /
      `departing-wisps` layers) — the same fold contract 6 covers; this is its honesty INVARIANT, the
      one property of the fold that is load-bearing beyond determinism, which is why it is declared
      apart rather than folded into `rc-scene-folds-drawables-and-status`.
    - **proven by —** `packages/forest-world/src/scene.test.ts` — three tests, one per direction:
-     *"§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim
-     layer"*, *"§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict
-     outcome"*, and *"ADR-0212: folding a GREEN build band never turns the claim body into a proof
-     (the §5 wall holds)"*. Offline, in the standing `pnpm --filter @storytree/forest-world test`
+     *"§5 honesty wall: a claim wisp NEVER carries the proof signal — no folded `status` anywhere on
+     the claim layer"*, *"§5 honesty wall holds for EVERY grade + the departure layer: no folded
+     status"*, and *"ADR-0212: folding a GREEN build band never turns the claim body into a proof
+     (the §5 wall holds)"*. Each carries this contract's id verbatim in its title. Offline, in the
+     standing `pnpm --filter @storytree/forest-world test`
      suite that `forest-world#gate-1` observes.
    - **note — declared for CITATION, with no proof-config change.** This contract exists so a
      lower-tier citation of the wall (the ADR-0294 D2 deletion of `wisp-as-story-claim#uat-7`) can

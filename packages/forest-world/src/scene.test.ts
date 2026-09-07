@@ -21,7 +21,6 @@ import {
   buildTree,
   buildPlant,
   buildConifer,
-  buildBloom,
   landCellId,
   placeGardenHeroes,
   treeKeepOut,
@@ -437,27 +436,6 @@ test('an unhealthy plant withers: a dead-ground patch, the narrower dead shadow,
   assert.ok(firstByKind(p, 'flora-dead-twig') || firstByKind(p, 'flora-dead-stem'));
 });
 
-test('a plant bloom rides the plant; a crown bloom rides the tree (spark counts differ)', () => {
-  const withBloom: ScenePlantInput = { id: 'x#cap', status: 'healthy', x: 0, y: 0, title: 't', bloom: { ageRatio: 1, outcome: 'pass' } };
-  const p = buildPlant(withBloom);
-  const plantBloom = mustByKind(p, 'bloom-plant');
-  assert.equal(allByKind(plantBloom, 'bloom-spark').length, 3);
-
-  const t = buildTree(mkTerritory({ bloom: { ageRatio: 0.5, outcome: 'pass' } }));
-  const crownBloom = mustByKind(t, 'bloom-crown');
-  assert.equal(allByKind(crownBloom, 'bloom-spark').length, 4);
-  assert.ok(firstByKind(crownBloom, 'bloom-ring'));
-  // the anchor folds the age into opacity: 0.3 + 0.65·ageRatio.
-  const anchor = mustByKind(t, 'bloom-anchor');
-  assert.equal(anchor.opacity, Number((0.3 + 0.65 * 0.5).toFixed(2)));
-});
-
-test('buildBloom is pure / id-seeded — same args → identical, different unit → different sparks', () => {
-  const args = ['u1', { ageRatio: 1, outcome: 'pass' as const }, 0, -40, 28, 'crown' as const] as const;
-  assert.deepEqual(buildBloom(...args), buildBloom(...args));
-  assert.notDeepEqual(buildBloom('u1', { ageRatio: 1, outcome: 'pass' }, 0, 0, 8, 'plant'), buildBloom('u2', { ageRatio: 1, outcome: 'pass' }, 0, 0, 8, 'plant'));
-});
-
 // ---------- conifer decor ----------
 
 test('a conifer is a leaning body + snow cap, its colour band from the seed', () => {
@@ -597,7 +575,7 @@ test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on 
   assert.equal(claimWith().phaseBand, undefined);
 });
 
-test('rc-claim-layer-never-folds-bloom-vocabulary: ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
+test('rc-claim-layer-never-folds-proof-vocabulary: ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
   const wisp = mustByKind(
     buildScene(
       mkInput({
@@ -611,28 +589,27 @@ test('rc-claim-layer-never-folds-bloom-vocabulary: ADR-0212: folding a GREEN bui
     ),
     'claim-wisp',
   );
-  // Colour stays INTENT-driven — the band must not overwrite it into anything bloom-like.
+  // Colour stays INTENT-driven — the band must not overwrite it into a proof reading.
   assert.equal(wisp.colourState, 'proving');
-  // And the body still carries no verdict token: a claim is never a proof.
-  assert.equal(wisp.outcome, undefined);
-  assert.equal(firstByKind(wisp, 'bloom'), null);
+  // And the body still carries no proof token. Since ADR-0529/0536 retired the verdict bloom the
+  // whole proof vocabulary is the island's `status` hue, so THAT is what a claim must never wear.
+  assert.equal(wisp.status, undefined);
 });
 
-test('rc-claim-layer-never-folds-bloom-vocabulary: §5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
+test('rc-claim-layer-never-folds-proof-vocabulary: §5 honesty wall: a claim wisp NEVER carries the proof signal — no folded `status` anywhere on the claim layer', () => {
   // A claim in EVERY colour-state, including the at-risk "proving" (the in-flight hue that must NOT
-  // read as the proven-green bloom): the claim layer must emit no bloom drawable and no `outcome`.
+  // read as proven). The wall used to be stated against the verdict bloom; ADR-0529/0536 retired
+  // that drawable, so the proof vocabulary the scene still carries is the FOLDED `status` — the
+  // island's proven-green hue. That is what a coordination drawable must never wear, and it is a
+  // live field other builders DO set (tree / flora / cell), so this stays falsifiable rather than
+  // becoming a check the type system already guarantees.
   for (const colourState of ['authoring', 'proving', 'supplementing'] as const) {
     const scene = buildScene(
       mkInput({ territories: [mkTerritory({ claims: [{ key: 'k', title: 't', colourState }] })] }),
     );
     const orbit = mustByKind(scene, 'claim-wisps');
-    // no bloom drawable family on the claim orbit …
-    for (const bloomKind of ['bloom-anchor', 'bloom-crown', 'bloom-plant', 'bloom-ring', 'bloom-spark']) {
-      assert.equal(firstByKind(orbit, bloomKind), null, `claim orbit must carry no ${bloomKind}`);
-    }
-    // … and no node under it carries a verdict `outcome` (the bloom's hue driver).
     const walk = (n: SceneNode): void => {
-      assert.equal(n.outcome, undefined, 'a claim-layer node must never carry a verdict outcome');
+      assert.equal(n.status, undefined, 'a claim-layer node must never carry a folded status');
       for (const c of children(n)) walk(c);
     };
     walk(orbit);
@@ -821,7 +798,7 @@ test('departures emit a stationary departing-wisp family carrying ageRatio; abse
   assert.equal(firstByKind(empty, 'departing-wisps'), null);
 });
 
-test('rc-claim-layer-never-folds-bloom-vocabulary: §5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict outcome', () => {
+test('rc-claim-layer-never-folds-proof-vocabulary: §5 honesty wall holds for EVERY grade + the departure layer: no folded status', () => {
   const scene = buildScene(
     mkInput({
       territories: [
@@ -839,8 +816,7 @@ test('rc-claim-layer-never-folds-bloom-vocabulary: §5 honesty wall holds for EV
   for (const layerKind of ['claim-wisps', 'departing-wisps'] as const) {
     const layer = mustByKind(scene, layerKind);
     const walk = (n: SceneNode): void => {
-      assert.ok(!(n.kind ?? '').includes('bloom'), `${layerKind} must emit no bloom kind`);
-      assert.equal(n.outcome, undefined, `a ${layerKind} node must never carry a verdict outcome`);
+      assert.equal(n.status, undefined, `a ${layerKind} node must never carry a folded status`);
       for (const c of children(n)) walk(c);
     };
     walk(layer);
@@ -918,12 +894,11 @@ function absenceLockInput(): SceneInput {
           { x: 120, y: 210, seed: 4 },
         ],
         plants: [
-          { id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a', bloom: { ageRatio: 0.5, outcome: 'pass' } },
+          { id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a' },
           { id: 'library#cap-b', status: 'unhealthy', x: 110, y: 215, title: 'cap b' },
         ],
         treeTitle: 'library — healthy',
         signpost: { outcome: 'pass' },
-        bloom: { ageRatio: 0.8, outcome: 'pass' },
         wisps: [{ runId: 'r1', title: 'building', phase: 'CONFIRM_RED', colourState: 'proving' }],
         claims: [{ key: 's1', title: 'a session is here', colourState: 'authoring', grade: 'work' }],
         plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'library', subText: 'healthy · 3 caps', title: 'The library' },
