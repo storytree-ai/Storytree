@@ -120,6 +120,7 @@ test("traversal origin: declaring a cut writes it, and says what it cannot reach
     origin: "cut",
     cutBy: "parent-window-id",
     cutFor: "trace-records-whether-a-session-was-cut-or-human-started",
+    units: [],
     declaredAt: AT.toISOString(),
   });
   assert.equal(
@@ -217,6 +218,7 @@ test("traversal origin: `--cut-by` ALONE is a declaration, not a report", async 
     origin: "cut",
     cutBy: "just-the-cutter",
     cutFor: null,
+    units: [],
     declaredAt: AT.toISOString(),
   });
 });
@@ -262,6 +264,7 @@ test("traversal origin: `--origin human` is written with no riders", async () =>
     origin: "human",
     cutBy: null,
     cutFor: null,
+    units: [],
     declaredAt: AT.toISOString(),
   });
   assert.match(envelope.body, /^origin:  human — started by an operator/m);
@@ -645,3 +648,83 @@ test("origin --census: a populated store counts each class and reports the QUOTA
   assert.match(envelope.body, /quotable: 66\.7% of sessions/);
 });
 
+
+// ---------------------------------------------------------------------------
+// The units a session CLAIMED, on both renders (ADR-0541 D2)
+// ---------------------------------------------------------------------------
+//
+// `cut for:` is provenance — the unit a predecessor cut this session to drive. `claimed:` is
+// activity — what it took on the ledger, recorded whatever its origin. They are two lines because
+// they are two different claims about the session, and a reader who cannot tell them apart cannot
+// tell a briefed session from one that picked its own work up.
+
+test("traversal origin: the REPORT renders the claimed units, on their own line", async () => {
+  const dir = freshDir("claimed-report");
+  // The state `noticeboard declare` leaves behind: units recorded, and NO origin claimed — which is
+  // the whole point of D2's second channel, and the shape the report has to render honestly.
+  fs.writeFileSync(
+    path.join(dir, "session-claimed.origin.json"),
+    JSON.stringify({ v: 1, origin: null, cutBy: null, cutFor: null, units: ["cap-a", "cap-b"] }),
+    "utf8",
+  );
+
+  const { envelope } = await origin({}, "session-claimed", dir);
+  assert.equal(envelope.ok, true);
+  assert.match(envelope.body, /^claimed: cap-a, cap-b$/m);
+  // The separator is load-bearing: without it two units read as one name nobody can look up.
+  assert.doesNotMatch(envelope.body, /^claimed: cap-acap-b$/m);
+  // And recording work is still not a claim of origin — the report says UNRECORDED.
+  assert.match(envelope.body, /^origin:  unknown — UNRECORDED/m);
+});
+
+test("traversal origin: a session that claimed NOTHING prints no claimed line at all", async () => {
+  const { envelope } = await origin({}, "session-unclaimed");
+  assert.equal(envelope.ok, true);
+  assert.doesNotMatch(envelope.body, /^claimed:/m);
+});
+
+test("traversal origin: DECLARING an origin renders the units it carried through, and does not delete them", async () => {
+  const dir = freshDir("claimed-declare");
+  fs.writeFileSync(
+    path.join(dir, "session-both.origin.json"),
+    JSON.stringify({ v: 1, origin: null, cutBy: null, cutFor: null, units: ["cap-a", "cap-b"] }),
+    "utf8",
+  );
+
+  const { envelope } = await origin({ origin: "human" }, "session-both", dir);
+  assert.equal(envelope.ok, true);
+  assert.match(envelope.body, /^traversal origin — declared/m);
+  assert.match(envelope.body, /^claimed: cap-a, cap-b$/m);
+  assert.doesNotMatch(envelope.body, /^claimed: cap-acap-b$/m);
+  // The write is a whole-file REPLACE, so this is the assertion that keeps a re-declare from
+  // silently deleting the record of what the session was working on.
+  assert.deepEqual(readSessionOriginDeclaration(dir, "session-both")?.units, ["cap-a", "cap-b"]);
+});
+
+test("traversal origin: a fresh declaration with no units prints no claimed line", async () => {
+  const { envelope } = await origin({ origin: "human" }, "session-fresh-declare");
+  assert.equal(envelope.ok, true);
+  assert.match(envelope.body, /^traversal origin — declared/m);
+  assert.doesNotMatch(envelope.body, /^claimed:/m);
+});
+
+test("traversal origin: the report UNIONS the cut unit with the claimed ones, deduped", async () => {
+  // A session cut for an increment that then claims the same increment plus a capability: the two
+  // sources answer the same question and are folded once, in first-seen order.
+  const dir = freshDir("claimed-union");
+  fs.writeFileSync(
+    path.join(dir, "session-union.origin.json"),
+    JSON.stringify({
+      v: 1,
+      origin: "cut",
+      cutBy: "predecessor",
+      cutFor: "inc-a",
+      units: ["inc-a", "cap-b"],
+    }),
+    "utf8",
+  );
+
+  const { envelope } = await origin({}, "session-union", dir);
+  assert.match(envelope.body, /^cut for: inc-a$/m);
+  assert.match(envelope.body, /^claimed: inc-a, cap-b$/m);
+});

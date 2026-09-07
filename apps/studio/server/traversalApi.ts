@@ -11,6 +11,12 @@
 // container has no operator traces. There is deliberately no fallback that invents a series, and
 // shipping traces anywhere shared is explicitly out of scope for the arc.
 //
+// ⚠ THIS PAYLOAD IS MIRRORED, AND THE OBLIGATION IS INVISIBLE FROM HERE OTHERWISE. The desktop
+// serves the same compiled panel from its own route table and hand-copies these three envelopes
+// (`apps/desktop/src/backend/traversal-routes.ts`, which may not import this file — ADR-0176). A
+// field added to either wire and not the other is caught by `pnpm check:mirror-conformance`, which
+// diffs the two answers leaf by leaf — but only after the fact, and only if you run it. Change both.
+//
 // It DERIVES NOTHING (the handleArcs / handleFloorHealth posture): every value on the wire comes from
 // the sink's own readers — `replayTraversalSessionAllAdapters` for the replay, and, for the index,
 // `summarizeTraversalSession` per file under `listTraversalSessions`'s own rules
@@ -33,6 +39,7 @@ import { HttpError, sendJson } from './httpUtil';
 // would break the dev server with only CI Build to catch it.
 import type { TraversalReplayView } from '@storytree/context-traversal-spawn';
 import type { DecisionPointReport, TraversalSessionSummary } from '@storytree/context-traversal-capture';
+import type { Store } from '@storytree/storage-protocol';
 
 type SpawnModule = typeof import('@storytree/context-traversal-spawn');
 let spawnModulePromise: Promise<SpawnModule> | null = null;
@@ -44,6 +51,16 @@ type CaptureModule = typeof import('@storytree/context-traversal-capture');
 let captureModulePromise: Promise<CaptureModule> | null = null;
 function loadTraversalSink(): Promise<CaptureModule> {
   return (captureModulePromise ??= import('@storytree/context-traversal-capture'));
+}
+
+// The arc organism, pulled the SAME lazy way and for the same reason: it is node-only (its rollup
+// loaders scan a checkout), and this file is loaded by vite.config.ts through Node's plain ESM
+// loader. Only `loadUnitArcIndex` is wanted here — the unit -> arc lookup the trace rail resolves
+// through (ADR-0541 D1).
+type ArcModule = typeof import('@storytree/arc');
+let arcModulePromise: Promise<ArcModule> | null = null;
+function loadArc(): Promise<ArcModule> {
+  return (arcModulePromise ??= import('@storytree/arc'));
 }
 
 /**
@@ -88,6 +105,36 @@ export async function primeTraversalIndex(): Promise<void> {
   }
 }
 
+/**
+ * What the route needs to turn a recorded unit id into an ARC NAME (ADR-0541 D1).
+ *
+ * Structurally typed rather than importing `LibraryBackend`, on this file's standing config-load
+ * rule: `libraryBackend.ts` reaches the store's node-only subpaths, and vite loads this module
+ * through Node's plain ESM loader. `Store` itself is browser-safe, so the type import is free.
+ *
+ * ABSENT OR NULL-ANSWERING IS A NORMAL STATE, not an error: the offline json backend holds no arcs,
+ * the hosted container holds no traces at all, and a test may drive the route with neither. The
+ * payload says which happened rather than serving an empty arc list that reads as an answer.
+ */
+export interface TraversalCorpusCtx {
+  readonly docStore?: () => Promise<Store | null>;
+}
+
+/**
+ * The unit → arc lookup for this request, or null when the corpus cannot be consulted.
+ *
+ * ⚠ NULL AND AN EMPTY INDEX ARE DIFFERENT, and conflating them is the failure this function exists
+ * to prevent. An empty index resolves every unit to nothing, which the rail would render as "worked
+ * on no arc" — a positive claim about the work, made on the strength of a store that never answered.
+ * Every failure path here returns null, so that claim can only ever be made against a real corpus.
+ */
+async function loadUnitArcIndexOrNull(ctx: TraversalCorpusCtx) {
+  const store = await (ctx.docStore?.() ?? Promise.resolve(null));
+  if (store === null) return null;
+  const { loadUnitArcIndex } = await loadArc();
+  return loadUnitArcIndex(store);
+}
+
 /** `GET /api/traversal/sessions` — the index the panel's session picker reads. */
 export interface TraversalSessionsWire {
   /**
@@ -96,6 +143,17 @@ export interface TraversalSessionsWire {
    * an operator nothing to check (the trace dir is per-machine and `STORYTREE_TRAVERSAL_DIR` moves it).
    */
   readonly dir: string;
+  /**
+   * WHETHER THE CORPUS COULD BE CONSULTED AT ALL — a payload-level fact, because it is one fact
+   * about the request rather than a per-row one (ADR-0541 D1).
+   *
+   * ⚠ FALSE MAKES EVERY ROW'S EMPTY `arcs` MEANINGLESS, not empty. A session's units resolve to an
+   * arc through the live store; the offline json backend holds no arcs at all, so without this flag
+   * a reader would see recorded units, no arc, and conclude "worked on no arc" — reporting the
+   * store's absence as a fact about the work. The two are different answers and the row cannot tell
+   * them apart on its own.
+   */
+  readonly arcsResolved: boolean;
   /**
    * One entry per session with a READABLE trace. A file that replays to zero usable events is omitted
    * by the sink's own `listTraversalSessions`, so this list is exactly the CLI's `traversal list`.
@@ -108,6 +166,23 @@ export interface TraversalSessionWire {
   readonly eventCount: number;
   /** `null` when no event in the trace carried a usable timestamp — never a fabricated "now". */
   readonly lastObservedAt: string | null;
+  /**
+   * THE UNITS THIS SESSION RECORDED FOR ITSELF, in first-seen order — its declared `cut_for` rider
+   * (ADR-0484 D7) unioned with the units it claimed (ADR-0541 D2), folded by the sink's own reader.
+   *
+   * ⚠ IT TRAVELS EVEN WHEN IT RESOLVES TO AN ARC, because an empty `arcs` means two different things
+   * and only this list separates them: units present + no arc is a session that claimed real work
+   * belonging to no arc (20% of the measured September population), while no units at all is a
+   * session that recorded nothing. Collapsing them reports known work as unknown and inflates the
+   * apparent unknown share from 13% to 33% (ADR-0541 D4).
+   */
+  readonly units: readonly string[];
+  /**
+   * Every arc those units resolve to, in first-seen order. SEVERAL ARE LISTED and never reduced to
+   * one: a session that worked across two arcs worked across two, and picking a winner would be an
+   * editorial claim the record does not support.
+   */
+  readonly arcs: readonly string[];
 }
 
 /**
@@ -156,6 +231,7 @@ export async function handleTraversal(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
+  ctx: TraversalCorpusCtx = {},
 ): Promise<void> {
   if ((req.method ?? 'GET') !== 'GET') {
     throw new HttpError(405, 'method not allowed — the traversal replay is read-only (a trace is an observation record)');
@@ -169,13 +245,29 @@ export async function handleTraversal(
 
   if (url.pathname === '/api/traversal/sessions') {
     const summaries: TraversalSessionSummary[] = await readTraversalIndex(dir);
+    // ONE corpus read for the whole list, never one per row: the index is 885 traces on this
+    // machine, and the lookup is two queries whose answer is identical for every one of them.
+    const index = await loadUnitArcIndexOrNull(ctx);
+    const { resolveUnitArcs } = await loadArc();
     const wire: TraversalSessionsWire = {
       dir,
-      sessions: summaries.map((session) => ({
-        sessionId: session.sessionId,
-        eventCount: session.eventCount,
-        lastObservedAt: session.lastObservedAt ?? null,
-      })),
+      arcsResolved: index !== null,
+      sessions: summaries.map((session) => {
+        // The sink ALREADY computed this and the handler used to throw it away one line later
+        // (ADR-0541 D1 / the coverage research §1): `origin.cutFor` is the folded plural rider. No
+        // new capture, no schema change — only stopping the drop.
+        const recorded = session.origin.cutFor;
+        // With no store the units still travel and the arcs stay empty — `arcsResolved: false` is
+        // what stops a reader misreading that emptiness as "worked on no arc".
+        const resolved = index === null ? { units: [...recorded], arcs: [] } : resolveUnitArcs(recorded, index);
+        return {
+          sessionId: session.sessionId,
+          eventCount: session.eventCount,
+          lastObservedAt: session.lastObservedAt ?? null,
+          units: resolved.units,
+          arcs: resolved.arcs,
+        };
+      }),
     };
     // An absent or empty trace dir is an EMPTY LIST, never an error: a machine that has captured
     // nothing yet (and the hosted container, which captures nothing ever) is a normal state.

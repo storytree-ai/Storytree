@@ -311,6 +311,7 @@ test("captureCliInvocation: the session's own DECLARATION is what stamps the ori
     origin: "cut",
     cutBy: "parent-window-id",
     cutFor: "trace-records-whether-a-session-was-cut-or-human-started",
+    units: [],
     declaredAt: "2026-08-31T00:00:00.000Z",
   });
 

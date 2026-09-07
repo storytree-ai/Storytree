@@ -104,6 +104,26 @@ const ARTIFACT_READ_FLAGS = {
    * the DOCUMENT was read, not where the bytes landed, so it changes neither.
    */
   "--out": { takesValue: true, strength: undefined },
+  /**
+   * The whole record behind a composed decision's statement (ADR-0533 D4). A full payload read, and
+   * the deepest read of a decision there is.
+   *
+   * ⚠ NAMED HERE OR THE INSTRUMENT GOES BLIND IN THE WORST DIRECTION. An unrecognised token makes
+   * {@link classifyArtifactReadFlags} return `null`, which observes the invocation NOT AT ALL — so
+   * omitting this entry would have made the deepest available decision read the only one that
+   * records nothing, while the shallower default kept recording as a full payload. Depth measured
+   * from that trace would fall exactly as sessions started reading MORE.
+   *
+   * ⚠ WHAT THIS ENTRY DOES NOT FIX, and it is a real residual. Since ADR-0533 a BARE read of a
+   * decision that carries a composed statement returns the statement, not the document — a partial
+   * read still recorded here as `full_payload_read`. This observer is pure and argv-only by
+   * construction (see the header), and whether a record carries a statement is a property of the
+   * ROW, so no rule over trailing tokens can tell the two apart. The over-report is bounded by the
+   * composed count — 54 of 465 decisions when this landed — and moves with it. It is named rather
+   * than fixed: separating them needs a third strength word, which is a change to a measurement
+   * vocabulary and owes its own decision.
+   */
+  "--full": { takesValue: false, strength: "full_payload_read" },
 } as const satisfies Record<
   string,
   { takesValue: boolean; strength: "front_matter_read" | "full_payload_read" | undefined }

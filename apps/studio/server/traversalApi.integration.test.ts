@@ -22,6 +22,8 @@ import path from 'node:path';
 import { appendTraversalEvents, computeDecisionPoints } from '@storytree/context-traversal-capture';
 import { replayTraversalSessionAllAdapters } from '@storytree/context-traversal-spawn';
 
+import { InMemoryStore } from '@storytree/storage-protocol';
+
 import { handleTraversal, primeTraversalIndex } from './traversalApi';
 import { HttpError } from './httpUtil';
 
@@ -407,7 +409,14 @@ describe('GET /api/traversal/sessions', () => {
 
     const res = await fetch(`${base}/api/traversal/sessions`);
     expect(res.status).toBe(200);
-    expect((await res.json()) as { sessions: unknown[] }).toEqual({ dir: absent, sessions: [] });
+    // `arcsResolved: false` rides along even here: this route is driven with no backend, so the
+    // corpus was never consulted. An empty list of sessions has no arcs to resolve either way, but
+    // the flag is a fact about the READ and is stated rather than implied (ADR-0541 D1).
+    expect((await res.json()) as { sessions: unknown[] }).toEqual({
+      dir: absent,
+      arcsResolved: false,
+      sessions: [],
+    });
   });
 
   // The route answers from an incremental index keyed on each trace's mtime+size (increment
@@ -469,7 +478,18 @@ describe('GET /api/traversal/sessions', () => {
       sessions: { sessionId: string; eventCount: number }[];
     };
     expect(primed.dir).toBe(traceDir);
-    expect(primed.sessions).toEqual([{ sessionId: SESSION, eventCount: 5, lastObservedAt: '2026-08-11T10:00:04.000Z' }]);
+    expect(primed.sessions).toEqual([
+      {
+        sessionId: SESSION,
+        eventCount: 5,
+        lastObservedAt: '2026-08-11T10:00:04.000Z',
+        // The fixture's lines carry no `cutFor` rider, so this session recorded no unit — which is
+        // "arc not recorded", and stays visibly distinct from a session that recorded one belonging
+        // to no arc (ADR-0541 D4).
+        units: [],
+        arcs: [],
+      },
+    ]);
 
     // A warm index must not outrank the filesystem.
     writeFixture(traceDir, 'session-after-priming');
@@ -491,5 +511,198 @@ describe('GET /api/traversal/sessions', () => {
       sessions: { sessionId: string }[];
     };
     expect(after.sessions.map((s) => s.sessionId)).toEqual(['session-arrived-later']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The arc a session recorded, end to end (ADR-0541 D1)
+// ---------------------------------------------------------------------------
+//
+// Its own server, because this is the one part of the route that DOES have a backend: the units a
+// trace carries are local-file data, but resolving them to an ARC is a corpus read. Everything else
+// in this file drives the route with no store at all, which is the honest shape for the mirror
+// probes and for the hosted container — and it is exactly the shape that cannot prove a resolution
+// happened. Real store, real sink, real `resolveUnitArcs`.
+
+describe('GET /api/traversal/sessions — the arc each session recorded', () => {
+  let arcDir: string;
+  let arcServer: Server;
+  let arcBase: string;
+  let priorDir: string | undefined;
+
+  /** A trace whose lines carry the `cutFor` rider the sink stamps — one unit, or several. */
+  function writeUnitFixture(dir: string, sessionId: string, cutFor: string | string[] | null): void {
+    const ok = appendTraversalEvents(
+      [
+        {
+          kind: 'front_matter_read',
+          eventId: `event:${sessionId}-1`,
+          sessionId,
+          visitId: `${sessionId}-v1`,
+          nodeId: 'node-a',
+          surfaceId: 'tree',
+          at: '2026-09-05T10:00:00.000Z',
+        },
+      ],
+      { dir, sessionId, origin: 'cut', cutBy: 'predecessor', cutFor },
+    );
+    expect(ok).toBe(true);
+  }
+
+  beforeAll(async () => {
+    priorDir = process.env['STORYTREE_TRAVERSAL_DIR'];
+    arcDir = fs.mkdtempSync(path.join(os.tmpdir(), 'traversal-arc-'));
+
+    const store = new InMemoryStore();
+    await store.upsertDoc({
+      id: 'map-arc',
+      kind: 'arc',
+      doc: { kind: 'arc', id: 'map-arc', title: 'Map', description: 'd' },
+    });
+    await store.upsertDoc({
+      id: 'art-arc',
+      kind: 'arc',
+      doc: { kind: 'arc', id: 'art-arc', title: 'Art', description: 'd' },
+    });
+    await store.upsertDoc({
+      id: 'map-arc-inc-01',
+      kind: 'increment',
+      doc: {
+        kind: 'increment',
+        id: 'map-arc-inc-01',
+        title: 'I',
+        objective: 'o',
+        arcRef: 'asset:map-arc',
+      },
+    });
+    // A BARE increment slug — nothing about the id names its arc, which is why resolution is a
+    // corpus lookup and never a pattern match on the string.
+    await store.upsertDoc({
+      id: 'the-cliffs-dark-base-must-read-against-the-sea',
+      kind: 'increment',
+      doc: {
+        kind: 'increment',
+        id: 'the-cliffs-dark-base-must-read-against-the-sea',
+        title: 'I2',
+        objective: 'o',
+        arcRef: 'asset:art-arc',
+      },
+    });
+
+    arcServer = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      void handleTraversal(req, res, url, { docStore: async () => store }).catch((err: unknown) => {
+        res.statusCode = err instanceof HttpError ? err.status : 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      });
+    });
+    await new Promise<void>((resolve) => arcServer.listen(0, '127.0.0.1', resolve));
+    arcBase = `http://127.0.0.1:${(arcServer.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => arcServer.close((e) => (e ? reject(e) : resolve())));
+    if (priorDir === undefined) delete process.env['STORYTREE_TRAVERSAL_DIR'];
+    else process.env['STORYTREE_TRAVERSAL_DIR'] = priorDir;
+    fs.rmSync(arcDir, { recursive: true, force: true });
+  });
+
+  async function sessions(): Promise<
+    Record<string, { units: string[]; arcs: string[] }> & { _resolved?: boolean }
+  > {
+    process.env['STORYTREE_TRAVERSAL_DIR'] = arcDir;
+    const body = (await (await fetch(`${arcBase}/api/traversal/sessions`)).json()) as {
+      arcsResolved: boolean;
+      sessions: { sessionId: string; units: string[]; arcs: string[] }[];
+    };
+    const out: Record<string, { units: string[]; arcs: string[] }> & { _resolved?: boolean } = {};
+    out._resolved = body.arcsResolved;
+    for (const s of body.sessions) out[s.sessionId] = { units: s.units, arcs: s.arcs };
+    return out;
+  }
+
+  it('names the ARC for a session that recorded a generated increment id', async () => {
+    writeUnitFixture(arcDir, 'sess-one-arc', 'map-arc-inc-01');
+    const found = await sessions();
+    expect(found._resolved).toBe(true);
+    expect(found['sess-one-arc']).toEqual({ units: ['map-arc-inc-01'], arcs: ['map-arc'] });
+  });
+
+  it('LISTS several arcs for a session that claimed across two, never reducing them to one', async () => {
+    writeUnitFixture(arcDir, 'sess-two-arcs', [
+      'map-arc-inc-01',
+      'the-cliffs-dark-base-must-read-against-the-sea',
+    ]);
+    const found = await sessions();
+    expect(found['sess-two-arcs']?.arcs).toEqual(['map-arc', 'art-arc']);
+  });
+
+  it('keeps WORKED ON NO ARC distinct from ARC NOT RECORDED on the wire', async () => {
+    // ⚠ ADR-0541 D4, end to end. Both rows carry an empty `arcs`; only `units` separates them, and
+    // collapsing them would report 20% of the September population's real work as unknown.
+    writeUnitFixture(arcDir, 'sess-no-arc', 'r3f-world-spike');
+    writeUnitFixture(arcDir, 'sess-unrecorded', null);
+    const found = await sessions();
+    expect(found['sess-no-arc']).toEqual({ units: ['r3f-world-spike'], arcs: [] });
+    expect(found['sess-unrecorded']).toEqual({ units: [], arcs: [] });
+  });
+
+  it('an arc id recorded directly resolves to itself', async () => {
+    writeUnitFixture(arcDir, 'sess-arc-id', 'map-arc');
+    const found = await sessions();
+    expect(found['sess-arc-id']?.arcs).toEqual(['map-arc']);
+  });
+});
+
+describe('GET /api/traversal/sessions — a silent corpus is not an answer about the work', () => {
+  it('reports arcsResolved:false and leaves the units unresolved rather than unhomed', async () => {
+    // The offline json backend holds no arcs. Without the flag a reader sees recorded units and an
+    // empty arc list and concludes "worked on no arc" — a claim about the work, made on the
+    // strength of a store that was never there.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'traversal-nostore-'));
+    const prior = process.env['STORYTREE_TRAVERSAL_DIR'];
+    process.env['STORYTREE_TRAVERSAL_DIR'] = dir;
+    appendTraversalEvents(
+      [
+        {
+          kind: 'front_matter_read',
+          eventId: 'event:ns-1',
+          sessionId: 'sess-nostore',
+          visitId: 'ns-v1',
+          nodeId: 'node-a',
+          surfaceId: 'tree',
+          at: '2026-09-05T10:00:00.000Z',
+        },
+      ],
+      { dir, sessionId: 'sess-nostore', origin: 'cut', cutFor: 'map-arc-inc-01' },
+    );
+
+    const server2 = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      // `docStore` present but answering null — the offline backend's own posture.
+      void handleTraversal(req, res, url, { docStore: async () => null }).catch(() => {
+        res.statusCode = 500;
+        res.end('{}');
+      });
+    });
+    await new Promise<void>((resolve) => server2.listen(0, '127.0.0.1', resolve));
+    const b = `http://127.0.0.1:${(server2.address() as AddressInfo).port}`;
+    try {
+      const body = (await (await fetch(`${b}/api/traversal/sessions`)).json()) as {
+        arcsResolved: boolean;
+        sessions: { sessionId: string; units: string[]; arcs: string[] }[];
+      };
+      expect(body.arcsResolved).toBe(false);
+      // The units still travel — they are local-file data and the store's absence does not erase
+      // what the session said about itself.
+      expect(body.sessions[0]?.units).toEqual(['map-arc-inc-01']);
+      expect(body.sessions[0]?.arcs).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve, reject) => server2.close((e) => (e ? reject(e) : resolve())));
+      if (prior === undefined) delete process.env['STORYTREE_TRAVERSAL_DIR'];
+      else process.env['STORYTREE_TRAVERSAL_DIR'] = prior;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

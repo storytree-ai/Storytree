@@ -16,6 +16,7 @@ import {
   readSessionOriginDeclaration,
   readTraversalSession,
   resolveSessionOrigin,
+  resolveSessionUnits,
   resolveTraversalDir,
   sessionOriginPath,
   writeSessionOriginDeclaration,
@@ -448,8 +449,12 @@ function traversalOrigin(
   }
 
   const dir = resolveTraversalDir();
+  // Read BEFORE the judge, and handed to it: the units a session claimed survive a re-declaration of
+  // its origin (ADR-0541 D2). The write is a whole-file replace, so assembling the document anywhere
+  // but inside `declareSessionOrigin` is how they would be silently deleted.
+  const existing = readSessionOriginDeclaration(dir, sessionId);
 
-  const asked = declareSessionOrigin(opts, now().toISOString());
+  const asked = declareSessionOrigin(opts, now().toISOString(), existing);
   if ("refusedBecause" in asked && asked.refusedBecause !== "nothing-to-declare") {
     return originRefusal(asked.refusedBecause);
   }
@@ -480,6 +485,9 @@ function traversalOrigin(
     ];
     if (cutBy !== null) lines.push(`cut by:  ${cutBy}`);
     if (cutFor !== null) lines.push(`cut for: ${cutFor}`);
+    if (built.declaration.units.length > 0) {
+      lines.push(`claimed: ${built.declaration.units.join(", ")}`);
+    }
     lines.push(
       "",
       "Every line this session writes from here on carries it.",
@@ -492,7 +500,7 @@ function traversalOrigin(
     return { ok: true, body: lines.join("\n"), next: [`storytree traversal show ${sessionId}`] };
   }
 
-  const declaration = readSessionOriginDeclaration(dir, sessionId);
+  const declaration = existing;
   const resolved: SessionOrigin | null = resolveSessionOrigin({ env: process.env, declaration });
   const reading = resolved?.kind ?? "unknown";
 
@@ -504,6 +512,11 @@ function traversalOrigin(
   ];
   if (resolved !== null && resolved.cutBy !== null) lines.push(`cut by:  ${resolved.cutBy}`);
   if (resolved !== null && resolved.cutFor !== null) lines.push(`cut for: ${resolved.cutFor}`);
+  // The units this session CLAIMED (ADR-0541 D2) — recorded by `noticeboard declare` whatever the
+  // origin, so they are reported on their own line rather than folded into `cut for:`, which is
+  // provenance and answers a different question.
+  const claimed = resolveSessionUnits({ origin: resolved, declaration });
+  if (claimed.length > 0) lines.push(`claimed: ${claimed.join(", ")}`);
   lines.push(`stated:  ${whoStated(declaration, resolved)}`, "", ...originHowTo(sessionId));
 
   return { ok: true, body: lines.join("\n"), next: [`storytree traversal show ${sessionId}`] };
