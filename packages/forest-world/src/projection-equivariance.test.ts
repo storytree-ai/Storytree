@@ -51,10 +51,13 @@ import {
   LAND_CAMERA_ELEVATION_DEG,
   PLAN_VIEW_ELEVATION_DEG,
   groundFlattening,
+  projectGround,
   uprightForeshortening,
 } from './camera.js';
 import { PRE_ADR0528_TILE, TILE_DEPTH_WORLD, type Axial } from './hex.js';
+import { smoothLoopPath } from './coast.js';
 import { buildRelaxedCells, type RelaxedCell } from './substrate.js';
+import { shippedInput } from './scene-fixture.js';
 import {
   buildScene,
   buildTree,
@@ -80,6 +83,13 @@ const TILES: Axial[] = (() => {
 
 /** The tuned tile — the lattice this package's ground-unit constants were judged on (ADR-0528). */
 const TILE = { hexR: PRE_ADR0528_TILE.hexR } as const;
+
+/** A closed coast ring in GROUND space — a circle of radius 90 about the island's centre, which is
+ *  what `smoothCoast` hands back before anything projects it. */
+const COAST_GROUND: readonly { x: number; y: number }[] = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * 2 * Math.PI;
+  return { x: 90 * Math.cos(a), y: 90 * Math.sin(a) };
+});
 
 // ---------------------------------------------------------------------------
 // 1. THE FACT D1 RESTS ON: the substrate relaxation commutes with the projection.
@@ -141,7 +151,13 @@ function sceneAt(elevationDeg: number, opts: { relaxed: boolean }): SceneG {
     screenRadius: 70 * groundFlattening(elevationDeg),
     treeSpot: { x: 0, y: 0 },
     labelY: 46,
-    coastPaths: [],
+    // `smoothCoast` returns GROUND loops and they are handed over AS COORDINATES (ADR-0527 D1).
+    // Until this landing the caller projected them at the declared camera and froze them into a
+    // `d` string first, which made the coast the one island input that arrived as a finished
+    // DRAWING — and a drawing cannot be re-projected, so it could not answer to the camera the
+    // scene was being built at. It read as a PASS, because a frozen path is byte-identical at both
+    // cameras and the walker's scalar rule accepts "unchanged"; that hole is closed above.
+    coastGroundLoops: [[...COAST_GROUND]],
     decor: [],
     plants: [],
     treeTitle: 'story',
@@ -239,6 +255,18 @@ function aspect(d: string): Aspect {
   return { ratio, tol: (0.1 / h + 0.1 / w) * ratio };
 }
 
+/**
+ * Kinds whose geometry lies IN the ground plane, so their drawn depth MUST change with the camera.
+ * Named rather than inferred: the walker cannot tell a coordinate that legitimately did not move
+ * (an x, a screen constant) from one that COULD not move because it arrived pre-drawn.
+ */
+const GROUND_PLANE_KINDS: ReadonlySet<string> = new Set(['coast-shore', 'cell', 'cell-wheat', 'empty', 'tile-top', 'tile-side']);
+
+/** The fields that carry GEOMETRY. Scoped deliberately: `cellId` is a shape-FREE identity
+ *  (`story/cell-000`) that is supposed to be identical at every camera, and a guard reading every
+ *  string field flags all 238 of them. */
+const GEOMETRY_FIELDS: ReadonlySet<string> = new Set(['d', 'points']);
+
 /** A pointy-top hex is 2R tall and √3·R wide on the GROUND: this is its plan-view aspect. */
 const PLAN_HEX_ASPECT = 2 / Math.sqrt(3);
 
@@ -326,6 +354,101 @@ test('the classic extruded-hex ground follows the camera too — a starved famil
   }
 });
 
+test('the COAST follows the camera — the layout hands over a surface, not a finished drawing', () => {
+  // The smoothed coastline is the one island input that arrived as a `d` STRING rather than as
+  // coordinates: `smoothCoast` produces GROUND loops, and `TreeView.tsx:895-896` projected them at
+  // the declared camera and froze them into a path before `buildScene` saw them. A drawing cannot
+  // be re-projected, so the coast could not follow a camera the caller did not already apply —
+  // which is ADR-0527's title condition sitting in one field.
+  const depthAt = (elevationDeg: number): number => {
+    const shores = nodesOfKind(sceneAt(elevationDeg, { relaxed: true }), 'coast-shore');
+    assert.ok(shores.length > 0, 'the fixture must draw a coastline');
+    const ys = ((shores[0] as ScenePath).d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((_, i) => i % 2 === 1);
+    return Math.max(...ys) - Math.min(...ys);
+  };
+  const ground = depthAt(PLAN_VIEW_ELEVATION_DEG);
+  const drawn = depthAt(LAND_CAMERA_ELEVATION_DEG);
+  assert.ok(
+    Math.abs(drawn / ground - SIN) <= 0.01,
+    `asked for a plan-view surface the coast must be ${(1 / SIN).toFixed(2)}x deeper than at the declared camera; ` +
+      `got ${ground.toFixed(1)} vs ${drawn.toFixed(1)} (ratio ${(drawn / ground).toFixed(4)}, expected sin 20° = ${SIN.toFixed(4)}). ` +
+      'A ratio of 1 means the coast arrived already drawn and cannot answer to the camera at all.',
+  );
+
+  // The SHARED fixture too, not only this file's own. `scene-fixture.ts`'s island is what the
+  // byte-golden, tile-art, parcel-repair and kind-coverage suites all build on, and NOTHING asserted
+  // that it draws a coast at all — so emptying its loops changed no test's verdict. A fixture whose
+  // content no test reads is a fixture that can quietly stop representing the map it stands for.
+  const fixtureShores = (elevationDeg: number): ScenePath[] =>
+    nodesOfKind(buildScene({ ...shippedInput(), cameraElevationDeg: elevationDeg }), 'coast-shore') as ScenePath[];
+  const fixtureGround = fixtureShores(PLAN_VIEW_ELEVATION_DEG);
+  assert.ok(fixtureGround.length > 0, 'the SHARED shipped fixture must carry a coast — its loops are not decoration');
+  const depthOf = (n: ScenePath): number => {
+    const ys = (n.d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((_, i) => i % 2 === 1);
+    return Math.max(...ys) - Math.min(...ys);
+  };
+  const fixtureDrawn = fixtureShores(LAND_CAMERA_ELEVATION_DEG);
+  assert.equal(fixtureDrawn.length, fixtureGround.length, 'the same coast loops at both cameras');
+  for (let i = 0; i < fixtureGround.length; i += 1) {
+    const g0 = depthOf(fixtureGround[i] as ScenePath);
+    assert.ok(g0 > 0, `fixture coast loop ${i} must have real depth to say anything about the camera`);
+    assert.ok(
+      Math.abs(depthOf(fixtureDrawn[i] as ScenePath) / g0 - SIN) <= 0.05,
+      `the shared fixture's coast must follow the camera too (loop ${i})`,
+    );
+  }
+});
+
+test('moving the coast drawing into the core draws the SAME coast — ADR-0527 D6 for this field', () => {
+  // D6: the map is pixel-identical across the change, DEMONSTRATED rather than assumed. Until this
+  // landing the studio did exactly this, at `TreeView.tsx:895-896`:
+  //
+  //     const screen = groundLoops.map((loop) => loop.map((p) => projectGround(p)));
+  //     const paths  = screen.map(smoothLoopPath);
+  //
+  // `buildCoast` now does it, at the camera the scene was asked for. This asserts the emitted path
+  // is BYTE-IDENTICAL to that expression — not merely close — so the coast on the studio map is the
+  // coast it was. It is a separate claim from the equivariance test above: that one says the coast
+  // follows the camera, this one says following it lands where the old pipeline landed.
+  const wasDrawnBy = smoothLoopPath(COAST_GROUND.map((p) => projectGround(p)));
+  const shores = nodesOfKind(sceneAt(LAND_CAMERA_ELEVATION_DEG, { relaxed: true }), 'coast-shore');
+  assert.equal(shores.length, 1, 'the fixture draws one coast loop');
+  assert.equal(
+    (shores[0] as ScenePath).d,
+    wasDrawnBy,
+    'the coast the core now draws must be byte-identical to the one the caller used to hand over',
+  );
+
+  // And the order is free, which is the property that made the move safe: `smoothLoopPath` builds
+  // its curve from MIDPOINTS and is therefore LINEAR in its input points, so projecting-then-
+  // smoothing and smoothing-then-projecting are the same curve. Pinned rather than believed — if a
+  // later change makes the smoothing non-linear (a distance test, a normal, a clamp) this fails and
+  // says why, instead of the coast quietly moving.
+  //
+  // ⚠ THE SAME CURVE, NOT THE SAME BYTES, and the distinction is the rounding rather than the
+  // maths. `smoothLoopPath` emits through `toFixed(1)`, so smoothing first rounds at GROUND scale
+  // and then multiplies by sin, where projecting first multiplies and then rounds — measured 0.1
+  // apart at one vertex (26.7 against 26.6). `TreeView.tsx:895-896`'s own comment said the two
+  // orders "reproduce exactly what the other would draw", which is true of the real-valued curve
+  // and NOT of the emitted string; the assertion above is the byte-exact one, and it holds because
+  // the core now applies the SAME order the caller did.
+  const smoothedThenProjected = smoothLoopPath([...COAST_GROUND]);
+  const a = (wasDrawnBy.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  const b = (smoothedThenProjected.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  assert.equal(a.length, b.length, 'both orders must produce the same number of control points');
+  // 0.05 from rounding the projected y, plus 0.05·sin from rounding the ground y before scaling it.
+  const slack = 0.05 * (1 + SIN);
+  for (let i = 0; i < a.length; i += 2) {
+    assert.ok(Math.abs((a[i] as number) - (b[i] as number)) <= slack, `x moved between the two orders at ${i}`);
+    const want = (b[i + 1] as number) * SIN;
+    assert.ok(
+      Math.abs((a[i + 1] as number) - want) <= slack,
+      `smoothing is NOT linear in its input points: projecting first gave ${a[i + 1]} where smoothing ` +
+        `first gave ${b[i + 1]} (×sin20° = ${want.toFixed(3)}), ${slack.toFixed(3)} of rounding allowed`,
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 4. THE REST OF WHAT THE CHANGED LINES EMIT — the mutation rung's witnesses.
 // ---------------------------------------------------------------------------
@@ -378,7 +501,7 @@ test('buildTree draws the human-witness signpost by DEFAULT — the unified vege
     screenRadius: 70,
     treeSpot: { x: 0, y: 0 },
     labelY: 46,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: 'story',
@@ -457,7 +580,14 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
       if (k === 'children') continue;
       const x = fa.get(k);
       const y = fb.get(k);
-      if (typeof x === 'string' && typeof y === 'string' && x !== y) {
+      if (GEOMETRY_FIELDS.has(k) && typeof x === 'string' && x === y && GROUND_PLANE_KINDS.has(path.split('/').pop() ?? '')) {
+        // ⚠ IDENTICAL IS A FINDING HERE, and it is the hole this walker shipped with. The scalar
+        // rule below accepts "unchanged" because an x-ish quantity IS unchanged — but a whole
+        // GROUND-PLANE path that is byte-identical at two different cameras did not stay still, it
+        // was FROZEN: something handed the builder a finished drawing it cannot re-project. That is
+        // exactly the defect a caller-supplied `d` string is, and it read as a pass.
+        problems.push(`${path}.${k}: a ground-plane path is byte-IDENTICAL at both cameras — it is frozen, not invariant: "${x}"`);
+      } else if (typeof x === 'string' && typeof y === 'string' && x !== y) {
         // A geometry string (`d`, `points`, a `transform`) is compared COORDINATE-WISE through the
         // projection rather than byte-wise: every number is an alternating x, y pair, so the x's
         // must match and each y must be its ground y times sin. This is the strong half of the

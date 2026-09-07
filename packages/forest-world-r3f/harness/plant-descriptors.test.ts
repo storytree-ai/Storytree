@@ -72,7 +72,7 @@ function fixture(): SceneG {
     screenRadius: 40 * Math.sin((50 * Math.PI) / 180),
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: 'context-traversal-capture',

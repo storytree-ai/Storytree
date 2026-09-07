@@ -106,7 +106,7 @@ function mkInput(
     screenRadius: 30,
     treeSpot: { x: 50, y: 45 },
     labelY: 80,
-    coastPaths: ['M 0 0 L 1 0 Z'],
+    coastGroundLoops: [[{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]],
     decor: [{ x: 40, y: 40, seed: 5 }],
     plants: [{ id: 'lib#c', status: 'unhealthy', x: 45, y: 55, title: 'cap c' }],
     treeTitle: 'lib — healthy',
@@ -825,7 +825,7 @@ describe('SceneView — capability parcels (forest-parcels inc 1)', () => {
           screenRadius: 60,
           treeSpot: { x: 50, y: 40 },
           labelY: 120,
-          coastPaths: [],
+          coastGroundLoops: [],
           decor: [],
           plants: [],
           parcels: [
@@ -919,7 +919,7 @@ describe('SceneView — the UAT marker flowers (forest-parcels inc 2; grounded-a
           screenRadius: 60,
           treeSpot: { x: 50, y: 40 },
           labelY: 120,
-          coastPaths: [],
+          coastGroundLoops: [],
           decor: [],
           plants: [],
           uatCriteria: [

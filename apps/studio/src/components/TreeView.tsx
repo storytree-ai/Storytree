@@ -345,11 +345,17 @@ export interface Territory {
   caps: CapSpot[];
   decor: DecorSpot[];
   wheatTiles: Set<string>;
-  /** Smoothed organic coastline as closed `d` strings — the island's sand fill
-   *  AND its water moat (one curve, filled then stroked). */
-  coastPaths: string[];
-  /** The smoothed coast as point loop(s), for docking river mouths to the shore. */
-  coastLoops: Pt[][];
+  /** Smoothed organic coastline as closed point loops in the GROUND plane — the island's sand
+   *  fill AND its water moat (one curve, filled then stroked). ADR-0527 D1: the layout hands out
+   *  a SURFACE, and whoever draws it projects for itself. It used to be `coastPaths`, `d` strings
+   *  this function had already projected and smoothed, which made the coast the one island input
+   *  that reached `buildScene` as a finished drawing.
+   *
+   *  The screen-space `coastLoops` that stood beside it is DELETED (ADR-0527 D4): its doc said it
+   *  was "for docking river mouths to the shore", and the river fan went — `RIVER_FAN_STEP`,
+   *  `RIVER_FAN_MAX`, `LANE_GAP`, `LANE_WINDOW` and `MOUTH_FLARE` are all unused constants that
+   *  `pnpm lint` reports. Nothing outside this file's own declaration and assignment ever read it. */
+  coastGroundLoops: Pt[][];
   labelY: number;
   /** Per-island ICON STAMPS this island CARRIES (ADR-0102): one entry per promoted edge incident
    *  to a `render: building` island, "you carry the icon of what you depend on". `icon` is the id
@@ -506,6 +512,16 @@ export function groundHeroTile(tiles: readonly Axial[]): Axial | undefined {
  * would land in a slot this signature does not have today, and adding one later would resurrect the
  * `['1','2'].map(parseInt)` trap `hexCenter` documents.
  */
+/**
+ * A ground-space coast loop, drawn for THIS painter at the declared camera — project, then smooth,
+ * the same order `buildCoast` applies in the core (ADR-0527 D1). The legacy inline render and the
+ * island panel are painters, so they do their own projecting now that the layout hands out a
+ * surface rather than a drawing.
+ */
+function coastScreenPath(loop: Pt[]): string {
+  return smoothLoopPath(loop.map((p) => projectGround(p)));
+}
+
 export function groundPolarOffset(ang: number, r: number): Pt {
   return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r });
 }
@@ -887,14 +903,13 @@ export function buildWorld(
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
       tileUnits(8);
-    // `smoothCoast` outset + smoothed in GROUND space (see the boundary comment above); project
-    // the loop to screen once here and regenerate the `d` strings from the projected points —
-    // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
-    // projecting-then-smoothing reproduces exactly what smoothing-then-projecting would draw.
-    const coastGround = smoothCoast(boundary, story.id, COAST_OUTSET_ON_TILE); // the beach on the shipped tile (ADR-0528)
-    const coastLoopsScreen = coastGround.loops.map((loop) => loop.map((p) => projectGround(p)));
-    const coastPathsScreen = coastLoopsScreen.map(smoothLoopPath);
-    const coast = { loops: coastLoopsScreen, paths: coastPathsScreen };
+    // `smoothCoast` outsets + smooths in GROUND space (see the boundary comment above), and the
+    // loops now leave in that space (ADR-0527 D1). `buildScene` projects them at the camera it is
+    // asked for and draws the path there, applying the SAME order this function used to —
+    // project, then smooth — which is what makes the map byte-identical across the move
+    // (`projection-equivariance.test.ts` holds that, and records why the OTHER order is the same
+    // curve but not the same bytes).
+    const coast = smoothCoast(boundary, story.id, COAST_OUTSET_ON_TILE); // the beach on the shipped tile (ADR-0528)
 
     // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
     // building-incident, "you carry the icon of what you depend on"). Fan the stamps around the
@@ -923,8 +938,7 @@ export function buildWorld(
       caps,
       decor,
       wheatTiles,
-      coastPaths: coast.paths,
-      coastLoops: coast.loops,
+      coastGroundLoops: coast.loops,
       labelY,
       stamps,
       // ADR-0088 (+ owner 2026-06-22 follow-on): building-class stories never render on the map
@@ -1360,7 +1374,7 @@ function territoryToScene(
     screenRadius: t.radius,
     treeSpot: t.treeSpot,
     labelY: t.labelY,
-    coastPaths: t.coastPaths,
+    coastGroundLoops: t.coastGroundLoops,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
     plants: t.caps.map((spot) => capToScene(spot, now)),
     treeTitle: `${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`,
@@ -3865,8 +3879,8 @@ export function TreeView({
               <g className="hex-coastland">
                 {world.territories.map((t) => (
                   <g key={t.story.id} className={`coast-fill-group ${territoryClass(t.story)}`}>
-                    {t.coastPaths.map((d, i) => (
-                      <path key={`cf${i}`} className="coast-fill" d={d} />
+                    {t.coastGroundLoops.map((loop, i) => (
+                      <path key={`cf${i}`} className="coast-fill" d={coastScreenPath(loop)} />
                     ))}
                   </g>
                 ))}
@@ -4741,8 +4755,8 @@ function SharedIslandCard({
           {/* the island's sand silhouette (the same smoothed coast the map fills) */}
           <g className="hex-coastland">
             <g className={`coast-fill-group hex-territory st-${st}`}>
-              {t.coastPaths.map((d, i) => (
-                <path key={`cf${i}`} className="coast-fill" d={d} />
+              {t.coastGroundLoops.map((loop, i) => (
+                <path key={`cf${i}`} className="coast-fill" d={coastScreenPath(loop)} />
               ))}
             </g>
           </g>

@@ -51,8 +51,7 @@ function mkWorld(): HexWorld {
         caps: [],
         decor: [],
         wheatTiles: new Set<string>(),
-        coastPaths: [],
-        coastLoops: [],
+        coastGroundLoops: [],
         labelY: 80,
         // studio carries two identity stamps (library + cli).
         stamps: [
@@ -81,8 +80,7 @@ function mkWorld(): HexWorld {
         caps: [],
         decor: [],
         wheatTiles: new Set<string>(),
-        coastPaths: [],
-        coastLoops: [],
+        coastGroundLoops: [],
         labelY: 80,
         stamps: [],
         buildingGlyph: false,

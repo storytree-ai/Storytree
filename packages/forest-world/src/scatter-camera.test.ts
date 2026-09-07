@@ -129,7 +129,7 @@ function territory(isl: Island): SceneTerritoryInput {
     treeSpot: isl.treeSpot,
     // Parked far south — see the header: the plate band is a screen constraint and must not bind here.
     labelY: isl.centroid.y + 4000,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: 'studio',

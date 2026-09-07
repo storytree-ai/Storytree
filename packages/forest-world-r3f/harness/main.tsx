@@ -78,7 +78,7 @@ function territoryOf(island: DemoIsland): SceneTerritoryInput {
     screenRadius: 40,
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: `${island.id} — ${island.status}`,
