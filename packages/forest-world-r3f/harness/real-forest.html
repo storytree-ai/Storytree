@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>storytree's real forest, through the 3D renderer — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 90ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Storytree's real forest, through the 3D renderer</h1>
+      <p>
+        Nobody had seen it. Every forest picture the land work has produced was either a
+        <strong>synthetic crowd</strong> &mdash; copies of one fixture island on a scatter grid
+        calibrated to a land share read off a PNG, which models density and knows nothing of the
+        map's topology &mdash; or a <strong>ladder arm</strong>, the real layout drawn with a
+        candidate spacing or tile the map does not ship. This page renders exactly one thing: the
+        layout the studio built for the live corpus, asked for nothing, pushed through the shipped
+        3D pipeline (<code>worldTo3D</code>, <code>dressMapWithCover</code>,
+        <code>shippedGroundBuild</code>, <code>buildGroundMaterial</code>) and photographed.
+      </p>
+      <p>
+        <strong>It decides nothing and changes no shipped surface.</strong> It is a picture and four
+        numbers. It is <em>not</em> a precondition for mounting the land (ADR-0546 D3): the owner
+        accepted the forest's shape after the un-projection sight-unseen, as an offered option he
+        was shown and declined. If the picture reads badly, that is a finding and a fresh question
+        about the forest's <em>spacing</em> &mdash; never a licence to re-squash it here.
+      </p>
+      <p>
+        <strong>The two surfaces do not share a projection, so &ldquo;the same framing&rdquo; is
+        defined rather than assumed.</strong> The studio's SVG map draws a world already projected
+        at 20&deg;; this canvas stands the same world on true ground and looks at it from 50&deg;,
+        so depth delivers 2.24&times; more screen height here than there. Neither projection touches
+        <em>x</em>. So <code>fit</code> fits the whole forest into the buffer at each renderer's own
+        scale (comparable as pictures), and <code>matched</code> renders at the 2D map's own
+        delivered pixels-per-world-<em>x</em>-unit (comparable as a measurement).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountRealForest } from './real-forest-scene.ts';
+      try {
+        await mountRealForest(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
