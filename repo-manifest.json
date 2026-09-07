@@ -97,6 +97,7 @@
       "packages/cli/src/envelope.ts": "unified-command-dispatch",
       "packages/cli/src/cli-actor.ts": "unified-command-dispatch",
       "packages/cli/src/cli-areas.ts": "unified-command-dispatch",
+      "packages/cli/src/claimed-units-trace.ts": "terminal-capture-activation",
       "packages/cli/src/at-path.ts": "unified-command-dispatch",
       "packages/cli/src/db-required.ts": "unified-command-dispatch",
       "packages/cli/src/dispatch*.ts": "unified-command-dispatch",
