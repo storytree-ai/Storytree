@@ -291,3 +291,66 @@ test("claim-release.yml: a cancelled run would be a LOST release, so it never ca
     "in-progress claim releases are never cancelled (a cancelled release is a lost release)",
   );
 });
+
+// ── The GRANTS this writer runs under (infra/ci-presence-grants.sql) ─────────
+
+/** The CI service account's declared database privileges — the other half of this writer's wiring. */
+const GRANTS_SQL_URL = new URL("../../../../infra/ci-presence-grants.sql", import.meta.url);
+
+test("ci-presence-grants.sql: every table this account WRITES it can also SELECT — because RETURNING needs it", () => {
+  // WRITTEN BECAUSE IT WAS ALREADY BROKEN, AND SILENTLY. Measured on PR #1881's merge (job
+  // 101882820920), the first run of this writer after a separate defect had stopped it executing at
+  // all: `claim release failed ... permission denied for table claim_event`. The grant was NOT
+  // missing — `information_schema.role_table_grants` confirmed the account HELD INSERT. The cause is
+  // that `appendClaimEvent` issues `INSERT ... RETURNING seq` (ADR-0350 D1), and Postgres requires
+  // SELECT on every column a statement RETURNS. Because the release deletes the claims and appends
+  // their history in ONE transaction, the whole thing rolled back — fail-soft, so nothing said so.
+  //
+  // The invariant is real rather than convenient: every write this account makes goes through a
+  // store method that RETURNS its rows (that is how each one reports what it did), so a write grant
+  // without SELECT beside it is a statement that cannot commit. The file's own `node_claim`
+  // paragraph has said "RETURNING needs SELECT" since 2026-07-02; this makes the rule checkable
+  // instead of leaving it in a comment, which is the one place nothing reads.
+  const sql = readFileSync(GRANTS_SQL_URL, "utf8");
+
+  // `GRANT <privs> ON <tables> TO ...` — tables may span lines and be comma-separated. Comment
+  // lines are dropped first: this file explains itself at length, and the prose names the very
+  // privileges and tables the parse is looking for.
+  const statements = sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";");
+
+  const writes = new Map<string, string[]>();
+  const reads = new Set<string>();
+  let parsed = 0;
+  for (const statement of statements) {
+    const match = /GRANT\s+([A-Z,\s]+?)\s+ON\s+([\s\S]+?)\s+TO\s/i.exec(statement);
+    if (match === null) continue;
+    const [, privList = "", target = ""] = match;
+    if (/\bSCHEMA\b|\bSEQUENCES\b/i.test(target)) continue; // not table grants
+    const privs = privList.split(",").map((p) => p.trim().toUpperCase());
+    const tables = target
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    parsed += 1;
+    for (const table of tables) {
+      if (privs.includes("SELECT")) reads.add(table);
+      const written = privs.filter((p) => p === "INSERT" || p === "UPDATE" || p === "DELETE");
+      if (written.length > 0) writes.set(table, [...(writes.get(table) ?? []), ...written]);
+    }
+  }
+
+  assert.ok(parsed >= 5, `precondition: the parse found ${parsed} table grants, expected 5+`);
+  assert.ok(writes.has("events.claim_event"), "precondition: the claim audit log is still written");
+
+  const unreadable = [...writes.keys()].filter((table) => !reads.has(table)).sort();
+  assert.deepEqual(
+    unreadable,
+    [],
+    `these tables are GRANTed a write with no SELECT beside it, so any statement RETURNING from ` +
+      `them is refused and its whole transaction rolls back: ${unreadable.join(", ")}`,
+  );
+});

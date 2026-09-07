@@ -40,7 +40,7 @@
 --
 -- Idempotent. Run as the schema owner (hua.mick@gmail.com, keyless) AFTER `terraform apply`.
 -- The path is relative to the REPO ROOT — run it from there, not from infra/:
---   STORYTREE_DB_USER=hua.mick@gmail.com npx tsx infra/apply-ci-presence-grants.ts
+--   STORYTREE_DB_USER=hua.mick@gmail.com pnpm -C packages/cli exec tsx ../../infra/apply-ci-presence-grants.ts
 
 GRANT USAGE ON SCHEMA events TO "storytree-ci-presence@storytree-498613.iam";
 
@@ -54,7 +54,24 @@ GRANT USAGE ON SCHEMA events TO "storytree-ci-presence@storytree-498613.iam";
 -- the whole release ROLLED BACK fail-soft on every merge since inc 1 (#741) landed.
 GRANT SELECT, UPDATE, DELETE ON events.node_claim
   TO "storytree-ci-presence@storytree-498613.iam";
-GRANT INSERT ON events.claim_event
+-- SELECT added 2026-09-08, and it is NOT a read grant on the audit log — it is what `RETURNING`
+-- costs, exactly as the node_claim paragraph above already says for its own DELETE. ADR-0350 D1 gave
+-- the append its own event identity (`INSERT ... RETURNING seq`, claim-store.ts, so a caller can name
+-- the take as the CAUSE of a work event) and did not widen the grant beside it. Postgres requires
+-- SELECT on every column a statement RETURNS, so the INSERT was refused with
+-- `permission denied for table claim_event`, and because releaseClaimsByBranch deletes the claim rows
+-- and appends their history in ONE transaction, the WHOLE release rolled back.
+--
+-- MEASURED, not inferred, on PR #1881's own merge (2026-09-07, job 101882820920) — the first run of
+-- this writer after a separate defect (`tsx` unresolvable, 2026-08-23 → 2026-09-08) had stopped it
+-- executing at all. `information_schema.role_table_grants` confirmed the account already HELD INSERT,
+-- which is what ruled out the obvious reading that the grant was simply missing.
+--
+-- ⚠ DO NOT NARROW THIS BACK to INSERT on the grounds that CI has no business reading an append-only
+-- history. The rule that matters is the one two paragraphs up: a statement that RETURNS needs SELECT.
+-- Removing it does not restrict a read — it silently breaks the merge clear again, fail-soft, exactly
+-- as it was broken from ADR-0350 D1 until now.
+GRANT INSERT, SELECT ON events.claim_event
   TO "storytree-ci-presence@storytree-498613.iam";
 
 -- USAGE on sequences so the claim_event BIGSERIAL `seq` can advance on INSERT. Sequence-only
