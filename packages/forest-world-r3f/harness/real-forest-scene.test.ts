@@ -31,49 +31,48 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCENES = join(HERE, '..', '..', '..', 'docs', 'research', REAL_FOREST_EVIDENCE_DIR, 'scenes');
 
-const good = (): RealForestManifest =>
-  ({
-    generatedAt: '2026-09-08T00:00:00.000Z',
-    studio: { url: 'http://127.0.0.1:5417', head: 'abc', branch: 'claude/real-forest-render' },
-    control: REAL_FOREST_ARM,
-    arms: [
-      {
-        id: REAL_FOREST_ARM,
-        spacing: {},
-        tile: { hexR: 11.06, quota: 'max(1, capabilities) × 1 hexes', tilesPerCapability: 1 },
-        file: 'shipped.json',
-        islands: 35,
-        world: { width: 787, height: 1293 },
-        trails: { edges: 90, segments: 103, caves: 0, dropped: [] },
-        bytes: 1,
-      },
-    ],
-    twoD: [
-      { view: 'fit', islands: 35, scale: 1.42, viewport: { w: 2560, h: 1600 }, contentExtentPx: null, medianIslandWidthPx: null, png: 'x' },
-    ],
-  }) as unknown as RealForestManifest;
+/** The shipped map's own manifest shape. Typed rather than asserted, so a schema change breaks this
+ *  fixture at compile time instead of leaving it describing a manifest nobody writes any more. */
+const good = (): RealForestManifest => ({
+  generatedAt: '2026-09-08T00:00:00.000Z',
+  studio: { url: 'http://127.0.0.1:5417', head: 'abc', branch: 'claude/real-forest-render' },
+  control: REAL_FOREST_ARM,
+  arms: [
+    {
+      id: REAL_FOREST_ARM,
+      spacing: {},
+      tile: { hexR: 11.06, quota: 'max(1, capabilities) × 1 hexes', tilesPerCapability: 1 },
+      file: 'shipped.json',
+      islands: 35,
+      world: { width: 787, height: 1293 },
+      trails: { edges: 90, segments: 103, caves: 0, dropped: [] },
+      bytes: 1,
+    },
+  ],
+  twoD: [
+    { view: 'fit', islands: 35, scale: 1.42, viewport: { w: 2560, h: 1600 }, contentExtentPx: null, medianIslandWidthPx: null, png: 'x' },
+  ],
+});
+
+/** One arm, with `patch` merged over it — the shape a defective export would arrive in. The variants
+ *  are BUILT rather than mutated because the manifest's arrays are readonly and `validateRealManifest`
+ *  takes `unknown` anyway: what it has to survive is arbitrary JSON, not a typed object. */
+const armPatched = (patch: Record<string, unknown>) => {
+  const m = good();
+  return { ...m, arms: [{ ...m.arms[0], ...patch }] };
+};
 
 test('the manifest is refused unless it is the shipped map', () => {
   assert.doesNotThrow(() => validateRealManifest(good()));
 
-  const twoArms = good();
-  (twoArms.arms as unknown[]).push({ ...twoArms.arms[0]!, id: 'spacing-0.2' });
-  assert.throws(() => validateRealManifest(twoArms), /exactly one/);
+  const m = good();
+  assert.throws(() => validateRealManifest({ ...m, arms: [m.arms[0], { ...m.arms[0], id: 'spacing-0.2' }] }), /exactly one/);
 
   // A LADDER RUNG WEARING THE MAP'S NAME is the failure this page could not otherwise see: the
   // scene renders, the caption says "the map", and the layout is a candidate nobody ships.
-  const rung = good();
-  (rung.arms[0] as { spacing: { ratio?: number } }).spacing = { ratio: 0.2 };
-  assert.throws(() => validateRealManifest(rung), /spacing override/);
-
-  const noTile = good();
-  delete (noTile.arms[0] as { tile?: unknown }).tile;
-  assert.throws(() => validateRealManifest(noTile), /records no tile/);
-
-  const noFit = good();
-  (noFit as unknown as { twoD: unknown[] }).twoD = [];
-  assert.throws(() => validateRealManifest(noFit), /nothing to stand the 3D beside/);
-
+  assert.throws(() => validateRealManifest(armPatched({ spacing: { ratio: 0.2 } })), /spacing override/);
+  assert.throws(() => validateRealManifest(armPatched({ tile: undefined })), /records no tile/);
+  assert.throws(() => validateRealManifest({ ...m, twoD: [] }), /nothing to stand the 3D beside/);
   assert.throws(() => validateRealManifest({ arms: [] }), /is not the shipped map/);
 });
 

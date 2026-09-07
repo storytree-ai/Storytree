@@ -148,7 +148,7 @@ for (const view of VIEWS) {
     scale: r.camera.scale,
     viewport: { w: VIEWPORT.width, h: VIEWPORT.height },
     contentExtentPx: r.islands2d.length ? { w: Math.max(...x2) - Math.min(...xs), h: Math.max(...y2) - Math.min(...ys) } : null,
-    medianIslandWidthPx: r.islands2d.length ? [...r.islands2d.map((i) => i.w)].sort((p, q) => p - q)[Math.floor(r.islands2d.length / 2)] : null,
+    medianIslandWidthPx: r.islands2d.length ? r.islands2d.map((i) => i.w).sort((p, q) => p - q)[Math.floor(r.islands2d.length / 2)] : null,
     png: r.png,
   });
   console.log(`${view.id.padEnd(8)} islands ${r.islands2d.length}  scale ${r.camera.scale}  → ${r.png}`);

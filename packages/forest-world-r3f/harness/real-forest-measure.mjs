@@ -107,7 +107,6 @@ if (result.id.software && !ALLOW_SOFTWARE) {
 
 const arm = result.manifest.arms[0];
 const at = (p) => result.rows.find((r) => r.picture === p);
-const costAt = (p) => result.costs.find((c) => c.picture === p);
 
 for (const row of result.rows) {
   if (Math.abs(row.elevationDeg - RENDER_ELEV_DEG) > 0.05) {
