@@ -41,8 +41,17 @@ export interface LandState {
   readonly commitIdentity: { readonly name: string; readonly email: string } | null;
   /** Does the synced copy differ from this checkout's engine sources? */
   readonly drifted: boolean;
-  /** The web commit the parent's gitlink records. */
+  /** The web commit the parent's gitlink RECORDS — what CI will check out, and what a fresh
+   *  recursive clone gets. */
   readonly pin: string;
+  /** The web commit the submodule is actually SITTING ON. It differs from the pin whenever the
+   *  website side has moved and the parent has not recorded it yet — which is the state a partial
+   *  run leaves behind, and the state this verb must be able to resume from. */
+  readonly webHead: string;
+  /** Is {@link webHead} reachable from the website's `origin/main`? Only then may the parent pin
+   *  it: CI clones the submodule at the pin, so a pin on an unmerged branch tip is a pin nobody
+   *  else can resolve. */
+  readonly headOnWebMain: boolean;
   /** `origin/main` in the website repo. */
   readonly webMain: string;
   /** Parent-repo paths with uncommitted changes, EXCLUDING the `web` gitlink itself. */
@@ -55,6 +64,8 @@ export type LandReason =
   | 'no-web-checkout'
   | 'parent-dirty'
   | 'already-current'
+  | 'pin-behind-web'
+  | 'web-work-not-landed'
   | 'no-gh-credential'
   | 'no-git-identity'
   | 'main-ahead-of-pin'
@@ -65,6 +76,13 @@ export type LandReason =
 export type LandPlan =
   | { readonly kind: 'refuse'; readonly reason: LandReason; readonly message: string }
   | { readonly kind: 'nothing-to-do'; readonly reason: LandReason; readonly message: string }
+  | {
+      /** The website side is DONE and merged; only the parent's gitlink is behind. Stage it. */
+      readonly kind: 'bump-only';
+      readonly reason: LandReason;
+      readonly pinTo: string;
+      readonly message: string;
+    }
   | {
       readonly kind: 'sync-and-open';
       readonly reason: LandReason;
@@ -122,10 +140,32 @@ export function planLanding(state: LandState): LandPlan {
     };
   }
   if (!state.drifted) {
+    // ⚠ "NO DRIFT" IS NOT "NOTHING TO DO", and reading it as one is how a partial run strands a
+    // landing. Drift is measured against the submodule's WORKING TREE; the parent's gitlink is a
+    // separate fact. A run that synced and pushed but died before recording the bump leaves exactly
+    // this state — no drift, stale pin — and answering "nothing to do" there would report success
+    // over a mirror the parent has not landed. It is not even caught locally, because
+    // `check:web-engine` reads the same working tree: CI clones the submodule AT THE PIN and is the
+    // first thing to notice.
+    if (state.webHead !== state.pin) {
+      if (!state.headOnWebMain) {
+        return {
+          kind: 'refuse',
+          reason: 'web-work-not-landed',
+          message: `the submodule sits on ${short(state.webHead)} but the parent still records ${short(state.pin)}, and that commit is NOT reachable from the website's origin/main — so it is work that has not landed there yet. Pinning it would record a commit nobody else can resolve: CI clones the submodule at the pin, and a fresh recursive clone of this repo would fail outright. Land the website pull request first, then run this again.`,
+        };
+      }
+      return {
+        kind: 'bump-only',
+        reason: 'pin-behind-web',
+        pinTo: state.webHead,
+        message: `the website side is already done and merged — the sources match and ${short(state.webHead)} is on its main. Only this repository's gitlink is behind, at ${short(state.pin)}, so all that is left is to record the bump.`,
+      };
+    }
     return {
       kind: 'nothing-to-do',
       reason: 'already-current',
-      message: `the website already carries this checkout's engine sources — nothing to sync, and no pin to bump. The comparison is against the copy at the PIN, which is what CI checks too, so this is the same answer check:web-engine gives.`,
+      message: `the website already carries this checkout's engine sources and the gitlink records the commit the submodule is on — nothing to sync, and no pin to bump. The comparison is against the copy at the PIN, which is what CI checks too, so this is the same answer check:web-engine gives.`,
     };
   }
   // Checked AFTER the work-detecting branches on purpose: a session with no credential should still

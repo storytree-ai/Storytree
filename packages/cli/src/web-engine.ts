@@ -45,6 +45,12 @@ function destDirAbs(pkg: EnginePackage): string {
   return path.join(webRoot, ...pkg.destDir.split("/"));
 }
 
+/** How long `land:web-engine` waits for the website pull request to land, as ticks x seconds. The
+ *  website's own CI takes about a minute; this is generous enough to absorb a queue and short
+ *  enough that a wedged run is not mistaken for a slow one. */
+const WATCH_TICKS = 40;
+const WATCH_INTERVAL_SECONDS = 20;
+
 function modeName(): string {
   if (process.argv.includes("--check")) return "check";
   if (process.argv.includes("--land")) return "land";
@@ -259,7 +265,15 @@ function runLand(dryRun: boolean): void {
     commitIdentity,
     ghAuthenticated: shOk("gh", ["auth", "status"], repoRoot) !== null,
     drifted: webCheckedOut && mirrorHasDrifted(),
-    pin: webCheckedOut ? (shOk("git", ["rev-parse", "HEAD"], webRoot) ?? "") : "",
+    // The RECORDED gitlink, read from the parent's index — not the submodule's HEAD, which is the
+    // separate fact below. `ls-tree` prints "<mode> commit <sha>\tweb".
+    pin: webCheckedOut
+      ? ((shOk("git", ["ls-tree", "HEAD", "web"], repoRoot) ?? "").split(/\s+/)[2] ?? "")
+      : "",
+    webHead: webCheckedOut ? (shOk("git", ["rev-parse", "HEAD"], webRoot) ?? "") : "",
+    headOnWebMain: webCheckedOut
+      ? shOk("git", ["merge-base", "--is-ancestor", "HEAD", "origin/main"], webRoot) !== null
+      : false,
     webMain: webCheckedOut ? (shOk("git", ["rev-parse", "origin/main"], webRoot) ?? "") : "",
     parentDirtyPaths: dirty,
   });
@@ -267,6 +281,16 @@ function runLand(dryRun: boolean): void {
   if (plan.kind === "refuse") fail(plan.message);
   if (plan.kind === "nothing-to-do") {
     console.log(`land:web-engine — NOTHING TO DO: ${plan.message}`);
+    return;
+  }
+  if (plan.kind === "bump-only") {
+    console.log(`land:web-engine — BUMP ONLY: ${plan.message}`);
+    if (dryRun) return;
+    sh("git", ["add", "web"], repoRoot);
+    console.log(
+      `land:web-engine — done. The gitlink is STAGED at ${plan.pinTo.slice(0, 8)}, not committed: it ` +
+        "belongs in your own commit, with your own message, on your own pull request.",
+    );
     return;
   }
 
@@ -314,15 +338,26 @@ function runLand(dryRun: boolean): void {
   );
   console.log(`land:web-engine — ${pr}`);
   console.log("land:web-engine — [5/6] waiting for it to merge (it publishes the site on merge)");
-  sh("gh", ["pr", "checks", pr, "--repo", "storytree-ai/storytree-web", "--watch"], webRoot);
-  const stateOut = sh(
-    "gh",
-    ["pr", "view", pr, "--repo", "storytree-ai/storytree-web", "--json", "state", "--jq", ".state"],
-    webRoot,
-  );
+  // ⚠ POLL THE PULL REQUEST'S STATE, NOT `gh pr checks --watch`. A just-opened pull request has no
+  // checks REGISTERED yet, and in that window `gh pr checks` exits non-zero with "no checks
+  // reported on the branch" — which is indistinguishable from a red run to a caller reading the
+  // exit code, and killed this verb on its first real run. The state is also the thing that
+  // actually matters: this repo automerges any green non-draft pull request, so MERGED is the
+  // outcome and the checks are how it gets there.
+  let stateOut = "OPEN";
+  for (const _tick of Array.from({ length: WATCH_TICKS })) {
+    stateOut =
+      shOk(
+        "gh",
+        ["pr", "view", pr, "--repo", "storytree-ai/storytree-web", "--json", "state", "--jq", ".state"],
+        webRoot,
+      ) ?? "OPEN";
+    if (stateOut !== "OPEN") break;
+    execFileSync("sleep", [String(WATCH_INTERVAL_SECONDS)]);
+  }
   if (stateOut !== "MERGED") {
     fail(
-      `the website pull request is ${stateOut}, not MERGED — the pin is NOT bumped. ${pr}\n` +
+      `the website pull request is ${stateOut} after ${(WATCH_TICKS * WATCH_INTERVAL_SECONDS) / 60} minutes, not MERGED — the pin is NOT bumped. ${pr}\n` +
         "Nothing here is half-done: the branch is pushed and the pull request is open, so finish it " +
         "there and re-run this verb, which will then find the mirror current and bump the pin.",
     );

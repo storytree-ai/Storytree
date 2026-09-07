@@ -17,6 +17,8 @@ function state(over: Partial<LandState> = {}): LandState {
     drifted: true,
     pin: "861ebfb027b31c238b594570df5506d176426abc",
     webMain: "861ebfb027b31c238b594570df5506d176426abc",
+    webHead: "861ebfb027b31c238b594570df5506d176426abc",
+    headOnWebMain: true,
     parentDirtyPaths: [],
     commitIdentity: { name: "HuaMick", email: "hua.mick@gmail.com" },
     ...over,
@@ -185,6 +187,34 @@ test("refuses an unauthenticated gh UP FRONT once there is real work, not halfwa
 // ---------------------------------------------------------------------------
 // NOTHING TO DO, AND WHAT GETS PINNED.
 // ---------------------------------------------------------------------------
+
+test("⚠ NO DRIFT IS NOT NOTHING TO DO — a stale gitlink is a BUMP, and the verb resumes into it", () => {
+  // The state a partial run leaves behind, and the reason this branch exists: the sync ran, the
+  // website pull request merged, and the run died before recording the bump. Drift is measured
+  // against the submodule's WORKING TREE, so it reads clean — and answering "nothing to do" there
+  // would report success over a mirror this repository has not landed. `check:web-engine` cannot
+  // catch it either, because it reads the same working tree; CI clones the submodule AT THE PIN and
+  // is the first thing to notice. Found by running the verb into exactly this state.
+  const webHead = "38f7d480aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const plan = planLanding(state({ drifted: false, webHead, headOnWebMain: true }));
+  assert.equal(plan.kind, "bump-only");
+  assert.equal(plan.reason, "pin-behind-web");
+  assert.equal(plan.kind === "bump-only" ? plan.pinTo : "", webHead);
+});
+
+test("refuses to pin a web commit that has NOT landed on the website's main", () => {
+  // The pin must be resolvable by everyone else: CI clones the submodule at it, and a fresh
+  // `git clone --recurse-submodules` of this repo fails outright on a pin that only exists as some
+  // session's unmerged branch tip.
+  const plan = planLanding(state({
+    drifted: false,
+    webHead: "38f7d480aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    headOnWebMain: false,
+  }));
+  assert.equal(plan.kind, "refuse");
+  assert.equal(plan.reason, "web-work-not-landed");
+  assert.match(plan.kind === "refuse" ? plan.message : "", /NOT reachable/);
+});
 
 test("does nothing when the mirror is already current, whatever web main is doing", () => {
   // Drift is measured against the copy AT THE PIN, which is what CI compares too — so a web main
