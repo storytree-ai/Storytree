@@ -243,8 +243,20 @@ function runLand(dryRun: boolean): void {
     .filter((p) => p.length > 0 && p !== "web");
 
   if (webCheckedOut) shOk("git", ["fetch", "origin", "main", "-q"], webRoot);
+  // ⚠ THE SUBMODULE'S IDENTITY, THEN THE PARENT'S — a freshly-initialised submodule inherits
+  // neither, and the parent's is the one this session is already committing with.
+  const identityFrom = (cwd: string): { name: string; email: string } | null => {
+    const name = shOk("git", ["config", "user.name"], cwd);
+    const email = shOk("git", ["config", "user.email"], cwd);
+    return name && email ? { name, email } : null;
+  };
+  const commitIdentity = webCheckedOut
+    ? (identityFrom(webRoot) ?? identityFrom(repoRoot))
+    : identityFrom(repoRoot);
+
   const plan = planLanding({
     webCheckedOut,
+    commitIdentity,
     ghAuthenticated: shOk("gh", ["auth", "status"], repoRoot) !== null,
     drifted: webCheckedOut && mirrorHasDrifted(),
     pin: webCheckedOut ? (shOk("git", ["rev-parse", "HEAD"], webRoot) ?? "") : "",
@@ -271,9 +283,17 @@ function runLand(dryRun: boolean): void {
   runSync();
   console.log("land:web-engine — [3/6] committing and pushing the website branch");
   sh("git", ["add", "-A"], webRoot);
+  // ⚠ `-c` RATHER THAN A CONFIG WRITE. The identity is supplied for THIS commit only, so the verb
+  // never leaves settings behind in a submodule it does not own — and `planLanding` has already
+  // refused if there was none to supply.
+  const who = plan.identity;
   sh(
     "git",
-    ["commit", "-q", "-m", "sync: forest-world render core (pnpm land:web-engine)"],
+    [
+      "-c", `user.name=${who.name}`,
+      "-c", `user.email=${who.email}`,
+      "commit", "-q", "-m", "sync: forest-world render core (pnpm land:web-engine)",
+    ],
     webRoot,
   );
   const tip = sh("git", ["rev-parse", "HEAD"], webRoot);

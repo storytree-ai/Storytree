@@ -35,6 +35,10 @@ export interface LandState {
   /** Can we act on `storytree-web` at all? The ceremony pushes a branch and opens a pull request
    *  there, so an unauthenticated `gh` fails HALFWAY — after the sync has rewritten 57 files. */
   readonly ghAuthenticated: boolean;
+  /** Is there a git identity to COMMIT the website branch with — from the submodule's own config or,
+   *  failing that, the parent's? A freshly-initialised submodule inherits neither a user.name nor a
+   *  user.email, and git's auto-detection from the hostname is refused rather than guessed. */
+  readonly commitIdentity: { readonly name: string; readonly email: string } | null;
   /** Does the synced copy differ from this checkout's engine sources? */
   readonly drifted: boolean;
   /** The web commit the parent's gitlink records. */
@@ -52,6 +56,7 @@ export type LandReason =
   | 'parent-dirty'
   | 'already-current'
   | 'no-gh-credential'
+  | 'no-git-identity'
   | 'main-ahead-of-pin'
   | 'pin-is-main';
 
@@ -65,6 +70,10 @@ export type LandPlan =
       readonly reason: LandReason;
       /** The web commit to cut the branch FROM. */
       readonly base: string;
+      /** Who to commit the website branch as — carried on the PLAN so the shell cannot reach for a
+       *  different answer than the one the refusal above was decided against. Never null here: the
+       *  absent case is a refusal, which is the whole point of checking it before the sync runs. */
+      readonly identity: { readonly name: string; readonly email: string };
       /** Why that base and not the other — printed, because the answer is not obvious. */
       readonly message: string;
     };
@@ -129,11 +138,19 @@ export function planLanding(state: LandState): LandPlan {
       message: `the mirror needs re-syncing, but \`gh\` is not authenticated for storytree-web — and this ceremony pushes a branch and opens a pull request there. Refusing UP FRONT rather than failing halfway, which would leave the submodule holding rewritten files with nothing pushed and nothing opened.`,
     };
   }
+  if (state.commitIdentity === null) {
+    return {
+      kind: 'refuse',
+      reason: 'no-git-identity',
+      message: `there is no git identity to commit the website branch with — set \`user.name\` and \`user.email\`, in this repository or globally. ⚠ A freshly-initialised submodule inherits NEITHER from its parent, and git refuses to auto-detect one from the hostname rather than guessing. Checked here rather than discovered at the commit, which is three steps in: the branch cut, the sync run, 57 files rewritten and nothing recoverable by re-running.`,
+    };
+  }
   if (state.pin !== state.webMain) {
     return {
       kind: 'sync-and-open',
       reason: 'main-ahead-of-pin',
       base: state.pin,
+      identity: state.commitIdentity,
       message: `web main (${short(state.webMain)}) is AHEAD of the pin (${short(state.pin)}), so it is carrying work this checkout has not seen. Branching from the PIN means the sync rewrites only the files this change moves; from main it would rewrite the sibling's files back to this checkout's engine, which is a silent revert of published work.`,
     };
   }
@@ -141,6 +158,7 @@ export function planLanding(state: LandState): LandPlan {
     kind: 'sync-and-open',
     reason: 'pin-is-main',
     base: state.pin,
+    identity: state.commitIdentity,
     message: `the pin and web main are the same commit (${short(state.pin)}), so the base is unambiguous. Stated as the pin regardless, because the rule that matters is "always the pin" — a base chosen from main only bites on the day main has moved.`,
   };
 }

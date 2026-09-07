@@ -18,6 +18,7 @@ function state(over: Partial<LandState> = {}): LandState {
     pin: "861ebfb027b31c238b594570df5506d176426abc",
     webMain: "861ebfb027b31c238b594570df5506d176426abc",
     parentDirtyPaths: [],
+    commitIdentity: { name: "HuaMick", email: "hua.mick@gmail.com" },
     ...over,
   };
 }
@@ -75,6 +76,33 @@ test("branches from the pin on the ordinary day too, and says why it is stated a
 // ---------------------------------------------------------------------------
 // REFUSING, AND REFUSING IN THE RIGHT ORDER.
 // ---------------------------------------------------------------------------
+
+test("refuses when there is no git identity to commit the website branch with", () => {
+  // ⚠ FOUND BY RUNNING THE VERB, not by reading it. A freshly-initialised submodule inherits
+  // NEITHER user.name nor user.email from its parent, and git refuses to auto-detect one from the
+  // hostname. Without this check the ceremony died at the COMMIT — three steps in, with the branch
+  // cut and 57 files rewritten — which is the precise failure the up-front refusals exist to
+  // prevent, and the verb's own design claimed to have prevented.
+  const plan = planLanding(state({ commitIdentity: null }));
+  assert.equal(plan.kind, "refuse");
+  assert.equal(plan.reason, "no-git-identity");
+  assert.match(
+    plan.kind === "refuse" ? plan.message : "",
+    /inherits NEITHER/,
+    "the refusal must say WHY the submodule has no identity, or the reader sets it globally and " +
+      "wonders why it did not take",
+  );
+});
+
+test("carries the identity on the PLAN, so the shell cannot reach for a different one", () => {
+  // The refusal above is only worth having if the value it guarded is the value actually used. A
+  // shell that re-read the config for itself could refuse against one answer and commit with
+  // another.
+  const identity = { name: "Someone Else", email: "else@example.com" };
+  const plan = planLanding(state({ commitIdentity: identity }));
+  assert.equal(plan.kind, "sync-and-open");
+  assert.deepEqual(plan.kind === "sync-and-open" ? plan.identity : null, identity);
+});
 
 test("refuses when web/ is not checked out, rather than acting on the parent repo by accident", () => {
   const plan = planLanding(state({ webCheckedOut: false }));
