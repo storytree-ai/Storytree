@@ -141,7 +141,7 @@ owner reads, without touching a terminal.
 | 5. **Scope walls** | `uatc_19fa35837d4f215bac5faf3c` | **Delete as duplicate of the exact enumerated operations.** [`guest-scope`](guest-scope.md), `apps/studio/server/serveApi.integration.test.ts`: **“a member reads, comments as self, but cannot write assets or reach user mgmt”** asserts member asset POST `403`; **“the bootstrap-seed admin writes assets (becomes an effective active admin)”** asserts admin asset POST `201`; **“a member edits their own comment but not another author's; an admin may touch any”** asserts member own/other comment PATCH `200`/`403` and admin PATCH `200`; **“db control is 403 for member AND admin”** asserts GET `/api/db/status` is `403` for both roles. These are only the methods/routes claimed here, not every asset/comment verb or DB route. |
 | 6. **No identity, no API** | `uatc_53f880acb76b7ab23c01619b` | **Delete as duplicate.** [`serve-mode`](serve-mode.md), test **“serves index.html at / and real assets by path (no identity needed)”**, asserts `/` and `/assets/app.js` return `200`; [`guest-scope`](guest-scope.md), test **“refuses identity-less /api/* with 401 — every route, health and me included”**, samples assets, health, tree/corpus, me/membership, and DB status and asserts `401` for each. Both tests are in `apps/studio/server/serveApi.integration.test.ts`. |
 | 7. **Revoke** | `uatc_79977112ba53b5410622e661` | **Keep.** [`circle-onboarding`](circle-onboarding.md) declares live revoke UAT, but no lower-tier test removes a real production IAM binding, re-enumerates policy, and observes Google's edge deny a fresh visit before the app. |
-| 8. **Broker a build (ADR-0117)** | `uatc_57f6f0fcb7addad5b9f35c44` | **Keep.** [`write-broker`](write-broker.md) proves broker walls through an injected recording store with no live DB or IAP; no lower-tier proof composes a thick-local build, production broker, live store, and deployed forest bloom. |
+| 8. **Broker a build (ADR-0117)** | `uatc_57f6f0fcb7addad5b9f35c44` | **Keep.** [`write-broker`](write-broker.md) proves broker walls through an injected recording store with no live DB or IAP; no lower-tier proof composes a thick-local build, production broker, live store, and the deployed forest showing the friend's landed pass. *(This read "deployed forest bloom" until 2026-09-07; ADR-0529 retired the verdict bloom and ADR-0536 settled its last consumer, so the deployed signal a landed verdict produces is the island's proven-green status hue. The leg's claim is unchanged.)* |
 
 ### ADR-0294 **D4** pass (2026-08-20): five legs declared UNBOUND, none deleted — two ordinals restored
 
@@ -215,14 +215,25 @@ which is what "burned, never renumbered" is supposed to look like.
    is reached, so `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it
    (ADR-0097 §2). *(This leg was numbered 4 between 2026-08-06 and 2026-08-20, colliding with the
    burned ordinal `studio-cloud#uat-4`; restored to 7 by the D4 pass above, per ADR-0139.)*
-8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:09e63f9a51b8704c)_ _(previous-revision-id: uatr1:aa5a8227739592b0)_
+8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:aeea79b8d4b46f95)_ _(previous-revision-id: uatr1:09e63f9a51b8704c)_
    **builder** in the deployed Members panel; the friend's thick-local desktop performs a REAL local
    build and POSTs its already-signed verdict through the production hosted write-broker into the
    live shared store. **Success —** the broker validates shape, attribution, and builder scope and
    persists the verdict byte-unchanged, never re-signing; the persisted verdict reaches live activity
-   attributed to the friend's `signer`; and the deployed forest renders that unit's bloom for the
-   friend's landed verdict. A `member` POST is `403`, malformed is `400`, and mismatched attribution
+   attributed to the friend's `signer`; and the deployed forest renders that unit as proven green for
+   the friend's landed verdict. A `member` POST is `403`, malformed is `400`, and mismatched attribution
    is `403`.
+
+   > **RE-SPECIFIED 2026-09-07 (ADR-0536, resting on ADR-0529) — the leg's CLAIM is unchanged.** The
+   > third success clause read *"the deployed forest renders that unit's BLOOM for the friend's landed
+   > verdict"*. ADR-0529 retired the verdict bloom; its drawing code, the five bloom scene kinds and
+   > the `verdictBloom` helper this leg's re-adjudication cited are deleted. A criterion whose success
+   > condition names a deleted drawable can never pass, so it is REWRITTEN rather than left standing
+   > or struck (ADR-0536 D5). What a landed signed pass produces on the deployed map is the island's
+   > proven-green STATUS hue — the durable record, and the thing this leg was really about: that the
+   > friend's locally-signed build visibly reaches the shared forest. Nothing else in the leg moves,
+   > and the leg stays UNBOUND for the reason stated below, which is a missing composed live harness
+   > and has nothing to do with this rewrite.
 
    > **Re-adjudicated 2026-07-26 (ADR-0209 §8): was `human`, now `machine`.** The recorded basis was
    > "no integrated desktop → hosted broker/store → browser harness exists". That is a HARNESS
@@ -235,10 +246,15 @@ which is what "burned, never renumbered" is supposed to look like.
    > un-restamped, 403 mismatched signer, 400 malformed); provenance is machine-checkable here rather
    > than unobservable, because the broker's attribution wall REQUIRES `verdict.signer` to equal the
    > verified IAP caller (`apps/studio/server/writeBroker.ts`), so "the friend's build" is a field
-   > comparison, not an inference about who was at the keyboard; and the bloom is a PURE deterministic
-   > projection of verdict outcome plus age (`verdictBloom` in `apps/studio/src/lib/activity.ts` —
-   > pass-only, decaying `ageRatio`, caller-supplied `now`), not a look-or-feel judgment about whether
-   > the deployed forest reads right. Nothing in the success condition asks a person to decide
+   > comparison, not an inference about who was at the keyboard; and the deployed forest's proven-green
+   > signal is a PURE deterministic projection of the verdict (`provenStatus` / `worldStatus` in
+   > `apps/studio/src/lib/worldStatus.ts`), not a look-or-feel judgment about whether
+   > the deployed forest reads right. *(This clause cited `verdictBloom` in
+   > `apps/studio/src/lib/activity.ts` — "pass-only, decaying `ageRatio`, caller-supplied `now`" —
+   > until ADR-0529 retired the verdict bloom and deleted that helper. The re-adjudication's ARGUMENT
+   > is unchanged and if anything stronger: the surviving projection is a pure function of the
+   > verdict alone, with no age term and therefore no clock to inject, so "nothing here asks a person
+   > to decide anything" holds a fortiori. Re-pointed under ADR-0536, not re-argued.)* Nothing in the success condition asks a person to decide
    > anything. What is genuinely missing is only the COMPOSED LIVE HARNESS — the same missing thing
    > legs 1–3 and 7 already record as machine binding gaps, on materially the same reasoning; the leg
    > sat at a different rung than its own siblings for no distinguishing reason. It stays UNBOUND and
@@ -272,7 +288,8 @@ three duplicate criteria.
   supplement, but do not replace, the production IAM/sign-in/revoke facts.
 - `pnpm --filter studio test -- server/writeBrokerApi.integration.test.ts src/lib/activity.test.ts src/lib/worldStatus.test.ts`
   proves mounted broker authorization/shape/attribution/unchanged persistence plus the pure
-  verdict-to-bloom/status projections. Re-verified green 2026-07-26, and the claim holds clause by
+  verdict-to-status projections. *(`src/lib/activity.test.ts` covered the verdict-to-BLOOM half until
+  ADR-0529 retired the verdict bloom; `src/lib/worldStatus.test.ts` carries the surviving projection.)* Re-verified green 2026-07-26, and the claim holds clause by
   clause. It runs against a RECORDING STUB backend with an injected `now`, and composes no
   thick-local desktop, no production IAP, no live store and no deployed browser — so it supplements
   Broker a build's machine proof and can never stand in for it.

@@ -99,8 +99,8 @@ job with an eye.
   on 2026-08-20 by the ADR-0294 D2 pass as a duplicate of exactly that proof, so the claim is named where
   it lives rather than by a burned ordinal. Corrected in place per ADR-0139.)*
 - **The §5 honesty wall holds on the map** — a claimed-but-not-proven wisp must read as **clearly different**
-  from a real signed-verdict green **bloom** (ADR-0045). If they look alike, the map inflates proof and this
-  leg FAILS regardless of the data.
+  from a real signed-verdict **proven-green island** (~~ADR-0045~~ → ADR-0529 / ADR-0040). If they look
+  alike, the map inflates proof and this leg FAILS regardless of the data.
 - **The departure reads as a walking-away** — after the holder's branch merges and the CI sweep runs
   (capability D), the claim-wisp fades and goes, and that fade reads as *just left* rather than as a claim
   that was dropped. *(That the rows were actually released and that no zombie survives the window are
@@ -150,12 +150,25 @@ stage (claim a story, drive a build) but a human renders the verdict.
   scale and map opacity, and none of them reads as *green / proven*.
 - **c. Claimed LOOKS clearly different from proven-green** _(story leg 8 — witness: human; NOT in the
   2026-07-17 attestation)_ — the §5 honesty wall on the map, including the hard case of one story carrying
-  a claim wisp AND an in-window bloom at once. If they look alike this FAILS regardless of what the data
+  a claim wisp AND the proven-green island hue **at the same time**: a story already proven and being
+  worked again. If they look alike this FAILS regardless of what the data
   says — and the structural proof that the two families share no code is precisely NOT this claim. *(That
   structural proof was story leg 7 until the ADR-0294 D2 pass deleted it on 2026-08-20 as a duplicate; it
   lives at `render-claim-as-wisp`'s `claim-activity-is-visibly-distinct-from-proven-green`, `render-core`'s
   §5 walks in `packages/forest-world/src/scene.test.ts`, and `app-surface-world-view`'s class-level walls
   in `packages/app-surface/src/SceneView.test.tsx`. Corrected in place per ADR-0139.)*
+
+  > **THE HARD CASE IS RE-POINTED, NOT DROPPED (ADR-0536, resting on ADR-0529; 2026-09-07).** This leg
+  > read *"the hard case of one story carrying a claim wisp AND an in-window BLOOM at once"*. ADR-0529
+  > retired the verdict bloom, `buildBloom` and the five bloom kinds are deleted and
+  > `SceneTerritoryInput.bloom` is gone, so that exact case is no longer buildable — an operator asked
+  > to judge it would have nothing to look at, and the leg would pass by vacancy. It is REWRITTEN
+  > rather than deleted, because the claim it carries is untouched: a human must still be able to tell
+  > *someone is working here* from *this is proven*, on ONE story, at map scale. The surviving
+  > co-presence case is a **claimed proven-green island** — status and claims are independent fields,
+  > so a `healthy` story with a live work claim renders both at once, and it is the case an operator
+  > actually meets on the real map far more often than the transient bloom ever was. The leg is
+  > therefore HARDER to satisfy vacuously than before, not easier.
 - **d. The departure reads as *just left*, not as *lost*** _(story leg 11 — witness: human; the 2026-07-17
   signature was given here)_ — the fade reads as a session having walked away, never as a claim dropped or
   silently vanished. A permanent regression case: the opposite reading was a real recorded defect

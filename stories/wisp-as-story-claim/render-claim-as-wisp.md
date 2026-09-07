@@ -3,7 +3,7 @@ id: "render-claim-as-wisp"
 tier: capability
 story: wisp-as-story-claim
 title: "Render the graded claim as a wisp — hover / orbit / queue, visibly distinct from proven-green"
-outcome: "The wisp source reads `events.node_claim` alongside the `building` rows, so a claimed story renders a wisp shaped by its GRADE (exploring hovers, work orbits, waiting queues) and departure-faded on release; a claimed-but-not-proven activity carries a distinct discriminator so it renders differently from the proven-green bloom (the ADR-0138 §5 honesty wall)."
+outcome: "The wisp source reads `events.node_claim` alongside the `building` rows, so a claimed story renders a wisp shaped by its GRADE (exploring hovers, work orbits, waiting queues) and departure-faded on release; a claimed-but-not-proven activity carries a distinct discriminator so it renders differently from a proven-green island (the ADR-0138 §5 honesty wall)."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
@@ -42,7 +42,7 @@ proof:
 
 **Outcome —** The wisp source reads `events.node_claim` **alongside** the `building` rows, so a **claimed**
 story orbits a wisp; and a claimed-but-not-proven activity carries a **distinct discriminator / colour
-state** so it renders **differently** from the proven-green **bloom** — the ADR-0138 §5 honesty wall (a
+state** so it renders **differently** from a **proven-green island** — the ADR-0138 §5 honesty wall (a
 claim is never a proof).
 
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (the work-time `node_claim` rows this
@@ -54,7 +54,17 @@ fold reads).
 > render's GEOMETRY signal** (`exploring` hovers, `work` orbits, `waiting` queues; colour still folds
 > from `intent`), with the departure fade for a just-released claim sourced from `foldDepartures`
 > (`packages/notice-board/src/claim.ts`). The §5 discriminator is unchanged and reinforced: **no grade
-> and no colour is ever a proof** — only a real signed verdict paints the green bloom (ADR-0045/0099).
+> and no colour is ever a proof** — only a real signed verdict turns the island proven green
+> (~~ADR-0045~~ → ADR-0529 / ADR-0040 / ADR-0099).
+> **RE-EXPRESSED 2026-09-07 (ADR-0536, resting on ADR-0529) — the wall's FORCE is unchanged.** Every
+> clause in this capability that said a claim must render differently from *the proven-green BLOOM*
+> now says *a proven-green ISLAND*. ADR-0529 retired the verdict bloom, and ADR-0536 dropped the
+> demo frame that was its last consumer rather than inventing a replacement marker. What a claim may
+> never wear is the island's proven-green STATUS hue (ADR-0040) — the durable record, and always the
+> thing that mattered. Nothing here is narrowed: the discriminator this fold emits, and the
+> assertion that it is never a green/proof marker, are the same claim against a subject that
+> outlived the decoration.
+
 > The fold reads ONLY `events.node_claim` (the ledger), never a retired presence row. The owner attested
 > the graded look on 2026-07-17. The body below is the landed contract; the grade-geometry note above is
 > the ADR-0200 generalisation it now carries.
@@ -80,10 +90,10 @@ must not emit two for one unit). Drop a claim whose `heartbeatAt` is past the st
 mirror the threshold) so a dead session's claim does not orbit forever.
 
 **B2 — the claimed-vs-proven discriminator (§5 honesty wall, same file).** The activity the fold emits MUST
-carry a discriminator marking it **claimed-but-not-proven**, distinct from the proven-green bloom. The fold
+carry a discriminator marking it **claimed-but-not-proven**, distinct from a proven-green island. The fold
 sets an explicit kind/colour-state field (e.g. `kind: "claim"` or a `claimed: true` flag, vs the build
 fold's phase-coloured states) so a downstream renderer can paint a claim differently from a real
-signed-verdict green (ADR-0045). The test asserts a claim activity NEVER carries a "green"/"bloom"
+signed-verdict green (~~ADR-0045~~ → ADR-0529 / ADR-0040). The test asserts a claim activity NEVER carries a "green"/proof
 discriminator — the wall enforced in data, before any pixel.
 
 **B3 — the live SQL mirror (glue under this capability, not the pure proof).** The live read path
@@ -120,10 +130,10 @@ The test-proven leaf behaviours — each one isolated automated test (ADR-0002).
    - **covers —** `apps/studio/server/inFlightActivity.ts`
    - **proven by —** `apps/studio/server/inFlightActivity.test.ts` (net-new, offline, authored by the leaf).
 2. **`claim-activity-is-visibly-distinct-from-proven-green`** — a claim-activity carries a
-   claimed-but-not-proven discriminator and never a proven-green/bloom one (the §5 honesty wall).
+   claimed-but-not-proven discriminator and never a proven-green one (the §5 honesty wall).
    - **asserts —** every activity the claim fold emits carries the claim discriminator (e.g. `kind: "claim"`
-     / `claimed: true`) and NO "green"/"bloom" marker; a renderer reading the discriminator can therefore
-     never paint a claim as a proven-green bloom (ADR-0138 §5 / ADR-0045).
+     / `claimed: true`) and NO "green"/proof marker; a renderer reading the discriminator can therefore
+     never paint a claim as proven-green (ADR-0138 §5 / ADR-0040).
    - **covers —** `apps/studio/server/inFlightActivity.ts`
    - **proven by —** `apps/studio/server/inFlightActivity.test.ts` (net-new, offline).
 3. **`live-claim-read-selects-node-claim`** — the live read path selects `events.node_claim` and applies the
@@ -134,7 +144,7 @@ The test-proven leaf behaviours — each one isolated automated test (ADR-0002).
    - **covers —** `apps/studio/server/libraryBackend.ts`; `apps/desktop/electron/backend-entry.ts`
    - **proven by —** `apps/studio/server/activityApi.integration.test.ts`, which names this contract and
      drives the real `/api/activity` route: injected `node_claim` rows reach the wire folded by
-     `claimsToActivity`, each carrying the claim discriminator and never a green/bloom one. It is not an
+     `claimsToActivity`, each carrying the claim discriminator and never a green/proof one. It is not an
      isolatable red→green (glue / supplement, not a leaf unit), which is why it lives outside the `real:`
      arm's write fence and is reached via the ADR-0353 `coverage.testGlobs` surface instead.
    - **honest remainder —** that test asserts the STUDIO half. The desktop mirror

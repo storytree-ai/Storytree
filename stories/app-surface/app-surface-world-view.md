@@ -85,7 +85,7 @@ their fixture matrix or re-prove every sprite, sizing, trail and arrival contrac
   `@storytree/forest-world`. It imports no `apps/studio` module, API/store client, subscription,
   promise, clock, random source or DOM animation authority.
 - Keep the story boundary unchanged: legend, inspector, chat, camera shell/controller, bulk CSS,
-  six-state replay and reduced-motion visual proof remain later increments.
+  semantic replay and reduced-motion visual proof remain later increments.
 
 ## Integration test
 
@@ -112,30 +112,42 @@ One compact `WorldSceneView.test.tsx` proves the missing seam:
    - **asserts —** `WorldSceneView.tsx` imports no Studio-private module or network/store/
      subscription/clock authority and contains no duplicate scene/sprite/trail renderer.
 4. **`aswv-claim-wisp-never-painted-as-proven-green`** — the shared `SceneView` this wrapper delegates
-   to never paints a CLAIM as the proven-green bloom: no bloom or verdict class reaches any claim-family
+   to never paints a CLAIM as proven: no proof class reaches any claim-family
    wisp, in any grade, on departure, or under a green build band (the ADR-0138 §5 honesty wall, at the
    rendered-DOM tier)
    - **asserts —** rendering through the real `SceneView` and querying the produced DOM, in three
      directions. **(a) Class-level:** a `proving` claim renders `.world-claim-wisp.state-proving` which
-     itself carries neither `world-bloom` nor `verdict-pass`, and whose subtree contains no
-     `.world-bloom`, no `.bloom-ring` / `.bloom-spark` / `.bloom-crown` / `.bloom-plant`, and no
-     `.verdict-pass` — `proving` being the at-risk in-flight hue that must not read as the proven-green
-     bloom (ADR-0045). **(b) Under a GREEN band (ADR-0212):** a `work` claim folded with phase `GATE`
+     itself carries neither the island's proven-green status class (`st-healthy`) nor `verdict-pass`,
+     and whose subtree contains neither — `proving` being the at-risk in-flight hue that must not read
+     as proven-green (ADR-0040). **(b) Under a GREEN band (ADR-0212):** a `work` claim folded with
+     phase `GATE`
      renders `.world-claim-wisp.band-green` that STILL carries `state-proving` (the intent hue survives;
-     green is expressed as motion, never as colour), whose own class attribute matches neither `bloom`
-     nor `verdict`, and whose subtree holds no `.world-bloom` and no `[class*="verdict-"]`. **(c) Across
+     green is expressed as motion, never as colour), whose own class attribute matches neither
+     `st-healthy` nor `verdict`, and whose subtree holds no `.st-healthy` and no
+     `[class*="verdict-"]`. **(c) Across
      the whole claim family (ADR-0200 D7):** the hover (`exploring`), queue (`waiting`) and departing
-     wisps each carry neither `world-bloom` nor `verdict-pass`, and the hover and departing subtrees
-     hold no bloom-part class. One-directional by design: the CONVERSE (a bloom reaching for claim
-     styling) is not this contract's claim and remains uncovered here.
+     wisps each carry neither `st-healthy` nor `verdict-pass`, and the hover and departing subtrees
+     hold no proof class either.
+   - **note — RE-EXPRESSED 2026-09-07 under ADR-0536, unchanged in FORCE (ADR-0529 is what moved).**
+     This contract used to say *"never paints a CLAIM as the proven-green bloom"* and enumerated
+     `.world-bloom` / `.bloom-ring` / `.bloom-spark` / `.bloom-crown` / `.bloom-plant`. ADR-0529
+     retired the verdict bloom and its drawing code is deleted, so those five classes can no longer
+     be emitted by anything — an assertion naming them would be satisfied by the type system and
+     would be a check that verified nothing. The wall itself is NOT weakened and is not narrowed: the
+     proof vocabulary the map still carries is the island's proven-green STATUS hue (`st-healthy`),
+     which is the durable record and was always the thing that mattered, so that is what a
+     coordination drawable must never wear. One-directional by design: the CONVERSE (a proof
+     drawable reaching for claim styling) is not this contract's claim and remains uncovered here.
    - **covers —** `packages/app-surface/src/SceneView.tsx` (the claim / hover / queue / departing wisp
      renderers) — the already-relocated shared renderer this capability's wrapper delegates to, not the
      wrapper itself.
    - **proven by —** `packages/app-surface/src/SceneView.test.tsx` — three tests, one per direction:
-     *"§5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)"*,
+     *"§5 HONESTY WALL: a claim wisp NEVER wears the proven-green status class (class-level)"*,
      *"ADR-0212 honesty wall: a GREEN build band never paints the claim body as a proof"*, and
-     *"§5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes
-     (ADR-0200 D7)"*. All three sit in the 103 already-green package tests the declared
+     *"§5 HONESTY WALL extended: hover / queue / departing wisps never wear the proven-green status
+     class (ADR-0200 D7)"*. Each carries this contract's id verbatim in its title. *(The first and
+     third titles named the bloom until ADR-0529/ADR-0536; they were re-aimed in the same landing
+     that deleted it, not dropped.)* All three sit in the already-green package tests the declared
      `pnpm --filter @storytree/app-surface test` command reruns, and are reached by the ADR-0353 sweep
      via the `proof.coverage.testGlobs` surface declared above, since the `real:` arm's write fence is
      the net-new `WorldSceneView` leaf.

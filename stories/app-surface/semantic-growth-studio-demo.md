@@ -4,7 +4,7 @@ tier: capability
 story: app-surface
 arc: chapter2-real-app-surface-arc
 title: "A query-gated Studio demo stages the semantic-growth witness"
-outcome: "An explicit `?semanticGrowth=demo` Studio flag mounts the public semantic-growth view over one six-frame fixture composed through Studio's real world geometry, substrate, parcels, vegetation and representative framing; its primary selection reuses the existing drawn route lanes while the clean Studio route remains unchanged."
+outcome: "An explicit `?semanticGrowth=demo` Studio flag mounts the public semantic-growth view over one five-frame fixture composed through Studio's real world geometry, substrate, parcels, vegetation and representative framing; its primary selection reuses the existing drawn route lanes while the clean Studio route remains unchanged."
 status: proposed
 proof_mode: integration-test
 depends_on: [semantic-growth-replay-view]
@@ -28,7 +28,7 @@ decisions: [237, 93, 213, 215, 230, 70]
 # distinct, ordered terrain-formation and identity-growth staging with honest reduced motion.
 # FINAL-REPLAY HOST FLOOR after real-ms1ss9ig: AUTHOR_TEST resolves the shared CSS for both Vector
 # inner hooks and Storybook direct-image hooks, enforces the exact role/property/timing/per-item/
-# one-bloom choreography, and separately rejects any arrival outside its exact entering frame.
+# one-shot-per-role choreography, and separately rejects any arrival outside its exact entering frame.
 # REAL-GATE SOURCE SEAM: TreeViewShell.test.tsx authors the executable red and SemanticGrowthDemo.tsx
 # is the existing fixture-only source seam; shared app-surface CSS/SceneView remain read-only proof.
 # HOST-FIXTURE COMPANION RED after real-ms20x9fz: `VEGETATION = {}` is valid vocabulary presence and
@@ -37,9 +37,14 @@ decisions: [237, 93, 213, 215, 230, 70]
 # THREE-PART AUTHOR_TEST COMPLETION after real-ms22cssp: before IMPLEMENT, the existing TreeViewShell
 # semantic-growth describe span must add H host-companion, D full resolved choreography and E separate
 # exact-frame selector cases. H-only and dependency-CSS-only proof are both invalid.
-# INVARIANT-COMPANION FLOOR after real-ms238m2t: H walks all six keys plus Back/Replay in Vector and
+# INVARIANT-COMPANION FLOOR after real-ms238m2t: H walks all five keys plus Back/Replay in Vector and
 # Storybook and proves one unchanged companion identity/hook set throughout. Global land stripping
 # that removes the companion is red; only primary-id-scoped identity stripping is authorized.
+# FIVE-STEP WALK, RE-SPECIFIED AND RE-SIGNED (ADR-0536, resting on ADR-0529): the fixture holds
+# `empty -> land -> proposed -> claimed -> healthy`. ADR-0529 retired the verdict bloom and ADR-0536
+# dropped the `signed-proof` frame with it — no replacement marker (option B declined), and step five
+# does NOT inherit healthy's answer early (option C declined). The criteria that named the bloom are
+# REWRITTEN, never deleted (ADR-0536 D5).
 proof:
   command:
     file: pnpm
@@ -66,8 +71,19 @@ proof:
 # A query-gated Studio demo stages the semantic-growth witness
 
 **Outcome —** An explicit `?semanticGrowth=demo` Studio flag mounts the public semantic-growth view
-over one six-frame fixture composed through Studio's real world geometry, substrate, parcels,
+over one five-frame fixture composed through Studio's real world geometry, substrate, parcels,
 vegetation and representative framing while the clean Studio route remains unchanged.
+
+> **RE-SPECIFIED 2026-09-07 under ADR-0536 (which rests on ADR-0529).** This capability staged a
+> SIX-frame fixture. The fifth frame, `signed-proof`, carried the proposition *a signed verdict has
+> landed here and the story is still only marked proposed — proof and authored status are different
+> things*, and the only thing on screen that said it was the verdict bloom, which ADR-0529 retired.
+> ADR-0536 decided the frame is DROPPED rather than replaced: no substitute marker is built (D1), and
+> the fifth step does not show the green early (D2, because it would then render identically to
+> `healthy` and read as a bug rather than a distinction). The proposition survives in the legend's
+> proof row and in story prose (D3), not in an animation frame with nothing to draw. Every criterion
+> below that named the bloom is REWRITTEN to keep discriminating the same defect class against the
+> five-step walk (D5) — none is deleted.
 
 ## Proof walkthrough first
 
@@ -83,12 +99,12 @@ Extend the existing `TreeViewShell` integration proof:
    reject the current hand-authored four-point coast plus empty
    `relaxedCells`/`decor`/`plants`;
 5. assert the bounded public `SemanticGrowthWorldView` is mounted over exactly the primary story's
-   `empty → land → proposed → claimed → signed-proof → healthy` at one normal representative
+   `empty → land → proposed → claimed → healthy` at one normal representative
    contain framing, with the whole island and its breathing room visible and controls clickable;
-6. walk all six frames with Next, assert the primary story's exact semantic markers and stable
+6. walk all five frames with Next, assert the primary story's exact semantic markers and stable
    composed coordinates:
    terrain reveals/grows in place, flora/tree scale from planted/root anchors with the existing brief
-   overshoot/stagger, claim enters locally then orbits, and bloom pulses radially at its proof anchor;
+   overshoot/stagger, and claim enters locally then orbits;
    reject lateral translation of the whole scene, terrain/island or complete asset/flora group, then
    operate Back and Replay and compare the same settled transforms. Source-discriminate that no
    semantic-growth arrival/pulse keyframe sets full CSS `transform:` on a mapper-positioned SVG
@@ -103,18 +119,19 @@ Extend the existing `TreeViewShell` integration proof:
    -> buildScene` path. Deterministically filter only that companion owner's real composed relaxed
    cells so it takes `buildTerritoryFlora`'s real no-parcel path; never hand-author cells or geometry,
    and preserve every primary owner cell, coast, substrate, parcel and parcel-flora. The companion
-   stays fixed across all six frames as witness context, never narrative state. In explicit
+   stays fixed across all five frames as witness context, never narrative state. In explicit
    Vector/null, require companion-scoped `.story-tree .pop-motion-inner` and
    `.garden-flora .pop-motion-inner`; with a Storybook sheet covering tree and flora, require
    companion-scoped direct `image.story-tree` and `image.garden-flora`. `.parcel-flora`, unscoped DOM,
    selector literals, comments or regex-only source matches cannot substitute. Executable source
    proof must establish the real pipeline calls, owner-cell filter and absence of custom
    `SceneInput`/hand geometry before dependency CSS assertions may count. In both renderer modes, H
-   must walk `empty`, `land`, `proposed`, `claimed`, `signed-proof`, `healthy`, then Back and Replay,
+   must walk `empty`, `land`, `proposed`, `claimed`, `healthy`, then Back and Replay,
    and compare the same companion territory id/status/geometry plus its renderer-appropriate
    tree/flora hook set at every stop. In the same walk, primary empty has no primary land or identity;
-   primary land has its real ground but no primary tree/plate/flora identity; and proposed, claimed,
-   signed-proof and healthy retain their exact primary semantics. A global
+   primary land has its real ground but no primary tree/plate/flora identity; and proposed, claimed
+   and healthy retain their exact primary semantics — claimed adds presence without any proof
+   identity, and only healthy carries the proven-green status. A global
    `stripKind(..., 'territory')` land path is red because it removes both identities. IMPLEMENT may
    replace it only with source-local primary-id-scoped identity stripping; shared renderer/motion
    remains untouched;
@@ -126,8 +143,8 @@ Extend the existing `TreeViewShell` integration proof:
    resolve in a restrained local stagger. At least two identity subroles use materially distinct
    existing reveal/timing treatments (for example grounded scale versus local opacity, mask or clip);
    selector aliases, class names alone and numeric scale changes alone are red. Claim remains local
-   with mapper orbit, bloom remains a local proof pulse, and every transition settles one-shot.
-   In that executable case, discover planted, plate, parcel-boundary, parcel-flora and bloom selectors
+   with mapper orbit, and every transition settles one-shot.
+   In that executable case, discover planted, plate, parcel-boundary and parcel-flora selectors
    independently from rendered hooks and resolve shorthand plus precedence-winning longhands into
    name/duration/easing/delay/iteration/fill, then canonicalize the referenced keyframes by property
    and offset. Prove CSS participation—not DOM existence—for Vector tree/flora
@@ -137,14 +154,30 @@ Extend the existing `TreeViewShell` integration proof:
    planted. Prove anchored planted scale/opacity, rooted parcel-flora scale/opacity, parcel-boundary
    opacity/reveal with no scale, and plate opacity plus vertical-only individual `translate:` with
    no scale; directly compare plate/planted and ungrouped parcel-boundary/parcel-flora keyframe
-   bodies, with at least one pair differing in property set. Resolve bloom iteration to exactly `1`
-   from shorthand/longhand precedence and prove its terminal rest state;
+   bodies, with at least one pair differing in property set. Resolve EVERY arrival profile's
+   iteration to exactly `1` from shorthand/longhand precedence and prove each one's terminal rest
+   state. *(ADR-0536 D5 REWRITE of the rule that the verdict bloom's pulse run exactly once: the
+   bloom is deleted, but the property it protected — that a motion announcing a state SETTLES, so the
+   viewer is left looking at the state rather than at a decoration still moving — now binds every
+   role that announces. Narrowing it to the one deleted role would have made a vanished criterion;
+   widening it keeps the same defect refutable, and in more places. The mapper-owned orbit is exempt
+   by kind: a continuous presence cue, not an arrival.)*;
 9. add a separate executable shared-CSS selector audit: full-motion terrain arrivals match only
-   exact frame `land`; tree/flora/plate/parcel-boundary/parcel-flora only `proposed`; wisp only
-   `claimed`; bloom only `signed-proof`. Reject generic
+   exact frame `land`; tree/flora/plate/parcel-boundary/parcel-flora only `proposed`; and wisp only
+   `claimed`. Enumerate the sheet's actual arrival selectors and require the SET of entering frames
+   they name to be exactly `{land, proposed, claimed}` — so no role arrives after `claimed`, and
+   `healthy` is a change of status over an already-complete scene rather than a sixth thing
+   appearing. Reject generic
    `[data-semantic-growth-frame][data-motion='full']` arrival selectors, accumulated terrain/identity
-   arrivals on claimed/signed-proof/healthy, claim arrival on signed-proof/healthy, every healthy
-   arrival, and any reduced-motion arrival or delayed concealment. Before IMPLEMENT, AUTHOR_TEST must
+   arrivals on claimed/healthy, claim arrival on healthy, every healthy
+   arrival, a sixth entering frame under any name, and any reduced-motion arrival or delayed
+   concealment. *(ADR-0536 D5 REWRITE of the rule that the bloom appear on the fifth frame and on no
+   other. Stated as set equality rather than a per-role list on purpose: striking the bloom's row
+   from a list leaves every remaining row true while silently discarding the claim that the walk's
+   arrivals STOP at `claimed` — which is the five-step walk's strongest statement, and precisely what
+   a careless deletion loses. A sixth entering frame reappearing under any name fails this audit,
+   which is what keeps ADR-0536 D1's declined replacement marker from arriving without a fresh
+   decision.)* Before IMPLEMENT, AUTHOR_TEST must
    add independent H (step 7), D (step 8) and E (this step) cases inside the existing
    `TreeViewShell.test.tsx` semantic-growth describe span. H reads/renders the exact
    `SemanticGrowthDemo.tsx` host; D/E read the shared CSS/`SceneView.tsx` dependencies as read-only
@@ -156,8 +189,17 @@ Extend the existing `TreeViewShell` integration proof:
    fallback rather than resolving or drawing art itself.
 12. source-audit the retained pre-attempt semantic-growth describe block and fail unless its
    independent executable tests/assertions remain intact: clean and unknown query isolation; exactly
-   one public player plus navigation; signed-proof proposed/non-healthy with bloom and final-only
-   healthy; land with no story marker; and the bounded `.tree-layout > .world-frame` host.
+   one public player plus navigation; claimed carrying presence without any proof identity and
+   final-only healthy; land with no story marker; and the bounded `.tree-layout > .world-frame` host.
+
+> **The attempt history below is preserved VERBATIM as history, and its bloom clauses are not
+> re-specifications.** Several entries record what a REJECTED run asserted or failed to assert about
+> the verdict bloom — "accepted three bloom repetitions", "bloom only by `not infinite`", "a
+> bloom-only one-shot red". Those are true statements about what happened, so they are not edited:
+> rewriting a record of a past run to match today's spec would falsify the history that explains why
+> the floors above are shaped as they are. What has changed is the SPEC, above (ADR-0536), not this
+> record. Read any bloom named here as a thing that existed at the time of that run and was retired
+> by ADR-0529 on 2026-09-06.
 
 Human UAT-4 failed the implementation at `9377e897`: the demo's hard-coded
 `M 14 22 L 86 22 L 78 78 L 22 78 Z` coast, empty relaxed substrate/decor/plants and 100x100 framing
@@ -221,7 +263,7 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
 - Treat the full pre-attempt semantic-growth describe block in `TreeViewShell.test.tsx` as a
   preservation floor. AUTHOR_TEST extends it in place and retains independent tests and
   discriminating assertions for clean/unknown query isolation, one public player/navigation,
-  signed-proof remaining non-healthy while blooming and final-only healthy, primary land without a
+  claimed carrying presence without any proof identity and final-only healthy, primary land without a
   primary story marker, and the bounded `.tree-layout > .world-frame` host. Deleting, replacing,
   weakening, skipping, narrowing or consolidating any of that proof is red even when the focused
   command passes.
@@ -230,7 +272,7 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   independent executable additions before IMPLEMENT: **H**, the exact-host companion render/source
   case over
   `apps/studio/src/components/SemanticGrowthDemo.tsx`; **D**, the complete shared-CSS
-  resolved-profile/keyframe/property/timing/renderer/bloom audit; and **E**, a separate exact-frame
+  resolved-profile/keyframe/property/timing/renderer/one-shot audit; and **E**, a separate exact-frame
   selector audit. D and E read `packages/app-surface/src/semantic-growth.css` plus
   `packages/app-surface/src/SceneView.tsx` as read-only dependencies. Adding H alone, as
   `real-ms22cssp` did, is invalid; adding only already-green dependency audits is also invalid.
@@ -238,15 +280,18 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   rules or reduced-motion handling into Studio.
 - Give the demo a bounded in-map host: it may size within the available forest frame but may not
   expand the page, clip/cover its navigation or place Back/Next/Replay behind the SVG. All three
-  controls remain visible and clickable throughout the six-frame walk.
-- Supply one deterministic, static representative fixture with exactly six
-  `WorldPresentationModel` frames. It exists only to stage UAT and performs no fetch, store read,
+  controls remain visible and clickable throughout the five-frame walk.
+- Supply one deterministic, static representative fixture with exactly five
+  `WorldPresentationModel` frames — `empty`, `land`, `proposed`, `claimed`, `healthy` (ADR-0536). A
+  sixth frame under any name needs a fresh decision, not this one: ADR-0536 D1 declined a
+  replacement marker on the merits available today and named the route back as a new decision owing
+  a rendered ladder and a picture BEFORE it is signed. It exists only to stage UAT and performs no fetch, store read,
   subscription, mutation, clock-driven advance or Chapter 2 narration/pacing.
 - Compose the fixture through the existing Studio path: deterministic representative story and
   capability data enter `buildWorld`, its real draw tiles enter `buildRelaxedCells`, and
   `worldToScene` receives the same permanent vegetation input before `buildScene`. Reuse the resulting
   coast paths, relaxed substrate, capability parcels, parcel flora and standing vegetation across
-  the six frames. Do not hand-author `SceneInput`, a coast path, centroid/tree positions,
+  the five frames. Do not hand-author `SceneInput`, a coast path, centroid/tree positions,
   `relaxedCells`, `drawTiles`, `decor` or `plants`; do not maintain a demo-only geometry builder.
   The sole allowed filtering is deterministic removal of real `buildRelaxedCells` output owned by
   the fixed companion territory to exercise the renderer's existing no-parcel path; it must retain
@@ -276,9 +321,9 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   the real no-parcel `buildTerritoryFlora` path emits its procedural `story-tree` and capability
   `garden-flora`; never manufacture cells, `SceneInput` or geometry. Preserve all primary owner cells,
   coast, substrate, parcels and parcel flora. Keep the companion's identity/status/geometry fixed
-  across every semantic frame as witness context; only the primary story follows the six-state
+  across every semantic frame as witness context; only the primary story follows the five-state
   narrative.
-- Mount the exact demo with explicit Vector/null, walk all six keys plus Back/Replay, and at every
+- Mount the exact demo with explicit Vector/null, walk all five keys plus Back/Replay, and at every
   stop semantically assert the same companion territory identity/status/geometry with scoped
   `.story-tree .pop-motion-inner` and `.garden-flora .pop-motion-inner`. Repeat the complete trace
   with a deterministic Storybook sheet covering both roles and require the same companion identity
@@ -287,7 +332,7 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   unscoped DOM, comments or regex-only source checks cannot substitute.
 - In the same H walk, assert primary empty has no primary ground or identity; primary land has its
   real ground but no primary tree/plate/flora identity; proposed adds that non-healthy identity;
-  claimed adds presence without proof; signed-proof stays non-healthy with bloom; and only primary
+  claimed adds presence without any proof identity; and only primary
   healthy is healthy. Source proof must establish real pipeline calls and deterministic owner
   filtering while rejecting hand-authored cells/geometry. A global
   `stripKind(..., 'territory')` for land is red. IMPLEMENT may only use source-local, primary-id-scoped
@@ -298,15 +343,15 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   coast/substrate/parcel/standing-object placement transforms, advance, Back and Replay, and prove
   those settled world anchors and the stable non-100 framing do not shift. Assert entering terrain
   reveals/grows in place, flora/tree scale from planted/root anchors with the existing eased
-  overshoot/stagger, claim enters locally and uses its real orbit, and bloom pulses radially at its
-  proof anchor. A whole-scene, whole-terrain/island or complete asset/flora lateral slide is red.
+  overshoot/stagger, and claim enters locally and uses its real orbit. A whole-scene,
+  whole-terrain/island or complete asset/flora lateral slide is red.
 - Do not accept equal SVG `transform` attributes as sufficient anchor proof. The executable test must
   inspect the shared semantic-growth CSS/source (without widening the declared write globs) and reject
-  full `transform:` declarations in arrival/pulse selectors or keyframes applied to positioned
-  terrain, flora/tree, claim or bloom elements. It must positively find additive individual `scale:`
+  full `transform:` declarations in arrival selectors or keyframes applied to positioned
+  terrain, flora/tree or claim elements. It must positively find additive individual `scale:`
   with `transform-box: fill-box`, an appropriate ground/root origin and the intended layer stagger,
   or verify the existing `.pop-motion-inner` composition keeps outer mapped placement effective
-  throughout computed animation. Claim and bloom remain localized under the same rule.
+  throughout computed animation. The claim entrance remains localized under the same rule.
 - Preserve the exact already-landed `.pop-motion-inner` as the host's placement-safe seam. Assert
   executable `SceneView` output and shared CSS target that exact class; reject a class mismatch,
   comments-only match, another wrapper, full CSS `transform:` replacement or lateral entry. That
@@ -315,7 +360,7 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   forms/reveals coast/substrate, then proposed grows planted tree/flora from ground contact before
   plate/parcels resolve with ordered nonzero local offsets. At least two identity subroles use
   materially distinct existing role-scoped scale, opacity, mask/clip reveal or transform idioms.
-  Claim stays local with mapper orbit; bloom stays a local proof pulse; all motion settles one-shot.
+  Claim stays local with mapper orbit; all motion settles one-shot.
   Reduced mode removes timing, concealment and orbit and renders the same final role semantics and
   outer placement transforms immediately.
 - Make that choreography assertion CSS-resolved and renderer-complete. From independently rendered
@@ -332,15 +377,19 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
   least two deterministic per-item `:nth-*` or custom offsets; plate starts at least 180 ms after
   planted. Planted growth is anchored scale plus opacity; parcel flora is rooted scale plus opacity;
   parcel boundary is opacity/reveal with no scale; plate is opacity plus vertical-only individual
-  `translate:` with no scale. Bloom resolves from shorthand/longhand precedence to iteration exactly
-  `1`, finite fill and an explicit terminal rest state. Full `transform:`, lateral translation, a
+  `translate:` with no scale. EVERY arrival profile resolves from shorthand/longhand precedence to
+  iteration exactly `1`, finite fill and an explicit terminal rest state — the ADR-0536 D5 rewrite of
+  the bloom's one-shot pulse rule, re-aimed from the deleted role onto every role that announces.
+  Full `transform:`, lateral translation, a
   new wrapper, `SceneView` change or second renderer remains red.
 - Add a separate executable selector audit over that same shared CSS. Each full-motion arrival must
   be qualified by exactly one entering frame: terrain=`land`; tree/flora/plate/parcel-boundary/
-  parcel-flora=`proposed`; wisp=`claimed`; bloom=`signed-proof`. Generic
+  parcel-flora=`proposed`; wisp=`claimed`. The SET of entering frames the sheet's arrival selectors
+  name is exactly `{land, proposed, claimed}` — nothing arrives after `claimed`. Generic
   `[data-semantic-growth-frame][data-motion='full']` arrival targeting is red. Terrain/identity
-  arrivals cannot match claimed, signed-proof or healthy; claim cannot arrive on signed-proof or
-  healthy; bloom cannot arrive on healthy; nothing arrives on healthy. Reduced mode renders every
+  arrivals cannot match claimed or healthy; the claim cannot arrive on
+  healthy; nothing arrives on healthy; and no sixth entering frame appears under any name. Reduced
+  mode renders every
   accumulated role immediately without arrival, orbit or delayed concealment.
 - Keep the real gate on the existing Studio seam:
   `apps/studio/src/components/TreeViewShell.test.tsx` authors the executable integration/source
@@ -355,14 +404,17 @@ frame, so it misses that invariant breach. The correction makes H prove every fr
 - Derive exactly these semantic deltas for the primary story from that one composition: empty, then
   land with the real coast/substrate but no primary story marker, then the pale proposed/non-healthy
   primary story with its real parcels and vegetation, then its real claim/presence wisp without proof
-  identity, then the same proposed/non-healthy primary story carrying the real signed-proof bloom,
-  then healthy status. A claim never carries verdict/bloom identity and no pre-final primary frame
-  may appear healthy. The companion territory remains byte-stable witness context through every
+  identity, then healthy status. A claim never carries any proof identity — the proven-green status
+  hue is what it must not reach — and no pre-final primary frame may appear healthy. There is no
+  sixth delta: ADR-0536 dropped the `signed-proof` frame with the bloom that was its only content,
+  and step five does NOT inherit healthy's answer early (option C declined, because the two frames
+  would then render identically and read as a bug rather than as a distinction). The companion territory remains byte-stable witness context through every
   frame and never participates in claim, proof or health narration.
 - Mark only the entering delta with the shared player's existing renderer/art and SVG/code-native
-  motion vocabulary. Terrain formation, planted identity growth, plate/parcel resolution, claim and
-  proof must remain semantically distinct rather than aliases to one pop. Back and Replay reapply the
-  same restrained trace. The demo owns no transform, keyframe or animation selector and never
+  motion vocabulary. Back and Replay reapply the
+  same restrained trace. Terrain formation, planted identity growth, plate/parcel resolution and the
+  claim must remain semantically distinct rather than aliases to one pop. The demo owns no transform,
+  keyframe or animation selector and never
   remounts a parallel scene player.
 - Reuse TreeView's already-resolved `spriteSheet` and `artScale`: clean/default remains the
   owner-attested Storybook sheet; explicit `?artStyle=vector`, unknown style and uncovered kind use
@@ -381,8 +433,12 @@ source-audits the pre-attempt semantic-growth describe block in
 `apps/studio/src/components/TreeViewShell.test.tsx`. It fails if any existing test/assertion is
 deleted, replaced, weakened, skipped, narrowed, folded into a less discriminating replacement or
 consolidated away. It must retain independent executable cases for: clean plus unknown query
-isolation; one public six-frame player and navigation; signed-proof non-healthy plus bloom and
-final-only healthy; land with no story marker; and `.tree-layout > .world-frame` host containment.
+isolation; one public five-frame player and navigation; claimed carrying presence without any proof
+identity plus final-only healthy; land with no story marker; and `.tree-layout > .world-frame` host
+containment. **The preservation wall is not weakened by that re-pointing (ADR-0536 D5/D6):** when a
+decision deletes what a retained case watched, the case is RE-AIMED at the surviving subject and the
+re-aim is recorded here — it may never be quietly dropped, narrowed to something cheaper, or left
+asserting a selector that can no longer match.
 
 **Composition-red floor — applies before IMPLEMENT.** In addition to those retained cases,
 AUTHOR_TEST adds executable/source-discriminating assertions for all of the following in one coherent
@@ -397,7 +453,7 @@ selectors/attributes, never comments/prose. A parcel-only green is invalid.
 “semantic-growth studio demo (`?semanticGrowth=demo`)”, AUTHOR_TEST must add three independent
 executable cases: **H**, the companion host render plus executable
 `apps/studio/src/components/SemanticGrowthDemo.tsx` pipeline/source proof below; **D**, the full
-`resolvedProfile`/referenced-keyframe/both-renderer/property/timing/per-item/exact-one-bloom audit
+`resolvedProfile`/referenced-keyframe/both-renderer/property/timing/per-item/one-shot-per-role audit
 over read-only shared CSS/`SceneView.tsx`; and **E**, the separate exact-frame/no-accumulated/
 healthy/reduced selector audit. All three must exist and execute before CONFIRM_RED/IMPLEMENT: H
 supplies the current host-local red, while D/E remain mandatory dependency walls even though shared
@@ -412,8 +468,8 @@ any dependency CSS audit, source/render proof adds one deterministic companion t
 `buildWorld`, `buildRelaxedCells`, `worldToScene` and `buildScene`, then filters only real composed
 cells owned by that companion so `buildTerritoryFlora` receives no parcel surface for it. No custom
 `SceneInput`, cells or geometry may be authored; every primary owner cell, coast, substrate, parcel
-and parcel-flora remains. The companion's identity/status/geometry is invariant across all six frames
-and carries no narrative state. H walks all six keys plus Back/Replay twice. At every Vector/null
+and parcel-flora remains. The companion's identity/status/geometry is invariant across all five frames
+and carries no narrative state. H walks all five keys plus Back/Replay twice. At every Vector/null
 stop it compares the same companion territory identity/status/geometry and companion-scoped
 `.story-tree .pop-motion-inner` plus `.garden-flora .pop-motion-inner`; at every Storybook stop it
 compares the same companion identity with scoped direct `image.story-tree` plus
@@ -430,12 +486,12 @@ cannot pass this host-local floor.
 adds executable rendered/source assertions that reject lateral entry translation of the whole
 scene, whole terrain/island or complete asset/flora group. It compares settled composed transforms
 and framing across forward, Back, Replay and reduced motion, and positively observes in-place terrain
-growth, root-anchored flora/tree scale, localized claim entrance/orbit and localized radial bloom.
+growth, root-anchored flora/tree scale and localized claim entrance/orbit.
 Studio contributes no keyframe, generated animation asset, sprite-frame pipeline or renderer.
 
 **SVG transform-composition floor — part of the host red.** The machine proof reads real shared
-CSS/source and fails full CSS `transform:` animation on mapper-positioned terrain, flora/tree, claim
-or bloom elements, including scale-only keyframes. It positively proves additive `scale:` plus
+CSS/source and fails full CSS `transform:` animation on mapper-positioned terrain, flora/tree or
+claim elements, including scale-only keyframes. It positively proves additive `scale:` plus
 fill-box/root origin/stagger, or the existing `.pop-motion-inner` composition preserving the outer
 SVG placement transform for every animation frame. DOM `transform` attribute snapshots alone cannot
 pass.
@@ -443,7 +499,7 @@ pass.
 **Authored semantic-choreography host red — additive, no new scope.** The retained test preserves
 real `SceneView` emission and CSS targeting of exact `.pop-motion-inner` as a placement floor and
 rejects a second wrapper, full CSS `transform:`, lateral entry, class mismatch or comments-only
-match. It discovers planted, plate, parcel-boundary, parcel-flora and bloom selectors independently
+match. It discovers planted, plate, parcel-boundary and parcel-flora selectors independently
 from the rendered Studio hooks and builds `resolvedProfile(selector)` by parsing animation shorthand
 and precedence-winning longhands into name/duration/easing/delay/iteration/fill. The resolved
 name—not the selector body—loads the actual comment-free `@keyframes`, canonicalized by offset and
@@ -454,8 +510,10 @@ least one pair differing in keyframed property set. Planted tree/flora starts fi
 starts at least 100 ms later; earliest parcel flora starts at least 60 ms after boundary with at
 least two deterministic per-item offsets; plate starts at least 180 ms after planted. Keyframes prove
 anchored planted scale/opacity, rooted parcel-flora scale/opacity, no-scale parcel opacity/reveal and
-no-scale plate opacity plus vertical-only individual `translate:`. Bloom resolves through
-shorthand/longhand precedence to iteration exactly `1`, finite fill and a terminal rest state.
+no-scale plate opacity plus vertical-only individual `translate:`. EVERY arrival profile resolves
+through shorthand/longhand precedence to iteration exactly `1`, finite fill and a terminal rest state
+(the ADR-0536 D5 rewrite of the bloom's one-shot rule, re-aimed onto every role that announces; the
+mapper-owned orbit is exempt by kind as a continuous presence cue rather than an arrival).
 Claim stays local with mapper orbit; reduced motion immediately exposes identical final semantics
 and placement. Names, selector bodies, delays, numeric scale endpoints, generic whole-object scale,
 full `transform:`, lateral translation, another wrapper/renderer or a `SceneView` change are red.
@@ -463,10 +521,17 @@ full `transform:`, lateral translation, another wrapper/renderer or a `SceneView
 **Entering-delta frame-scoping host red — independent, additive, no new scope.** A separate
 executable shared-CSS selector audit requires full-motion terrain arrival rules to use exact frame
 `land`; planted tree/flora, plate, parcel-boundary and parcel-flora exact `proposed`; wisp exact
-`claimed`; and bloom exact `signed-proof`. Generic
+`claimed`. Generic
 `[data-semantic-growth-frame][data-motion='full']` arrival targeting fails. Terrain/identity arrivals
-cannot match claimed, signed-proof or healthy; claim arrival cannot match signed-proof or healthy;
-bloom cannot match healthy; and no arrival runs on healthy. Reduced motion has no matching arrival,
+cannot match claimed or healthy; the claim arrival cannot match healthy; and no arrival runs on
+healthy. **The audit is expressed as SET EQUALITY over the sheet's actual arrival selectors: the
+entering frames they name are exactly `{land, proposed, claimed}`, no more and no fewer** — so
+`claimed` is the last frame that introduces anything and `healthy` is a change of status over an
+already-complete scene. *(ADR-0536 D5 rewrite of the rule that the bloom appear on the fifth frame
+and on no other. Set equality rather than a per-role list is the point: striking one row from a list
+leaves every remaining row true while silently discarding the claim that the walk's arrivals STOP at
+`claimed`. It is also what keeps ADR-0536 D1's declined replacement marker from arriving without a
+fresh decision.)* Reduced motion has no matching arrival,
 orbit or delayed concealment and immediately renders the same accumulated final semantics.
 
 **Existing real-gate source seam — fixture-only.** AUTHOR_TEST edits
@@ -479,9 +544,11 @@ Studio-owned animation rule or second renderer fails this floor.
 1. **`sgsd-clean-studio-never-mounts-the-demo`**
    - **asserts —** without the exact flag, TreeView mounts its existing shared world and contains no
      semantic-growth fixture or Back/Next/Replay demo controls.
-2. **`sgsd-flag-mounts-one-public-six-frame-player`**
+2. **`sgsd-flag-mounts-one-public-five-frame-player`**
    - **asserts —** `?semanticGrowth=demo#/tree` mounts exactly one public
-     `SemanticGrowthWorldView` supplied with the exact six ordered keys inside a bounded host;
+     `SemanticGrowthWorldView` supplied with the exact five ordered keys
+     (`empty` / `land` / `proposed` / `claimed` / `healthy`) inside a bounded host, and refuses a
+     sixth key under any name;
      it passes one stable representative framing derived from the composed world bounds, the whole
      island remains visible with breathing room, and neither rendered/source framing is the current
      literal `0 0 100 100`; Back/Next/Replay stay visible and clickable; Next walks every frame,
@@ -493,7 +560,7 @@ Studio-owned animation rule or second renderer fails this floor.
      implementation. Before dependency CSS is read, an independent exact-host case requires valid
      `VEGETATION = {}` with no `heroTrees`, a fixed real-pipeline companion territory, and
      deterministic filtering of only that companion's real composed cells to take the no-parcel path
-     without changing primary cells/geometry. H walks all six keys plus Back/Replay in Vector and
+     without changing primary cells/geometry. H walks all five keys plus Back/Replay in Vector and
      Storybook, comparing one unchanged companion territory identity/status/geometry and its
      renderer-appropriate scoped tree+garden-flora hooks at every stop. A proposed-only check, parcel
      flora, comments, regex-only source matches and unscoped DOM cannot substitute. Global land
@@ -503,12 +570,14 @@ Studio-owned animation rule or second renderer fails this floor.
      coast, non-empty relaxed substrate, multiple capability parcels/parcel flora and the permanent
      Studio vegetation vocabulary; a parcel-only assertion cannot pass this contract. Primary land
      retains that real ground but no primary tree/plate/flora identity; primary proposed is
-     non-healthy; primary claimed adds real presence without proof identity; primary signed-proof
-     remains proposed/non-healthy while carrying the proof bloom; only primary healthy appears last.
+     non-healthy; primary claimed adds real presence without any proof identity — no claim-family
+     drawable reaches the island's proven-green status hue; only primary healthy appears last, and it
+     is reached by the story's status changing under an already-complete scene rather than by a new
+     drawable entering.
      The fixture derives its selected primary's `neighbours` and route `lanes` from that same real
      trail network and supplies `laneMotion: 'draw'`; rendered proof observes the shared
      `litRouteLanes` output with `.trail-lane.is-drawing`, not a fixture-local road or animation.
-     Its transition trace is ground-arrival, flora-growth, claim-orbit and bloom
+     Its transition trace is ground-arrival, flora-growth and claim-orbit
      rather than one generic scene-settle animation or whole-group lateral slide; settled world
      anchors remain equal through forward, Back, Replay and reduced motion, and source/computed proof
      rejects full CSS `transform:` replacement while preserving exact `.pop-motion-inner` as the
@@ -516,10 +585,19 @@ Studio-owned animation rule or second renderer fails this floor.
      Storybook direct-image tree/flora participation, canonical referenced-keyframe/property
      differences for plate/planted and ungrouped parcel-boundary/parcel-flora, planted→boundary
      `100ms`, boundary→flora `60ms` plus two per-item offsets, planted→plate `180ms`, the exact
-     anchored/no-scale role treatments, and bloom iteration exactly `1` settling at rest. A separate
+     anchored/no-scale role treatments, and EVERY arrival profile resolving to iteration exactly `1`
+     and settling at rest. A separate
      selector audit proves terrain arrives only on land; tree/flora/plate/parcels only on proposed;
-     claim only on claimed; bloom only on signed-proof; no accumulated or healthy arrival matches;
-     and reduced mode is immediate. H, D and E are independent executable additions in the current
+     claim only on claimed; that the SET of entering frames the sheet's arrival selectors name is
+     exactly `{land, proposed, claimed}` so nothing arrives after `claimed`; that no accumulated or
+     healthy arrival matches; and that reduced mode is immediate.
+     *(Both of those clauses are ADR-0536 D5 REWRITES rather than new scope. The iteration clause was
+     the requirement that the verdict bloom's pulse run exactly once; the selector clause was the
+     requirement that the bloom appear on the fifth frame and on no other. ADR-0529 deleted their
+     subject, so each is re-aimed at the property it was protecting — an announcement that settles,
+     and a role that enters at exactly one named frame — over the roles that remain. The selector
+     clause is set equality, not a per-role list, because striking the bloom's row from a list leaves
+     every remaining row true while losing the claim that the walk's arrivals STOP at `claimed`.)* H, D and E are independent executable additions in the current
      TreeViewShell semantic-growth describe span and all must execute before IMPLEMENT; H-only and
      D/E-only AUTHOR_TEST diffs are invalid. Additive scale/fill-box/root origin may serve an
      appropriate role
@@ -529,7 +607,7 @@ Studio-owned animation rule or second renderer fails this floor.
      API/store/subscription, mutation, timer advance, generated frame/sprite assets, Nanobanana or
      frame-sequence pipeline, production/product-art fork, second renderer or Chapter 2 controller.
 4. **`sgsd-reuses-studio-art-policy-without-a-second-resolver`**
-   - **asserts —** the machine proof walks all six frames plus Back/Replay with TreeView's resolved
+   - **asserts —** the machine proof walks all five frames plus Back/Replay with TreeView's resolved
      Storybook sheet/art scale covering tree and flora, repeats the same trace with explicit Vector
      null/fallback, and observes the same semantic states; the demo imports no manifest loader and
      adds no art.

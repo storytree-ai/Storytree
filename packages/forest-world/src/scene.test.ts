@@ -575,7 +575,7 @@ test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on 
   assert.equal(claimWith().phaseBand, undefined);
 });
 
-test('rc-claim-layer-never-folds-bloom-vocabulary: ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
+test('rc-claim-layer-never-folds-proof-vocabulary: ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
   const wisp = mustByKind(
     buildScene(
       mkInput({
