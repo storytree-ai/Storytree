@@ -1,0 +1,137 @@
+name: claim-corroborate
+
+# The NARROW CI liveness signal (ADR-0535 D2) — the second half of the claim ledger's honesty
+# repair, and the sibling of `claim-release.yml`. That workflow records that a branch's work is
+# OVER; this one records that it CONTINUES.
+#
+# WHAT IT SAYS. A claim on `events.node_claim` is corroborated as live when its branch has a check
+# RUNNING RIGHT NOW, or a commit pushed very recently. Nothing else. It is the only liveness signal
+# in this system a session cannot produce merely by existing — its sibling
+# (`sweepWorktreeActivity`, ADR-0535 D2's dense half) watches file change inside claimed worktrees
+# and is therefore DARK precisely while a session waits on checks touching no files, which is the
+# incident `ledger-liveness-honesty-arc` was chartered on: an owner shown an arc with nobody on it
+# while the session holding it was 432 tool calls in with its checks still running.
+#
+# ⚠⚠ THE BROAD FORM IS REFUSED ON MEASUREMENT, NOT ON TASTE, AND THE REFUSAL IS ENFORCED BELOW.
+# "Has an open pull request, therefore alive" would RESURRECT THE THREE DEADEST CLAIMS ON THE BOARD:
+# every open PR on this repo is a long-abandoned draft — 852-863 h when ADR-0535 measured them on
+# 2026-09-05, the SAME seven still open and still drafts at ~940 h on 2026-09-08 — and three of
+# their branches are exactly the three oldest abandoned claims. Broadly implemented, this makes
+# corpse-fencing PERMANENT, in the failure direction that has no tell. So the `permissions:` block
+# below grants `actions: read` and WITHHOLDS `pull-requests`: a declared permissions block sets
+# every unlisted scope to `none`, so this job's token CANNOT read a pull request. Widening the
+# signal takes a deliberate permissions change, never an accident.
+#
+# NO `workflow_run` TRIGGER, AND NO `schedule` — both were considered and both lost, recorded here
+# so they are not re-derived:
+#   - A `workflow_run: completed` trigger would fire a job at the END of every CI run. But a claim
+#     is stamped at PUSH time and the staleness window is 2 h, so a CI run of tens of minutes never
+#     ages a claim out on its own; the extra job would usually find nothing in progress and write
+#     nothing. The `check-running` half is already operative WITHOUT it, because every firing sweeps
+#     EVERY in-progress run rather than only its own branch — so on a repo with concurrent sessions
+#     each push refreshes every branch that is building.
+#   - A `schedule:` cron would fire ~288 times a day to do nothing most of them, and would mean
+#     OWNING a refresh loop — the standing cost ADR-0535 D2 flags. The triggers below ARE the loop,
+#     and GitHub owns them.
+#
+# WHY IT WRITES FROM CI RATHER THAN FROM THE HOSTED STUDIO: no new credential (`github.token` is
+# minted per run; the store write reuses the keyless WIF path `claim-release.yml` has used since
+# ADR-0033), no rate limit to own (one request per run), and no process to keep alive. The studio
+# alternative needs a long-lived GitHub credential in Cloud Run and a loop in a service that scales
+# to zero. The full argument is in the writer's own header.
+#
+# ⚠ NO MERGE GATE MAY EVER DEPEND ON THIS (ADR-0535 D5). It is a truth-telling repair, not an
+# availability one. It also must not disturb `CLAIM_STALE_RECLAIM_MS` or `isReclaimable`: the rule
+# that lets a live session take over a dead one's node is what stops corpses fencing work forever.
+
+on:
+  # A commit pushed very recently — the first of D2's two clauses, observed at the instant it lands
+  # and needing no API call. `branches-ignore` also keeps tag pushes out (a tag push needs its own
+  # `tags:` filter), and `main` is excluded because a push there is a MERGE landing, not a session
+  # working — `claim-release.yml` RELEASES that branch's claims on the very same event, so
+  # corroborating it would have the two CI writers contradict each other over one merge.
+  push:
+    branches-ignore: [main]
+  # The manual lever, and the pre-flight verification path (mirroring `claim-release.yml`'s).
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to corroborate (e.g. claude/my-branch)"
+        required: true
+        type: string
+
+# A newer push to the same branch supersedes an in-flight corroboration, so cancelling is safe.
+#
+# ⚠ THIS IS THE INVERSE OF `claim-release.yml`, WHICH NEVER CANCELS, AND THE DIFFERENCE IS THE POINT.
+# There, a cancelled release is a LOST release — the claims stay forever. Here, a cancelled
+# corroboration leaves the claim carrying an OLDER heartbeat, which is the cheap direction: too old
+# costs nothing new (it reproduces today's behaviour), while too fresh fences a node nobody can
+# reclaim. Every fence in this signal is drawn on that same asymmetry.
+concurrency:
+  group: claim-corroborate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  corroborate:
+    name: corroborate live claims from CI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+      actions: read # list IN-PROGRESS workflow runs — the ONLY GitHub read this job makes
+      id-token: write # mint the WIF OIDC token for keyless GCP auth (ADR-0021)
+      # `pull-requests` is WITHHELD ON PURPOSE — see the broad-form refusal at the top of this file.
+    steps:
+      # `main`, explicitly: this job needs the WRITER, not the pushed branch's tree. Taking the
+      # pushed tree would also let any branch change what this job runs while holding a store
+      # credential.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Keyless WIF (ADR-0021) — the SAME pool / provider / service account `claim-release.yml`
+      # uses (infra/ci-presence.tf). No new IAM, no new secret, nothing to rotate.
+      - name: Authenticate to GCP (keyless WIF — ADR-0021)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
+
+      # DELIBERATELY LOUD on a STORE failure, and deliberately quiet on a GitHub one. This workflow
+      # gates nothing — no merge, no deploy — so a swallowed store failure would buy nothing and
+      # would rebuild the exact defect ADR-0535 was chartered on: a liveness writer that quietly
+      # stops, invisible until an owner misreads the board months later. A GitHub outage is
+      # different: ADR-0535 already records that this signal goes dark when GitHub does, the push
+      # half needs no API call, and reddening a run for someone else's outage teaches the one lesson
+      # a check must never teach.
+      - name: Corroborate the observed branches' claims
+        env:
+          # The CI service account's Cloud SQL IAM username (the `.iam` short form — Cloud SQL
+          # truncates `.gserviceaccount.com`, mirroring the studio host).
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          # One var carries both the push ref and the dispatch input: they make the same claim
+          # (something acted on this branch just now) and the ledger stores a timestamp, not a
+          # provenance.
+          STORYTREE_CORROBORATE_REF: ${{ inputs.branch && format('refs/heads/{0}', inputs.branch) || github.ref }}
+          # The one thing a push can say that is evidence of ABSENCE. Carried through so the planner
+          # can refuse it BY NAME rather than silently treating a deletion as activity.
+          STORYTREE_CORROBORATE_DELETED: ${{ github.event.deleted }}
+          STORYTREE_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
+        # Package-scoped exec resolves the workspace's pinned tsx — `npx tsx` from root would
+        # download tsx fresh (no root .bin in this pnpm workspace).
+        run: pnpm --filter @storytree/notice-board exec tsx src/store/ingest-ci-activity.ts

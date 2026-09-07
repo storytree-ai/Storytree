@@ -358,6 +358,27 @@ export interface ActivityStamp {
   readonly observedAt: string;
 }
 
+/**
+ * The BRANCH-keyed twin of {@link ActivityStamp} — ADR-0535 D2's narrow CI half.
+ *
+ * Two liveness signals with holes in different places reach one column, and they are keyed
+ * differently because they observe different things: the worktree sweep watches a DIRECTORY, whose
+ * identity is a session (ADR-0033); CI watches a BRANCH, which is what GitHub knows and what
+ * `node_claim.branch` already records. So the join needs no new field on either side — the same
+ * identity `releaseClaimsByBranch` has always keyed the merge clear on.
+ *
+ * A branch is not a session: one session can hold claims from several branches over its life, and
+ * a `claude/real/*` promotion branch is somebody's build rather than their session. Keying on the
+ * branch is nonetheless right for this signal, because what CI observed is that work is happening
+ * ON THAT BRANCH — and a claim recording that branch is exactly a claim on that work.
+ */
+export interface BranchActivityStamp {
+  /** The FULL branch, whatever its shape — never a prefix-filtered or tail-derived form. */
+  readonly branch: string;
+  /** When CI's evidence was OBSERVED, ISO — a reading of the past, never `now`. */
+  readonly observedAt: string;
+}
+
 export function stampClaimActivity(claim: ClaimDocT, observedAt: Date, now: Date): ClaimDocT {
   const ceiling = now.getTime();
   const observed = Math.min(observedAt.getTime(), ceiling);
