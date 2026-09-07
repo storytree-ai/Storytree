@@ -28,12 +28,13 @@ import {
   groundRadiusToScreenHalfHeight,
   projectGround,
   unprojectGround,
+  uprightForeshortening,
 } from './camera.js';
 import {
   type Axial,
   type Pt,
   HEX_R,
-  TILE_DEPTH,
+  TILE_DEPTH_WORLD,
   axialKey,
   hexCenter,
   hexPath,
@@ -897,7 +898,12 @@ function text(
 /** The central story tree — living canopy / withered skeleton / not-yet-full young
  *  form, with the crown blobs deterministically jittered by the story id. Includes
  *  the human-witness signpost as a child (matching the studio's `story-tree` group). */
-export function buildTree(t: SceneTerritoryInput, unifiedVeg = false, art: TileArt = SHIPPED_TILE_ART): SceneG {
+export function buildTree(
+  t: SceneTerritoryInput,
+  unifiedVeg = false,
+  art: TileArt = SHIPPED_TILE_ART,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): SceneG {
   const st = t.status;
   const caps = t.caps;
   const withered = st === 'unhealthy';
@@ -919,7 +925,7 @@ export function buildTree(t: SceneTerritoryInput, unifiedVeg = false, art: TileA
   // tree, i.e. exactly the mismatch the round-3 lab's squash dial was absorbing.
   const shadowGroundR = R * 0.78;
   const children: SceneNode[] = [
-    ellipse(2, 2, shadowGroundR, groundRadiusToScreenHalfHeight(shadowGroundR), { kind: 'shadow' }),
+    ellipse(2, 2, shadowGroundR, groundRadiusToScreenHalfHeight(shadowGroundR, elevationDeg), { kind: 'shadow' }),
   ];
 
   if (withered) {
@@ -3245,7 +3251,7 @@ export function buildTerritoryFlora(
     if (vegetation?.heroTrees) {
       drawables.push({ y: t.treeSpot.y, node: vegHeroTreeUse(vegetation.heroTrees, t, art) });
     } else {
-      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg, art) });
+      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg, art, elevationDeg) });
     }
     // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7; small flowers folded into
     // the grass, ADR-0226) — each scattered flower is its OWN y-sorted drawable so it interleaves with the
@@ -3280,16 +3286,16 @@ function isG(n: SceneG | null): n is SceneG {
   return n !== null;
 }
 
-function buildEmpties(input: SceneInput, art: TileArt): SceneG {
+function buildEmpties(input: SceneInput, art: TileArt, elevationDeg: number): SceneG {
   return g(
     input.empties.map((h) => {
-      const c = hexCenter(h);
+      const c = hexCenter(h, { elevationDeg, hexR: art.hexR });
       // ADR-0286: a coast hex carries the id of the island it grew out of, when the caller
       // attributed it — that id is the only handle a per-story hide has on this layer. An
       // unattributed hex (or an owner index no territory answers to) stays id-less, exactly as
       // every coast hex was before attribution existed.
       const id = h.owner === undefined ? undefined : input.territories[h.owner]?.id;
-      return path(hexPath(c.x, c.y, art.hexR - art.units(0.6)), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
+      return path(hexPath(c.x, c.y, art.hexR - art.units(0.6), elevationDeg), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
     }),
     { kind: 'empties-layer' },
   );
@@ -3357,7 +3363,7 @@ function stampLandCellIds(nodes: readonly SceneNode[], storyId: string): void {
   for (const node of nodes) walk(node);
 }
 
-function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): SceneG {
+function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[], elevationDeg: number): SceneG {
   if (input.relaxedCells) {
     const cells = input.relaxedCells;
     const groups = input.territories
@@ -3385,14 +3391,18 @@ function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): Sce
     .map(({ h, owner }): SceneG | null => {
       const t = input.territories[owner];
       if (!t) return null;
-      const c = hexCenter(h);
+      const c = hexCenter(h, { elevationDeg });
       const key = axialKey(h);
       const wheat = (input.wheatSets[owner] ?? EMPTY_KEYS).has(key);
+      // The extrusion is an UPRIGHT world height, so it carries cos θ where the lattice carries
+      // sin θ (ADR-0367 D1) — the module-level `TILE_DEPTH` is that same product at the DECLARED
+      // camera, and reading it here is what pinned this family to a second copy of the camera.
+      const tileDepth = TILE_DEPTH_WORLD * uprightForeshortening(elevationDeg);
       return g(
         [
-          path(hexPath(c.x, c.y + TILE_DEPTH, HEX_R), { kind: 'tile-side' }),
+          path(hexPath(c.x, c.y + tileDepth, HEX_R, elevationDeg), { kind: 'tile-side' }),
           path(
-            hexPath(c.x, c.y, HEX_R),
+            hexPath(c.x, c.y, HEX_R, elevationDeg),
             wheat ? { kind: 'tile-top-wheat' } : { kind: 'tile-top', variant: hash(`tile:${key}`) % 3 },
           ),
         ],
@@ -3593,9 +3603,9 @@ export function buildScene(input: SceneInput): SceneG {
     // every non-garden island's central-tree `<use>`. Absent ⇒ no defs layer, and every island's tree
     // renders as the procedural `buildTree` byte-for-byte.
     ...(vegetation?.heroTrees ? [buildVegetationDefs(vegetation.heroTrees, input.territories.map((t) => t.status))] : []),
-    buildEmpties(input, art),
+    buildEmpties(input, art, elevationDeg),
     buildCoast(input),
-    buildGround(input, surfaces),
+    buildGround(input, surfaces, elevationDeg),
     buildTrails(input, art),
     g(
       [
