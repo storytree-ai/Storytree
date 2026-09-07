@@ -488,9 +488,10 @@ test("local-backend: GET /api/tree carries no `sessions` block — the presence 
 // 200 { sessions: null }, never a 503; the only error path is the 405 method guard.
 // ===========================================================================
 
-// A fresh (non-stale) claim row: heartbeat = NOW so `groupClaimsBySession` keeps it (a claim whose
-// heartbeat aged past CLAIM_STALE_RECLAIM_MS = 2h is dropped as a dead holder). Mirrors the ClaimDocT
-// shape (packages/notice-board/src/claim.ts) the pg store's listLiveClaims yields.
+// A fresh (non-stale) claim row: heartbeat = NOW, so `groupClaimsBySession` marks it `stale: false`.
+// ⚠ THE FOLD DOES NOT DROP STALE ROWS AND HAS NOT SINCE ADR-0346 D1 — it MARKS them, and the route
+// carries them (ADR-0535 D1). Mirrors the ClaimDocT shape (packages/notice-board/src/claim.ts) the
+// pg store's listAllClaims yields.
 function freshClaim(over: Record<string, unknown> = {}) {
   const nowIso = new Date().toISOString();
   return {

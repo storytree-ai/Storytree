@@ -30,6 +30,7 @@ import type {
   GuidanceAsset,
   SessionClaimGroup,
 } from '../types';
+import { claimBand, formatLastHeard, type ClaimBand } from './claimBands';
 
 // ---------- D2: bars are units, not time ----------
 
@@ -125,11 +126,28 @@ export function laneCounts(rollup: ArcRollupSummary): LaneCounts {
  * - `blocked`  — this arc's OWN {@link isGated} reads true: at least one authored gate is still
  *                shut, so it cannot be STARTED. See {@link BLOCKED_IS_DERIVABLE} for which of
  *                ADR-0314 D4's two named sources this actually is, and which remains unlit.
- * - `claimed`  — a LIVE session provably holds a claim that resolves to this arc. The only state on
- *                this surface backed by the claim ledger rather than by dates, and it is asserted
- *                POSITIVELY ONLY — see {@link arcClaimants} for why its absence proves nothing.
- * - `quiet`    — the DEFAULT, and since ADR-0374 D4 the only fall-through: no session is on it and
- *                nothing on it is waiting on the owner. Nobody stuck, nothing moving right now.
+ * - `claimed`  — a LIVE session provably holds a claim that resolves to this arc, and we have heard
+ *                from it inside the staleness window. One of the two states on this surface backed
+ *                by the claim ledger rather than by dates, and it is asserted POSITIVELY ONLY — see
+ *                {@link arcClaimants} for why its absence proves nothing.
+ * - `unknown`  — ADDED BY ADR-0535 D1, AND IT IS THE STATE THIS SURFACE MOST NEEDED. A session took
+ *                a claim resolving to this arc and never released it, and nobody has heard from it
+ *                since. That is NOT "nobody is working here" and it is NOT calm: it is the absence
+ *                of an answer, and the lane says so, carrying how long since we last heard
+ *                ({@link arcLastHeardMs}).
+ *
+ *                ⚠ THIS EXISTS BECAUSE ITS ABSENCE MISLED THE OWNER. He looked at an arc that
+ *                rendered `quiet`, concluded the work was finished, and it was not — the session
+ *                holding it was 432 tool calls in with a PR open. Two faults produced that: the
+ *                studio's own read dropped the stale row in SQL before the browser could see it,
+ *                and with the row gone the lane fell through to `quiet`. ADR-0366 D4 had already
+ *                decided the principle on another surface — *"a liveness probe that cannot answer
+ *                is not a probe that answered no"* — and this applies it to a surface that predates
+ *                it and did the exact opposite.
+ * - `quiet`    — the DEFAULT, and since ADR-0374 D4 the only fall-through: NOTHING IS CLAIMED HERE
+ *                AT ALL and nothing on it is waiting on the owner. Nobody stuck, nothing moving
+ *                right now. Since ADR-0535 D1 that reading is finally true: a held-but-dark claim
+ *                lands in `unknown` rather than collapsing into this.
  *
  *                ⚠ `moving` LIVED HERE AND IS GONE, which is the second half of a correction
  *                ADR-0351 D1 only half-made. That rename replaced `running` (which falsely implied a
@@ -148,7 +166,14 @@ export function laneCounts(rollup: ArcRollupSummary): LaneCounts {
  *                a curated flag a session must remember to flip). Distinct from `parked`: closed
  *                MET its end state, parked did not and still wants the work.
  */
-export type ArcSurfaceState = 'waiting' | 'claimed' | 'blocked' | 'quiet' | 'parked' | 'closed';
+export type ArcSurfaceState =
+  | 'waiting'
+  | 'claimed'
+  | 'unknown'
+  | 'blocked'
+  | 'quiet'
+  | 'parked'
+  | 'closed';
 
 /**
  * Every state {@link arcState} may return — ALL SIX, now that ADR-0523's authored gate supplies a
@@ -210,11 +235,30 @@ export function isGated(rollup: ArcRollupSummary): boolean {
  * `groups === null` (no live store, or nothing has answered) yields `[]`, which is the same
  * not-proven answer as a genuine no-match — deliberately, because the two are equally unable to
  * support a negative claim.
+ *
+ * ── EACH HIT NOW CARRIES ITS BAND, AND THE THIRD BAND NEVER GETS HERE (ADR-0535 D1) ───────────
+ *
+ * A hit is `live` (heard from inside the staleness window) or `unknown` (held, unheard-from) —
+ * {@link arcState} renders those as two different states, because collapsing them was the misread.
+ * `abandoned` claims are DROPPED here rather than banded: they belong in the tidy-up list, and an
+ * arc carrying a fortnight-old ghost as `unknown` teaches its reader to ignore the column, which is
+ * exactly how the previous presence layer died. That drop is a RENDERING choice made against a
+ * display-only threshold (`lib/claimBands.ts`) — it changes no store read and no takeover rule.
  */
+export interface ArcClaimant {
+  sessionId: string;
+  branch: string;
+  unitId: string;
+  /** `live` or `unknown` — `abandoned` never reaches an arc lane (see above). */
+  band: Exclude<ClaimBand, 'abandoned'>;
+  /** Elapsed ms since this holder was last heard from — the server's stamp, not re-derived. */
+  heartbeatAgeMs: number;
+}
+
 export function arcClaimants(
   rollup: ArcRollupSummary,
   groups: readonly SessionClaimGroup[] | null,
-): Array<{ sessionId: string; branch: string; unitId: string }> {
+): ArcClaimant[] {
   if (groups === null || groups.length === 0) return [];
 
   const units = new Set<string>([rollup.id]);
@@ -227,15 +271,35 @@ export function arcClaimants(
     }
   }
 
-  const hits: Array<{ sessionId: string; branch: string; unitId: string }> = [];
+  const hits: ArcClaimant[] = [];
   for (const group of groups) {
     for (const claim of group.claims) {
-      if (units.has(claim.unitId)) {
-        hits.push({ sessionId: group.sessionId, branch: group.branch, unitId: claim.unitId });
-      }
+      if (!units.has(claim.unitId)) continue;
+      const band = claimBand(claim);
+      if (band === 'abandoned') continue;
+      hits.push({
+        sessionId: group.sessionId,
+        branch: group.branch,
+        unitId: claim.unitId,
+        band,
+        heartbeatAgeMs: claim.heartbeatAgeMs,
+      });
     }
   }
   return hits;
+}
+
+/**
+ * HOW LONG SINCE ANYBODY ON THIS ARC WAS HEARD FROM, in ms — the number an `unknown` lane is
+ * REQUIRED to carry, and `null` when the arc has no claimant to be silent about.
+ *
+ * The MINIMUM across claimants, not the maximum: the question a reader is asking is "when did this
+ * arc last show a sign of life", and the most recent contact answers it. Taking the max would age
+ * an arc by its stalest holder even while another session was actively working it.
+ */
+export function arcLastHeardMs(claimants: readonly ArcClaimant[]): number | null {
+  if (claimants.length === 0) return null;
+  return Math.min(...claimants.map((c) => c.heartbeatAgeMs));
 }
 
 /**
@@ -319,12 +383,22 @@ export function lastActivityAt(rollup: ArcRollupSummary): number | null {
  *      gate is a definite, external fact (the blocker has not closed), where a claim only reports
  *      that a session happens to be on the arc — which can be true of a gated arc doing legitimate
  *      prep work ahead of its blocker closing, and the reader still needs to see the gate.
- *   4. `claimed` — a session is provably on it. Positive-only: a non-match falls THROUGH and never
- *      asserts "unclaimed" (see {@link arcClaimants} for the measured reason).
- *   5. `quiet` — everything else. Not a computed judgement any more but a residual, and stating it
+ *   4. `claimed` — a session is provably on it AND we have heard from it recently. Positive-only: a
+ *      non-match falls THROUGH and never asserts "unclaimed" (see {@link arcClaimants} for the
+ *      measured reason).
+ *   5. `unknown` — a session holds it and nobody has heard from it (ADR-0535 D1). Ranked BELOW
+ *      `claimed` and ABOVE `quiet`, which is the whole ordering claim: a proven-live holder is
+ *      better news than a silent one, and a silent one is not the same news as an empty arc.
+ *      An arc with one live claimant and one dark one reads `claimed` — the live session answers
+ *      the reader's question, and the dark row is still visible in the lane's own claimant list.
+ *   6. `quiet` — everything else. Not a computed judgement any more but a residual, and stating it
  *      that way is the point of ADR-0374 D4: an arc nobody is claiming, with nothing waiting on the
  *      owner and no shut gate, IS quiet. There is nothing further to measure, and the recency test
  *      that used to sit here (`moving` vs `quiet`) is deleted rather than widened.
+ *
+ *      ⚠ THIS IS NOW A NARROWER CLAIM THAN IT WAS, AND THAT IS THE REPAIR. It used to absorb every
+ *      claim the studio's own read had already thrown away, so it asserted calm over sessions that
+ *      were mid-flight. It reaches only genuinely unclaimed arcs now.
  *
  * `now` is still taken, and deliberately: it is part of this function's published shape, every
  * caller injects it, and the lane list still sorts on {@link lastActivityAt}. It is simply no longer
@@ -344,7 +418,9 @@ export function arcState(
   // on the wire to answer it.
   if (rollup.openQuestions > 0) return 'waiting';
   if (isGated(rollup)) return 'blocked';
-  if (arcClaimants(rollup, claims).length > 0) return 'claimed';
+  const claimants = arcClaimants(rollup, claims);
+  if (claimants.some((c) => c.band === 'live')) return 'claimed';
+  if (claimants.length > 0) return 'unknown';
   return 'quiet';
 }
 
@@ -359,8 +435,12 @@ export interface ArcLane {
   state: DerivableArcState;
   /** The most recent landing/parking, epoch ms — `null` when the arc has no dated increment. */
   lastActivity: number | null;
-  /** Live sessions provably holding this arc — empty is NOT proof of absence (see arcClaimants). */
-  claimants: Array<{ sessionId: string; branch: string; unitId: string }>;
+  /** Sessions provably holding this arc, each banded `live` or `unknown` — empty is NOT proof of
+   *  absence (see {@link arcClaimants}), and plainly-abandoned holders are not here at all. */
+  claimants: ArcClaimant[];
+  /** Ms since anybody on this arc was last heard from — `null` with no claimants. What the
+   *  `unknown` chip prints, so the state never asserts silence without saying how long. */
+  lastHeardMs: number | null;
   /**
    * Arcs queued behind THIS one (ADR-0523 / inc-05) — the disclosure's nested rows, each a full
    * `ArcLane` in its own right, so depth is a RECURSIVE property rather than a second shape: a
@@ -375,13 +455,49 @@ export interface ArcLane {
   queued: ArcLane[];
 }
 
+/**
+ * What the lane's state chip PRINTS — the state word, plus, for `unknown`, how long since anybody
+ * on the arc was heard from (ADR-0535 D1).
+ *
+ * THE AGE IS ON THE FACE OF THE CHIP, NOT IN ITS TOOLTIP, AND THAT IS THE POINT. The owner who was
+ * misled read a word and drew a conclusion; he did not hover. A state that says "we do not know"
+ * without saying for how long is only marginally better than one that says "quiet" — the age is
+ * what turns it into something a reader can act on ("ten minutes" and "nine hours" want completely
+ * different responses).
+ */
+export function claimChipLabel(lane: Pick<ArcLane, 'state' | 'lastHeardMs'>): string {
+  if (lane.state !== 'unknown' || lane.lastHeardMs === null) return lane.state;
+  return `${lane.state} · ${formatLastHeard(lane.lastHeardMs)}`;
+}
+
+/**
+ * The lane state chip's tooltip — who is holding the arc, and for `unknown`, what the surface is
+ * actually saying. `null` when there is nothing to add (no claimants), so the chip renders no empty
+ * `title`.
+ *
+ * The `unknown` wording is careful on purpose: it names the holder, says we have not heard from
+ * them, and says explicitly that this is NOT a statement that they stopped. A tooltip that read
+ * "session s1 is gone" would be the same over-claim in a smaller font.
+ */
+export function claimChipTitle(
+  lane: Pick<ArcLane, 'state' | 'claimants' | 'lastHeardMs'>,
+): string | null {
+  const sessions = [...new Set(lane.claimants.map((c) => c.sessionId))];
+  if (sessions.length === 0) return null;
+  const units = lane.claimants.map((c) => c.unitId).join(', ');
+  if (lane.state !== 'unknown') return `held by ${sessions.join(', ')} — ${units}`;
+  const age = lane.lastHeardMs === null ? 'a while' : formatLastHeard(lane.lastHeardMs);
+  return `held by ${sessions.join(', ')} (${units}) — last heard from ${age} ago. The claim was never released and we cannot tell whether the session is still working; this is not a report that it stopped.`;
+}
+
 const STATE_RANK = {
   waiting: 0,
   blocked: 1,
   claimed: 2,
-  quiet: 3,
-  parked: 4,
-  closed: 5,
+  unknown: 3,
+  quiet: 4,
+  parked: 5,
+  closed: 6,
 } satisfies Readonly<Record<DerivableArcState, number>>;
 
 /**
@@ -466,13 +582,15 @@ export function arcLanes(
   const coreById = new Map<string, LaneCore>(
     scoped.map((arc) => {
       const state = arcState(arc, now, claims);
+      const claimants = arcClaimants(arc, claims);
       const core: LaneCore = {
         arc,
         bars: laneBars(arc, isGated(arc)),
         counts: laneCounts(arc),
         state,
         lastActivity: lastActivityAt(arc),
-        claimants: arcClaimants(arc, claims),
+        claimants,
+        lastHeardMs: arcLastHeardMs(claimants),
       };
       return [arc.id, core];
     }),

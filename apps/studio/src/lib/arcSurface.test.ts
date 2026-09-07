@@ -11,11 +11,15 @@
 // modelPathBoundary.test.ts wall stays green).
 
 import { describe, it, expect } from 'vitest';
+import { CLAIM_ABANDONED_DISPLAY_MS } from './claimBands';
 import {
   arcBriefing,
   arcClaimants,
   arcLanes,
+  arcLastHeardMs,
   arcState,
+  claimChipLabel,
+  claimChipTitle,
   briefingLead,
   defaultLaneId,
   findLane,
@@ -33,6 +37,7 @@ import {
   wordCount,
   BLOCKED_IS_DERIVABLE,
   QUESTION_WORD_BUDGET_FIELDS,
+  type ArcClaimant,
   type ArcSurfaceState,
 } from './arcSurface';
 import type {
@@ -46,17 +51,35 @@ import type {
 
 const NOW = new Date('2026-08-06T00:00:00Z');
 
-/** One session holding `unitIds` on the live ledger — the shape `GET /api/claims` folds to. */
+/**
+ * One session holding `unitIds`, HEARD FROM RECENTLY — the shape `GET /api/claims` folds to.
+ * `stale` is the server's own verdict on the wire (ADR-0535 D1), so a fixture states it rather than
+ * implying it through a timestamp the surface would have to re-judge.
+ */
 function claimGroup(sessionId: string, ...unitIds: string[]): SessionClaimGroup {
+  return darkClaimGroup(sessionId, 0, ...unitIds);
+}
+
+/**
+ * One session holding `unitIds` and last heard from `heardAgeMs` ago. `0` is a live holder; anything
+ * past the 2 h staleness window is a DARK one (`stale: true`), which the arc lane must read as
+ * `unknown` rather than as calm; anything past {@link CLAIM_ABANDONED_DISPLAY_MS} is a corpse the
+ * lane must not carry at all.
+ */
+function darkClaimGroup(sessionId: string, heardAgeMs: number, ...unitIds: string[]): SessionClaimGroup {
+  const stale = heardAgeMs >= 2 * 60 * 60 * 1_000;
   return {
     sessionId,
     branch: `claude/${sessionId}`,
+    stale,
     claims: unitIds.map((unitId) => ({
       unitId,
       grade: 'work' as const,
       intent: 'orchestrate',
       ageMs: 1000,
       claimedAt: '2026-08-06T00:00:00Z',
+      stale,
+      heartbeatAgeMs: heardAgeMs,
     })),
   };
 }
@@ -307,6 +330,108 @@ describe('arcState — waiting / blocked / claimed / quiet (ADR-0314 D4, ADR-037
     expect(arcState(rollup, NOW, [])).toBe('quiet');
   });
 
+  // ── ADR-0535 D1: the third band, and the misread it removes ──────────────────────────────────
+  //
+  // The incident: an owner was shown an arc rendering `quiet` and concluded the work was finished.
+  // It was not — the session holding it was 432 tool calls in with a PR open, and its liveness stamp
+  // had simply gone dark. `quiet` asserts calm; a held-but-unheard-from claim is not calm, it is an
+  // unanswered question. These are the assertions that make that rendering unreachable.
+
+  it('a HELD but unheard-from claim reads `unknown`, NOT `quiet` — silence is not calm', () => {
+    const rollup = lane({ id: 'dark-arc', increments: [landed('c1', '2026-08-04')] });
+    // Same arc, same ledger row, only the last-heard-from age differs. That one axis is the whole
+    // difference between "someone is working here" and "nobody is", and it used to be discarded.
+    expect(arcState(rollup, NOW, [darkClaimGroup('s1', 5 * 60 * 60 * 1_000, 'dark-arc')])).toBe('unknown');
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'dark-arc')])).toBe('claimed');
+    // And with no claim at all it is genuinely quiet — `unknown` never leaks onto an unheld arc.
+    expect(arcState(rollup, NOW)).toBe('quiet');
+  });
+
+  it('one LIVE claimant outranks a dark one on the same arc — the live session answers the question', () => {
+    const rollup = lane({ id: 'mixed', increments: [parked('i1', '2026-08-01'), parked('i2', '2026-08-02')] });
+    const state = arcState(rollup, NOW, [
+      darkClaimGroup('ghost', 9 * 60 * 60 * 1_000, 'i1'),
+      claimGroup('live-one', 'i2'),
+    ]);
+    expect(state).toBe('claimed');
+  });
+
+  it('a PLAINLY ABANDONED claim leaves the arc entirely — it is tidy-up, not an open question', () => {
+    // Band 3 is a rendering decision against a DISPLAY-ONLY threshold: the row is still in the
+    // ledger, still reclaimable on exactly the same terms, and still visible in the tidy-up list.
+    // What it must not do is sit on an arc as `unknown` for a fortnight — a board that opens with
+    // three dozen of those is one its reader learns to ignore, which is how the previous presence
+    // layer died.
+    const rollup = lane({ id: 'corpse-arc', increments: [landed('c1', '2026-08-04')] });
+    const corpse = darkClaimGroup('dead', CLAIM_ABANDONED_DISPLAY_MS + 1, 'corpse-arc');
+    expect(arcClaimants(rollup, [corpse])).toEqual([]);
+    expect(arcState(rollup, NOW, [corpse])).toBe('quiet');
+  });
+
+  it('the abandoned line sits exactly at CLAIM_ABANDONED_DISPLAY_MS — one ms under is still `unknown`', () => {
+    const rollup = lane({ id: 'edge' });
+    const at = (ageMs: number): ArcSurfaceState =>
+      arcState(rollup, NOW, [darkClaimGroup('s1', ageMs, 'edge')]);
+    expect(at(CLAIM_ABANDONED_DISPLAY_MS - 1)).toBe('unknown');
+    expect(at(CLAIM_ABANDONED_DISPLAY_MS)).toBe('quiet');
+  });
+
+  it('`unknown` carries how long since we last heard — the state never asserts silence bare', () => {
+    // The reader's actual question is "how worried should I be?", and the age is the whole answer.
+    // `arcLastHeardMs` takes the MINIMUM: the most recent contact is the arc's sign of life, so one
+    // very stale holder cannot age an arc another session was heard on ten minutes ago.
+    const rollup = lane({ id: 'a', increments: [parked('i1', '2026-08-01'), parked('i2', '2026-08-02')] });
+    const claimants = arcClaimants(rollup, [
+      darkClaimGroup('older', 9 * 60 * 60 * 1_000, 'i1'),
+      darkClaimGroup('newer', 3 * 60 * 60 * 1_000, 'i2'),
+    ]);
+    expect(arcLastHeardMs(claimants)).toBe(3 * 60 * 60 * 1_000);
+    expect(arcLastHeardMs([])).toBeNull();
+    const [dark] = arcLanes([rollup], NOW, 'active', [darkClaimGroup('s', 4 * 60 * 60 * 1_000, 'i1')]);
+    expect(dark?.state).toBe('unknown');
+    expect(dark?.lastHeardMs).toBe(4 * 60 * 60 * 1_000);
+  });
+
+  it('`unknown` sorts between `claimed` and `quiet` — a silent holder is worse news than a live one', () => {
+    // The ordering IS the claim: proven-live first, then the arcs we cannot vouch for, then the
+    // genuinely empty ones. Burying `unknown` under `quiet` would hide exactly the rows worth asking
+    // about; promoting it above `claimed` would cry wolf over every dark stamp.
+    const arcs = [
+      lane({ id: 'z-quiet' }),
+      lane({ id: 'a-unknown' }),
+      lane({ id: 'm-claimed' }),
+    ];
+    const order = arcLanes(arcs, NOW, 'active', [
+      claimGroup('live', 'm-claimed'),
+      darkClaimGroup('dark', 6 * 60 * 60 * 1_000, 'a-unknown'),
+    ]).map((l) => `${l.arc.id}:${l.state}`);
+    expect(order).toEqual(['m-claimed:claimed', 'a-unknown:unknown', 'z-quiet:quiet']);
+  });
+
+  it('`waiting`, `blocked` and the stored lifecycles all still outrank `unknown`', () => {
+    // The new state slots in BELOW everything that was already ranked above `claimed`; a third band
+    // must not reorder the four decisions that came before it.
+    const dark = (id: string) => [darkClaimGroup('s1', 6 * 60 * 60 * 1_000, id)];
+    expect(arcState(lane({ id: 'q', questions: [question('q1')] }), NOW, dark('q'))).toBe('waiting');
+    expect(
+      arcState(lane({ id: 'g', gates: [{ id: 'blocker', shut: true }] }), NOW, dark('g')),
+    ).toBe('blocked');
+    expect(arcState(lane({ id: 'p', lifecycle: 'parked' }), NOW, dark('p'))).toBe('parked');
+    expect(arcState(lane({ id: 'c', lifecycle: 'closed' }), NOW, dark('c'))).toBe('closed');
+  });
+
+  it('`arcLastHeardMs` finds the minimum wherever it sits, and is null on nothing', () => {
+    // Order-independence is the point: an implementation that simply took the LAST claimant would
+    // agree with this one on a descending list and be wrong on an ascending one.
+    const c = (heartbeatAgeMs: number): ArcClaimant => ({
+      sessionId: 's', branch: 'b', unitId: 'u', band: 'unknown', heartbeatAgeMs,
+    });
+    expect(arcLastHeardMs([c(9_000), c(3_000)])).toBe(3_000);
+    expect(arcLastHeardMs([c(3_000), c(9_000)])).toBe(3_000);
+    expect(arcLastHeardMs([c(5_000)])).toBe(5_000);
+    expect(arcLastHeardMs([])).toBeNull();
+  });
+
   it('a parked arc reads `parked`, outranking `waiting` and `claimed` (ADR-0374 D1)', () => {
     // The two STORED lifecycles win over everything: an arc off the worklist is off it whatever else
     // is true of it, and `waiting` promises "answerable right now, IN FLIGHT".
@@ -334,11 +459,69 @@ describe('arcState — waiting / blocked / claimed / quiet (ADR-0314 D4, ADR-037
   });
 });
 
+describe('the state chip’s own words (ADR-0535 D1) — what the owner actually reads', () => {
+  const claimant = (sessionId: string, unitId: string): ArcClaimant => ({
+    sessionId, branch: `claude/${sessionId}`, unitId, band: 'unknown', heartbeatAgeMs: 5 * 60 * 60 * 1_000,
+  });
+
+  it('appends the age to `unknown` and to nothing else', () => {
+    // THE AGE IS ON THE FACE OF THE CHIP. The owner who was misled read a word and drew a
+    // conclusion — he did not hover — so "unknown" alone would repeat the mistake in a new vocabulary.
+    expect(claimChipLabel({ state: 'unknown', lastHeardMs: 5 * 60 * 60 * 1_000 })).toBe('unknown · 5h');
+    expect(claimChipLabel({ state: 'claimed', lastHeardMs: 60_000 })).toBe('claimed');
+    expect(claimChipLabel({ state: 'quiet', lastHeardMs: null })).toBe('quiet');
+    // Defensive: `unknown` always has a claimant to be silent about, so this cannot arise from
+    // `arcLanes` — but a label reading `unknown · null` would be worse than one reading `unknown`.
+    expect(claimChipLabel({ state: 'unknown', lastHeardMs: null })).toBe('unknown');
+  });
+
+  it('names every holder and unit, and says out loud what `unknown` is NOT claiming', () => {
+    const claimed = claimChipTitle({
+      state: 'claimed',
+      claimants: [claimant('s1', 'unit-a'), claimant('s2', 'unit-b')],
+      lastHeardMs: 60_000,
+    });
+    expect(claimed).toBe('held by s1, s2 — unit-a, unit-b');
+
+    const unknown = claimChipTitle({
+      state: 'unknown',
+      claimants: [claimant('s1', 'unit-a')],
+      lastHeardMs: 5 * 60 * 60 * 1_000,
+    });
+    expect(unknown).toBe(
+      'held by s1 (unit-a) — last heard from 5h ago. The claim was never released and we cannot tell whether the session is still working; this is not a report that it stopped.',
+    );
+    // ⚠ THE LAST CLAUSE IS THE POINT AND MUST NOT BE TRIMMED. "session s1 is gone" would be the same
+    // over-claim as `quiet`, in a smaller font: the surface knows an absence of evidence, nothing more.
+    expect(unknown).toContain('not a report that it stopped');
+
+    // TWO dark holders — an arc can be held by more than one session, and the reader needs both
+    // names, separated. One-session fixtures cannot see a broken separator.
+    expect(
+      claimChipTitle({
+        state: 'unknown',
+        claimants: [claimant('s1', 'unit-a'), claimant('s2', 'unit-b')],
+        lastHeardMs: 5 * 60 * 60 * 1_000,
+      }),
+    ).toContain('held by s1, s2 (unit-a, unit-b) — last heard from 5h ago');
+  });
+
+  it('says nothing at all when nobody holds the arc, and never an empty tooltip', () => {
+    expect(claimChipTitle({ state: 'quiet', claimants: [], lastHeardMs: null })).toBeNull();
+  });
+
+  it('falls back to "a while" rather than printing a null age', () => {
+    expect(
+      claimChipTitle({ state: 'unknown', claimants: [claimant('s1', 'u')], lastHeardMs: null }),
+    ).toContain('last heard from a while ago');
+  });
+});
+
 describe('arcClaimants — three real join paths, unioned, asserted positively only', () => {
   it('matches a claim taken directly on the arc id', () => {
     const rollup = lane({ id: 'my-arc' });
     expect(arcClaimants(rollup, [claimGroup('s1', 'my-arc')])).toEqual([
-      { sessionId: 's1', branch: 'claude/s1', unitId: 'my-arc' },
+      { sessionId: 's1', branch: 'claude/s1', unitId: 'my-arc', band: 'live', heartbeatAgeMs: 0 },
     ]);
   });
 

@@ -91,6 +91,34 @@ describe('/api/claims', () => {
     expect(sessions.map((s) => s.sessionId)).toEqual(['sess-old', 'sess-new']);
   });
 
+  it('carries a STALE row onto the wire, MARKED — the browser is never handed an absence', async () => {
+    // ADR-0535 D1's wire half. The route's own fold marks rather than drops; what used to empty the
+    // payload was the SELECT upstream of this handler (`claimsStoreRead.test.ts` pins that). This
+    // asserts the other end holds: given a dark holder, the response says so, and says for how long.
+    // The old behaviour is what an owner read as "nobody is working on this".
+    const darkClaim: ClaimDocT = {
+      unitId: 'story-dark',
+      sessionId: 'sess-dark',
+      branch: 'claude/sess-dark',
+      intent: 'mid-gate, 432 tool calls in',
+      grade: 'work',
+      claimedAt: minutesAgo(600),
+      heartbeatAt: minutesAgo(600),
+    };
+    sessionClaimsResult = [darkClaim];
+    const res = await fetch(`${base}/api/claims`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      sessions: { sessionId: string; stale: boolean; claims: { stale: boolean; heartbeatAgeMs: number }[] }[];
+    };
+    expect(body.sessions).toHaveLength(1);
+    expect(body.sessions[0]?.sessionId).toBe('sess-dark');
+    expect(body.sessions[0]?.stale).toBe(true);
+    expect(body.sessions[0]?.claims[0]?.stale).toBe(true);
+    // The age rides too — an "unknown" that cannot say how long is barely better than "quiet".
+    expect(body.sessions[0]?.claims[0]?.heartbeatAgeMs).toBeGreaterThan(2 * 60 * 60 * 1_000);
+  });
+
   it('answers 200 {sessions: null} when the store is silent (down DB / json) — never a 503', async () => {
     sessionClaimsResult = null;
     const res = await fetch(`${base}/api/claims`);

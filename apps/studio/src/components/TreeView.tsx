@@ -56,6 +56,12 @@ import { isBuildInFlight } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
 import { formatAge } from '../lib/format';
+import {
+  claimBand,
+  formatLastHeard,
+  partitionClaimGroups,
+  CLAIM_ABANDONED_DISPLAY_MS,
+} from '../lib/claimBands';
 import { useNowTick } from '../lib/poll';
 import { useSessionClaimGroups } from '../lib/sessionClaims';
 import { assetHref, docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
@@ -5644,22 +5650,45 @@ export function SessionDock({
   now: Date;
   onClose: () => void;
 }): React.JSX.Element {
+  // ADR-0535 D1 — the wire carries every standing row now, so the dock is the surface that has to
+  // sort them: what is worth reading (live AND held-but-dark, each saying which it is) above, and
+  // the plainly-abandoned rows behind a fold. Filtering them out entirely would put us straight back
+  // to hiding ghosts; listing them inline would open the dock with three dozen corpses over a
+  // handful of live rows, and a reader who learns to skip the panel is the failure that killed the
+  // previous presence layer. A fold is the only answer that is both honest and readable.
+  const { board, tidyUp } = partitionClaimGroups(claimGroups);
+  const tidyCount = (tidyUp ?? []).reduce((n, g) => n + g.claims.length, 0);
   return (
     <div className="session-dock" role="dialog" aria-label="session claims">
       <header>
-        <h4>session claims{claimGroups ? ` (${claimGroups.length})` : ''}</h4>
+        <h4>session claims{board ? ` (${board.length})` : ''}</h4>
         <button type="button" className="btn" onClick={onClose} aria-label="close sessions">
           ✕
         </button>
       </header>
-      {claimGroups === null ? (
+      {board === null ? (
         <p className="muted small">
           Claim ledger unavailable — the live store didn&apos;t answer.
         </p>
-      ) : claimGroups.length === 0 ? (
-        <p className="muted small">No live claims right now.</p>
+      ) : board.length === 0 ? (
+        <p className="muted small">No claims on the ledger right now.</p>
       ) : (
-        <ClaimGroupList groups={claimGroups} now={now} />
+        <ClaimGroupList groups={board} now={now} />
+      )}
+      {tidyUp !== null && tidyUp.length > 0 && (
+        <details className="claim-tidy-up">
+          <summary>
+            tidy up — {tidyCount} claim{tidyCount === 1 ? '' : 's'} nobody has released
+          </summary>
+          <p className="muted small">
+            Held, and nothing has been heard from the holder in over{' '}
+            {formatLastHeard(CLAIM_ABANDONED_DISPLAY_MS)}. These rows still sit in the ledger and are
+            still reclaimable by anyone on exactly the same terms — they are off the arcs because
+            saying &ldquo;we don&apos;t know&rdquo; about them stopped being informative, not because
+            anything about them changed.
+          </p>
+          <ClaimGroupList groups={tidyUp} now={now} />
+        </details>
       )}
     </div>
   );
@@ -5692,11 +5721,18 @@ function ClaimGroupList({
           </p>
           <ul className="claim-list">
             {g.claims.map((c) => (
-              <li key={c.unitId} className="claim-row">
+              <li key={c.unitId} className="claim-row" data-claim-band={claimBand(c)}>
                 <span className={`claim-grade-chip claim-grade-${c.grade}`}>{c.grade}</span>
                 <code>{c.unitId}</code>
                 {c.intent && <span className="muted small"> — {c.intent}</span>}
                 <span className="muted small"> · {formatAge(c.claimedAt, now)}</span>
+                {/* ADR-0535 D1 — a row we have not heard from SAYS SO, and says for how long. The
+                    measured defect this replaces is a 554-hour claim rendered indistinguishably
+                    from a live one; the fix is not to drop it (that is the studio's old bug in the
+                    other direction) but to hand the reader the one fact that separates them. */}
+                {c.stale && (
+                  <span className="claim-unheard small"> · last heard {formatLastHeard(c.heartbeatAgeMs)} ago</span>
+                )}
               </li>
             ))}
           </ul>

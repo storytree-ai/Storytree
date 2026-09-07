@@ -191,13 +191,15 @@ export interface LocalBackendBackend {
    */
   inFlightDepartures?: () => Promise<unknown[] | null>;
   /**
-   * EVERY live claim row, all units, all grades (ADR-0200 D7 — the session dock's
-   * claims-grouped-by-session view): the raw claim docs from events.node_claim (PgClaimStore.listLiveClaims,
-   * staleness-filtered in SQL). Distinct from {@link inFlightClaims} (which folds each row to a map-wisp
+   * EVERY STANDING claim row, all units, all grades, STALE ONES INCLUDED (ADR-0200 D7 — the session
+   * dock's claims-grouped-by-session view; unfiltered since ADR-0535 D1): the raw claim docs from
+   * events.node_claim (PgClaimStore.listAllClaims — staleness is MARKED by the shared fold
+   * downstream, never dropped in SQL, so this surface cannot be handed an absence the CLI board
+   * marks as a stale row). Distinct from {@link inFlightClaims} (which folds each row to a map-wisp
    * activity, grade and all): this stays the raw shape so the `/api/claims` handler folds it through the pure
    * `groupClaimsBySession`. Optional like {@link inFlightClaims}: a narrow stub may omit it, and
    * `/api/claims` falls back to `{ sessions: null }` (advisory absence, never an over-claim). Production
-   * wires it (electron/backend-entry.ts) over PgClaimStore.listLiveClaims.
+   * wires it (electron/backend-entry.ts) over PgClaimStore.listAllClaims.
    */
   sessionClaims?: () => Promise<unknown[] | null>;
   /**

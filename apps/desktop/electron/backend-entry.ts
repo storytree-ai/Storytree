@@ -325,7 +325,8 @@ async function main(): Promise<void> {
   const comments = new PgCommentStore(pool);
   const attestations = new PgAttestationStore(pool);
   // The ledger read behind the session dock's GET /api/claims view (ADR-0200 D7) — the SAME store the
-  // CLI board reads; listLiveClaims staleness-filters in SQL. Separate instance from the PgClaimStore
+  // CLI board reads, and since ADR-0535 D1 the same UNFILTERED read (`listAllClaims`): staleness is
+  // marked by the shared fold, never dropped in SQL. Separate instance from the PgClaimStore
   // built inside the spawn-surface block below (that one adapts the narrow claim/bumpHeartbeat seam).
   const claimLedger = new PgClaimStore(pool);
 
@@ -501,7 +502,12 @@ async function main(): Promise<void> {
       advisory("in-flight-departures", async () =>
         foldDepartures(await claimLedger.recentDepartures(DEPARTURE_WINDOW_MS), new Date()),
       ),
-    sessionClaims: async () => advisory("session-claims", async () => claimLedger.listLiveClaims()),
+    // EVERY STANDING claim row, stale ones INCLUDED (ADR-0535 D1) — `listAllClaims()`, the read the
+    // CLI board already took, so the dock cannot be handed an absence the command line marks as a
+    // stale row. Changed in lockstep with the studio's PgBackend.sessionClaims: the mirror-
+    // conformance row for /api/claims injects at THIS seam, so a one-sided swap would leave the two
+    // surfaces answering the same question from different row sets while the harness stayed green.
+    sessionClaims: async () => advisory("session-claims", async () => claimLedger.listAllClaims()),
     // The library DOCUMENT STORE behind GET /api/arcs (ADR-0267 / ADR-0314) — the live PgLibraryStore
     // built above, handed straight to drive's arc rollup. Mirrors the studio PgBackend.docStore
     // (re-composed here, the surface boundary — no apps/studio/server import, ADR-0100), and it is the
