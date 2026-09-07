@@ -234,6 +234,27 @@ jobs:
       - name: Contract-line grammar
         run: pnpm check:contract-grammar
 
+      # The IMAGE's credential filter, held to git's (ADR-0547, realising ADR-0544 D5's residual).
+      # `.gcloudignore` and `.gitignore` are two INDEPENDENT lists that happen to need to agree: the
+      # by-hand image build uploads the working tree as it stands, and the builder never reads the
+      # git list — so a file correctly kept out of git can still be copied straight into a PUBLIC
+      # image. This rung reads both and reds when a secret-shaped or private-runtime entry is in one
+      # and missing from the other. It fails rather than skips when either file is absent, because a
+      # rung whose whole value is comparing two lists must never quietly compare nothing.
+      #
+      # ⚠ IT IS HERE, AND NOT GATE-ONLY, BECAUSE THE GATE IS A HABIT AND THIS IS A WALL — the same
+      # argument `check:contract-grammar` above was put on the wall for, and for the same measured
+      # reason: two drift instances in three days (2026-09-06 and 2026-09-08), both introduced by
+      # updating one list and not the other, and neither noticed by a human. The owner directed the
+      # promotion (ADR-0547) after the authoring session hit GitHub's `workflow`-scope refusal and
+      # escalated rather than routing around it.
+      #
+      # Offline and disk-only: two file reads, no git, no store, no credential, milliseconds. A ROOT
+      # step, OUTSIDE the ADR-0195 affected-only narrowing below — either list may be edited by a
+      # change in any package, and neither path narrows to a scope containing this check.
+      - name: Image credential filter mirrors git's
+        run: pnpm check:gcloudignore-mirror
+
       # Cross-surface mirror conformance (verification-integrity-arc inc 2). Surfaces that
       # re-compose another's route — the desktop backend hand-mirrors the studio's /api/docs walk
       # and may never import it (ADR-0176) — must serve the SAME payload. Each surface is run by
