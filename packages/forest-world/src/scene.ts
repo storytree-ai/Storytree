@@ -25,6 +25,7 @@
 import { hash, rand01 } from './rng.js';
 import {
   LAND_CAMERA_ELEVATION_DEG,
+  groundPolarOffset,
   groundRadiusToScreenHalfHeight,
   projectGround,
   unprojectGround,
@@ -1250,19 +1251,10 @@ function groundGap(a: Pt, b: Pt, elevationDeg: number): number {
   return Math.hypot(d.x, d.y);
 }
 
-/**
- * A polar offset of ground-plane radius `r` at ground bearing `ang`, returned in SCREEN units —
- * what a scatter adds to a projected anchor to land `r` away across the ground.
- *
- * It replaces `{ cos·r, sin·r·0.7 }`: the `0.7` was a hand-picked top-down squash inherited from the
- * wisp orbit, so the sampled ellipse had no relation to the shape the island actually projects to. At
- * the declared camera the same disc projects at `sin 20° = 0.342`, i.e. the old offsets over-reached
- * the island's own projected height by roughly a factor of two — which is what pushed candidates into
- * the water and exhausted the draws.
- */
-function groundPolarOffset(ang: number, r: number, elevationDeg: number): Pt {
-  return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r }, elevationDeg);
-}
+// `groundPolarOffset` used to be defined here, privately. It is now the shared export in
+// `camera.ts` beside `projectGround` (ADR-0537): the studio layout held a deliberate copy of the
+// same two lines because reaching into this package owed an engine sync, and that toll is no
+// longer allowed to draw the boundary. Same arithmetic, one definition, imported above.
 
 // The floor on how close two UAT flowers may stand ON THE GROUND (the historical `> 15`) and the
 // GROUND radius around the story tree's base no flower is planted inside (the historical `> 36`, which

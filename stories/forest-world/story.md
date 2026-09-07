@@ -63,6 +63,24 @@ website's string-SVG mapper, and the R3F 3D mapper
 (ADR-0123).
 Same input → byte-identical geometry; no store, no React, no live data, no `node:` imports.
 
+## This story owns a SECOND package since 2026-09-07 — `packages/forest-layout`
+
+ADR-0537 D1 (owner-directed: *"pay the cost now"*) extracted **where the islands SIT** —
+`buildWorld`, the derived inter-island gaps, the growth floor and its moat — out of
+`apps/studio/src/components/TreeView.tsx` into `packages/forest-layout`, a second package this story
+owns. The same shape `art-factory` already carries with `procedural-architecture` +
+`art-authoring`: one story, two packages, split by dependency weight rather than by competence.
+
+**It is deliberately NOT folded into `packages/forest-world`, and that was the fork.** This package
+earns its keep by depending on nothing and by being cheap for the website to take; layout has
+different consumers and a far higher change rate, so folding the most frequently changed code on the
+map into the package carrying the heaviest publishing cost is the one direction ADR-0537 rules out.
+`forest-layout` is therefore **not foundational** — it depends on this package — and it is outside
+the `sync:web-engine` mirror, which only carries `forest-world/src` and `forest-world-r3f/src`. That
+toll is what had kept the packing surface-side, and killing its influence is half of what the
+decision bought; the other half is that the studio CHROME it was tangled with (the `render: building`
+class, the ADR-0102 icon promotion) stayed behind the seam and is injected, never imported there.
+
 It owns its **own minimal input contract** — a story is just an id + its `depends_on` + its
 capabilities' deps — so it depends on **nothing**. Each surface adapts its own data (the studio's live
 store; the website's fictional Cohoot demo data) to that contract; the core never reaches for either.
