@@ -91,7 +91,7 @@ function baseTerritory(): SceneTerritoryInput {
     screenRadius: 60,
     treeSpot: { x: 100, y: 190 },
     labelY: 260,
-    coastPaths: ['M 0 0 L 10 0 L 10 10 Z'],
+    coastGroundLoops: [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]],
     decor: [{ x: 80, y: 180, seed: 7 }],
     plants: [{ id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a — proven' }],
     treeTitle: 'library — healthy',

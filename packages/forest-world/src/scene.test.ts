@@ -888,7 +888,7 @@ function absenceLockInput(): SceneInput {
         screenRadius: 60,
         treeSpot: { x: 100, y: 190 },
         labelY: 260,
-        coastPaths: ['M 0 0 L 10 0 L 10 10 Z'],
+        coastGroundLoops: [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]],
         decor: [
           { x: 80, y: 180, seed: 7 },
           { x: 120, y: 210, seed: 4 },
@@ -912,7 +912,7 @@ function absenceLockInput(): SceneInput {
         screenRadius: 50,
         treeSpot: { x: 300, y: 50 },
         labelY: 120,
-        coastPaths: ['M 0 0 L 8 0 L 8 8 Z'],
+        coastGroundLoops: [[{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 8 }]],
         decor: [{ x: 290, y: 55, seed: 5 }],
         plants: [{ id: 'cli#cap-x', status: 'proposed', x: 295, y: 65, title: 'cap x' }],
         treeTitle: 'cli — proposed',

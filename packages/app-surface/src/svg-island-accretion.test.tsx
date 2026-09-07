@@ -80,7 +80,7 @@ function islandInput(): SceneInput {
         screenRadius: 18,
         treeSpot: { x: 15, y: 12 },
         labelY: 35,
-        coastPaths: ['M -3 -2 L 33 -2 L 34 31 L -2 33 Z'],
+        coastGroundLoops: [[{ x: -3, y: -2 }, { x: 33, y: -2 }, { x: 34, y: 31 }, { x: -2, y: 33 }]],
         decor: [],
         plants: [],
         treeTitle: 'Connected island',

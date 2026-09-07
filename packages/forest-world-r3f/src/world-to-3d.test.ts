@@ -91,7 +91,7 @@ function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInp
     screenRadius: 60,
     treeSpot: { x: 100, y: 190 },
     labelY: 260,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: 'library — healthy',

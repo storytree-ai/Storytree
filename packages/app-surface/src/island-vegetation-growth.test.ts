@@ -82,7 +82,7 @@ function mkInput(opts: FixtureOpts = {}): SceneInput {
         screenRadius: 30,
         treeSpot: { x: 50, y: 45 },
         labelY: 80,
-        coastPaths: ['M 0 0 L 1 0 Z'],
+        coastGroundLoops: [[{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]],
         decor: [
           { x: 34, y: 40, seed: 5 },
           { x: 66, y: 44, seed: 11 },

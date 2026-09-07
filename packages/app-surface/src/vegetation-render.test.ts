@@ -35,7 +35,7 @@ function mkScene(ids: readonly string[]): SceneNode {
       screenRadius: 28,
       treeSpot: { x: 60 + index * 90, y: 55 },
       labelY: 96,
-      coastPaths: ['M 0 0 L 1 0 Z'],
+      coastGroundLoops: [[{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]],
       decor: [{ x: 50 + index * 90, y: 50, seed: 3 + index }],
       plants: [{ id: `${id}#c`, status: 'healthy' as const, x: 55 + index * 90, y: 66, title: 'cap' }],
       treeTitle: id,

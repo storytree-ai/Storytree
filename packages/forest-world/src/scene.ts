@@ -48,6 +48,7 @@ import {
   type TrailSegment,
   trailFillWidth,
 } from './routing.js';
+import { smoothLoopPath } from './coast.js';
 import type { DrawTile, RelaxedCell } from './substrate.js';
 
 // ---------------------------------------------------------------------------
@@ -527,7 +528,15 @@ export interface SceneTerritoryInput {
   treeSpot: Pt;
   /** The nameplate baseline y (also the delegation hit's bottom). */
   labelY: number;
-  coastPaths: string[];
+  /** The smoothed coastline as closed loops in the GROUND plane — the island's sand fill AND its
+   *  water moat (one curve, filled then stroked). ADR-0527 D1: the surface hands over COORDINATES
+   *  and the drawing is made here, at the camera the scene is being built at. It used to be a
+   *  `d` string the caller had already projected and smoothed, which made it the one island input
+   *  that was a finished DRAWING — and a drawing cannot be re-projected, so the coast could not
+   *  follow a camera the caller had not already applied. Projecting then smoothing is what the
+   *  caller did and is what happens here: `smoothLoopPath` builds its curve from midpoints and is
+   *  therefore linear in its input points, so the two orders draw the same coast. */
+  coastGroundLoops: Pt[][];
   /** Conifer-clump seeds; the core expands each into 2–3 deterministic conifers.
    *  RETIRED for a parcels-present island (the parcel flora replaces the decorative conifers). */
   decor: { x: number; y: number; seed: number }[];
@@ -726,7 +735,7 @@ export type GardenHeroId = 'cottage' | 'gazebo' | 'autumn-tree' | 'stepping-ston
 
 /** A baked hero's resolved-paint drawables + its baked box, folded by the SURFACE from
  *  procedural-architecture's `kit.json` `heroes` (the core imports nothing new — the def data is
- *  opaque surface-supplied data, exactly like `coastPaths`). One `baked-def` is emitted per hero
+ *  opaque surface-supplied data, unlike `coastGroundLoops`, which is coordinates). One `baked-def` is emitted per hero
  *  (define-once, ADR-0069) and referenced by every placement `baked-use`. `width`/`height` are the
  *  baked box, so a placement scales the solid to a target on-island envelope. */
 export interface SceneGardenHero {
@@ -3301,12 +3310,14 @@ function buildEmpties(input: SceneInput, art: TileArt, elevationDeg: number): Sc
   );
 }
 
-function buildCoast(input: SceneInput): SceneG {
+function buildCoast(input: SceneInput, elevationDeg: number): SceneG {
   const groups = input.territories
     .map((t): SceneG | null =>
-      t.coastPaths.length
+      t.coastGroundLoops.length
         ? g(
-            t.coastPaths.map((d) => path(d, { kind: 'coast-shore' })),
+            t.coastGroundLoops.map((loop) =>
+              path(smoothLoopPath(loop.map((p) => projectGround(p, elevationDeg))), { kind: 'coast-shore' }),
+            ),
             { kind: 'coast', status: t.status, id: t.id },
           )
         : null,
@@ -3604,7 +3615,7 @@ export function buildScene(input: SceneInput): SceneG {
     // renders as the procedural `buildTree` byte-for-byte.
     ...(vegetation?.heroTrees ? [buildVegetationDefs(vegetation.heroTrees, input.territories.map((t) => t.status))] : []),
     buildEmpties(input, art, elevationDeg),
-    buildCoast(input),
+    buildCoast(input, elevationDeg),
     buildGround(input, surfaces, elevationDeg),
     buildTrails(input, art),
     g(

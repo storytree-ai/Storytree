@@ -150,7 +150,7 @@ function territory(
     screenRadius: 24,
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: id,

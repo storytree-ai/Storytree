@@ -62,7 +62,7 @@ function representativeInput(): SceneInput {
         screenRadius: 24,
         treeSpot: { x: 50, y: 45 },
         labelY: 76,
-        coastPaths: ['M 20 20 L 80 20 L 50 80 Z'],
+        coastGroundLoops: [[{ x: 20, y: 20 }, { x: 80, y: 20 }, { x: 50, y: 80 }]],
         decor: [],
         plants: [
           {

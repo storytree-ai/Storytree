@@ -74,7 +74,7 @@ function territory(id: string, status: SceneStatus, cx: number, cy: number): Sce
     screenRadius: 60,
     treeSpot: { x: cx, y: cy - 10 },
     labelY: cy + 60,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: `${id} — ${status}`,

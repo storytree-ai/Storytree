@@ -68,7 +68,14 @@ function island(id: string, dx: number): SceneInput['territories'][number] {
     screenRadius: 18,
     treeSpot: { x: dx + 15, y: 12 },
     labelY: 35,
-    coastPaths: [`M ${dx - 3} -2 L ${dx + 33} -2 L ${dx + 34} 31 L ${dx - 2} 33 Z`],
+    coastGroundLoops: [
+      [
+        { x: dx - 3, y: -2 },
+        { x: dx + 33, y: -2 },
+        { x: dx + 34, y: 31 },
+        { x: dx - 2, y: 33 },
+      ],
+    ],
     decor: [],
     plants: [],
     treeTitle: id,

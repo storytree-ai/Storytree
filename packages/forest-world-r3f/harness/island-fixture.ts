@@ -249,7 +249,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     screenRadius: 70 * groundFlattening(elevationDeg),
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
-    coastPaths: [],
+    coastGroundLoops: [],
     decor: [],
     plants: [],
     treeTitle: 'context-traversal-capture',

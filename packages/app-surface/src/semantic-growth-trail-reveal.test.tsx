@@ -98,7 +98,13 @@ function territory(id: string, cx: number, cy: number, key: string) {
     screenRadius: 20,
     treeSpot: { x: cx, y: cy - 4 },
     labelY: cy + 24,
-    coastPaths: [`M ${cx - 20} ${cy - 20} L ${cx + 20} ${cy - 20} L ${cx} ${cy + 20} Z`],
+    coastGroundLoops: [
+      [
+        { x: cx - 20, y: cy - 20 },
+        { x: cx + 20, y: cy - 20 },
+        { x: cx, y: cy + 20 },
+      ],
+    ],
     decor: [],
     plants: [],
     treeTitle: `${id} (${key})`,

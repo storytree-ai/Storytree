@@ -60,7 +60,7 @@ describe('buildWorld — standalone single-island layout (Shared Islands panel)'
     expect(a.height).toBe(b.height);
     expect(a.offset).toEqual(b.offset);
     expect(a.territories[0]!.treeSpot).toEqual(b.territories[0]!.treeSpot);
-    expect(a.territories[0]!.coastPaths).toEqual(b.territories[0]!.coastPaths);
+    expect(a.territories[0]!.coastGroundLoops).toEqual(b.territories[0]!.coastGroundLoops);
   });
 
   it('an edgeless world carries an EMPTY trail network (the router is skipped, never fed junk)', () => {
