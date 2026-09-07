@@ -96,7 +96,7 @@ import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { GPU_TIMER_EXTENSION } from './frame-cost.js';
 import { awaitQuery, readIdentity, type DisjointTimerQuery, type RendererIdentity } from './frame-cost-scene.js';
-import { islandScene } from './island-fixture.js';
+import { islandGroundScene } from './island-fixture.js';
 import { KIT_ASSET_URL, kitMeshes, loadKit, setKitPropLighting, type LoadedKit } from './kit-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
@@ -298,7 +298,7 @@ export function armIsland(arm: string): InstanceDescriptor[] {
   const key = String(spec.areaPerCapability);
   const hit = islandMemo.get(key);
   if (hit !== undefined) return hit;
-  const built = worldTo3D(islandScene(), { landAreaPerCapability: spec.areaPerCapability }).filter(
+  const built = worldTo3D(islandGroundScene(), { landAreaPerCapability: spec.areaPerCapability }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
   islandMemo.set(key, built);

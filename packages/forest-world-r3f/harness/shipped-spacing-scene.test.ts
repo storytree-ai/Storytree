@@ -8,10 +8,16 @@
 // nearest-pair water is the geometry it claims; and that the read island is found by id.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import { groundFlattening } from '@storytree/forest-world';
 
 import { shippedElevationDeg } from '../src/camera-framing.js';
-import type { InstanceDescriptor } from '../src/world-to-3d.js';
+import { COARSEN_FACTOR, MAX_GRID_BUCKETS, buildSegmentGrid, edgeGridFarField, type CoastEdge } from '../src/shore-grid.js';
+import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.js';
 import { islandScene } from './island-fixture.js';
 import { orientedCamera } from './shipped-crowd-scene.js';
@@ -19,6 +25,7 @@ import { screenExtent } from './shipped-land-ratio-scene.js';
 import {
   READ_ISLAND,
   SPACING_CONTROL_ARM,
+  SPACING_EVIDENCE_DIR,
   SPACING_SHOTS,
   armStream,
   fitCamera,
@@ -30,6 +37,7 @@ import {
   tightestPair,
   validateManifest,
   viewElevationDeg,
+  type SpacingSceneFile,
   type IslandFootprint,
   type SpacingArm,
   type SpacingManifest,
@@ -201,4 +209,84 @@ test('tightestPair reads the RINGS: two lobed islands whose boxes overlap but wh
   assert.equal(o.overlap, true);
   assert.equal(o.water, 0);
   assert.throws(() => tightestPair([cell('only', [[0, 0], [1, 0], [1, 1]])]), /fewer than two/);
+});
+
+
+// ---------------------------------------------------------------------------
+// THE LANDED CORRIDOR, ON THE REAL COMMITTED FOREST (ADR-0546 D1 / D6)
+// ---------------------------------------------------------------------------
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SCENES = join(HERE, '..', '..', '..', 'docs', 'research', SPACING_EVIDENCE_DIR, 'scenes');
+
+/** An island's depth over its width, at the median island — a shape reading the land-per-capability
+ *  resize cannot move, unlike an area or an extent. */
+function medianAspect(fps: readonly IslandFootprint[]): number {
+  const a = fps.map((f) => f.halfD / f.halfW).sort((x, y) => x - y);
+  return a[Math.floor(a.length / 2)]!;
+}
+
+/** The committed SHIPPED-PICK arm — the real 35-island forest the 2D map laid out on 2026-09-06 at
+ *  the gap ratio that ships, read off disk.
+ *
+ *  ⚠ THE SHIPPED PICK RATHER THAN THE CONTROL, AND FOR A MECHANICAL REASON: `armStream` memoises by
+ *  `record.id`, and the synthetic `fixtureArm` above builds a ONE-ISLAND arm under the control's own
+ *  id, so asking for the control here returns whichever of the two ran first. */
+function committedForest(): SpacingArm {
+  const m = validateManifest(JSON.parse(readFileSync(join(SCENES, 'manifest.json'), 'utf8')));
+  const record = m.arms.find((a) => a.spacing.ratio === m.shippedRatio);
+  if (record === undefined) throw new Error('the committed manifest carries no arm at the shipped ratio');
+  // ⚠ RE-IDENTIFIED, ON PURPOSE. `armStream` memoises by `record.id` and the synthetic `fixtureArm`
+  // above builds ONE-ISLAND arms under the real ladder's own ids, so a shared id hands this test
+  // whichever of the two ran first — which is how it first read "1 islands" on a 35-island file.
+  return {
+    record: { ...record, id: `committed-${record.id}` },
+    file: JSON.parse(readFileSync(join(SCENES, record.file), 'utf8')) as SpacingSceneFile,
+  };
+}
+
+test('⚠⚠ THE CORRIDOR IS LANDED, MEASURED ON THE REAL COMMITTED FOREST — and the un-projected extent is an ORDINARY one for the shore grid, which is ADR-0546 D6’s answer', () => {
+  const arm = committedForest();
+  const converted = armStream(arm);
+  const b = forestBounds(converted);
+  assert.ok(b.islands > 30, `the committed arm is the whole forest (${b.islands} islands)`);
+
+  // ⚠ THE ISLANDS ARE TRUE, NOT SQUASHED — the thing the deleted repair used to supply and the
+  // conversion at the reader now does. Read as an ASPECT RATIO rather than a size, because the
+  // land-per-capability ratio has already resized every island by its own factor.
+  const median = medianAspect(islandFootprints(converted));
+  assert.ok(median > 0.9 && median < 1.2, `a true island is roughly as deep as it is wide (median ${median})`);
+
+  // ⚠ AND THE FOREST IS A CORRIDOR: deeper than it is wide, which is the shape the owner accepted
+  // sight-unseen (ADR-0546 D3) and exactly what the per-island repair existed to avoid.
+  assert.ok(b.ground.d > b.ground.w * 3, `the forest is a corridor (${b.ground.w.toFixed(0)} x ${b.ground.d.toFixed(0)})`);
+
+  // ⚠⚠ ADR-0546 D6 — THE SPACING REMAINDER, ANSWERED ON THE LANDED GEOMETRY RATHER THAN NAMED. The
+  // corridor is what once blew `shore-grid`'s 262,144-bucket cap (478,401 buckets on a 10,235-unit
+  // extent), which is why the forest's spacing was made a precondition of this deletion.
+  // `buildSegmentGrid` has coarsened since ADR-0520, so an extent the query width cannot tile is
+  // tiled COARSER rather than refused — `src/shore-grid.test.ts` pins that on a typed extent; this
+  // pins it on the extent the landing actually produces.
+  const SAND_CELL = 2.6384359697243656;
+  const edges: CoastEdge[] = [{ ax: 0, az: 0, bx: b.ground.w, bz: b.ground.d }];
+  const grid = buildSegmentGrid(edges, SAND_CELL);
+  assert.ok(grid.nx * grid.nz <= MAX_GRID_BUCKETS, `${grid.nx} x ${grid.nz} = ${grid.nx * grid.nz}`);
+  assert.ok(grid.cell >= SAND_CELL, 'coarsened, never refined — the far-field proof needs cell >= width');
+  assert.ok(edgeGridFarField(grid.cell, SAND_CELL));
+  const steps = Math.round(Math.log(grid.cell / SAND_CELL) / Math.log(COARSEN_FACTOR));
+  assert.ok(steps <= 12, `the landed corridor settles in ${steps} quarter-steps, not near the 64 bound`);
+});
+
+test('⚠ NON-VACUITY: the same committed export fed straight through the mapper is the SQUASH — which is what the reader’s conversion exists to prevent', () => {
+  const arm = committedForest();
+  const converted = medianAspect(islandFootprints(armStream(arm)));
+  const raw = medianAspect(
+    islandFootprints(worldTo3D(arm.file.scene).filter((d): d is InstanceDescriptor => d.kind !== 'skipped')),
+  );
+  // Not merely "smaller": the two differ by EXACTLY the projection the export was written through,
+  // 1 / sin 20° = 2.9238 — which is what says the conversion undoes that projection and nothing else.
+  assert.ok(
+    Math.abs(converted / raw - 1 / groundFlattening()) < 1e-3,
+    `unconverted ${raw} against converted ${converted} — ratio ${converted / raw}`,
+  );
 });

@@ -482,8 +482,15 @@ test('⚠ the UN-PROJECTED forest fits the cap — so the grid is NOT what stand
   //
   // This pins the consequence, so nobody re-derives the blocker from the older comment: the
   // un-projected crowd is an ordinary extent for this grid, a few quarter-steps up, nowhere near
-  // the refusal. What remains between the layout and a true spacing is therefore a LOOK — where
-  // every island SITS on the studio map and on the public site — and not an arithmetic limit.
+  // the refusal.
+  //
+  // ⚠⚠ AND THE LOOK THAT WAS LEFT HAS SINCE BEEN GIVEN — ADR-0546 (2026-09-08). This comment used
+  // to end "what remains between the layout and a true spacing is therefore a LOOK", and the owner
+  // took it: the 3D forest stands on true ground, `restoreTrueFootprint` is deleted, and the
+  // corridor is landed rather than hypothetical. Nothing in THIS test changes — the extent it pins
+  // is the one the deletion produces — but it is no longer describing a possibility. The landed
+  // extent is measured on the real committed forest in
+  // `harness/shipped-spacing-scene.test.ts`, which src cannot import (`scope-fence.test.ts`).
   const SAND_CELL = 2.6384359697243656;
   const unprojected: CoastEdge[] = [{ ax: 0, az: 0, bx: 2289.7, bz: 10235 }];
   const grid = buildSegmentGrid(unprojected, SAND_CELL);

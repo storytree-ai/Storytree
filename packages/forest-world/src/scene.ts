@@ -743,9 +743,19 @@ export interface SceneInput {
    * the stone walk, the accents — measure distances against those projected polygons, and a distance
    * meaning "how far apart on the ground" cannot be read off the screen without knowing the angle.
    * Supplying it lets a caller (and the proof) ask what the SAME GROUND island looks like at another
-   * camera; it never re-projects the geometry, which the surface has already done through
-   * `hexCenter`/`hexCorners`. Passing an elevation here that disagrees with the one the coordinates
-   * were built at is the mismatch the whole increment removes, so don't.
+   * camera. Passing an elevation here that disagrees with the one the ground COORDINATES were built
+   * at (`hexCenter`/`hexCorners`/`buildRelaxedCells` all take the same option) is a scene at two
+   * cameras at once, so thread one elevation through all of them.
+   *
+   * ⚠⚠ THIS FIELD USED TO SAY *"it never re-projects the geometry, which the surface has already
+   * done"*, AND THAT SENTENCE IS RETIRED IN TWO STEPS, BOTH RECORDED HERE. ADR-0527 D1 retired it
+   * for the ANCHORS: a `ground` {@link SceneTerritoryInput.anchorSpace} hands over PRE-camera
+   * positions and this file projects them, once, at the camera it is being built at — which is what
+   * lets a caller ask for a genuine plan-view scene instead of one at two cameras. ADR-0546 D1
+   * retired what was left of its PURPOSE: `worldTo3D` no longer un-projects the drawing it is
+   * handed, so `PLAN_VIEW_ELEVATION_DEG` is not an instrument's curiosity any more but **what the
+   * 3D map asks for** — the scene is where the true ground now comes from, and a 3D caller that
+   * omits this field gets the squashed drawing laid straight onto the ground plane.
    */
   cameraElevationDeg?: number;
   /** The tile the scene is drawn on (ADR-0528): the lattice radius the surface laid its tiles out

@@ -75,21 +75,38 @@
 // longer draws. An emitted-but-undrawn `InstanceDescriptor` would have been exactly that
 // second list, since an instance descriptor IS the claim "something stands here".
 //
-// ⚠⚠ THE GROUND IS THE ISLAND'S TRUE FOOTPRINT, NOT THE DRAWING'S (ADR-0517 D1, 2026-09-05).
-// The semantic scene is a 2D drawing projected at the declared land camera (20°), so every
-// ground depth on the page is `× sin 20°` = 0.342 of the real one. Until 2026-09-05 this mapper
-// laid that drawing straight onto the ground plane and the shipped island was 233.8 × 46.2 units
-// where the recipe's own hex cluster is 233.8 × 135.1 — squashed once by the drawing and again
-// by the 3D camera, which the owner read as "the camera is too low" (PR #1820 measured the two
-// causes apart: five degrees of elevation buy 7.5%, the footprint 129%). So after the walk the
-// whole stream goes through `restoreTrueFootprint`: every ground z stretched by `1 / sin(elev)`
-// ABOUT ITS OWN ISLAND'S CENTRE, x untouched, the layout held still. `worldTo3D`'s second
-// argument names the elevation the SCENE was projected at (the scene input's own
-// `cameraElevationDeg` seam, ADR-0367 D1) — a scene built at plan view is already true and
-// passes through unchanged. It is done HERE, at the mapper, for the same reason the placeholder
-// tree was retired here: every downstream reader — the canvas, the casters, the dressing, every
-// comparison page — reaches the ground through this function, so one stretch moves all of them
-// and leaves no second list to keep in step (`comparison-baseline-moves-under-the-page`).
+// ⚠⚠ THE SCENE THIS MAPPER READS IS A TRUE-GROUND SURFACE, NOT A DRAWING (ADR-0546, 2026-09-08).
+// Hand it a scene built at PLAN VIEW (`PLAN_VIEW_ELEVATION_DEG`) and every (x, y) it walks is
+// already a true ground coordinate, so the walk lays it straight onto the ground plane —
+// SVG (x, y) → 3D (x, 0, z) — and nothing is un-projected. `buildScene` returns exactly that when
+// its caller hands over ground anchors (`SceneTerritoryInput.anchorSpace: 'ground'`) and asks for
+// plan view; the studio's packer does.
+//
+// ⚠ IT USED TO REPAIR A DRAWING INSTEAD, AND THAT IS THE THING THAT WENT. Between 2026-09-05 and
+// 2026-09-08 the mapper was handed a scene projected at the declared land camera (20°, so a ground
+// depth on the page is `sin 20°` = 0.342 of the real one) and un-squashed each island IN PLACE
+// through `restoreTrueFootprint`, holding the layout still (ADR-0517 D1). The owner chose to build
+// on true ground instead (ADR-0546 D1): the repair is deleted, and with the whole layout un-squashed
+// rather than each island alone, the 3D forest's outline goes from roughly square to a corridor
+// about three times deeper than it is wide — measured on the real 14-island layout, 382 × 359
+// becomes 382 × 1050, while an island's own footprint (31.7 × 33.5) and the gap to its nearest
+// neighbour (+6%) are essentially unmoved. He took that shape SIGHT-UNSEEN and declined the
+// comparison page that was offered as its own option; a session that dislikes the picture raises a
+// FRESH question about the forest's spacing and does not reverse this on its own judgement
+// (ADR-0546 D3).
+//
+// ⚠ FEEDING IT A DRAWING IS NOW A SQUASHED ISLAND, SILENTLY. There is no elevation argument left
+// to get wrong — and no repair left to rescue a caller that hands over the declared camera's
+// projection anyway. Measured on the frozen 35-island export: an island 33.1 × 38.5 through the old
+// repair reads 56.5 × 22.5 fed straight through. The two committed comparison pages that stand on
+// scenes exported BEFORE this landing say so at their own readers (`shipped-spacing-scene.ts`,
+// `shipped-island-floor-scene.ts`); every other page builds its scene live and asks for plan view.
+//
+// ⚠ NOTHING A VISITOR OR AN OPERATOR SEES CHANGES, AND THAT IS PROVED RATHER THAN BELIEVED. This
+// function is not on the 2D map's path at all — the studio's SVG painter reads `buildScene`
+// directly — and no product surface mounts the 3D canvas. `projection-equivariance.test.ts` is the
+// standing fence: a layout that emits true ground and is flattened at draw time draws the identical
+// picture.
 //
 // ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY the retired classic prism was — a
 // flat prism wearing the parcel's folded status colour. It is the representation the
@@ -109,16 +126,15 @@ import {
 } from '@storytree/forest-world';
 
 import { LAND_AREA_PER_CAPABILITY, sizeIslandsByCapability } from './land-per-capability.js';
-import { restoreTrueFootprint } from './true-footprint.js';
 
 // ---------------------------------------------------------------------------
 // Descriptor types — the provability-firewall output contract
 // ---------------------------------------------------------------------------
 
 /** A 3D world-space position. Coordinate convention: SVG x → 3D x (east),
- *  SVG y → 3D z (depth/south), 3D y is up — with the drawing's isometric foreshortening UNDONE
- *  along z, per island (ADR-0517 D1; `true-footprint.ts`), so a ground z is a TRUE ground
- *  distance and not the page's squashed one. */
+ *  SVG y → 3D z (depth/south), 3D y is up — and the scene's own coordinates are already TRUE
+ *  ground distances rather than the page's foreshortened ones, because the scene was built at plan
+ *  view (ADR-0546 D1; see the header). */
 export interface Transform3D {
   x: number;
   y: number;
@@ -607,10 +623,10 @@ function walkNode(
  * extruded-hex substrate was retired (`retire-the-old-land-path`), and the shipped map draws
  * the relaxed mesh only.
  *
- * Every descriptor's ground z is the island's TRUE depth, not the drawing's: the walk maps the
- * drawing's (x, y) to (x, 0, z) and the stream is then unprojected per island by
- * `restoreTrueFootprint` (ADR-0517 D1) — see the header. Pass `cameraElevationDeg` when the scene
- * was built at an elevation other than the declared land camera.
+ * Every descriptor's ground z is a TRUE ground depth because the SCENE's already is: the walk maps
+ * (x, y) to (x, 0, z) and un-projects nothing (ADR-0546 D1 — see the header). Build the scene at
+ * `PLAN_VIEW_ELEVATION_DEG`; a scene projected at the declared land camera is a drawing, and this
+ * function will lay its squashed ground down as written.
  *
  * Every family that belongs to exactly one island carries that island's id
  * (`InstanceDescriptor.island`), taken only from a `ground` / `territory` group. It is
@@ -633,20 +649,13 @@ function walkNode(
 export function worldTo3D(scene: SceneG, opts: WorldTo3DOptions = {}): Descriptor3D[] {
   const out: Descriptor3D[] = [];
   walkNode(scene, out, { x: 0, y: 0 });
-  const restored = restoreTrueFootprint(out, opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG);
   const ratio = opts.landAreaPerCapability;
-  if (ratio === null) return restored;
-  return sizeIslandsByCapability(restored, ratio === undefined ? LAND_AREA_PER_CAPABILITY : ratio);
+  if (ratio === null) return out;
+  return sizeIslandsByCapability(out, ratio === undefined ? LAND_AREA_PER_CAPABILITY : ratio);
 }
 
 /** What the mapper needs to know about the scene beyond the scene itself. */
 export interface WorldTo3DOptions {
-  /** The camera elevation the SCENE was projected at, in degrees — the scene input's own
-   *  `cameraElevationDeg` (ADR-0367 D1). Omitted is the declared land camera
-   *  (`LAND_CAMERA_ELEVATION_DEG`, 20°), which every shipped 2D surface draws at. The ground's
-   *  true footprint is restored by undoing exactly this projection; a scene built at plan view
-   *  (`PLAN_VIEW_ELEVATION_DEG`, 90°) is already true and is left alone. */
-  cameraElevationDeg?: number;
   /** The land each island is sized to, in ground units² per capability
    *  (`land-per-capability.ts`). Omitted is the shipped `LAND_AREA_PER_CAPABILITY`. A number is a
    *  ladder rung — the comparison page's arms pass one each. `null` leaves every island AT THE

@@ -1,297 +1,132 @@
-// true-surface-equivalence.test.ts — what ADR-0527 D5's equivalence actually says, measured.
+// true-surface-equivalence.test.ts — THE MAPPER IS TRANSPARENT TO THE SCENE'S CAMERA, and that is
+// what the deleted un-projection leaves behind.
 //
-// THE QUESTION THE DELETION WAITS ON. `restoreTrueFootprint` un-projects the drawing the 2D surface
-// handed over, stretching every ground z by `1 / sin(elevation)` about each island's own centre
-// (ADR-0517 D1). ADR-0527 D2 deletes it, on the ground that the layout should EMIT a true ground
-// surface rather than a drawing somebody un-projects afterwards — and D5 refuses to allow that on
-// argument: it asks for evidence that mapping a true surface lands where un-projecting the drawing
-// lands. This file is that measurement, and its result is more specific than either a pass or a
-// blocker.
+// ⚠⚠ THE QUESTION THIS FILE WAS BUILT FOR IS ANSWERED AND THE ANSWER IS SPENT. It asked ADR-0527
+// D5's question — *does mapping a TRUE surface land where un-projecting the drawing lands?* — and
+// answered it with no exception recorded: 174 descriptors, the same kinds, every height identical,
+// the worst-placed descriptor 0.348 units across a ninety-degree camera swing. On that evidence
+// ADR-0546 D1 chose to build the 3D forest on true ground, and `restoreTrueFootprint` /
+// `stretchAboutIslands` were deleted. **There is no longer a second arm to compare against**: the
+// mapper cannot un-project a drawing, so the old measurement is unbuildable rather than merely
+// stale, and re-deriving it is impossible by construction.
 //
-// ⚠⚠ THE ARMS AGREE, ON ALL 174 DESCRIPTORS. Measured here: both arms draw 174 descriptors in the
-// same kinds, every height is identical (`y` differs by exactly 0), the island's x and z extents
-// agree to the unit — and across a NINETY-DEGREE change of camera, on an island spanning 222 x 122,
-// the worst-placed descriptor of any kind moves **0.348 units**. ADR-0527 D5's bar, restated by
-// ADR-0540 D3 as tile-for-tile agreement, is MET WITH NO EXCEPTION RECORDED, which is the outcome
-// that option was chosen for. `restoreTrueFootprint` is released for deletion.
+// WHAT THE FILE HOLDS NOW, AND WHY IT IS THE SAME PROPERTY ONE STEP EARLIER. With the repair gone,
+// `worldTo3D` adds nothing to its input, so ALL of the difference between the same island built at
+// two cameras is `buildScene`'s single projection: `projectGround` scales ground depth by
+// `sin(elevation)` ABOUT THE DRAWING'S ORIGIN. So the plan-view arm must be the declared-camera arm
+// with z divided by `sin 20°` — one global scalar, no island centres, nothing per-family. If the
+// mapper ever starts adding geometry of its own again, this is the test that reds.
 //
-// ⚠ THE THREE THINGS THAT HAD TO BE TRUE, AND THE ORDER THEY WERE ESTABLISHED IN — because two of
-// them were asserted here BEFORE they were measured, and one of those was wrong.
+// ⚠ AND IT IS THE DELETION'S OWN RED→GREEN. Before ADR-0546 the two arms had the SAME depth (135.0
+// each — the repair made the drawing true) and this relation failed by a factor of 2.92. After it,
+// the drawn island is the squashed ribbon the page actually carries (233.8 x 46.2) and the plan-view
+// island is the recipe's own hex cluster (233.8 x 135.0), which is 1/sin 20° deeper.
 //
-//  1. THE MOSAIC. This file once read "the RELAXED SUBSTRATE DECOMPOSES DIFFERENTLY at the two
-//     cameras". That was inferred from a single whole-population number and it is FALSE. Split by
-//     kind and matched best-first, the 164 `cell-ground` cells always differed by at most 0.348
-//     units. `substrate.ts` already cuts on the ground — its `GROUND` constant pins every
-//     `hexCenter`/`hexCorners` call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects
-//     ONCE, at the very end. There was never a camera in the cut, and nothing was changed to fix it.
+// ⚠ THE AGREEMENT IS TIGHTER THAN THE ONE THE DELETION REPLACED — 0.128 units against 0.348, and
+// the reason is worth keeping: the old figure was the RELAXED SUBSTRATE's own residue across a
+// ninety-degree swing plus the repair's per-island arithmetic, where this is the drawing's
+// one-decimal rounding carried through one multiplication. Nothing was tuned to get it.
 //
-//  2. THE MATCHER. The greedy 1:1 walk below takes each descriptor's nearest UNUSED partner in one
-//     arm's own order, so an early displaced marker steals a partner and the displacement cascades
-//     through everything behind it. That inflated the headline number to ~62 units. It is worth
-//     knowing that greedy and best-first now return the SAME 0.348: with nothing displaced there is
-//     nothing left to cascade, which is its own evidence about what the cascade was made of.
-//
-//  3. THE MARKERS — the only thing that was actually broken, and the only thing that was fixed.
-//     `buildUatMarkers` draws up to twenty polar candidates and accepts the first that clears the
-//     tree well, the spacing floor, the land AND the nameplate band. The first three are ground
-//     distances (ADR-0367 D1). The fourth was a SCREEN test — `y < labelY - 14` — because the
-//     nameplate had no world position, so a different camera accepted a different candidate and the
-//     ten markers landed on different ground. ADR-0545 gave the plate a ground baseline and made the
-//     band's clearance a ground distance like the other three; this fixture's plate drop and tree
-//     nudge, frozen screen offsets for the same reason, were recovered onto the ground with it.
-//     The markers now agree to 0.312.
-//
-// ⚠ WHAT THIS FILE DOES NOT SAY. 0.348 is not zero, and it is not claimed to be: it is the
-// substrate's own residue under a 90-degree swing, present before this landing and unchanged by it.
-// The thresholds below are stated against it rather than against 0 so a real regression has somewhere
-// to show, and every one of them is an upper bound on a measured figure — never a golden.
+// ⚠ NARROWED, NEVER ASSERTED, AND THE ORIGINAL FILE'S HARDEST-WON LESSON. A first draft of the
+// measurement declared a structural `{ kind, x?, y?, z? }` and reached the mapper's output through
+// `as unknown as`. Every descriptor's position lives on `transform`, so `x`/`y`/`z` were `undefined`
+// on all 174, `?? 0` turned each into zero, and the equivalence compared ZERO AGAINST ZERO and
+// passed — with a conclusion ("exact agreement") that was the opposite of the truth. `pnpm lint`'s
+// no-chained-type-assertions rule is what caught it; nothing else would have.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG } from '@storytree/forest-world';
+import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG, groundFlattening } from '@storytree/forest-world';
 
-import { islandAnchors, islandScene } from './island-fixture.js';
+import { islandScene } from './island-fixture.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 
-/** One arm: build the island at a camera and map it, telling the mapper the same camera.
+/** One arm: build the island at a camera and map it. The mapper is told nothing about the camera —
+ *  it has nothing to do with one any more.
  *
- *  `landAreaPerCapability: null` leaves every island at the size the drawing gave it — the control
- *  option, so this measures the projection and nothing the capability ratio does on top of it. */
+ *  `landAreaPerCapability: null` leaves every island at the size the drawing gave it. It is not a
+ *  tidiness: the ratio scales each island by a factor derived from its OWN area, which differs
+ *  between the arms, so leaving it on would hide the projection behind a per-arm resize. */
 function arm(elevationDeg: number): Descriptor3D[] {
-  return worldTo3D(islandScene({ cameraElevationDeg: elevationDeg }), {
-    cameraElevationDeg: elevationDeg,
-    landAreaPerCapability: null,
-  });
+  return worldTo3D(islandScene({ cameraElevationDeg: elevationDeg }), { landAreaPerCapability: null });
 }
 
 /**
- * The DRAWN descriptors of one arm, narrowed through the union's own discriminant.
- *
- * ⚠ NARROWED, NEVER ASSERTED, AND THE DIFFERENCE IS THE WHOLE FILE. A first draft declared a
- * structural `{ kind, x?, y?, z? }` and reached the mapper's output through `as unknown as`. Every
- * descriptor's position actually lives on `transform`, so `x`/`y`/`z` were `undefined` on all 174,
- * `?? 0` turned each into zero, and the equivalence compared ZERO AGAINST ZERO and passed — with a
- * conclusion ("exact agreement") that was the opposite of the truth. `pnpm lint`'s
- * no-chained-type-assertions rule is what caught it; nothing else would have.
+ * The DRAWN descriptors of one arm, narrowed through the union's own discriminant — see the
+ * header's last paragraph for why this is never an assertion.
  */
 function drawn(descriptors: readonly Descriptor3D[]): InstanceDescriptor[] {
   return descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
 }
 
-function span(ds: readonly InstanceDescriptor[], axis: 'x' | 'z'): number {
-  const v = ds.map((d) => d.transform[axis]);
+function extent(ds: readonly InstanceDescriptor[], axis: 'x' | 'z'): number {
+  const v = ds.flatMap((d) => (d.points ?? [d.transform]).map((p) => p[axis]));
   return Math.max(...v) - Math.min(...v);
 }
 
-test('the true-surface arm and the un-projected drawing agree on the island FOOTPRINT — ADR-0517 D1', () => {
-  // At plan view the stretch factor is `1 / sin 90° = 1`, so the true-surface arm passes through
-  // `restoreTrueFootprint` untouched: this compares the repair against its own absence.
-  const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
+/** The drawing writes its path coordinates to ONE decimal, so a coordinate carries up to ±0.05 of
+ *  rounding — and the plan-view arm's z is the drawn z divided by `sin 20°`, which multiplies that
+ *  rounding by 2.9238. Derived, never chosen: a tolerance tighter than the rounding fails on noise,
+ *  and one looser than a cell (>= 8.66 units across) would accept a different island. */
+const TOLERANCE = 0.05 * (1 / groundFlattening());
+
+test('⚠⚠ THE MAPPER UN-PROJECTS NOTHING (ADR-0546 D1): the plan-view arm IS the drawing with z divided by sin 20°, globally', () => {
+  const trueGround = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
   const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
 
-  assert.equal(trueSurface.length, 174, 'the fixture draws 174 descriptors');
-  assert.equal(drawing.length, trueSurface.length, 'and both arms draw the same number');
+  assert.equal(trueGround.length, 174, 'the fixture draws 174 descriptors');
+  assert.equal(drawing.length, trueGround.length, 'and both arms draw the same number');
 
-  const kinds = (ds: readonly InstanceDescriptor[]): string =>
-    [...ds.map((d) => d.kind)].sort().join(',');
-  assert.equal(kinds(trueSurface), kinds(drawing), 'and the same kinds, in the same multiset');
+  const kinds = (ds: readonly InstanceDescriptor[]): string => [...ds.map((d) => d.kind)].sort().join(',');
+  assert.equal(kinds(trueGround), kinds(drawing), 'and the same kinds, in the same multiset');
 
-  // THE CLAIM ADR-0517 D1 RESTS ON. The repair's whole job is the island's true footprint, and both
-  // axes of it agree to under a unit on a span of hundreds. Asserted on the EXTENT rather than on
-  // positions because the extent is what "footprint" means — and because positions demonstrably do
-  // not correspond (the next test).
-  for (const axis of ['x', 'z'] as const) {
-    const a = span(trueSurface, axis);
-    const b = span(drawing, axis);
-    assert.ok(
-      Math.abs(a - b) < 1,
-      `the ${axis} extent must agree: true ${a.toFixed(2)} against drawing ${b.toFixed(2)}`,
-    );
-    assert.ok(a > 100, `and be a real island, not a degenerate one (${axis} span ${a.toFixed(2)})`);
+  assert.ok(TOLERANCE > 0.14 && TOLERANCE < 0.16, `tolerance ${TOLERANCE}`);
+
+  // Matched WITHIN KIND and best-first: a mixed population and an in-order greedy walk each inflate
+  // a defect on their own, and together they once turned 0.348 units into a reported 62.
+  const s = groundFlattening();
+  const candidates = new Map<string, Array<{ x: number; z: number }>>();
+  for (const d of drawing) {
+    const at = candidates.get(d.kind) ?? [];
+    at.push({ x: d.transform.x, z: d.transform.z / s });
+    candidates.set(d.kind, at);
   }
+  let worst = 0;
+  for (const d of trueGround) {
+    let best = Infinity;
+    for (const c of candidates.get(d.kind) ?? []) {
+      best = Math.min(best, Math.hypot(d.transform.x - c.x, d.transform.z - c.z));
+    }
+    worst = Math.max(worst, best);
+    assert.ok(best < TOLERANCE, `a ${d.kind} has no twin within ${TOLERANCE.toFixed(3)} (nearest ${best.toFixed(3)})`);
+  }
+  // Not vacuous: the two arms are genuinely different streams, not one array compared with itself.
+  assert.ok(worst > 0, 'the arms agree to the BIT, which would mean one is the other');
 
   // Height is untouched by a ground-plane projection, so it must be identical rather than close —
-  // and it is the axis that would move first if the stretch were ever applied to the wrong one.
-  for (const i of trueSurface.keys()) {
-    assert.equal(trueSurface[i]!.transform.y, drawing[i]!.transform.y, `height at ${i}`);
+  // and it is the axis that would move first if a projection were ever applied to the wrong one.
+  for (const i of trueGround.keys()) {
+    assert.equal(trueGround[i]!.transform.y, drawing[i]!.transform.y, `height at ${i}`);
   }
 });
 
-test('the two arms agree EVEN UNDER THE GREEDY MATCHER — the cascade went with what caused it', () => {
-  // THIS TEST WAS A TRIPWIRE ASSERTING THE OPPOSITE, and its own message named the day it would fire:
-  // "if this is now <small>, the last camera-dependent placement may be gone". It fired. Inverted
-  // here rather than deleted, because the matcher it uses is the WEAKER of the two and that is
-  // exactly what makes its agreement worth asserting.
-  //
-  // The walk below takes each descriptor's nearest UNUSED partner in one arm's own order, so a single
-  // displaced descriptor can steal a partner some later one needed and the error cascades. Under the
-  // old placement that inflated the disagreement to ~62 units on ten displaced markers. It now
-  // returns the SAME figure as the best-first matching at the end of this file, which is the
-  // strongest available statement that nothing is displaced at all: a greedy matcher can only differ
-  // from a best-first one when there is something for it to get wrong.
-  const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
-  const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
+test('⚠⚠ THE DELETION IS VISIBLE IN THE EXTENTS: the drawing is the squashed ribbon, the plan-view scene the recipe’s own cluster', () => {
+  const cells = (ds: readonly Descriptor3D[]): InstanceDescriptor[] =>
+    ds.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+  const trueGround = cells(arm(PLAN_VIEW_ELEVATION_DEG));
+  const drawing = cells(arm(LAND_CAMERA_ELEVATION_DEG));
 
-  const used = new Set<number>();
-  let worst = 0;
-  for (const p of trueSurface) {
-    let best = -1;
-    let bestD = Infinity;
-    for (const j of drawing.keys()) {
-      if (used.has(j) || drawing[j]!.kind !== p.kind) continue;
-      const q = drawing[j]!.transform;
-      const d = Math.hypot(p.transform.x - q.x, p.transform.y - q.y, p.transform.z - q.z);
-      if (d < bestD) {
-        bestD = d;
-        best = j;
-      }
-    }
-    assert.ok(best >= 0, 'every descriptor finds a partner of its own kind');
-    used.add(best);
-    worst = Math.max(worst, bestD);
-  }
+  // x is untouched by a ground projection, so both arms are the same island across the page.
+  assert.ok(Math.abs(extent(trueGround, 'x') - extent(drawing, 'x')) < 1e-9, 'the width is the projection’s fixed axis');
+  assert.ok(Math.abs(extent(trueGround, 'x') - 233.8) < 0.5, `width ${extent(trueGround, 'x')}`);
+
+  // ⚠ THE RED→GREEN. Until ADR-0546 the mapper repaired the drawing, so BOTH depths were 135.0 and
+  // this assertion could not distinguish them. It now reads the un-repaired drawing: 46.2.
+  assert.ok(Math.abs(extent(trueGround, 'z') - 135.0) < 0.5, `true depth ${extent(trueGround, 'z')}`);
+  assert.ok(Math.abs(extent(drawing, 'z') - 46.2) < 0.5, `drawn depth ${extent(drawing, 'z')}`);
   assert.ok(
-    worst < 1,
-    `every descriptor must land within a unit of its partner across a 90-degree camera swing; the ` +
-      `worst moved ${worst.toFixed(3)} units. A figure in the TENS is the old signature — a ground ` +
-      `placement rule reading the camera, cascading through the greedy pairing (ADR-0545)`,
+    Math.abs(extent(drawing, 'z') / groundFlattening() - extent(trueGround, 'z')) < TOLERANCE,
+    'the depth differs by exactly the projection',
   );
-  assert.equal(
-    used.size,
-    trueSurface.length,
-    'and the matching must be total, or the number above is about a subset nobody named',
-  );
-});
-
-/**
- * A 1:1 matching taken BEST-FIRST over all same-kind pairs, which is what "the most generous
- * pairing" should mean and what the greedy walk above is not.
- *
- * The difference is not cosmetic. Walking one arm in its own order and giving each descriptor its
- * nearest UNUSED partner lets a single displaced marker take a partner some later descriptor needed,
- * and the displacement cascades through everything behind it. Sorting every candidate pair by
- * distance first and accepting greedily from the shortest is the standard cheap approximation and
- * cannot cascade that way.
- */
-function worstUnderBestFirstMatching(
-  a: readonly InstanceDescriptor[],
-  b: readonly InstanceDescriptor[],
-): number {
-  const pairs: { i: number; j: number; d: number }[] = [];
-  for (const i of a.keys()) {
-    for (const j of b.keys()) {
-      if (a[i]!.kind !== b[j]!.kind) continue;
-      const p = a[i]!.transform;
-      const q = b[j]!.transform;
-      pairs.push({ i, j, d: Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) });
-    }
-  }
-  pairs.sort((p, q) => p.d - q.d);
-  const takenA = new Set<number>();
-  const takenB = new Set<number>();
-  let worst = 0;
-  for (const p of pairs) {
-    if (takenA.has(p.i) || takenB.has(p.j)) continue;
-    takenA.add(p.i);
-    takenB.add(p.j);
-    worst = Math.max(worst, p.d);
-  }
-  assert.equal(takenA.size, a.length, 'every descriptor must find a partner of its own kind');
-  return worst;
-}
-
-const ofKind = (ds: readonly InstanceDescriptor[], kind: string): InstanceDescriptor[] =>
-  ds.filter((d) => d.kind === kind);
-
-test('THE MOSAIC AND THE MARKERS BOTH AGREE — split by kind, so neither can hide inside the other', () => {
-  // ⚠ THIS TEST EXISTS BECAUSE THE TEST ABOVE WAS ONCE READ AS SAYING SOMETHING IT CANNOT SAY. One
-  // number over a mixed population named the substrate as the cause; separating the population
-  // refuted it and named the markers instead. The split is KEPT now that both agree, because a
-  // single whole-population bound is exactly what let ten displaced markers read as 164 re-cut tiles.
-  const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
-  const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
-
-  const mosaicA = ofKind(trueSurface, 'cell-ground');
-  const mosaicB = ofKind(drawing, 'cell-ground');
-  assert.ok(mosaicA.length > 100, `the fixture must draw a real mosaic, saw ${mosaicA.length} cells`);
-  assert.equal(mosaicB.length, mosaicA.length, 'and the same number of cells at both cameras');
-
-  // THE FINDING. Ninety degrees of camera change moves no mosaic cell by more than a third of a
-  // unit, on an island spanning 222 x 122. `substrate.ts` cuts on the ground — its `GROUND` constant
-  // pins every lattice call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects once, at
-  // the end — so there is no camera in the cut to remove.
-  const mosaicWorst = worstUnderBestFirstMatching(mosaicA, mosaicB);
-  assert.ok(
-    mosaicWorst < 1,
-    `the mosaic must be camera-independent: worst cell moved ${mosaicWorst.toFixed(3)} units`,
-  );
-
-  // AND THE MARKERS AGREE TOO — the term ADR-0540 D2 was waiting on. This was the other inverted
-  // tripwire: it asserted `> 10` and named the day it failed as the day to re-read ADR-0540. It
-  // failed, at 0.31. The markers were the WHOLE of the old disagreement, so this bound and the
-  // mosaic's above now cover the same population between them.
-  //
-  // ⚠ THE MARKERS ARE HELD TO THE MOSAIC'S OWN TOLERANCE, deliberately. They are placed by rejection
-  // sampling against ground keep-outs measured off the mosaic, so they cannot be steadier than the
-  // ground they are sampled on — and holding them to a LOOSER bound than the substrate would leave
-  // room for exactly the defect that was here, at a tenth of its old size.
-  const bloomA = ofKind(trueSurface, 'uat-bloom');
-  const bloomB = ofKind(drawing, 'uat-bloom');
-  assert.ok(bloomA.length > 0, 'the fixture must draw UAT markers for this to measure anything');
-  assert.equal(bloomB.length, bloomA.length, 'and the same number at both cameras');
-  const bloomWorst = worstUnderBestFirstMatching(bloomA, bloomB);
-  assert.ok(
-    bloomWorst < 1,
-    `every UAT marker must land on the same ground at both cameras; the worst moved ` +
-      `${bloomWorst.toFixed(3)} units. A figure in the TENS means a ground placement keep-out is ` +
-      `reading the screen again — the nameplate band was the last one (ADR-0545)`,
-  );
-
-  // The two populations together ARE the whole scene, so nothing is being quietly excluded from the
-  // comparison — a by-kind split that dropped a kind could hide a disagreement in it.
-  assert.equal(
-    mosaicA.length + bloomA.length,
-    trueSurface.length,
-    'every drawn descriptor must be one of the two kinds this test separates',
-  );
-});
-
-test('the fixture\'s recovered anchors DRAW WHAT THEY DREW at the declared camera', () => {
-  // ⚠ THE THING THE EQUIVALENCE ABOVE CANNOT SEE. Two arms agreeing tells you nothing about
-  // whether either is where it was: a fixture that moved BOTH arms by the same amount would agree
-  // perfectly and quietly re-draw every comparison page in this package.
-  //
-  // ADR-0545 recovered two frozen SCREEN offsets in `island-fixture.ts` onto the ground — the plate's
-  // 46 px drop and the tree's 6 px nudge — so that the plate keep-out and the tree WELL draw the same
-  // ground circle at every camera instead of sliding with the angle. Both were authored to project
-  // back onto the pixel they always sat at, and this is that claim, asserted rather than asserted-in-
-  // a-comment. `check:mutation-diff` reports this fixture as a coverage GAP (the rung mutates a
-  // project's `src/`, and this lives in `harness/`), so it is the only thing standing under it.
-  const t = islandAnchors();
-  const centroidY = t.centroid.y;
-  assert.ok(
-    Math.abs(t.labelY - (centroidY + 46)) < 1e-9,
-    `the nameplate must still be drawn 46 px below the centroid at the declared camera, not ` +
-      `${(t.labelY - centroidY).toFixed(4)}`,
-  );
-  assert.ok(
-    Math.abs(t.treeSpot.y - (centroidY - 6)) < 1e-9,
-    `the tree must still stand 6 px above the centroid at the declared camera, not ` +
-      `${(centroidY - t.treeSpot.y).toFixed(4)}`,
-  );
-  // And they are RECOVERED rather than re-frozen: ask for plan view and both offsets open out by the
-  // camera's own foreshortening, which is what makes them ground lines rather than screen ones.
-  const plan = islandAnchors({ cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
-  const flattening = Math.sin((LAND_CAMERA_ELEVATION_DEG * Math.PI) / 180);
-  for (const [name, atPlan, atDeclared] of [
-    ['nameplate', plan.labelY - plan.centroid.y, 46],
-    ['tree', plan.centroid.y - plan.treeSpot.y, 6],
-  ] as const) {
-    assert.ok(
-      Math.abs(atPlan * flattening - atDeclared) < 1e-9,
-      `the ${name} offset must be the SAME GROUND LINE at both cameras: ${atPlan.toFixed(3)} in plan ` +
-        `view projects to ${(atPlan * flattening).toFixed(4)}, against ${atDeclared} declared`,
-    );
-  }
 });

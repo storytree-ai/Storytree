@@ -11,6 +11,7 @@
 
 import { createRoot } from 'react-dom/client';
 import {
+  PLAN_VIEW_ELEVATION_DEG,
   buildRelaxedCells,
   buildScene,
   hexCenter,
@@ -23,6 +24,10 @@ import {
 } from '@storytree/forest-world';
 
 import { worldTo3D } from '../src/world-to-3d.js';
+
+/** Plan view, threaded into every lattice/substrate call — the demo stands on TRUE ground since the
+ *  mapper stopped un-projecting one (ADR-0546 D1). */
+const GROUND = { elevationDeg: PLAN_VIEW_ELEVATION_DEG } as const;
 import { ForestWorldCanvas } from '../src/ForestWorldCanvas.js';
 
 // ── the fictional world: three islands, three statuses ──────────────────────
@@ -66,7 +71,7 @@ function territoryOf(island: DemoIsland): SceneTerritoryInput {
   // ...) instead of the declared camera. `hexCenter`'s second parameter is now an `ElevationOpts`
   // object (see `hex.ts`), so a bare `.map(hexCenter)` fails to COMPILE rather than misbehaving —
   // this wrap is kept anyway, matching the arrow-wrapped form at every other call site.
-  const centres = island.tiles.map((h) => hexCenter(h));
+  const centres = island.tiles.map((h) => hexCenter(h, GROUND));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   return {
@@ -121,11 +126,18 @@ function demoInput(): SceneInput {
   const drawTiles: DrawTile[] = ISLANDS.flatMap((island, owner) => island.tiles.map((h) => ({ h, owner })));
   const wheatSets = ISLANDS.map(() => new Set<string>());
   return {
+    // ⚠ THE DEMO IS BUILT ON TRUE GROUND (ADR-0546 D1). `worldTo3D` un-projects nothing, so a scene
+    // built at the declared land camera is a drawing and the spike would render the squashed ribbon
+    // the 2D page carries. `GROUND` threads plan view through the lattice, the substrate and the
+    // scene's own placements, exactly as `island-fixture.ts` does — the `- 6` tree nudge and the
+    // `+ 46` nameplate offset above are still hand-picked SCREEN constants, which is a demo's
+    // licence and not the shipped fixture's (`islandGroundScene`).
+    cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG,
     offset: { x: 0, y: 0 },
     width: 1400,
     height: 1000,
     empties: [],
-    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh', {}, GROUND),
     drawTiles,
     wheatSets,
     trails: routeTrails(trailIslands, [edge(0, 1), edge(0, 2)], 'r3f-harness-demo'),
