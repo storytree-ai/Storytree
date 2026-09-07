@@ -291,6 +291,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "reds when this diff adds a module that reads the work hierarchy and declares no CAMP, or declares one and reads the other clock. ADR-0445 D1 made the tree disk-canonical for proving and live-canonical for rendering, and its Consequences name the failure mode this watches for — a third reader added later without asking which camp it is in. Offline and disk-only, so it sits with its `check:boundaries` / `check:ownership-totality` neighbours; its store-reading sibling `check:hierarchy-drift` asks a different question and stays in block C",
   },
   {
+    command: "pnpm check:gcloudignore-mirror",
+    check: "check:gcloudignore-mirror",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when this diff adds a credential- or runtime-state-shaped path to `.gitignore` without repeating it in `.gcloudignore` (ADR-0544 D5). `.gcloudignore` BYPASSES `.gitignore` — it says so in its own first lines — and `apps/studio/Dockerfile` is `COPY . .`, so a path listed only in `.gitignore` is uploaded by `gcloud builds submit` and baked into a published image, unread. ADR-0544 D1 closed the live instance and left the mirror hand-maintained, which is exactly what drifts in silence; this fires on the branch that introduces the drift rather than at deploy time. Two file reads, no git and no network, so it sits with its `check:boundaries` / `check:ownership-totality` neighbours. ⚠ LOCAL-ONLY today, and that is a credential limit rather than a judgement: the CI step was written and the push REFUSED — this repo's OAuth credential carries `repo` but not `workflow` — so it is declared in `DECLARED_LOCAL_ONLY` and parked on `prove-unproven-capabilities-arc`",
+  },
+  {
     command: "pnpm check:contract-grammar",
     check: "check:contract-grammar",
     subject: "own-work",

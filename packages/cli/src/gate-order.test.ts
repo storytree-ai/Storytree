@@ -172,6 +172,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // so it sits with its two declared-ownership neighbours rather than beside the store-reading
       // `check:hierarchy-drift` it shares an arc with.
       "pnpm check:hierarchy-camps",
+      // ADR-0544 D5, added 2026-09-08: `.gcloudignore` must repeat every credential- or
+      // runtime-state-shaped line in `.gitignore`, because it BYPASSES `.gitignore` and the studio
+      // Dockerfile is `COPY . .`. Two file reads and this branch's to fix, so it sits with its
+      // offline, disk-only neighbours rather than near the deploy it protects — the point is to fire
+      // on the branch that introduces the drift, not when the image is already published.
+      "pnpm check:gcloudignore-mirror",
       // The ADR-0459 contract-line grammar, added 2026-08-27: disk-and-git only and charged strictly
       // to this branch's own added/edited contracts, so it belongs with its `check:ownership-totality`
       // neighbour, whose `chooseBaseRef` anchor it reuses.

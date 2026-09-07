@@ -387,6 +387,15 @@ it("presentEnvironmentalMarkers reports only the markers the named job's own bod
 const DECLARED_LOCAL_ONLY = [
   "check:definition-adjudication",
   "check:desktop-route-coverage",
+  // ⚠ LOCAL-ONLY FOR A CREDENTIAL REASON, NOT A JUDGEMENT ONE, and it is the one member of this set
+  // that WANTS to be shared. `check:gcloudignore-mirror` (ADR-0544 D5) holds `.gcloudignore` to
+  // `.gitignore`'s credential lines, and a control whose subject is what reaches a published image
+  // belongs at the merge, not only on the branch of whoever remembered to gate. The step was written
+  // for `.github/workflows/ci.yml` and could not be pushed: this repo's OAuth credential carries
+  // `repo` but not `workflow`, so GitHub refuses the push outright
+  // ("refusing to allow an OAuth App to create or update workflow `ci.yml` without `workflow` scope").
+  // Wiring it is parked on `prove-unproven-capabilities-arc` and needs a credential the owner owns.
+  "check:gcloudignore-mirror",
   "check:verification-decay",
 ];
 
