@@ -1330,13 +1330,15 @@ function buildUatMarkers(
       y = t.centroid.y + off.y;
       // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous gap, no authorable tie.
       const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > art.markerTreeWell;
-      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       // The plate's clearance is a GROUND distance, so it foreshortens with everything else it is
       // compared against (ADR-0545). Left as a raw `art.units(14)` against a projected baseline it
       // would still read the camera — a 14-unit screen gap is a 41-unit ground gap at the declared
       // elevation — and the marker would land on different ground at every angle.
-      const clearsPlate =
-        y < t.labelY - groundRadiusToScreenHalfHeight(art.units(14), elevationDeg);
+      // ⚠ ONE LINE ON PURPOSE: `Stryker disable next-line` binds to the NEXT LINE, so wrapping this
+      // expression detaches the exemption from the comparison and reinstates a mutant that cannot
+      // be killed. Measured, on this landing.
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
+      const clearsPlate = y < t.labelY - groundRadiusToScreenHalfHeight(art.units(14), elevationDeg);
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
         break;
@@ -2813,12 +2815,11 @@ export function placeGardenHeroes(
       const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
-      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       // A GROUND clearance against a ground-anchored plate baseline — the same correction the marker
       // scatter takes, and for the same reason (ADR-0545): this is where a hero STANDS, not what is
-      // drawn over what.
-      const clearsPlate =
-        y < t.labelY - groundRadiusToScreenHalfHeight(art.units(18), elevationDeg);
+      // drawn over what. One line for the reason its sibling above gives.
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
+      const clearsPlate = y < t.labelY - groundRadiusToScreenHalfHeight(art.units(18), elevationDeg);
       const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;

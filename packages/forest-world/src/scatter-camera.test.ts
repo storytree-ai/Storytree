@@ -451,6 +451,53 @@ test('the NAMEPLATE BAND has TEETH: it binds on this fixture, and the SCREEN ban
   assert.ok(atDeclared < atPlan, 'the screen band must tighten as the camera drops');
 });
 
+test('the nameplate band DECIDES placements — moving the plate moves the marks it stands in front of', () => {
+  // ⚠ THE TEETH THE INVARIANT CANNOT GROW ITSELF, and the mutation rung is what named the gap. A band
+  // that always returns TRUE is camera-independent too, so every assertion above passes with the
+  // keep-out deleted. The only statement that separates the two is a DIFFERENCE: hold the island, the
+  // criteria and the seed stream fixed, move nothing but the plate's ground line, and the marks it
+  // stands in front of must go somewhere else.
+  //
+  // It also fences the SIGN. A band that added its clearance instead of subtracting it would sit
+  // further south than the plate — a keep-out that keeps nothing out — and would collapse onto the
+  // parked arm here.
+  const inRange = placements(sceneAt(LAND_CAMERA_ELEVATION_DEG, false, 'in-range')).markers;
+  const parked = placements(sceneAt(LAND_CAMERA_ELEVATION_DEG, false, 'parked')).markers;
+  assert.deepEqual(
+    [...inRange.keys()].sort(),
+    [...parked.keys()].sort(),
+    'both arms must place the same criteria — the band relocates a mark, it never loses one',
+  );
+  const moved = [...inRange].filter(([id, p]) => {
+    const q = parked.get(id)!;
+    return Math.hypot(p.x - q.x, p.y - q.y) > 1;
+  });
+  assert.ok(
+    moved.length > 0,
+    'the plate at ' +
+      `${PLATE_AT} x R placed every marker exactly where a plate 4000 units away did — the band is ` +
+      'deciding nothing, so nothing above is testing it',
+  );
+});
+
+test('the garden HERO band decides placements too — the same difference, at the other site', () => {
+  // `placeGardenHeroes` has its own band at a wider clearance, and its own mutants. Same shape as the
+  // marker test above: the only thing that differs between the arms is where the plate stands.
+  const inRange = placements(sceneAt(LAND_CAMERA_ELEVATION_DEG, true, 'in-range')).heroes;
+  const parked = placements(sceneAt(LAND_CAMERA_ELEVATION_DEG, true, 'parked')).heroes;
+  assert.ok(inRange.size > 0, 'the garden must place heroes for this to compare anything');
+  assert.deepEqual([...inRange.keys()].sort(), [...parked.keys()].sort(), 'the same heroes either way');
+  const moved = [...inRange].filter(([id, p]) => {
+    const q = parked.get(id)!;
+    return Math.hypot(p.x - q.x, p.y - q.y) > 1;
+  });
+  assert.ok(
+    moved.length > 0,
+    'a hero stood in the same spot whether the plate was in front of it or 4000 units away — the ' +
+      "garden's own band is deciding nothing",
+  );
+});
+
 // ---------- site 2: the garden heroes (`placeGardenHeroes`, exported) ----------
 
 test('placeGardenHeroes puts a hero on the same GROUND spot at every camera', () => {

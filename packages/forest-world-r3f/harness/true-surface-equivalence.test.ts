@@ -51,7 +51,7 @@ import { test } from 'node:test';
 
 import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG } from '@storytree/forest-world';
 
-import { islandScene } from './island-fixture.js';
+import { islandAnchors, islandScene } from './island-fixture.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 
 /** One arm: build the island at a camera and map it, telling the mapper the same camera.
@@ -255,4 +255,43 @@ test('THE MOSAIC AND THE MARKERS BOTH AGREE — split by kind, so neither can hi
     trueSurface.length,
     'every drawn descriptor must be one of the two kinds this test separates',
   );
+});
+
+test('the fixture\'s recovered anchors DRAW WHAT THEY DREW at the declared camera', () => {
+  // ⚠ THE THING THE EQUIVALENCE ABOVE CANNOT SEE. Two arms agreeing tells you nothing about
+  // whether either is where it was: a fixture that moved BOTH arms by the same amount would agree
+  // perfectly and quietly re-draw every comparison page in this package.
+  //
+  // ADR-0545 recovered two frozen SCREEN offsets in `island-fixture.ts` onto the ground — the plate's
+  // 46 px drop and the tree's 6 px nudge — so that the plate keep-out and the tree WELL draw the same
+  // ground circle at every camera instead of sliding with the angle. Both were authored to project
+  // back onto the pixel they always sat at, and this is that claim, asserted rather than asserted-in-
+  // a-comment. `check:mutation-diff` reports this fixture as a coverage GAP (the rung mutates a
+  // project's `src/`, and this lives in `harness/`), so it is the only thing standing under it.
+  const t = islandAnchors();
+  const centroidY = t.centroid.y;
+  assert.ok(
+    Math.abs(t.labelY - (centroidY + 46)) < 1e-9,
+    `the nameplate must still be drawn 46 px below the centroid at the declared camera, not ` +
+      `${(t.labelY - centroidY).toFixed(4)}`,
+  );
+  assert.ok(
+    Math.abs(t.treeSpot.y - (centroidY - 6)) < 1e-9,
+    `the tree must still stand 6 px above the centroid at the declared camera, not ` +
+      `${(centroidY - t.treeSpot.y).toFixed(4)}`,
+  );
+  // And they are RECOVERED rather than re-frozen: ask for plan view and both offsets open out by the
+  // camera's own foreshortening, which is what makes them ground lines rather than screen ones.
+  const plan = islandAnchors({ cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  const flattening = Math.sin((LAND_CAMERA_ELEVATION_DEG * Math.PI) / 180);
+  for (const [name, atPlan, atDeclared] of [
+    ['nameplate', plan.labelY - plan.centroid.y, 46],
+    ['tree', plan.centroid.y - plan.treeSpot.y, 6],
+  ] as const) {
+    assert.ok(
+      Math.abs(atPlan * flattening - atDeclared) < 1e-9,
+      `the ${name} offset must be the SAME GROUND LINE at both cameras: ${atPlan.toFixed(3)} in plan ` +
+        `view projects to ${(atPlan * flattening).toFixed(4)}, against ${atDeclared} declared`,
+    );
+  }
 });
