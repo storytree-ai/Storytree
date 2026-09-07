@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { AXIAL_DIRS } from '@storytree/forest-world';
 
 import { buildWorld, parseArtRungs, parseSpacingTuning } from './TreeView.js';
-import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS } from '../lib/islandSpacing.js';
+import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS } from '@storytree/forest-layout';
 import type { TreeStory } from '../types';
 
 const cap = (id: string) => ({

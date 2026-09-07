@@ -23,6 +23,7 @@ import {
   groundFlattening,
   uprightForeshortening,
   projectGround,
+  groundPolarOffset,
   unprojectGround,
   groundRadiusToScreenHalfHeight,
   spriteUprightScale,
@@ -281,4 +282,82 @@ test('a sprite authored at a DIFFERENT camera reports a correction, and it moves
   }
   assert.equal(seen.size, SWEEP.length, 'the correction must move as the land camera moves');
   assert.ok(spriteUprightScale(LAND_CAMERA_ELEVATION_DEG, 30) !== 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// groundPolarOffset — the polar spelling of `projectGround`, and the SECOND definition's grave.
+//
+// It lived twice: privately in `scene.ts`, and as a deliberate local copy in the studio's
+// `TreeView.tsx` whose own comment named the reason — reaching into this package owed an engine
+// sync and a web pin bump for two lines of arithmetic. ADR-0537 ruled the toll may not draw that
+// boundary; the copy is gone and these assertions come with it, from
+// `apps/studio/src/components/buildWorld.groundSpace.test.ts`, so the one surviving definition is
+// the one under test.
+// ---------------------------------------------------------------------------------------------
+
+test('groundPolarOffset leaves the across-screen axis alone and foreshortens depth by sin θ', () => {
+  const sin = groundFlattening(LAND_CAMERA_ELEVATION_DEG); // 0.3420201…
+
+  // Literal values, not a round trip through the function's own inverse.
+  assert.deepEqual(groundPolarOffset(0, 100), { x: 100, y: 0 });
+
+  const south = groundPolarOffset(Math.PI / 2, 100);
+  assert.ok(Math.abs(south.x) < 1e-9);
+  assert.ok(Math.abs(south.y - 34.2020143) < 1e-6, `south.y=${south.y}`); // 100 · sin 20°, NOT 100 · 0.66
+
+  const west = groundPolarOffset(Math.PI, 100);
+  assert.ok(Math.abs(west.x + 100) < 1e-9);
+  assert.ok(Math.abs(west.y) < 1e-9);
+
+  const north = groundPolarOffset(-Math.PI / 2, 100);
+  assert.ok(Math.abs(north.y + 34.2020143) < 1e-6); // the sign survives
+
+  const se = groundPolarOffset(Math.PI / 4, 100);
+  assert.ok(Math.abs(se.x - 70.7106781) < 1e-6);
+  assert.ok(Math.abs(se.y - 70.7106781 * sin) < 1e-6);
+});
+
+test('CONTROL: the retired 0.66 squash disagrees by the measured 1.93x on the depth axis', () => {
+  // The hand-picked top-down squash the studio layout used before the land had a camera.
+  const retiredY = Math.sin(Math.PI / 2) * 100 * 0.66;
+  const fixed = groundPolarOffset(Math.PI / 2, 100);
+  assert.ok(Math.abs(retiredY - 66) < 1e-9);
+  assert.ok(Math.abs(retiredY / fixed.y - 1.9297) < 1e-4, `ratio=${retiredY / fixed.y}`); // 0.66 / sin 20°
+});
+
+test('a ground circle projects to a screen ellipse of the camera own aspect', () => {
+  const sin = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  const rs = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
+    const o = groundPolarOffset((k / 8) * Math.PI * 2, 60);
+    return Math.hypot(o.x, o.y);
+  });
+  assert.ok(Math.abs(Math.max(...rs) - 60) < 1e-6); // across the screen: untouched
+  assert.ok(Math.abs(Math.min(...rs) - 60 * sin) < 1e-6); // into the depth: sin θ
+});
+
+test('groundPolarOffset moves with the camera it is asked for, and is exactly polar in plan view', () => {
+  // The elevation is a PARAMETER, not a baked constant: in plan view the projection is the
+  // identity, so the offset is the bare polar vector — which is what makes the default the only
+  // place the land camera enters.
+  const plan = groundPolarOffset(Math.PI / 3, 42, PLAN_VIEW_ELEVATION_DEG);
+  assert.ok(Math.abs(plan.x - Math.cos(Math.PI / 3) * 42) < 1e-9);
+  assert.ok(Math.abs(plan.y - Math.sin(Math.PI / 3) * 42) < 1e-9);
+
+  // And it agrees with `projectGround` by construction, at every elevation, not just the default.
+  for (const deg of [5, 20, 45, 70, 90]) {
+    const o = groundPolarOffset(1.234, 77, deg);
+    const p = projectGround({ x: Math.cos(1.234) * 77, y: Math.sin(1.234) * 77 }, deg);
+    assert.deepEqual(o, p);
+  }
+});
+
+test('groundPolarOffset is LINEAR in r, which is what lets a layout state one spot in two spaces', () => {
+  // The studio garden walks a plant inward in SCREEN space and re-derives its ground twin by
+  // scaling the ground reach — sound only because projecting is linear in the radius.
+  for (const ang of [0, 0.7, 2.1, -1.3]) {
+    const unit = groundPolarOffset(ang, 1);
+    const scaled = groundPolarOffset(ang, 13.5);
+    assert.ok(Math.abs(scaled.x - unit.x * 13.5) < 1e-9);
+    assert.ok(Math.abs(scaled.y - unit.y * 13.5) < 1e-9);
+  }
 });

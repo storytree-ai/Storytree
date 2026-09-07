@@ -46,7 +46,7 @@ import { chromium } from '@playwright/test';
 
 import { PRE_ADR0528_TILE } from '@storytree/forest-world';
 
-import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS, spacingArmId } from '../src/lib/islandSpacing.ts';
+import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS, spacingArmId } from '@storytree/forest-layout';
 import { pruneSceneForMapper } from '../src/lib/sceneExport.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

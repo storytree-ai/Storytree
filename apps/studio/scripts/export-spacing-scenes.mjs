@@ -40,7 +40,7 @@ import {
   PRE_ADR0521_SPACING,
   SPACING_CONTROL_ARM,
   spacingArmId,
-} from '../src/lib/islandSpacing.ts';
+} from '@storytree/forest-layout';
 import { pruneSceneForMapper } from '../src/lib/sceneExport.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

@@ -1,0 +1,23 @@
+{
+  "name": "@storytree/forest-layout",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WHERE THE ISLANDS SIT (ADR-0537 D1): the chrome-free island packing both surfaces may consume — the dependency-ranked territory seeder, the hex growth floor and its moat, the round-robin grower, the derived inter-island gaps, and the trail routing over the result. Pure, browser-safe, deterministic: data-in → layout-out, no React, no DOM, no store, no node: imports. It lived inside apps/studio/src/components/TreeView.tsx until this package existed; the studio chrome it was tangled with — the render: building class, the ADR-0102 icon promotion — stayed behind the seam and is INJECTED, never imported here.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./relocation": "./src/relocation.fixture.test.ts",
+    "./relocation-golden": "./src/relocation.golden.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 300000 src/"
+  },
+  "dependencies": {
+    "@storytree/forest-world": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "~7.0.2"
+  }
+}

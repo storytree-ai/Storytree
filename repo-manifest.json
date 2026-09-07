@@ -20,7 +20,7 @@
       "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
-      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; uat-criterion is the per-criterion detail organism for ADR-0209 D5/D6, live-canonical since ADR-0307 D5, and since 2026-08-31 also the home of the criterion PARSER; the whole model-UAT family — model-judged-uat, model-uat-pilot and finally model-uat itself — was DELETED across ADR-0247 D5's three retirements, which withdrew ADR-0209's rubric-judge, pilot and judge-registry machinery; the one live thing model-uat still held was criterion.ts, lifted into uat-criterion rather than deleted; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; uat-criterion is the per-criterion detail organism for ADR-0209 D5/D6, live-canonical since ADR-0307 D5, and since 2026-08-31 also the home of the criterion PARSER; the whole model-UAT family — model-judged-uat, model-uat-pilot and finally model-uat itself — was DELETED across ADR-0247 D5's three retirements, which withdrew ADR-0209's rubric-judge, pilot and judge-registry machinery; the one live thing model-uat still held was criterion.ts, lifted into uat-criterion rather than deleted; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps; forest-layout is the same shape one story over — a second forest-world-owned package holding WHERE THE ISLANDS SIT, extracted from apps/studio/src/components/TreeView.tsx on 2026-09-07 by ADR-0537 D1 and NOT foundational because it depends on forest-world. ADR-0537 ruled AGAINST folding it into forest-world itself: that package earns its keep by depending on nothing, while layout has different consumers and a far higher change rate, and only forest-world/src and forest-world-r3f/src are mirrored to the website, so a package outside them pays no publishing toll — which is the toll that had kept the packing surface-side).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
@@ -58,6 +58,7 @@
       "@storytree/storage-protocol": "storage-protocol",
       "@storytree/proof-protocol": "proof-protocol",
       "@storytree/forest-world": "forest-world",
+      "@storytree/forest-layout": "forest-world",
       "@storytree/app-surface": "app-surface",
       "@storytree/forest-world-r3f": "website-experience",
       "@storytree/procedural-architecture": "art-factory",
@@ -442,6 +443,7 @@
       "apps/studio/src/components/SceneView.tsx": "studio-app-surface-adapter",
       "apps/studio/src/components/cameraRasterisationProbe.ts": "camera-rasterisation-probe",
       "apps/studio/src/components/TreeView.tsx": "studio",
+      "apps/studio/src/components/buildWorld.relocation.*": "studio",
       "apps/studio/src/components/Act2IntroControl.tsx": "act2-intro-cursor",
       "apps/studio/src/components/act2Intro.ts": "act2-intro-cursor",
       "apps/studio/src/components/ConnectionsSection.tsx": "studio",
@@ -537,6 +539,7 @@
 
       "$section_world_and_art": "The render core, the shared app surface, the R3F website engine and the art factory.",
       "packages/forest-world/src": "render-core",
+      "packages/forest-layout/src": "forest-world",
       "packages/forest-world-r3f/src/act2-director.ts": "act2-beat-director",
       "packages/forest-world-r3f/src/world-to-3d.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/ForestWorldCanvas.tsx": "r3f-world-spike",

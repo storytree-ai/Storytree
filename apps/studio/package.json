@@ -25,6 +25,7 @@
     "@storytree/context-traversal-spawn": "workspace:*",
     "@storytree/context-traversal-transcript": "workspace:*",
     "@storytree/drive": "workspace:*",
+    "@storytree/forest-layout": "workspace:*",
     "@storytree/forest-world": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
