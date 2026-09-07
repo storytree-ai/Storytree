@@ -6185,19 +6185,63 @@ button.legend-tile:hover {
 .arc-lane-row {
   border-bottom: 1px solid var(--lp-border);
 }
-/* WHAT IS LINED UP BEHIND THIS ARC. Rendered only when there IS something (React never mounts it
-   otherwise), so inc-05's density property survives the rework unchanged: an ungated arc — most of
-   the 134, and every one of the 121 closed — costs no third line, no indent and no width. It sits
-   INSIDE the row's own left inset rather than under a nested spine, because these are pointers to
-   sibling arcs, not children of this one. */
+/* the caret and the lane, side by side — two buttons, never one nested in the other. */
+.arc-lane-line {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+/* THE GUTTER IS RESERVED ON EVERY ROW, gated or not, so that every arc title starts at the same x.
+   Insetting only the rows that HAVE a caret would break the column exactly where a reader's eye is
+   scanning, and it would do it on the rows worth noticing. */
+.arc-lane-caret-slot {
+  flex: 0 0 18px;
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+/* "this has a queue", and nothing more (owner, 2026-09-07). No count rides beside it: the question
+   the always-visible part answers is whether anything is lined up here, which its presence answers
+   on its own — the number is on the accessible name, for a reader who has decided to ask. */
+.arc-lane-caret {
+  border: none;
+  background: transparent;
+  color: var(--lp-clay);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1;
+  padding: 2px;
+  border-radius: 4px;
+}
+.arc-lane-caret:hover {
+  background: color-mix(in srgb, var(--lp-clay) 14%, transparent);
+}
+/* WHAT IS LINED UP BEHIND THIS ARC. Mounted only once the caret is opened (React never mounts it
+   otherwise), so inc-05's density property survives twice over: an ungated arc — most of the 134,
+   and every one of the 121 closed — costs no third line at all, and a gated-but-unopened one costs
+   none either. It sits INSIDE the row's own left inset rather than under a nested spine, because
+   these are pointers to sibling arcs, not children of this one. */
 .arc-lane-queue {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 0 14px 9px 17px;
+  padding: 0 14px 9px 35px;
 }
-.arc-lane-queue-label {
+/* the connector — an arrow into the run, and between chips only where the run is a real chain (the
+   component picks the glyph; this only styles it). Muted, so a run of chips reads as the content
+   and the arrows as the grammar between them. */
+.arc-queue-arrow {
+  flex: 0 0 auto;
+  color: var(--lp-clay);
+  opacity: 0.75;
+  font-size: 0.8em;
+}
+/* "+N other gates" — what the arrow cannot say: this arc is ALSO waiting on N others, so the arrow
+   into it is not a promise that its blocker landing releases it. Outside the chip and in words,
+   because the in-chip `+N` below means the opposite direction and the two must not read alike. */
+.arc-queue-chip-blocked {
   flex: 0 0 auto;
 }
 /* one queued arc, named by `shortLabel` — outlined clay, tying it to `.arc-state-blocked`'s "stuck"
@@ -6241,7 +6285,9 @@ button.legend-tile:hover {
    86 across all 134 arcs — so the MEDIAN arc truncated. Stacking is what buys those characters back. */
 .arc-lane {
   display: block;
-  width: 100%;
+  /* a flex child of `.arc-lane-line` now, beside the caret gutter — `flex: 1` is what keeps the
+     title's full-width claim (the thing inc-07 bought) intact next to a fixed 18px sibling. */
+  flex: 1 1 auto;
   min-width: 0;
   border: none;
   border-left: 3px solid transparent;

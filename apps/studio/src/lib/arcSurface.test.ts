@@ -28,7 +28,7 @@ import {
   questionFields,
   questionRowStats,
   questionWordBudget,
-  queueChips,
+  queueRun,
   shortLabel,
   wordCount,
   BLOCKED_IS_DERIVABLE,
@@ -783,13 +783,13 @@ describe('shortLabel — the short name already existed, and it is the id (inc-0
   });
 });
 
-describe('queueChips — the row’s chip run: direct children, depth as a count (inc-07)', () => {
+describe('queueRun — the row’s chip run, and what its connector is allowed to claim', () => {
   it('is EMPTY for an ungated arc — the density property, in the derivation rather than the render', () => {
     const lanes = arcLanes([lane({ id: 'a' }), lane({ id: 'b' })], NOW);
-    expect(lanes.every((l) => queueChips(l).length === 0)).toBe(true);
+    expect(lanes.every((l) => queueRun(l).chips.length === 0)).toBe(true);
   });
 
-  it('names each direct child by its short label, with its long title kept for the hover', () => {
+  it('names each child by its short label, with its long title kept for the hover', () => {
     const lanes = arcLanes(
       [
         lane({ id: 'blocker' }),
@@ -801,27 +801,77 @@ describe('queueChips — the row’s chip run: direct children, depth as a count
       ],
       NOW,
     );
-    const chips = queueChips(lanes[0]!);
+    const { chips } = queueRun(lanes[0]!);
     expect(chips).toHaveLength(1);
     expect(chips[0]?.label).toBe('Mount the land');
     expect(chips[0]?.title).toBe('The land treatment reaches a surface somebody opens');
   });
 
-  it('carries the count of what each child in turn holds up, and never hoists those into the run', () => {
+  it('a queue that BRANCHES is a SET — direct children only, and depth stays a count', () => {
     const lanes = arcLanes(
       [
         lane({ id: 'blocker' }),
         lane({ id: 'middle-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'other-arc', gates: [{ id: 'blocker', shut: true }] }),
         lane({ id: 'leaf-one-arc', gates: [{ id: 'middle-arc', shut: true }] }),
         lane({ id: 'leaf-two-arc', gates: [{ id: 'middle-arc', shut: true }] }),
       ],
       NOW,
     );
-    const chips = queueChips(lanes[0]!);
-    // ONE chip, not three: the run answers "what is lined up behind THIS arc", and depth rides as
-    // a count. Hoisting the grandchildren would make a set of siblings read as a chain.
-    expect(chips.map((c) => c.id)).toEqual(['middle-arc']);
-    expect(chips[0]?.gates).toBe(2);
+    const run = queueRun(lanes[0]!);
+    // TWO chips, not four: these two are siblings in no order at all, so the run says `set` and the
+    // render must not put an arrow between them. Depth under `middle-arc` rides as a count.
+    expect(run.shape).toBe('set');
+    expect(run.chips.map((c) => c.id)).toEqual(['middle-arc', 'other-arc']);
+    expect(run.chips[0]?.gates).toBe(2);
+  });
+
+  it('a queue that is ONE-BEHIND-ONE is a CHAIN, and the whole lineage is hoisted into the run', () => {
+    // The owner's own case (2026-09-07): "if we have multiple arcs qued in a linked list we can draw
+    // the full linage with -> separators". Every arrow here is a real edge, which is the whole
+    // difference between this and the set above.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'first-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'second-arc', gates: [{ id: 'first-arc', shut: true }] }),
+        lane({ id: 'third-arc', gates: [{ id: 'second-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+    const run = queueRun(lanes[0]!);
+    expect(run.shape).toBe('chain');
+    expect(run.chips.map((c) => c.id)).toEqual(['first-arc', 'second-arc', 'third-arc']);
+  });
+
+  it('a hoisted link carries NO `+N` — a count exists to stand for depth the run does not draw', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'first-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'second-arc', gates: [{ id: 'first-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+    expect(queueRun(lanes[0]!).chips.map((c) => c.gates)).toEqual([0, 0]);
+  });
+
+  it('the chain STOPS at the first level that branches, and that chip carries the rest as `+N`', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'first-arc', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'fork-arc', gates: [{ id: 'first-arc', shut: true }] }),
+        lane({ id: 'leaf-one-arc', gates: [{ id: 'fork-arc', shut: true }] }),
+        lane({ id: 'leaf-two-arc', gates: [{ id: 'fork-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+    const run = queueRun(lanes[0]!);
+    // Hoisting the two leaves would draw `... → fork → leaf-one → leaf-two`, asserting that leaf-two
+    // waits on leaf-one. It does not. The chain ends where the order does.
+    expect(run.chips.map((c) => c.id)).toEqual(['first-arc', 'fork-arc']);
+    expect(run.chips.map((c) => c.gates)).toEqual([0, 2]);
   });
 
   it('reports zero gates for a leaf', () => {
@@ -829,7 +879,45 @@ describe('queueChips — the row’s chip run: direct children, depth as a count
       [lane({ id: 'blocker' }), lane({ id: 'leaf-arc', gates: [{ id: 'blocker', shut: true }] })],
       NOW,
     );
-    expect(queueChips(lanes[0]!)[0]?.gates).toBe(0);
+    expect(queueRun(lanes[0]!).chips[0]?.gates).toBe(0);
+  });
+
+  it('counts an arc’s OTHER shut gates — the thing an arrow into it cannot say', () => {
+    // The live corpus's actual shape, measured 2026-09-07: the ONE gated arc in 134 is gated by TWO.
+    // `blocker → gated` reads as "when blocker lands, gated can start", and that is false here.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'elsewhere' }),
+        lane({
+          id: 'gated-arc',
+          gates: [
+            { id: 'blocker', shut: true },
+            { id: 'elsewhere', shut: true },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    const run = queueRun(lanes.find((l) => l.arc.id === 'blocker')!);
+    expect(run.chips[0]?.otherGates).toBe(1);
+  });
+
+  it('an OPEN gate is not an "other gate" — a blocker that closed holds nothing up', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({
+          id: 'gated-arc',
+          gates: [
+            { id: 'blocker', shut: true },
+            { id: 'already-closed', shut: false },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    expect(queueRun(lanes[0]!).chips[0]?.otherGates).toBe(0);
   });
 
   it('carries the queued arc’s OWN counts — the signal a chip gives up by drawing no bars', () => {
@@ -844,7 +932,7 @@ describe('queueChips — the row’s chip run: direct children, depth as a count
       ],
       NOW,
     );
-    expect(queueChips(lanes[0]!)[0]?.counts).toEqual({ landed: 1, queued: 1 });
+    expect(queueRun(lanes[0]!).chips[0]?.counts).toEqual({ landed: 1, queued: 1 });
   });
 
   it('falls back to the id when an arc carries no title at all', () => {
@@ -852,7 +940,25 @@ describe('queueChips — the row’s chip run: direct children, depth as a count
       [lane({ id: 'blocker' }), lane({ id: 'bare-arc', title: '', gates: [{ id: 'blocker', shut: true }] })],
       NOW,
     );
-    expect(queueChips(lanes[0]!)[0]?.title).toBe('bare-arc');
+    expect(queueRun(lanes[0]!).chips[0]?.title).toBe('bare-arc');
+  });
+
+  it('terminates on CYCLIC rows, because the tree `arcLanes` hands it is already finite', () => {
+    // The bound is one level up, not here: `arcLanes` stops descending at an ancestor met again, so
+    // even a ring of gates (which ADR-0523 refuses at write time anyway) produces a finite tree. A
+    // second `seen` set inside the walk would duplicate that bound — and could only ever be proved
+    // by a test that hangs when it regresses, which is not a proof.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'root' }),
+        lane({ id: 'a-arc', gates: [{ id: 'root', shut: true }, { id: 'b-arc', shut: true }] }),
+        lane({ id: 'b-arc', gates: [{ id: 'a-arc', shut: true }] }),
+      ],
+      NOW,
+    );
+    // `a-arc` appears twice, and that is `arcLanes`'s ancestor-stop showing through rather than a
+    // defect here: it renders the ring's second meeting as a childless leaf, which ends the walk.
+    expect(queueRun(lanes[0]!).chips.map((c) => c.id)).toEqual(['a-arc', 'b-arc', 'a-arc']);
   });
 });
 

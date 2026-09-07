@@ -576,8 +576,23 @@ export interface QueueChip {
   label: string;
   /** The arc's own long title, for the chip's hover — the detail stays reachable, just not inline. */
   title: string;
-  /** How many arcs THIS one in turn holds up. Zero for a leaf; drawn as `+N` when above zero. */
+  /**
+   * How many arcs THIS one in turn holds up AND the run does not itself draw. Zero for a leaf, and
+   * zero for a link the {@link queueRun} chain hoisted — a `+N` exists to say there is depth NOT
+   * drawn, so once it is drawn there is nothing left for it to say.
+   */
   gates: number;
+  /**
+   * How many OTHER arcs must also close before this one can start — its shut gates, minus the one
+   * it hangs under here. Zero almost always; above zero it is the thing an arrow cannot say.
+   *
+   * WHY IT HAS TO BE DRAWN. An arrow reads as a promise: `A -> B` says *when A lands, B can start*.
+   * That is FALSE while B is also waiting on something else, and the queue's real shape today is
+   * exactly that — measured over the live store 2026-09-07, the single gated arc in the whole
+   * corpus (`mount-the-land-on-a-real-surface-arc`) is gated by TWO. So the connector that made the
+   * line readable is also the connector that can lie, and this is the field that stops it.
+   */
+  otherGates: number;
   /**
    * The queued arc's own unit counts. It draws no bars of its own here, so this is what a hover has
    * to carry: an arc that landed work and was THEN gated would otherwise lose that signal entirely.
@@ -586,26 +601,77 @@ export interface QueueChip {
 }
 
 /**
- * PURE: one lane's DIRECT queue, flattened to the chip run the row draws.
+ * What the connector between a run's chips is allowed to MEAN.
  *
- * DIRECT CHILDREN ONLY, AND THE TREE IS NOT WALKED FLAT. `ArcLane.queued` is recursive and one arc
- * can gate several, so a chip run is a SET, never a chain — which is why the row draws no connector
- * arrows between chips: an arrow would assert a running order the data does not carry. Anything a
- * child gates in turn is summarised as {@link QueueChip.gates} rather than hoisted into this run,
- * which keeps one row's chips answering exactly one question ("what is lined up behind this?").
+ * `chain` — every chip is queued behind the one before it, so an arrow between them states a real
+ * edge. `set` — the chips are siblings behind one blocker, in no order at all, so the run must draw
+ * a separator that asserts nothing.
+ */
+export type QueueShape = 'chain' | 'set';
+
+/** One lane's queue as the row draws it: the chips, and what their separator is allowed to claim. */
+export interface QueueRun {
+  chips: QueueChip[];
+  shape: QueueShape;
+}
+
+/** One `ArcLane` as a chip, with `gates` supplied by the caller — see {@link QueueChip.gates}. */
+function queueChipOf(lane: ArcLane, gates: number): QueueChip {
+  return {
+    id: lane.arc.id,
+    label: shortLabel(lane.arc.id),
+    title: lane.arc.title || lane.arc.id,
+    gates,
+    // MINUS ONE: the gate it hangs under here is itself shut (arcLanes nests on no other condition),
+    // so it is always one of these and would otherwise be counted as an "other".
+    otherGates: Math.max(0, lane.arc.gates.filter((gate) => gate.shut).length - 1),
+    counts: lane.counts,
+  };
+}
+
+/**
+ * The chips of a LINEAR queue, hoisted one level at a time — see {@link queueRun}.
+ *
+ * Termination rides on {@link arcLanes}'s own `ancestors` bound, exactly as {@link findLane}'s walk
+ * does: the tree that function returns is finite even on cyclic rows (an ancestor met again is built
+ * with no children), so a second guard here would duplicate a bound that already holds one level up.
+ */
+function queueChain(node: ArcLane | undefined): QueueChip[] {
+  if (node === undefined) return [];
+  // The chain continues only while each level holds exactly one. At the first that branches, the
+  // depth below stays a `+N` on THIS chip rather than becoming a run that claims an order.
+  const next = node.queued.length === 1 ? node.queued[0] : undefined;
+  return [queueChipOf(node, next === undefined ? node.queued.length : 0), ...queueChain(next)];
+}
+
+/**
+ * PURE: one lane's queue, flattened to the chip run the row draws, with the shape its separator is
+ * allowed to assert.
+ *
+ * THE ARROW IS EARNED, NOT ASSUMED (owner-directed 2026-09-07: "why not just put an arrow, this way
+ * if we have multiple arcs qued in a linked list we can draw the full linage with -> separators").
+ * inc-07 refused connector arrows outright, on the ground that `ArcLane.queued` is a TREE and one
+ * arc can gate several, so an arrow run would assert a running order the data does not carry. That
+ * refusal is NARROWED here rather than reversed, and the narrowing is mechanical:
+ *
+ *   - the queue branches at the top (`queued.length > 1`) → a SET. Direct children only, each
+ *     carrying what it in turn holds up as `+N`, and a separator that is not an arrow. Unchanged
+ *     from inc-07 in both derivation and meaning.
+ *   - the queue is LINEAR (`queued.length === 1`) → a CHAIN. The walk hoists each single child in
+ *     turn, so `A -> B -> C` draws three REAL edges and reads as the lineage the owner asked for.
+ *     It stops at the first level that branches, and that last chip carries the rest as `+N`.
+ *
+ * So a fan-out can never render as a false chain: the shape is read off the data, never chosen.
  *
  * Empty for almost every arc — the density property ADR-0523 earned and this rendering must preserve:
  * an ungated arc costs no chip line at all, and with 121 closed arcs in the store that is the
  * difference between a scannable list and 121 three-line blocks.
  */
-export function queueChips(lane: ArcLane): QueueChip[] {
-  return lane.queued.map((child) => ({
-    id: child.arc.id,
-    label: shortLabel(child.arc.id),
-    title: child.arc.title || child.arc.id,
-    gates: child.queued.length,
-    counts: child.counts,
-  }));
+export function queueRun(lane: ArcLane): QueueRun {
+  if (lane.queued.length !== 1) {
+    return { chips: lane.queued.map((child) => queueChipOf(child, child.queued.length)), shape: 'set' };
+  }
+  return { chips: queueChain(lane.queued[0]), shape: 'chain' };
 }
 
 // ---------- D3: the briefing panel's payload ----------
