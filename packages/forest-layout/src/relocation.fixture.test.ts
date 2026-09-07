@@ -1,3 +1,13 @@
+// ⚠ THE `.test.ts` SUFFIX IS DELIBERATE AND THIS FILE DECLARES NO TESTS. It is test-support — a
+// frozen corpus, the arms, and the comparison surface — and `check:mutation-diff` mutates any `.ts`
+// that is not a test file, so a data fixture is otherwise mutated word by word (measured elsewhere
+// in this repo: 1,303 of one run's 1,484 mutants were one `StringLiteral` per captured word). The
+// rung's own `isMutableSource` docstring names this as today's answer — "put a fixture inside its
+// own `.test.ts`, which this function does exclude" — pending the open friction
+// `mutation-diff-mutates-frozen-data-fixtures`. The assertions that exercise everything here live
+// next door in `relocation.test.ts`, including an adversarial suite over `firstDifference`, which is
+// the oracle the whole comparison rests on and so is the one piece that must not go unwitnessed.
+//
 // THE RELOCATION FIXTURE — the deterministic corpus, the five arms and the comparison surface that
 // prove the island packing lays out the SAME map here as it did inside the studio
 // (`the-packing-moves-to-its-own-package`, ADR-0537 D1).

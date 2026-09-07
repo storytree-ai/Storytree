@@ -38,7 +38,7 @@ import {
   firstDifference,
   ulpsApart,
   type WorldProjection,
-} from './relocation.fixture.js';
+} from './relocation.fixture.test.js';
 
 /**
  * ⚠ THE ONE PIECE OF SLACK IN THIS SUITE, AND IT IS THE RUNTIME'S, NOT THE RELOCATION'S. The golden

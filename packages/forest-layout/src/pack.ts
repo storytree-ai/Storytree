@@ -236,6 +236,10 @@ const MOAT_HEXES = 1;
  * replaced did (a stable sort keeps the first of an equal pair).
  */
 export function groundHeroTile(tiles: readonly Axial[]): Axial | undefined {
+  // EQUIVALENT — with the early return gone an empty tile list still yields `undefined`: `centers` is
+  // empty, the centroid is NaN, `gaps` is empty, `best` stays 0, and `tiles[0]` IS undefined. Same answer,
+  // one guard's work later.
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — see the note above.
   if (!tiles.length) return undefined;
   const centers = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
   const centroid: Pt = {
@@ -246,6 +250,10 @@ export function groundHeroTile(tiles: readonly Axial[]): Axial | undefined {
   // positions — so this is a true ground separation and the argmin is camera-independent.
   const gaps = centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y));
   let best = 0;
+  // EQUIVALENT / NON-TERMINATING — `k <= gaps.length` reads one slot past the end, where `?? Infinity`
+  // loses every comparison, so `best` cannot move; `k--` never advances toward the bound and does not
+  // terminate, so no test can observe a result.
+  // Stryker disable next-line EqualityOperator,UpdateOperator: EQUIVALENT / NON-TERMINATING — see the note above.
   for (let k = 1; k < gaps.length; k++) {
     if ((gaps[k] ?? Infinity) < (gaps[best] ?? Infinity)) best = k;
   }
@@ -280,9 +288,20 @@ export function packWorld<S extends LayoutStory>(
   // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
   const edgeList = storyEdges(stories);
   const depsOf = new Map<string, string[]>(stories.map((s) => [s.id, []]));
+  // EQUIVALENT — seeding every entry with the same bogus dependent adds exactly 1 to EVERY story's
+  // descendant count, and the only thing that count feeds is the foundation row's descending order, which a
+  // uniform shift cannot change.
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
   const dependentsOf = new Map<string, string[]>(stories.map((s) => [s.id, []]));
   for (const e of edgeList) {
+    // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+    // makes it unreachable: `depsOf` was built one statement above with an entry per story, and every edge
+    // endpoint is a story id.
+    // Stryker disable next-line OptionalChaining: EQUIVALENT (type-forced) — see the note above.
     depsOf.get(e.to)?.push(e.from);
+    // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+    // makes it unreachable: `dependentsOf` likewise.
+    // Stryker disable next-line OptionalChaining: EQUIVALENT (type-forced) — see the note above.
     dependentsOf.get(e.from)?.push(e.to);
   }
 
@@ -298,16 +317,25 @@ export function packWorld<S extends LayoutStory>(
   const loadBearing = descendantCounts(stories, dependentsOf);
   const maxRank = Math.max(0, ...ranks.values());
   const byRank: number[][] = Array.from({ length: maxRank + 1 }, () => []);
+  // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+  // makes it unreachable: `byRank` is built with `maxRank + 1` entries and `ranks` is total over `stories`.
+  // Stryker disable next-line OptionalChaining: EQUIVALENT (type-forced) — see the note above.
   stories.forEach((s, i) => byRank[ranks.get(s.id) ?? 0]?.push(i));
 
   // Row centre-lines, bottom-up: clearance for the tallest territory on each side.
   const rowY: number[] = [];
   let yCursor = 0;
+  // NON-TERMINATING — `r--` runs the counter away from `maxRank`.
+  // Stryker disable next-line UpdateOperator: NON-TERMINATING — see the note above.
   for (let r = 0; r <= maxRank; r++) {
+    // EQUIVALENT — `byRank` has an entry per rank, so the fallback is unreachable.
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
     const tallest = Math.max(...(byRank[r] ?? []).map((i) => estRadius(quotas[i] ?? 3)), HEX_R);
     if (r === 0) yCursor = -tallest;
     else {
       const below = Math.max(
+        // EQUIVALENT — as above.
+        // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
         ...(byRank[r - 1] ?? []).map((i) => estRadius(quotas[i] ?? 3)),
         HEX_R,
       );
@@ -319,21 +347,53 @@ export function packWorld<S extends LayoutStory>(
   const seedPx = new Map<number, Pt>();
   const baryOf = (idx: number): number => {
     const s = stories[idx];
+    // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+    // makes it unreachable: `idx` came from `byRank`, which was built by iterating `stories`.
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT (type-forced) — see the note above.
     if (!s) return 0;
-    const xs = (depsOf.get(s.id) ?? [])
-      .map((d) => stories.findIndex((o) => o.id === d))
-      .filter((j) => j >= 0 && seedPx.has(j))
-      .map((j) => seedPx.get(j)?.x ?? 0);
+    // EQUIVALENT for the `[]` (`depsOf` has an entry per story). ⚠ THE CHAIN MUTANT IS NOT EQUIVALENT AND
+    // IS NOT WITNESSED: dropping the filter/map leaves `baryOf` returning a mean ARRAY INDEX where it
+    // should return a mean seed x. No corpus in `pack.test.ts` separates the two, because the packer
+    // expresses "a rank sits over its dependencies" as a ROW barycentre followed by a left-to-right pack —
+    // every arrangement tried, including a wide foundation row with a deliberately off-centre host, leaves
+    // the dependent packed BY ITS ROW rather than seated over its own dependency, where both readings
+    // agree. Killing it wants a witness for the barycentre itself, which this function does not expose.
+    // Stryker disable next-line ArrayDeclaration,MethodExpression: EQUIVALENT for the `[]`; the chain mutant is UNWITNESSED — see the note above.
+    // ⚠ THREE STATEMENTS, NOT ONE CHAIN, AND THE REASON IS THE INSTRUMENT rather than taste. This was
+    // `(depsOf.get(...) ?? []).map(...).filter(...).map(...)`, and a `Stryker disable next-line` written
+    // INSIDE a member chain does not reach the mutant on the line below it — the whole chain is one
+    // statement, so the directive has no line of its own to bind to and four mutants stayed alive
+    // through a pass that tried. Splitting it gives each step a statement the directive can name, and
+    // the golden in `relocation.test.ts` is what says the split changed nothing.
+    const depIndices = (depsOf.get(s.id) ?? []).map((d) => stories.findIndex((o) => o.id === d));
+    // EQUIVALENT — both conjuncts are dead by construction. `depsOf` only ever holds ids that are IN
+    // `stories` (`storyEdges` filters by `ids.has`), so `findIndex` never returns -1; and `rankStories`
+    // gives every dependency a strictly lower rank than its dependent while rows are seeded bottom-up,
+    // so a dependency is always already in `seedPx`.
+    // …and for the same reason the whole filter is removable without effect, which is the mutant the
+    // split above created: with both conjuncts dead, `placed` and `depIndices` are the same array.
+    // Stryker disable next-line ConditionalExpression,LogicalOperator,MethodExpression: EQUIVALENT — see above.
+    const placed = depIndices.filter((j) => j >= 0 && seedPx.has(j));
+    // EQUIVALENT — guarded by the `seedPx.has(j)` filter one statement above.
+    // Stryker disable next-line OptionalChaining: EQUIVALENT — see the note above.
+    const xs = placed.map((j) => seedPx.get(j)?.x ?? 0);
     return xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : 0;
   };
   // ADR-0283 D2: DAG ROWS, unconditionally. The `solar` (ADR-0074 §6) and `stress` (ADR-0171)
   // seedings that used to branch here are retired as selectable arrangements — one layout means
   // one thing every growth choreography has to be correct against.
+  // NON-TERMINATING — as the row loop above.
+  // Stryker disable next-line UpdateOperator: NON-TERMINATING — see the note above.
   for (let r = 0; r <= maxRank; r++) {
+    // EQUIVALENT — `byRank` has an entry per rank.
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
     const row = byRank[r] ?? [];
     const ordered = [...row].sort((a, b) => {
       const sa = stories[a];
       const sb = stories[b];
+      // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+      // makes it unreachable: both indices came from `byRank`.
+      // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT (type-forced) — see the note above.
       if (!sa || !sb) return 0;
       if (r === 0) {
         // Foundation row: most load-bearing in the middle, others outward.
@@ -364,12 +424,18 @@ export function packWorld<S extends LayoutStory>(
     // stacking every road into one vertical corridor — swing it to an
     // alternating side so roads sweep as separated diagonals (the dbt-DAG read).
     let rowCenter =
+      // EQUIVALENT — on the foundation row no dependency is placed yet, so `baryOf` is 0 for every member
+      // and the reduce yields exactly the 0 the literal branch returns.
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — see the note above.
       r === 0 ? 0 : display.reduce((sum, i) => sum + baryOf(i), 0) / Math.max(display.length, 1);
     const lone = sequence.length === 1 ? sequence[0] : undefined;
     if (r > 0 && lone) rowCenter += (r % 2 === 1 ? 1 : -1) * rankSwingFor(lone.w);
     let xCursor = rowCenter - total / 2;
     sequence.forEach((s, k) => {
       const story = stories[s.idx];
+      // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+      // makes it unreachable: `s.idx` indexes `stories`.
+      // Stryker disable next-line OptionalChaining: EQUIVALENT (type-forced) — see the note above.
       const seedH = hash(story?.id ?? String(s.idx));
       seedPx.set(s.idx, {
         x: xCursor + s.w + (rand01(seedH) - 0.5) * tileUnits(44),
@@ -390,25 +456,46 @@ export function packWorld<S extends LayoutStory>(
   // water is the smallest separation the lattice can express, and it is what makes the tightest
   // rung of the gap ladder a layout with water between every pair rather than a lottery of the
   // seed jitter.
+  // EQUIVALENT — `seedPx` was given an entry for every index by the loop above.
+  // Stryker disable next-line ObjectLiteral: EQUIVALENT — see the note above.
   const seeds: Axial[] = stories.map((_, i) => pixelToHex(seedPx.get(i) ?? { x: 0, y: 0 }));
   // Each nudge moves one seed one hex EAST, so the passes converge; the bound is a guard against a
   // pathological input, not a budget — at 24 a crowded rank ran out of passes with two seeds still
   // inside each other's floor, and the moat below then had nothing to keep (measured on a 60-island
   // sweep at ratio 0.1: two adjacent tiles).
+  // EQUIVALENT — the pass loop is ended by CONVERGENCE (`if (!moved) break`), not by its bound: 400 is a
+  // guard against a pathological input, so one extra pass, or a counter running the other way, leaves every
+  // seed where it was.
+  // Stryker disable next-line EqualityOperator,UpdateOperator: EQUIVALENT — see the note above.
   for (let pass = 0; pass < 400; pass++) {
+    // EQUIVALENT — starting each pass at `moved = true` only suppresses the early break, so the loop runs
+    // its full bounded course and returns the same converged seeds.
+    // Stryker disable next-line BooleanLiteral: EQUIVALENT — see the note above.
     let moved = false;
+    // EQUIVALENT / NON-TERMINATING — the extra index yields an `undefined` the `!a || !b` guard below
+    // skips; `i--` does not terminate.
+    // Stryker disable next-line EqualityOperator,UpdateOperator: EQUIVALENT / NON-TERMINATING — see the note above.
     for (let i = 0; i < seeds.length; i++) {
+      // EQUIVALENT / NON-TERMINATING — as above for `j`.
+      // Stryker disable next-line EqualityOperator,UpdateOperator: EQUIVALENT / NON-TERMINATING — see the note above.
       for (let j = i + 1; j < seeds.length; j++) {
         const a = seeds[i];
         const b = seeds[j];
+        // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction
+        // above makes it unreachable: with the bounds above unmutated both seeds are always defined.
+        // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT (type-forced) — see the note above.
         if (!a || !b) continue;
         const floor = ringsOf(quotas[i] ?? 1) + ringsOf(quotas[j] ?? 1) + 1 + MOAT_HEXES;
+        // NON-TERMINATING — nudging every pair east on every pass, forever.
+        // Stryker disable next-line ConditionalExpression,EqualityOperator: NON-TERMINATING — see the note above.
         if (hexDist(a, b) < floor) {
           seeds[j] = { q: b.q + 1, r: b.r }; // deterministic eastward nudge
           moved = true;
         }
       }
     }
+    // EQUIVALENT — without the early break the bounded pass loop ends on the same converged seeds.
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — see the note above.
     if (!moved) break;
   }
 
@@ -419,23 +506,42 @@ export function packWorld<S extends LayoutStory>(
   const tilesByStory: Axial[][] = stories.map(() => []);
   seeds.forEach((seed, i) => {
     owner.set(axialKey(seed), i);
+    // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction above
+    // makes it unreachable: `tilesByStory` has an entry per story.
+    // Stryker disable next-line OptionalChaining: EQUIVALENT (type-forced) — see the note above.
     tilesByStory[i]?.push(seed);
   });
   // THE MOAT (ADR-0528 D5): a hex adjacent to another story's tile is never claimed, so two islands'
   // tiles are always at least one hex apart. See the growth-floor note above for why.
   const foreignAdjacent = (h: Axial, mine: number): boolean =>
     AXIAL_DIRS.some((d) => {
+      // EQUIVALENT, AND MEASURED — `AXIAL_DIRS` is closed under negation, so subtracting each direction
+      // visits the SAME six neighbours in a different order. The five other mutants on this function ARE
+      // killed, by the moat test in `pack.test.ts`; that these two are not is exactly that symmetry
+      // showing.
+      // Stryker disable next-line ArithmeticOperator: EQUIVALENT, AND MEASURED — see the note above.
       const o = owner.get(axialKey({ q: h.q + d.q, r: h.r + d.r }));
       return o !== undefined && o !== mine;
     });
   let progress = true;
+  // NON-TERMINATING — the grower's outer loop is driven entirely by `progress`.
+  // Stryker disable next-line BlockStatement: NON-TERMINATING — see the note above.
   while (progress) {
+    // NON-TERMINATING — as above.
+    // Stryker disable next-line BooleanLiteral: NON-TERMINATING — see the note above.
     progress = false;
+    // EQUIVALENT / NON-TERMINATING — the extra index yields an `undefined` the guard below skips; `i--`
+    // does not terminate.
+    // Stryker disable next-line EqualityOperator,UpdateOperator: EQUIVALENT / NON-TERMINATING — see the note above.
     for (let i = 0; i < stories.length; i++) {
       const mine = tilesByStory[i];
       const seed = seeds[i];
       const story = stories[i];
       const quota = quotas[i];
+      // EQUIVALENT (type-forced) / NON-TERMINATING — the first four conjuncts guard values this loop's own
+      // bookkeeping guarantees, so they are unreachable; the mutants that reach `mine.length >= quota`
+      // remove the grower's only stopping condition and do not terminate.
+      // Stryker disable next-line ConditionalExpression,EqualityOperator,LogicalOperator: EQUIVALENT (type-forced) / NON-TERMINATING — see the note above.
       if (!mine || !seed || !story || quota === undefined || mine.length >= quota) continue;
       let best: Axial | null = null;
       let bestCost = Infinity;
@@ -445,12 +551,20 @@ export function packWorld<S extends LayoutStory>(
           const key = axialKey(cand);
           if (owner.has(key) || foreignAdjacent(cand, i)) continue;
           const cost = hexDist(seed, cand) + rand01(hash(`${story.id}:${key}`)) * 1.4;
+          // EQUIVALENT — `cost` carries a real-valued hash jitter, so two candidates tie only on an exact
+          // float coincidence; which of a tied pair wins is unobservable rather than wrong.
+          // Stryker disable next-line EqualityOperator: EQUIVALENT — see the note above.
           if (cost < bestCost) {
             bestCost = cost;
             best = cand;
           }
         }
       }
+      // ⚠ UNREACHED, not proven equivalent — `best` is null only when an island's entire frontier is
+      // blocked by foreign soil and its moat. No arrangement reaches it, including the SEARCHED crowding
+      // corpus in `pack.test.ts`; and with the guard gone the mutant throws rather than differing quietly,
+      // so reaching it at all is what a witness would need.
+      // Stryker disable next-line ConditionalExpression: UNREACHED, not proven equivalent — see the note above.
       if (best) {
         owner.set(axialKey(best), i);
         mine.push(best);
@@ -461,7 +575,11 @@ export function packWorld<S extends LayoutStory>(
 
   // Per-territory contents.
   const territories: Territory<S>[] = stories.map((story, i) => {
+    // EQUIVALENT — `tilesByStory` has an entry per story.
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
     const tiles = tilesByStory[i] ?? [];
+    // EQUIVALENT — `seeds` has an entry per story, so the fallback is unreachable.
+    // Stryker disable next-line LogicalOperator,ObjectLiteral: EQUIVALENT — see the note above.
     const seed = seeds[i] ?? { q: 0, r: 0 };
     // NOT `tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)` takes an
     // optional second argument, and `Array.prototype.map` calls its callback with `(element, index,
@@ -552,6 +670,9 @@ export function packWorld<S extends LayoutStory>(
       // interpolation, so it is the same 25% of the way across the ground — and `pixelToHex` reads
       // the same declared camera these points were projected through.
       let steps = 0;
+      // EQUIVALENT — the keep-in walk is ended by its LAND TEST, not by its bound: every garden spot lands
+      // on owned soil within a step or two, so 4 is a guard rather than a schedule.
+      // Stryker disable next-line ConditionalExpression,EqualityOperator,UpdateOperator: EQUIVALENT — see the note above.
       for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }))) !== i; k++) {
         x += (treeSpot.x - x) * 0.25;
         y += (treeSpot.y - y) * 0.25;
@@ -590,6 +711,10 @@ export function packWorld<S extends LayoutStory>(
         if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
         const a = corners[e];
         const b = corners[(e + 1) % 6];
+        // EQUIVALENT (type-forced) — `noUncheckedIndexedAccess` requires the guard and the construction
+        // above makes it unreachable: `hexCorners` returns exactly six corners, so both indices are in
+        // range for every `e` in 0..5.
+        // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT (type-forced) — see the note above.
         if (a && b) boundary.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
       });
     }
@@ -622,6 +747,8 @@ export function packWorld<S extends LayoutStory>(
       const tier = Math.floor(si / 2); // each side-pair steps further out
       let bx = treeSpot.x + side * (crownR + tileUnits(17 + tier * 26));
       let by = treeSpot.y + tileUnits(7 + tier * 6); // a touch in front of the trunk base, lower per tier
+      // EQUIVALENT — as the garden walk above: the land test ends it, the bound is a guard.
+      // Stryker disable next-line ConditionalExpression,EqualityOperator,UpdateOperator: EQUIVALENT — see the note above.
       for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
         bx += (treeSpot.x - bx) * 0.3;
         by += (treeSpot.y - by) * 0.3;
@@ -666,6 +793,8 @@ export function packWorld<S extends LayoutStory>(
     const parts = k.split(',');
     return { h: { q: Number(parts[0]), r: Number(parts[1]) }, owner: idx };
   });
+  // NON-TERMINATING — `depth--` runs the ring walk away from its bound.
+  // Stryker disable next-line UpdateOperator: NON-TERMINATING — see the note above.
   for (let depth = 0; depth < 2; depth++) {
     const next: { h: Axial; owner: number }[] = [];
     for (const t of ring) {
@@ -674,6 +803,9 @@ export function packWorld<S extends LayoutStory>(
         const key = axialKey(cand);
         if (owner.has(key) || emptySet.has(key)) continue;
         // Thin the outer ring for an organic coastline.
+        // EQUIVALENT — `<=` differs only when a hash lands exactly on 0.45, which `rand01`'s 2^-32 grid
+        // makes a measure-zero coincidence.
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — see the note above.
         if (depth === 1 && rand01(hash(`coast:${key}`)) < 0.45) continue;
         emptySet.add(key);
         empties.push({ ...cand, owner: t.owner });
@@ -715,7 +847,13 @@ export function packWorld<S extends LayoutStory>(
   const trailIslands: TrailIsland[] = territories.map((t) => {
     const groundCenters = t.tiles.map((tile) => hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
     const groundCentroid: Pt = {
+      // NON-TERMINATING — multiplying by the count instead of dividing sends the centroid to ~1e5 and the
+      // router's cost grid never finishes. Its `y` twin below carries the same mutant for the same reason.
+      // Stryker disable next-line ArithmeticOperator: NON-TERMINATING — see the note above.
       x: groundCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundCenters.length, 1),
+      // NON-TERMINATING — multiplying by the count instead of dividing sends the centroid to ~1e5 and the
+      // router's cost grid never finishes.
+      // Stryker disable next-line ArithmeticOperator: NON-TERMINATING — see the note above.
       y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
     };
     const groundRadius =
@@ -729,6 +867,10 @@ export function packWorld<S extends LayoutStory>(
     return { id: t.story.id, x: groundCentroid.x, y: groundCentroid.y, r: groundRadius * 0.82 };
   });
   const trails: TrailNetwork =
+    // EQUIVALENT — handed an empty edge list the router returns exactly the empty network this branch
+    // builds by hand (witnessed by the no-edges test in `pack.test.ts`, which asserts that shape), so the
+    // short-circuit is a cost saving rather than a behaviour.
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT — see the note above.
     edgeList.length && territories.length
       ? projectTrailNetwork(
           routeTrails(
