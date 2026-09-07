@@ -387,6 +387,12 @@ it("presentEnvironmentalMarkers reports only the markers the named job's own bod
 const DECLARED_LOCAL_ONLY = [
   "check:definition-adjudication",
   "check:desktop-route-coverage",
+  // ⚠ `check:gcloudignore-mirror` WAS HERE and is deliberately GONE (ADR-0547 D1, 2026-09-08). It was
+  // the one member of this set that WANTED to be shared, and it was local-only for a credential
+  // reason rather than a judgement one: the CI step was written and GitHub refused the push (the
+  // authoring box's OAuth credential carries `repo` but not `workflow`). The owner directed the
+  // promotion and authorised the SSH push that landed it, so the rung is now a merge wall and this
+  // set is back to members that are local-only BY JUDGEMENT. Do not re-add it.
   "check:verification-decay",
 ];
 
@@ -403,6 +409,9 @@ const DECLARED_SHARED_FLOOR = [
   "check:agents",
   "check:boundaries",
   "check:contract-grammar",
+  // Promoted out of DECLARED_LOCAL_ONLY by ADR-0547 D1 (2026-09-08): the gate is the habit, CI is
+  // the wall, and a control whose subject is what reaches a PUBLISHED image belongs on both.
+  "check:gcloudignore-mirror",
   "check:ground-space",
   "check:guidance",
   "check:hierarchy-camps",

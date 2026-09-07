@@ -12,6 +12,7 @@ import {
   CLAIM_STALE_RECLAIM_MS,
   isReclaimable,
   bumpHeartbeat,
+  stampClaimActivity,
   workClaimRequest,
   exploringClaimRequest,
   waitingClaimRequest,
@@ -105,6 +106,56 @@ test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat changes ONLY 
   // Pure: a new object, and the input's heartbeat is untouched.
   assert.notEqual(bumped, claim);
   assert.equal(claim.heartbeatAt, "2026-06-27T00:00:00.000Z", "the input claim is not mutated");
+});
+
+// ── stampClaimActivity (ADR-0535 D2): the OBSERVED refresh, and why it is monotonic ──────────
+
+test("stampClaimActivity: an observation NEWER than the stored heartbeat moves the claim forward", () => {
+  const now = new Date("2026-09-07T12:00:00.000Z");
+  const stale = sample({ heartbeatAt: new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString() });
+  assert.equal(isReclaimable(stale, now), true, "precondition: the claim is stale");
+
+  const observedAt = new Date(now.getTime() - 60_000); // the worktree was touched a minute ago
+  const stamped = stampClaimActivity(stale, observedAt, now);
+
+  assert.equal(stamped.heartbeatAt, observedAt.toISOString(), "the OBSERVED moment, not `now`");
+  assert.equal(isReclaimable(stamped, now), false, "a live worktree's claim stops being reclaimable");
+  assert.deepEqual({ ...stamped, heartbeatAt: stale.heartbeatAt }, stale, "nothing else moves");
+  assert.notEqual(stamped, stale, "pure: a new object");
+});
+
+test("stampClaimActivity: an observation OLDER than the stored heartbeat is ignored — a stamp never ages a claim", () => {
+  // THE WHOLE SAFETY OF REUSING `heartbeatAt`. A session that claimed seconds ago in a worktree
+  // whose last git op was 40 minutes back must not be aged 40 minutes by its own liveness signal:
+  // `heartbeatAt` decides the takeover rule, so backwards is the direction that loses live work.
+  const now = new Date("2026-09-07T12:00:00.000Z");
+  const fresh = sample({ heartbeatAt: new Date(now.getTime() - 30_000).toISOString() });
+  const stamped = stampClaimActivity(fresh, new Date(now.getTime() - 40 * 60_000), now);
+  assert.equal(stamped, fresh, "the claim is returned untouched — not even a copy");
+});
+
+test("stampClaimActivity: an observation in the FUTURE is clamped to `now`, never written through", () => {
+  // The mirror asymmetry: a skewed clock must not mint a heartbeat that outlives the staleness
+  // window, because a claim that can never go stale is a fence nobody can ever reclaim.
+  const now = new Date("2026-09-07T12:00:00.000Z");
+  const claim = sample({ heartbeatAt: "2026-09-07T09:00:00.000Z" });
+  const stamped = stampClaimActivity(claim, new Date(now.getTime() + 72 * 3_600_000), now);
+  assert.equal(stamped.heartbeatAt, now.toISOString());
+  assert.equal(isReclaimable(stamped, new Date(now.getTime() + CLAIM_STALE_RECLAIM_MS)), true);
+});
+
+test("stampClaimActivity: an equal observation is a no-op, so a repeated sweep rewrites nothing", () => {
+  const now = new Date("2026-09-07T12:00:00.000Z");
+  const at = new Date("2026-09-07T11:30:00.000Z");
+  const claim = sample({ heartbeatAt: at.toISOString() });
+  assert.equal(stampClaimActivity(claim, at, now), claim);
+});
+
+test("stampClaimActivity: an UNPARSEABLE stored heartbeat takes the observation — a row nothing can date protects nothing", () => {
+  const now = new Date("2026-09-07T12:00:00.000Z");
+  const observedAt = new Date("2026-09-07T11:00:00.000Z");
+  const broken = sample({ heartbeatAt: "not-a-date" });
+  assert.equal(stampClaimActivity(broken, observedAt, now).heartbeatAt, observedAt.toISOString());
 });
 
 // ── workClaimRequest (A3, ADR-0138 §3): the pure work-time request builder ────

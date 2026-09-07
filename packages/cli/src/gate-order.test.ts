@@ -172,6 +172,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // so it sits with its two declared-ownership neighbours rather than beside the store-reading
       // `check:hierarchy-drift` it shares an arc with.
       "pnpm check:hierarchy-camps",
+      // ADR-0544 D5, added 2026-09-08: `.gcloudignore` must repeat every credential- or
+      // runtime-state-shaped line in `.gitignore`, because it BYPASSES `.gitignore` and the studio
+      // Dockerfile is `COPY . .`. Two file reads and this branch's to fix, so it sits with its
+      // offline, disk-only neighbours rather than near the deploy it protects — the point is to fire
+      // on the branch that introduces the drift, not when the image is already published.
+      "pnpm check:gcloudignore-mirror",
       // The ADR-0459 contract-line grammar, added 2026-08-27: disk-and-git only and charged strictly
       // to this branch's own added/edited contracts, so it belongs with its `check:ownership-totality`
       // neighbour, whose `chooseBaseRef` anchor it reuses.
@@ -728,5 +734,32 @@ test("every check-shaped source file is either wired into the gate or declared r
     `these files look like gate checks but are neither invoked by a root check:* script nor listed ` +
       `in RETIRED_CHECKS: ${unaccounted.join(", ")}. Wire it, or declare it retired and banner it — ` +
       "an unaccounted check-shaped file is exactly the ambiguity this inventory exists to remove.",
+  );
+});
+
+
+test("a rung promoted to a merge wall does not keep describing itself as local-only", () => {
+  // ADR-0547 D1 moved `check:gcloudignore-mirror` from gate-only onto the CI merge wall. Its own
+  // `why` prose said "LOCAL-ONLY today", which the promotion made false — and prose inside a plan
+  // entry is exactly the kind of claim nothing else reads, so nothing else would have caught it.
+  // This asserts the CORRECTED state rather than the edit: the entry must name the promotion and
+  // must not still be advertising the credential limit that was lifted.
+  const step = GATE_PLAN.find((entry) => entry.command === "pnpm check:gcloudignore-mirror");
+  assert.ok(step, "check:gcloudignore-mirror must still be in the gate plan — CI is the wall, the gate is the habit, and ADR-0547 D1 put it on BOTH");
+
+  assert.match(
+    step.why,
+    /MERGE WALL AS WELL AS A GATE RUNG/,
+    "the entry must say it runs at the merge as well as in the gate (ADR-0547 D1)",
+  );
+  assert.doesNotMatch(
+    step.why,
+    /LOCAL-ONLY today/,
+    "the entry still claims to be local-only, which ADR-0547 D1 made false",
+  );
+  assert.match(
+    step.why,
+    /NO LONGER in `DECLARED_LOCAL_ONLY`/,
+    "the entry must record that it left the local-only set, since gate-ci-parity's declaration is the thing a reader cross-checks",
   );
 });

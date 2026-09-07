@@ -207,6 +207,12 @@ test("the ADR-0353 sweep: every capability whose contract tests live outside its
       // The wiring leg audits the REAL `.claude/settings.json` and the REAL drive barrel, so it cannot
       // live inside the drive package's own registered unit. The two that remain are genuinely unwritten:
       // no test drives the statusline command's output/debounce, or the wrapper scripts' fail-silent legs.
+      // ⚠ `statusline-glance` stays uncovered for a NARROWER reason than it looks since ADR-0535 D3:
+      // that contract's HEARTBEAT half is gone (the glance is read-only now, and the tests proving it
+      // are bound to contract 5 instead), so what remains unwritten is only the command's rendered
+      // output and its fail-silent legs. Contract 5 IS covered — the sweep's fences, its
+      // check-first-connect-second ordering, its SessionStart registration, and the real-filesystem
+      // bulk-stamp guard all carry the id, across both declared coverage files.
       unitId: "ambient-integration",
       surface: "packages/cli/src/ambient-wiring.test.ts",
       remainder: ["session-hooks-fail-silent", "statusline-glance"],

@@ -4,10 +4,15 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:
 import os from "node:os";
 import path from "node:path";
 
+import { planActivitySweep } from "@storytree/drive";
+
 import {
+  activityDisplayName,
+  activitySessionIds,
   classifyWorktree,
   defaultWorktreeIo,
   detectIdleStampClusters,
+  gatherWorktreeActivity,
   readIdleSignals,
   DEFAULT_THRESHOLD_MS,
   type IdleSignalReading,
@@ -92,6 +97,18 @@ function makeOrphan(root: string, name: string, at: number): string {
   utimesSync(path.join(dir, "README.md"), secs(at), secs(at));
   utimesSync(dir, secs(at), secs(at));
   return dir;
+}
+
+/** `git worktree list --porcelain` for a temp-root fixture, as `gatherWorktreeActivity` parses it. */
+function porcelain(root: string, names: readonly string[]): string {
+  return names
+    .flatMap((n) => [
+      `worktree ${path.join(root, ".claude", "worktrees", n)}`,
+      "HEAD 0000000000000000000000000000000000000000",
+      `branch refs/heads/claude/${n}`,
+      "",
+    ])
+    .join("\n");
 }
 
 function withTempRoot(fn: (root: string) => void): void {
@@ -356,6 +373,10 @@ test("detectIdleStampClusters names worktrees swept in one pass, and stays quiet
   const clusters = detectIdleStampClusters(swept);
   assert.equal(clusters.length, 1, "the four sweep victims are one cluster");
   assert.equal(clusters[0]?.names.length, 4);
+  // The READINGS come back too, and they are the very objects passed in — that identity is what
+  // lets the activity sweep ask "was THIS reading swept?" without re-deriving the second-granularity
+  // key, and without keying on names, which collide 16-way across the real git registry.
+  assert.deepEqual(clusters[0]?.readings, swept, "the cluster carries the readings that formed it");
   assert.deepEqual(clusters[0]?.names.slice().sort(), [
     "admiring-bose",
     "adr0178-gate",
@@ -376,6 +397,167 @@ test("detectIdleStampClusters names worktrees swept in one pass, and stays quiet
 
   // Two is a coincidence; the alarm needs a crowd.
   assert.deepEqual(detectIdleStampClusters([reading("a", at), reading("b", at + 10)]), []);
+});
+
+// ---------------------------------------------------------------------------
+// THE LEDGER'S VIEW OF THE SAME SIGNAL (ADR-0535 D2) — proven on the REAL filesystem
+// ---------------------------------------------------------------------------
+//
+// These belong in THIS file rather than beside the sweep's pure fold, for the reason the header
+// gives: a mocked idle reader cannot show that the guard is actually wired to the real thing.
+// `heartbeat_at` decides reclaim AND (through `worktree prune --pg`'s live set) whether a directory
+// may be deleted, so a bulk stamp reaching the ledger would not merely lie on a board — it would
+// fence a node nobody could reclaim and keep a dead worktree alive forever.
+
+test("activitySessionIds: BOTH identity rules, on both path separators", () => {
+  // Mirrors `deriveIdentity`. Rule 1 keys on the `.claude/worktrees/<name>` path basename; Rule 2
+  // — `--real` replicas and Codex trees, which do not live there — keys on the git ADMIN basename.
+  assert.deepEqual(
+    activitySessionIds("C:/code/storytree/.claude/worktrees/wt-a", "C:/code/storytree/.git/worktrees/wt-a"),
+    ["wt-a"],
+    "the usual case: the two coincide and are not emitted twice",
+  );
+  assert.deepEqual(
+    activitySessionIds("C:\\code\\storytree\\.claude\\worktrees\\wt-b", null),
+    ["wt-b"],
+    "backslashes resolve the same way",
+  );
+  assert.deepEqual(
+    activitySessionIds("C:/code/replica", "C:/code/storytree/.git/worktrees/replica-2"),
+    ["replica-2"],
+    "Rule 2 alone for a worktree outside .claude/worktrees — the identity git actually registered",
+  );
+  assert.deepEqual(
+    activitySessionIds("C:/code/storytree/.claude/worktrees/wt-c", "C:/code/storytree/.git/worktrees/wt-c-1"),
+    ["wt-c", "wt-c-1"],
+    "when git de-duplicated the admin name, BOTH keys are offered — a Rule-1-only sweep would " +
+      "vouch for an id nothing holds while the real holder aged out",
+  );
+  assert.deepEqual(activitySessionIds("C:/code/storytree", null), [], "the primary checkout claims nothing");
+  // The `$` anchor is the whole difference between "this worktree" and "some worktree under it":
+  // without it a nested path would claim `wt-a`, which is a DIFFERENT session's identity.
+  assert.deepEqual(
+    activitySessionIds("C:/code/storytree/.claude/worktrees/wt-a/nested", null),
+    [],
+    "a path BELOW a worktree is not that worktree",
+  );
+  // `resolveAdminDir` returns the TRIMMED text after `gitdir:`, so a malformed gitfile
+  // (`gitdir:` with nothing after it) yields "". An empty session id keys nothing and would make
+  // the sweep's `unnest` batch carry a row that can match no claim, so it is dropped here.
+  assert.deepEqual(activitySessionIds("C:/code/replica", ""), []);
+});
+
+test("activityDisplayName: a trailing or doubled separator must not name a worktree the empty string", () => {
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/"), "wt-a");
+  assert.equal(activityDisplayName("C:/tmp//storytree-real-XX//wt/"), "storytree-real-XX/wt");
+  assert.equal(activityDisplayName("wt"), "wt", "a single segment has no parent to qualify it");
+  // A path BELOW a session worktree is not that worktree, so it gets the qualified two-segment form
+  // rather than borrowing the session's bare name.
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/nested"), "wt-a/nested");
+  // BOTH segments must match, and these are the two real shapes that prove it — each would be
+  // mis-named as a bare basename if either half of the test were dropped. `.codex/worktrees/<n>`
+  // is where every Codex tree on this box actually lives, and `.claude/agents/` is a real sibling
+  // directory; neither is a session worktree, and neither may borrow the unqualified form.
+  assert.equal(activityDisplayName("C:/Users/m/.codex/worktrees/907b"), "worktrees/907b");
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/agents/thing"), "agents/thing");
+});
+
+test("liveness-is-observed-not-self-reported: the sweep VOUCHES for a genuinely-used worktree and refuses a husk — against real mtimes", () => {
+  withTempRoot((root) => {
+    makeWorktree(root, "in-use", { dir: IDLE, admin: FRESH, reflog: IDLE });
+    makeOrphan(root, "husk", NOW - 30_000);
+
+    const observation = gatherWorktreeActivity(
+      { ...defaultWorktreeIo, runGit: () => porcelain(root, ["in-use", "husk"]) },
+      readIdleSignals,
+    );
+    const plan = planActivitySweep(observation, new Date(NOW));
+
+    assert.deepEqual(plan.stamps.map((s) => s.sessionId), ["in-use"]);
+    assert.equal(
+      Math.abs(new Date(plan.stamps[0]!.observedAt).getTime() - FRESH) < 1_500,
+      true,
+      "the stamp carries the OBSERVED admin mtime, not `now`",
+    );
+    // The husk was touched 30 SECONDS ago and is still refused: its reading fell back to the
+    // worktree's own files, which measure the world rather than the worktree. Freshness is not
+    // the test — provenance is.
+    assert.deepEqual(plan.refused, [{ name: "husk", reason: "fell-back" }]);
+  });
+});
+
+test("liveness-is-observed-not-self-reported: A BULK STAMP NEVER REACHES THE LEDGER — the third instance of the fault class is refused, not written", () => {
+  withTempRoot((root) => {
+    // The measured `.codex/` shape (2026-08-19): one pass touched four unrelated worktrees inside a
+    // 59 ms window. Reproduced here on the ADMIN signals, which is what would happen if some future
+    // repo-wide git housekeeping rewrote them the way `reflog expire --all` once rewrote the logs.
+    // Pinned to a whole second, and that is load-bearing rather than tidiness: the detector groups
+    // at SECOND granularity, so an unpinned base lands within 60 ms of a boundary about 6% of the
+    // time, splits the four across two seconds, and leaves the stragglers unflagged. That flake red
+    // this suite once already — under `bun test` in the full run, while passing in isolation.
+    const at = Math.floor((NOW - 5 * 60_000) / 1000) * 1000;
+    const names = ["swept-a", "swept-b", "swept-c", "swept-d"];
+    names.forEach((n, i) => makeWorktree(root, n, { dir: IDLE, admin: at + i * 20, reflog: IDLE }));
+
+    const observation = gatherWorktreeActivity(
+      { ...defaultWorktreeIo, runGit: () => porcelain(root, names) },
+      readIdleSignals,
+    );
+    assert.deepEqual(
+      observation.filter((r) => r.bulkStamped).map((r) => r.name).sort(),
+      names,
+      "the detector is actually WIRED — not merely available",
+    );
+
+    const plan = planActivitySweep(observation, new Date(NOW));
+    assert.deepEqual(plan.stamps, [], "not one of the four vouches for anything");
+    assert.deepEqual(
+      plan.refused.map((r) => r.reason),
+      ["bulk-stamp", "bulk-stamp", "bulk-stamp", "bulk-stamp"],
+      "and the sweep SAYS why, so a third instance announces itself instead of being investigated",
+    );
+  });
+});
+
+test("gatherWorktreeActivity: an unreadable git registry yields an empty observation, never a throw", () => {
+  const observation = gatherWorktreeActivity(
+    {
+      ...defaultWorktreeIo,
+      runGit: () => {
+        throw new Error("git exploded");
+      },
+    },
+    readIdleSignals,
+  );
+  assert.deepEqual(observation, []);
+});
+
+test("gatherWorktreeActivity asks git for the WHOLE registry in porcelain — not the worktrees directory", () => {
+  // Two properties in one call, both of which a looser assertion would miss. `--porcelain` is what
+  // makes the output parseable at all (the human form is not), and `worktree list` is what reaches
+  // the Rule-2 identities — `--real` replicas and Codex trees — that never appear under
+  // `.claude/worktrees/` and are therefore invisible to the directory scan `worktree idle` uses.
+  const calls: string[][] = [];
+  gatherWorktreeActivity(
+    {
+      ...defaultWorktreeIo,
+      runGit: (args) => {
+        calls.push([...args]);
+        return "";
+      },
+    },
+    readIdleSignals,
+  );
+  assert.deepEqual(calls, [["worktree", "list", "--porcelain"]]);
+});
+
+test("activityDisplayName disambiguates outside .claude/worktrees — sixteen replicas are not all `wt`", () => {
+  // Measured on the real registry: 16 `--real` promotion replicas are `<tmp>/storytree-real-*/wt`
+  // and every Codex tree is `<hash>/storytree`, so a bare basename made a refusal list read
+  // `wt, wt, wt, …` with nothing an operator could act on. Session trees keep their plain name.
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/eager-shaw-9c3500"), "eager-shaw-9c3500");
+  assert.equal(activityDisplayName("C:/Users/m/AppData/Local/Temp/storytree-real-0vLC8B/wt"), "storytree-real-0vLC8B/wt");
+  assert.equal(activityDisplayName("C:/Users/m/.codex/worktrees/907b/storytree"), "907b/storytree");
 });
 
 test("ACTIVE: a worktree used minutes ago is kept even though its reflog is ancient", () => {

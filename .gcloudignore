@@ -17,14 +17,23 @@
 # -- Credential + private runtime material: the reason this file is security-relevant --
 # Mirrors .gitignore's "Env / secrets" block line for line. .env.example tells you to
 # copy it to .env and paste an API key in, and .gitignore then makes that feel safe.
-# It is only safe here because of the next three lines. Keep the two lists in step.
+# It is only safe here because of the next three lines. Keeping the two lists in step is no longer
+# left to memory: `pnpm check:gcloudignore-mirror` reds the gate when they diverge (see below).
 .env
 .env.*
 !.env.example
-# App-owned runtime state holding member identities (ADR-0043/0044). Gitignored, never
-# committed, and must not be baked into a published image either.
+# App-owned runtime state under apps/studio/data/ — member identities and attestations
+# (ADR-0043/0044) and the runtime asset view that replaced the retired committed assets.json.
+# Gitignored, never committed, and must not be baked into a published image either.
+#
+# ⚠ THIS LIST IS NOW MECHANICALLY HELD TO .gitignore'S — `pnpm check:gcloudignore-mirror`
+# (ADR-0544 D5). `assets.runtime.json` is here because that rung found it missing the day it was
+# built: it had been added to .gitignore alone, which is the exact silent drift the rung exists to
+# stop. Add a credential- or runtime-state-shaped path to .gitignore and the gate will ask for it
+# here on the same branch.
 apps/studio/data/users.json
 apps/studio/data/attestations.json
+apps/studio/data/assets.runtime.json
 
 # -- Heavy / irrelevant --
 .git

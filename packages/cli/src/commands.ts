@@ -107,13 +107,7 @@ import {
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import type { TraversalOptions } from "./traversal.js";
-import {
-  readSessionOriginDeclaration,
-  resolveTraceIdentity,
-  resolveTraversalDir,
-  withClaimedUnits,
-  writeSessionOriginDeclaration,
-} from "@storytree/context-traversal-capture";
+import { resolveTraceIdentity } from "@storytree/context-traversal-capture";
 import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
@@ -149,7 +143,11 @@ import {
 } from "./adopt-capability.js";
 import { branchNext, branchHelp, type BranchDeps } from "./branch.js";
 import {
+  defaultWorktreeIo,
+  gatherWorktreeActivity,
   pruneWorktrees,
+  readIdleSignals,
+  renderActivitySweep,
   worktreeDrainStatus,
   worktreeIdleReport,
   worktreeHelp,
@@ -266,6 +264,8 @@ import {
 // `story:`/`capability:` resolver.
 import { loadWorkHierarchyIndex } from "@storytree/drive";
 import { orchestrate, type OrchestrateArgs } from "@storytree/drive";
+// The worktree-activity sweep's pure decision (ADR-0535 D2) — `drive` decides, the CLI observes.
+import { planActivitySweep } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
@@ -283,7 +283,7 @@ import type {
 import type { ClaimUniverseLoader } from "@storytree/drive";
 import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
-import type { ClaimDocT } from "@storytree/notice-board";
+import type { ActivityStamp, ClaimDocT } from "@storytree/notice-board";
 import { libraryInbound, libraryInboundHelp } from "./inbound.js";
 import { libraryRepoint, libraryRepointHelp } from "./repoint.js";
 import { readStoryDecisionFiles } from "./adr-health.js";
@@ -2219,6 +2219,22 @@ export interface RunDeps {
    * report states the rate is not computable, which is the honest reading and the pre-existing one.
    */
   readonly sessionPopulation?: () => SessionPopulation | null;
+  /**
+   * WHERE A DECLARE'S CLAIMED UNITS ARE RECORDED (ADR-0541 D2) — this session's own traversal
+   * declaration, so the replay's trace rail can name the arc it was working on.
+   *
+   * ⚠ A SEAM WITH NO DEFAULT, unlike its `adrSpans` sibling above, and the difference is the
+   * direction: that one READS the checkout, this one WRITES the operator's home. A default would
+   * make every caller that drives `noticeboard declare` — every test that drives it included —
+   * stamp its unit ids onto whatever session the ambient environment resolved. That is not a
+   * hypothetical: it is how `noticeboard-cli`, `tree-view`, `inc-a` and `cap-a` reached a live
+   * session's record on 2026-09-07, and how a mutation run of those same tests overwrote that
+   * session's declared origin. Absent = nothing is written, which is the correct answer for every
+   * caller that is not the real CLI.
+   *
+   * Returns a line to print under the claims, or null for "nothing to say".
+   */
+  readonly recordClaimedUnits?: (nodeIds: readonly string[]) => string | null;
   readonly presence?: {
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
@@ -2239,6 +2255,10 @@ export interface RunDeps {
           // and a ghost's row must not protect a dead worktree from the reaper.
           Partial<{ listLiveClaims(): Promise<ClaimDocT[]> }> &
           Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }> &
+          // The OBSERVED-liveness write (ADR-0535 D2), which `worktree activity --pg` drives —
+          // `PgClaimStore` carries it; a fake without it makes that one verb refuse politely,
+          // exactly as the read halves above degrade their surfaces.
+          Partial<{ stampActivity(stamps: readonly ActivityStamp[]): Promise<number> }> &
           // The AUDIT-log read half (`noticeboard history`, ADR-0310 D1) — `PgClaimStore` carries
           // it; a fake without it degrades that one verb to its offline refusal, exactly as the
           // read halves above degrade the board.
@@ -3721,36 +3741,24 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // ADR-0541 D2 — the units this declare claimed land on the session's OWN traversal
         // declaration, so the trace rail can name the arc from a recorded fact rather than derive it.
         //
-        // COMPOSED HERE for the same reason the rider above is: `packages/drive` (the ledger) and
-        // `@storytree/context-traversal-capture` (the trace) are separate organisms, and this
-        // dispatch is the one place already holding both. It is bound to `declare` alone — the verb
-        // a session runs to say what it is working on — never to the ledger-surgery verbs.
+        // ⚠ INJECTED, NEVER RESOLVED HERE, and the absence of a default is the whole point. This is
+        // the only WRITE this dispatch performs outside the document store, and it lands in the
+        // OPERATOR'S HOME rather than in a caller's fixture. Resolved ambiently, every test that
+        // drives `noticeboard declare` stamps its fixture ids onto whatever session the environment
+        // happened to name — which is not hypothetical: on 2026-09-07 `noticeboard-cli`, `tree-view`,
+        // `inc-a` and `cap-a` reached a live session's record, and a mutation run of the same tests
+        // overwrote that session's declared origin on the way past. `main.ts` supplies it; a caller
+        // that does not is a caller that writes nothing.
         //
-        // ⚠ NOTHING HERE INFERS AN ARC. It records the unit ids the session itself named; the
+        // ⚠ NOTHING HERE INFERS AN ARC. The seam records the unit ids the session itself named; the
         // resolution to an arc happens at READ time, in the corpus, and a unit that resolves to no
         // arc stays a unit (ADR-0541 D3/D4). The refused shortcut is joining the trace's worktree
         // SLOT to the claim ledger — a pooled slot answers "every arc ever worked in this worktree".
-        onClaimsDeclared: async (nodeIds) => {
-          const sessionId = resolveDeclaringSessionId();
-          // No trace identity is the primary checkout / CI / the lobby — exactly the runs that
-          // capture no trace at all, so there is no row for a unit to label. Silent, not an error.
-          if (sessionId === null) return null;
-          const dir = resolveTraversalDir();
-          const next = withClaimedUnits(
-            readSessionOriginDeclaration(dir, sessionId),
-            nodeIds,
-            new Date().toISOString(),
-          );
-          // Null means every unit was already on the record: no write, so a re-declare does not
-          // rewrite the file, and no line, because nothing changed.
-          if (next === null) return null;
-          // Fail-silent on the capture path's own contract (ADR-0241 D3): a declaration that cannot
-          // be written leaves the session simply unrecorded, and never touches the claim or the
-          // exit code. `writeSessionOriginDeclaration` returns false rather than throwing.
-          return writeSessionOriginDeclaration(dir, sessionId, next)
-            ? `→ trace records this session's units: ${next.units.join(", ")} (ADR-0541 D2)`
-            : null;
-        },
+        //
+        // Always WIRED, never conditionally spread: with no recorder injected the delegate answers
+        // null, which is the drive-side rider's own "nothing to say" and adds no line — so a caller
+        // that supplies nothing is byte-identical to one that never had the seam.
+        onClaimsDeclared: async (nodeIds) => deps.recordClaimedUnits?.(nodeIds) ?? null,
       },
     );
   }
@@ -3832,18 +3840,46 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       }
       return createWorktree(createOpts, createDeps);
     }
-    if (sub !== "prune" && sub !== "drain" && sub !== "idle") {
+    if (sub !== "prune" && sub !== "drain" && sub !== "idle" && sub !== "activity") {
       return {
         ok: false,
-        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain | storytree worktree idle`,
+        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain | storytree worktree idle | storytree worktree activity`,
         next: [
           'storytree worktree create --node <story> --intent "<what>" --pg',
           "storytree worktree prune",
           "storytree worktree drain",
           "storytree worktree idle",
+          "storytree worktree activity",
           "storytree worktree --help",
         ],
       };
+    }
+    if (sub === "activity") {
+      // ADR-0535 D2 — the worktree-activity sweep, as a VERB before it is a hook. `--pg` writes;
+      // bare is read-only, so "what would this tell the ledger?" costs no store and no credential.
+      // The gather is a handful of stats and ONE git spawn, and it runs BEFORE any ledger touch:
+      // the retired beat opened a pool before deciding whether it had anything to say, and the
+      // keyless connector handshake (~6-11 s here) is what made that fatal on a per-call path.
+      const activityIo = deps.worktree?.io ?? defaultWorktreeIo;
+      const readings = gatherWorktreeActivity(activityIo, deps.worktree?.idle ?? readIdleSignals);
+      const activityNow = deps.worktree?.now ? new Date(deps.worktree.now()) : new Date();
+      const plan = planActivitySweep(readings, activityNow);
+      const stampLedger = deps.presence?.ledger ?? null;
+      const stamp = stampLedger?.stampActivity;
+      let written: number | null = null;
+      if (values.pg) {
+        if (stamp === undefined) {
+          return {
+            ok: false,
+            body:
+              "worktree activity --pg needs the live claim ledger, and none is composed.\n" +
+              "bring the DB up first: pnpm db:up",
+            next: ["pnpm db:up", "storytree worktree activity"],
+          };
+        }
+        written = await stamp.call(stampLedger, plan.stamps);
+      }
+      return renderActivitySweep(readings, plan, { nowMs: activityNow.getTime(), written });
     }
     // Optional --pg consult: the CLAIM LEDGER is the authoritative "is a session live here" signal
     // (ADR-0200 D6 — presence retired); a live claim's sessionId IS the worktree basename

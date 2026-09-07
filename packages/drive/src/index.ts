@@ -113,8 +113,10 @@ export * from "./claim-release.js";
 // which is not an authority boundary. Recover it from git if the Codex adapter (ADR-0257 D2/D3/D7)
 // ever needs the containment logic.
 export * from "./write-authority-rules.js";
-// The ambient session surface (statusline glance + claim heartbeat + the SessionStart nudge +
-// the never-blocking-hooks audit) — ledger-sourced since the presence retirement (ADR-0200 D5/D7).
+// The ambient session surface (statusline glance + the worktree-activity sweep + the SessionStart
+// nudge + the never-blocking-hooks audit) — ledger-sourced since the presence retirement
+// (ADR-0200 D5/D7). The claim HEARTBEAT is no longer a self-report: ADR-0535 D3 retired the
+// status-bar bump, and liveness is now OBSERVED from file change inside each claimed worktree.
 export * from "./ambient-presence.js";
 export * from "./db-control.js";
 // The read/orientation surface (the ADR-0112 pattern, applied to the ADR-0108 orientation gap):

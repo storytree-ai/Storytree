@@ -138,11 +138,31 @@ describe('TraversalTab — the whole local index, newest first (ttl-lists-the-wh
     // The claim-join left 338 of 339 traces unreachable. Every row the index knows is offered now —
     // and since ADR-0541 D1 each carries the arc the session RECORDED, in one of three shapes the
     // rail must never blur: a named arc, real work on NO arc, and nothing recorded at all.
+    //
+    // ⚠ THE ARC COMES FIRST AND THE TRACE ID SECOND (owner, 2026-09-08). Asserted as whole rows in
+    // DOM order, so the ordering is pinned by something a reorder has to mean to change — the arc
+    // led as the third line when it shipped, and that is the thing being corrected.
     expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
-      'alpha-112' + 'map-arc' + 'newest',
-      'bravo-2386' + 'no arc · r3f-world-spike' + '5m earlier',
-      'charlie-34' + 'arc not recorded' + '1d earlier',
+      'map-arc' + '12' + 'alpha-1' + 'newest',
+      'no arc · r3f-world-spike' + '386' + 'bravo-2' + '5m earlier',
+      'arc not recorded' + '4' + 'charlie-3' + '1d earlier',
     ]);
+  });
+
+  it('leads each row with the ARC and demotes the trace id to a subtitle', () => {
+    // The property the whole-row assertion above encodes, stated on its own so a later reorder reds
+    // against the INTENT rather than against an opaque concatenation. The trace id is still exact —
+    // it is what `storytree traversal show <id>` is keyed by — it is just no longer the row's name.
+    renderTab({ active: true });
+    return waitFor(() => {
+      const first = screen.getAllByRole('option')[0];
+      const parts = [...(first?.children ?? [])];
+      expect(parts[0]?.className).toContain('traversal-tab-row-arc');
+      expect(parts[0]?.textContent).toBe('map-arc');
+      const sid = parts.find((p) => p.className.includes('traversal-tab-row-sid'));
+      expect(sid?.textContent).toBe('alpha-1');
+      expect(parts.indexOf(sid as Element)).toBeGreaterThan(0);
+    });
   });
 
   it('gives the two ABSENCES different words, so neither reads as the other', async () => {

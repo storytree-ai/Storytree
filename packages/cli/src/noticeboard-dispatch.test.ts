@@ -6,12 +6,6 @@ import type { ClaimDocT, ClaimRequest } from "@storytree/notice-board";
 
 import type { ClaimUniverseLoader } from "@storytree/drive";
 
-import { mkdtempSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { HOST_WINDOW_ID_ENV, readSessionOriginDeclaration } from "@storytree/context-traversal-capture";
-
 import { run } from "./commands.js";
 
 /**
@@ -284,113 +278,105 @@ test("a CLOSED increment is never reopened by a declare — closed is terminal (
 });
 
 // ---------------------------------------------------------------------------
-// declare — the claimed-units binding (ADR-0541 D2)
+// declare — the claimed-units SEAM (ADR-0541 D2), and its undefaulted absence
 // ---------------------------------------------------------------------------
 
 /**
- * THE BINDING ITSELF, the sibling of the ADR-0386 assertion above and here for the same reason: the
- * drive-side tests prove the rider is CALLED and the capture package proves the declaration MERGE,
- * and both could stay green while nothing ever reached the file. This is the one place that proves
- * `declare` actually writes the units onto the session's own trace declaration.
+ * ⚠ THE REGRESSION THIS FILE EXISTS FOR. `run` must reach NOTHING outside the deps it was handed.
  *
- * Every case points `STORYTREE_TRAVERSAL_DIR` and `STORYTREE_SESSION_ID` at throwaway values, so no
- * assertion touches the real `~/.storytree/traces` or the real session's record.
+ * The units recorder shipped resolving its own trace directory and session id from the ambient
+ * environment, inside the dispatch. Every test in this file drives `noticeboard declare`, so every
+ * one of them wrote into `~/.storytree/traces` — the fixture ids `noticeboard-cli`, `tree-view`,
+ * `inc-a` and `cap-a` landed on a live session's declaration on 2026-09-07, and a mutation run of
+ * these same tests, executing MUTATED merge code against the real file, overwrote that session's
+ * declared origin. No assertion here could have noticed: the damage was outside every fixture.
+ *
+ * The seam is undefaulted now, so the reach is unrepresentable rather than merely discouraged — and
+ * this test is what keeps a later default from quietly restoring it.
  */
-const TRAVERSAL_DIR_ENV = "STORYTREE_TRAVERSAL_DIR";
-const TRACE_SESSION_ENV = "STORYTREE_SESSION_ID";
+test("declare with NO recorder injected calls nothing and writes nothing — the seam has no default", async () => {
+  let calls = 0;
+  const env = await run(["noticeboard", "declare", "--working-on", "driving it", "--node", "inc-a"], {
+    store: await storeWithIncrement(),
+    writable: true,
+    presence: { identity: { sessionId: "alpha-seam", branch: "claude/x" }, claims: fakeClaims() },
+    claimUniverse: INCREMENT_UNIVERSE,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal(calls, 0);
+  // Nothing is said, because nothing was recorded — the claim itself is unaffected.
+  assert.doesNotMatch(env.body, /ADR-0541/);
+  assert.match(env.body, /inc-a.*claimed — the wisp is lit/);
+});
 
-async function declareWithTrace(
-  nodes: readonly string[],
-  env: Readonly<Record<string, string | undefined>>,
-  store?: InMemoryStore,
-): Promise<Awaited<ReturnType<typeof run>>> {
-  const previous = new Map<string, string | undefined>();
-  for (const [name, value] of Object.entries(env)) {
-    previous.set(name, process.env[name]);
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  }
-  try {
-    const argv = ["noticeboard", "declare", "--working-on", "driving it"];
-    for (const node of nodes) argv.push("--node", node);
-    return await run(argv, {
-      store: store ?? (await storeWithIncrement()),
+test("declare hands the recorder ONCE the units it actually CLAIMED, and prints what it says", async () => {
+  const calls: Array<readonly string[]> = [];
+  const env = await run(
+    ["noticeboard", "declare", "--working-on", "driving it", "--node", "inc-a", "--node", "cap-a"],
+    {
+      store: await storeWithIncrement(),
       writable: true,
-      presence: { identity: { sessionId: "alpha-units", branch: "claude/x" }, claims: fakeClaims() },
+      presence: { identity: { sessionId: "alpha-seam-2", branch: "claude/x" }, claims: fakeClaims() },
       claimUniverse: INCREMENT_UNIVERSE,
-    });
-  } finally {
-    for (const [name, value] of previous) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
-    }
-  }
-}
+      recordClaimedUnits: (nodeIds) => {
+        calls.push(nodeIds);
+        return "→ trace records this session's units: inc-a, cap-a (ADR-0541 D2)";
+      },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  // ONCE with the plural: a session claiming two units worked on two, and a per-node call would
+  // rewrite the same record twice with no way to know which call was last.
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], ["inc-a", "cap-a"]);
+  assert.match(env.body, /trace records this session's units: inc-a, cap-a/);
+});
 
-test("declare writes the claimed units onto this session's own trace declaration", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "declare-units-"));
-  const envp = await declareWithTrace(["inc-a", "cap-a"], {
-    [TRAVERSAL_DIR_ENV]: dir,
-    [TRACE_SESSION_ENV]: "window-abc",
+test("declare never hands the recorder a node it was FENCED out of", async () => {
+  // ⚠ Recording a unit another session holds would put that session's work on this one's record,
+  // and a reader of the trace could not tell.
+  const claims = fakeClaims();
+  let calls = 0;
+  const env = await run(["noticeboard", "declare", "--working-on", "driving it", "--node", "inc-a"], {
+    store: await storeWithIncrement(),
+    writable: true,
+    presence: {
+      identity: { sessionId: "alpha-seam-3", branch: "claude/x" },
+      claims: {
+        ...claims,
+        claim: async () => ({
+          acquired: false as const,
+          heldBy: claimDoc({ unitId: "inc-a", sessionId: "someone-else" }),
+        }),
+      },
+    },
+    claimUniverse: INCREMENT_UNIVERSE,
+    recordClaimedUnits: () => {
+      calls += 1;
+      return "→ recorded";
+    },
   });
-  assert.equal(envp.ok, true, envp.body);
-
-  const declaration = readSessionOriginDeclaration(dir, "window-abc");
-  // SEVERAL units are recorded as several — a session claiming two capabilities worked on two.
-  assert.deepEqual(declaration?.units, ["inc-a", "cap-a"]);
-  // ⚠ AND NO ORIGIN IS CLAIMED. Claiming work says what a session is DOING, never how it came to
-  // exist; stamping an origin here would be the inference ADR-0484 D7 refuses, arriving through a
-  // door nobody would read as a provenance claim.
-  assert.equal(declaration?.origin, null);
-  assert.equal(declaration?.cutBy, null);
-  assert.equal(declaration?.cutFor, null);
-  assert.match(envp.body, /trace records this session's units: inc-a, cap-a \(ADR-0541 D2\)/);
+  assert.equal(env.ok, false, "nothing was claimed");
+  assert.equal(calls, 0);
+  assert.doesNotMatch(env.body, /→ recorded/);
 });
 
-test("declare with NO resolvable trace identity records nothing, and says nothing", async () => {
-  // The primary checkout, CI and the lobby resolve no trace identity — exactly the runs that capture
-  // no trace at all, so there is no row for a unit to label. Silent, never an error.
-  const dir = mkdtempSync(join(tmpdir(), "declare-units-none-"));
-  const envp = await declareWithTrace(["inc-a"], {
-    [TRAVERSAL_DIR_ENV]: dir,
-    [TRACE_SESSION_ENV]: undefined,
-    // The harness's own window id is the second channel `resolveTraceIdentity` reads, and this
-    // suite normally runs INSIDE a harness session — so clearing only the declared id would leave a
-    // real identity resolving and the case under test unreachable.
-    [HOST_WINDOW_ID_ENV]: undefined,
+test("a recorder with nothing to say adds no line at all", async () => {
+  // The ordinary case for a re-declare whose units are already on the record.
+  const base = {
+    writable: true,
+    claimUniverse: INCREMENT_UNIVERSE,
+  } as const;
+  const quiet = await run(["noticeboard", "declare", "--working-on", "w", "--node", "inc-a"], {
+    ...base,
+    store: await storeWithIncrement(),
+    presence: { identity: { sessionId: "alpha-seam-4", branch: "claude/x" }, claims: fakeClaims() },
+    recordClaimedUnits: () => null,
   });
-  assert.equal(envp.ok, true, envp.body);
-  assert.doesNotMatch(envp.body, /ADR-0541/);
-  assert.deepEqual(readdirSync(dir), [], "no declaration file was written");
-});
-
-test("a RE-declare of the same unit rewrites nothing and says nothing", async () => {
-  // The common case (a session refines what it is working on). Recording it twice would restamp
-  // `declaredAt` over the moment the session actually first said it, and the line would train a
-  // reader to expect news where there is none.
-  const dir = mkdtempSync(join(tmpdir(), "declare-units-again-"));
-  const store = await storeWithIncrement();
-  const first = await declareWithTrace(["inc-a"], {
-    [TRAVERSAL_DIR_ENV]: dir,
-    [TRACE_SESSION_ENV]: "window-again",
-  }, store);
-  assert.match(first.body, /trace records this session's units: inc-a/);
-  const afterFirst = readSessionOriginDeclaration(dir, "window-again");
-
-  const second = await declareWithTrace(["inc-a"], {
-    [TRAVERSAL_DIR_ENV]: dir,
-    [TRACE_SESSION_ENV]: "window-again",
-  }, store);
-  assert.equal(second.ok, true, second.body);
-  assert.doesNotMatch(second.body, /ADR-0541/);
-  assert.deepEqual(readSessionOriginDeclaration(dir, "window-again"), afterFirst);
-});
-
-test("a SECOND declare of a different unit ACCUMULATES rather than replacing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "declare-units-more-"));
-  const store = await storeWithIncrement();
-  await declareWithTrace(["inc-a"], { [TRAVERSAL_DIR_ENV]: dir, [TRACE_SESSION_ENV]: "window-more" }, store);
-  const second = await declareWithTrace(["cap-a"], { [TRAVERSAL_DIR_ENV]: dir, [TRACE_SESSION_ENV]: "window-more" }, store);
-  assert.match(second.body, /trace records this session's units: inc-a, cap-a/);
-  assert.deepEqual(readSessionOriginDeclaration(dir, "window-more")?.units, ["inc-a", "cap-a"]);
+  const none = await run(["noticeboard", "declare", "--working-on", "w", "--node", "inc-a"], {
+    ...base,
+    store: await storeWithIncrement(),
+    presence: { identity: { sessionId: "alpha-seam-4", branch: "claude/x" }, claims: fakeClaims() },
+  });
+  assert.equal(quiet.body, none.body);
 });

@@ -31,7 +31,7 @@ import { createRoot } from 'react-dom/client';
 import { ForestWorldCanvas } from '../src/ForestWorldCanvas.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { IslandPanel } from './IslandView.js';
-import { islandScene } from './island-fixture.js';
+import { islandGroundScene, islandScene } from './island-fixture.js';
 import {
   BEFORE_THE_CELL_CASE,
   SHIPPED_STATUSES,
@@ -233,7 +233,7 @@ installCounter();
 
 /* ── the scene, once ───────────────────────────────────────────────────────────────────── */
 
-const SCENE = islandScene();
+const SCENE = islandGroundScene();
 const DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(SCENE);
 
 function census(ds: readonly Descriptor3D[]) {
@@ -268,7 +268,7 @@ const BEFORE_CENSUS = census(BEFORE_DESCRIPTORS);
    So one capability is given a foreign status, exactly the labelled deviation `island-fixture.ts`
    provides for. The parcels must come back in TWO colours, and they must be the RIGHT twelve. */
 const MIXED_ODD_ONE_OUT = { index: 3, status: 'unhealthy' as const };
-const MIXED_DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(islandScene({ oddOneOut: MIXED_ODD_ONE_OUT }));
+const MIXED_DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(islandGroundScene({ oddOneOut: MIXED_ODD_ONE_OUT }));
 const MIXED_MATERIALS: Record<string, number> = {};
 for (const d of MIXED_DESCRIPTORS) {
   if (d.kind === 'cell-ground') MIXED_MATERIALS[d.material ?? '?'] = (MIXED_MATERIALS[d.material ?? '?'] ?? 0) + 1;

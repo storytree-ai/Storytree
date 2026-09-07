@@ -1,6 +1,6 @@
 // shipped-island-floor-scene.test.ts — the page's ARMS and its READING, held without a browser
-// against the COMMITTED real-forest export: the shipped arm IS a bare `worldTo3D(scene)` byte for
-// byte; the control is the rule as it stood (the zero-capability islands left as drawn, and the
+// against the COMMITTED real-forest export: the shipped arm IS the shipped mapper's own stream byte
+// for byte; the control is the rule as it stood (the zero-capability islands left as drawn, and the
 // finding — they outsize islands holding work — reproduced on the real corpus); the floor closes
 // every inverted pair and every island draws `max(1, capabilities) × 318`; the table is largest
 // first with honest ranks; and the page adopts nothing of its own.
@@ -11,8 +11,9 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { LAND_AREA_PER_CAPABILITY, LAND_FLOOR_CAPABILITIES, islandLand } from '../src/land-per-capability.js';
+import { LAND_AREA_PER_CAPABILITY, LAND_FLOOR_CAPABILITIES, islandLand, sizeIslandsByCapability } from '../src/land-per-capability.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { trueGroundFromDrawing } from './frozen-drawing.js';
 import { groundSanity } from './ground-sanity.js';
 import {
   FLOOR_ARMS,
@@ -68,10 +69,23 @@ test('the arms: the control is the rule as it stood (floor 0, typed as history),
   assert.throws(() => floorPicture('nope' as never), /no picture/);
 });
 
-test('⚠⚠ THE SHIPPED ARM IS THE SHIPPED MAPPER, BYTE FOR BYTE — a bare worldTo3D(scene) — and the control is the drawing with the floor switched off', () => {
+test('⚠⚠ THE SHIPPED ARM IS THE SHIPPED MAPPER, BYTE FOR BYTE — and the committed export is a DRAWING, so the conversion is part of what "shipped" means here', () => {
   const shipped = floorArmStream(FLOOR_SHIPPED_ARM, LAYOUT);
-  const bare = worldTo3D(LAYOUT.file.scene).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  // ⚠ NOT A BARE `worldTo3D(scene)` ANY MORE, AND THE CHANGE IS ADR-0546 D1's. The mapper stopped
+  // un-projecting: it lays down whatever ground the scene carries, and this scene was exported from
+  // the 2D map on 2026-09-06, so it carries the drawing's foreshortened ground. What the canvas
+  // would be handed for THIS layout is therefore the export un-projected and then sized —
+  // `frozen-drawing.ts` carries why that conversion is an input adapter and not the deleted repair.
+  const bare = sizeIslandsByCapability(
+    trueGroundFromDrawing(worldTo3D(LAYOUT.file.scene, { landAreaPerCapability: null })),
+    LAND_AREA_PER_CAPABILITY,
+  ).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
   assert.deepEqual(shipped, bare);
+  // ⚠ NON-VACUITY: feeding the export straight through is a DIFFERENT, squashed stream — which is
+  // exactly what the conversion exists to prevent, and what a page would silently draw without it.
+  const unconverted = worldTo3D(LAYOUT.file.scene).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  assert.equal(unconverted.length, bare.length);
+  assert.notDeepEqual(unconverted, bare);
   // The control differs from it exactly on the zero-capability islands, and nowhere else.
   const control = floorArmStream(FLOOR_CONTROL_ARM, LAYOUT);
   assert.equal(control.length, shipped.length);

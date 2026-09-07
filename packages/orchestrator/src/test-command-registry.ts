@@ -122,7 +122,16 @@ export const NODE_BUILD_REGISTRY: ReadonlyMap<string, NodeBuildConfig> = new Map
     // thing it changes is that the drift-lock keeps passing, which is the point: a migrated spec and
     // its twin drift the moment either side gains a field the other lacks, and the lock cannot tell a
     // harmless reporting field from a real divergence (nor should it have to).
-    coverage: { testGlobs: ["packages/cli/src/ambient-wiring.test.ts"] },
+    coverage: {
+      testGlobs: [
+        "packages/cli/src/ambient-wiring.test.ts",
+        // ADR-0535 D2's fault-class guard — real worktree admin layouts, real mtimes, proving that
+        // `detectIdleStampClusters` is WIRED into the sweep and not merely available to it. It
+        // cannot live in the drive package's registered unit for the same reason the wiring leg
+        // cannot: it drives a real filesystem.
+        "packages/cli/src/worktree-idle-signal.test.ts",
+      ],
+    },
     real: {
       testFile: "packages/drive/src/ambient-presence.test.ts",
       sourceFile: "packages/drive/src/ambient-presence.ts",

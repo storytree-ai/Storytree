@@ -3,7 +3,7 @@ id: "claim-at-declare"
 tier: capability
 story: wisp-as-story-claim
 title: "Claim-at-declare — anchoring a node on the notice board takes the work-time story claim"
-outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the statusline heartbeat bumps the session's claim heartbeats, and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN gate (capability E's E2) landed cross-story as chat-subagent-spawn's claim-gated-spawn, was mounted, and then RETIRED with that whole story under ADR-0175 — so with ADR-0200's workspace-creation claim, this is the live acquisition surface."
+outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the observed worktree-activity sweep keeps a live session's claim heartbeats fresh (ADR-0535 D2 — the statusline self-report it replaced is retired), and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN gate (capability E's E2) landed cross-story as chat-subagent-spawn's claim-gated-spawn, was mounted, and then RETIRED with that whole story under ADR-0175 — so with ADR-0200's workspace-creation claim, this is the live acquisition surface."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
@@ -26,7 +26,7 @@ decisions: [142, 138, 121, 33, 175]
 # `packages/drive/src/noticeboard.test.ts` proves declare-takes-the-claim, the refused arm (presence
 # lands, the holder is surfaced), the claim-write-failure arm and no-claims-without---node;
 # `packages/notice-board/src/store/claim-store.test.ts` proves releaseClaimsBySession and
-# bumpHeartbeatsBySession.
+# stampActivity (which replaced bumpHeartbeatsBySession when ADR-0535 D3 retired the status-bar bump).
 # The `real:` arm stays deliberately ABSENT for the reason the header comment gives — a red would have
 # to be manufactured over green code. That is what ADR-0465 narrows: an adoption needs the DECLARED
 # COMMAND, not a driven red→green.
@@ -61,8 +61,11 @@ builder is what the declare acquires with; the session-scoped bulk operations be
 > **ADR-0200 note (declare is one acquisition point of several).** Declare-time acquisition (this
 > capability) stands, but it is no longer the *earliest*: under ADR-0200 a session is **born claimed** at
 > `worktree create` (the `exploring` claim, ADR-0200 D3), and `declare --node` / `noticeboard claim`
-> **upgrade** to the `work` claim. `done` still bulk-releases via `releaseClaimsBySession`; the statusline
-> heartbeat still bumps via `bumpHeartbeatsBySession`. The refusal path generalises: a held work slot no
+> **upgrade** to the `work` claim. `done` still bulk-releases via `releaseClaimsBySession`. ⚠ The
+> statusline heartbeat named here is **RETIRED and `bumpHeartbeatsBySession` is DELETED** (ADR-0535 D3):
+> liveness is now OBSERVED from file change inside the claimed worktree and written by
+> `PgClaimStore.stampActivity`, because a status bar is drawn only by terminals while claims are held by
+> every session type. The refusal path generalises: a held work slot no
 > longer only refuses — the session can **queue** (`waiting`) and be atomically promoted on release. The
 > `check:declared` rung hardened from WARN to **FAIL** (ADR-0200 D3): a session holding zero live claims
 > of any grade cannot reach the merge ceremony.
@@ -73,7 +76,8 @@ builder is what the declare acquires with; the session-scoped bulk operations be
 > authored now would fake a red over green code). The declare/done/heartbeat claim behaviour is proven
 > in `packages/drive/src/noticeboard.test.ts` (claim-at-declare, fail-soft refusal + failure arms,
 > done-releases) and `packages/notice-board/src/store/claim-store.test.ts`
-> (`releaseClaimsBySession` / `bumpHeartbeatsBySession`); implementation in
+> (`releaseClaimsBySession`, and — since ADR-0535 D3 retired the status-bar bump — `stampActivity`
+> where `bumpHeartbeatsBySession` used to be); implementation in
 > `packages/drive/src/noticeboard.ts` (the `SessionClaimStoreLike` seam + the declare/done wiring) and
 > `packages/notice-board/src/store/claim-store.ts`. `healthy` stays earned via the fold, never
 > authored (ADR-0020).
@@ -94,9 +98,14 @@ What ADR-0142 landed here (leg 2 of its three; legs 1 and 3 are context below):
 - **`done` releases everything.** `noticeboard done` calls `releaseClaimsBySession` — a done session is
   working nothing, so its wisps go out (one transaction, one `released` audit event per claim). Also
   fail-soft: stale-reclaim and the CI merge clear (capability D) are the backstops.
-- **The statusline heartbeat keeps claims live.** The ambient beat that keeps presence fresh also calls
-  `bumpHeartbeatsBySession` on its existing debounce — touches only `heartbeat_at`, no audit event —
-  so a live session's claims never age into the 2 h stale-reclaim window (ADR-0138 §4).
+- **~~The statusline heartbeat keeps claims live.~~ RETIRED by ADR-0535 D3.** It called
+  `bumpHeartbeatsBySession` on the statusline's debounce so a live session's claims never aged into
+  the 2 h stale-reclaim window (ADR-0138 §4) — but only a TERMINAL draws a status bar, so desktop and
+  unattended sessions were never covered and their claims aged out on a timer whatever they were
+  doing; and a wedged session kept bumping, since a timer proves a process exists exactly as a hang
+  does. What keeps claims live now is the OBSERVED sweep (`stampActivity`, ADR-0535 D2): file change
+  inside each claimed worktree, still heartbeat-only with no audit event, and monotonic so it can
+  never age a claim backwards. `bumpHeartbeatsBySession` is deleted.
 
 **Sibling context (ADR-0142 legs 1 & 3, not this capability's surface):** the CI `verify` job now
 refuses a PR whose head branch already merged (`scripts/merged-branch-guard.sh`) — *a branch is one
@@ -136,8 +145,9 @@ witnessed on the live board:
    `orchestrate`), the refused arm (presence lands, holder surfaced), the claim-write-failure arm
    (presence lands, "wisp NOT lit"), no-claims-without-`--node`, and done-releases-the-session's
    claims. `packages/notice-board/src/store/claim-store.test.ts` proves `releaseClaimsBySession`
-   (bulk delete + one `released` event per claim, other sessions untouched) and
-   `bumpHeartbeatsBySession` (heartbeat-only, no audit event).
+   (bulk delete + one `released` event per claim, other sessions untouched) and — since ADR-0535 D3
+   retired the status-bar bump — `stampActivity` (heartbeat-only, no audit event, and monotonic:
+   `observed > heartbeat_at` is in the WHERE, so a reading of the past can never age a live claim).
 2. **Board-witnessed —** a session's `declare --node` lights exactly one wisp on the claimed story on
    the forest map (the appearance UAT, capability F, attested the wisp render); `done` and the CI merge
    clear (D) put it out.

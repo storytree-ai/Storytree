@@ -65,6 +65,7 @@ import { dressMapWithCover, type MapDressingOptions } from '../src/map-dressing.
 import { KIT_PROP_INDIRECT_FRACTION } from '../src/prop-lighting.js';
 import { islandCentres } from '../src/true-footprint.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { trueGroundFromDrawing } from './frozen-drawing.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { KIT_ASSET_URL, kitMeshes, loadKit, setKitPropLighting, type LoadedKit } from './kit-scene.js';
@@ -152,7 +153,11 @@ const drawnMemo = new Map<string, InstanceDescriptor[]>();
 export function drawnStream(layout: SpacingArm): InstanceDescriptor[] {
   const hit = drawnMemo.get(layout.record.id);
   if (hit !== undefined) return hit;
-  const built = worldTo3D(layout.file.scene, { landAreaPerCapability: null }).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  // ⚠ THE COMMITTED SCENE IS A 2D DRAWING and the mapper stopped repairing one (ADR-0546 D1) —
+  // converted at the reader, before any floor is applied. `frozen-drawing.ts` carries the why.
+  const built = trueGroundFromDrawing(worldTo3D(layout.file.scene, { landAreaPerCapability: null })).filter(
+    (d): d is InstanceDescriptor => d.kind !== 'skipped',
+  );
   drawnMemo.set(layout.record.id, built);
   return built;
 }
