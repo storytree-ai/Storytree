@@ -6,7 +6,7 @@ import path from "node:path";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { run } from "./commands.js";
-import type { WorktreeIo } from "./worktree.js";
+import { worktreeHelp, type WorktreeIo } from "./worktree.js";
 
 /**
  * The `worktree` DISPATCH wiring (ADR-0142 / ADR-0033): `run` routes the `worktree` area to the
@@ -58,10 +58,59 @@ test("run: `worktree --help` returns the worktree help envelope", async () => {
   assert.match(env.body, /storytree worktree — worktree lifecycle hygiene/);
 });
 
-test("run: an unknown worktree sub-command is rejected with guidance", async () => {
+test("liveness-is-observed-not-self-reported: the help pins `worktree activity`'s whole entry, read-only default included", () => {
+  // Pinned as a BLOCK, not probed line by line. Help text is pure string literals, so a regex over
+  // one line leaves every other line free to be emptied — and the two facts a reader most needs
+  // here are the ones a partial match drops: that a bare run writes NOTHING, and that a stamp can
+  // only move a claim forward. Someone reading this to decide whether `--pg` is safe reads exactly
+  // those two lines.
+  const body = worktreeHelp().body;
+  const start = body.indexOf("  storytree worktree activity");
+  assert.notEqual(start, -1, "the help must carry a `worktree activity` entry at all");
+  assert.equal(
+    body.slice(start, body.indexOf("\n\n", start)),
+    [
+      "  storytree worktree activity [--pg]         WHAT THE LEDGER IS TOLD about liveness (ADR-0535 D2):",
+      "                                             observed file change per claimed worktree, with the",
+      "                                             signal that bound it and every refusal's reason.",
+      "                                             Bare = read-only. --pg writes the stamps, which only",
+      "                                             ever move a claim FORWARD, never back.",
+    ].join("\n"),
+  );
+});
+
+test("run: an unknown worktree sub-command is rejected, and every REAL one is named in the guidance", async () => {
   const env = await run(["worktree", "bogus"], { store: new InMemoryStore() });
   assert.equal(env.ok, false);
   assert.match(env.body, /unknown worktree command "bogus"/);
+  // Pinned whole: a verb added to the dispatch but forgotten here is a verb nobody discovers, and
+  // the refusal is the one place a mistyped sub-command reads the list.
+  assert.deepEqual(env.next, [
+    'storytree worktree create --node <story> --intent "<what>" --pg',
+    "storytree worktree prune",
+    "storytree worktree drain",
+    "storytree worktree idle",
+    "storytree worktree activity",
+    "storytree worktree --help",
+  ]);
+});
+
+test("run: every worktree sub-command in the allow-list actually ROUTES — none falls through to the refusal", async () => {
+  // The allow-list is a chain of `sub !== "…"` tests, and dropping one does not error anywhere a
+  // unit test of the verb can see: the sub-command simply falls through and answers "unknown
+  // worktree command", with the implementation perfectly healthy. Only driving each one through
+  // `run(...)` catches it, so each is driven — `create` excepted, since it MINTS a worktree.
+  for (const sub of ["prune", "drain", "idle", "activity"]) {
+    const env = await run(["worktree", sub], {
+      store: new InMemoryStore(),
+      worktree: { io: activityIo(), now: () => NOW, idle: activityIdle },
+    });
+    assert.doesNotMatch(
+      env.body,
+      /unknown worktree command/,
+      `\`worktree ${sub}\` fell through the dispatch allow-list`,
+    );
+  }
 });
 
 test("run: `worktree prune` (default) is a dry run — nothing is removed", async () => {
@@ -248,7 +297,26 @@ test("run: `worktree activity --pg` with no live ledger refuses and points at db
     worktree: { io: activityIo(), now: () => NOW, idle: activityIdle },
   });
   assert.equal(env.ok, false);
-  assert.match(env.body, /pnpm db:up/);
+  // Both halves of the message, and both `next` entries: the refusal has to say what is missing AND
+  // offer the read-only run, or a session that cannot bring the DB up learns nothing it can act on.
+  assert.equal(
+    env.body,
+    "worktree activity --pg needs the live claim ledger, and none is composed.\nbring the DB up first: pnpm db:up",
+  );
+  assert.deepEqual(env.next, ["pnpm db:up", "storytree worktree activity"]);
+});
+
+test("run: `worktree activity` with NO injected seams drives the REAL git + fs defaults", async () => {
+  // The seams are optional, so every other test in this file proves the sweep against fakes — and a
+  // suite gets greener the more thoroughly a seam is mocked, which is exactly how a default nobody
+  // exercises ships broken. This one injects nothing: real `git worktree list --porcelain`, real
+  // `readIdleSignals`, real clock, against this actual checkout. It asserts the SHAPE rather than
+  // the contents, because the contents are whatever this machine happens to hold.
+  const env = await run(["worktree", "activity"], { store: new InMemoryStore() });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /^WORKTREE ACTIVITY — what the ledger is told about liveness/);
+  assert.match(env.body, /\d+ worktrees observed · \d+ session ids vouched for · \d+ refused\./);
+  assert.match(env.body, /read-only\. Pass --pg to write these stamps to the claim ledger\.$/);
 });
 
 test("run: `worktree prune --pg` with a THROWING ledger falls back to the offline heuristic", async () => {

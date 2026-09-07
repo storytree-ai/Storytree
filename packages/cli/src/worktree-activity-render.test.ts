@@ -36,14 +36,22 @@ function reading(over: Partial<WorktreeActivityReading>): WorktreeActivityReadin
 const READINGS: WorktreeActivityReading[] = [
   reading({ name: "live-one", sessionIds: ["live-one", "live-one-admin"], mtimeMs: NOW - 90_000 }),
   reading({ name: "live-two", sessionIds: ["live-two"], mtimeMs: NOW - 3 * 3_600_000, binding: "HEAD" }),
-  // Two worktrees, one identity: the OLDER must not win.
-  reading({ name: "twin-old", sessionIds: ["twinned"], mtimeMs: NOW - 5 * 3_600_000 }),
+  // Three worktrees, ONE identity, deliberately ordered so every wrong rule is visible:
+  //  - an older one comes FIRST, so "keep whatever you saw first" would lose the winner;
+  //  - the winner sits in the MIDDLE, reachable by neither end;
+  //  - an EQUAL-mtime twin follows it, so `>` and `>=` disagree (>= would take this one's binding);
+  //  - another old one comes LAST, so "always overwrite" would take a 5-hour-old observation.
+  reading({ name: "twin-early", sessionIds: ["twinned"], mtimeMs: NOW - 5 * 3_600_000 }),
   reading({ name: "twin-new", sessionIds: ["twinned"], mtimeMs: NOW - 1_800_000, binding: "ORIG_HEAD" }),
-  reading({ name: "husk", sessionIds: ["husk"], fellBack: true, binding: "<dir>" }),
+  reading({ name: "twin-tie", sessionIds: ["twinned"], mtimeMs: NOW - 1_800_000, binding: "HEAD" }),
+  reading({ name: "twin-old", sessionIds: ["twinned"], mtimeMs: NOW - 5 * 3_600_000 }),
   reading({ name: "gone", sessionIds: ["gone"], mtimeMs: 0, binding: null }),
+  reading({ name: "husk", sessionIds: ["husk"], fellBack: true, binding: "<dir>" }),
+  // Deliberately NOT in sorted order — the report sorts within a reason, and an unsorted fixture
+  // is the only way that sort can fail visibly.
+  reading({ name: "swept-c", sessionIds: ["swept-c"], bulkStamped: true }),
   reading({ name: "swept-a", sessionIds: ["swept-a"], bulkStamped: true }),
   reading({ name: "swept-b", sessionIds: ["swept-b"], bulkStamped: true }),
-  reading({ name: "swept-c", sessionIds: ["swept-c"], bulkStamped: true }),
   reading({ name: "skewed", sessionIds: ["skewed"], mtimeMs: NOW + 3_600_000 }),
 ];
 
@@ -55,7 +63,7 @@ const READ_ONLY_BODY = `WORKTREE ACTIVITY — what the ledger is told about live
       3.0h  HEAD         live-two
       0.5h  ORIG_HEAD    twinned
 
-  10 worktrees observed · 4 session ids vouched for · 6 refused.
+  12 worktrees observed · 4 session ids vouched for · 6 refused.
   refused (bulk-stamp): swept-a, swept-b, swept-c
   refused (fell-back): husk
   refused (future): skewed
@@ -135,11 +143,32 @@ test("liveness-is-observed-not-self-reported: a clean sweep prints no refusal li
   );
 });
 
-test("liveness-is-observed-not-self-reported: an unreadable binding renders as `?` rather than blank", () => {
-  // A reading with no binding is refused by the plan, so the only way a stamped session lacks one is
-  // a caller pairing them wrongly. It must still print a column, not a hole.
-  const readings = [reading({ name: "odd", sessionIds: ["odd"], binding: null, mtimeMs: NOW - 60_000 })];
-  const plan = { stamps: [{ sessionId: "odd", observedAt: new Date(NOW - 60_000).toISOString() }], refused: [] };
+test("liveness-is-observed-not-self-reported: a stamp no reading accounts for renders `?`, never a crash or a hole", () => {
+  // The plan and the readings are separate arguments, so a caller CAN hand over a stamp for a
+  // session no reading carries. That must print a column rather than throw on a missing entry —
+  // this report is diagnostic output, and a report that dies on odd input tells you nothing at the
+  // moment you most need it. Deliberately NOT reachable through `run(...)`, which builds both from
+  // one observation; it is reachable through the exported function, which is what is tested.
+  const readings = [reading({ name: "elsewhere", sessionIds: ["elsewhere"] })];
+  const plan = {
+    stamps: [{ sessionId: "unaccounted", observedAt: new Date(NOW - 60_000).toISOString() }],
+    refused: [],
+  };
+  const body = renderActivitySweep(readings, plan, { nowMs: NOW, written: null }).body;
+  assert.match(body, /^ {6}0\.0h {2}\? {10} {2}unaccounted$/m);
+});
+
+test("liveness-is-observed-not-self-reported: a stamped reading with NO readable binding also renders `?`", () => {
+  // The SECOND `?` fallback, and a different one from the test above — that one covers a stamp with
+  // no reading at all, this one a reading whose signal could not be read. `planActivitySweep`
+  // refuses a null binding, so the pairing is only reachable by handing the two in separately, and
+  // both fallbacks must hold: a blank column here would read as "no signal bound it", which is a
+  // claim about the worktree rather than about the report's own ignorance.
+  const readings = [reading({ name: "odd", sessionIds: ["odd"], binding: null })];
+  const plan = {
+    stamps: [{ sessionId: "odd", observedAt: new Date(NOW - 60_000).toISOString() }],
+    refused: [],
+  };
   const body = renderActivitySweep(readings, plan, { nowMs: NOW, written: null }).body;
   assert.match(body, /^ {6}0\.0h {2}\? {10} {2}odd$/m);
 });

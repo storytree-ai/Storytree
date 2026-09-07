@@ -373,6 +373,10 @@ test("detectIdleStampClusters names worktrees swept in one pass, and stays quiet
   const clusters = detectIdleStampClusters(swept);
   assert.equal(clusters.length, 1, "the four sweep victims are one cluster");
   assert.equal(clusters[0]?.names.length, 4);
+  // The READINGS come back too, and they are the very objects passed in — that identity is what
+  // lets the activity sweep ask "was THIS reading swept?" without re-deriving the second-granularity
+  // key, and without keying on names, which collide 16-way across the real git registry.
+  assert.deepEqual(clusters[0]?.readings, swept, "the cluster carries the readings that formed it");
   assert.deepEqual(clusters[0]?.names.slice().sort(), [
     "admiring-bose",
     "adr0178-gate",
@@ -447,9 +451,15 @@ test("activityDisplayName: a trailing or doubled separator must not name a workt
   assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/"), "wt-a");
   assert.equal(activityDisplayName("C:/tmp//storytree-real-XX//wt/"), "storytree-real-XX/wt");
   assert.equal(activityDisplayName("wt"), "wt", "a single segment has no parent to qualify it");
-  // The `$` anchor again: a path BELOW a session worktree is not that worktree, so it gets the
-  // qualified two-segment form rather than borrowing the session's bare name.
+  // A path BELOW a session worktree is not that worktree, so it gets the qualified two-segment form
+  // rather than borrowing the session's bare name.
   assert.equal(activityDisplayName("C:/code/storytree/.claude/worktrees/wt-a/nested"), "wt-a/nested");
+  // BOTH segments must match, and these are the two real shapes that prove it — each would be
+  // mis-named as a bare basename if either half of the test were dropped. `.codex/worktrees/<n>`
+  // is where every Codex tree on this box actually lives, and `.claude/agents/` is a real sibling
+  // directory; neither is a session worktree, and neither may borrow the unqualified form.
+  assert.equal(activityDisplayName("C:/Users/m/.codex/worktrees/907b"), "worktrees/907b");
+  assert.equal(activityDisplayName("C:/code/storytree/.claude/agents/thing"), "agents/thing");
 });
 
 test("liveness-is-observed-not-self-reported: the sweep VOUCHES for a genuinely-used worktree and refuses a husk — against real mtimes", () => {

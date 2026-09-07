@@ -240,8 +240,12 @@ export function planActivitySweep(
     }
     for (const sessionId of reading.sessionIds) {
       if (sessionId.length === 0) continue;
-      const held = newest.get(sessionId);
-      if (held === undefined || reading.mtimeMs > held) newest.set(sessionId, reading.mtimeMs);
+      // `Math.max` rather than a comparison: the plan carries only the timestamp, so `>` and `>=`
+      // are indistinguishable here by construction — an equal reading writes back the same instant
+      // either way. Saying "the newest" directly leaves nothing that can differ without a test
+      // noticing. (The tie DOES matter one layer up, where the report pairs a binding with the
+      // stamp; that rule is `renderActivitySweep`'s, and is tested there.)
+      newest.set(sessionId, Math.max(newest.get(sessionId) ?? 0, reading.mtimeMs));
     }
   }
 
@@ -271,8 +275,15 @@ export interface ActivitySweepDeps {
 export interface ActivitySweepResult extends ActivitySweepPlan {
   /** Claims actually moved forward by the write; 0 when nothing was newer than what is stored. */
   readonly written: number;
-  /** Why nothing was written, or null when a write was attempted. */
-  readonly skipped: "debounced" | "offline" | "nothing-to-say" | null;
+  /**
+   * Why nothing was written, or null when the write landed.
+   *
+   * `offline` (no ledger to reach) and `write-failed` (a ledger that threw) are deliberately
+   * DIFFERENT words for what is otherwise the same outcome: the first is the ordinary state of a
+   * machine with the DB down, the second is a fault. Collapsing them would make the sweep's own
+   * diagnostic unable to tell a quiet Tuesday from a broken store.
+   */
+  readonly skipped: "debounced" | "offline" | "write-failed" | "nothing-to-say" | null;
 }
 
 const EMPTY_PLAN: ActivitySweepPlan = { stamps: [], refused: [] };
@@ -296,13 +307,14 @@ export async function sweepWorktreeActivity(
   debounceMs: number,
 ): Promise<ActivitySweepResult> {
   const now = deps.now();
-  const last = state.readLastBump();
-  if (last !== null) {
-    const elapsed = now.getTime() - new Date(last).getTime();
-    // NaN (an unreadable stamp) falls through to a sweep — the cheap direction.
-    if (Number.isFinite(elapsed) && elapsed < debounceMs) {
-      return { ...EMPTY_PLAN, written: 0, skipped: "debounced" };
-    }
+  // `Date.parse` answers NaN for a MISSING marker and an UNREADABLE one alike, and NaN is not
+  // finite — so both fall through to a sweep, which is the cheap direction (an extra sweep costs a
+  // few stats; a wrongly-skipped one leaves a live claim ageing). Deliberately NOT written as a
+  // null branch: `new Date(null)` is the epoch, so any such guard cannot change the outcome, and a
+  // branch that cannot change the outcome is noise every later reader has to disprove.
+  const elapsed = now.getTime() - Date.parse(String(state.readLastBump()));
+  if (Number.isFinite(elapsed) && elapsed < debounceMs) {
+    return { ...EMPTY_PLAN, written: 0, skipped: "debounced" };
   }
 
   let plan: ActivitySweepPlan;
@@ -323,7 +335,7 @@ export async function sweepWorktreeActivity(
     return { ...plan, written, skipped: null };
   } catch {
     // fail-silent — and the debounce is NOT consumed, so the next fire retries
-    return { ...plan, written: 0, skipped: "offline" };
+    return { ...plan, written: 0, skipped: "write-failed" };
   }
 }
 

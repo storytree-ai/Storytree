@@ -1161,9 +1161,11 @@ export function gatherWorktreeActivity(
  * every Codex tree is `<hash>/storytree`, so sixteen rows would otherwise all read `wt`.
  */
 export function activityDisplayName(dir: string): string {
-  // The `+` and the `filter` both matter on real input: a trailing separator or a `//` would
-  // otherwise make the last segment the empty string and name every such worktree "".
-  const parts = dir.split(/[/\\]+/).filter((s) => s.length > 0);
+  // The FILTER is what matters on real input: a trailing separator or a `//` would otherwise make
+  // a segment the empty string and name every such worktree "". A `+` on the split would cover the
+  // doubled case and none of the trailing one, so the filter carries both alone rather than the
+  // two overlapping — which also leaves nothing here that can be changed without a test noticing.
+  const parts = dir.split(/[/\\]/).filter((s) => s.length > 0);
   const base = parts[parts.length - 1] ?? dir;
   const parent = parts[parts.length - 2];
   // Decided on the SEGMENTS rather than a second regex over `dir`. A regex mirroring
@@ -1232,7 +1234,9 @@ export function renderActivitySweep(
     `  ${readings.length} worktrees observed · ${plan.stamps.length} session ids vouched for · ${plan.refused.length} refused.`,
   );
 
-  if (plan.refused.length > 0) {
+  {
+    // No `refused.length` guard: with nothing refused the fold is empty, the loop adds no line, and
+    // the alarm below is false — so a guard here could only ever be an equivalent mutant.
     const byReason = new Map<string, string[]>();
     for (const r of plan.refused) {
       const names = byReason.get(r.reason) ?? [];

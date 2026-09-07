@@ -281,12 +281,24 @@ test("liveness-is-observed-not-self-reported: planActivitySweep: a FELL-BACK rea
 });
 
 test("liveness-is-observed-not-self-reported: planActivitySweep: an UNREADABLE worktree is refused, never treated as touched just now", async () => {
-  const plan = planActivitySweep(
-    [reading({ name: "gone", mtimeMs: 0, binding: null })],
-    NOW,
+  // EITHER half of the unreadable test stands alone, and they are separated on purpose: a reading
+  // that is 0-and-null satisfies both, so a fixture carrying only that shape leaves each half free
+  // to be deleted. 0 is the value `readIdleSignals` returns for a failed stat, and it means
+  // INFINITELY old — treating it as "just now" would vouch for a worktree nothing could even read.
+  assert.deepEqual(
+    planActivitySweep([reading({ name: "no-stamp", mtimeMs: 0, binding: "index" })], NOW).refused,
+    [{ name: "no-stamp", reason: "no-signal" }],
   );
-  assert.deepEqual(plan.stamps, []);
-  assert.deepEqual(plan.refused, [{ name: "gone", reason: "no-signal" }]);
+  assert.deepEqual(
+    planActivitySweep([reading({ name: "no-binding", binding: null })], NOW).refused,
+    [{ name: "no-binding", reason: "no-signal" }],
+  );
+  // A NEGATIVE stamp is unreadable too, so the boundary is `<= 0` and not `< 0`.
+  assert.deepEqual(
+    planActivitySweep([reading({ name: "negative", mtimeMs: -1, binding: "index" })], NOW).refused,
+    [{ name: "negative", reason: "no-signal" }],
+  );
+  assert.deepEqual(planActivitySweep([reading({ name: "gone", mtimeMs: 0, binding: null })], NOW).stamps, []);
 });
 
 test("liveness-is-observed-not-self-reported: planActivitySweep: a BULK-STAMPED worktree is refused — a pass is not activity", async () => {
@@ -315,6 +327,28 @@ test("liveness-is-observed-not-self-reported: planActivitySweep: a FUTURE readin
   );
   assert.deepEqual(plan.stamps, []);
   assert.deepEqual(plan.refused, [{ name: "skewed", reason: "future" }]);
+  // …but a reading landing EXACTLY on `now` is the present, not the future, and must be admitted.
+  // The boundary matters because a sweep observing a file written microseconds ago is the normal
+  // case for the session doing the sweeping, and refusing it would blind the sweep to itself.
+  const onTheNose = planActivitySweep([reading({ name: "now", mtimeMs: NOW.getTime() })], NOW);
+  assert.deepEqual(onTheNose.refused, []);
+  assert.deepEqual(onTheNose.stamps, [{ sessionId: "wt-ambient", observedAt: NOW.toISOString() }]);
+});
+
+test("liveness-is-observed-not-self-reported: planActivitySweep drops an EMPTY session id and sorts what it keeps", async () => {
+  // An empty id can arrive from a malformed gitfile (`activitySessionIds` derives one from the
+  // admin path). It would key nothing, so it must never enter the `unnest` batch — a row matching
+  // no claim is a row that can only ever confuse a reader of the report.
+  const plan = planActivitySweep(
+    [
+      reading({ name: "zulu", sessionIds: ["zulu", ""], mtimeMs: NOW.getTime() - 60_000 }),
+      reading({ name: "alpha", sessionIds: ["alpha"], mtimeMs: NOW.getTime() - 60_000 }),
+    ],
+    NOW,
+  );
+  // Sorted by session id, not by observation order — a stable batch is what makes the report and
+  // the SQL parameters comparable between runs.
+  assert.deepEqual(plan.stamps.map((s) => s.sessionId), ["alpha", "zulu"]);
 });
 
 test("planActivitySweep: two worktrees mapping to ONE session id keep the NEWER observation", async () => {
@@ -322,14 +356,38 @@ test("planActivitySweep: two worktrees mapping to ONE session id keep the NEWER 
   // ages a live claim, and the ledger sees exactly one row per session id.
   const older = NOW.getTime() - 3 * 3_600_000;
   const newer = NOW.getTime() - 30_000;
+  // The winner comes FIRST and the loser LAST, so "always take the latest reading" loses it — the
+  // opposite order would let a broken rule pass by luck.
   const plan = planActivitySweep(
     [
-      reading({ name: "wt-old", sessionIds: ["shared"], mtimeMs: older }),
       reading({ name: "wt-new", sessionIds: ["shared"], mtimeMs: newer }),
+      reading({ name: "wt-old", sessionIds: ["shared"], mtimeMs: older }),
     ],
     NOW,
   );
   assert.deepEqual(plan.stamps, [{ sessionId: "shared", observedAt: new Date(newer).toISOString() }]);
+  // …and the same order the other way round, so neither "first wins" nor "last wins" survives.
+  assert.deepEqual(
+    planActivitySweep(
+      [
+        reading({ name: "wt-old", sessionIds: ["shared"], mtimeMs: older }),
+        reading({ name: "wt-new", sessionIds: ["shared"], mtimeMs: newer }),
+      ],
+      NOW,
+    ).stamps,
+    [{ sessionId: "shared", observedAt: new Date(newer).toISOString() }],
+  );
+  // An EQUAL reading must not displace the one already held. It cannot change the stamp — they are
+  // the same instant — but it DOES change which reading the report names as the binding beside it,
+  // and a report naming a signal that did not produce the stamp is the defect this rule prevents.
+  const held = planActivitySweep(
+    [
+      reading({ name: "wt-first", sessionIds: ["shared"], mtimeMs: newer, binding: "ORIG_HEAD" }),
+      reading({ name: "wt-tie", sessionIds: ["shared"], mtimeMs: newer, binding: "HEAD" }),
+    ],
+    NOW,
+  );
+  assert.deepEqual(held.stamps, [{ sessionId: "shared", observedAt: new Date(newer).toISOString() }]);
 });
 
 test("planActivitySweep: a live reading among refused ones still vouches — one bad worktree does not mute the sweep", async () => {
@@ -400,6 +458,32 @@ test("liveness-is-observed-not-self-reported: sweepWorktreeActivity: WITHIN the 
   assert.equal(seen.n, 0, "no filesystem observation inside the window");
   assert.equal(seen.acquired, 0, "and no connector handshake");
   assert.deepEqual(claims.stamped, [], "and certainly no write");
+  // A skipped sweep reports EMPTY collections, never absent ones: callers render `stamps`/`refused`
+  // unconditionally, and an undefined here would be a crash in the diagnostic rather than a blank.
+  assert.deepEqual(result.stamps, []);
+  assert.deepEqual(result.refused, []);
+  assert.equal(result.written, 0);
+});
+
+test("liveness-is-observed-not-self-reported: the debounce boundary sweeps AT the window, and never wedges shut", async () => {
+  // Exactly `debounceMs` elapsed is the window EXPIRING, not still running. The difference is a
+  // rounding error per fire and a permanent stall in the pathological case, and the sweep is the
+  // only thing keeping claims out of stale-reclaim — so it errs toward sweeping.
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: "wt-ambient" })]);
+  const atTheBoundary = await sweepWorktreeActivity(
+    sweepDeps(claims, [reading()]),
+    makeHeartbeatState(new Date(NOW.getTime() - 60_000).toISOString()),
+    60_000,
+  );
+  assert.equal(atTheBoundary.skipped, null, "elapsed === debounceMs must sweep");
+
+  // One millisecond short is still inside the window.
+  const justInside = await sweepWorktreeActivity(
+    sweepDeps(makeClaims(), [reading()]),
+    makeHeartbeatState(new Date(NOW.getTime() - 59_999).toISOString()),
+    60_000,
+  );
+  assert.equal(justInside.skipped, "debounced");
 });
 
 test("liveness-is-observed-not-self-reported: sweepWorktreeActivity: with nothing admissible, the LEDGER IS NEVER ASKED FOR — the cost trap, structurally", async () => {
@@ -451,6 +535,18 @@ test("sweepWorktreeActivity: OFFLINE (no ledger) still plans, writes nothing, an
   assert.equal(result.skipped, "offline");
   assert.equal(result.written, 0);
   assert.deepEqual(result.stamps.map((s) => s.sessionId), ["wt-ambient"], "the plan is still made");
+});
+
+test("liveness-is-observed-not-self-reported: a ledger that THREW is `write-failed`, not `offline` — a fault is not a quiet Tuesday", async () => {
+  // Same outcome (nothing written, debounce intact), different fact. A DB that is down is the
+  // ordinary state of a laptop; a ledger that accepted the call and threw is a defect, and the
+  // sweep's own result is the only place that distinction is visible — nothing is printed.
+  const result = await sweepWorktreeActivity(
+    sweepDeps(makeClaims([], { stampThrows: true }), [reading()]),
+    makeHeartbeatState(null),
+    60_000,
+  );
+  assert.equal(result.skipped, "write-failed");
 });
 
 test("sweepWorktreeActivity: a THROWING write stays silent and does NOT consume the debounce", async () => {
