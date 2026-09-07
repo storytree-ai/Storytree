@@ -17,17 +17,35 @@
 // SUBSTRATE DECOMPOSES DIFFERENTLY at the two cameras — the same fault class ADR-0367 names, where
 // "an island re-decomposing 50 -> 52 cells" is a recorded instance.
 //
-// ⚠ SO THE BLOCKER IS UPSTREAM OF THE MODULE D2 DELETES, and two tempting explanations are ruled
-// out here rather than left suspected. It is NOT index misalignment: sorting, and matching 1:1 by
-// nearest neighbour, both leave it. It is NOT the fixture's anchors — a variant handing them over
-// pre-camera under `anchorSpace: 'ground'` (which PR #1858 made possible) reproduces every figure
-// to the digit, and by construction must: the default already states them at the scene's own
-// camera, which is exactly what the tag re-derives. The variant is therefore not shipped.
+// ⚠⚠ CORRECTED 2026-09-07 — THE SUBSTRATE IS NOT THE BLOCKER, AND THE SENTENCE ABOVE THAT SAID SO
+// IS WRONG. The paragraph above reads "the RELAXED SUBSTRATE DECOMPOSES DIFFERENTLY at the two
+// cameras". That was inferred from a single whole-population number, and separating the population
+// refutes it: **the mosaic agrees.** Split by kind, and matched 1:1 BEST-FIRST rather than in one
+// arm's own order, the 164 `cell-ground` cells — the mosaic itself, the thing the un-projection is
+// suspected of re-cutting — differ by at most **0.348 units** on an island spanning 222 x 122, across
+// a NINETY-DEGREE change of camera. The entire ~62-unit disagreement is the ten `uat-bloom` markers.
+// `substrate.ts` already cuts on the ground: its `GROUND` constant pins every `hexCenter`/`hexCorners`
+// call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects ONCE, at the very end. There was
+// never a camera in the cut.
 //
-// WHAT A LATER SESSION SHOULD TAKE FROM THIS. D5's bar can be met at the level it is true at — the
-// footprint — or the substrate has to be made camera-independent before a per-cell equivalence can
-// exist at all. Do not read the numbers below as "the repair is wrong": they say the repair is
-// right about the outline and that nothing in this comparison can see inside it.
+// ⚠ AND THE HEADLINE NUMBER WAS INFLATED BY ITS OWN MATCHER. The 1:1 pairing below walks ONE arm in
+// ITS OWN ORDER and takes each descriptor's nearest unused partner, which is greedy, not generous: an
+// early displaced marker steals a partner and cascades. Unrestricted nearest-neighbour puts every A
+// within 30.7 of some B and 170 of the 174 within ONE unit. Read "most generous" in the test below as
+// what it is — a greedy walk — and read the by-kind test at the end of this file for the real figures.
+//
+// ⚠ WHY THE TEN MARKERS DISAGREE, WHICH IS NOT THE SAME DEFECT. `buildUatMarkers` draws up to twenty
+// polar candidates and accepts the first that clears the tree well, the spacing floor, the land, AND
+// the nameplate band. The first three are ground distances (ADR-0367 D1). The fourth,
+// `clearsPlate`, is a SCREEN test on purpose — the nameplate is screen art, and its own comment says
+// so. So a different camera accepts a different candidate, and the markers land elsewhere. That is a
+// documented design choice about what a flower may sit under, not a distance measured in the wrong
+// space, and undoing it is a LOOK question rather than a repair.
+//
+// WHAT A LATER SESSION SHOULD TAKE FROM THIS. ADR-0527 D5's bar, restated by ADR-0540 D3 as
+// tile-for-tile agreement, is MET ON THE TILES TODAY. What cannot meet it is a decoration whose
+// placement deliberately reads the camera. That is an owner-level fork rather than a session's call,
+// and it is authored on `forest-geometry-rebuild-arc` — do not settle it from here.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -101,11 +119,11 @@ test('the true-surface arm and the un-projected drawing agree on the island FOOT
   }
 });
 
-test('⚠ but there is NO cell-to-cell correspondence — the substrate decomposes differently per camera', () => {
-  // Pinned as a MEASUREMENT, not as a wish. This is the finding that says where ADR-0527 D5's bar
-  // actually stands: not at `true-footprint.ts`, which is right about the outline, but upstream at
-  // the relaxed substrate, which tessellates the interior differently once the camera changes the
-  // space its distances are measured in (the ADR-0367 fault class).
+test('⚠ the two arms DO disagree overall — but read the next test before naming a cause', () => {
+  // Pinned as a MEASUREMENT, and it still holds — the arms DO disagree. What it does not do is say
+  // WHERE, and its original comment named the substrate, which the by-kind test at the end of this
+  // file measures and refutes. Kept unchanged so the number this decision was taken on is still on
+  // the record; read it as "something disagrees", never as "the substrate re-cuts".
   const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
   const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
 
@@ -133,7 +151,92 @@ test('⚠ but there is NO cell-to-cell correspondence — the substrate decompos
   }
   assert.ok(
     worst > 10,
-    `the interiors are expected to DISAGREE while the substrate is camera-dependent — if this is ` +
-      `now ${worst.toFixed(2)}, the blocker may be gone and ADR-0527 D5 is worth re-reading`,
+    `the arms are expected to DISAGREE somewhere while the marker scatter reads the camera — if ` +
+      `this is now ${worst.toFixed(2)}, the last camera-dependent placement may be gone and ` +
+      `ADR-0527 D5 / ADR-0540 are worth re-reading`,
+  );
+});
+
+/**
+ * A 1:1 matching taken BEST-FIRST over all same-kind pairs, which is what "the most generous
+ * pairing" should mean and what the greedy walk above is not.
+ *
+ * The difference is not cosmetic. Walking one arm in its own order and giving each descriptor its
+ * nearest UNUSED partner lets a single displaced marker take a partner some later descriptor needed,
+ * and the displacement cascades through everything behind it. Sorting every candidate pair by
+ * distance first and accepting greedily from the shortest is the standard cheap approximation and
+ * cannot cascade that way.
+ */
+function worstUnderBestFirstMatching(
+  a: readonly InstanceDescriptor[],
+  b: readonly InstanceDescriptor[],
+): number {
+  const pairs: { i: number; j: number; d: number }[] = [];
+  for (const i of a.keys()) {
+    for (const j of b.keys()) {
+      if (a[i]!.kind !== b[j]!.kind) continue;
+      const p = a[i]!.transform;
+      const q = b[j]!.transform;
+      pairs.push({ i, j, d: Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) });
+    }
+  }
+  pairs.sort((p, q) => p.d - q.d);
+  const takenA = new Set<number>();
+  const takenB = new Set<number>();
+  let worst = 0;
+  for (const p of pairs) {
+    if (takenA.has(p.i) || takenB.has(p.j)) continue;
+    takenA.add(p.i);
+    takenB.add(p.j);
+    worst = Math.max(worst, p.d);
+  }
+  assert.equal(takenA.size, a.length, 'every descriptor must find a partner of its own kind');
+  return worst;
+}
+
+const ofKind = (ds: readonly InstanceDescriptor[], kind: string): InstanceDescriptor[] =>
+  ds.filter((d) => d.kind === kind);
+
+test('THE MOSAIC AGREES — the substrate is camera-independent, and the disagreement is elsewhere', () => {
+  // ⚠ THIS TEST EXISTS BECAUSE THE TEST ABOVE WAS READ AS SAYING SOMETHING IT CANNOT SAY. One number
+  // over a mixed population named the substrate as the cause; separating the population refutes it.
+  const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
+  const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
+
+  const mosaicA = ofKind(trueSurface, 'cell-ground');
+  const mosaicB = ofKind(drawing, 'cell-ground');
+  assert.ok(mosaicA.length > 100, `the fixture must draw a real mosaic, saw ${mosaicA.length} cells`);
+  assert.equal(mosaicB.length, mosaicA.length, 'and the same number of cells at both cameras');
+
+  // THE FINDING. Ninety degrees of camera change moves no mosaic cell by more than a third of a
+  // unit, on an island spanning 222 x 122. `substrate.ts` cuts on the ground — its `GROUND` constant
+  // pins every lattice call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects once, at
+  // the end — so there is no camera in the cut to remove.
+  const mosaicWorst = worstUnderBestFirstMatching(mosaicA, mosaicB);
+  assert.ok(
+    mosaicWorst < 1,
+    `the mosaic must be camera-independent: worst cell moved ${mosaicWorst.toFixed(3)} units`,
+  );
+
+  // AND THE WHOLE OF THE DISAGREEMENT IS THE MARKERS. Kept as a tripwire in the same shape as the
+  // test above: the day a session makes the marker scatter camera-independent — which is an owner
+  // question about what a flower may sit under, not a repair — this fails and says so.
+  const bloomA = ofKind(trueSurface, 'uat-bloom');
+  const bloomB = ofKind(drawing, 'uat-bloom');
+  assert.ok(bloomA.length > 0, 'the fixture must draw UAT markers for this to measure anything');
+  assert.equal(bloomB.length, bloomA.length, 'and the same number at both cameras');
+  const bloomWorst = worstUnderBestFirstMatching(bloomA, bloomB);
+  assert.ok(
+    bloomWorst > 10,
+    `the markers are expected to move while \`clearsPlate\` reads the camera — if this is now ` +
+      `${bloomWorst.toFixed(2)}, re-read ADR-0540 and the question on forest-geometry-rebuild-arc`,
+  );
+
+  // The two populations together ARE the whole scene, so nothing is being quietly excluded from the
+  // comparison — a by-kind split that dropped a kind could hide a disagreement in it.
+  assert.equal(
+    mosaicA.length + bloomA.length,
+    trueSurface.length,
+    'every drawn descriptor must be one of the two kinds this test separates',
   );
 });
