@@ -48,6 +48,11 @@ function mkWorld(): HexWorld {
         radius: 30,
         groundRadius: 30,
         treeSpot: { x: 50, y: 45 },
+        // ADR-0527 D1: these fixtures exercise studio CHROME (pan, panels), which reads the
+        // SCREEN anchors above; the ground twins are stated so the literal satisfies
+        // `Territory` and are deliberately the same numbers — this chrome never projects.
+        groundCentroid: { x: 50, y: 50 },
+        groundTreeSpot: { x: 50, y: 45 },
         caps: [],
         decor: [],
         wheatTiles: new Set<string>(),
@@ -77,6 +82,11 @@ function mkWorld(): HexWorld {
         radius: 30,
         groundRadius: 30,
         treeSpot: { x: 150, y: 45 },
+        // ADR-0527 D1: these fixtures exercise studio CHROME (pan, panels), which reads the
+        // SCREEN anchors above; the ground twins are stated so the literal satisfies
+        // `Territory` and are deliberately the same numbers — this chrome never projects.
+        groundCentroid: { x: 150, y: 50 },
+        groundTreeSpot: { x: 150, y: 45 },
         caps: [],
         decor: [],
         wheatTiles: new Set<string>(),

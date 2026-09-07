@@ -318,6 +318,10 @@ interface CapSpot {
   cap: TreeCapability;
   x: number;
   y: number;
+  /** The SAME spot before the camera (ADR-0527 D1) — what `buildScene` is handed, and what it
+   *  projects back to `x`/`y` when it draws at the declared camera. Derived, never un-projected:
+   *  the ground bearing and radius the scatter already reasons in, added to the ground tree spot. */
+  groundSpot: Pt;
 }
 
 /** A conifer-clump spot (wheat is a tile-top fill, tracked in wheatTiles). */
@@ -342,6 +346,15 @@ export interface Territory {
   groundRadius: number;
   /** Where the central story tree stands (the tile nearest the centroid). */
   treeSpot: Pt;
+  /** `centroid` before the camera — the tile centres at `PLAN_VIEW_ELEVATION_DEG`, the same source
+   *  `groundRadius` above is measured from. Feeds `SceneTerritoryInput.centroid` under
+   *  `anchorSpace: 'ground'`. Its projected twin STAYS, because this file's own React renderer draws
+   *  at the declared camera and wants screen — the two are not a redundancy, they are two consumers
+   *  with different needs, exactly like `radius` / `groundRadius`. */
+  groundCentroid: Pt;
+  /** `treeSpot` before the camera. Derived from the same tile, never by un-projecting the drawing —
+   *  which is the move ADR-0527 D2 exists to delete rather than to spread. */
+  groundTreeSpot: Pt;
   caps: CapSpot[];
   decor: DecorSpot[];
   wheatTiles: Set<string>;
@@ -823,6 +836,10 @@ export function buildWorld(
     // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
     const centerTile = groundHeroTile(tiles) ?? seed;
     const treeSpot = hexCenter(centerTile);
+    // The same tile before the camera (ADR-0527 D1) — the anchor `buildScene` is handed. Taken from
+    // the tile, not from `treeSpot` by un-projection: `hexCenter` projects by scaling y, so these two
+    // are the same point stated in two spaces, and the core projecting this one reproduces that one.
+    const groundTreeSpot = hexCenter(centerTile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
     // The tree's crown radius in GROUND units — its drawing frame scaled onto the tile (ADR-0528).
     const crownR = crownRadiusWorld(story.capabilities.length);
     // A GROUND radius. `crownR` is the tree's screen HALF-WIDTH, and the camera foreshortens only
@@ -863,11 +880,23 @@ export function buildWorld(
       // The keep-IN walk stays in screen space, correctly: a 25% step toward `treeSpot` is an AFFINE
       // interpolation, so it is the same 25% of the way across the ground — and `pixelToHex` reads
       // the same declared camera these points were projected through.
+      let steps = 0;
       for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }))) !== i; k++) {
         x += (treeSpot.x - x) * 0.25;
         y += (treeSpot.y - y) * 0.25;
+        steps += 1;
       }
-      return { cap, x, y };
+      // The SAME spot before the camera (ADR-0527 D1). Each walk step leaves the offset at 75% of
+      // itself (`p += (anchor - p) * 0.25` ⇒ `p - anchor` scales by 0.75), so the walked offset is
+      // the original one shrunk by `0.75^steps` — and the walk's own TEST is the screen point, which
+      // is why the count is taken from the loop above rather than re-run here. `groundPolarOffset` is
+      // linear in `r`, so projecting this lands exactly on `x`/`y`: same point, two spaces.
+      const reach = rr * 0.75 ** steps;
+      const groundSpot: Pt = {
+        x: groundTreeSpot.x + Math.cos(angle) * reach,
+        y: groundTreeSpot.y + Math.sin(angle) * reach,
+      };
+      return { cap, x, y, groundSpot };
     });
 
     const decor: DecorSpot[] = [];
@@ -935,6 +964,8 @@ export function buildWorld(
       radius,
       groundRadius,
       treeSpot,
+      groundCentroid,
+      groundTreeSpot,
       caps,
       decor,
       wheatTiles,
@@ -1128,8 +1159,10 @@ function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
   const plant: ScenePlantInput = {
     id: cap.id,
     status: st,
-    x: spot.x,
-    y: spot.y,
+    // ADR-0527 D1 (`anchorSpace: 'ground'`): the GROUND spot, which `buildScene` projects back onto
+    // `spot.x`/`spot.y` when it draws at the declared camera.
+    x: spot.groundSpot.x,
+    y: spot.groundSpot.y,
     title: `${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`,
   };
   return plant;
@@ -1163,7 +1196,9 @@ function capToParcel(spot: CapSpot): SceneParcelInput {
     status: (cap.status ?? 'unknown') as SceneStatus,
     testCount: cap.testCount,
     theme: parcelTheme(cap.id),
-    seed: { x: spot.x, y: spot.y },
+    // The GROUND seed — `buildScene` projects it into `relaxedCells`' own space under the island's
+    // `anchorSpace: 'ground'` tag, so the Voronoi partition lands exactly where it did.
+    seed: { x: spot.groundSpot.x, y: spot.groundSpot.y },
   };
 }
 
@@ -1369,10 +1404,15 @@ function territoryToScene(
     id: story.id,
     status: st,
     caps,
-    centroid: t.centroid,
+    // ADR-0527 D1: the anchors leave here in the GROUND plane and `buildScene` projects them, once,
+    // at the camera it is asked for — which is what lets it be asked for a PLAN-VIEW scene and
+    // actually return one. Until this landing they were frozen at the declared camera, so a
+    // plan-view request came back with an un-flattened lattice under a foreshortened tree.
+    anchorSpace: 'ground',
+    centroid: t.groundCentroid,
     groundRadius: t.groundRadius,
     screenRadius: t.radius,
-    treeSpot: t.treeSpot,
+    treeSpot: t.groundTreeSpot,
     labelY: t.labelY,
     coastGroundLoops: t.coastGroundLoops,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
