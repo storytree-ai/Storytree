@@ -3,7 +3,7 @@ id: "ambient-integration"
 tier: capability
 story: notice-board
 title: "The board declares itself — a statusline glance over the ledger; a build never writes presence"
-outcome: "The board declares itself: the statusline glances the claim ledger and bumps the session's claim heartbeats (debounced, fail-silent) — never via a blocking-capable hook; a build run NEVER writes session presence (ADR-0199); and nothing notice-board-shaped sits on a blocking-capable hook."
+outcome: "The board declares itself: the statusline glances the claim ledger, and a debounced, fail-silent sweep OBSERVES file change inside every claimed worktree and stamps the ledger with it (ADR-0535 D2, replacing the retired status-bar self-report) — carried by SessionStart and the statusline, never by a blocking-capable hook; a build run NEVER writes session presence (ADR-0199); and nothing notice-board-shaped sits on a blocking-capable hook."
 status: proposed
 proof_mode: integration-test
 depends_on: [noticeboard-cli, tree-view]
@@ -27,6 +27,12 @@ proof:
   coverage:
     testGlobs:
       - "packages/cli/src/ambient-wiring.test.ts"
+      # ADR-0535 D2's fault-class guard. It has to live here for the same reason the wiring leg
+      # does — it drives a REAL filesystem, building four worktree admin layouts and stamping real
+      # mtimes, which is the only way to show that `detectIdleStampClusters` is actually WIRED into
+      # the sweep rather than merely available to it. The drive package's registered unit cannot
+      # reach it, and a mocked idle reader would prove nothing about the bug it exists to stop.
+      - "packages/cli/src/worktree-idle-signal.test.ts"
   real:
     testFile: "packages/drive/src/ambient-presence.test.ts"
     sourceFile: "packages/drive/src/ambient-presence.ts"
@@ -41,10 +47,11 @@ proof:
 
 # The board declares itself — a statusline glance over the ledger; a build never writes presence
 
-**Outcome —** The board declares itself: the statusline glances the **claim ledger** and bumps the
-session's **claim heartbeats** (debounced, fail-silent) — never via a blocking-capable hook; a build
-run NEVER writes session presence (ADR-0199); and nothing notice-board-shaped sits on a
-blocking-capable hook.
+**Outcome —** The board declares itself: the statusline glances the **claim ledger**, and a
+debounced, fail-silent **sweep** observes file change inside every claimed worktree and stamps the
+ledger with what it saw (ADR-0535 D2) — carried by `SessionStart` and the statusline, never by a
+blocking-capable hook; a build run NEVER writes session presence (ADR-0199); and nothing
+notice-board-shaped sits on a blocking-capable hook.
 
 > **ADR-0200 re-aim (one ledger).** The automation rung is unchanged in spirit — advisory by
 > construction, never blocking, a build never writes presence — but its record changed. The **hooks'
@@ -57,6 +64,31 @@ blocking-capable hook.
 > `withPresence`/`BuildPresenceInfo`-absence and never-blocking-hooks audits described in the body below
 > stand; the presence-flavoured `sessionHook`/`statuslineGlance` shapes are pre-sweep history (the
 > presence core deletes in the arc's final increment, ADR-0200 D7).
+
+> **ADR-0535 re-aim (liveness is OBSERVED, not self-reported).** The heartbeat half described
+> immediately above — `bumpHeartbeatsBySession` riding the statusline's debounce — is **RETIRED, and
+> the method is deleted** (ADR-0535 D3). It failed in both directions at once: desktop and unattended
+> sessions draw no status bar, so every claim they held aged into the 2 h stale-reclaim window exactly
+> 2 h after it was taken whatever the session was doing (measured 2026-09-05: 35 of 40 rows carried a
+> heartbeat identical to their claim moment, to the millisecond, and no marker file had been written
+> since 15 August); and a WEDGED session went on bumping, because a timer proves a process exists,
+> which is exactly what a hang also proves.
+>
+> What replaces it is a **sweep**, not a repair. `sweepWorktreeActivity` observes file change inside
+> EVERY claimed worktree on this machine — `readIdleSignals`' git-admin mtime, the same instrument the
+> reaper judges idleness with — and `PgClaimStore.stampActivity` writes the observed moment onto the
+> claims those sessions hold. Three consequences worth stating, because they are what the retired beat
+> could not do: it works for session types that draw nothing; **one live process vouches for every
+> other claimed worktree**, so a terminal covers the desktop sessions and a session start covers the
+> rest; and it cannot be faked by merely existing. Four fences hold it, all against FALSE freshness
+> (the direction that fences a node nobody can reclaim, since `heartbeat_at` also feeds
+> `worktree prune --pg`'s live set): the write is monotonic in SQL, a fallback reading vouches for
+> nobody, a bulk stamp is refused wholesale via `detectIdleStampClusters`, and a future reading is
+> refused. `CLAIM_STALE_RECLAIM_MS` and the takeover rule are untouched, and **no merge gate depends
+> on any of it** (ADR-0535 D5). The carriers are `SessionStart`
+> (`scripts/worktree-activity-hook.sh`, detached) and the statusline — no new hook-event category, and
+> `PostToolUse` is deliberately not registered: putting store work on a per-tool-call path would owe
+> its own decision, and a sweep does not need one.
 
 > **Proof status (honest) — `proposed`, registered for REAL build.** The registered proof
 > (`packages/drive/src/ambient-presence.test.ts`) covers the MODULE legs offline — the
@@ -138,7 +170,7 @@ declaration survives its own builds. Run the hook wrappers and statusline comman
 unreachable: exit 0, no output, bounded time. Audit `.claude/settings.json` for forbidden hook
 events.
 
-## Contracts (4)
+## Contracts (5)
 
 1. **`builds-never-write-session-presence`** — a build run leaves `events.session` untouched (ADR-0199)
    - **asserts —** the drive module exports no build presence wrapper — `withPresence` and
@@ -169,3 +201,22 @@ events.
    - **asserts —** a config audit of `.claude/settings.json` finds no notice-board hook registered
      on `Stop`, `PreToolUse`, or `UserPromptSubmit`.
    - **proven by —** would-be `packages/drive/src/ambient-presence.test.ts`
+5. **`liveness-is-observed-not-self-reported`** — the ledger's liveness comes from file change in the
+   claimed worktree, and a false-fresh reading can never reach it (ADR-0535 D2/D3)
+   - **asserts —** `statuslineGlance` writes NOTHING (the retired self-report is gone from the
+     ambient seam entirely, so it cannot be re-wired by accident); `planActivitySweep` refuses all
+     four false-fresh shapes and NAMES each refusal — a reading that fell back to the worktree's own
+     files, an unreadable worktree, a bulk stamp, and a reading in the future — while admitting an
+     admin-bound past reading and deduping two worktrees onto one session id by keeping the NEWER;
+     `sweepWorktreeActivity` never asks for the store until the debounce has passed AND the plan has
+     something to write (the retired ping opened a pool first and lost its own race on a ~6–11 s
+     handshake), never consumes the debounce on a failed write, and vouches for OTHER sessions'
+     worktrees rather than only its own; and the sweep is REGISTERED on `SessionStart` through a
+     launcher that detaches, so the session types that draw no status bar are actually reached.
+   - **proven by —** `packages/drive/src/ambient-presence.test.ts` (the registered `real:` arm — the
+     fences and the ordering) and `packages/cli/src/ambient-wiring.test.ts` (the ADR-0353 coverage
+     surface — the REAL `.claude/settings.json` registration and the launcher on disk, neither of
+     which the drive package's own unit can see). The fault-class guard is proven against a REAL
+     filesystem in `packages/cli/src/worktree-idle-signal.test.ts`: four worktrees stamped inside one
+     pass are refused wholesale, which is what stops a third instance of the reflog/`.codex/` bug
+     writing a boardful of false-live claims.

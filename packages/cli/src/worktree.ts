@@ -40,6 +40,8 @@ import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import type { ActivitySweepPlan, WorktreeActivityReading } from "@storytree/drive";
+
 import type { Envelope } from "./envelope.js";
 import {
   buildDrainRecord,
@@ -1031,6 +1033,17 @@ export interface IdleStampCluster {
   readonly signal: string;
   /** The worktrees sharing it, by name. */
   readonly names: readonly string[];
+  /**
+   * The very readings that formed it — the same objects that were passed in.
+   *
+   * `names` is for a human to read and is NOT a key: once the scan widened past
+   * `.claude/worktrees/` (ADR-0535 D2's sweep walks the whole git registry), basenames collide
+   * hard — 16 `--real` replicas on this box are all called `wt`. A caller asking "was THIS reading
+   * swept?" by name would have quietly answered yes for fifteen innocents and, worse, would have
+   * re-derived the second-granularity key to do it — a mirrored formula that drifts silently the
+   * day this function's granularity changes. Identity answers it exactly and cannot drift.
+   */
+  readonly readings: readonly IdleSignalReading[];
 }
 
 /**
@@ -1050,19 +1063,213 @@ export function detectIdleStampClusters(
   readings: readonly IdleSignalReading[],
   minSize = 3,
 ): IdleStampCluster[] {
-  const groups = new Map<string, { atMs: number; signal: string; names: string[] }>();
+  const groups = new Map<
+    string,
+    { atMs: number; signal: string; names: string[]; readings: IdleSignalReading[] }
+  >();
   for (const r of readings) {
     if (r.mtimeMs <= 0 || r.binding === null) continue;
     const second = Math.floor(r.mtimeMs / 1000) * 1000;
     const key = `${r.binding}@${second}`;
-    const g = groups.get(key) ?? { atMs: second, signal: r.binding, names: [] };
+    const g = groups.get(key) ?? { atMs: second, signal: r.binding, names: [], readings: [] };
     g.names.push(path.basename(r.dir));
+    g.readings.push(r);
     groups.set(key, g);
   }
   return [...groups.values()]
     .filter((g) => g.names.length >= minSize)
     .sort((a, b) => b.names.length - a.names.length || b.atMs - a.atMs)
-    .map((g) => ({ atMs: g.atMs, signal: g.signal, names: g.names }));
+    .map((g) => ({ atMs: g.atMs, signal: g.signal, names: g.names, readings: g.readings }));
+}
+
+// ---------------------------------------------------------------------------
+// `storytree worktree activity` — what the LEDGER is told about liveness (ADR-0535 D2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The session ids a worktree at `dir` could be claimed under (ADR-0033), mirroring `deriveIdentity`.
+ *
+ * BOTH RULES, DELIBERATELY. Rule 1 keys on the `.claude/worktrees/<name>` path basename; Rule 2 —
+ * everything git registers elsewhere, which is what `--real` promotion replicas and Codex trees are
+ * — keys on the git ADMIN-dir basename. They usually coincide, because `git worktree add` names the
+ * admin dir after the path; they do NOT when git had to de-duplicate an admin name, and a sweep
+ * built on Rule 1 alone would then vouch for a session id nothing holds while the real holder aged
+ * out. Emitting both costs one extra array entry and one extra `unnest` row.
+ *
+ * Rule 3 (the primary checkout) yields nothing here for free: its `.git` is a directory rather than
+ * a gitfile, so no admin dir resolves and it is not under the worktrees dir either — which is right,
+ * since the lobby has no identity to claim under.
+ */
+export function activitySessionIds(dir: string, admin: string | null): string[] {
+  const ids: string[] = [];
+  // `deriveIdentity`'s Rule-1 pattern, minus its trailing `\s*`: that guards untrimmed
+  // `rev-parse` output, and these paths come pre-trimmed from `parseWorktreeList`. The `$` is
+  // load-bearing — without it `<root>/.claude/worktrees/foo/nested` would claim the id `foo`,
+  // which belongs to a DIFFERENT session.
+  const rule1 = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)$/.exec(dir);
+  if (rule1?.[1] !== undefined) ids.push(rule1[1]);
+  if (admin !== null) {
+    const rule2 = path.basename(admin);
+    if (rule2.length > 0 && !ids.includes(rule2)) ids.push(rule2);
+  }
+  return ids;
+}
+
+/**
+ * Observe every REGISTERED worktree's activity, with the bulk-stamp detector already applied.
+ *
+ * WHY THE GIT REGISTRY RATHER THAN `listChildDirs(worktreesDir)`, which is what `worktree idle`
+ * reads: that directory holds only Rule-1 identities, so scanning it is blind to exactly the
+ * sessions Rule 2 exists for. `git worktree list --porcelain` is one spawn for the whole registry
+ * and returns every worktree wherever it lives.
+ *
+ * The reading is `readIdleSignals`', unchanged and unwidened — the same instrument, the same fixed
+ * signal set, no tree walk. Widening it here to chase a fresher clock is precisely how this fault
+ * class survived its own first fix, and it would silently move REAPING eligibility too, since the
+ * reaper judges idleness with the same function.
+ */
+export function gatherWorktreeActivity(
+  io: WorktreeIo = defaultWorktreeIo,
+  readIdle: (dir: string) => IdleSignalReading = readIdleSignals,
+): WorktreeActivityReading[] {
+  let dirs: string[];
+  try {
+    dirs = parseWorktreeList(io.runGit(["worktree", "list", "--porcelain"])).map((e) => e.path);
+  } catch {
+    return [];
+  }
+
+  const idle = dirs.map((dir) => readIdle(dir));
+  // Membership BY IDENTITY, never by name — see `IdleStampCluster.readings`. The detector owns the
+  // second-granularity rule and this must not re-derive it.
+  const swept = new Set<IdleSignalReading>(detectIdleStampClusters(idle).flatMap((c) => c.readings));
+
+  return idle.map((r) => ({
+    name: activityDisplayName(r.dir),
+    sessionIds: activitySessionIds(r.dir, r.admin),
+    mtimeMs: r.mtimeMs,
+    binding: r.binding,
+    fellBack: r.fellBack,
+    bulkStamped: swept.has(r),
+  }));
+}
+
+/**
+ * A name a human can act on. The basename for a `.claude/worktrees/<name>` session tree, and the
+ * last TWO path segments for everything else — because outside that directory the basename alone
+ * is routinely ambiguous: every `--real` promotion replica is `<tmp>/storytree-real-XXXX/wt` and
+ * every Codex tree is `<hash>/storytree`, so sixteen rows would otherwise all read `wt`.
+ */
+export function activityDisplayName(dir: string): string {
+  // The FILTER is what matters on real input: a trailing separator or a `//` would otherwise make
+  // a segment the empty string and name every such worktree "". A `+` on the split would cover the
+  // doubled case and none of the trailing one, so the filter carries both alone rather than the
+  // two overlapping — which also leaves nothing here that can be changed without a test noticing.
+  const parts = dir.split(/[/\\]/).filter((s) => s.length > 0);
+  const base = parts[parts.length - 1] ?? dir;
+  const parent = parts[parts.length - 2];
+  // Decided on the SEGMENTS rather than a second regex over `dir`. A regex mirroring
+  // `activitySessionIds`' would be a duplicated formula, and — because it must be `$`-anchored to
+  // avoid claiming a nested path — a trailing separator would slip past it and render a session
+  // worktree as `worktrees/<name>`.
+  if (parent === "worktrees" && parts[parts.length - 3] === ".claude") return base;
+  return parent === undefined ? base : `${parent}/${base}`;
+}
+
+/** What {@link renderActivitySweep} needs beyond the plan itself. */
+export interface ActivityRenderOptions {
+  readonly nowMs: number;
+  /** Claims moved by the write, or null for a read-only run (no `--pg`). */
+  readonly written: number | null;
+}
+
+/**
+ * `storytree worktree activity` — the sweep's own evidence, and the reason it is a VERB.
+ *
+ * The retired status-bar beat wrote silently and could only be audited by querying the database
+ * afterwards, which is how it stayed dead from 2026-08-15 to 2026-09-05 with nobody noticing. This
+ * prints what the ledger is about to be told, per session, with the signal that bound it — and
+ * every refusal with its reason, so a bulk-stamp pass announces itself here instead of being
+ * discovered by a bespoke investigation for the third time. A bare run writes nothing.
+ */
+export function renderActivitySweep(
+  readings: readonly WorktreeActivityReading[],
+  plan: ActivitySweepPlan,
+  opts: ActivityRenderOptions,
+): Envelope {
+  // The binding reported beside a session must come from the reading whose observation actually
+  // WON — the NEWEST, matching `planActivitySweep`'s dedup. Taking the first reading to carry the
+  // id (the obvious version) names a signal that did not produce the stamp on the same line: two
+  // worktrees can resolve to one identity, and the older one is exactly the reading the plan threw
+  // away. Caught by this file's golden assertion, which is the only place the pairing is visible.
+  const bindingFor = new Map<string, { binding: string; mtimeMs: number }>();
+  for (const r of readings) {
+    for (const id of r.sessionIds) {
+      const held = bindingFor.get(id);
+      if (held === undefined || r.mtimeMs > held.mtimeMs) {
+        bindingFor.set(id, { binding: r.binding ?? "?", mtimeMs: r.mtimeMs });
+      }
+    }
+  }
+
+  const lines: string[] = [
+    "WORKTREE ACTIVITY — what the ledger is told about liveness (ADR-0535 D2).",
+    "",
+  ];
+
+  if (plan.stamps.length === 0) {
+    lines.push("  nothing to vouch for — no worktree produced an admissible reading.");
+  } else {
+    lines.push("  observed   binding      session");
+    for (const s of plan.stamps) {
+      const ageH = (opts.nowMs - new Date(s.observedAt).getTime()) / 3_600_000;
+      lines.push(
+        `  ${ageH.toFixed(1).padStart(7)}h  ${(bindingFor.get(s.sessionId)?.binding ?? "?").padEnd(11)}  ${s.sessionId}`,
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push(
+    `  ${readings.length} worktrees observed · ${plan.stamps.length} session ids vouched for · ${plan.refused.length} refused.`,
+  );
+
+  {
+    // No `refused.length` guard: with nothing refused the fold is empty, the loop adds no line, and
+    // the alarm below is false — so a guard here could only ever be an equivalent mutant.
+    const byReason = new Map<string, string[]>();
+    for (const r of plan.refused) {
+      const names = byReason.get(r.reason) ?? [];
+      names.push(r.name);
+      byReason.set(r.reason, names);
+    }
+    for (const [reason, names] of [...byReason.entries()].sort()) {
+      lines.push(`  refused (${reason}): ${names.sort().join(", ")}`);
+    }
+    if (byReason.has("bulk-stamp")) {
+      lines.push(
+        "  ⚠ BULK STAMP — worktrees sharing an idle stamp to the second were touched by one pass,",
+        "    not used. This fault class has bitten twice; `storytree worktree idle` names the signal.",
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push(
+    opts.written === null
+      ? "  read-only. Pass --pg to write these stamps to the claim ledger."
+      : `  wrote ${opts.written} claim row${opts.written === 1 ? "" : "s"} forward (a stamp only ever moves a claim forward, never back).`,
+  );
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: [
+      "storytree worktree activity --pg",
+      "storytree worktree idle",
+      "storytree noticeboard --pg",
+    ],
+  };
 }
 
 export interface IdleReportOptions {
@@ -1195,6 +1402,12 @@ export function worktreeHelp(): Envelope {
       "                                             a BULK-SWEEP alarm when 3+ unrelated worktrees share",
       "                                             an idle stamp to the second (they cannot all have",
       "                                             been used at once — something swept them).",
+      "",
+      "  storytree worktree activity [--pg]         WHAT THE LEDGER IS TOLD about liveness (ADR-0535 D2):",
+      "                                             observed file change per claimed worktree, with the",
+      "                                             signal that bound it and every refusal's reason.",
+      "                                             Bare = read-only. --pg writes the stamps, which only",
+      "                                             ever move a claim FORWARD, never back.",
       "",
       "prune flags:",
       "  --dry-run            (default) print what WOULD be reaped, remove nothing",

@@ -142,7 +142,11 @@ import {
 } from "./adopt-capability.js";
 import { branchNext, branchHelp, type BranchDeps } from "./branch.js";
 import {
+  defaultWorktreeIo,
+  gatherWorktreeActivity,
   pruneWorktrees,
+  readIdleSignals,
+  renderActivitySweep,
   worktreeDrainStatus,
   worktreeIdleReport,
   worktreeHelp,
@@ -259,6 +263,8 @@ import {
 // `story:`/`capability:` resolver.
 import { loadWorkHierarchyIndex } from "@storytree/drive";
 import { orchestrate, type OrchestrateArgs } from "@storytree/drive";
+// The worktree-activity sweep's pure decision (ADR-0535 D2) — `drive` decides, the CLI observes.
+import { planActivitySweep } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
@@ -276,7 +282,7 @@ import type {
 import type { ClaimUniverseLoader } from "@storytree/drive";
 import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
-import type { ClaimDocT } from "@storytree/notice-board";
+import type { ActivityStamp, ClaimDocT } from "@storytree/notice-board";
 import { libraryInbound, libraryInboundHelp } from "./inbound.js";
 import { libraryRepoint, libraryRepointHelp } from "./repoint.js";
 import { readStoryDecisionFiles } from "./adr-health.js";
@@ -2236,6 +2242,10 @@ export interface RunDeps {
           // and a ghost's row must not protect a dead worktree from the reaper.
           Partial<{ listLiveClaims(): Promise<ClaimDocT[]> }> &
           Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }> &
+          // The OBSERVED-liveness write (ADR-0535 D2), which `worktree activity --pg` drives —
+          // `PgClaimStore` carries it; a fake without it makes that one verb refuse politely,
+          // exactly as the read halves above degrade their surfaces.
+          Partial<{ stampActivity(stamps: readonly ActivityStamp[]): Promise<number> }> &
           // The AUDIT-log read half (`noticeboard history`, ADR-0310 D1) — `PgClaimStore` carries
           // it; a fake without it degrades that one verb to its offline refusal, exactly as the
           // read halves above degrade the board.
@@ -3817,18 +3827,46 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       }
       return createWorktree(createOpts, createDeps);
     }
-    if (sub !== "prune" && sub !== "drain" && sub !== "idle") {
+    if (sub !== "prune" && sub !== "drain" && sub !== "idle" && sub !== "activity") {
       return {
         ok: false,
-        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain | storytree worktree idle`,
+        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain | storytree worktree idle | storytree worktree activity`,
         next: [
           'storytree worktree create --node <story> --intent "<what>" --pg',
           "storytree worktree prune",
           "storytree worktree drain",
           "storytree worktree idle",
+          "storytree worktree activity",
           "storytree worktree --help",
         ],
       };
+    }
+    if (sub === "activity") {
+      // ADR-0535 D2 — the worktree-activity sweep, as a VERB before it is a hook. `--pg` writes;
+      // bare is read-only, so "what would this tell the ledger?" costs no store and no credential.
+      // The gather is a handful of stats and ONE git spawn, and it runs BEFORE any ledger touch:
+      // the retired beat opened a pool before deciding whether it had anything to say, and the
+      // keyless connector handshake (~6-11 s here) is what made that fatal on a per-call path.
+      const activityIo = deps.worktree?.io ?? defaultWorktreeIo;
+      const readings = gatherWorktreeActivity(activityIo, deps.worktree?.idle ?? readIdleSignals);
+      const activityNow = deps.worktree?.now ? new Date(deps.worktree.now()) : new Date();
+      const plan = planActivitySweep(readings, activityNow);
+      const stampLedger = deps.presence?.ledger ?? null;
+      const stamp = stampLedger?.stampActivity;
+      let written: number | null = null;
+      if (values.pg) {
+        if (stamp === undefined) {
+          return {
+            ok: false,
+            body:
+              "worktree activity --pg needs the live claim ledger, and none is composed.\n" +
+              "bring the DB up first: pnpm db:up",
+            next: ["pnpm db:up", "storytree worktree activity"],
+          };
+        }
+        written = await stamp.call(stampLedger, plan.stamps);
+      }
+      return renderActivitySweep(readings, plan, { nowMs: activityNow.getTime(), written });
     }
     // Optional --pg consult: the CLAIM LEDGER is the authoritative "is a session live here" signal
     // (ADR-0200 D6 — presence retired); a live claim's sessionId IS the worktree basename

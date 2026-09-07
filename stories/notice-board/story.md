@@ -107,10 +107,15 @@ the deterministic lock. The board survives; its *data model* changed.
   agent already reads (CLI envelope footers, gate output, the `worktree create` payload). The statusline
   stays the human's ambient state display (redrawn, not sent). No scheduled context injection exists —
   the never-blocking-hooks contract (ADR-0033 D3) holds.
-- **Liveness is one trace-driven clock.** The 2 h heartbeat-staleness reclaim covers all grades;
-  heartbeats are bumped by the loops' own activity. An abandoned exploring wisp fades on the same
-  schedule as an abandoned lock. Machine clears stand: build completion releases `(unit, session)`; the
-  CI merge releases by branch.
+- **Liveness is one OBSERVED clock.** The 2 h heartbeat-staleness reclaim covers all grades; the
+  heartbeat is refreshed by a sweep that observes file CHANGE inside each claimed worktree
+  (ADR-0535 D2 — `stampActivity`, monotonic). ⚠ It was written here as "bumped by the loops' own
+  activity", which described ADR-0138 D4's trace-driven check-in; that mechanism was never built, and
+  ADR-0535 D3 superseded it. Its INTENT stands and is exactly what the sweep buys — liveness observed
+  rather than self-reported — but a wedged session is now correctly dark, where a timer would have
+  gone on reporting it live. An abandoned exploring wisp fades on the same schedule as an abandoned
+  lock. Machine clears stand: build completion releases `(unit, session)`; the CI merge releases by
+  branch.
 - **Views, not stores.** The forest map renders claims by grade (hover / queued / orbit) by default; the
   studio dock is claims-grouped-by-session; the CLI board renders the ledger; the statusline reads it.
   The ADR-0138 §5 honesty wall is untouched — no claim state is ever a proof (the proving colour stays
@@ -134,7 +139,9 @@ cross-reference is named.
   and `packages/notice-board/src/store/claim-store.ts` (the `PgClaimStore`: `take` / `upgrade` /
   `downgrade` / `release` with atomic waiter promotion, `current` / `history`, `releaseClaimsByBranch`
   (the CI clear) / `releaseClaimsBySession` (done-releases), `bumpHeartbeat` /
-  `bumpHeartbeatsBySession`, `pullOverlapDeltas`, `recentDepartures`). Proven by
+  `stampActivity` (the observed-liveness write, ADR-0535 D2 — it replaced `bumpHeartbeatsBySession`,
+  which is DELETED with the status-bar self-report it served), `pullOverlapDeltas`,
+  `recentDepartures`). Proven by
   `packages/notice-board/src/claim.test.ts` and the live-gated
   `claim-store-grades.live.test.ts` / `claim-store-release-by-branch.live.test.ts` /
   `claim-cursor.live.test.ts` / `claim-departures.live.test.ts`. The claim-store's own build-time
@@ -165,7 +172,7 @@ status stays `proposed` forever (ADR-0031: health is a projection of signed verd
 |---|---|---|---|---|
 | 1 | [`noticeboard-cli`](noticeboard-cli.md) | `storytree noticeboard` renders the claim ledger — claims grouped by session and grade, with cursor-once overlap deltas; `declare`/`claim`/`worktree create` write with worktree-derived identity. | proposed | — |
 | 2 | [`tree-view`](tree-view.md) | `storytree tree [<story>]` renders the work hierarchy offline and weaves the live ledger's claims in when the store is reachable. | proposed | `noticeboard-cli` |
-| 3 | [`ambient-integration`](ambient-integration.md) | The board declares itself: the statusline glances the ledger and bumps the session's claim heartbeats; a build run NEVER writes session presence (ADR-0199); nothing notice-board-shaped sits on a blocking-capable hook. | proposed | `noticeboard-cli`, `tree-view` |
+| 3 | [`ambient-integration`](ambient-integration.md) | The board declares itself: the statusline glances the ledger, and a debounced sweep OBSERVES file change in every claimed worktree and stamps the ledger with it (ADR-0535 D2, replacing the retired status-bar self-report); a build run NEVER writes session presence (ADR-0199); nothing notice-board-shaped sits on a blocking-capable hook. | proposed | `noticeboard-cli`, `tree-view` |
 | 4 | [`verdict-glyphs`](verdict-glyphs.md) | `storytree tree` shows one signed-verdict glyph per node — ✓ proven / ✗ last run failed / – never built — read from `events.verdict` when the DB is up, silently absent offline (untouched by ADR-0200). | proposed | `tree-view` |
 | ~~—~~ | ~~[`declare-presence`](declare-presence.md)~~ | **RETIRED by ADR-0200** — the presence declaration doc (`events.session`) is retired; the claim ledger is the coordination record now. Spec kept as history. | retired | — |
 | ~~—~~ | ~~[`presence-store`](presence-store.md)~~ | **RETIRED by ADR-0200** — `events.session` (+ `session_event`) and the reaper are retired; `events.node_claim` + `claim_event` is the ledger. Spec kept as history. | retired | ~~`declare-presence`~~ |
@@ -234,7 +241,9 @@ breaks.
 
 Settled by ADR-0200 (owner-directed 2026-07-16), recorded in its `## Status`. The four ADR-0033 owner
 decisions (staleness thresholds, the statusline heartbeat, verdict glyphs, shared hook installation) are
-carried into the ledger world where still live: the heartbeat now bumps claim heartbeats
-(`bumpHeartbeatsBySession`), the staleness clock is the single 2 h reclaim across all grades, and
+carried into the ledger world where still live: the heartbeat became a claim heartbeat, and then
+(ADR-0535 D3) stopped being a status-bar SELF-REPORT at all — it is now the observed worktree-activity
+sweep (`stampActivity`), because a status bar is drawn only by terminals while claims are held by
+every session type; the staleness clock is the single 2 h reclaim across all grades, and
 [`verdict-glyphs`](verdict-glyphs.md) is untouched. The presence-specific decisions (the declaration
 doc, the bands, the reaper) retired with the presence layer.
