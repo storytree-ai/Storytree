@@ -17,7 +17,10 @@ function state(over: Partial<LandState> = {}): LandState {
     drifted: true,
     pin: "861ebfb027b31c238b594570df5506d176426abc",
     webMain: "861ebfb027b31c238b594570df5506d176426abc",
+    webHead: "861ebfb027b31c238b594570df5506d176426abc",
+    headOnWebMain: true,
     parentDirtyPaths: [],
+    commitIdentity: { name: "HuaMick", email: "hua.mick@gmail.com" },
     ...over,
   };
 }
@@ -75,6 +78,33 @@ test("branches from the pin on the ordinary day too, and says why it is stated a
 // ---------------------------------------------------------------------------
 // REFUSING, AND REFUSING IN THE RIGHT ORDER.
 // ---------------------------------------------------------------------------
+
+test("refuses when there is no git identity to commit the website branch with", () => {
+  // ⚠ FOUND BY RUNNING THE VERB, not by reading it. A freshly-initialised submodule inherits
+  // NEITHER user.name nor user.email from its parent, and git refuses to auto-detect one from the
+  // hostname. Without this check the ceremony died at the COMMIT — three steps in, with the branch
+  // cut and 57 files rewritten — which is the precise failure the up-front refusals exist to
+  // prevent, and the verb's own design claimed to have prevented.
+  const plan = planLanding(state({ commitIdentity: null }));
+  assert.equal(plan.kind, "refuse");
+  assert.equal(plan.reason, "no-git-identity");
+  assert.match(
+    plan.kind === "refuse" ? plan.message : "",
+    /inherits NEITHER/,
+    "the refusal must say WHY the submodule has no identity, or the reader sets it globally and " +
+      "wonders why it did not take",
+  );
+});
+
+test("carries the identity on the PLAN, so the shell cannot reach for a different one", () => {
+  // The refusal above is only worth having if the value it guarded is the value actually used. A
+  // shell that re-read the config for itself could refuse against one answer and commit with
+  // another.
+  const identity = { name: "Someone Else", email: "else@example.com" };
+  const plan = planLanding(state({ commitIdentity: identity }));
+  assert.equal(plan.kind, "sync-and-open");
+  assert.deepEqual(plan.kind === "sync-and-open" ? plan.identity : null, identity);
+});
 
 test("refuses when web/ is not checked out, rather than acting on the parent repo by accident", () => {
   const plan = planLanding(state({ webCheckedOut: false }));
@@ -157,6 +187,39 @@ test("refuses an unauthenticated gh UP FRONT once there is real work, not halfwa
 // ---------------------------------------------------------------------------
 // NOTHING TO DO, AND WHAT GETS PINNED.
 // ---------------------------------------------------------------------------
+
+test("⚠ NO DRIFT IS NOT NOTHING TO DO — a stale gitlink is a BUMP, and the verb resumes into it", () => {
+  // The state a partial run leaves behind, and the reason this branch exists: the sync ran, the
+  // website pull request merged, and the run died before recording the bump. Drift is measured
+  // against the submodule's WORKING TREE, so it reads clean — and answering "nothing to do" there
+  // would report success over a mirror this repository has not landed. `check:web-engine` cannot
+  // catch it either, because it reads the same working tree; CI clones the submodule AT THE PIN and
+  // is the first thing to notice. Found by running the verb into exactly this state.
+  const webHead = "38f7d480aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const plan = planLanding(state({ drifted: false, webHead, headOnWebMain: true }));
+  assert.equal(plan.kind, "bump-only");
+  assert.equal(plan.reason, "pin-behind-web");
+  assert.equal(plan.kind === "bump-only" ? plan.pinTo : "", webHead);
+  // The message has to say that the WEBSITE half is finished, or a reader arriving at a stranded
+  // landing cannot tell this apart from "the sync has not run yet" and re-runs the whole ceremony.
+  const message = plan.kind === "bump-only" ? plan.message : "";
+  assert.match(message, /already done and merged/);
+  assert.match(message, /38f7d480/, "and it names the commit it is about to pin, abbreviated");
+});
+
+test("refuses to pin a web commit that has NOT landed on the website's main", () => {
+  // The pin must be resolvable by everyone else: CI clones the submodule at it, and a fresh
+  // `git clone --recurse-submodules` of this repo fails outright on a pin that only exists as some
+  // session's unmerged branch tip.
+  const plan = planLanding(state({
+    drifted: false,
+    webHead: "38f7d480aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    headOnWebMain: false,
+  }));
+  assert.equal(plan.kind, "refuse");
+  assert.equal(plan.reason, "web-work-not-landed");
+  assert.match(plan.kind === "refuse" ? plan.message : "", /NOT reachable/);
+});
 
 test("does nothing when the mirror is already current, whatever web main is doing", () => {
   // Drift is measured against the copy AT THE PIN, which is what CI compares too — so a web main

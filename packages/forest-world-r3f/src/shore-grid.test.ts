@@ -465,3 +465,39 @@ test('⚠ the refusal survives for what coarsening cannot reach: an extent the b
       e.message.endsWith('exceeds 262144 after 64 coarsening steps — the cell arithmetic has inverted'),
   );
 });
+
+test('⚠ the UN-PROJECTED forest fits the cap — so the grid is NOT what stands between the layout and a true spacing', () => {
+  // ADR-0527's remaining projection work (`the-un-projection-is-deleted-and-the-packer-hands-over-
+  // ground`, item 3) inherited a blocker from `true-footprint.ts`: un-projecting the whole stream
+  // rather than each island about its own centre made the thirty-five-island crowd 10,235 units
+  // deep, and shore-grid REFUSED that extent — 478,401 buckets against the 262,144 cap. On that
+  // record the forest's spacing was made a PRECONDITION of deleting the repair.
+  //
+  // ⚠ THAT REFUSAL WAS REAL WHEN IT WAS MEASURED AND CANNOT HAPPEN NOW, and the difference is this
+  // module, not that one. `buildSegmentGrid` did not coarsen then; it does since ADR-0520, when the
+  // land-per-capability ratio shrank the sand's cell from 7 to 2.6 units over an unchanged forest
+  // and asked for 1.17 M buckets. A cell that grows to fit keeps the far-field proof
+  // (`cell >= width`) while bucketing more edges per cell than the walk needs — so an extent the
+  // width cannot tile is TILED COARSER rather than refused.
+  //
+  // This pins the consequence, so nobody re-derives the blocker from the older comment: the
+  // un-projected crowd is an ordinary extent for this grid, a few quarter-steps up, nowhere near
+  // the refusal. What remains between the layout and a true spacing is therefore a LOOK — where
+  // every island SITS on the studio map and on the public site — and not an arithmetic limit.
+  const SAND_CELL = 2.6384359697243656;
+  const unprojected: CoastEdge[] = [{ ax: 0, az: 0, bx: 2289.7, bz: 10235 }];
+  const grid = buildSegmentGrid(unprojected, SAND_CELL);
+  assert.ok(grid.nx * grid.nz <= MAX_GRID_BUCKETS, `${grid.nx} x ${grid.nz} = ${grid.nx * grid.nz}`);
+  assert.ok(grid.cell >= SAND_CELL, 'coarsened, never refined — the far-field proof needs cell >= width');
+  assert.ok(edgeGridFarField(grid.cell, SAND_CELL));
+  // And it is not scraping the bound: the steps it actually takes are few, so the honest reading is
+  // "an ordinary extent" rather than "it just fits". Asserted as a ceiling on the STEPS rather than
+  // on the bucket count, because the count is what the cap already bounds — the number that says
+  // whether there is headroom is how much coarsening it took to get there.
+  const steps = Math.round(Math.log(grid.cell / SAND_CELL) / Math.log(COARSEN_FACTOR));
+  assert.ok(steps <= 8, `the un-projected crowd settles in ${steps} quarter-steps, not near the 64 bound`);
+  // The projected crowd is the same shape, fewer steps — stated beside it so the comparison the
+  // blocker rested on is visible in one place rather than inferred across two files.
+  const projected = buildSegmentGrid([{ ax: 0, az: 0, bx: 2289.7, bz: 3545.4 }], SAND_CELL);
+  assert.ok(projected.cell <= grid.cell, 'a deeper forest needs at least as coarse a cell, never finer');
+});

@@ -15,12 +15,27 @@
 //
 // ⚠⚠ ABOUT EACH ISLAND, NOT ABOUT THE ORIGIN, and the difference was measured rather than argued.
 // Stretching the whole stream about the forest origin unprojects the layout's SPACING along with
-// the islands — the thirty-five-island crowd became 10,235 units deep and `shore-grid` refused the
-// extent outright (478,401 buckets against its 262,144 cap). The owner judged the ISLAND's
-// footprint, and approved the arm that holds the layout still and unsquashes each island in place
-// (ADR-0517 D1: "each island stretches about its own centre — so the forest's arrangement does not
-// move; only each island's shape does"). On one island the two are the same picture up to where
-// the island sits in the frame.
+// the islands — the thirty-five-island crowd became 10,235 units deep. The owner judged the
+// ISLAND's footprint, and approved the arm that holds the layout still and unsquashes each island
+// in place (ADR-0517 D1: "each island stretches about its own centre — so the forest's arrangement
+// does not move; only each island's shape does"). On one island the two are the same picture up to
+// where the island sits in the frame.
+//
+// ⚠ AND ONE INPUT TO THAT MEASUREMENT HAS SINCE EXPIRED — corrected here rather than left to be
+// re-derived, because it had hardened into a blocker. This paragraph used to add that `shore-grid`
+// REFUSED the un-projected extent outright, 478,401 buckets against its 262,144 cap, and on that
+// record `forest-geometry-rebuild-arc` made the forest's spacing a PRECONDITION of deleting this
+// repair. The refusal was real when it was measured and CANNOT HAPPEN NOW: `buildSegmentGrid` did
+// not coarsen then and does since ADR-0520 — a cell that grows to fit keeps the far-field proof
+// while bucketing more edges per cell than the walk needs, so an extent the query width cannot tile
+// is tiled COARSER rather than refused. Measured 2026-09-07 and pinned in `shore-grid.test.ts`: the
+// un-projected crowd settles in a few quarter-steps, nowhere near the bound.
+//
+// ⚠ WHICH CHANGES THE BLOCKER, NOT THE DECISION. ADR-0517 D1 rests on the owner's judgement of the
+// island's footprint, and nothing here touches that. What is withdrawn is only the arithmetic
+// reason to believe the whole-stream arm is UNREACHABLE — what stands between the layout and a true
+// spacing is a LOOK, where every island SITS on the studio map and on the public site, and a look
+// is the owner's to give.
 //
 // ⚠ THE WHOLE STREAM, NOT THE CELLS ALONE. The strips dock on the coast, the blooms carry an
 // island's centre, a cave stands on the rim — every one of them was projected by the same
