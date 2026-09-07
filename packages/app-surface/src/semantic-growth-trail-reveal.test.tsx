@@ -43,7 +43,6 @@ const ORDERED_KEYS = [
   'land',
   'proposed',
   'claimed',
-  'signed-proof',
   'healthy',
 ] as const;
 
@@ -255,7 +254,7 @@ describe('SemanticGrowthWorldView arrival draw-on', () => {
     expect(masks(container)).toHaveLength(2);
     expect(container.querySelectorAll('.trail-fill.is-growing')).toHaveLength(2);
     // every later frame simply PAINTS the trail: no plan, no mask, no growth class.
-    for (const later of ['claimed', 'signed-proof', 'healthy']) {
+    for (const later of ['claimed', 'healthy']) {
       next();
       expect(frameKey()).toBe(later);
       expect(masks(container), `masks on ${later}`).toHaveLength(0);

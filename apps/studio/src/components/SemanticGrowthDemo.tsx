@@ -4,15 +4,22 @@
 //
 // Mounted ONLY behind the exact `?semanticGrowth=demo` query flag — TreeView.tsx gates the
 // mount before any other Studio state, so the clean route and any other value never even
-// construct this module's fixture. This is a WITNESS STAGE, not a product controller: the six
+// construct this module's fixture. This is a WITNESS STAGE, not a product controller: the five
 // frames below stage the map's real growth vocabulary —
-//   1. empty         — no claimed land, no story.
+//   1. empty          — no claimed land, no story.
 //   2. land           — the plot is claimed ("mapped" ground); no story markers yet.
 //   3. proposed       — a pale `proposed` story stands on it, with its real capability parcels.
 //   4. claimed        — a real claim/presence wisp (a session working it); status stays
-//                        `proposed` — a claim never carries verdict/bloom identity.
-//   5. signed-proof   — still `proposed`/non-healthy, carrying the real signed-proof bloom.
-//   6. healthy        — the settled `healthy` status, bloom faded.
+//                        `proposed` — a claim is never a proof.
+//   5. healthy        — the settled `healthy` status.
+//
+// THE WALK LOST A FRAME, DELIBERATELY (ADR-0536). Between `claimed` and `healthy` there used to be
+// a `signed-proof` frame: a story still marked `proposed` carrying the verdict bloom, staging the
+// proposition that proof and authored status are separate things. ADR-0529 retired the bloom, which
+// was the only thing that frame had to draw — without it the frame rendered identically to
+// `proposed`. ADR-0536 chose to DROP it rather than invent a replacement marker (declined) or let it
+// show the green early (declined — that makes it identical to `healthy`). The proposition survives
+// in the legend's proof row and the story prose.
 //
 // Every frame is folded through the SAME real Studio world pipeline TreeView.tsx uses for the
 // live map: deterministic representative story/capability data enters `buildWorld`, its real
@@ -21,7 +28,7 @@
 // hand-filled empty geometry array. No fetch, no store read, no subscription, no mutation, no
 // clock-driven advance, and no Chapter 2 narration/pacing: the public `SemanticGrowthWorldView`
 // owns the player, its Back/Next/Replay controls, its own reduced-motion handling, and (via its
-// co-located stylesheet) the entrance/orbit/bloom motion itself — this file never copies any of
+// co-located stylesheet) the entrance/orbit motion itself — this file never copies any of
 // that machinery, nor authors a transform/keyframe/animation selector of its own. It only
 // supplies the fixture and reuses the sprite sheet + art scale TreeView already resolved.
 
@@ -83,8 +90,8 @@ const DEMO_CAP_ALPHA_ID = 'semantic-growth-demo-cap-alpha';
 const DEMO_CAP_BETA_ID = 'semantic-growth-demo-cap-beta';
 
 /** The fixed COMPANION witness territory (H — sgsd-companion-witness-territory): a second story
- *  composed through the exact same real pipeline, byte-stable across all six frames. It never
- *  narrates the primary's health walk (no claim, no verdict/bloom) — it exists only so the demo
+ *  composed through the exact same real pipeline, byte-stable across all five frames. It never
+ *  narrates the primary's health walk (no claim, no verdict) — it exists only so the demo
  *  ALSO exercises the renderer's no-parcel `buildTerritoryFlora` path (a real procedural
  *  `story-tree` + capability `garden-flora`), which the primary's parcels-present territory never
  *  takes. */
@@ -93,8 +100,8 @@ const COMPANION_CAP_ID = 'semantic-growth-demo-companion-cap';
 const ORGANIC_TREE_SCALE = 0.34;
 const ORGANIC_PLANT_SCALE = 0.3;
 
-/** A fixed instant, never `Date.now()`, so the walk (and its signed-proof bloom) stays
- *  byte-identical across every render/re-mount. */
+/** A fixed instant, never `Date.now()`, so the walk stays byte-identical across every
+ *  render/re-mount. */
 const NOW = new Date('2026-01-01T00:00:00.000Z');
 
 function demoCapability(id: string, testCount: number, status: WorkStatus): TreeCapability {
@@ -143,7 +150,7 @@ function demoStory(status: WorkStatus, verdict?: TreeVerdict): TreeStory {
 const COMPANION_STORY: TreeStory = {
   id: COMPANION_STORY_ID,
   title: 'Semantic growth companion',
-  outcome: 'a fixed witness territory carried alongside the primary story’s six-state walk',
+  outcome: 'a fixed witness territory carried alongside the primary story’s five-state walk',
   status: 'healthy',
   proofMode: 'UAT',
   uatWitness: 'machine',
@@ -241,7 +248,7 @@ function withoutPrimaryVectorOrganic(
 
 /** The claim/presence wisp for the `claimed` frame — coordination, never a proof (the ADR-0138
  *  §5 honesty wall the core itself enforces): the story's own status stays `proposed`, and this
- *  claim carries no bloom/verdict identity of its own. */
+ *  claim carries no proof identity of its own. */
 const DEMO_CLAIM: ClaimActivity = {
   unitId: DEMO_STORY_ID,
   kind: 'claim',
@@ -253,7 +260,7 @@ const DEMO_CLAIM: ClaimActivity = {
 };
 
 /**
- * Fold the fixture into the six ordered growth frames the public player requires (`FRAME_KEYS`
+ * Fold the fixture into the five ordered growth frames the public player requires (`FRAME_KEYS`
  * in `SemanticGrowthWorldView.tsx`). Deliberately NOT run at this module's own top level: this
  * file and TreeView.tsx import each other (TreeView.tsx mounts this component; this component
  * composes through TreeView's exported `buildWorld`/`buildRelaxedCells`/`worldToScene`), so
@@ -272,7 +279,7 @@ function buildFrames(
   // the SAME real geometry across every frame; only the primary story object's status/verdict/
   // claims vary per frame — the companion's story object never changes.
   // The primary enters FIRST (index 0) so every real per-territory layer (coast/ground/territory)
-  // draws the primary before the companion — the DOM-order fact the "signed-proof"/"healthy"
+  // draws the primary before the companion — the DOM-order fact the "claimed"/"healthy"
   // regression floor above relies on (`flagged.querySelector('.hex-territory')`, unscoped, must
   // resolve to the PRIMARY's own status, never the companion's fixed `healthy` one).
   const baseWorld: HexWorld = buildWorld([demoStory('proposed'), COMPANION_STORY], {
@@ -317,7 +324,7 @@ function buildFrames(
   // Chapter 2 mock has ever shown a path growing.
   //
   // Set on the `proposed` frame ONLY (see the frame list below). `reveal` is a per-frame field on
-  // the DISCRETE six-key cursor, not the organic layer's continuous progress axis, and the mask
+  // the DISCRETE five-key cursor, not the organic layer's continuous progress axis, and the mask
   // animation fires on MOUNT — so putting the plan on the one arrival frame plays the beat
   // exactly once, at the arrival, while every later frame (no plan ⇒ no mask) simply paints the
   // trail fully drawn. `empty`/`land` carry no primary identity yet, so they stay off it too.
@@ -392,7 +399,7 @@ function buildFrames(
     );
   };
 
-  // `proposed`/`claimed`/`signed-proof`/`healthy`: the primary's identity group stays — only its
+  // `proposed`/`claimed`/`healthy`: the primary's identity group stays — only its
   // ground's identity tag is cleared (its real substrate/parcels/parcel-flora content untouched)
   // so it never double-counts alongside the primary's own `territory` group.
   const narrativeScene = (story: TreeStory, claims: readonly ClaimActivity[] = []): SceneNode =>
@@ -436,14 +443,6 @@ function buildFrames(
     {
       key: 'claimed',
       model: narrativeModel(demoStory('proposed'), [DEMO_CLAIM]),
-    },
-    {
-      // Still `proposed`/non-healthy — a signed verdict alone never flips authored status (the
-      // real map only greens the crown once the story's OWN status is healthy, ADR-0040) — this
-      // frame carries the real signed-proof bloom (a fresh pass verdict, `verdictBloom`'s own
-      // rule) while staying honest about status.
-      key: 'signed-proof',
-      model: narrativeModel(demoStory('proposed', { outcome: 'pass', at: NOW.toISOString() })),
     },
     {
       key: 'healthy',

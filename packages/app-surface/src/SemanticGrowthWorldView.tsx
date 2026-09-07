@@ -33,7 +33,14 @@ import {
 // cannot mount an inert semantic player by forgetting a separate CSS side effect.
 import './semantic-growth.css';
 
-const FRAME_KEYS = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+// THE WALK IS FIVE STEPS (ADR-0536). The sixth key was `signed-proof`, between `claimed` and
+// `healthy`: it showed the verdict bloom over a story still marked `proposed`, to say that proof and
+// authored status are separate things. ADR-0529 retired the bloom, which was the only thing that
+// frame had to draw — without it the frame rendered identically to `proposed`. The owner chose to
+// DROP the frame rather than invent a replacement marker (declined) or let it show the green early
+// (declined — that makes it identical to `healthy`). The proposition it carried is still true and is
+// stated in the legend's proof row and the story prose instead.
+const FRAME_KEYS = ['empty', 'land', 'proposed', 'claimed', 'healthy'] as const;
 
 export type SemanticGrowthFrameKey = (typeof FRAME_KEYS)[number];
 
@@ -100,7 +107,7 @@ export interface SemanticGrowthWorldViewProps {
 
 function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
   if (frames.length !== FRAME_KEYS.length) {
-    throw new Error('Semantic growth requires exactly six ordered frames.');
+    throw new Error('Semantic growth requires exactly five ordered frames.');
   }
   for (let index = 0; index < FRAME_KEYS.length; index += 1) {
     if (frames[index]?.key !== FRAME_KEYS[index]) {

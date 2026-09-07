@@ -227,9 +227,6 @@ const BASE = {
   'sapling-trunk': 'sapling-trunk',
   conifer: 'hex-conifer',
   'conifer-snow': 'conifer-snow',
-  'bloom-anchor': 'world-bloom-anchor',
-  'bloom-ring': 'bloom-ring',
-  'bloom-spark': 'bloom-spark',
   wisps: '',
   // `wisp` composes its band from `phaseBand` in composeClass (band-red/green/building, ADR-0048
   // §3 v2); the BASE here is just the role class. (A composeClass case overrides this entry.)
@@ -237,9 +234,11 @@ const BASE = {
   'wisp-hit': 'world-wisp-hit',
   'wisp-glow': 'world-wisp-glow',
   'wisp-dot': 'world-wisp-dot',
-  // the story-CLAIM wisp (ADR-0138 §5): a DISTINCT class family from the build wisp — never
-  // world-bloom/verdict-pass (the §5 honesty wall). `claim-wisp` composes its colour-state in
-  // composeClass (state-authoring/proving/supplementing); the parts reuse fixed classes.
+  // the story-CLAIM wisp (ADR-0138 §5): a DISTINCT class family from the build wisp — never a
+  // proof class (the §5 honesty wall; since ADR-0529/0536 retired the verdict bloom the proof
+  // vocabulary here is the island's `st-healthy` hue, which no wisp class can reach). `claim-wisp`
+  // composes its colour-state in composeClass (state-authoring/proving/supplementing); the parts
+  // reuse fixed classes.
   'claim-wisps': '',
   'claim-wisp': 'world-claim-wisp',
   'claim-wisp-hit': 'world-claim-wisp-hit',
@@ -247,11 +246,11 @@ const BASE = {
   'claim-wisp-dot': 'world-claim-wisp-dot',
   // the claim-GRADE families (ADR-0200 D7): `hover-wisp*` (an exploring claim at rest beside the
   // tree) and `queue-wisp*` (a waiting claim in the visible line) — DISTINCT class families from both
-  // the build wisp AND the orbiting claim wisp, never bloom/verdict (the §5 honesty wall). Each
+  // the build wisp AND the orbiting claim wisp, never a proof class (the §5 honesty wall). Each
   // composes its colour-state in composeClass exactly like `claim-wisp`; the parts below reuse fixed
   // classes. `departing-wisp*` (a released claim still fading, its own `departing-wisps` layer) is
   // stationary + colourless (a departure carries no colourState) — composeClass gives it a fixed base
-  // class; the mapper folds its `ageRatio` to opacity (never a bloom/verdict class either).
+  // class; the mapper folds its `ageRatio` to opacity (never a proof class either).
   'hover-wisp': 'world-hover-wisp',
   'hover-wisp-hit': 'world-hover-wisp-hit',
   'hover-wisp-glow': 'world-hover-wisp-glow',
@@ -411,10 +410,6 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       return `hex-top v-${node.variant ?? 0}`;
     case 'conifer-body':
       return `conifer-body c-${node.variant ?? 0}`;
-    case 'bloom-crown':
-      return `world-bloom bloom-crown verdict-${node.outcome ?? 'pass'}`;
-    case 'bloom-plant':
-      return `world-bloom bloom-plant verdict-${node.outcome ?? 'pass'}`;
     case 'wisp':
       // ADR-0048 §3 v2: the wisp wears its live red→green band (the core already folded the gate
       // phase → phaseBand). Default to the neutral teal `building` band when none is known. ADR-0138
@@ -425,22 +420,22 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       }`;
     case 'claim-wisp':
       // ADR-0138 §5: a claim wisp is its OWN class family, coloured by what the orchestrator is doing
-      // on the claimed story. NEVER world-bloom / verdict-pass — a claim is not a proof (the honesty
-      // wall, asserted in SceneView.test.tsx). `colourState` is always present on a claim wisp.
+      // on the claimed story. NEVER a proof class — a claim is not a proof (the honesty wall,
+      // asserted in SceneView.test.tsx). `colourState` is always present on a claim wisp.
       // ADR-0212: when a build is live on this story, its red→green band rides the SAME body as a
       // `band-*` class ALONGSIDE the state class — the merged build wisp. The band is a MOTION
-      // channel in CSS (never a hue), so it cannot push the body toward the bloom's green.
+      // channel in CSS (never a hue), so it cannot push the body toward a proven green.
       return `world-claim-wisp state-${node.colourState ?? 'supplementing'}${
         node.phaseBand ? ` band-${node.phaseBand}` : ''
       }`;
     case 'hover-wisp':
       // ADR-0200 D7: the exploring-grade family — a DISTINCT class from claim-wisp/queue-wisp, same
-      // colour-state composition, same honesty wall (never bloom/verdict). Carries no band: window
+      // colour-state composition, same honesty wall (never a proof class). Carries no band: window
       // shopping is by definition not building (ADR-0212 folds the band onto the work stage only).
       return `world-hover-wisp state-${node.colourState ?? 'supplementing'}`;
     case 'queue-wisp':
       // ADR-0200 D7: the waiting-grade family — a DISTINCT class from claim-wisp/hover-wisp, same
-      // colour-state composition, same honesty wall (never bloom/verdict).
+      // colour-state composition, same honesty wall (never a proof class).
       return `world-queue-wisp state-${node.colourState ?? 'supplementing'}`;
     case 'parcel':
       // forest-parcels inc 1: the transparent per-capability ground group (id=capId, title for hover).
@@ -618,11 +613,17 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
  * The semantic descendants a shared-track swap must NOT discard.
  *
  * `flora-hit` is a capability plant's generous click target — losing it would make plants selectable
- * only where their pixels are. `bloom-anchor` is the SIGNED-PROOF bloom: renderer choice may change
- * artwork, it must never erase proof semantics (the same rule {@link collectPreservedDescendants}
- * enforces for the sprite path).
+ * only where their pixels are.
+ *
+ * ⚠ THE PROOF ENTRY IS GONE, AND ITS GUARANTEE RE-POINTED RATHER THAN DIED (ADR-0536 D6). This set
+ * used to carry `bloom-anchor` under the rule "renderer choice may change artwork, it must never
+ * erase proof semantics". ADR-0529 retired the verdict bloom, so that rule has no subject HERE: there
+ * is no longer a per-landing proof mark composed onto a story tree for a track swap to discard. The
+ * standing proof semantics a swap must not erase are the island's proven-green STATUS hue and the
+ * legend's proof row — neither of which is a descendant of a swapped wrapper, so neither is reachable
+ * by this mechanism at all. If a per-landing proof mark is ever drawn again it belongs back in here.
  */
-const VEGETATION_PRESERVED_KINDS: ReadonlySet<string> = new Set(['flora-hit', 'bloom-anchor']);
+const VEGETATION_PRESERVED_KINDS: ReadonlySet<string> = new Set(['flora-hit']);
 
 function collectVegetationPreserved(node: SceneNode, out: SceneNode[]): void {
   if (node.el !== 'g') return;
@@ -917,18 +918,23 @@ function accretionCellFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionCel
 
 /**
  * The semantic descendants a sprite swap must NOT discard — a wrapper's ARTWORK, never the semantic
- * descendants the scene composed onto it for reasons the sprite sheet knows nothing about. `bloom-anchor`
- * is the transient signed-PASS bloom (`bloom-anchor` > `bloom-crown`/`bloom-plant`, composed to
- * `.world-bloom` by {@link composeClass}); `sign-blank`/`sign-pass`/`sign-fail` is the PERSISTENT
- * human-witness signpost (`buildSignpost`) — the one with real verification weight, since it is the only
- * one of the two that distinguishes an unwitnessed island from a witnessed one at rest. Both
- * `buildTree`/`buildPlant` splice in as a direct sibling child alongside the trunk/crown geometry a
- * sprite swap discards (shipped-map-render-path-drops-three-delivered-behaviours defect 1 — a human-
- * witnessed proof and an unwitnessed one looked identical on the shipped map, because only
- * `bloom-anchor` was preserved).
+ * descendants the scene composed onto it for reasons the sprite sheet knows nothing about.
+ * `sign-blank`/`sign-pass`/`sign-fail` is the PERSISTENT human-witness signpost (`buildSignpost`) —
+ * the one with real verification weight, since it distinguishes an unwitnessed island from a
+ * witnessed one at rest. `buildTree` splices it in as a direct sibling child alongside the
+ * trunk/crown geometry a sprite swap discards (shipped-map-render-path-drops-three-delivered-
+ * behaviours defect 1 — a human-witnessed proof and an unwitnessed one looked identical on the
+ * shipped map, because only the transient bloom was preserved).
+ *
+ * ⚠ THE TRANSIENT PROOF ENTRY IS GONE, AND ITS GUARANTEE RE-POINTED RATHER THAN DIED (ADR-0536 D6).
+ * `bloom-anchor` stood here — the transient signed-PASS bloom — under "renderer choice may change
+ * artwork, it must never erase proof semantics". ADR-0529 retired that drawable, so there is no
+ * per-landing proof mark for a sprite swap to erase. The standing proof semantics are the island's
+ * proven-green STATUS hue and the legend's proof row; a sprite swap replaces a wrapper's ARTWORK and
+ * touches neither, so the guarantee is now kept by construction rather than by this list. The
+ * PERSISTENT witness seal below is what still needs the list, and that is unchanged.
  */
 const PRESERVED_SPRITE_DESCENDANT_KINDS: ReadonlySet<string> = new Set([
-  'bloom-anchor',
   'sign-blank',
   'sign-pass',
   'sign-fail',
@@ -959,9 +965,9 @@ function collectPreservedDescendants(node: SceneNode, out: SceneNode[]): void {
  * what draws there. Interactivity (the click handlers + delegation `data-*` hooks a vector `flora` node
  * would carry) is preserved so a sprite-swapped capability plant stays clickable. Text/tooltips/a11y
  * stay in the DOM: a `title` rides along as an accessible `<title>` child of the `<image>`, exactly as
- * the vector path does. Semantic descendants the replaced node owned (the signed-proof bloom) are
+ * the vector path does. Semantic descendants the replaced node owned (the human-witness signpost) are
  * preserved as vector siblings of the image — see {@link collectPreservedDescendants}; renderer choice
- * may change artwork, it must never erase proof-bloom semantics.
+ * may change artwork, it must never erase witness semantics.
  */
 function trySprite(
   node: SceneNode,
@@ -1281,7 +1287,6 @@ function renderNode(
     node.kind === 'hit'
   )
     props.fill = 'transparent';
-  if (node.kind === 'bloom-anchor') props['aria-hidden'] = 'true';
   // ADR-0200 D7: a departing claim's fade is DATA (ageRatio, the core's job to place; the mapper's job
   // to turn it into opacity — deterministic, testable, never a CSS-only illusion). `1 - ageRatio`: a
   // just-released wisp (ageRatio 0) starts fully visible and fades to transparent as it ages out.

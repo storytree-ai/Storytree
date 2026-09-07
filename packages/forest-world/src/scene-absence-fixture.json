@@ -333,56 +333,6 @@
                   "el": "g",
                   "children": [
                     {
-                      "el": "g",
-                      "children": [
-                        {
-                          "el": "circle",
-                          "cx": 0,
-                          "cy": 0,
-                          "r": 29.028,
-                          "kind": "bloom-ring"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": -16.219332760889078,
-                          "cy": 16.2845698906276,
-                          "r": 1.294407555414364,
-                          "kind": "bloom-spark"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": -35.02889273786876,
-                          "cy": 6.466659931339153,
-                          "r": 1.714530294982251,
-                          "kind": "bloom-spark"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": 16.94163965931477,
-                          "cy": -22.91966287936532,
-                          "r": 1.6389815338072369,
-                          "kind": "bloom-spark"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": -18.781135808337474,
-                          "cy": 15.552493253125576,
-                          "r": 1.4512632742873395,
-                          "kind": "bloom-spark"
-                        }
-                      ],
-                      "kind": "bloom-crown",
-                      "outcome": "pass"
-                    }
-                  ],
-                  "kind": "bloom-anchor",
-                  "transform": "translate(0.0 -40.6)",
-                  "opacity": 0.82
-                },
-                {
-                  "el": "g",
-                  "children": [
-                    {
                       "el": "ellipse",
                       "cx": 0.6,
                       "cy": 0.8,
@@ -453,49 +403,6 @@
                       "kind": "flora-light"
                     }
                   ]
-                },
-                {
-                  "el": "g",
-                  "children": [
-                    {
-                      "el": "g",
-                      "children": [
-                        {
-                          "el": "circle",
-                          "cx": 0,
-                          "cy": 0,
-                          "r": 8,
-                          "kind": "bloom-ring"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": -8.405472786645955,
-                          "cy": 1.930583707936231,
-                          "r": 1.1704075064742938,
-                          "kind": "bloom-spark"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": -7.066323755177245,
-                          "cy": 0.5834579538234262,
-                          "r": 1.2546792110195384,
-                          "kind": "bloom-spark"
-                        },
-                        {
-                          "el": "circle",
-                          "cx": 0.025608082293607157,
-                          "cy": -6.927626671172215,
-                          "r": 0.9394430968211964,
-                          "kind": "bloom-spark"
-                        }
-                      ],
-                      "kind": "bloom-plant",
-                      "outcome": "pass"
-                    }
-                  ],
-                  "kind": "bloom-anchor",
-                  "transform": "translate(0.0 -5.0)",
-                  "opacity": 0.63
                 }
               ],
               "kind": "flora",

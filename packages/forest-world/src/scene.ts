@@ -15,7 +15,7 @@
 // never enters the core.
 //
 // Geometry is replicated FROM the studio's canonical drawables (TreeView.tsx:
-// StoryTree / GardenPlant / DecorTree / LandingBloom / IslandGround / the signpost
+// StoryTree / GardenPlant / DecorTree / IslandGround / the signpost
 // / the wisp orbit / the nameplate) — the studio wins where it diverges from the
 // website's pure render (the seed of this extraction). Coordinates are formatted to
 // one decimal place; the studio's inline JSX mixed raw + toFixed, so the mapper's
@@ -183,12 +183,6 @@ export type SceneKind =
   | 'parcel-shrub' // a foliage blob — bush dome / tree crown
   | 'parcel-stem' // a woody stem / trunk / bare twig
   | 'parcel-flower' // a small accent disc — flower petal (variant 0) / core or berry (variant 1) / dead fleck
-  // the recently-landed bloom
-  | 'bloom-anchor'
-  | 'bloom-crown'
-  | 'bloom-plant'
-  | 'bloom-ring'
-  | 'bloom-spark'
   // the in-flight build wisp orbit
   | 'wisps'
   | 'wisp'
@@ -197,8 +191,12 @@ export type SceneKind =
   | 'wisp-dot'
   // the story-CLAIM wisp orbit (ADR-0138 §5) — a session is working this story.
   // A DISTINCT drawable family from the build wisp: it carries a `colourState`
-  // (authoring / proving / supplementing), NEVER a bloom, so the §5 honesty wall
-  // holds at the kind level (a claim wisp can never be mistaken for a verdict bloom).
+  // (authoring / proving / supplementing) and never a proof mark, so the §5 honesty
+  // wall holds at the kind level. Since ADR-0529/0536 retired the verdict bloom there
+  // is NO per-landing proof drawable in this vocabulary at all, so the wall now holds
+  // BY CONSTRUCTION: a claim cannot be mistaken for a proof because no kind here is a
+  // proof. What still carries proof is the island's status hue and the legend's proof
+  // row — neither of which a coordination drawable can reach.
   | 'claim-wisps'
   | 'claim-wisp'
   | 'claim-wisp-hit'
@@ -210,8 +208,9 @@ export type SceneKind =
   //   `phase` and the rest spot lives on a PARENT `g` so the mapper's rotate can't replace it).
   // `queue-wisp*`: a waiting claim in the visible queue line (index-placed in input order, stationary).
   // `departing-wisp*` (under the `departing-wisps` layer): a released claim fading out (`ageRatio`).
-  // ALL are coordination drawables behind the same ADR-0138 §5 honesty wall as `claim-wisp*`:
-  // never a bloom kind, never an `outcome` — a claim (or its departure) is not a proof.
+  // ALL are coordination drawables behind the same ADR-0138 §5 honesty wall as `claim-wisp*`
+  // — a claim (or its departure) is not a proof. With the verdict bloom retired the wall is
+  // structural rather than a rule to keep: this vocabulary has no proof drawable to borrow.
   | 'hover-wisp'
   | 'hover-wisp-hit'
   | 'hover-wisp-glow'
@@ -278,8 +277,6 @@ export interface SceneNodeBase {
    *  `theme-<t>` class so meadow / woodland / heath flora read as distinct country. Carried on the
    *  `parcel-flora` item group; the colour itself stays CSS-side (ADR-0093 §4). */
   theme?: SurfaceTheme;
-  /** A bloom's verdict outcome (drives the mapper's `verdict-<outcome>`). */
-  outcome?: 'pass' | 'fail';
   /** A wisp's orbit phase in degrees (the mapper drives the rotation from it). */
   phase?: number;
   /** A wisp's red→green BAND, folded from the live prove-it-gate phase (ADR-0048 §3 v2): `red`
@@ -290,7 +287,7 @@ export interface SceneNodeBase {
   /** A story-CLAIM wisp's subagent colour-state (ADR-0138 §5) — what the orchestrator is doing on
    *  the claimed story: `authoring` (story-author), `proving` (red→green leaf), `supplementing`
    *  (glue). Carried on a `claim-wisp` node; the mapper appends its `state-<colourState>` class.
-   *  GUARANTEED never to be `green`/`bloom` (the honesty wall) — a claim is not a proof. ALSO carried
+   *  GUARANTEED never to be a PROOF signal (the honesty wall) — a claim is not a proof. ALSO carried
    *  on a BUILD `wisp` when the live work-event stamped one (advisory role tint, additive to
    *  `phaseBand`). A SEPARATE field from `phase` (the orbit rotation) — location ⟂ form. */
   colourState?: ClaimColourState;
@@ -307,9 +304,10 @@ export type WispPhaseBand = 'red' | 'green' | 'building';
 /** The three ADR-0138 §5 subagent colour-states a story-CLAIM wisp wears — what the orchestrator is
  *  doing on the claimed story. DUPLICATED as the core's OWN input vocabulary (the scene-graph is a
  *  foundational root that depends on nothing — ADR-0093 §Open call 2), mirroring `@storytree/drive`'s
- *  `subagentColourState` output. GUARANTEED never `green`/`bloom`: a claim is a coordination signal,
- *  never a proof (only a signed verdict paints the green bloom — ADR-0045). The mapper appends its
- *  `state-<colourState>` class. */
+ *  `subagentColourState` output. GUARANTEED never a PROOF signal: a claim is a coordination signal,
+ *  never a proof. Since ADR-0529/0536 retired the verdict bloom the only proof signal left on the map
+ *  is the island's proven-green STATUS hue, which a claim drawable cannot reach — so the wall holds by
+ *  construction rather than by rule. The mapper appends its `state-<colourState>` class. */
 export type ClaimColourState = 'authoring' | 'proving' | 'supplementing';
 
 /** The three claim GRADES a story claim wears (ADR-0200 D2 / D7) — which drawable family the claim
@@ -468,16 +466,13 @@ export type SceneNode =
 export type SceneTrailsInput = TrailNetwork;
 
 /** A capability rendered as garden flora — its id (the core derives the variant +
- *  jitter), folded status, position, tooltip, and an already-folded bloom. */
+ *  jitter), folded status, position and tooltip. */
 export interface ScenePlantInput {
   id: string;
   status: SceneStatus;
   x: number;
   y: number;
   title: string;
-  /** A recently-landed bloom, folded by the surface (verdict.at + now → ageRatio);
-   *  omitted when there is nothing to announce or the plant is withered. */
-  bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
 }
 
 /** A capability rendered as a PARCEL of the island's ground (forest-parcels inc 1) — its id (the
@@ -498,7 +493,7 @@ export interface SceneParcelInput {
 
 /** One island's drawable data — geometry the surface computed (centroid / treeSpot
  *  / coast / decor seeds), folded status, and the surface's folded marks (signpost
- *  presence, crown bloom, in-flight wisps) + nameplate box & text. */
+ *  presence, in-flight wisps) + nameplate box & text. */
 export interface SceneTerritoryInput {
   id: string;
   /** The folded visual status (provenStatus); drives every island hue. */
@@ -558,8 +553,6 @@ export interface SceneTerritoryInput {
    *  never replace it. OPTIONAL and back-compat: ABSENT ⇒ today's island renders BYTE-FOR-BYTE (the
    *  public website fold never sends it and must be unchanged). */
   uatCriteria?: { id: string; state: MarkerState }[];
-  /** The crown bloom, folded by the surface; omitted when withered or none. */
-  bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
   /** In-flight build wisps, folded from live builds (the core derives each orbit
    *  ROTATION from the runId — geometry, like the crown jitter). The optional
    *  `phase` is the live prove-it-gate phase the surface folds in (ADR-0048 §3 v2)
@@ -572,7 +565,7 @@ export interface SceneTerritoryInput {
    *  orbiting claim wisp per claim — a session is working this story (coordination), coloured by what
    *  the orchestrator is doing (`colourState`). The core derives the orbit ROTATION from `key` (a
    *  stable id — sessionId or unitId — geometry, like the build wisp's runId). DISTINCT from `wisps`
-   *  AND from any bloom: a claim is never a proof (the §5 honesty wall). OPTIONAL and back-compat: a
+   *  from every proof signal: a claim is never a proof (the §5 honesty wall). OPTIONAL and back-compat: a
    *  surface with no live-claim concept (the public website, which has no sessions) omits it entirely,
    *  so the claim layer is inert there — `buildClaimWisps` returns null and the render is unchanged.
    *  Absent/empty when nothing is claimed. The optional `grade` (ADR-0200 D2/D7) selects the
@@ -903,8 +896,7 @@ function text(
 
 /** The central story tree — living canopy / withered skeleton / not-yet-full young
  *  form, with the crown blobs deterministically jittered by the story id. Includes
- *  the recently-landed crown bloom and the human-witness signpost as children
- *  (matching the studio's `story-tree` group). */
+ *  the human-witness signpost as a child (matching the studio's `story-tree` group). */
 export function buildTree(t: SceneTerritoryInput, unifiedVeg = false, art: TileArt = SHIPPED_TILE_ART): SceneG {
   const st = t.status;
   const caps = t.caps;
@@ -982,14 +974,13 @@ export function buildTree(t: SceneTerritoryInput, unifiedVeg = false, art: TileA
     );
   }
 
-  if (t.bloom) children.push(buildBloom(t.id, t.bloom, 0, cy, R * 1.18, 'crown'));
   // The human-witness signpost is RETIRED under the unified vegetation vocabulary (ADR-0226 decision 5)
-  // — redundant with the (now small) UAT flowers + the crown bloom. Flag OFF ⇒ it renders as today
+  // — redundant with the (now small) UAT flowers. Flag OFF ⇒ it renders as today
   // (byte-for-byte; the public website never sends `vegetation`).
   if (t.signpost && !unifiedVeg) children.push(buildSignpost(t.signpost, R));
 
   // The tree is authored in its own frame (`crownRadius`) and scaled onto the tile here (ADR-0528
-  // D2, `TREE_SCALE`) — the trunk, litter, signpost and bloom inside scale with it.
+  // D2, `TREE_SCALE`) — the trunk, litter and signpost inside scale with it.
   return g(children, {
     kind: 'tree',
     status: st,
@@ -1037,7 +1028,7 @@ function buildSignpost(s: { outcome: 'pass' | 'fail' | null }, R: number): Scene
  *  is a hash seed for deterministic jitter (`rand01(k + i)`, never Math.random), so a cluster reads
  *  natural not cloned (lean, height, petal count, rotation all seeded). The wrapper's KIND carries the
  *  state; the body child kinds map to CSS classes, colour stays CSS-side (ADR-0093 §4). Sibling in
- *  spirit of buildBloom/buildPlant — flat pastel fills, NO isometric shading — matching the island's
+ *  spirit of buildPlant — flat pastel fills, NO isometric shading — matching the island's
  *  existing flat look and the cosy-island concept (`docs/research/grounded-art-concept`). */
 function tallFlowerMarks(state: MarkerState, k: number, small = false): SceneNode[] {
   const jx = (n: number): number => rand01(k + n) - 0.5; // per-marker jitter in [-0.5, 0.5)
@@ -1088,7 +1079,7 @@ function tallFlowerMarks(state: MarkerState, k: number, small = false): SceneNod
   });
 
   if (state === 'proven') {
-    // a soft warm glow behind the bloom — proven ONLY, low opacity, calm (no sparks: the owner's noise
+    // a soft warm glow behind the flower head — proven ONLY, low opacity, calm (no sparks: the owner's noise
     // complaint). Drawn first so the petals sit crisp on top.
     marks.push(
       circle(headX, headY, small ? 4.2 : 10.5, { kind: 'tall-flower-glow', opacity: 0.1 }),
@@ -1125,8 +1116,8 @@ function tallFlowerMarks(state: MarkerState, k: number, small = false): SceneNod
     }
     marks.push(circle(headX, headY, small ? 1.15 : 2.9, { kind: 'tall-flower-center' }));
   } else {
-    // pending: a closed teardrop bud — calm, unopened; awaiting UAT reads as the ABSENCE of bloom (the
-    // honesty wall, ADR-0045: a bud is never a bloom — only a signed pass opens).
+    // pending: a closed teardrop bud — calm, unopened; awaiting UAT reads as the ABSENCE of a flower
+    // (the honesty wall, ADR-0529: a bud is never open — only a signed pass opens it).
     const bx = headX;
     const by = headY;
     const budD = small
@@ -1323,43 +1314,6 @@ function buildUatMarkers(
 }
 
 // ---------------------------------------------------------------------------
-// the recently-landed bloom (LandingBloom)
-// ---------------------------------------------------------------------------
-
-/** A transient, decaying halo + sparkle announcing a signed PASS. The positioning
- *  translate + age-decay opacity sit on the anchor; the animated pulse rides the
- *  inner group (so a CSS scale keyframe can't clobber the translate). Geometry is
- *  seeded by the unit id, so it never jitters between the surface's now-ticks. */
-export function buildBloom(
-  unitId: string,
-  bloom: { ageRatio: number; outcome: 'pass' | 'fail' },
-  cx: number,
-  cy: number,
-  r: number,
-  kind: 'crown' | 'plant',
-): SceneG {
-  const ageOpacity = Number((0.3 + 0.65 * bloom.ageRatio).toFixed(2));
-  const n = kind === 'crown' ? 4 : 3;
-  const sparks: SceneNode[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = rand01(hash(`${unitId}:bloom:a${i}`)) * Math.PI * 2;
-    const rr = r * (0.78 + rand01(hash(`${unitId}:bloom:r${i}`)) * 0.5);
-    const sr = (kind === 'crown' ? 1.5 : 1) * (0.8 + rand01(hash(`${unitId}:bloom:s${i}`)) * 0.5);
-    // top-down squash on y, same as the wisp orbit
-    sparks.push(circle(Math.cos(a) * rr, Math.sin(a) * rr * 0.7, sr, { kind: 'bloom-spark' }));
-  }
-  const inner = g([circle(0, 0, r, { kind: 'bloom-ring' }), ...sparks], {
-    kind: kind === 'crown' ? 'bloom-crown' : 'bloom-plant',
-    outcome: bloom.outcome,
-  });
-  return g([inner], {
-    kind: 'bloom-anchor',
-    transform: `translate(${f(cx)} ${f(cy)})`,
-    opacity: ageOpacity,
-  });
-}
-
-// ---------------------------------------------------------------------------
 // a capability as garden flora (GardenPlant)
 // ---------------------------------------------------------------------------
 
@@ -1373,7 +1327,6 @@ export function buildPlant(p: ScenePlantInput, art: TileArt = SHIPPED_TILE_ART):
   if (dead) children.push(ellipse(0, 0.5, 8, 3.2, { kind: 'dead-ground' }));
   children.push(ellipse(1, 1, dead ? 6 : 8, dead ? 2.2 : 2.6, { kind: 'shadow' }));
   children.push(buildPlantBody(dead, variant));
-  if (p.bloom) children.push(buildBloom(p.id, p.bloom, 0, -5, 8, 'plant'));
   return g(children, {
     kind: 'flora',
     status: p.status,
@@ -1554,8 +1507,9 @@ function buildWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
  *  and lays the glow/dot/hit at the orbit radius. The mapper drives the rotation from `phase`.
  *
  *  §5 honesty wall (non-negotiable): a claim wisp is a DISTINCT drawable family (`claim-wisp*` kinds)
- *  carrying a `colourState` that is NEVER `green`/`bloom` — only a signed verdict paints the green
- *  bloom (ADR-0045). A claimed-but-not-proven story can therefore never render as a proven-green one.
+ *  carrying a `colourState` that is NEVER a proof signal — only a signed verdict greens the island
+ *  (ADR-0529/0536 retired the per-landing bloom, so the status hue is the whole proof vocabulary).
+ *  A claimed-but-not-proven story can therefore never render as a proven-green one.
  *  Orbits a touch wider than the build wisp so the two layers read as distinct when both are present. */
 // The window-shopping orbit radius (ADR-0212 channel 1) is `TileArt.hoverOrbitR`: small and LOCAL —
 // deliberately far tighter than the work stage's whole-island orbit, so the two stages read apart on
@@ -1603,7 +1557,7 @@ function buildClaimWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
                 { transform: `translate(${f(art.hoverOrbitR)} 0) scale(${f(art.scale)})` },
               ),
             ],
-            // `title` carries the claim's intent prose; NEVER an `outcome`/`bloom` (the §5 wall).
+            // `title` carries the claim's intent prose; NEVER a proof signal (the §5 wall).
             { kind: 'hover-wisp', title: c.title, phase, colourState: c.colourState },
           ),
         ],
@@ -1627,14 +1581,14 @@ function buildClaimWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
             { transform: `translate(${f(qx)} 0) scale(${f(art.scale)})` },
           ),
         ],
-        // NEVER carries an `outcome`/`bloom` (the §5 wall).
+        // NEVER carries a proof signal (the §5 wall).
         { kind: 'queue-wisp', title: c.title, colourState: c.colourState },
       );
     }
     // WORK — today's orbiting claim wisp, unchanged (the ADR-0200 D2 regression lock).
     const phase = rand01(hash(c.key)) * 360;
     // `phase` is the orbit ROTATION (geometry); `colourState` is the subagent role (form) — two
-    // independent fields (location ⟂ form). NEVER carries an `outcome`/`bloom` (the §5 wall).
+    // independent fields (location ⟂ form). NEVER carries a proof signal (the §5 wall).
     // `phaseBand` (ADR-0212) is the live build state folded onto this ONE body, replacing the
     // separate orbiting build wisp: colour stays INTENT (`colourState`, never green), the band is
     // the build phase. Absent when no build runs on this story — back-compat byte-for-byte, which
@@ -1671,7 +1625,7 @@ function buildClaimWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
  *  proportional to `ageRatio` (the "leaving" translation, encoded deterministically in geometry).
  *  `ageRatio` (0..1, surface-computed) rides the node for the mapper's fade — the curve itself is
  *  the mapper/CSS's job (the later operator-attested LOOK stage). Same §5 honesty wall as the claim
- *  families: a departure is a coordination trace, never a bloom, never an `outcome`. Absent/empty ⇒
+ *  families: a departure is a coordination trace, never a proof signal. Absent/empty ⇒
  *  no layer (the website back-compat mirror of `buildClaimWisps`). */
 function buildDepartingWisps(t: SceneTerritoryInput, art: TileArt): SceneG | null {
   const departures = t.departures ?? [];
@@ -1694,7 +1648,7 @@ function buildDepartingWisps(t: SceneTerritoryInput, art: TileArt): SceneG | nul
           { transform: `translate(${f(x)} ${f(y)}) scale(${f(art.scale)})` },
         ),
       ],
-      // stationary (no `phase`); `ageRatio` is the mapper's fade input. NEVER `outcome`/`bloom`.
+      // stationary (no `phase`); `ageRatio` is the mapper's fade input. NEVER a proof signal.
       { kind: 'departing-wisp', title: d.title, ageRatio: d.ageRatio },
     );
   });
@@ -3075,7 +3029,7 @@ function grassMarks(k: number): SceneNode[] {
  *  a y-sorted `baked-use` so it interleaves in painter order with anything else on the island. The caller
  *  SUPPRESSES the decorative flora. The unified vegetation vocabulary applies here too (ADR-0226
  *  promotion): the UAT criteria render as the same small-flower scatter every island speaks, and the
- *  human-witness signpost is retired (redundant with the UAT flowers + crown bloom). */
+ *  human-witness signpost is retired (redundant with the UAT flowers). */
 function buildGardenArt(
   t: SceneTerritoryInput,
   garden: SceneGardenInput,
@@ -3098,7 +3052,7 @@ function buildGardenArt(
     node: gardenHeroUse('autumn-tree', t.treeSpot.x, t.treeSpot.y, treeScale),
   });
   // the human-witness signpost is RETIRED here too (ADR-0226 decision 5 — the unified vocabulary; the
-  // UAT flowers + crown bloom carry the story-level UAT state).
+  // the UAT flowers carry the story-level UAT state).
   // the free-standing garden heroes — cottage + gazebo: each FITTED to the island, then placed so the
   // whole fitted footprint sits on owned land (unit 2 — the owner's "fully land within the island" fix).
   const freeIds: GardenHeroId[] = ['cottage', 'gazebo'];
@@ -3307,11 +3261,11 @@ export function buildTerritoryFlora(
   const wisps = buildWisps(t, art);
   if (wisps) children.push(wisps);
   // ADR-0138 §5: the story-claim orbit ("a session is here") — a DISTINCT drawable family from the
-  // build wisp, never a bloom. Layered after the build wisps so when both run the claim reads outside.
+  // build wisp, never a proof signal. Layered after the build wisps so when both run the claim reads outside.
   const claimWisps = buildClaimWisps(t, art);
   if (claimWisps) children.push(claimWisps);
   // ADR-0200 D7: the departure layer ("a session just left") — after the claim layer, same
-  // absent/empty ⇒ nothing rule, same §5 honesty wall (never a bloom).
+  // absent/empty ⇒ nothing rule, same §5 honesty wall (never a proof signal).
   const departingWisps = buildDepartingWisps(t, art);
   if (departingWisps) children.push(departingWisps);
 

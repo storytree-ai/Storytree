@@ -362,18 +362,19 @@ function resolvedProfile(fullCss: string, nonKeyframeCss: string, suffix: string
 
 // semantic-growth-studio-demo (stories/app-surface/semantic-growth-studio-demo.md): an explicit
 // `?semanticGrowth=demo` query flag mounts the public `SemanticGrowthWorldView` over one static,
-// representative six-frame fixture; absent/empty/unknown values leave the clean Studio route byte-
+// representative five-frame fixture (ADR-0536 dropped the sixth, `signed-proof`, with the verdict
+// bloom it was the only consumer of); absent/empty/unknown values leave the clean Studio route byte-
 // for-byte unchanged. `SemanticGrowthWorldView` stamps its current frame as
 // `data-semantic-growth-frame` on its host <section> and exposes a `nav[aria-label="Semantic growth
 // controls"]` with Back/Next/Replay buttons (packages/app-surface/src/SemanticGrowthWorldView.tsx) —
 // this regression locks TreeView's wiring to that public contract without importing it, so a red here
 // can only be TreeView ignoring the flag (today's actual behaviour), never a missing symbol.
-describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-clean-studio-never-mounts-the-demo, sgsd-flag-mounts-one-public-six-frame-player', () => {
+describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-clean-studio-never-mounts-the-demo, sgsd-flag-mounts-one-public-five-frame-player', () => {
   afterEach(() => {
     window.history.pushState({}, '', '/');
   });
 
-  it('the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public six-frame player, steppable via its own Next control', async () => {
+  it('the clean route (and any unknown value) never mounts the demo; only the exact flag mounts one public five-frame player, steppable via its own Next control', async () => {
     // 1) Clean Studio (no `semanticGrowth` key at all): no semantic-growth fixture, no demo controls.
     const clean = await renderTree();
     expect(clean.querySelector('[data-semantic-growth-frame]')).toBeNull();
@@ -388,7 +389,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     cleanup();
 
     // 3) `?semanticGrowth=demo#/tree`: mounts exactly one public SemanticGrowthWorldView player,
-    // starting on the first of its six ordered frames (`empty`).
+    // starting on the first of its five ordered frames (`empty`).
     window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
     const flagged = await renderTree();
     const frames = flagged.querySelectorAll('[data-semantic-growth-frame]');
@@ -491,7 +492,6 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(plant).toBeTruthy();
       expect(plant?.getAttribute('href')).toMatch(/plant\/frame-00\.png/);
 
-      await act(async () => next.click()); // signed-proof
       await act(async () => next.click()); // healthy
       expect(
         flagged.querySelector(
@@ -656,12 +656,17 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   });
 
   // sgsd-fixture-is-static-and-semantically-honest (stories/app-surface/semantic-growth-studio-demo.md
-  // machine contract 3): "signed-proof remains proposed/non-healthy while carrying the proof bloom;
-  // healthy appears only last" / "no pre-final frame may appear healthy". The `signed-proof` frame is
-  // the FIFTH of six (index 4), not the final one — its underlying story must still wear the SAME
-  // non-healthy status as the `proposed`/`claimed` frames (it only gains the real signed-proof bloom on
-  // top), and only the sixth, final `healthy` frame may render with the `st-healthy` territory class.
-  it('signed-proof stays proposed/non-healthy while carrying the proof bloom; healthy appears only last', async () => {
+  // machine contract 3): "no pre-final frame may appear healthy; healthy appears only last."
+  //
+  // REWRITTEN, NOT DELETED (ADR-0536 D5). This case used to name the `signed-proof` frame
+  // specifically — the fifth of six, whose whole point was that it carried a signed verdict's bloom
+  // while its story was STILL marked proposed. ADR-0529 retired the bloom, ADR-0536 dropped the
+  // frame, and the surviving requirement is the general one that frame was the sharpest instance
+  // of: NO frame before the last may render `st-healthy`. Asserting it over EVERY pre-final frame
+  // rather than the one is strictly stronger, and it is what a careless deletion would have lost —
+  // walking only to `claimed` and checking that one frame would leave `land` and `proposed`
+  // unchecked.
+  it('no pre-final frame appears healthy; healthy appears only last', async () => {
     window.history.pushState({}, '', '/?semanticGrowth=demo#/tree');
     const flagged = await renderTree();
     const nav = flagged.querySelector('nav[aria-label="Semantic growth controls"]');
@@ -669,30 +674,43 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     const nextButton = Array.from(nav!.querySelectorAll('button')).find((b) => b.textContent === 'Next');
     expect(nextButton).toBeTruthy();
 
-    // Walk empty -> land -> proposed -> claimed -> signed-proof (four Next clicks).
-    for (let i = 0; i < 4; i += 1) {
-      await act(async () => {
-        nextButton!.click();
-      });
+    const frameKey = (): string | null =>
+      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame') ?? null;
+
+    // The PRIMARY story's own territory, selected by id: the fixture also carries a fixed
+    // COMPANION witness territory that is `healthy` on every frame by design, so an unscoped
+    // `.hex-territory` would read the companion's hue on `empty`/`land` (where the primary has no
+    // territory at all) and call the walk dishonest.
+    const primaryTerritory = (): Element | null =>
+      flagged.querySelector('.hex-territory[data-story-id="semantic-growth-demo"]');
+
+    // empty -> land -> proposed -> claimed: every frame before the last, checked as we pass it.
+    for (const key of ['empty', 'land', 'proposed', 'claimed'] as const) {
+      if (key !== 'empty') {
+        await act(async () => {
+          nextButton!.click();
+        });
+      }
+      expect(frameKey()).toBe(key);
+      const territory = primaryTerritory();
+      // `empty`/`land` have no primary identity yet; `proposed`/`claimed` must have one, and it
+      // must not be healthy.
+      if (key === 'empty' || key === 'land') {
+        expect(territory, `${key} must carry no primary territory yet`).toBeNull();
+      } else {
+        expect(territory, `${key} must carry the primary territory`).toBeTruthy();
+        expect(territory!.classList.contains('st-healthy'), `${key} must not appear healthy`).toBe(false);
+      }
     }
-    expect(
-      flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
-    ).toBe('signed-proof');
 
-    const signedProofTerritory = flagged.querySelector('.hex-territory');
-    expect(signedProofTerritory).toBeTruthy();
-    expect(signedProofTerritory!.classList.contains('st-healthy')).toBe(false);
-    // The real signed-proof bloom is still carried on this pre-final frame.
-    expect(flagged.querySelector('.world-bloom')).toBeTruthy();
-
-    // The sixth and FINAL Next reaches `healthy` — the only frame allowed to appear healthy.
+    // The fifth and FINAL Next reaches `healthy` — the only frame allowed to appear healthy.
     await act(async () => {
       nextButton!.click();
     });
     expect(
       flagged.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
     ).toBe('healthy');
-    const healthyTerritory = flagged.querySelector('.hex-territory');
+    const healthyTerritory = primaryTerritory();
     expect(healthyTerritory).toBeTruthy();
     expect(healthyTerritory!.classList.contains('st-healthy')).toBe(true);
   });
@@ -871,7 +889,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     // `proposed` onward: the primary's identity narrates, and its real drawn route reaches the
     // shared renderer as a lit, one-shot-drawing lane — sourced from the real trail network, never
     // invented, never a static ink lane.
-    for (const key of ['proposed', 'claimed', 'signed-proof', 'healthy']) {
+    for (const key of ['proposed', 'claimed', 'healthy']) {
       await act(async () => {
         nextButton!.click();
       });
@@ -960,7 +978,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
 
     // EXACTLY ONCE: every later frame carries no plan, so it simply paints the trail — no mask,
     // no growth class, and no dangling reference left behind.
-    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+    for (const key of ['claimed', 'healthy']) {
       await act(async () => {
         nextButton!.click();
       });
@@ -979,13 +997,14 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   // the companion's own real capability renders as procedural `story-tree` + capability `garden-flora`
   // (`SceneVegetationInput`'s only field is optional `heroTrees`; `VEGETATION = {}` supplies none, so
   // the tree stays procedural, never a garden hero). The companion is BYTE-STABLE witness context
-  // across all six frames — it never narrates the health walk and never carries a claim or a
-  // signed-proof bloom — while the PRIMARY story (and only the primary) carries the six-state
-  // narrative: no ground/identity at `empty`, real ground with no identity at `land`, the pale
-  // non-healthy identity from `proposed`, presence-without-proof at `claimed`, the non-healthy
-  // signed-proof bloom at `signed-proof`, and healthy only last. Exactly the render/source case
+  // across all five frames — it never narrates the health walk and never carries a claim or any
+  // proof mark — while the PRIMARY story (and only the primary) carries the five-state narrative:
+  // no ground/identity at `empty`, real ground with no identity at `land`, the pale non-healthy
+  // identity from `proposed`, presence-without-proof at `claimed`, and healthy only last. (A sixth
+  // state stood between the last two — a still-`proposed` story wearing the verdict bloom; ADR-0529
+  // retired the bloom and ADR-0536 dropped the frame.) Exactly the render/source case
   // `real-ms22cssp` omitted (adding it alone, with no D/E CSS audit, is equally invalid).
-  it('sgsd-companion-witness-territory: a fixed companion territory survives every frame (real story-tree + garden-flora, never claim/proof) while only the primary narrates the six-state walk, over both Vector and a Storybook sprite sheet', async () => {
+  it('sgsd-companion-witness-territory: a fixed companion territory survives every frame (real story-tree + garden-flora, never claim/proof) while only the primary narrates the five-state walk, over both Vector and a Storybook sprite sheet', async () => {
     const source = readFileSync(
       resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
@@ -1047,7 +1066,13 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         expect(scope.querySelector(identity.tree), `companion story-tree missing @ ${label}`).toBeTruthy();
         expect(scope.querySelector(identity.flora), `companion garden-flora missing @ ${label}`).toBeTruthy();
         expect(scope.querySelector('.world-claim-wisp'), `companion must never claim @ ${label}`).toBeNull();
-        expect(scope.querySelector('.world-bloom'), `companion must never carry proof @ ${label}`).toBeNull();
+        // never a PROOF either: the verdict bloom used to be the mark checked here (ADR-0529/0536
+        // retired it), so the surviving proof signal is the island's own `st-healthy` hue — and the
+        // companion's status is separately pinned byte-stable above, which is what makes this real.
+        expect(
+          scope.classList.contains('st-healthy') && companionStatus !== 'st-healthy',
+          `companion must never carry proof @ ${label}`,
+        ).toBe(false);
       };
 
       expect(frameKeyOf(container)).toBe('empty');
@@ -1081,19 +1106,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(list.find((t) => t.id === primaryId)!.status).toBe('st-proposed'); // a claim never proves.
       const primaryScopeAtClaimed = container.querySelector(`.hex-territory[data-story-id="${primaryId}"]`)!;
       expect(primaryScopeAtClaimed.querySelector('.world-claim-wisp')).toBeTruthy();
-      expect(primaryScopeAtClaimed.querySelector('.world-bloom')).toBeNull();
       assertCompanion('claimed');
-
-      await act(async () => {
-        next.click();
-      });
-      expect(frameKeyOf(container)).toBe('signed-proof');
-      list = territoriesIn(container);
-      expect(list.find((t) => t.id === primaryId)!.status).toBe('st-proposed'); // still non-healthy.
-      expect(
-        container.querySelector(`.hex-territory[data-story-id="${primaryId}"] .world-bloom`),
-      ).toBeTruthy();
-      assertCompanion('signed-proof');
 
       await act(async () => {
         next.click();
@@ -1106,8 +1119,8 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       await act(async () => {
         back.click();
       });
-      expect(frameKeyOf(container)).toBe('signed-proof');
-      assertCompanion('signed-proof (via Back)');
+      expect(frameKeyOf(container)).toBe('claimed');
+      assertCompanion('claimed (via Back)');
 
       await act(async () => {
         replay.click();
@@ -1168,12 +1181,8 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(vector.container.querySelector('.parcel-flora')).toBeTruthy();
     await act(async () => {
       vNext!.click();
-    }); // -> claimed
+    }); // -> claimed (the LAST frame any role enters on, since ADR-0536 dropped `signed-proof`)
     expect(vector.container.querySelector('.world-claim-wisp')).toBeTruthy();
-    await act(async () => {
-      vNext!.click();
-    }); // -> signed-proof
-    expect(vector.container.querySelector('.world-bloom')).toBeTruthy();
     vector.unmount();
 
     const treeProfile = resolvedProfile(css, nonKeyframeCss, '.story-tree .pop-motion-inner');
@@ -1181,7 +1190,6 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     const plateProfile = resolvedProfile(css, nonKeyframeCss, '.world-plate .pop-motion-inner');
     const boundaryProfile = resolvedProfile(css, nonKeyframeCss, '.parcel');
     const parcelFloraProfile = resolvedProfile(css, nonKeyframeCss, '.parcel-flora');
-    const bloomProfile = resolvedProfile(css, nonKeyframeCss, '.world-bloom');
     const wispProfile = resolvedProfile(css, nonKeyframeCss, '.world-claim-wisp');
 
     const storybookSheet: SpriteStyleSheet = {
@@ -1210,29 +1218,33 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     const spriteTreeProfile = resolvedProfile(css, nonKeyframeCss, 'image.story-tree');
     const spriteFloraProfile = resolvedProfile(css, nonKeyframeCss, 'image.garden-flora');
 
-    for (const profile of [
-      treeProfile,
-      floraProfile,
-      plateProfile,
-      boundaryProfile,
-      parcelFloraProfile,
-      bloomProfile,
-      wispProfile,
-      spriteTreeProfile,
-      spriteFloraProfile,
-    ]) {
-      expect(profile).toBeTruthy();
+    const namedProfiles = [
+      ['tree', treeProfile],
+      ['flora', floraProfile],
+      ['plate', plateProfile],
+      ['parcel-boundary', boundaryProfile],
+      ['parcel-flora', parcelFloraProfile],
+      ['claim-wisp', wispProfile],
+      ['sprite-tree', spriteTreeProfile],
+      ['sprite-flora', spriteFloraProfile],
+    ] as const;
+    for (const [role, profile] of namedProfiles) {
+      expect(profile, role).toBeTruthy();
     }
 
-    // bloom pulses exactly once (finite), never forever, and settles fully opaque/at rest scale.
-    expect(bloomProfile!.iteration).toBe(1);
-    expect(['forwards', 'both']).toContain(bloomProfile!.fill);
-    const bloomOffsets = [...(bloomProfile!.keyframe?.keys() ?? [])].sort((a, b) => a - b);
-    const bloomTerminalOffset = bloomOffsets[bloomOffsets.length - 1];
-    const bloomTerminal =
-      bloomTerminalOffset === undefined ? undefined : bloomProfile!.keyframe!.get(bloomTerminalOffset);
-    expect(bloomTerminal).toMatch(/scale:\s*1(?:\.0+)?(?:;|$)/);
-    expect(bloomTerminal).toMatch(/opacity:\s*1(?:\.0+)?(?:;|$)/);
+    // EVERY ARRIVAL PLAYS EXACTLY ONCE (finite), never forever, and settles at rest. Written as
+    // "the bloom pulses exactly once" over the retired signed-proof frame's own animation; ADR-0536
+    // D5 requires the criterion be rewritten rather than dropped, so it now binds every role the
+    // walk still has — strictly more than it bound before, and the same defect class: a semantic
+    // arrival that loops is a map that never comes to rest.
+    for (const [role, profile] of namedProfiles) {
+      expect(profile!.iteration, `${role} must play a finite number of times`).toBe(1);
+    }
+
+    // no orphan profile survives the retired role.
+    const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(cssCode).not.toMatch(/@keyframes\s+bloom-pulse\b/);
+    expect(cssCode).not.toMatch(/\.world-bloom\b/);
 
     // parcel boundary is a ground reveal (opacity only, never scale); parcel flora is a rooted growth
     // (scale + opacity) — a real property-SET difference, never just differing numeric endpoints.
@@ -1293,7 +1305,6 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       '.parcel',
       '.parcel-flora',
       '.world-claim-wisp',
-      '.world-bloom',
     ]) {
       const reducedRules = findRules(nonKeyframeCss, suffix).filter(
         (r) => /data-motion=['"]reduced['"]/.test(r.selector) && /animation(?:-name)?:\s*(?!none\b)/.test(r.body),
@@ -1322,7 +1333,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(groundSelectors.length).toBeGreaterThan(0);
     for (const selector of groundSelectors) {
       expect(matchesFrame(selector, 'land')).toBe(true);
-      for (const forbidden of ['claimed', 'signed-proof', 'healthy']) {
+      for (const forbidden of ['claimed', 'healthy']) {
         expect(matchesFrame(selector, forbidden)).toBe(false);
       }
     }
@@ -1331,7 +1342,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(popSelectors.length).toBeGreaterThan(0);
     for (const selector of popSelectors) {
       expect(matchesFrame(selector, 'proposed')).toBe(true);
-      for (const forbidden of ['claimed', 'signed-proof', 'healthy']) {
+      for (const forbidden of ['claimed', 'healthy']) {
         expect(matchesFrame(selector, forbidden)).toBe(false);
       }
     }
@@ -1340,17 +1351,18 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     expect(wispSelectors.length).toBeGreaterThan(0);
     for (const selector of wispSelectors) {
       expect(matchesFrame(selector, 'claimed')).toBe(true);
-      for (const forbidden of ['signed-proof', 'healthy']) {
-        expect(matchesFrame(selector, forbidden)).toBe(false);
-      }
-    }
-
-    const bloomSelectors = selectorsAnimatedBy('bloom-pulse');
-    expect(bloomSelectors.length).toBeGreaterThan(0);
-    for (const selector of bloomSelectors) {
-      expect(matchesFrame(selector, 'signed-proof')).toBe(true);
       expect(matchesFrame(selector, 'healthy')).toBe(false);
     }
+
+    // `claimed` is the LAST frame a role enters on. This audit used to end by pinning the bloom's
+    // rule to the fifth frame `signed-proof`; ADR-0529/0536 retired both, and the complement is the
+    // five-step walk's own strongest statement — no rule anywhere may be qualified by a frame past
+    // `claimed`, nor by the retired key at all (ADR-0536 D5: rewrite the criterion, never drop it).
+    expect(css).not.toMatch(/\[data-semantic-growth-frame=['"]signed-proof['"]\]/);
+    const enteringFrameKeys = new Set(
+      [...css.matchAll(/\[data-semantic-growth-frame=['"]([^'"]+)['"]\]/g)].map((m) => m[1] ?? ''),
+    );
+    expect([...enteringFrameKeys].sort()).toEqual(['claimed', 'land', 'proposed']);
   });
 });
 
@@ -1523,7 +1535,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
       const lab = await renderTree();
 
-      // Exactly one public player, on the first of its six ordered frames.
+      // Exactly one public player, on the first of its five ordered frames.
       const sections = lab.querySelectorAll('[data-semantic-growth-frame]');
       expect(sections).toHaveLength(1);
       const section = sections[0]!;
@@ -1677,7 +1689,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
 
       // Next still drives the public player from where the walk actually stands.
       await act(async () => next.click());
-      expect(playerNode.getAttribute('data-semantic-growth-frame')).toBe('signed-proof');
+      expect(playerNode.getAttribute('data-semantic-growth-frame')).toBe('healthy');
     } finally {
       restoreMotion();
     }
@@ -1825,6 +1837,30 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
         lab.querySelector<HTMLButtonElement>('[data-r3-lab-candidate="exp-18"]')!.click(),
       );
 
+      // ⚠ THE SCENE IS COMPARED AS CANONICAL MARKUP, NOT `outerHTML` — because `outerHTML` reports
+      // React's ATTRIBUTE WRITE ORDER, which is not a property of the render. A freshly MOUNTED
+      // element serialises in JSX order; the same element reached by PATCHING an existing one
+      // serialises in patch order, so `<g class=… transform=…>` and `<g transform=… class=…>` are
+      // the identical picture while an `outerHTML` compare calls them different. That is exactly
+      // what a trace-vs-replayed-trace comparison does: the first pass mounts, the second patches.
+      // It bit when the walk shortened to five frames (ADR-0536) — the patch boundaries moved and
+      // the companion's `garden-flora` began serialising the other way round on `empty`/`land`: a
+      // false red about attribute order, in a case that is about cue/progress/frame determinism.
+      const canonicalMarkup = (root: Element | null | undefined): string | null => {
+        if (!root) return null;
+        const emit = (el: Element): string => {
+          const attrs = [...el.attributes]
+            .map((a) => `${a.name}="${a.value}"`)
+            .sort()
+            .join(' ');
+          const children = [...el.childNodes]
+            .map((n) => (n.nodeType === 1 ? emit(n as Element) : (n.textContent ?? '')))
+            .join('');
+          return `<${el.tagName}${attrs ? ` ${attrs}` : ''}>${children}</${el.tagName}>`;
+        };
+        return emit(root);
+      };
+
       const sample = () => ({
         cue: section.getAttribute('data-semantic-growth-frame'),
         motion: section.getAttribute('data-motion'),
@@ -1847,13 +1883,14 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
             ],
           };
         }),
-        scene: section.querySelector('svg')?.outerHTML ?? null,
+        scene: canonicalMarkup(section.querySelector('svg')),
       });
 
-      // The trace: forward through the whole walk, back twice, forward again.
+      // The trace: forward through the whole walk (four Nexts over five frames), back twice,
+      // forward again.
       const trace = async (): Promise<unknown[]> => {
         const out: unknown[] = [sample()];
-        for (let i = 0; i < 5; i += 1) {
+        for (let i = 0; i < 4; i += 1) {
           await act(async () => next.click());
           out.push(sample());
         }
@@ -1867,11 +1904,14 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       };
 
       const first = await trace();
-      // The comparison below is only worth anything if the trace SAW something: nine samples over
-      // six distinct states, where the three visits to `signed-proof` (forward, then Back, then
-      // Next again) collapse to ONE — which is the determinism claim stated as a count.
-      expect(first).toHaveLength(9);
-      expect(new Set(first.map((sampled) => JSON.stringify(sampled))).size).toBe(6);
+      // The comparison below is only worth anything if the trace SAW something: the samples must
+      // cover every distinct state the walk has, with the repeated visits to the frame the trace
+      // lands on (forward, then Back, then Next again) collapsing to ONE — which is the
+      // determinism claim stated as a count. The walk lost a frame with ADR-0536, so both numbers
+      // moved down by one; they are still the walk's own length and the trace's own sample count,
+      // never free constants.
+      expect(first).toHaveLength(8);
+      expect(new Set(first.map((sampled) => JSON.stringify(sampled))).size).toBe(5);
       expect(
         first.filter((sampled) => (sampled as { sockets: unknown[] }).sockets.length === 2),
       ).not.toHaveLength(0);
@@ -1952,7 +1992,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
     expect(unresolvedMaskRefs()).toEqual([]);
 
     // EXACTLY ONCE: later frames carry no plan, so nothing is left half-wired.
-    for (const key of ['claimed', 'signed-proof', 'healthy']) {
+    for (const key of ['claimed', 'healthy']) {
       await act(async () => next.click());
       expect(section.getAttribute('data-semantic-growth-frame')).toBe(key);
       expect(masks(), `masks lingering @ ${key}`).toHaveLength(0);

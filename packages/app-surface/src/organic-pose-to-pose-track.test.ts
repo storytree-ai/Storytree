@@ -143,11 +143,17 @@ describe('Experiment 1 organic pose-to-pose tracks', () => {
     expect(organicPoseFrameAtProgress(hero!, Number.POSITIVE_INFINITY).index).toBe(3);
   });
 
-  it('owns six cue transitions, smoothstep easing, and holds in app state', () => {
-    expect(ORGANIC_POSE_CUE_TARGETS).toEqual([0, 0.18, 0.38, 0.6, 0.8, 1]);
+  it('owns one cue per walk frame — five, ending AT the mature pose — smoothstep easing, and holds in app state', () => {
+    // The count is the semantic-growth walk's own length (ADR-0536 dropped the `signed-proof`
+    // frame with the verdict bloom, so this went from six to five). The LAST target being exactly
+    // 1 is the load-bearing part: it is what makes walking to the end reach each track's mature
+    // pose, and a table left one entry long after the walk shortened would strand the walk at 0.8
+    // — a half-grown tree on the settled frame, which no assertion about the count alone catches.
+    expect(ORGANIC_POSE_CUE_TARGETS).toEqual([0, 0.18, 0.38, 0.6, 1]);
+    expect(ORGANIC_POSE_CUE_TARGETS[ORGANIC_POSE_CUE_TARGETS.length - 1]).toBe(1);
     expect(ORGANIC_POSE_PLAYBACK_POLICY.easing).toBe('smoothstep');
-    expect(ORGANIC_POSE_PLAYBACK_POLICY.transitionMs).toHaveLength(6);
-    expect(ORGANIC_POSE_PLAYBACK_POLICY.holdMs).toHaveLength(6);
+    expect(ORGANIC_POSE_PLAYBACK_POLICY.transitionMs).toHaveLength(ORGANIC_POSE_CUE_TARGETS.length);
+    expect(ORGANIC_POSE_PLAYBACK_POLICY.holdMs).toHaveLength(ORGANIC_POSE_CUE_TARGETS.length);
 
     const selected = selectOrganicPoseCue(initialOrganicPosePlayback(), 3, false);
     const quarter = advanceOrganicPosePlayback(selected, selected.transitionMs / 4);
@@ -232,10 +238,14 @@ describe('Experiment 1 organic pose-to-pose tracks', () => {
 
   it('settles reduced motion immediately on the same cue endpoints and frames', () => {
     const registry = validateOrganicPoseRegistry(makeRegistry());
-    const full = settle(selectOrganicPoseCue(initialOrganicPosePlayback(), 5, false));
-    const reduced = selectOrganicPoseCue(initialOrganicPosePlayback(), 5, true);
+    // the LAST cue, whichever index that is (the walk shortened to five with ADR-0536, so the
+    // literal 5 here would silently have become an out-of-range index the bounding clamps back to
+    // the same place — a test that kept passing while measuring the wrong cue).
+    const lastCue = ORGANIC_POSE_CUE_TARGETS.length - 1;
+    const full = settle(selectOrganicPoseCue(initialOrganicPosePlayback(), lastCue, false));
+    const reduced = selectOrganicPoseCue(initialOrganicPosePlayback(), lastCue, true);
     expect(reduced).toMatchObject({
-      cueIndex: 5,
+      cueIndex: lastCue,
       progress: 1,
       targetProgress: 1,
       transitionMs: 0,

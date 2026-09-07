@@ -358,7 +358,7 @@ describe('connected SVG island accretion renderer and public player', () => {
   it('uses the existing app clock for deterministic Back/Replay and selects exact settled geometry immediately under reduced motion', () => {
     const matureScene = islandScene();
     const emptyScene = withoutPrimaryLand(matureScene);
-    const ordered = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+    const ordered = ['empty', 'land', 'proposed', 'claimed', 'healthy'] as const;
     const frames: readonly SemanticGrowthFrame[] = ordered.map((key, index) => ({
       key,
       model: normalizeWorldPresentationModel({ scene: index === 0 ? emptyScene : matureScene }),
@@ -450,7 +450,7 @@ describe('connected SVG island accretion renderer and public player', () => {
 
     const matureScene = islandScene();
     const emptyScene = withoutPrimaryLand(matureScene);
-    const ordered = ['empty', 'land', 'proposed', 'claimed', 'signed-proof', 'healthy'] as const;
+    const ordered = ['empty', 'land', 'proposed', 'claimed', 'healthy'] as const;
     const frames: readonly SemanticGrowthFrame[] = ordered.map((key, index) => ({
       key,
       model: normalizeWorldPresentationModel({ scene: index === 0 ? emptyScene : matureScene }),

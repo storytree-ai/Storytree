@@ -13,8 +13,8 @@
 // Pure and dependency-free like `sprite-sheet.ts` (no React, no DOM) — the shared `SceneView` is the only
 // consumer. Measurement is deliberately conservative: only `translate`/`scale` transforms are folded
 // (a child carrying any other op is skipped), text is unmeasurable (skipped), and pure hit-targets /
-// companion marks that are not part of the object's visual mass (`flora-hit`, blooms, signposts) are
-// excluded so a blooming tree does not render a bigger sprite than its neighbour.
+// companion marks that are not part of the object's visual mass (`flora-hit`, signposts) are
+// excluded so a witnessed tree does not render a bigger sprite than its neighbour.
 
 import type { BakedPaintNode, SceneBakedDef, SceneNode } from '@storytree/forest-world';
 import type { SpriteDef } from './sprite-sheet.js';
@@ -27,13 +27,13 @@ export interface Bounds {
   maxY: number;
 }
 
-/** Marks excluded from a wrapper's visual mass: pure hit-targets, plus companion marks (blooms,
- *  signposts) that ride on a tree but are not the tree — including them would size a blooming tree's
- *  sprite differently from its neighbour's. */
+/** Marks excluded from a wrapper's visual mass: pure hit-targets, plus companion marks (the
+ *  human-witness signpost) that ride on a tree but are not the tree — including them would size a
+ *  witnessed tree's sprite differently from its neighbour's. (`bloom-anchor` stood here too until
+ *  ADR-0529/0536 retired the verdict bloom; no per-landing mark rides a tree any more.) */
 const SKIP_KINDS: ReadonlySet<string> = new Set([
   'flora-hit',
   'hit',
-  'bloom-anchor',
   'sign-blank',
   'sign-pass',
   'sign-fail',

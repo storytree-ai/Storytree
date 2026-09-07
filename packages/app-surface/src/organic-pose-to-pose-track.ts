@@ -77,14 +77,23 @@ export interface RegisteredOrganicPoseRegistry {
   readonly budget: OrganicPoseRegistryBudget;
 }
 
+/**
+ * ONE CUE PER FRAME OF THE SEMANTIC-GROWTH WALK — so this table's LENGTH is the walk's length, and
+ * the last entry must be 1 or the mature pose is unreachable by walking to the end.
+ *
+ * The walk lost its fifth frame (`signed-proof`) with the verdict bloom (ADR-0529/0536), so the cue
+ * that served it — target `0.8`, transition `560ms`, hold `80ms` — went with it and `healthy` moved
+ * up into its place at target 1. The remaining targets and timings are UNCHANGED: `empty` 0,
+ * `land` 0.18 (the island's own `settledAtProgress`), `proposed` 0.38, `claimed` 0.6, `healthy` 1.
+ */
 export const ORGANIC_POSE_CUE_TARGETS = Object.freeze(
-  [0, 0.18, 0.38, 0.6, 0.8, 1] as const,
+  [0, 0.18, 0.38, 0.6, 1] as const,
 );
 
 export const ORGANIC_POSE_PLAYBACK_POLICY = Object.freeze({
   easing: 'smoothstep' as const,
-  transitionMs: Object.freeze([0, 520, 620, 680, 560, 720] as const),
-  holdMs: Object.freeze([0, 80, 120, 100, 80, 220] as const),
+  transitionMs: Object.freeze([0, 520, 620, 680, 720] as const),
+  holdMs: Object.freeze([0, 80, 120, 100, 220] as const),
 });
 
 export type OrganicPosePlaybackPhase = 'settled' | 'transitioning' | 'holding';

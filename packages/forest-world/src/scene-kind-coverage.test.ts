@@ -214,9 +214,9 @@ function forcedCaveTrails(): ReturnType<typeof routeTrails> {
  * THE STUDIO MAP as `TreeView.worldToScene` / `territoryToScene` shape it (apps/studio,
  * `TreeView.tsx` — `worldToScene` passes `null, null` for `bakedStone`/`garden` and always composes
  * `vegetation`; `territoryToScene` sends `parcels` for every island with caps, `uatCriteria` when
- * the story has any, `bloom` from the verdict, `claims` + `departures` from the ledger, and ALWAYS
+ * the story has any, `claims` + `departures` from the ledger, and ALWAYS
  * `wisps: []` — build wisps are folded ONTO claims as their `phase`, never emitted on their own).
- * No `signpost` (retired), no `plants[].bloom`, no `drawTiles`-only substrate (`SUBSTRATE_MODE`
+ * No `signpost` (retired), no `drawTiles`-only substrate (`SUBSTRATE_MODE`
  * is the constant `'mesh'`, so `relaxedCells` is null only when there is no world at all).
  */
 const LIBRARY_CAPS: SceneTerritoryInput['plants'] = [
@@ -255,7 +255,6 @@ function studioShippedInput(): SceneInput {
       { id: 'c2', state: 'pending' },
       { id: 'c3', state: 'failing' },
     ],
-    bloom: { ageRatio: 0.4, outcome: 'pass' },
     claims: [
       { key: 's1', title: 'a work claim', colourState: 'authoring', grade: 'work', phase: 'IMPLEMENT' },
       { key: 's2', title: 'an exploring claim', colourState: 'proving', grade: 'exploring' },
@@ -300,7 +299,7 @@ function studioShippedInput(): SceneInput {
 
 /** THE PUBLIC /forest PAGE as `forest-snapshot-map.ts` shapes it: `empties: []`, `drawTiles: []`,
  *  mesh cells, `plants: []` (a snapshot draws no capability flora), layout `decor`, `wisps: []`
- *  (a snapshot has no live session), no parcels / criteria / bloom / signpost / claims. */
+ *  (a snapshot has no live session), no parcels / criteria / signpost / claims. */
 function websiteSnapshotInput(): SceneInput {
   const base = shippedInput();
   return {
@@ -322,7 +321,7 @@ function websiteSnapshotInput(): SceneInput {
 
 /** THE INDEX PAGE'S ACT 2 WALK as `act2-walkthrough.ts` shapes it: the fictional three-story
  *  example — `plants` per limb, layout `decor`, build `wisps` on the island being worked, no
- *  parcels / criteria / bloom / signpost / claims. */
+ *  parcels / criteria / signpost / claims. */
 function websiteAct2Input(): SceneInput {
   const base = shippedInput();
   return {
@@ -353,7 +352,7 @@ function websiteAct2Input(): SceneInput {
 }
 
 /** EVERYTHING, ACROSS SEVERAL SCENES — the shipped shapes plus every input no fold sends: both
- *  substrates, a forced cave, the signpost in all three states, a plant bloom, a build wisp with a
+ *  substrates, a forced cave, the signpost in all three states, a build wisp with a
  *  colour state, and the garden. SEVERAL scenes rather than one because some inputs SUPPRESS
  *  others on the same island (a garden retires the island's procedural tree, flora, parcels and
  *  signpost; a vegetation hero replaces the procedural crown), so "everything at once" hides
@@ -362,7 +361,7 @@ function websiteAct2Input(): SceneInput {
 function maximalInputs(): SceneInput[] {
   const studio = studioShippedInput();
   const act2 = websiteAct2Input();
-  // procedural trees (no vegetation heroes), signposts in all three states, a plant bloom, a
+  // procedural trees (no vegetation heroes), signposts in all three states, a
   // coloured build wisp, and a walled-in edge that forces a cave pair
   const procedural: SceneInput = {
     ...act2,
@@ -371,8 +370,6 @@ function maximalInputs(): SceneInput[] {
       {
         ...act2.territories[0]!,
         signpost: { outcome: 'pass' },
-        bloom: { ageRatio: 0.4, outcome: 'pass' },
-        plants: act2.territories[0]!.plants.map((p, i) => (i === 0 ? { ...p, bloom: { ageRatio: 0.3, outcome: 'pass' } } : p)),
         wisps: [{ runId: 'r1', title: 'a build', phase: 'CONFIRM_RED', colourState: 'proving' }],
       },
       { ...act2.territories[1]!, signpost: { outcome: null } },
@@ -414,18 +411,12 @@ const STARVED_KINDS: readonly SceneKind[] = [
   'sign-fail',
   'sign-post',
   'sign-head',
-  // THE VERDICT BLOOM — the crown's "just passed" celebration and a plant's. The studio DOES fold
-  // `territory.bloom` from the verdict (`TreeView.territoryToScene`), but the core builds the crown
-  // bloom only inside the procedural `buildTree`, and the studio always supplies
-  // `vegetation.heroTrees` whose kit covers all six statuses (ADR-0227) — so `buildTree` is never
-  // called on the studio once `kit.json` has loaded, and the bloom the fold carried is discarded.
-  // The website never folds a bloom (`forest-snapshot-map` / `act2-walkthrough`). `plants[].bloom`
-  // is set by no fold at all. Not an alarm: nothing watches for a bloom count.
-  'bloom-anchor',
-  'bloom-crown',
-  'bloom-ring',
-  'bloom-spark',
-  'bloom-plant',
+  // THE VERDICT BLOOM IS GONE, not starved — ADR-0529 retired it and ADR-0536 settled what its one
+  // remaining consumer (the fifth frame of the public semantic-growth walk) does instead. The five
+  // `bloom-*` kinds, `buildBloom`, both `bloom` inputs and the `outcome` node field were deleted in
+  // that landing, so there is no vocabulary left here to starve. Left as a note rather than silence
+  // because the pin's whole job is to say WHY a kind is not drawn, and "it was deleted" is the one
+  // answer a reader cannot recover from the list.
 ];
 
 /** Kinds that are LIVE-AS-AN-ALARM (ADR-0527 D4, corrected in place): emitted only when the router
@@ -489,7 +480,7 @@ test('3b. the shipped fixtures are not stale mirrors: each optional input the st
   // Guard against this file's own drift: the studio mirror must carry every optional field the
   // real fold can set, or question 3 measures a fixture rather than the studio.
   const t = studioShippedInput().territories[0]!;
-  for (const field of ['parcels', 'uatCriteria', 'bloom', 'claims', 'departures'] as const) {
+  for (const field of ['parcels', 'uatCriteria', 'claims', 'departures'] as const) {
     assert.ok(t[field] !== undefined && (t[field] as unknown[]).length !== 0, `studio mirror sends ${field}`);
   }
   assert.ok(studioShippedInput().vegetation?.heroTrees, 'studio mirror composes vegetation.heroTrees');

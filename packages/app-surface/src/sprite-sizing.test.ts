@@ -107,13 +107,16 @@ describe('wrapperContentBounds', () => {
     expect(wrapperContentBounds(node)).toEqual({ minX: -10, minY: -20, maxX: 10, maxY: 0 });
   });
 
-  test('hit targets and companion marks (bloom/signpost) are NOT part of the visual mass', () => {
+  // The bloom-anchor companion that also stood here went with the verdict bloom (ADR-0529/0536);
+  // the signpost is the companion mark that remains, and it is the one that actually rides a tree.
+  test('hit targets and the companion witness signpost are NOT part of the visual mass', () => {
     const withCompanions = treeWrapper([
       { el: 'circle', kind: 'flora-hit', cx: 0, cy: 0, r: 40 },
-      { el: 'g', kind: 'bloom-anchor', transform: 'translate(0 -80)', children: [{ el: 'circle', cx: 0, cy: 0, r: 6 }] },
       { el: 'g', kind: 'sign-pass', transform: 'translate(30 0)', children: [{ el: 'rect', x: 0, y: -14, width: 3, height: 14, rx: 0 }] },
     ]);
+    // identical to the bare wrapper's own bounds above — the companions contributed nothing.
     expect(wrapperContentBounds(withCompanions)).toEqual({ minX: -10, minY: -60, maxX: 10, maxY: 3 });
+    expect(wrapperContentBounds(withCompanions)).toEqual(wrapperContentBounds(treeWrapper()));
   });
 
   test('an unmeasurable child (rotate) is skipped, not mis-measured', () => {

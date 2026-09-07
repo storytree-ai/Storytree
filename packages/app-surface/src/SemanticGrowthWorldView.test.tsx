@@ -22,12 +22,14 @@ import type { SpriteStyleSheet } from './sprite-sheet.js';
 
 afterEach(cleanup);
 
+// THE WALK IS FIVE STEPS (ADR-0536). A sixth key `signed-proof` stood between `claimed` and
+// `healthy` and its only content was the verdict bloom; ADR-0529 retired the bloom and ADR-0536
+// dropped the frame with it, declining both a replacement marker and showing the green early.
 const ORDERED_KEYS = [
   'empty',
   'land',
   'proposed',
   'claimed',
-  'signed-proof',
   'healthy',
 ] as const;
 
@@ -376,7 +378,7 @@ describe('SemanticGrowthWorldView', () => {
     expect(currentKey()).toBe('healthy');
 
     fireEvent.click(view.getByRole('button', { name: 'Back' }));
-    expect(currentKey()).toBe('signed-proof');
+    expect(currentKey()).toBe('claimed');
     fireEvent.click(view.getByRole('button', { name: 'Replay' }));
     expect(currentKey()).toBe('empty');
     fireEvent.click(view.getByRole('button', { name: 'Next' }));
@@ -506,16 +508,21 @@ describe('SemanticGrowthWorldView', () => {
     expect(rootExport).toBe(SemanticGrowthWorldView);
   });
 
-  it('preserves the signed-proof bloom overlay when a sprite sheet renders the tree — renderer choice may change artwork, never erase proof-bloom semantics', () => {
-    // Guidance: "Sprite replacement must preserve semantic descendants owned by the replaced scene
-    // node. Replacing the tree visual with Storybook must retain the signed-proof `.world-bloom`
-    // overlay identity that Vector exposes; renderer choice may change artwork, never erase
-    // proof-bloom semantics." The signed-proof frame keeps its story proposed/non-healthy while
-    // carrying the real proof bloom (a `bloom-anchor` > `bloom-crown` descendant of the `tree` node,
-    // composed to the `.world-bloom` class by the scene mapper). A "Storybook" sprite sheet covering
-    // `tree:proposed` re-skins the tree wrapper as an `<image>` -- that swap must NOT silently drop
-    // the bloom overlay the vector render exposes for the exact same frame.
-    const signedProofInput: SceneInput = {
+  it('preserves the proof semantics of the frame when a sprite sheet renders the tree — renderer choice may change artwork, never erase proof semantics', () => {
+    // THE GUARANTEE RE-POINTED RATHER THAN DIED (ADR-0536 D6). This case used to be stated over the
+    // signed-proof bloom: a Storybook sheet re-skinning the tree as an `<image>` had to keep the
+    // `.world-bloom` overlay the vector render exposed for the same frame. ADR-0529 retired that
+    // drawable and ADR-0536 dropped the frame it lived on, so the rule has no subject in that shape
+    // — and re-asserting the absence of a class the mapper can no longer emit would prove nothing.
+    //
+    // The standing proof semantics a swap must not erase are TWO, and both are asserted here:
+    //   1. the PERSISTENT human-witness signpost, a semantic descendant of the very wrapper the
+    //      sprite replaces — the one thing a swap really can still drop (and once did:
+    //      `shipped-map-render-path-drops-three-delivered-behaviours` defect 1); and
+    //   2. the island's folded STATUS hue — the whole proof vocabulary since the bloom went. A
+    //      re-skinned `proposed` story must still read `proposed`, and must never acquire the
+    //      proven-green `st-healthy` a sprite sheet has no authority to grant.
+    const witnessedInput: SceneInput = {
       offset: { x: 0, y: 0 },
       width: 100,
       height: 100,
@@ -537,9 +544,9 @@ describe('SemanticGrowthWorldView', () => {
           coastPaths: ['M 20 20 L 80 20 L 50 80 Z'],
           decor: [],
           plants: [],
-          treeTitle: 'Growth frame: signed-proof',
+          treeTitle: 'Growth frame: claimed',
+          signpost: { outcome: 'pass' },
           wisps: [],
-          bloom: { ageRatio: 0.5, outcome: 'pass' },
           plate: {
             w: 60,
             h: 30,
@@ -547,8 +554,8 @@ describe('SemanticGrowthWorldView', () => {
             idY: 13,
             subY: 25,
             idText: 'semantic-growth',
-            subText: 'signed-proof',
-            title: 'Growth frame: signed-proof',
+            subText: 'claimed',
+            title: 'Growth frame: claimed',
           },
         },
       ],
@@ -568,27 +575,29 @@ describe('SemanticGrowthWorldView', () => {
       },
     };
 
-    const signedProofModel = normalizeWorldPresentationModel({
-      scene: buildScene(signedProofInput),
+    const swappedModel = normalizeWorldPresentationModel({
+      scene: buildScene(witnessedInput),
       spriteSheet: storybookSheet,
     });
 
     const frames = ORDERED_KEYS.map((key) =>
-      key === 'signed-proof' ? { key, model: signedProofModel } : { key, model: frameModel(key) },
+      key === 'claimed' ? { key, model: swappedModel } : { key, model: frameModel(key) },
     );
 
     const view = render(<SemanticGrowthWorldView frames={frames} />);
-    for (const key of ORDERED_KEYS.slice(1, 5)) {
+    for (const key of ORDERED_KEYS.slice(1, 4)) {
       fireEvent.click(view.getByRole('button', { name: 'Next' }));
+      expect(
+        view.container.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame'),
+      ).toBe(key);
     }
-    expect(
-      view.container.querySelector('[data-semantic-growth-frame="signed-proof"]'),
-    ).toBeTruthy();
     // the sprite sheet DID re-skin the tree with real artwork ...
     expect(view.container.querySelector('image')).toBeTruthy();
-    // ... but the signed-proof bloom overlay Vector exposes for this exact frame must still be
-    // present -- the renderer swap must never erase proof-bloom semantics.
-    expect(view.container.querySelector('.world-bloom')).toBeTruthy();
+    // ... the witness seal it composed onto that wrapper survived the swap ...
+    expect(view.container.querySelector('.story-sign.sign-witnessed.verdict-pass')).toBeTruthy();
+    // ... and the frame still reads `proposed`, never proven-green.
+    expect(view.container.querySelector('[class*="st-proposed"]')).toBeTruthy();
+    expect(view.container.querySelector('[class*="st-healthy"]')).toBeNull();
   });
 
   it('holds one deterministic representative world framing across the whole walk, derived from the composed world bounds -- never a magic 0 0 100 100 default or a frame-by-frame camera jump', () => {
@@ -642,15 +651,21 @@ describe('SemanticGrowthWorldView', () => {
     expect(farInitial).not.toBe('0 0 100 100');
   });
 
-  it('grounds the semantic vocabulary in independently named, role-scoped motion profiles -- arrive-ground, arrive-pop, wisp-in (alongside the real SVG orbit), and bloom-pulse -- never one shared settle grouping', () => {
+  it('grounds the semantic vocabulary in independently named, role-scoped motion profiles -- arrive-ground, arrive-pop and wisp-in (alongside the real SVG orbit) -- never one shared settle grouping, and no profile survives its retired role', () => {
     // Guidance: "coast/relaxed ground uses the existing `arrive-ground` scale `0.78 -> 1`,
     // flora/tree/nameplate/parcels use `arrive-pop` scale `0.55 -> 1`, the claim uses the real
-    // `wisp-in` plus its existing SVG orbit, and signed proof uses the real `bloom-pulse`
-    // `0.94 <-> 1.06`. Apply each family only when that semantic role enters. Do not group
-    // territory, claim wisp, bloom and arrival under one new settle keyframe." A source/CSS
-    // read, not a render: this must reject the CURRENT single `semantic-growth-settle`
+    // `wisp-in` plus its existing SVG orbit. Apply each family only when that semantic role
+    // enters. Do not group territory, claim wisp and arrival under one new settle keyframe." A
+    // source/CSS read, not a render: this must reject the CURRENT single `semantic-growth-settle`
     // grouping outright and positively discriminate each named profile's own keyframe body and
     // its own role-scoped selector -- never re-grouped with another role's classes.
+    //
+    // A FOURTH profile stood here: `bloom-pulse` (`0.94 <-> 1.06`) on `.world-bloom`, the signed
+    // proof's own arrival. ADR-0529 retired the verdict bloom and ADR-0536 dropped the frame it
+    // entered on, so the profile went with its role. The requirement it carried — each role owns a
+    // separately-named, role-scoped profile — is unchanged and is what the three surviving profiles
+    // are still held to; and the retirement gets its own positive assertion below, so a stylesheet
+    // that kept a keyframe for a role nothing can play is red rather than merely unmentioned.
     const css = readFileSync(
       resolve(process.cwd(), 'src', 'semantic-growth.css'),
       'utf8',
@@ -671,10 +686,12 @@ describe('SemanticGrowthWorldView', () => {
     expect(arrivePop?.[1] ?? '').toMatch(/scale\(\s*0\.55\s*\)/);
     expect(arrivePop?.[1] ?? '').toMatch(/scale\(\s*1\s*\)/);
 
-    const bloomPulse = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/);
-    expect(bloomPulse).toBeTruthy();
-    expect(bloomPulse?.[1] ?? '').toMatch(/0\.94/);
-    expect(bloomPulse?.[1] ?? '').toMatch(/1\.06/);
+    // the retired role leaves NO orphan profile behind: no keyframes and no rule may name a
+    // drawable the vocabulary no longer has (ADR-0529/0536). Read past the comments — the
+    // stylesheet's own header explains the retirement and names the class while doing so.
+    const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(cssCode).not.toMatch(/@keyframes\s+bloom-pulse\b/);
+    expect(cssCode).not.toMatch(/\.world-bloom\b/);
 
     const wispIn = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/);
     expect(wispIn).toBeTruthy();
@@ -692,27 +709,19 @@ describe('SemanticGrowthWorldView', () => {
     const groundSelectors = selectorsAnimatedBy('arrive-ground');
     expect(groundSelectors.length).toBeGreaterThan(0);
     for (const selector of groundSelectors) {
-      expect(selector).not.toMatch(/\.world-claim-wisp|\.world-bloom/);
+      expect(selector).not.toMatch(/\.world-claim-wisp/);
     }
 
     const popSelectors = selectorsAnimatedBy('arrive-pop');
     expect(popSelectors.length).toBeGreaterThan(0);
     for (const selector of popSelectors) {
-      expect(selector).not.toMatch(/\.world-claim-wisp|\.world-bloom/);
+      expect(selector).not.toMatch(/\.world-claim-wisp/);
     }
 
     const wispSelectors = selectorsAnimatedBy('wisp-in');
     expect(wispSelectors.length).toBeGreaterThan(0);
     for (const selector of wispSelectors) {
       expect(selector).toMatch(/\.world-claim-wisp/);
-      expect(selector).not.toMatch(/\.world-bloom/);
-    }
-
-    const bloomSelectors = selectorsAnimatedBy('bloom-pulse');
-    expect(bloomSelectors.length).toBeGreaterThan(0);
-    for (const selector of bloomSelectors) {
-      expect(selector).toMatch(/\.world-bloom/);
-      expect(selector).not.toMatch(/\.world-claim-wisp/);
     }
 
     // the claim's real SVG orbit rides ALONGSIDE wisp-in, never replaced by it.
@@ -791,7 +800,7 @@ describe('SemanticGrowthWorldView', () => {
     // also compares settled static placement transforms through forward, Back, Replay and reduced
     // motion." Plus the "SVG transform-composition floor": "fails any semantic-growth arrival or
     // pulse selector/keyframe that sets the full `transform:` property on mapper-positioned
-    // terrain, flora/tree, claim or bloom elements, including `transform: scale(...)`."
+    // terrain, flora/tree or claim elements, including `transform: scale(...)`."
     const css = readFileSync(
       resolve(process.cwd(), 'src', 'semantic-growth.css'),
       'utf8',
@@ -800,12 +809,12 @@ describe('SemanticGrowthWorldView', () => {
     const arriveGroundBody = css.match(/@keyframes\s+arrive-ground\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const arrivePopBody = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const wispInBody = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-    const bloomPulseBody = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-    // no whole-group lateral slide as entry motion, on any of the four semantic profiles. Static
-    // SVG placement translations (the scene mapper's own ground anchors / nesting, asserted via
-    // `getAttribute('transform')` below) are untouched and are not themselves animation.
-    for (const body of [arriveGroundBody, arrivePopBody, wispInBody, bloomPulseBody]) {
+    // no whole-group lateral slide as entry motion, on any of the three semantic profiles (a fourth,
+    // `bloom-pulse`, went with the verdict bloom — ADR-0529/0536). Static SVG placement translations
+    // (the scene mapper's own ground anchors / nesting, asserted via `getAttribute('transform')`
+    // below) are untouched and are not themselves animation.
+    for (const body of [arriveGroundBody, arrivePopBody, wispInBody]) {
       expect(body).not.toBe('');
       expect(body).not.toMatch(/translate[XY]?\s*\(/);
     }
@@ -814,7 +823,7 @@ describe('SemanticGrowthWorldView', () => {
     // shorthand visually REPLACES a mapper-positioned element's own SVG placement
     // `transform="translate(...)"` for the sweep's duration even though `getAttribute('transform')`
     // keeps reporting the untouched original: attribute equality alone is not proof (checked below).
-    for (const body of [arriveGroundBody, arrivePopBody, bloomPulseBody]) {
+    for (const body of [arriveGroundBody, arrivePopBody]) {
       expect(body).not.toMatch(/transform\s*:/);
     }
 
@@ -870,12 +879,13 @@ describe('SemanticGrowthWorldView', () => {
 
     const arriveGroundBody = css.match(/@keyframes\s+arrive-ground\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const arrivePopBody = css.match(/@keyframes\s+arrive-pop\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-    const bloomPulseBody = css.match(/@keyframes\s+bloom-pulse\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const wispInBody = css.match(/@keyframes\s+wisp-in\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
 
     // every semantic-growth keyframe grows through the additive individual `scale:` channel --
-    // never the full `transform:` shorthand.
-    for (const body of [arriveGroundBody, arrivePopBody, bloomPulseBody]) {
+    // never the full `transform:` shorthand. (`bloom-pulse` was the third scaling profile held to
+    // this; it went with the verdict bloom — ADR-0529/0536 — and the requirement is unchanged for
+    // the two that remain.)
+    for (const body of [arriveGroundBody, arrivePopBody]) {
       expect(body).not.toBe('');
       expect(body).not.toMatch(/transform\s*:/);
       expect(body).toMatch(/(?:^|[^-\w])scale\s*:\s*[\d.]/);
@@ -883,8 +893,6 @@ describe('SemanticGrowthWorldView', () => {
     // reused verbatim -- never new transform geometry.
     expect(arriveGroundBody).toMatch(/scale\s*:\s*0\.78\b/);
     expect(arrivePopBody).toMatch(/scale\s*:\s*0\.55\b/);
-    expect(bloomPulseBody).toMatch(/scale\s*:\s*0\.94\b/);
-    expect(bloomPulseBody).toMatch(/scale\s*:\s*1\.06\b/);
 
     const flatRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
       selector: m[1] ?? '',
@@ -892,12 +900,14 @@ describe('SemanticGrowthWorldView', () => {
     }));
     const groundRules = flatRules.filter((r) => /animation(?:-name)?:\s*arrive-ground\b/.test(r.body));
     const popRules = flatRules.filter((r) => /animation(?:-name)?:\s*arrive-pop\b/.test(r.body));
-    const bloomRules = flatRules.filter((r) => /animation(?:-name)?:\s*bloom-pulse\b/.test(r.body));
+    const boundaryRules = flatRules.filter((r) =>
+      /animation(?:-name)?:\s*parcel-boundary-reveal\b/.test(r.body),
+    );
 
-    // every rule that actually plays one of these three keyframes declares `transform-box:
+    // every rule that actually plays one of these scaling keyframes declares `transform-box:
     // fill-box` -- the additive `scale` channel only composes against the element's own painted
     // geometry with this box declared.
-    for (const rules of [groundRules, popRules, bloomRules]) {
+    for (const rules of [groundRules, popRules]) {
       expect(rules.length).toBeGreaterThan(0);
       for (const rule of rules) {
         expect(rule.body).toMatch(/transform-box\s*:\s*fill-box/);
@@ -921,11 +931,14 @@ describe('SemanticGrowthWorldView', () => {
     // the existing brief Studio overshoot, reused verbatim -- never a new easing curve.
     expect(css).toMatch(/cubic-bezier\(\s*0\.34\s*,\s*1\.45\s*,\s*0\.5\s*,\s*1\s*\)/);
 
-    // ground, the story identity and the proof bloom do not all enter simultaneously as one flat
-    // 320ms ease-out -- at least one layer carries a distinct nonzero `animation-delay`.
+    // ground, the story identity and its capability parcels do not all enter simultaneously as one
+    // flat 320ms ease-out -- at least one layer carries a distinct nonzero `animation-delay`. (The
+    // third family here used to be the proof bloom; it is the parcel boundary now that ADR-0529/0536
+    // retired the bloom, and the property being held is unchanged: the walk staggers.)
     const delayOf = (rules: { selector: string; body: string }[]): string =>
       rules[0]?.body.match(/animation-delay\s*:\s*([^;]+);/)?.[1]?.trim() ?? '0ms';
-    const delays = new Set([delayOf(groundRules), delayOf(popRules), delayOf(bloomRules)]);
+    expect(boundaryRules.length).toBeGreaterThan(0);
+    const delays = new Set([delayOf(groundRules), delayOf(popRules), delayOf(boundaryRules)]);
     expect(delays.size).toBeGreaterThan(1);
 
     // the claim's entrance stays local opacity only -- never a scale sweep -- with its existing
@@ -935,13 +948,20 @@ describe('SemanticGrowthWorldView', () => {
     expect(sceneView).toMatch(/animateTransform/);
   });
 
-  it('qualifies every full-motion arrival selector by the exact frame key on which that role first enters -- never the generic [data-semantic-growth-frame][data-motion="full"] targeting', () => {
+  it('qualifies every full-motion arrival selector by the exact frame key on which that role first enters, and NO ROLE ENTERS AFTER `claimed` -- never the generic [data-semantic-growth-frame][data-motion="full"] targeting', () => {
     // Guidance: "Add a separate executable entering-delta selector audit. Full-motion arrival
     // selectors must be qualified by exactly one entering frame: terrain=`land`;
-    // tree/flora/plate/parcel-boundary/parcel-flora=`proposed`; wisp=`claimed`;
-    // bloom=`signed-proof`. Generic `[data-semantic-growth-frame][data-motion='full']` arrival
-    // targeting is red. Terrain/identity arrivals must not match claimed, signed-proof or
-    // healthy; claim arrival must not match signed-proof or healthy; no arrival matches healthy."
+    // tree/flora/plate/parcel-boundary/parcel-flora=`proposed`; wisp=`claimed`. Generic
+    // `[data-semantic-growth-frame][data-motion='full']` arrival targeting is red.
+    // Terrain/identity arrivals must not match claimed or healthy; no arrival matches healthy."
+    //
+    // THIS IS THE FRAME-EXACTNESS CRITERION, REWRITTEN RATHER THAN DELETED (ADR-0536 D5). It used
+    // to add "bloom=`signed-proof`", and to assert positively that the bloom's own rule was
+    // qualified by the fifth frame and by no other. That role and that frame are both retired
+    // (ADR-0529/0536), so the same property is now carried by its complement, which is the
+    // five-step walk's strongest statement about itself and exactly what a careless deletion would
+    // silently lose: `claimed` is the LAST frame any role enters on, so no arrival selector
+    // anywhere may name a later one -- nor the retired `signed-proof` key at all.
     const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
 
     // the bare frame-key-less prefix every current arrival rule shares is red outright.
@@ -964,7 +984,7 @@ describe('SemanticGrowthWorldView', () => {
     expect(groundSelectors.length).toBeGreaterThan(0);
     for (const selector of groundSelectors) {
       expect(matchesFrame(selector, 'land')).toBe(true);
-      for (const forbidden of ['claimed', 'signed-proof', 'healthy']) {
+      for (const forbidden of ['claimed', 'healthy']) {
         expect(matchesFrame(selector, forbidden)).toBe(false);
       }
     }
@@ -973,7 +993,7 @@ describe('SemanticGrowthWorldView', () => {
     expect(popSelectors.length).toBeGreaterThan(0);
     for (const selector of popSelectors) {
       expect(matchesFrame(selector, 'proposed')).toBe(true);
-      for (const forbidden of ['claimed', 'signed-proof', 'healthy']) {
+      for (const forbidden of ['claimed', 'healthy']) {
         expect(matchesFrame(selector, forbidden)).toBe(false);
       }
     }
@@ -982,28 +1002,31 @@ describe('SemanticGrowthWorldView', () => {
     expect(wispSelectors.length).toBeGreaterThan(0);
     for (const selector of wispSelectors) {
       expect(matchesFrame(selector, 'claimed')).toBe(true);
-      for (const forbidden of ['signed-proof', 'healthy']) {
-        expect(matchesFrame(selector, forbidden)).toBe(false);
-      }
-    }
-
-    const bloomSelectors = selectorsAnimatedBy('bloom-pulse');
-    expect(bloomSelectors.length).toBeGreaterThan(0);
-    for (const selector of bloomSelectors) {
-      expect(matchesFrame(selector, 'signed-proof')).toBe(true);
       expect(matchesFrame(selector, 'healthy')).toBe(false);
     }
+
+    // `claimed` is the LAST frame a role enters on. No rule in the stylesheet -- arrival or
+    // otherwise -- may be qualified by a frame key past it, and the retired `signed-proof` key must
+    // appear nowhere at all: a stylesheet still holding a rule for a frame the player cannot reach
+    // is dead motion that no render would ever show as wrong.
+    expect(css).not.toMatch(/\[data-semantic-growth-frame=['"]signed-proof['"]\]/);
+    const enteringFrameKeys = new Set(
+      [...css.matchAll(/\[data-semantic-growth-frame=['"]([^'"]+)['"]\]/g)].map((m) => m[1] ?? ''),
+    );
+    expect([...enteringFrameKeys].sort()).toEqual(['claimed', 'land', 'proposed']);
   });
 
-  it('resolves the full cascaded animation profile (shorthand + longhand precedence, real @keyframes bodies) for every discovered role hook and proves the authored choreography bundle: a finite single bloom pulse, a non-equivalent parcel-boundary/parcel-flora pair never grouped under one selector, a translate-only plate settle, and a start-time stagger (planted first, boundary +100ms, earliest parcel flora +60ms past boundary with per-item variation, plate +180ms past planted)', () => {
+  it('resolves the full cascaded animation profile (shorthand + longhand precedence, real @keyframes bodies) for every discovered role hook and proves the authored choreography bundle: every arrival finite and settling at rest, a non-equivalent parcel-boundary/parcel-flora pair never grouped under one selector, a translate-only plate settle, and a start-time stagger (planted first, boundary +100ms, earliest parcel flora +60ms past boundary with per-item variation, plate +180ms past planted)', () => {
     // Guidance: "One executable authored-choreography case must prove the coherent bundle
     // together ... Discover each role selector independently from rendered hooks, without
     // assuming any animation name. `resolvedProfile(selector)` parses shorthand positional
     // tokens and longhands, applies longhand precedence, resolves
     // name/duration/easing/delay/iteration/fill, then loads the resolved name's actual
     // `@keyframes`, strips comments and canonicalizes declarations by offset ... Plate/planted
-    // and parcel boundary/parcel flora canonical bodies must each be non-equivalent ... Bloom
-    // iteration resolves ... to numeric exactly `1` ... The same case resolves CSS
+    // and parcel boundary/parcel flora canonical bodies must each be non-equivalent ... every
+    // role's iteration resolves ... to numeric exactly `1` (this was written of the retired
+    // bloom's pulse alone; ADR-0536 D5 rewrites it across every surviving role) ... The same case
+    // resolves CSS
     // profiles -- not DOM existence -- for Vector tree/flora `.pop-motion-inner` and Storybook
     // direct `image.story-tree`/`image.garden-flora` hooks from a sheet defining both.
     // Start-time assertions use resolved delays ..."
@@ -1241,9 +1264,8 @@ describe('SemanticGrowthWorldView', () => {
           // The claim/presence wisp is a DISTINCT `claims` field from the build `wisps` field the
           // other fixtures in this file use (`.world-wisp`, asserted elsewhere) --
           // `.world-claim-wisp` only renders from a real `claims` entry. Folded straight into this
-          // one fixture (alongside the bloom below) to keep the render count down.
+          // one fixture to keep the render count down.
           claims: [{ key: 'semantic-growth-session', title: 'A real claim', colourState: 'authoring' }],
-          bloom: { ageRatio: 0.5, outcome: 'pass' },
           plate: {
             w: 60,
             h: 30,
@@ -1267,7 +1289,6 @@ describe('SemanticGrowthWorldView', () => {
     expect(richView.container.querySelector('.garden-flora')).toBeTruthy();
     expect(richView.container.querySelector('.world-plate')).toBeTruthy();
     expect(richView.container.querySelector('.world-claim-wisp')).toBeTruthy();
-    expect(richView.container.querySelector('.world-bloom')).toBeTruthy();
     richView.unmount();
 
     // Capability PARCELS retire the plain plant ring when present (`buildTerritoryFlora`), so the
@@ -1322,35 +1343,61 @@ describe('SemanticGrowthWorldView', () => {
     const plateProfile = resolvedProfile(css, nonKeyframeCss, '.world-plate .pop-motion-inner');
     const boundaryProfile = resolvedProfile(css, nonKeyframeCss, '.parcel');
     const parcelFloraProfile = resolvedProfile(css, nonKeyframeCss, '.parcel-flora');
-    const bloomProfile = resolvedProfile(css, nonKeyframeCss, '.world-bloom');
     const wispProfile = resolvedProfile(css, nonKeyframeCss, '.world-claim-wisp');
     const spriteTreeProfile = resolvedProfile(css, nonKeyframeCss, 'image.story-tree');
     const spriteFloraProfile = resolvedProfile(css, nonKeyframeCss, 'image.garden-flora');
 
-    for (const profile of [
-      treeProfile,
-      floraProfile,
-      plateProfile,
-      boundaryProfile,
-      parcelFloraProfile,
-      bloomProfile,
-      wispProfile,
-      spriteTreeProfile,
-      spriteFloraProfile,
-    ]) {
-      expect(profile).toBeTruthy();
+    const namedProfiles = [
+      ['tree', treeProfile],
+      ['flora', floraProfile],
+      ['plate', plateProfile],
+      ['parcel-boundary', boundaryProfile],
+      ['parcel-flora', parcelFloraProfile],
+      ['claim-wisp', wispProfile],
+      ['sprite-tree', spriteTreeProfile],
+      ['sprite-flora', spriteFloraProfile],
+    ] as const;
+    for (const [role, profile] of namedProfiles) {
+      expect(profile, role).toBeTruthy();
     }
 
-    // bloom pulses exactly once (finite), never forever -- reject shorthand/longhand counts
-    // above 1 and 'infinite'; its finite fill settles the terminal body at rest values.
-    expect(bloomProfile!.iteration).toBe(1);
-    expect(['forwards', 'both']).toContain(bloomProfile!.fill);
-    const bloomOffsets = [...(bloomProfile!.keyframe?.keys() ?? [])].sort((a, b) => a - b);
-    const bloomTerminalOffset = bloomOffsets[bloomOffsets.length - 1];
-    const bloomTerminal =
-      bloomTerminalOffset === undefined ? undefined : bloomProfile!.keyframe!.get(bloomTerminalOffset);
-    expect(bloomTerminal).toMatch(/scale:\s*1(?:\.0+)?(?:;|$)/);
-    expect(bloomTerminal).toMatch(/opacity:\s*1(?:\.0+)?(?:;|$)/);
+    // EVERY ARRIVAL PLAYS EXACTLY ONCE (finite), never forever, and settles at its rest values.
+    // This was written as "the bloom pulses exactly once", inspecting the signed-proof frame's own
+    // animation and rejecting a count above 1 or 'infinite'. ADR-0529/0536 retired that role, and
+    // ADR-0536 D5 requires the criterion be REWRITTEN rather than dropped -- so it now binds every
+    // role the walk still has, which is strictly more than it bound before. The defect class is
+    // unchanged: a semantic arrival that loops is a map that never comes to rest, and the walk's
+    // whole claim is that each state SETTLES.
+    for (const [role, profile] of namedProfiles) {
+      expect(profile!.iteration, `${role} must play a finite number of times`).toBe(1);
+    }
+
+    // ... and every arrival KEYFRAME comes to rest at its settled values.
+    //
+    // The claim wisp is resolved BY NAME here rather than through the cascade, and the reason is a
+    // real property of the stylesheet rather than a dodge: `.world-claim-wisp` declares its arrival
+    // with the `animation:` SHORTHAND, and the reduced-motion rule that shares its selector cancels
+    // with the shorthand too (`animation: none !important`), so the cascade-resolved name for that
+    // hook is the cancel. Every other role declares `animation-name:` as a longhand, which wins the
+    // merge. Reading `wisp-in` by name reaches the same body the full-motion rule plays.
+    const terminalOf = (frames: Map<number, string> | null | undefined): string | undefined => {
+      const offsets = [...(frames?.keys() ?? [])].sort((a, b) => a - b);
+      const last = offsets[offsets.length - 1];
+      return last === undefined ? undefined : frames!.get(last);
+    };
+    const terminals: [string, string | undefined][] = [
+      ...namedProfiles
+        .filter(([role]) => role !== 'claim-wisp')
+        .map(([role, profile]) => [role, terminalOf(profile!.keyframe)] as [string, string | undefined]),
+      ['claim-wisp', terminalOf(keyframeCanonical(css, 'wisp-in'))],
+    ];
+    for (const [role, terminal] of terminals) {
+      expect(terminal, `${role} must declare a terminal keyframe`).toBeTruthy();
+      // the resting body may not leave the role hidden or shrunk: any `opacity`/`scale` it settles
+      // on is the rest value 1.
+      expect(terminal, `${role} settles opacity at rest`).not.toMatch(/opacity:\s*0(?:\.0+)?(?:;|$)/);
+      expect(terminal, `${role} settles scale at rest`).not.toMatch(/(?:^|;)scale:\s*0?\.\d/);
+    }
 
     // parcel boundary is a ground reveal -- opacity/reveal only, never a scale sweep; parcel
     // flora is rooted growth -- scale plus an opacity sprout. A real property-SET difference,
@@ -1414,7 +1461,6 @@ describe('SemanticGrowthWorldView', () => {
       '.parcel',
       '.parcel-flora',
       '.world-claim-wisp',
-      '.world-bloom',
     ]) {
       const reducedRules = findRules(nonKeyframeCss, suffix).filter(
         (r) => /data-motion=['"]reduced['"]/.test(r.selector) && /animation(?:-name)?:\s*(?!none\b)/.test(r.body),
