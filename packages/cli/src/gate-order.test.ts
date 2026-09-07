@@ -736,3 +736,30 @@ test("every check-shaped source file is either wired into the gate or declared r
       "an unaccounted check-shaped file is exactly the ambiguity this inventory exists to remove.",
   );
 });
+
+
+test("a rung promoted to a merge wall does not keep describing itself as local-only", () => {
+  // ADR-0547 D1 moved `check:gcloudignore-mirror` from gate-only onto the CI merge wall. Its own
+  // `why` prose said "LOCAL-ONLY today", which the promotion made false — and prose inside a plan
+  // entry is exactly the kind of claim nothing else reads, so nothing else would have caught it.
+  // This asserts the CORRECTED state rather than the edit: the entry must name the promotion and
+  // must not still be advertising the credential limit that was lifted.
+  const step = GATE_PLAN.find((entry) => entry.command === "pnpm check:gcloudignore-mirror");
+  assert.ok(step, "check:gcloudignore-mirror must still be in the gate plan — CI is the wall, the gate is the habit, and ADR-0547 D1 put it on BOTH");
+
+  assert.match(
+    step.why,
+    /MERGE WALL AS WELL AS A GATE RUNG/,
+    "the entry must say it runs at the merge as well as in the gate (ADR-0547 D1)",
+  );
+  assert.doesNotMatch(
+    step.why,
+    /LOCAL-ONLY today/,
+    "the entry still claims to be local-only, which ADR-0547 D1 made false",
+  );
+  assert.match(
+    step.why,
+    /NO LONGER in `DECLARED_LOCAL_ONLY`/,
+    "the entry must record that it left the local-only set, since gate-ci-parity's declaration is the thing a reader cross-checks",
+  );
+});
