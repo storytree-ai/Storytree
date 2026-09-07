@@ -379,6 +379,7 @@
       "packages/storage-protocol/src": "storage-protocol",
       "packages/notice-board/src/store": "presence-store",
       "packages/notice-board/src/claim*.ts": "claim-at-declare",
+      "packages/notice-board/src/ci-corroboration.ts": "ci-claim-corroborate",
       "packages/notice-board/src/index.ts": "notice-board",
       "packages/studio-members/src": "user-directory",
 

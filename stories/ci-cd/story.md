@@ -14,7 +14,7 @@ proof_mode: UAT
 # ci-cd has zero inbound edges. Verified acyclic: studio-cloud (depends_on: [studio, library]) and
 # notice-board (depends_on: [library, drive-machinery]) never reach back to ci-cd. (library is the
 # genuine trunk — a root every story depends on.)
-capabilities: [green-gate, repo-surface-manifest, adr-health-gate, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
+capabilities: [green-gate, repo-surface-manifest, adr-health-gate, auto-merge-on-green, merge-presence-retire, deploy-on-merge, ci-claim-corroborate]
 # `gate-ci-parity` LEFT this story on 2026-08-31 for `stories/cli`, with its code — the same shape as
 # `arc-explicit-id-fidelity`'s departure from `cli` under ADR-0369, and for a related reason. Its
 # ARTEFACT is a pure judge invoked by a `check:*` rung, which is a capability class `cli` already
@@ -39,8 +39,9 @@ artifact_edges: [studio-cloud, notice-board]
 # decision binding + adr-health (37), the ADR-number allocator (50), session presence the retire
 # backstop serves (33), the display posture it heals (41), studio CD (46), keyless WIF auth (21),
 # the dependency-direction / no-cycle model that fixed this story's edges (58), and the fourth
-# harness-native generated agent view covered by check:agents — Gemini CLI (234).
-decisions: [22, 311, 37, 50, 33, 41, 46, 21, 58, 234]
+# harness-native generated agent view covered by check:agents — Gemini CLI (234), and the narrow CI
+# corroboration of a live claim, whose broad form is refused on measurement (535).
+decisions: [22, 311, 37, 50, 33, 41, 46, 21, 58, 234, 535]
 ---
 
 # CI/CD — the one enforced pipeline every green unit crosses to reach trunk
@@ -119,18 +120,20 @@ repos) and ADR-0046 (merge→deploy CD).
   Identity Federation (ADR-0021) — GitHub OIDC → the `github-actions` WIF pool → a least-privilege
   service account. No JSON key sits in a secret.
 
-## Capabilities (6)
+## Capabilities (7)
 
 Listed roots-first (a capability appears after everything it depends on). The first three are
 independent roots (the three orthogonal content gates `verify` runs); `auto-merge-on-green` builds on
-`green-gate`; the two leaves add the post-merge side effects and each reaches forward to a sibling
-story.
+`green-gate`; the two post-merge leaves add side effects and each reaches forward to a sibling story;
+`ci-claim-corroborate` is a **fourth independent root** — a CI writer whose trigger is a branch still
+working rather than a merge, so it sits on no merge-side edge at all.
 
 *(Was seven until 2026-08-31, when `gate-ci-parity` left for `stories/cli` with its code — see the
-frontmatter note. Row numbers here are positional and safe to renumber: nothing outside this file
-cites a capability by row number, and the prose above names capabilities rather than positions. This
-is the opposite of the open modeling calls below, whose numbers ARE cited from other files and are
-therefore never reused or shifted.)*
+frontmatter note — and is seven again from 2026-09-08, when `ci-claim-corroborate` was authored for
+ADR-0535 D2's narrow half. Row numbers here are positional and safe to renumber: nothing outside this
+file cites a capability by row number, and the prose above names capabilities rather than positions.
+This is the opposite of the open modeling calls below, whose numbers ARE cited from other files and
+are therefore never reused or shifted.)*
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -140,6 +143,7 @@ therefore never reused or shifted.)*
 | 4 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
 | 5 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
 | 6 | [`deploy-on-merge`](deploy-on-merge.md) | A studio-touching merge to `main` redeploys the live studio to Cloud Run — keyless WIF → Cloud Build image → `gcloud run deploy` with the full IAP posture. | proposed | `auto-merge-on-green` |
+| 7 | [`ci-claim-corroborate`](ci-claim-corroborate.md) | A branch with a check running right now, or a very recent push, has its ledger claims corroborated live — keyless, monotonic, and never from an open pull request. | proposed | — |
 
 ## Dependency graph
 
@@ -156,6 +160,19 @@ therefore never reused or shifted.)*
   (subject to the GITHUB_TOKEN no-cascade note)". That inverted the edge — a `GITHUB_TOKEN` push
   never triggers `push:main`, so the cascade it named is precisely the thing that does NOT happen.
   ADR-0061 replaced it with the explicit dispatch, which is what actually makes this edge real.)*
+- `ci-claim-corroborate` → **nothing** — and the absence is reasoned rather than unfinished. Both
+  tempting edges are FALSE on the `cross-story-dependency` test run literally, both ways. It is not
+  `auto-merge-on-green`'s consumer: `merge-presence-retire` depends on that capability because the
+  MERGE is the fact it acts on, whereas this one acts on the opposite fact — a branch still working —
+  and deliberately REFUSES the default branch, so a merge is the one event it must not read. It is
+  not `green-gate`'s consumer either: it needs workflow RUNS TO EXIST as GitHub objects it can query,
+  a repository fact, never green-gate's delivered outcome (that a red blocks the merge) consumed
+  through green-gate's boundary — it stamps identically for a green run and a red one, because a red
+  run is equally evidence someone is at the keyboard. That is the same reasoning that removed the
+  `gate-ci-parity` → `green-gate` bullet below. Its relationship to `merge-presence-retire` is
+  COORDINATION between two writers of one `heartbeat_at` column, not consumption: the
+  `default-branch` fence exists so the two cannot contradict each other over one merge, and neither
+  needs the other's outcome to pass its own proof.
 
 *(A fourth bullet, `gate-ci-parity` → `green-gate`, was REMOVED on 2026-08-31 — and it did not merely
 relocate to `stories/cli` with the capability, because the edge was FALSE. Run the
@@ -177,6 +194,15 @@ still-passing.)*
 - `deploy-on-merge` depends on the **`cloud-run-iap`** capability of
   [`stories/studio-cloud`](../studio-cloud/story.md): the deploy targets the Cloud Run + IAP service
   that capability stands up — it needs that target delivered to do its job.
+- `ci-claim-corroborate` depends on the same **claim-ledger** seam of
+  [`stories/notice-board`](../notice-board/story.md) that `merge-presence-retire` writes through: it
+  stamps `heartbeat_at` on `events.node_claim` rows via `PgClaimStore.stampBranchActivity` — the
+  branch-keyed twin of the session-keyed `stampActivity` — so it needs that ledger delivered to do
+  its job. No new story-level edge: `notice-board` is already in `depends_on`. *(This capability is
+  the CI half of ADR-0535 D2; the local worktree-activity half is contract 5 of
+  [`notice-board/ambient-integration`](../notice-board/ambient-integration.md), and the two are split
+  by trigger and authority rather than by package — both write from `packages/notice-board`/
+  `packages/drive` while only one of them is a workflow with a credential.)*
 
 By the direction rule (ADR-0058 §1) ci-cd needs both siblings' delivered outcomes to pass its own UAT
 (steps 5–6), so it **depends on** them, and §3 rolls those capability-level boundary edges up to the
