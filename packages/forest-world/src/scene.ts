@@ -547,9 +547,15 @@ export interface SceneTerritoryInput {
    * position is ever wanted, so a tag says which space it is in and then DELETES ITSELF when the
    * last caller converts — where a twin has to be carried by everyone forever.
    *
-   * ⚠ `labelY` IS NOT COVERED AND IS ALWAYS A SCREEN Y. All four of its consumers are declared
-   * screen art (the nameplate band, below), so there is no ground reading to gain and converting
-   * it would be pure tax. `groundRadius` / `screenRadius` are not covered either — they already
+   * ⚠ `labelY` IS COVERED, AND SINCE ADR-0545 IT IS AN ANCHOR LIKE THE REST. It used to be
+   * excluded here on the ground that all four of its consumers were declared screen art, so there
+   * was "no ground reading to gain". Two of them were not screen art: `clearsPlate` in
+   * {@link buildUatMarkers} and in `placeGardenHeroes` are GROUND PLACEMENT decisions that happened
+   * to be measured against a screen y, which is the last member of the bug class
+   * `scatter-camera.test.ts` exists to fence. The nameplate is a world object now: a `ground`
+   * island hands over the plate's GROUND baseline and this file projects it, once, with every other
+   * anchor — so the two keep-outs ask the ground, and the plate follows the camera the way the
+   * island under it does. `groundRadius` / `screenRadius` are still not covered — they already
    * state their own space in their names.
    *
    * WHO HAS NOT MOVED, and why it is not an oversight: the public website builds its own island
@@ -561,7 +567,9 @@ export interface SceneTerritoryInput {
    * rather than only in an arc nobody opened.
    */
   anchorSpace?: 'screen' | 'ground';
-  /** The nameplate baseline y (also the delegation hit's bottom). */
+  /** The nameplate baseline (also the delegation hit's bottom), in the space
+   *  {@link SceneTerritoryInput.anchorSpace} names — a GROUND y under `ground`, a screen y under
+   *  `screen` (the absent-tag default, so an unconverted caller is byte-for-byte unchanged). */
   labelY: number;
   /** The smoothed coastline as closed loops in the GROUND plane — the island's sand fill AND its
    *  water moat (one curve, filled then stroked). ADR-0527 D1: the surface hands over COORDINATES
@@ -1229,9 +1237,17 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
 // THE RULE. A distance that means "how far apart ON THE GROUND" is measured on the ground; an offset
 // that means "this far across the ground" is a ground offset PROJECTED. Both go through the camera
 // module's own verbs so there is exactly one convention and no second constant. What deliberately
-// STAYS in screen space is named where it is used: the nameplate band (`y < labelY - 14`) is screen
-// art, and the painter-order half of the stone occlusion test is a question about who is drawn over
-// whom.
+// STAYS in screen space is named where it is used: the painter-order half of the stone occlusion
+// test, which is a question about who is DRAWN over whom rather than about where a thing stands.
+//
+// ⚠ THE NAMEPLATE BAND USED TO BE NAMED HERE AS THE OTHER SURVIVING SCREEN READING, AND IT IS NOT
+// ONE ANY MORE (ADR-0545). `y < labelY - 14` was a GROUND PLACEMENT decision measured on the screen,
+// on the excuse that the plate had no world position — so a different camera accepted a different
+// candidate and the markers landed on different ground, which is exactly the fault this section
+// names. The plate is an anchor now ({@link SceneTerritoryInput.anchorSpace}): a `ground` island
+// hands over its GROUND baseline, `anchorsToScreen` projects it with the rest, and the band's own
+// clearance is a ground distance projected through the camera verb like every other keep-out here.
+// Nothing about what the plate LOOKS like moved; what moved is what the placement rule consults.
 //
 // The number every one of them has to be independent of is the camera itself: the same island in
 // GROUND space must place the same marks at the same ground spots at any elevation, and only their
@@ -1279,8 +1295,10 @@ function groundGap(a: Pt, b: Pt, elevationDeg: number): number {
  *  "how far apart on the ground", so both are measured with {@link groundGap} rather than a raw
  *  screen `hypot`. Measured isotropically in screen pixels against foreshortened cells they demanded
  *  ~3x the ground they were tuned for, which starves the 20 draws on a tight or concave island and
- *  relocates marks onto cell centroids — several onto the SAME one. The nameplate band stays a screen
- *  test: the plate is screen art. */
+ *  relocates marks onto cell centroids — several onto the SAME one. THE NAMEPLATE BAND IS A GROUND
+ *  QUESTION TOO NOW (ADR-0545): its clearance is a ground distance projected at the scene's camera,
+ *  against a plate baseline the caller anchored on the ground — so all FOUR keep-outs mean what they
+ *  say, and the same island places the same marks on the same ground at any elevation. */
 function buildUatMarkers(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[] | null,
@@ -1313,7 +1331,12 @@ function buildUatMarkers(
       // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous gap, no authorable tie.
       const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > art.markerTreeWell;
       // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
-      const clearsPlate = y < t.labelY - art.units(14);
+      // The plate's clearance is a GROUND distance, so it foreshortens with everything else it is
+      // compared against (ADR-0545). Left as a raw `art.units(14)` against a projected baseline it
+      // would still read the camera — a 14-unit screen gap is a 41-unit ground gap at the declared
+      // elevation — and the marker would land on different ground at every angle.
+      const clearsPlate =
+        y < t.labelY - groundRadiusToScreenHalfHeight(art.units(14), elevationDeg);
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
         break;
@@ -2791,7 +2814,11 @@ export function placeGardenHeroes(
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
       // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
-      const clearsPlate = y < t.labelY - art.units(18);
+      // A GROUND clearance against a ground-anchored plate baseline — the same correction the marker
+      // scatter takes, and for the same reason (ADR-0545): this is where a hero STANDS, not what is
+      // drawn over what.
+      const clearsPlate =
+        y < t.labelY - groundRadiusToScreenHalfHeight(art.units(18), elevationDeg);
       const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;
@@ -3616,7 +3643,11 @@ function buildHits(input: SceneInput, art: TileArt): SceneG {
  * type error anywhere. Normalising here means every consumer below keeps the screen contract it was
  * written against and stays correct by construction.
  *
- * `labelY` is deliberately absent from this list — it is screen art under either tag (see the field).
+ * `labelY` USED TO BE deliberately absent from this list, on the ground that it was screen art under
+ * either tag. It is here now (ADR-0545): two of its four consumers — the marker scatter's and the
+ * garden's `clearsPlate` — are ground placements, and a placement measured against an unprojected
+ * baseline reads the camera whatever else it does. It rides the same one-projection-on-the-way-in
+ * rule as the rest, so both keep-outs keep the screen contract they were written against.
  */
 function anchorsToScreen(t: SceneTerritoryInput, elevationDeg: number): SceneTerritoryInput {
   if ((t.anchorSpace ?? 'screen') === 'screen') return t;
@@ -3625,6 +3656,7 @@ function anchorsToScreen(t: SceneTerritoryInput, elevationDeg: number): SceneTer
     ...t,
     centroid: p(t.centroid),
     treeSpot: p(t.treeSpot),
+    labelY: p({ x: 0, y: t.labelY }).y,
     plants: t.plants.map((pl) => ({ ...pl, ...p({ x: pl.x, y: pl.y }) })),
     decor: t.decor.map((d) => ({ ...d, ...p({ x: d.x, y: d.y }) })),
     anchorSpace: 'screen' as const,

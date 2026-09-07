@@ -639,9 +639,15 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
 // byte-for-byte unchanged and needs to learn nothing. A tag deletes itself when the last caller
 // converts; a twin field has to be carried forever by everyone.
 //
-// ⚠ `labelY` IS NOT AN ANCHOR AND DOES NOT MOVE WITH THE TAG. All four of its consumers are
-// declared screen art (the nameplate band, `scene.ts:1197`), so converting it would be pure tax
-// with no ground-space reading to gain. It stays a screen y under either value of the tag.
+// ⚠ `labelY` IS AN ANCHOR AND DOES MOVE WITH THE TAG (ADR-0545) — and the paragraph that stood here
+// saying otherwise was wrong on its own premise. It read: "all four of its consumers are declared
+// screen art (the nameplate band), so converting it would be pure tax with no ground-space reading
+// to gain". Two of the four are not screen art. `clearsPlate` in the marker scatter and in
+// `placeGardenHeroes` decide where a thing STANDS ON THE GROUND, and measuring that against an
+// unprojected baseline is the last surviving member of the bug class `scatter-camera.test.ts`
+// fences — a different camera accepted a different candidate, and ten UAT markers landed on
+// different ground at every angle. The two that ARE screen art, the plate's own drawing and the
+// delegation hit rect, read the PROJECTED baseline and are unchanged at the declared camera.
 // ---------------------------------------------------------------------------
 
 /** The fixture territory, with its anchors stated in one space or the other. */
@@ -658,6 +664,9 @@ function territoryWithAnchors(
   // a y of 0 is its own projection at every camera, which is exactly the frozen-path false green
   // this file's own header warns about.
   const GROUND_CENTROID = { x: 12, y: 40 };
+  /** The nameplate's GROUND baseline. Rides the tag with every other anchor since ADR-0545, and is
+   *  off-axis for the same reason the centroid is: a y of 0 is its own projection at every camera. */
+  const GROUND_LABEL_Y = 46;
   const GROUND_TREE = { x: 12, y: 22 };
   const GROUND_PLANTS = [
     { x: -18, y: 55 },
@@ -678,7 +687,7 @@ function territoryWithAnchors(
     groundRadius: 70,
     screenRadius: 70 * groundFlattening(elevationDeg),
     treeSpot: anchors(GROUND_TREE),
-    labelY: 46,
+    labelY: anchors({ x: 0, y: GROUND_LABEL_Y }).y,
     coastGroundLoops: [[...COAST_GROUND]],
     // Conifer seeds and parcel seeds ride the tag with the rest, and they are STATED here rather
     // than left empty because an empty list exercises neither branch: a diff-scoped mutation run

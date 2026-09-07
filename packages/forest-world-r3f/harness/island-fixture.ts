@@ -36,6 +36,7 @@ import {
   buildRelaxedCells,
   buildScene,
   groundFlattening,
+  groundRadiusToScreenHalfHeight,
   hexCenter,
   type Axial,
   type RelaxedCell,
@@ -218,6 +219,17 @@ export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; st
   return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? fallback }));
 }
 
+/** The nameplate's drop below the island centroid, in GROUND units — the ground line whose
+ *  projection at the declared camera is the 46 px this fixture has always drawn the plate at. */
+const PLATE_DROP_ON_GROUND = 46 / groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+
+/** The story tree's nudge north of the centroid, in GROUND units — same recovery as
+ *  {@link PLATE_DROP_ON_GROUND} and for the same reason. A flat `cy - 6` froze the trunk at a screen
+ *  offset while the island under it foreshortened, so the tree WELL — a ground keep-out measured from
+ *  it — drew a different circle at every camera: 6 ground units in plan view against 17.5 at the
+ *  declared one. The declared camera is unchanged; every other camera now gets the same ground. */
+const TREE_NUDGE_ON_GROUND = 6 / groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+
 export function islandScene(opts: IslandOptions = {}): SceneG {
   // The camera every ground coordinate below is projected at — threaded to EVERY consumer that
   // takes one (the hex centres, the relaxed cells, the territory's screen radius and the scene),
@@ -247,8 +259,18 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     centroid: { x: cx, y: cy },
     groundRadius: 70,
     screenRadius: 70 * groundFlattening(elevationDeg),
-    treeSpot: { x: cx, y: cy - 6 },
-    labelY: cy + 46,
+    treeSpot: { x: cx, y: cy - groundRadiusToScreenHalfHeight(TREE_NUDGE_ON_GROUND, elevationDeg) },
+    // THE NAMEPLATE'S BASELINE IS A GROUND LINE THE CAMERA PROJECTS (ADR-0545), not a fixed screen
+    // drop. It used to be a flat `cy + 46`, which froze the plate at whatever camera the caller asked
+    // for while the island under it foreshortened — so the marker scatter's plate keep-out drew a
+    // DIFFERENT ground line at every elevation, and the ten UAT markers landed on different ground.
+    // That was the whole of the disagreement `true-surface-equivalence.test.ts` measures between the
+    // plan-view and declared-camera arms; the mosaic under them never moved.
+    //
+    // Authored so the DECLARED camera is byte-for-byte what it was — 46 px below the centroid, the
+    // drop every comparison page in this package was judged at — with the ground line that projects
+    // to it recovered once, here, rather than re-derived per camera.
+    labelY: cy + groundRadiusToScreenHalfHeight(PLATE_DROP_ON_GROUND, elevationDeg),
     coastGroundLoops: [],
     decor: [],
     plants: [],

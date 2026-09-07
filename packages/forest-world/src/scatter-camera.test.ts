@@ -30,10 +30,16 @@
 // a surface derives from projected tile centres come out IDENTICAL at every elevation. Only the
 // projection changes between the runs below, never the ground island.
 //
-// THE NAMEPLATE BAND IS PARKED OUT OF RANGE ON PURPOSE. `y < labelY - 14` is a SCREEN constraint and
-// stays one — the plate is screen art, drawn at a fixed pixel size — so it is legitimately
-// elevation-dependent. Left in range it would be the binding keep-out at low elevations and this
-// suite would be measuring the plate instead of the ground.
+// THE NAMEPLATE BAND WAS PARKED OUT OF RANGE, AND IT IS NOT ANY MORE (ADR-0545). The paragraph that
+// stood here said `y < labelY - 14` was "a SCREEN constraint and stays one — the plate is screen
+// art, drawn at a fixed pixel size — so it is legitimately elevation-dependent", and parked the
+// plate 4000 units south so it could never bind. That exemption was the LAST MEMBER of the very bug
+// class this file exists to fence, wearing a reason. The plate having no world position is a fact
+// about the plate, not a licence for a GROUND placement to ask a screen question: whatever a flower
+// is or is not allowed to sit under, the answer may not change with the angle the island is seen
+// from. So the plate is an anchor now — a ground baseline the caller hands over, projected once with
+// the centroid and the tree — its clearance is a ground distance, and the band is IN RANGE below,
+// binding, and held to the same invariant as every other keep-out here.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,12 +48,14 @@ import {
   LAND_CAMERA_ELEVATION_DEG,
   PLAN_VIEW_ELEVATION_DEG,
   groundFlattening,
+  projectGround,
 } from './camera.js';
 import { HEX_R, hexCenter, hexCorners, type Axial, type Pt } from './hex.js';
 import { hash, rand01 } from './rng.js';
 import { routeTrails } from './routing.js';
 import type { RelaxedCell } from './substrate.js';
 import {
+  SHIPPED_TILE_ART,
   buildScene,
   placeGardenHeroes,
   type GardenHeroId,
@@ -116,19 +124,35 @@ const HEROES = {
   'stepping-stone': hero(12, 4),
 } satisfies Record<GardenHeroId, SceneGardenHero>;
 
-function territory(isl: Island): SceneTerritoryInput {
+/** Where the nameplate's GROUND baseline sits, as a fraction of the island's ground radius.
+ *
+ *  The scatter draws candidates over `0.30–0.80 · R` of ground, so a baseline at `0.45 · R` cuts
+ *  through the disc and the band DECIDES draws rather than sitting slack — which is the only way
+ *  this suite can say anything about it. `plateBindsOnThisFixture` below asserts that it does,
+ *  because a keep-out that never fires is a keep-out this file is not testing. */
+const PLATE_AT = 0.45;
+
+function territory(isl: Island, plate: 'in-range' | 'parked' = 'in-range'): SceneTerritoryInput {
   return {
     id: 'studio',
     status: 'healthy',
     caps: 3,
+    // ⚠ THE TAG COSTS THIS FIXTURE NOTHING AND BUYS THE PLATE. The disc is symmetric about the
+    // origin, so its centroid and tree spot are (0, 0) in BOTH spaces and projecting them is the
+    // identity; `plants` and `decor` are empty and there are no parcels. So the only field the tag
+    // actually moves is `labelY` — which is the field under test, and which has no honest ground
+    // reading without it.
+    anchorSpace: 'ground',
     centroid: isl.centroid,
     // The symmetric-disc fixture's `radius` is elevation-INVARIANT by construction (see `island()`'s
     // doc comment), so it stands in for both spaces here without weakening this suite's invariant.
     groundRadius: isl.radius,
     screenRadius: isl.radius,
     treeSpot: isl.treeSpot,
-    // Parked far south — see the header: the plate band is a screen constraint and must not bind here.
-    labelY: isl.centroid.y + 4000,
+    // A GROUND baseline, projected by `buildScene` with the rest. `parked` keeps the pre-ADR-0545
+    // shape for the falsifier below, which needs an arm where the band cannot be what differs.
+    labelY:
+      plate === 'parked' ? isl.centroid.y + 4000 : isl.centroid.y + PLATE_AT * isl.radius,
     coastGroundLoops: [],
     decor: [],
     plants: [],
@@ -139,7 +163,31 @@ function territory(isl: Island): SceneTerritoryInput {
   };
 }
 
-function sceneAt(elevationDeg: number, withGarden: boolean): SceneInput {
+/**
+ * What `buildScene` actually hands `placeGardenHeroes`: the territory AFTER `anchorsToScreen`, every
+ * anchor projected ONCE at the scene's camera.
+ *
+ * The two tests that call the export directly have to do that projection themselves. Handing it the
+ * `ground`-tagged fixture instead would feed a ground baseline to a function whose entire contract
+ * is screen space — the exact mistake this file fences, committed by the fence.
+ */
+function projectedTerritory(isl: Island, elevationDeg: number): SceneTerritoryInput {
+  const t = territory(isl);
+  const p = (q: Pt): Pt => projectGround(q, elevationDeg);
+  return {
+    ...t,
+    anchorSpace: 'screen',
+    centroid: p(t.centroid),
+    treeSpot: p(t.treeSpot),
+    labelY: p({ x: 0, y: t.labelY }).y,
+  };
+}
+
+function sceneAt(
+  elevationDeg: number,
+  withGarden: boolean,
+  plate: 'in-range' | 'parked' = 'in-range',
+): SceneInput {
   const isl = island(elevationDeg);
   const input: SceneInput = {
     offset: { x: 0, y: 0 },
@@ -150,7 +198,7 @@ function sceneAt(elevationDeg: number, withGarden: boolean): SceneInput {
     drawTiles: [],
     wheatSets: [],
     trails: routeTrails([{ id: 'studio', x: isl.centroid.x, y: isl.centroid.y, r: isl.radius }], [], 'scatter'),
-    territories: [territory(isl)],
+    territories: [territory(isl, plate)],
     cameraElevationDeg: elevationDeg,
   };
   // No garden ⇒ `garden` stays ABSENT, which is the non-garden composition.
@@ -353,6 +401,56 @@ test('the UAT scatter assertion has TEETH: the PRE-CAMERA rule is camera-DEPENDE
   );
 });
 
+test('the NAMEPLATE BAND has TEETH: it binds on this fixture, and the SCREEN band it replaced was camera-dependent', () => {
+  // ⚠ THE WHOLE POINT OF UN-PARKING THE PLATE. Bringing the band into range proves nothing unless it
+  // actually DECIDES draws — a keep-out that never fires would let the invariant above pass with the
+  // band computed any way at all, which is how it came to be exempt in the first place.
+  //
+  // Both halves are measured off the REAL seed stream at the REAL constants, so the only thing that
+  // differs between this and the shipped scatter is the SPACE the band is measured in.
+  const isl = island(LAND_CAMERA_ELEVATION_DEG);
+  const t = territory(isl);
+  const ART = SHIPPED_TILE_ART;
+
+  /** Every candidate the sampler would draw for one criterion, in GROUND coordinates. */
+  const candidates = (criterionId: string): Pt[] => {
+    const k = hash(`studio:marker:${criterionId}`);
+    return Array.from({ length: 20 }, (_, attempt) => {
+      const ang = rand01(k + attempt * 2) * Math.PI * 2;
+      const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.groundRadius;
+      return { x: t.centroid.x + Math.cos(ang) * rr, y: t.centroid.y + Math.sin(ang) * rr };
+    });
+  };
+
+  // (a) THE BAND BINDS. Some candidate this fixture draws falls south of the plate's ground line, so
+  //     the band is what rejected it rather than sitting slack 4000 units away.
+  const cut = t.labelY - ART.units(14);
+  const rejected = CRITERIA.flatMap((c) => candidates(c.id)).filter((p) => p.y >= cut);
+  assert.ok(
+    rejected.length > 0,
+    `the plate at ground y ${t.labelY.toFixed(1)} rejected none of the 20x${CRITERIA.length} candidates — ` +
+      'the band is slack on this fixture and the invariant above is not testing it',
+  );
+
+  // (b) AND THE RULE IT REPLACED READ THE CAMERA. The pre-ADR-0545 band compared a projected
+  //     candidate against an UNPROJECTED baseline, so the ground line it drew moved with the angle:
+  //     the same ground y passes at one elevation and fails at another. Stated on the rule itself
+  //     rather than on which samples happened to win, so it cannot go quiet if the fixture shifts.
+  const screenBandGroundCut = (deg: number): number =>
+    // what `y < labelY - units(14)` meant on the ground, once both sides are read in ground terms
+    (t.labelY * groundFlattening(deg) - ART.units(14)) / groundFlattening(deg);
+  const atDeclared = screenBandGroundCut(LAND_CAMERA_ELEVATION_DEG);
+  const atPlan = screenBandGroundCut(PLAN_VIEW_ELEVATION_DEG);
+  assert.ok(
+    Math.abs(atDeclared - atPlan) > ART.units(14),
+    `the screen band drew the same ground line at both cameras (${atDeclared.toFixed(1)} vs ` +
+      `${atPlan.toFixed(1)}) — if it did, replacing it would have been a rename`,
+  );
+  // And the direction, which is the half a magnitude alone cannot give: the screen band was STRICTER
+  // the flatter the camera, so it is the low elevations that lost markers off their ground spots.
+  assert.ok(atDeclared < atPlan, 'the screen band must tighten as the camera drops');
+});
+
 // ---------- site 2: the garden heroes (`placeGardenHeroes`, exported) ----------
 
 test('placeGardenHeroes puts a hero on the same GROUND spot at every camera', () => {
@@ -364,7 +462,7 @@ test('placeGardenHeroes puts a hero on the same GROUND spot at every camera', ()
   const byDeg = new Map<number, Map<string, Pt>>();
   for (const deg of SWEEP) {
     const isl = island(deg);
-    const spots = placeGardenHeroes(territory(isl), ids, halfW, isl.cells, 16, deg);
+    const spots = placeGardenHeroes(projectedTerritory(isl, deg), ids, halfW, isl.cells, 16, deg);
     assert.equal(spots.size, ids.length, `${deg} deg: a hero was dropped`);
     byDeg.set(deg, new Map([...spots].map(([id, p]) => [id, p])));
   }
@@ -381,7 +479,7 @@ test('the hero placement has TEETH: the same call at the WRONG camera moves the 
     ['gazebo', 9],
   ]);
   const isl = island(LAND_CAMERA_ELEVATION_DEG);
-  const t = territory(isl);
+  const t = projectedTerritory(isl, LAND_CAMERA_ELEVATION_DEG);
   const honest = placeGardenHeroes(t, ids, halfW, isl.cells, 16, LAND_CAMERA_ELEVATION_DEG);
   const blind = placeGardenHeroes(t, ids, halfW, isl.cells, 16, PLAN_VIEW_ELEVATION_DEG);
   const moved = ids.filter((id) => {

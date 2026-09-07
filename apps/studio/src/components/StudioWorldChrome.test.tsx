@@ -58,6 +58,8 @@ function mkWorld(): HexWorld {
         wheatTiles: new Set<string>(),
         coastGroundLoops: [],
         labelY: 80,
+        // its GROUND twin (ADR-0545) — the baseline the marker scatter reads; 80 / sin 20 degrees
+        groundLabelY: 80 / Math.sin((20 * Math.PI) / 180),
         // studio carries two identity stamps (library + cli).
         stamps: [
           { icon: 'library', spot: { x: 40, y: 50 } },
@@ -92,6 +94,8 @@ function mkWorld(): HexWorld {
         wheatTiles: new Set<string>(),
         coastGroundLoops: [],
         labelY: 80,
+        // its GROUND twin (ADR-0545) — the baseline the marker scatter reads; 80 / sin 20 degrees
+        groundLabelY: 80 / Math.sin((20 * Math.PI) / 180),
         stamps: [],
         buildingGlyph: false,
       },

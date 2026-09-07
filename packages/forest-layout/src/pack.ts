@@ -35,6 +35,7 @@ import {
   HEX_W,
   TILE_DEPTH,
   groundRadiusToScreenHalfHeight,
+  unprojectGround,
   PLAN_VIEW_ELEVATION_DEG,
   groundPolarOffset,
   axialKey,
@@ -171,7 +172,20 @@ export interface Territory<S extends LayoutStory = LayoutStory> {
    *  `RIVER_FAN_MAX`, `LANE_GAP`, `LANE_WINDOW` and `MOUTH_FLARE` are all unused constants that
    *  `pnpm lint` reports. Nothing outside this file's own declaration and assignment ever read it. */
   coastGroundLoops: Pt[][];
+  /** The nameplate baseline, SCREEN-projected at the declared land camera — what this file's own
+   *  React renderer draws the plate at. */
   labelY: number;
+  /** The same baseline before the camera: the ground line the nameplate stands on, south of the
+   *  island's own southernmost tile. Feeds `SceneTerritoryInput.labelY` under `anchorSpace:
+   *  'ground'`, which is what lets the marker scatter and the garden ask "is this spot in front of
+   *  the plate?" on the GROUND rather than on the screen (ADR-0545) — the last member of the
+   *  screen-vs-ground bug class `scatter-camera.test.ts` fences.
+   *
+   *  An independently-computed twin of `labelY`, exactly like `groundRadius` / `radius`: derived
+   *  from the plan-view tile centres rather than by un-projecting the drawing, which is the move
+   *  ADR-0527 D2 exists to delete rather than to spread. `label-baselines-are-twins` in
+   *  `pack.test.ts` holds the two to `groundLabelY · sin θ = labelY`. */
+  groundLabelY: number;
   /** Per-island ICON STAMPS this island CARRIES (ADR-0102): one entry per promoted edge incident
    *  to a `render: building` island, "you carry the icon of what you depend on". `icon` is the id
    *  whose identity glyph is drawn ({@link storyIcon}); `spot` is its seat on owned land. An island
@@ -728,6 +742,18 @@ export function packWorld<S extends LayoutStory>(
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
       tileUnits(8);
+    // The SAME baseline on the ground (ADR-0545), built the way every other ground twin here is
+    // built — from the plan-view tile centres, never by un-projecting `labelY`. The island's own
+    // terms are already ground distances (a plan-view southern edge plus a hex radius). The plate's
+    // remaining DROP is not: `TILE_DEPTH` is an upright extrusion and `tileUnits(8)` a drawn gap,
+    // both screen magnitudes chosen to sit the plate clear of the picture — so the ground line that
+    // appears there is what `unprojectGround` recovers, at the camera the drop was authored at.
+    // That is the honest translation of "the plate sits this far in front of the island", and it is
+    // why the two twins agree by construction rather than by coincidence.
+    const groundLabelY =
+      Math.max(...groundTileCenters.map((p) => p.y), groundCentroid.y) +
+      HEX_R +
+      unprojectGround({ x: 0, y: TILE_DEPTH + tileUnits(8) }).y;
     // `smoothCoast` outsets + smooths in GROUND space (see the boundary comment above), and the
     // loops now leave in that space (ADR-0527 D1). `buildScene` projects them at the camera it is
     // asked for and draws the path there, applying the SAME order this function used to —
@@ -769,6 +795,7 @@ export function packWorld<S extends LayoutStory>(
       wheatTiles,
       coastGroundLoops: coast.loops,
       labelY,
+      groundLabelY,
       stamps,
       // ADR-0088 (+ owner 2026-06-22 follow-on): building-class stories never render on the map
       // (they live in the Shared Islands panel) AND the panel's bookshelf landmark now sits
