@@ -53,6 +53,25 @@ worktree's deletion makes miss (ADR-0033 / ADR-0041) — and the whole thing is 
 > "done" fact, cleared keylessly and fail-soft — never changed, which is why this is an in-place
 > correction rather than a supersede.
 
+> **Corrected in place 2026-09-08 — this capability's writer had NEVER RUN, and both its contracts
+> were green throughout.** Measured on the real merge of PR #1877 (2026-09-07, run 34146276659, job
+> `automerge`): the release step printed
+> `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "tsx" not found` and exited 254. `tsx` was never a
+> dependency of `@storytree/notice-board`, so `pnpm --filter @storytree/notice-board exec tsx` could
+> not resolve it — while the step's own comment asserted, in prose, that it could ("a
+> @storytree/notice-board devDep"). `continue-on-error: true` then swallowed the 254, so the job went
+> green and the merge clear ADR-0138 §4 calls *guaranteed* silently did not happen, on every merge
+> since the writer moved here under ADR-0077. The claims this was meant to release are among the
+> corpses `ledger-liveness-honesty-arc` was chartered on. Fixed by declaring the dependency
+> (`packages/notice-board/package.json`); the assertion-in-a-comment is replaced by a real one, which
+> is repo-wide rather than scoped here because the next instance will be a different workflow:
+> `ingest-ci-activity.test.ts` scans every workflow for `pnpm --filter <pkg> exec <bin>` and fails
+> unless `<pkg>` declares `<bin>`. ⚠ Contract 2 below is UNCHANGED and was never wrong — fail-soft IS
+> the contract on the merge path. What this shows is its blind spot: fail-soft plus a wiring claim
+> that only a comment held meant nothing observed the difference between "released nothing because
+> there was nothing to release" and "never ran at all". Read contract 1 as the one that had no
+> witness on the merge path until now.
+
 > **Cross-story boundary (ADR-0010 §4):** this capability writes through the **claim-store** seam
 > owned by [`stories/notice-board`](../notice-board/story.md) (the `events.node_claim` ledger). It
 > does not own the ledger; it adds the merge-time release to a store another story defines. A

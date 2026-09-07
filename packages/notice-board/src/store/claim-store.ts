@@ -5,6 +5,7 @@ import {
   isReclaimable,
   CLAIM_STALE_RECLAIM_MS,
   type ActivityStamp,
+  type BranchActivityStamp,
   type ClaimAcquired,
   type ClaimDeparture,
   type ClaimDocT,
@@ -942,6 +943,88 @@ export class PgClaimStore {
             AND v.observed <= now()
         RETURNING ${CLAIM_COLUMNS_QUALIFIED}`,
         [stamps.map((s) => s.sessionId), stamps.map((s) => s.observedAt)],
+      );
+      await client.query("COMMIT");
+      return (upd.rows as ClaimRow[]).length;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Write OBSERVED CI evidence onto every claim held on the observed BRANCHES (ADR-0535 D2, the
+   * narrow half) — the second writer of `heartbeat_at`, and the only one sourced from outside this
+   * machine.
+   *
+   * WHY A SECOND SIGNAL AT ALL. {@link stampActivity} watches file change inside a claimed worktree
+   * and is therefore DARK exactly while a session waits on checks touching no files — which is the
+   * incident `ledger-liveness-honesty-arc` was chartered on. This one is dark through the building
+   * hours and bright through the waiting ones, so the two cover each other; the owner took both for
+   * that reason rather than either.
+   *
+   * ⚠ NARROW BY CONSTRUCTION. Its caller admits exactly two readings — a check RUNNING right now,
+   * or a commit pushed very recently. It must never be fed "this branch has an open pull request":
+   * every open PR here is a long-abandoned draft and three of them sit on the three oldest dead
+   * claims on the board, so the broad form would make corpse-fencing PERMANENT. This method cannot
+   * tell where its stamps came from, so the fence lives in `ci-corroboration.ts` (which has no
+   * shape for that reading), in `ingest-ci-activity.ts` (one admitted query), and in the workflow's
+   * withheld `pull-requests` permission.
+   *
+   * KEYED ON THE FULL BRANCH, exactly as {@link releaseClaimsByBranch} is, and for the same reason:
+   * any branch shape can hold a claim (`claude/*`, a `claude/real/*` promotion, an ADR-0200 D3
+   * lobby `worktree-…`), and the one time this repo filtered on a `claude/*` prefix it cost PR
+   * #1024's claim its machine clear.
+   *
+   * MONOTONIC, IN SQL. `observed > heartbeat_at` makes a stamp a floor under liveness and never a
+   * ceiling on it, so a claim cannot be aged into the takeover window by its own liveness signal.
+   *
+   * ⚠ THE CEILING IS A CLAMP HERE AND A REFUSAL IN {@link stampActivity}, AND THE ASYMMETRY IS
+   * DELIBERATE — DO NOT "HARMONISE" THEM. The two signals observe different things, so a reading
+   * ahead of the database's clock means different things. Its sibling reads a FILE MTIME, which is
+   * genuinely of the past: one in the future is a corrupt reading, and trusting it would vouch for a
+   * worktree nothing has touched, so it is refused outright. This one reads ITS OWN CLOCK at the
+   * instant it saw live evidence, so a reading ahead of the database means only that two machines
+   * disagree about the time — and `LEAST(observed, now())` reconciles them by capping at the
+   * database's own present, which is the freshest any current evidence could justify anyway.
+   *
+   * REFUSING WOULD NOT BE THE SAFE CHOICE HERE, IT WOULD BE A SILENT TOTAL FAILURE, AND IT WAS
+   * MEASURED RATHER THAN REASONED. Shipped as `AND v.observed <= now()`, this statement wrote
+   * NOTHING on a machine whose clock ran ~10 s ahead of Cloud SQL (measured 2026-09-08 on the dev
+   * box: `local - db` = 9.4-9.8 s, pool handshake 5.8 s). The observation is taken before the
+   * connector handshake, so whether it lands at all depends on whether that handshake happens to
+   * outlast the skew — three consecutive real runs corroborated two branches and moved zero claims,
+   * reporting success each time. A liveness writer that silently stops is the exact defect
+   * `ledger-liveness-honesty-arc` was chartered on, so it must not be rebuilt inside the repair.
+   * The caller's own clock is still fenced by `planCorroboration`, which refuses an observation
+   * ahead of the JOB — a different fault, caught where it can actually be seen.
+   *
+   * ⚠ EVERY `RETURNING` COLUMN IS QUALIFIED, AND NO OFFLINE TEST CAN PROVE THAT. An `UPDATE … FROM`
+   * puts two relations in scope, and both carry a `branch` column here — where the sibling's
+   * ambiguity was `session_id`, this one's is `branch`, so the same class of failure is one
+   * unqualified name away. The fake client in `claim-store.test.ts` records statement text and
+   * never parses it, so a live run is the only thing that has ever caught this
+   * (`claim-store-branch-activity.live.test.ts`).
+   *
+   * Touches ONLY `heartbeat_at` and appends NO audit event, like its siblings. Returns the number
+   * of claims actually moved (0 = no claim on those branches, or nothing newer to say). Atomic.
+   */
+  async stampBranchActivity(stamps: readonly BranchActivityStamp[]): Promise<number> {
+    if (stamps.length === 0) return 0;
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      const upd = await client.query(
+        `UPDATE events.node_claim c
+            SET heartbeat_at = v.observed
+           FROM (SELECT t.branch, LEAST(t.observed, now()) AS observed
+                   FROM unnest($1::text[], $2::timestamptz[]) AS t(branch, observed)) v
+          WHERE c.branch = v.branch
+            AND v.observed > c.heartbeat_at
+        RETURNING ${CLAIM_COLUMNS_QUALIFIED}`,
+        [stamps.map((s) => s.branch), stamps.map((s) => s.observedAt)],
       );
       await client.query("COMMIT");
       return (upd.rows as ClaimRow[]).length;

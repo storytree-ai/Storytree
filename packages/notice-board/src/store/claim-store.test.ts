@@ -119,6 +119,8 @@ class FakeClaimClient {
   bumpReturns?: ClaimRow;
   /** The rows a stampActivity UPDATE returns; one sweep can move many sessions' claims (ADR-0535 D2). */
   activityStampReturns?: ClaimRow[];
+  /** The rows a stampBranchActivity UPDATE returns — the CI half of ADR-0535 D2, keyed on branch. */
+  branchActivityStampReturns?: ClaimRow[];
   /** When set, any query whose text includes this fragment throws. */
   failOnPattern?: string;
   /**
@@ -172,9 +174,14 @@ class FakeClaimClient {
       // The post-race-loss winner re-read.
       return { rows: this.winnerRow ? [this.winnerRow] : [] };
     }
-    // The observed-activity sweep (ADR-0535 D2) writes an OBSERVED moment, not `now()` — route it
-    // ahead of the per-unit bump, which is the only remaining writer of `heartbeat_at = now()`.
+    // The two observed-activity writers (ADR-0535 D2) both write an OBSERVED moment rather than
+    // `now()` — route them ahead of the per-unit bump, which is the only remaining writer of
+    // `heartbeat_at = now()`. They are told apart by their JOIN KEY, which is the one thing that
+    // genuinely differs: the worktree sweep vouches for a SESSION, CI vouches for a BRANCH.
     if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = v.observed")) {
+      if (text.includes("c.branch = v.branch")) {
+        return { rows: this.branchActivityStampReturns ?? [] };
+      }
       return { rows: this.activityStampReturns ?? [] };
     }
     if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = now()")) {
@@ -1102,6 +1109,155 @@ test("stampActivity: a DB error mid-transaction → ROLLBACK, no COMMIT, client 
   );
   assert.ok(rollsBack(client) && !commits(client));
   assert.ok(client.released);
+});
+
+// ── stampBranchActivity (ADR-0535 D2, the NARROW CI half) ────────────────────
+// The second writer of `heartbeat_at`, and the only one sourced from OUTSIDE this machine. Its
+// sibling above watches file change in a claimed worktree and is dark exactly while a session waits
+// on checks touching no files — the incident that opened `ledger-liveness-honesty-arc`. The two
+// carry the same monotonic fences for the same reason; what differs is the JOIN KEY, and that
+// difference is what these cover.
+
+test("stampBranchActivity: keyed on the BRANCH, batched through unnest, no audit event, COMMIT", async () => {
+  const client = new FakeClaimClient();
+  client.branchActivityStampReturns = [
+    heldRow({ unit_id: "unit-alpha", session_id: "sess-A", branch: "claude/alpha" }),
+    heldRow({ unit_id: "unit-beta", session_id: "sess-A", branch: "claude/alpha" }),
+  ];
+  const count = await storeWith(client).stampBranchActivity([
+    { branch: "claude/alpha", observedAt: "2026-09-08T12:00:00.000Z" },
+    { branch: "claude/beta", observedAt: "2026-09-08T12:05:00.000Z" },
+  ]);
+
+  assert.equal(count, 2, "returns the number of claim rows actually moved forward");
+  const stamp = client.calls.find((c) => c.text.includes("c.branch = v.branch"));
+  assert.ok(stamp !== undefined, "the batched branch-activity UPDATE was issued");
+  assert.deepEqual(
+    stamp.values,
+    [
+      ["claude/alpha", "claude/beta"],
+      ["2026-09-08T12:00:00.000Z", "2026-09-08T12:05:00.000Z"],
+    ],
+    "one round trip whatever the batch size, as two parallel arrays for `unnest`",
+  );
+  assert.equal(client.events.length, 0, "no claim_event for a liveness reading");
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("stampBranchActivity: keys on the FULL branch — no prefix filter, no tail derivation", async () => {
+  // Claims are keyed on the full branch and ANY shape can hold one. The `claude/*` gate on the
+  // sibling CI writer is what cost PR #1024's claim its machine clear.
+  const client = new FakeClaimClient();
+  await storeWith(client).stampBranchActivity([
+    { branch: "claude/real/render-wisp-abc123", observedAt: "2026-09-08T12:00:00.000Z" },
+    { branch: "worktree-adr0270-capability-grain", observedAt: "2026-09-08T12:00:00.000Z" },
+  ]);
+  const stamp = client.calls.find((c) => c.text.includes("c.branch = v.branch"));
+  assert.deepEqual(stamp?.values[0], [
+    "claude/real/render-wisp-abc123",
+    "worktree-adr0270-capability-grain",
+  ]);
+});
+
+test("stampBranchActivity: monotonic like its sibling, but it CLAMPS the ceiling where the sibling REFUSES it", async () => {
+  // The floor is shared: `observed > heartbeat_at` keeps a stamp a floor under liveness, never a
+  // ceiling on it, so a claim cannot be aged into the takeover window by its own liveness signal.
+  //
+  // The CEILING deliberately differs, and refusing here would be a silent TOTAL failure rather than
+  // the safe choice. This signal's observation is its own clock at the instant it saw live
+  // evidence, taken BEFORE the connector handshake — so `v.observed <= now()` compares a runner's
+  // wall clock to the database's, and on a machine ~10 s ahead of Cloud SQL (measured on the dev
+  // box) every corroboration was refused while the report said success. `LEAST(observed, now())`
+  // caps at the database's own present instead, which is the freshest any current evidence could
+  // justify. Its sibling reads a FILE MTIME, genuinely of the past, where a future value means a
+  // corrupt reading and refusing is right — so do not harmonise the two.
+  const client = new FakeClaimClient();
+  await storeWith(client).stampBranchActivity([
+    { branch: "claude/alpha", observedAt: "2026-09-08T12:00:00.000Z" },
+  ]);
+  const stamp = client.calls.find((c) => c.text.includes("c.branch = v.branch"));
+  assert.ok(stamp !== undefined);
+  assert.match(stamp.text, /AND v\.observed > c\.heartbeat_at/, "the shared floor");
+  assert.match(stamp.text, /LEAST\(t\.observed, now\(\)\)/, "the ceiling is a clamp, not a refusal");
+  assert.ok(
+    !/v\.observed <= now\(\)/.test(stamp.text),
+    "the refusing ceiling is what silently wrote nothing — it must not come back",
+  );
+});
+
+test("stampBranchActivity: every RETURNING column is QUALIFIED — here the ambiguity is `branch`", async () => {
+  // The same class of failure the sibling shipped and Postgres refused (`column reference
+  // "session_id" is ambiguous`), one relation over: an UPDATE…FROM puts two relations in scope and
+  // BOTH carry `branch` here, so an unqualified list refuses the whole statement. Nothing offline
+  // can reproduce that — the fake records statement text and never parses it — so what is held is
+  // the property that avoids it, column by column against the list the statement is built from.
+  const client = new FakeClaimClient();
+  await storeWith(client).stampBranchActivity([
+    { branch: "claude/alpha", observedAt: "2026-09-08T12:00:00.000Z" },
+  ]);
+  const stamp = client.calls.find((c) => c.text.includes("c.branch = v.branch"));
+  const returning = /RETURNING ([\s\S]*)$/.exec(stamp?.text ?? "")?.[1] ?? "";
+  assert.notEqual(returning, "", "precondition: the statement has a RETURNING clause");
+  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "claimed_at", "heartbeat_at"]) {
+    assert.match(
+      returning,
+      new RegExp(`\\bc\\.${col}\\b`),
+      `RETURNING must name c.${col}, not a bare column an UPDATE…FROM cannot resolve`,
+    );
+  }
+});
+
+test("stampBranchActivity (empty batch): writes nothing at all — no client, no transaction", async () => {
+  const client = new FakeClaimClient();
+  assert.equal(await storeWith(client).stampBranchActivity([]), 0);
+  assert.equal(client.calls.length, 0, "an empty batch must not even open a transaction");
+});
+
+test("stampBranchActivity (no claim on those branches): returns 0, still COMMITs", async () => {
+  const client = new FakeClaimClient(); // branchActivityStampReturns undefined → WHERE matched nothing
+  const count = await storeWith(client).stampBranchActivity([
+    { branch: "claude/unclaimed", observedAt: "2026-09-08T12:00:00.000Z" },
+  ]);
+  assert.equal(count, 0, "a branch nobody claims is a clean no-op, not a failure");
+  assert.ok(commits(client));
+});
+
+test("stampBranchActivity: a DB error mid-transaction → ROLLBACK, no COMMIT, client released", async () => {
+  const client = new FakeClaimClient();
+  client.failOnPattern = "c.branch = v.branch";
+  await assert.rejects(
+    () =>
+      storeWith(client).stampBranchActivity([
+        { branch: "claude/alpha", observedAt: "2026-09-08T12:00:00.000Z" },
+      ]),
+    /Fake-induced failure/,
+  );
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.ok(client.released);
+});
+
+test("stampBranchActivity and stampActivity are DISTINCT statements — one column apart", async () => {
+  // Both SET `heartbeat_at = v.observed`, so a reader (and a fake router) tells them apart only by
+  // their join key. Pinned because collapsing them would silently make one signal write the other's
+  // rows: a session id is not a branch, and a branch is held by claims from more than one session.
+  const client = new FakeClaimClient();
+  const store = storeWith(client);
+  await store.stampActivity([{ sessionId: "sess-A", observedAt: "2026-09-08T12:00:00.000Z" }]);
+  await store.stampBranchActivity([{ branch: "sess-A", observedAt: "2026-09-08T12:00:00.000Z" }]);
+
+  const stamps = client.calls.filter((c) => c.text.includes("SET heartbeat_at = v.observed"));
+  assert.equal(stamps.length, 2, "two writes issued");
+  assert.match(stamps[0]?.text ?? "", /c\.session_id = v\.session_id/);
+  assert.match(stamps[1]?.text ?? "", /c\.branch = v\.branch/);
+  assert.ok(
+    !/c\.branch = v\.branch/.test(stamps[0]?.text ?? ""),
+    "the worktree sweep never joins on branch",
+  );
+  assert.ok(
+    !/c\.session_id = v\.session_id/.test(stamps[1]?.text ?? ""),
+    "the CI signal never joins on session",
+  );
 });
 
 // ── Live-gated: real atomic claim/refuse/reclaim over Postgres ────────────────

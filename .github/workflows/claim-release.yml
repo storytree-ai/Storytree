@@ -156,6 +156,15 @@ jobs:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
           STORYTREE_MERGED_HEAD_REF: ${{ steps.refs.outputs.branches }}
           STORYTREE_CLAIM_RELEASE_STRICT: "1"
-        # Package-scoped exec resolves the workspace's pinned tsx (a @storytree/notice-board devDep) —
-        # `npx tsx` from root would download tsx fresh (no root .bin in this pnpm workspace).
+        # Package-scoped exec resolves the workspace's pinned tsx, which @storytree/notice-board
+        # now DECLARES as a devDependency — `npx tsx` from root would download tsx fresh (no root
+        # .bin in this pnpm workspace).
+        #
+        # ⚠ THAT DECLARATION IS LOAD-BEARING AND WAS MISSING FOR MONTHS. Until 2026-09-08 this line
+        # was identical and the dependency did not exist, so every run died with
+        # `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "tsx" not found` (exit 254) and
+        # `continue-on-error` swallowed it: the merge clear ADR-0138 §4 calls guaranteed had never
+        # run once. The comment here claimed the devDep in prose, which is the one place nothing
+        # checks. It is now checked — `packages/notice-board/src/store/ingest-ci-activity.test.ts`
+        # scans every workflow for `pnpm --filter <pkg> exec <bin>` and reds unless <pkg> declares it.
         run: pnpm --filter @storytree/notice-board exec tsx src/store/ingest-merge.ts
