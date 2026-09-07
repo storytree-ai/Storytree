@@ -613,7 +613,7 @@ function KnowledgeChip({
       data-cyclic={report.cyclic}
       data-absent={report.absent}
       title={`${report.placed} of ${report.visited} things read here are knowledge artifacts in the dependency graph${
-        report.placed > 0 ? `, the deepest ${report.maxDepth} hop(s) below a surface` : ''
+        report.placed > 0 ? `, the deepest ${report.maxDepth} link(s) below a surface` : ''
       }; ${report.record} are record rows — the session log, which has no knowledge depth; ${
         report.workUnit
       } are stories or capabilities, which live in the work hierarchy; ${
@@ -1209,6 +1209,19 @@ function CompositionBar({
 function Legend(): React.JSX.Element {
   return (
     <div className="traversal-legend" data-testid="traversal-legend">
+      {/* ⚠ THE VERTICAL, NAMED WHERE A READER MEETS IT (ADR-0543 D1) — and it goes FIRST because it
+          is the frame every other key sits inside. ADR-0482 D2 already put "corpus distance" on the
+          axis note, but the sentence that does the real work — that this is NOT the agent's route —
+          lived only in a `title`, and the row labels a reader actually reads said "hops". So the
+          panel's own words invited exactly the effort reading the owner then took off it and asked
+          about. A hover is not where a picture states its grammar; this row is. */}
+      {/* Length is deliberately held to the composition key's, the longest this legend already
+          ships: `.traversal-legend-key` is an `inline-flex` with no internal wrap, so a key longer
+          than the panel's minimised width would overflow rather than fold. */}
+      <span className="traversal-legend-key">
+        rows ↓ how far the material sits from the work in the corpus — never a count of steps this
+        session took
+      </span>
       <span className="traversal-legend-key">
         <svg width="24" height="8" aria-hidden="true">
           <line className="traversal-edge strength-full is-visible" x1={1} y1={4} x2={23} y2={4} />

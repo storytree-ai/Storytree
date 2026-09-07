@@ -935,6 +935,25 @@ describe('the legend and the stylesheet say the same thing', () => {
     expect(css).not.toContain('.traversal-offer-ray');
   });
 
+  it('names the VERTICAL in the legend, and denies the route reading there rather than on a hover', () => {
+    // ADR-0543 D1. ADR-0482 D2 already required the axis to say what it is, and it did — in a
+    // `title`. The visible words a reader met were "depth", the row labels ("2 hops"), and lines
+    // that descend and return, all inside a picture called a traversal replay. So the panel read as
+    // a record of what the agent DID, which is the reading the owner took off it and then asked
+    // about; the axis note was correct and outvoted.
+    //
+    // The legend is where this belongs — its own header calls it "the grammar, said once, where a
+    // reader meets the picture" — and asserting it HERE rather than on the note is the point: a
+    // hover is not a place a picture states its grammar.
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} />);
+    const legend = screen.getByTestId('traversal-legend').textContent ?? '';
+    expect(legend).toContain('rows ↓');
+    expect(legend).toContain('never a count of steps this session took');
+    // The POSITIVE half matters as much as the denial: a reader told only what the axis is not
+    // still cannot read it. It must also say what the distance IS measured through.
+    expect(legend).toContain('corpus');
+  });
+
   it('says RINGS where a reader meets the picture, and no longer says rays', () => {
     render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} />);
     const legend = screen.getByTestId('traversal-legend').textContent ?? '';
@@ -1136,7 +1155,7 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
     ).toBe(true);
   });
 
-  it('annotates each placed artifact with its hop count, on the hover label and never as a gauge', () => {
+  it('annotates each placed artifact with its link count, on the hover label and never as a gauge', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
     const attrs = screen
       .getAllByTestId('traversal-mark')
@@ -1148,7 +1167,7 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
     // visits record NO surface, so the clause says exactly that rather than naming a tier — the
     // shorter of the two unclassified readings, kept apart from the drift one on purpose.
     expect(titles[0]).toBe(
-      'ceremony · full payload · knowledge depth 1 — 1 hop below the surface' +
+      'ceremony · full payload · knowledge depth 1 — 1 link below the surface' +
         ' · recorder unrecorded — this observation carries no surface, so nothing attributes it to one',
     );
     // The grammar clause survives every trim: the mark itself stays plain. Identity and read
@@ -1218,7 +1237,7 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
   it('draws each placed read on the row its corpus depth names', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
     const rows = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-row'));
-    // `ceremony` 1 hop down, `principle` 2. The axis and the chip read ONE model, so the row and the
+    // `ceremony` 1 link down, `principle` 2. The axis and the chip read ONE model, so the row and the
     // hover reading cannot disagree — which is the whole reason the axis is not computed twice.
     expect(rows.slice(0, 2)).toEqual(['1', '2']);
     const cys = screen

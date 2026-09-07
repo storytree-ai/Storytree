@@ -112,13 +112,13 @@ describe('the four readings stay four', () => {
   // suite genuinely kills are reported as survivors nothing named.
   const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
-  it('annotates a placed artifact with its hop count', () => {
+  it('annotates a placed artifact with its link count', () => {
     const model = makeModel();
     expect(markKnowledgeDepth(model, 'ceremony')).toEqual({
       state: 'placed',
       depth: 1,
       attr: '1',
-      label: 'knowledge depth 1 — 1 hop below the surface',
+      label: 'knowledge depth 1 — 1 link below the surface',
     });
     expect(markKnowledgeDepth(model, 'principle')?.depth).toBe(2);
   });
@@ -349,7 +349,7 @@ describe('a visited decision reads its own depth, not its artifact twin`s', () =
     const model = buildKnowledgeDepth(DECISIONS_READY);
     // The regression this guards: `adr-0403` IS on the wire as an ordinary artifact row, and nothing
     // points at that row, so an uncollapsed lookup answers `depth 0 — at the surface` about a
-    // decision two hops down.
+    // decision two links down.
     expect(markKnowledgeDepth(model, 'adr-0403')).toMatchObject({ state: 'placed', depth: 2 });
     expect(markKnowledgeDepth(model, 'adr-0363')).toMatchObject({ state: 'placed', depth: 3 });
   });
@@ -520,13 +520,13 @@ describe('the hover label agrees in number with the depth it reports', () => {
   // suite genuinely kills are reported as survivors nothing named.
   const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
-  it('says one hop for depth 1 and hops for anything else', () => {
+  it('says one link for depth 1 and links for anything else', () => {
     const model = makeModel();
     expect(markKnowledgeDepth(model, 'ceremony')?.label).toBe(
-      'knowledge depth 1 — 1 hop below the surface',
+      'knowledge depth 1 — 1 link below the surface',
     );
     expect(markKnowledgeDepth(model, 'principle')?.label).toBe(
-      'knowledge depth 2 — 2 hops below the surface',
+      'knowledge depth 2 — 2 links below the surface',
     );
   });
 });

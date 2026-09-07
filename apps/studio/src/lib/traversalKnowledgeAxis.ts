@@ -193,6 +193,20 @@ export function knowledgeAxisRow(axis: KnowledgeAxis, reading: MarkKnowledgeDept
  *
  * Row 0 is "surface" and not "depth 0": the axis's own top is the graph's surface, and naming it with
  * a number invites reading the column as a session's descent from nowhere.
+ *
+ * ⚠ THE DEPTH ROWS COUNT `links`, NOT `hops` (ADR-0543 D1), AND THAT IS THE WHOLE POINT OF THE WORD.
+ * A hop is something an agent DOES. These rows measure the CORPUS — how many `dependsOn` edges lie
+ * between the graph's surface and the artifact that was read — and an agent that opens one deep
+ * document directly lands on exactly the row of one that crawled there over ten steps. Labelling
+ * that distance in hops is what let every reader take an effort reading off this axis, the owner
+ * included; ADR-0482 D2's caption said "corpus distance" while the rows a reader actually meets said
+ * "hops", and the rows won. `link` is also already this panel's word for a `dependsOn` edge — the
+ * knowledge chip prints `K/L linked` and {@link ../lib/knowledgeDepth} speaks of "the linked graph" —
+ * so the axis now names its unit the same way the rest of the picture does.
+ *
+ * Do not restore a movement word here. If the vertical ever draws the session's OWN descent again
+ * (ADR-0482 D5 keeps that cheap), the label changes back in the same commit as the quantity — never
+ * ahead of it.
  */
 export function axisRowLabel(axis: KnowledgeAxis, row: number): string {
   if (row === 0) return 'surface';
@@ -201,8 +215,10 @@ export function axisRowLabel(axis: KnowledgeAxis, row: number): string {
   if (row === axis.recordRow) return 'record';
   if (row === axis.workUnitRow) return 'work unit';
   if (row === axis.unmeasuredRow) return 'unmeasured';
-  const hop = row === 1 ? 'hop' : 'hops';
-  return row === axis.depthRows && axis.clamped ? `${String(row)}+ ${hop}` : `${String(row)} ${hop}`;
+  const link = row === 1 ? 'link' : 'links';
+  return row === axis.depthRows && axis.clamped
+    ? `${String(row)}+ ${link}`
+    : `${String(row)} ${link}`;
 }
 
 /**
@@ -221,6 +237,6 @@ export function axisCaption(axis: KnowledgeAxis): string {
     'never the route this session took';
   if (axis.deepest === null) return `${base}; nothing this session read has a depth`;
   return axis.clamped
-    ? `${base}; drawn to ${String(axis.depthRows)} hops, this session reached ${String(axis.deepest)}`
+    ? `${base}; drawn to ${String(axis.depthRows)} links, this session reached ${String(axis.deepest)}`
     : `${base}; this session reached ${String(axis.deepest)}`;
 }
