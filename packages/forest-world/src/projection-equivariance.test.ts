@@ -648,6 +648,11 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
 function territoryWithAnchors(
   space: 'screen' | 'ground',
   elevationDeg: number,
+  // ⚠ BOTH ARMS ARE NEEDED AND ONE FIXTURE CANNOT CARRY THEM. A parcels-PRESENT island RETIRES its
+  // decorative conifers and its one-plant-per-cap ring (the parcel flora replaces them), so on that
+  // island `decor` and `plants` are never drawn and mutating their projection changes nothing —
+  // measured, as six surviving mutants, when this fixture carried parcels only.
+  opts: { parcels: boolean } = { parcels: true },
 ): SceneTerritoryInput {
   // One ground-plane anchor set, deliberately OFF-AXIS in y so the projection has something to do:
   // a y of 0 is its own projection at every camera, which is exactly the frozen-path false green
@@ -658,10 +663,14 @@ function territoryWithAnchors(
     { x: -18, y: 55 },
     { x: 44, y: 31 },
   ];
+  const GROUND_DECOR = [
+    { x: 27, y: -34 },
+    { x: -41, y: 18 },
+  ];
   const toScreen = (p: { x: number; y: number }): { x: number; y: number } =>
     projectGround(p, elevationDeg);
   const anchors = space === 'ground' ? <T extends { x: number; y: number }>(p: T): T => p : toScreen;
-  return {
+  const territory: SceneTerritoryInput = {
     id: 'story',
     status: 'healthy',
     caps: 2,
@@ -671,7 +680,14 @@ function territoryWithAnchors(
     treeSpot: anchors(GROUND_TREE),
     labelY: 46,
     coastGroundLoops: [[...COAST_GROUND]],
-    decor: [],
+    // Conifer seeds and parcel seeds ride the tag with the rest, and they are STATED here rather
+    // than left empty because an empty list exercises neither branch: a diff-scoped mutation run
+    // over this landing reported the decor map and the `parcels` conditional as uncovered, which is
+    // the honest reading of a fixture whose island had no decor and no parcels.
+    decor: GROUND_DECOR.map((p, i) => {
+      const at = anchors(p);
+      return { x: at.x, y: at.y, seed: i + 1 };
+    }),
     plants: GROUND_PLANTS.map((p, i) => {
       const at = anchors(p);
       return { id: `cap-${i}`, status: 'healthy' as const, x: at.x, y: at.y, title: `cap ${i}` };
@@ -679,12 +695,34 @@ function territoryWithAnchors(
     treeTitle: 'story',
     wisps: [],
     plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'story', subText: 'x', title: 'story' },
-    ...(space === 'ground' ? { anchorSpace: 'ground' as const } : {}),
   };
+  if (opts.parcels) {
+    territory.parcels = GROUND_PLANTS.map((p, i) => {
+      const at = anchors(p);
+      return {
+        capId: `cap-${i}`,
+        status: 'healthy' as const,
+        testCount: i + 1,
+        theme: (i === 0 ? 'meadow' : 'woodland') as const,
+        // The Voronoi seed is matched against `relaxedCells`, which arrive already projected — so a
+        // seed left in the ground plane re-partitions the island's own ground under its flora.
+        seed: { x: at.x, y: at.y },
+      };
+    });
+  }
+  // Stated only on the ground arm, and ABSENT on the other — the screen arm's whole job is to be
+  // the caller that never learned this field, so writing `anchorSpace: 'screen'` there would test
+  // a different thing than the one that ships.
+  if (space === 'ground') territory.anchorSpace = 'ground';
+  return territory;
 }
 
 /** The fixture scene, with its territory's anchors stated in one space or the other. */
-function sceneWithAnchors(space: 'screen' | 'ground', elevationDeg: number): SceneG {
+function sceneWithAnchors(
+  space: 'screen' | 'ground',
+  elevationDeg: number,
+  opts: { parcels: boolean } = { parcels: true },
+): SceneG {
   const draw = TILES.map((h) => ({ h, owner: 0 }));
   return buildScene({
     offset: { x: 0, y: 0 },
@@ -695,7 +733,7 @@ function sceneWithAnchors(space: 'screen' | 'ground', elevationDeg: number): Sce
     drawTiles: draw,
     wheatSets: [new Set<string>()],
     trails: { segments: [], edges: [], caves: [], dropped: [] },
-    territories: [territoryWithAnchors(space, elevationDeg)],
+    territories: [territoryWithAnchors(space, elevationDeg, opts)],
     tile: TILE,
     cameraElevationDeg: elevationDeg,
   });
@@ -710,14 +748,18 @@ test('GROUND anchors draw the SAME island the caller used to hand over projected
   // projecting at the boundary and projecting at the caller are the same points — but only if the
   // core really does apply it to every anchor and to nothing else. Comparing the emitted trees
   // proves that over the actual consumers rather than over the field.
-  const ground = sceneWithAnchors('ground', LAND_CAMERA_ELEVATION_DEG);
-  const screen = sceneWithAnchors('screen', LAND_CAMERA_ELEVATION_DEG);
-  assert.deepEqual(
-    ground,
-    screen,
-    'a territory handed GROUND anchors must draw exactly what the same territory handed the ' +
-      'projected ones draws — otherwise the change moves the map',
-  );
+  // Both islands, because a parcels-PRESENT island retires the conifers and the plant ring: run
+  // only that one and the projection of `decor` and `plants` is asserted by nothing.
+  for (const parcels of [true, false]) {
+    const ground = sceneWithAnchors('ground', LAND_CAMERA_ELEVATION_DEG, { parcels });
+    const screen = sceneWithAnchors('screen', LAND_CAMERA_ELEVATION_DEG, { parcels });
+    assert.deepEqual(
+      ground,
+      screen,
+      `a territory handed GROUND anchors must draw exactly what the same territory handed the ` +
+        `projected ones draws — otherwise the change moves the map (parcels: ${parcels})`,
+    );
+  }
 });
 
 test('GROUND anchors FOLLOW the camera, where projected ones are frozen — ADR-0527 D1', () => {
@@ -731,7 +773,8 @@ test('GROUND anchors FOLLOW the camera, where projected ones are frozen — ADR-
   const treeAt = (s: SceneG): string => {
     const [tree] = nodesOfKind(s, 'tree');
     assert.ok(tree, 'the fixture draws a story tree');
-    return (tree as unknown as { transform?: string }).transform ?? '';
+    // `transform` is on `SceneNodeBase`, so every node kind carries it — no narrowing needed.
+    return tree.transform ?? '';
   };
   assert.notEqual(
     treeAt(atDeclared),

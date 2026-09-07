@@ -3629,18 +3629,21 @@ function buildHits(input: SceneInput, art: TileArt): SceneG {
 function anchorsToScreen(t: SceneTerritoryInput, elevationDeg: number): SceneTerritoryInput {
   if ((t.anchorSpace ?? 'screen') === 'screen') return t;
   const p = (q: Pt): Pt => projectGround(q, elevationDeg);
-  return {
+  const projected: SceneTerritoryInput = {
     ...t,
     centroid: p(t.centroid),
     treeSpot: p(t.treeSpot),
     plants: t.plants.map((pl) => ({ ...pl, ...p({ x: pl.x, y: pl.y }) })),
     decor: t.decor.map((d) => ({ ...d, ...p({ x: d.x, y: d.y }) })),
-    // The parcel seeds ride the tag too: they are Voronoi seeds matched against `relaxedCells`,
-    // which the caller hands over ALREADY projected, so a ground seed has to reach that same space
-    // or every island's ground partition shifts under its own flora.
-    ...(t.parcels ? { parcels: t.parcels.map((pc) => ({ ...pc, seed: p(pc.seed) })) } : {}),
     anchorSpace: 'screen' as const,
   };
+  // The parcel seeds ride the tag too: they are Voronoi seeds matched against `relaxedCells`, which
+  // the caller hands over ALREADY projected, so a ground seed has to reach that same space or every
+  // island's ground partition shifts under its own flora. Assigned rather than conditionally spread,
+  // so an island with NO parcels keeps the field absent — the core's own back-compat semantics read
+  // absent and empty differently (absent ⇒ conifers + the plant ring).
+  if (t.parcels) projected.parcels = t.parcels.map((pc) => ({ ...pc, seed: p(pc.seed) }));
+  return projected;
 }
 
 export function buildScene(rawInput: SceneInput): SceneG {
