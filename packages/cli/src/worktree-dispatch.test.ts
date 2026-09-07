@@ -193,6 +193,7 @@ test("run: `worktree activity` is a READ — it reports the plan and writes noth
         downgrade: async () => true,
         release: async () => true,
         claimsFor: async () => [],
+        claimsBySession: async () => [],
         stampActivity: async () => {
           stamped += 1;
           return 3;
@@ -221,6 +222,7 @@ test("run: `worktree activity --pg` writes the observed stamps and reports the c
         downgrade: async () => true,
         release: async () => true,
         claimsFor: async () => [],
+        claimsBySession: async () => [],
         stampActivity: async (stamps) => {
           batches.push(stamps.map((s) => ({ ...s })));
           return 2;
