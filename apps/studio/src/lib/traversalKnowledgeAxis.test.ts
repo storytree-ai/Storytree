@@ -174,9 +174,29 @@ describe('the axis says what it is', () => {
     // ADR-0482 D2: naming the top row with a number invites reading the column as a session descent
     // from nowhere, which is the claim the reversed clause exists to prevent.
     expect(axisRowLabel(axis, 0)).toBe('surface');
-    expect(axisRowLabel(axis, 1)).toBe('1 hop');
-    expect(axisRowLabel(axis, 4)).toBe('4 hops');
+    expect(axisRowLabel(axis, 1)).toBe('1 link');
+    expect(axisRowLabel(axis, 4)).toBe('4 links');
     expect(axisRowLabel(axis, axis.unmeasuredRow)).toBe('unmeasured');
+  });
+
+  it('counts the depth rows in LINKS, and uses no word for something an agent does', () => {
+    // ADR-0543 D1, and this is the assertion the previous wording had no equivalent of. ADR-0482 D2
+    // put "corpus distance" in the caption — which is a HOVER — while the row labels a reader
+    // actually meets said "hops". A hop is an act; these rows are a `dependsOn` distance through the
+    // corpus, identical for an agent that opened one deep document directly and one that crawled to
+    // it over ten steps. The caption and the rows disagreed, and the rows are what a reader reads.
+    //
+    // Asserted over EVERY drawn row rather than a sampled one, and as a class of word rather than
+    // the single word that happened to be wrong: `hop` was one movement word among several a future
+    // editor could reach for, and pinning only `hop` would let the next one through.
+    const movement = /\b(hop|hops|step|steps|jump|jumps|move|moves|visit|visits)\b/i;
+    for (let row = 1; row <= axis.depthRows; row += 1) {
+      expect(axisRowLabel(axis, row)).not.toMatch(movement);
+      expect(axisRowLabel(axis, row)).toMatch(/\blinks?\b/);
+    }
+    // The three off-scale bands name themselves for what the read WAS and are untouched by this.
+    expect(axisRowLabel(axis, axis.recordRow)).not.toMatch(movement);
+    expect(axisRowLabel(axis, axis.unmeasuredRow)).not.toMatch(movement);
   });
 
   it('marks the last drawn row as open-ended when the clamp bit', () => {
@@ -184,14 +204,14 @@ describe('the axis says what it is', () => {
       report({ visited: 3, placed: 3, maxDepth: TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH + 5 }),
     );
     expect(axisRowLabel(clamped, clamped.depthRows)).toBe(
-      `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH)}+ hops`,
+      `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH)}+ links`,
     );
     // ONLY the last row. A clamp is a statement about where the scale RUNS OUT, so marking every row
     // open-ended would say each of them holds reads from further down — which is false of all but one
     // and is exactly what an unguarded `+` produces.
-    expect(axisRowLabel(clamped, 1)).toBe('1 hop');
+    expect(axisRowLabel(clamped, 1)).toBe('1 link');
     expect(axisRowLabel(clamped, clamped.depthRows - 1)).toBe(
-      `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH - 1)} hops`,
+      `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH - 1)} links`,
     );
   });
 
@@ -209,7 +229,7 @@ describe('the axis says what it is', () => {
       report({ visited: 3, placed: 3, maxDepth: TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH + 5 }),
     );
     expect(axisCaption(clamped)).toContain(
-      `drawn to ${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH)} hops, this session reached ${String(
+      `drawn to ${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH)} links, this session reached ${String(
         TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH + 5,
       )}`,
     );
@@ -270,6 +290,6 @@ describe('the record and work-unit bands', () => {
     expect(axisRowLabel(axis, axis.workUnitRow)).toBe('work unit');
     expect(axisRowLabel(axis, axis.unmeasuredRow)).toBe('unmeasured');
     expect(axisRowLabel(axis, 0)).toBe('surface');
-    expect(axisRowLabel(axis, 2)).toBe('2 hops');
+    expect(axisRowLabel(axis, 2)).toBe('2 links');
   });
 });

@@ -34,7 +34,8 @@
 //
 // ## THE READINGS, AND WHY COLLAPSING ANY TWO IS THE BUG
 //
-//   • PLACED — it sits in the linked graph, `depth` hops below the nearest surface opening;
+//   • PLACED — it sits in the linked graph, `depth` LINKS below the nearest surface opening (a
+//     `dependsOn` distance through the CORPUS, never a count of steps the agent took — ADR-0543 D1);
 //   • RECORD — it is a LOG ROW (increment / arc / friction / open-question / template), so distance
 //     from the knowledge surface is not a question it has an answer to (ADR-0511 D1). It reports the
 //     arc it belongs to instead. This state is what removed the largest single population from the
@@ -272,7 +273,7 @@ function readingOf(
       label:
         reading.depth === 0
           ? 'knowledge depth 0 — this artifact sits at the surface, nothing points at it'
-          : `knowledge depth ${reading.depth} — ${reading.depth} hop${
+          : `knowledge depth ${reading.depth} — ${reading.depth} link${
               reading.depth === 1 ? '' : 's'
             } below the surface`,
     };
