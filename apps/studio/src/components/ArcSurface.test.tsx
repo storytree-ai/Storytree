@@ -573,17 +573,24 @@ describe('ArcSurface — `blocked` lights from a gate, and only a gate (ADR-0314
   });
 });
 
-describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07)', () => {
-  it('an ungated arc renders NO queue line at all — the density property, carried forward', async () => {
-    // Unchanged in force from inc-05's caret rule, only in mechanism: React never mounts the line,
-    // so an ungated arc costs no width, no indent and no third row. With 121 closed arcs in the
-    // store this is the difference between a scannable list and 121 three-line blocks.
+describe('ArcSurface — the queue behind an arc lives behind a caret (2026-09-07)', () => {
+  /** Open one lane's queue. The chips are metadata now, so nearly every assertion below starts here. */
+  async function expandQueue(id: string): Promise<void> {
+    fireEvent.click(screen.getByTestId(`arc-lane-caret:${id}`));
+    await settle();
+  }
+
+  it('an ungated arc renders NO caret and NO queue line — the density property, twice over', async () => {
+    // Unchanged in force since inc-05, only in mechanism: React never mounts either, so an ungated
+    // arc costs no width, no indent and no third row. With 121 closed arcs in the store this is the
+    // difference between a scannable list and 121 three-line blocks.
     render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'plain' })]} now={NOW} />);
     await settle();
+    expect(screen.queryByTestId('arc-lane-caret:plain')).toBeNull();
     expect(screen.queryByTestId('arc-lane-queue:plain')).toBeNull();
   });
 
-  it('a gating arc names every arc queued behind it, with no click needed', async () => {
+  it('a gating arc shows a CARET and nothing else until it is clicked (owner-directed 2026-09-07)', async () => {
     render(
       <ArcSurface
         readArc={readArc}
@@ -596,10 +603,74 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
-    // The owner's whole stated signal: "just seeing that stuff is lined up" — so it is visible on
-    // arrival rather than behind a disclosure.
+    // "its metadata that should only show on expansion, and so otherwise just having a 'this has a
+    // que' which a little expandable arrow says ... is enough." So the caret IS the always-on signal,
+    // and it carries no visible count beside it — that lives on its accessible name.
+    const caret = screen.getByTestId('arc-lane-caret:blocker');
+    expect(caret.textContent).toBe('▸');
+    expect(caret.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('arc-lane-queue:blocker')).toBeNull();
+    expect(screen.queryByTestId('arc-queue-chip:queued-one-arc')).toBeNull();
+  });
+
+  it('clicking the caret reveals every arc queued behind it, and clicking again puts them away', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'queued-one-arc', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'queued-two-arc', gates: [{ id: 'blocker', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-lane-caret:blocker').getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByTestId('arc-queue-chip:queued-one-arc')).not.toBeNull();
     expect(screen.getByTestId('arc-queue-chip:queued-two-arc')).not.toBeNull();
+    await expandQueue('blocker');
+    expect(screen.queryByTestId('arc-lane-queue:blocker')).toBeNull();
+  });
+
+  it('the caret’s accessible name carries the count the glyph deliberately does not (golden)', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker', title: 'The blocker' }),
+          arc({ id: 'queued-arc', gates: [{ id: 'blocker', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    // Singular, because one arc is queued behind it — a bare "1 arcs" is the tell that a template
+    // was written for the plural case and never read aloud.
+    expect(screen.getByTestId('arc-lane-caret:blocker').getAttribute('aria-label')).toBe(
+      'Show 1 arc queued behind The blocker',
+    );
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-lane-caret:blocker').getAttribute('aria-label')).toBe(
+      'Hide 1 arc queued behind The blocker',
+    );
+  });
+
+  it('the caret points at the queue it opens, so a screen reader can follow the disclosure', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'queued-arc', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    const controls = screen.getByTestId('arc-lane-caret:blocker').getAttribute('aria-controls');
+    expect(controls).toBe('arc-queue-blocker');
+    // A colon would need escaping in every selector that reaches it, so the id is NOT the testid.
+    expect(screen.getByTestId('arc-lane-queue:blocker').getAttribute('id')).toBe(controls);
   });
 
   it('a chip is labelled by the SHORT name, never the long title it exists to escape', async () => {
@@ -618,15 +689,16 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     const chip = screen.getByTestId('arc-queue-chip:mount-the-land-on-a-real-surface-arc');
     expect(chip.textContent).toBe('Mount the land on a real surface');
     // The long title is not GONE, only off the line — it stays one hover (or one click) away.
     expect(chip.getAttribute('title')).toContain('The land treatment reaches a surface somebody opens');
   });
 
-  it('the queue line reads label-then-chips with NO connector glyphs — it is a set, not a chain (golden)', async () => {
-    // The queue is a TREE: one arc can gate several, so an arrow run would assert a running order
-    // the data does not carry. Pinning the line's WHOLE text is what stops one being added back.
+  it('a SET of siblings is separated by a dot, never an arrow — no order is being claimed (golden)', async () => {
+    // One arc can gate several, and those several wait on nothing but it. An arrow run between them
+    // would assert a running order the data does not carry, so the whole line is pinned.
     render(
       <ArcSurface
         readArc={readArc}
@@ -639,7 +711,32 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
-    expect(screen.getByTestId('arc-lane-queue:blocker').textContent).toBe('queued behindAlphaBeta');
+    await expandQueue('blocker');
+    const line = screen.getByTestId('arc-lane-queue:blocker');
+    expect(line.getAttribute('data-queue-shape')).toBe('set');
+    expect(line.textContent).toBe('→Alpha·Beta');
+  });
+
+  it('a CHAIN draws the full lineage with arrows, because every one of them is a real edge (golden)', async () => {
+    // The owner's own ask (2026-09-07): "if we have multiple arcs qued in a linked list we can draw
+    // the full linage with -> separators". Each arrow here states "the left one gates the right one".
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'first-arc', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'second-arc', gates: [{ id: 'first-arc', shut: true }] }),
+          arc({ id: 'third-arc', gates: [{ id: 'second-arc', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    const line = screen.getByTestId('arc-lane-queue:blocker');
+    expect(line.getAttribute('data-queue-shape')).toBe('chain');
+    expect(line.textContent).toBe('→First→Second→Third');
   });
 
   it('a chip that itself gates others carries `+N` instead of a second level of nesting', async () => {
@@ -656,10 +753,11 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     const chip = screen.getByTestId('arc-queue-chip:middle-arc');
     expect(chip.textContent).toBe('Middle+2');
     expect(chip.getAttribute('data-gates')).toBe('2');
-    // Depth is a COUNT here, never a nested run: the leaves get no chip of their own on this row.
+    // The two leaves fork, so the chain stops here and their depth stays a count.
     expect(screen.queryByTestId('arc-queue-chip:leaf-one-arc')).toBeNull();
   });
 
@@ -672,15 +770,55 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     const chip = screen.getByTestId('arc-queue-chip:leaf-arc');
     expect(chip.textContent).toBe('Leaf');
     expect(chip.getAttribute('data-gates')).toBe('0');
   });
 
-  it('clicking a chip opens THAT arc in the briefing panel — the detail is one click, not two', async () => {
-    // The behaviour the disclosure could not give: a queued arc has no top-level row to click, so
-    // before inc-07 reading its briefing meant expanding and THEN clicking. It is also the case the
-    // selection guard had to learn to see — a queued arc is absent from the top-level lane list.
+  it('an arc waiting on MORE THAN ONE blocker says so — the promise an arrow would otherwise make', async () => {
+    // The live corpus's real shape, measured 2026-09-07: the one gated arc in 134 is gated by two.
+    // Without this, `Blocker → Gated` reads as "when Blocker lands, Gated can start", which is false.
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'elsewhere' }),
+          arc({
+            id: 'gated-arc',
+            gates: [
+              { id: 'blocker', shut: true },
+              { id: 'elsewhere', shut: true },
+            ],
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-queue-chip:gated-arc').getAttribute('data-other-gates')).toBe('1');
+    expect(screen.getByTestId('arc-lane-queue:blocker').textContent).toBe('→Gated+1 other gate');
+  });
+
+  it('a singly-gated chip says nothing about other gates — the marker is the exception, not furniture', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'leaf-arc', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-queue-chip:leaf-arc').getAttribute('data-other-gates')).toBe('0');
+    expect(screen.getByTestId('arc-lane-queue:blocker').textContent).toBe('→Leaf');
+  });
+
+  it('clicking a chip opens THAT arc in the briefing panel', async () => {
+    // The chip is the queued arc's only presence on the strip — it has no top-level row of its own —
+    // so this click is the ONLY route to its briefing.
     render(
       <ArcSurface
         readArc={readArc}
@@ -692,6 +830,7 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     fireEvent.click(screen.getByTestId('arc-queue-chip:queued-arc'));
     await settle();
     expect(within(screen.getByTestId('arc-briefing')).getByText('The queued one')).not.toBeNull();
@@ -708,6 +847,7 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
     );
     await settle();
     expect(screen.queryByTestId('arc-lane:queued-arc')).toBeNull();
+    await expandQueue('blocker');
     expect(screen.getByTestId('arc-queue-chip:queued-arc')).not.toBeNull();
   });
 
@@ -723,11 +863,12 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
-    // Reachable as a full row — a gate must never bury a question behind a chip either.
+    // Reachable as a full row — a gate must never bury a question behind a chip, let alone behind a
+    // chip behind a caret.
     const row = screen.getByTestId('arc-lane:queued-and-waiting');
     expect(row.getAttribute('data-arc-state')).toBe('waiting');
-    // The blocker carries no queue line: with its one dependent promoted, it has nothing to name.
-    expect(screen.queryByTestId('arc-lane-queue:blocker')).toBeNull();
+    // The blocker carries no caret: with its one dependent promoted, it has nothing to open.
+    expect(screen.queryByTestId('arc-lane-caret:blocker')).toBeNull();
   });
 
   it('a gate whose blocker has closed no longer queues its arc — it renders at the top level plainly', async () => {
@@ -740,7 +881,7 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
     );
     await settle();
     expect(screen.getByTestId('arc-lane:released')).not.toBeNull();
-    expect(screen.queryByTestId('arc-lane-queue:blocker')).toBeNull();
+    expect(screen.queryByTestId('arc-lane-caret:blocker')).toBeNull();
   });
 
   it('wraps the lane button and its queue line in one row, keyed by id — even with no queue at all', async () => {
@@ -758,16 +899,65 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
         arcs={[
           arc({ id: 'blocker' }),
           arc({ id: 'middle-arc', title: 'The middle one', gates: [{ id: 'blocker', shut: true }] }),
-          arc({ id: 'leaf-arc', gates: [{ id: 'middle-arc', shut: true }] }),
+          arc({ id: 'leaf-one-arc', gates: [{ id: 'middle-arc', shut: true }] }),
+          arc({ id: 'leaf-two-arc', gates: [{ id: 'middle-arc', shut: true }] }),
         ]}
         now={NOW}
       />,
     );
     await settle();
+    await expandQueue('blocker');
     // The visible chip is deliberately terse, so the accessible name is where the whole fact lives —
     // one golden over both halves of the template, including the `+N` clause.
     expect(screen.getByTestId('arc-queue-chip:middle-arc').getAttribute('aria-label')).toBe(
-      'The middle one — queued behind The blocker, and holds up 1 more',
+      'The middle one — queued behind The blocker, and holds up 2 more',
+    );
+  });
+
+  it('in a CHAIN each chip names the arc it is actually behind, not the lane the run hangs from', async () => {
+    // The one thing hoisting could get wrong: the arrow says `First → Second` while the accessible
+    // name says "queued behind The blocker". The two would then disagree about the same edge.
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'first-arc', title: 'The first one', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'second-arc', title: 'The second one', gates: [{ id: 'first-arc', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-queue-chip:second-arc').getAttribute('aria-label')).toBe(
+      'The second one — queued behind The first one',
+    );
+  });
+
+  it('the accessible name carries the OTHER-gates clause too, where a chip has one (golden)', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'elsewhere' }),
+          arc({
+            id: 'gated-arc',
+            title: 'The doubly gated one',
+            gates: [
+              { id: 'blocker', shut: true },
+              { id: 'elsewhere', shut: true },
+            ],
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    expect(screen.getByTestId('arc-queue-chip:gated-arc').getAttribute('aria-label')).toBe(
+      'The doubly gated one — queued behind The blocker, and waiting on 1 other arc too',
     );
   });
 
@@ -789,6 +979,7 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     expect(screen.getByTestId('arc-queue-chip:part-done-arc').getAttribute('title')).toContain(
       '1 landed, 1 queued',
     );
@@ -807,6 +998,25 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    expect(screen.getByTestId('arc-lane-caret:blocker-a')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lane-caret:blocker-b')).toBeNull();
+  });
+
+  it('each lane’s caret opens only its OWN queue — the expanded state is per row, not per surface', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker-a' }),
+          arc({ id: 'blocker-b' }),
+          arc({ id: 'queued-a-arc', gates: [{ id: 'blocker-a', shut: true }] }),
+          arc({ id: 'queued-b-arc', gates: [{ id: 'blocker-b', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker-a');
     expect(screen.getByTestId('arc-lane-queue:blocker-a')).not.toBeNull();
     expect(screen.queryByTestId('arc-lane-queue:blocker-b')).toBeNull();
   });
@@ -824,6 +1034,7 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
       />,
     );
     await settle();
+    await expandQueue('blocker');
     // Select the BLOCKER first, so the assertion below is about the chip MOVING the selection off
     // it rather than about a lane that was never selected in the first place.
     fireEvent.click(screen.getByTestId('arc-lane:blocker'));
@@ -833,6 +1044,21 @@ describe('ArcSurface — the queue behind an arc is a run of short chips (inc-07
     await settle();
     expect(screen.getByTestId('arc-lane:blocker').getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByTestId('arc-queue-chip:queued-arc').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('selecting the lane does not close the queue it opened — the caret is not the selection', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'queued-arc', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    await expandQueue('blocker');
+    fireEvent.click(screen.getByTestId('arc-lane:blocker'));
+    await settle();
+    expect(screen.getByTestId('arc-lane-queue:blocker')).not.toBeNull();
   });
 });
 
