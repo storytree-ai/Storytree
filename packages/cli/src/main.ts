@@ -43,6 +43,7 @@ import type { AttestationStoreLike } from "./attest.js";
 import { isRawEnvelope, run } from "./commands.js";
 import type { RunDeps } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
+import { sessionPopulationSince } from "./resteer-session-population.js";
 import {
   createClaimUniverseLoader,
   deregisterSpawn,
@@ -527,6 +528,19 @@ export async function main(): Promise<void> {
       members,
       adr,
       traversalEvents,
+      // The re-steer denominator (`follow-the-research-arc`, increment
+      // `resteer-session-denominator`) — supplied HERE and only here, because this is the one place
+      // that knows it is running against a real checkout rather than a test double. A THUNK, so the
+      // git spawn happens for `resteer list` alone and every other command pays nothing; and it
+      // returns null rather than throwing when git cannot answer, which the report renders as the
+      // rate being not computable.
+      // Stryker disable next-line ArrowFunction: NO COVERAGE BY DESIGN — this is the composition
+      // root's single wire to the real git reader. Its two ends ARE tested (the reader in
+      // `resteer-session-population.test.ts`, the dispatcher hand-off in the same file's
+      // `resteer list: the dispatcher hands the population through` case); only this one-line
+      // binding is not, and covering it would mean booting the CLI against the machine's own
+      // history — the non-determinism the thunk exists to keep out of the suite.
+      sessionPopulation: () => sessionPopulationSince(),
       // WHERE A DECLARE'S CLAIMED UNITS ARE RECORDED (ADR-0541 D2) — supplied HERE and only here,
       // because this is the one place that is genuinely the operator's CLI rather than a caller
       // driving `run` with fixtures. `commands.ts` deliberately has no default for this: it is the

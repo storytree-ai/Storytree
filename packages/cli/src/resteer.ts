@@ -47,6 +47,7 @@ import {
   Resteer,
   upcastAndValidate,
   type Annotation,
+  type SessionPopulation,
 } from "@storytree/library";
 
 import { defaultCliActor } from "./cli-actor.js";
@@ -340,7 +341,10 @@ export async function newResteer(
 }
 
 /** Read the tier and render the report. A read: no `--pg` needed. */
-export async function listResteer(store: Store): Promise<Envelope> {
+export async function listResteer(
+  store: Store,
+  population: SessionPopulation | null = null,
+): Promise<Envelope> {
   const docs = await store.queryDocs({ kind: "resteer" });
   // PARSED, not asserted. An `as unknown as Resteer` over `doc: unknown` would type a malformed row
   // as valid and let it into the figures — the exact shape that produces a number nothing can catch.
@@ -366,7 +370,13 @@ export async function listResteer(store: Store): Promise<Envelope> {
     };
   }
 
-  const report = resteerReport(rows);
+  // The denominator arrives as DATA from the composition root, never fetched here. Two reasons, and
+  // the second is the one that bit: a git read is an environment dependency this rendering function
+  // has no business holding, and `git log` output CHANGES DAILY AND PER MACHINE — computing it here
+  // silently made every test of this output non-deterministic. Absent is honest: the report keeps
+  // saying the rate is not computable rather than dividing by the sessions that happen to have
+  // filed, which would count only the re-steered ones and print 100%.
+  const report = resteerReport(rows, population ?? undefined);
   const { defects } = partitionResteers(rows);
   const first = defects[0];
   // Stryker disable next-line ConditionalExpression,StringLiteral: EQUIVALENT — the `undefined` arm is
@@ -389,6 +399,30 @@ export async function listResteer(store: Store): Promise<Envelope> {
       "  ⚠ the two shares differ because some taste was called by the AGENT, not the owner. The gap",
       "    between them bounds how far the system's own account is moving the headline figure.",
     );
+  }
+
+  const rate = report.interventionRate;
+  if (rate !== undefined) {
+    lines.push(
+      "",
+      "HUMAN INTERVENTION RATE",
+      `  ${rate.interveneSessions} of ${rate.totalSessions} sessions re-steered — ${pct(rate.rate)}`,
+      `  window: landings since ${rate.since}`,
+      `  ⚠ ${rate.source}.`,
+    );
+    if (rate.unattributableRows > 0) {
+      lines.push(
+        `  ⚠ ${rate.unattributableRows} row(s) carry no usable branch stamp (detached HEAD, or no`,
+        "    provenance) and are counted in NEITHER side of this ratio.",
+      );
+    }
+    if (rate.outsidePopulation.length > 0) {
+      lines.push(
+        `  ⚠ ${rate.outsidePopulation.length} filing branch(es) are outside the population — never`,
+        "    landed, or landed outside the window — so they are excluded from the numerator:",
+        `    ${rate.outsidePopulation.join(", ")}`,
+      );
+    }
   }
 
   if (report.modeDistribution.size > 0) {
