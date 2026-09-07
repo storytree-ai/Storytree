@@ -96,6 +96,40 @@ export const ORGANIC_POSE_PLAYBACK_POLICY = Object.freeze({
   holdMs: Object.freeze([0, 80, 120, 100, 220] as const),
 });
 
+/**
+ * Refuse a cue table that cannot serve the walk it is mounted in — ONE cue per frame, ending AT the
+ * mature pose.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE COUPLING IS INVISIBLE AND IT ALREADY BROKE ONCE. The three tables above
+ * are indexed by the player's frame cursor, and nothing but arithmetic connected their length to the
+ * walk's. When ADR-0536 shortened the walk from six frames to five, the tables were briefly left at
+ * six: `boundedCueIndex` clamped the last frame to cue 4, so walking to the END settled at progress
+ * `0.8` instead of `1` and every track stopped one pose short of mature. What that surfaced as, four
+ * files away, was `expected null to be truthy` on a query for the mature frame — a distant, silent,
+ * entirely misleading failure. The two conditions below are exactly the two the arithmetic assumes:
+ * one cue per frame, and a last cue of 1.
+ *
+ * Called by the player from its own frame-shape guard, so a mismatch fails loudly AT THE MOUNT and
+ * names itself, instead of being discovered as a half-grown tree on the settled frame.
+ */
+export function assertCueTargetsFitWalk(
+  frameCount: number,
+  // The table is a PARAMETER, defaulted to the shipped one, so both conditions are reachable from a
+  // test. Reading the module constant directly left the second unreachable — the shipped table
+  // already ends at 1, so nothing could exercise the branch, and `check:mutation-diff` reported it
+  // as exactly that: a survivor plus two NO-COVERAGE mutants sitting on a guard no test could enter.
+  targets: readonly number[] = ORGANIC_POSE_CUE_TARGETS,
+): void {
+  if (targets.length !== frameCount) {
+    throw new Error(
+      `Organic pose cue targets must carry one cue per walk frame — ${targets.length} cue(s) for ${frameCount} frame(s).`,
+    );
+  }
+  if (targets[targets.length - 1] !== 1) {
+    throw new Error('Organic pose cue targets must end at 1 — the last frame settles at the mature pose.');
+  }
+}
+
 export type OrganicPosePlaybackPhase = 'settled' | 'transitioning' | 'holding';
 
 export interface OrganicPosePlaybackState {

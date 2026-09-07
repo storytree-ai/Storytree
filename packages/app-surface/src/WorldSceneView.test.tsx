@@ -2,7 +2,8 @@
 
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScene,
@@ -11,9 +12,15 @@ import {
   type SceneTrailsInput,
 } from '@storytree/forest-world';
 import {
+
   normalizeWorldPresentationModel,
   WorldSceneView,
 } from './WorldSceneView.js';
+
+/** This package's own `src/`, derived from THIS FILE — never `process.cwd()`, which under the
+ *  mutation rung's Stryker sandbox is the sandbox ROOT and not the project dir (see the same
+ *  constant in `SemanticGrowthWorldView.test.tsx` for the measured failure). */
+const SRC_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 
 afterEach(cleanup);
 
@@ -194,7 +201,7 @@ describe('WorldSceneView', () => {
 
   it('aswv-wrapper-has-no-private-or-live-authority', () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'WorldSceneView.tsx'),
+      resolve(SRC_DIR, 'WorldSceneView.tsx'),
       'utf8',
     );
 

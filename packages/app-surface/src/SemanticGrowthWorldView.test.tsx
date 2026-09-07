@@ -3,7 +3,8 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScene,
@@ -18,6 +19,17 @@ import {
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
+
+/**
+ * This package's own `src/` — derived from THIS FILE's location, never from `process.cwd()`.
+ *
+ * ⚠ The cwd form worked under `pnpm --filter … test` (which runs from the package dir) and broke
+ * everywhere else. `check:mutation-diff` runs the same suite from a Stryker SANDBOX ROOT with
+ * vitest's `root` pinned at the project dir — vitest does not chdir — so `process.cwd()/src` pointed
+ * at `<sandbox>/src`, which does not exist, and every source-reading case in this file died with
+ * ENOENT during the dry run. That reads as "the rung is broken"; it was these paths.
+ */
+const SRC_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 
 
 afterEach(cleanup);
@@ -429,14 +441,14 @@ describe('SemanticGrowthWorldView', () => {
     // it also SUPPRESSED the real stylesheet, so the two halves below (the import exists, and it
     // points at a stylesheet that is really there) could not both be checked at once.
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'SemanticGrowthWorldView.tsx'),
+      resolve(SRC_DIR, 'SemanticGrowthWorldView.tsx'),
       'utf8',
     );
     // A BARE side-effect import — `import './semantic-growth.css';` — not a named/aliased one a
     // consumer could tree-shake or forget.
     expect(source).toMatch(/^\s*import\s+'\.\/semantic-growth\.css';\s*$/m);
     // …and it points at a stylesheet that actually exists and carries rules.
-    const stylesheet = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    const stylesheet = readFileSync(resolve(SRC_DIR, 'semantic-growth.css'), 'utf8');
     expect(stylesheet.trim().length).toBeGreaterThan(0);
   });
 
@@ -448,7 +460,7 @@ describe('SemanticGrowthWorldView', () => {
     // stamps (a tree's ground anchor, an island's nesting group, etc.) -- not just the motion
     // vocabulary's own sweeps/orbits -- which is exactly the blanket this guidance forbids.
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
     const blanketReducedTransform = /\[data-motion=['"]reduced['"]\]\s*\*\s*\{[^}]*transform\s*:/i;
@@ -466,7 +478,7 @@ describe('SemanticGrowthWorldView', () => {
     // explicit `aspect-ratio` that lets `object-fit: contain` resolve it), so it always settles
     // within the host's box regardless of host width/height -- never just an unbounded `auto`.
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
     const svgRuleMatch = css.match(/\[data-semantic-growth-frame\]\s*svg\s*\{([^}]*)\}/i);
@@ -487,7 +499,7 @@ describe('SemanticGrowthWorldView', () => {
     // at all -- on a wide-and-short host the svg (and everything laid out after it) can still
     // grow past the supplied host and push the Back/Next/Replay controls outside it.
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
     const rootRuleMatch = css.match(/\[data-semantic-growth-frame\]\s*\{([^}]*)\}/);
@@ -667,10 +679,10 @@ describe('SemanticGrowthWorldView', () => {
     // are still held to; and the retirement gets its own positive assertion below, so a stylesheet
     // that kept a keyframe for a role nothing can play is red rather than merely unmentioned.
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
-    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+    const sceneView = readFileSync(resolve(SRC_DIR, 'SceneView.tsx'), 'utf8');
 
     // reject the current grouped settle keyframe entirely -- it must not survive under any name
     // that still bundles every role behind one shared animation.
@@ -752,10 +764,10 @@ describe('SemanticGrowthWorldView', () => {
     // additive `scale` route (paired with `transform-box: fill-box`) or a dedicated inner wrapper
     // distinct from the placement-carrying class -- never the bare shorthand directly on it.
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
-    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+    const sceneView = readFileSync(resolve(SRC_DIR, 'SceneView.tsx'), 'utf8');
 
     expect(sceneView).toMatch(
       /if\s*\(node\.transform\)\s*props\.transform\s*=\s*node\.transform;/,
@@ -802,7 +814,7 @@ describe('SemanticGrowthWorldView', () => {
     // pulse selector/keyframe that sets the full `transform:` property on mapper-positioned
     // terrain, flora/tree or claim elements, including `transform: scale(...)`."
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
 
@@ -868,10 +880,10 @@ describe('SemanticGrowthWorldView', () => {
     // ease-out, centered origin, no fill-box and no stagger/overshoot. The next red binds the
     // exact landed inner seam to the already-existing Studio motion profile."
     const css = readFileSync(
-      resolve(process.cwd(), 'src', 'semantic-growth.css'),
+      resolve(SRC_DIR, 'semantic-growth.css'),
       'utf8',
     );
-    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+    const sceneView = readFileSync(resolve(SRC_DIR, 'SceneView.tsx'), 'utf8');
 
     // the already-landed exact wrapper -- a renamed/mismatched selector or a second wrapper is red.
     expect(sceneView).toMatch(/className:\s*'pop-motion-inner'/);
@@ -962,7 +974,7 @@ describe('SemanticGrowthWorldView', () => {
     // five-step walk's strongest statement about itself and exactly what a careless deletion would
     // silently lose: `claimed` is the LAST frame any role enters on, so no arrival selector
     // anywhere may name a later one -- nor the retired `signed-proof` key at all.
-    const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    const css = readFileSync(resolve(SRC_DIR, 'semantic-growth.css'), 'utf8');
 
     // the bare frame-key-less prefix every current arrival rule shares is red outright.
     expect(css).not.toMatch(/\[data-semantic-growth-frame\]\[data-motion=['"]full['"]\]/);
@@ -1334,8 +1346,8 @@ describe('SemanticGrowthWorldView', () => {
     expect(spriteView.container.querySelector('image.garden-flora')).toBeTruthy();
     spriteView.unmount();
 
-    const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
-    const sceneView = readFileSync(resolve(process.cwd(), 'src', 'SceneView.tsx'), 'utf8');
+    const css = readFileSync(resolve(SRC_DIR, 'semantic-growth.css'), 'utf8');
+    const sceneView = readFileSync(resolve(SRC_DIR, 'SceneView.tsx'), 'utf8');
     const nonKeyframeCss = stripKeyframeBlocks(css);
 
     const treeProfile = resolvedProfile(css, nonKeyframeCss, '.story-tree .pop-motion-inner');
@@ -1533,7 +1545,7 @@ describe('SemanticGrowthWorldView', () => {
       return toMs(longhand ?? shorthand);
     }
 
-    const css = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    const css = readFileSync(resolve(SRC_DIR, 'semantic-growth.css'), 'utf8');
     const nonKeyframeCss = stripKeyframes(css);
 
     const landDurationMs = resolvedDurationMs(nonKeyframeCss, '.coast-fill-group');

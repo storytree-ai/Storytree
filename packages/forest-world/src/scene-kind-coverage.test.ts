@@ -105,15 +105,29 @@ export function stripComments(src: string): string {
   return out;
 }
 
-/** The declared `SceneKind` union, read from the comment-stripped source: every `| 'x'` between
- *  `export type SceneKind =` and the terminating `;`. */
+/**
+ * The declared `SceneKind` union, read from the comment-stripped source: every quoted member
+ * between `export type SceneKind =` and the terminating `;`.
+ *
+ * ⚠ **IT MATCHES THE LITERALS, NOT THE `|` SEPARATORS, AND THAT IS THE FIX FOR A REAL MISREAD.**
+ * This used to match `| 'x'`, which reads the source's own hand-written layout — every member after
+ * the first is preceded by a pipe, but the FIRST need not be, and in a re-printed copy none of them
+ * is on its own line. Measured 2026-09-07: `check:mutation-diff` put `scene.ts` in its mutate set
+ * for the first time since this file landed, and Stryker's instrumenter re-prints the union as one
+ * line — `export type SceneKind = 'world' | 'empties-layer' | …` — so the leading-pipe form silently
+ * dropped `'world'`, the first member. 108 members became 107, the `> 50` floor was untroubled, and
+ * question 2's second half then failed as "emitted at runtime but not declared" against a kind that
+ * IS declared. A parser that under-reports by exactly one is the worst shape this file can have:
+ * every check here is a set comparison, so one missing member is a wrong answer wearing a
+ * plausible-looking failure message.
+ */
 export function declaredSceneKinds(sceneSrc: string): string[] {
   const src = stripComments(sceneSrc);
   const start = src.indexOf('export type SceneKind =');
   assert.ok(start >= 0, 'scene.ts declares `export type SceneKind =`');
   const end = src.indexOf(';', start);
   const block = src.slice(start, end);
-  const kinds = [...block.matchAll(/\|\s*'([a-z0-9-]+)'/g)].map((m) => m[1]!);
+  const kinds = [...block.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]!);
   assert.ok(kinds.length > 50, `the SceneKind union parsed to ${kinds.length} members — the parser broke`);
   assert.equal(new Set(kinds).size, kinds.length, 'the SceneKind union declares no member twice');
   return kinds;
@@ -432,6 +446,24 @@ const ALARM_KINDS: readonly SceneKind[] = ['cave', 'cave-apron', 'cave-arch', 'c
 
 const sceneSrc = readFileSync(SCENE_SRC, 'utf8');
 const UNION = declaredSceneKinds(sceneSrc);
+
+test('0. the union parser reads a RE-PRINTED layout identically — the layout is not the vocabulary', () => {
+  // The regression this file could not previously see (see `declaredSceneKinds`): a tool that
+  // re-prints `scene.ts` — Stryker's instrumenter does, when `check:mutation-diff` mutates this
+  // file — collapses the union onto one line and leaves the first member with no leading `|`. The
+  // parser must read the same vocabulary from both layouts, or every set comparison below is
+  // answering about a union one member short.
+  const hand = "export type SceneKind =\n  // structural\n  | 'alpha'\n  | 'beta-two'\n  | 'gamma';\n";
+  const printed = "export type SceneKind = 'alpha' | 'beta-two' | 'gamma';\n";
+  // the >50 floor is the real parser's; assert the two agree, on the shape the floor cannot see.
+  const parse = (src: string): string[] => {
+    const stripped = stripComments(src);
+    const start = stripped.indexOf('export type SceneKind =');
+    return [...stripped.slice(start, stripped.indexOf(';', start)).matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]!);
+  };
+  assert.deepEqual(parse(hand), ['alpha', 'beta-two', 'gamma']);
+  assert.deepEqual(parse(printed), parse(hand), 'the re-printed layout must yield the same members');
+});
 
 test('1. every declared SceneKind is emitted by builder code (static; no declared-but-never-built kind)', () => {
   // The union block itself is excluded — a kind must appear as a literal OUTSIDE its own declaration.

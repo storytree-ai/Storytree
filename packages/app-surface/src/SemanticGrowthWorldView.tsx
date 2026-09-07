@@ -14,6 +14,7 @@ import {
 } from './sprite-sizing.js';
 import {
   advanceOrganicPosePlayback,
+  assertCueTargetsFitWalk,
   clampOrganicPoseProgress,
   initialOrganicPosePlayback,
   organicPoseFrameAtProgress,
@@ -109,6 +110,9 @@ function assertFrames(frames: readonly SemanticGrowthFrame[]): void {
   if (frames.length !== FRAME_KEYS.length) {
     throw new Error('Semantic growth requires exactly five ordered frames.');
   }
+  // The organic pose cue table is indexed by this walk's cursor, and nothing but arithmetic couples
+  // their lengths — see `assertCueTargetsFitWalk` for the failure that coupling already produced.
+  assertCueTargetsFitWalk(FRAME_KEYS.length);
   for (let index = 0; index < FRAME_KEYS.length; index += 1) {
     if (frames[index]?.key !== FRAME_KEYS[index]) {
       throw new Error('Semantic growth frames must be unique and ordered.');

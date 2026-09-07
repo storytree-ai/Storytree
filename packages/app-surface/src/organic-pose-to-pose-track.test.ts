@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  assertCueTargetsFitWalk,
   ORGANIC_POSE_CUE_TARGETS,
   ORGANIC_POSE_PLAYBACK_POLICY,
   advanceOrganicPosePlayback,
@@ -141,6 +142,29 @@ describe('Experiment 1 organic pose-to-pose tracks', () => {
     expect(organicPoseFrameAtProgress(hero!, 0.8).index).toBe(3);
     expect(organicPoseFrameAtProgress(hero!, 1).index).toBe(3);
     expect(organicPoseFrameAtProgress(hero!, Number.POSITIVE_INFINITY).index).toBe(3);
+  });
+
+  it('assertCueTargetsFitWalk refuses a walk the cue table cannot serve — the coupling that broke silently once', () => {
+    // The two conditions the cursor arithmetic assumes, each asserted in both directions and by its
+    // own message, so a guard whose message is emptied or whose body is removed is caught.
+    expect(() => assertCueTargetsFitWalk(ORGANIC_POSE_CUE_TARGETS.length)).not.toThrow();
+
+    expect(() => assertCueTargetsFitWalk(ORGANIC_POSE_CUE_TARGETS.length + 1)).toThrow(
+      /one cue per walk frame/,
+    );
+    expect(() => assertCueTargetsFitWalk(ORGANIC_POSE_CUE_TARGETS.length - 1)).toThrow(
+      new RegExp(`${ORGANIC_POSE_CUE_TARGETS.length} cue\\(s\\) for ${ORGANIC_POSE_CUE_TARGETS.length - 1} frame\\(s\\)`),
+    );
+
+    // The second condition is the one a frame-count change gets wrong QUIETLY: shorten the table
+    // from the wrong END and the lengths still agree, so the first condition passes while the walk
+    // settles one pose short of mature — which is exactly the bug that was met, four files away, as
+    // a query for the mature frame returning null.
+    expect(() => assertCueTargetsFitWalk(4, [0, 0.18, 0.38, 0.8])).toThrow(/must end at 1/);
+    expect(() => assertCueTargetsFitWalk(4, [0, 0.18, 0.38, 1])).not.toThrow();
+    // …and the shipped table satisfies both ends.
+    expect(ORGANIC_POSE_CUE_TARGETS[ORGANIC_POSE_CUE_TARGETS.length - 1]).toBe(1);
+    expect(ORGANIC_POSE_CUE_TARGETS[0]).toBe(0);
   });
 
   it('owns one cue per walk frame — five, ending AT the mature pose — smoothstep easing, and holds in app state', () => {
