@@ -106,13 +106,7 @@ import {
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 import type { TraversalOptions } from "./traversal.js";
-import {
-  readSessionOriginDeclaration,
-  resolveTraceIdentity,
-  resolveTraversalDir,
-  withClaimedUnits,
-  writeSessionOriginDeclaration,
-} from "@storytree/context-traversal-capture";
+import { resolveTraceIdentity } from "@storytree/context-traversal-capture";
 import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
@@ -2206,6 +2200,22 @@ export interface RunDeps {
    * its own subject. Defaulted to the fs-backed reader under {@link repoRoot}, so only tests pass it.
    */
   readonly adrSpans?: (repoRelPath: string) => string | undefined;
+  /**
+   * WHERE A DECLARE'S CLAIMED UNITS ARE RECORDED (ADR-0541 D2) — this session's own traversal
+   * declaration, so the replay's trace rail can name the arc it was working on.
+   *
+   * ⚠ A SEAM WITH NO DEFAULT, unlike its `adrSpans` sibling above, and the difference is the
+   * direction: that one READS the checkout, this one WRITES the operator's home. A default would
+   * make every caller that drives `noticeboard declare` — every test that drives it included —
+   * stamp its unit ids onto whatever session the ambient environment resolved. That is not a
+   * hypothetical: it is how `noticeboard-cli`, `tree-view`, `inc-a` and `cap-a` reached a live
+   * session's record on 2026-09-07, and how a mutation run of those same tests overwrote that
+   * session's declared origin. Absent = nothing is written, which is the correct answer for every
+   * caller that is not the real CLI.
+   *
+   * Returns a line to print under the claims, or null for "nothing to say".
+   */
+  readonly recordClaimedUnits?: (nodeIds: readonly string[]) => string | null;
   readonly presence?: {
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
@@ -3708,36 +3718,24 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // ADR-0541 D2 — the units this declare claimed land on the session's OWN traversal
         // declaration, so the trace rail can name the arc from a recorded fact rather than derive it.
         //
-        // COMPOSED HERE for the same reason the rider above is: `packages/drive` (the ledger) and
-        // `@storytree/context-traversal-capture` (the trace) are separate organisms, and this
-        // dispatch is the one place already holding both. It is bound to `declare` alone — the verb
-        // a session runs to say what it is working on — never to the ledger-surgery verbs.
+        // ⚠ INJECTED, NEVER RESOLVED HERE, and the absence of a default is the whole point. This is
+        // the only WRITE this dispatch performs outside the document store, and it lands in the
+        // OPERATOR'S HOME rather than in a caller's fixture. Resolved ambiently, every test that
+        // drives `noticeboard declare` stamps its fixture ids onto whatever session the environment
+        // happened to name — which is not hypothetical: on 2026-09-07 `noticeboard-cli`, `tree-view`,
+        // `inc-a` and `cap-a` reached a live session's record, and a mutation run of the same tests
+        // overwrote that session's declared origin on the way past. `main.ts` supplies it; a caller
+        // that does not is a caller that writes nothing.
         //
-        // ⚠ NOTHING HERE INFERS AN ARC. It records the unit ids the session itself named; the
+        // ⚠ NOTHING HERE INFERS AN ARC. The seam records the unit ids the session itself named; the
         // resolution to an arc happens at READ time, in the corpus, and a unit that resolves to no
         // arc stays a unit (ADR-0541 D3/D4). The refused shortcut is joining the trace's worktree
         // SLOT to the claim ledger — a pooled slot answers "every arc ever worked in this worktree".
-        onClaimsDeclared: async (nodeIds) => {
-          const sessionId = resolveDeclaringSessionId();
-          // No trace identity is the primary checkout / CI / the lobby — exactly the runs that
-          // capture no trace at all, so there is no row for a unit to label. Silent, not an error.
-          if (sessionId === null) return null;
-          const dir = resolveTraversalDir();
-          const next = withClaimedUnits(
-            readSessionOriginDeclaration(dir, sessionId),
-            nodeIds,
-            new Date().toISOString(),
-          );
-          // Null means every unit was already on the record: no write, so a re-declare does not
-          // rewrite the file, and no line, because nothing changed.
-          if (next === null) return null;
-          // Fail-silent on the capture path's own contract (ADR-0241 D3): a declaration that cannot
-          // be written leaves the session simply unrecorded, and never touches the claim or the
-          // exit code. `writeSessionOriginDeclaration` returns false rather than throwing.
-          return writeSessionOriginDeclaration(dir, sessionId, next)
-            ? `→ trace records this session's units: ${next.units.join(", ")} (ADR-0541 D2)`
-            : null;
-        },
+        //
+        // Always WIRED, never conditionally spread: with no recorder injected the delegate answers
+        // null, which is the drive-side rider's own "nothing to say" and adds no line — so a caller
+        // that supplies nothing is byte-identical to one that never had the seam.
+        onClaimsDeclared: async (nodeIds) => deps.recordClaimedUnits?.(nodeIds) ?? null,
       },
     );
   }

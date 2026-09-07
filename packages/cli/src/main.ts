@@ -18,6 +18,8 @@ import {
   resolveTraceIdentity,
   resolveTraversalDir,
 } from "@storytree/context-traversal-capture";
+
+import { claimedUnitsRecorderFor } from "./claimed-units-trace.js";
 import {
   isShipChildProcess,
   markShipAttempt,
@@ -525,6 +527,13 @@ export async function main(): Promise<void> {
       members,
       adr,
       traversalEvents,
+      // WHERE A DECLARE'S CLAIMED UNITS ARE RECORDED (ADR-0541 D2) — supplied HERE and only here,
+      // because this is the one place that is genuinely the operator's CLI rather than a caller
+      // driving `run` with fixtures. `commands.ts` deliberately has no default for this: it is the
+      // only write that dispatch performs into the operator's HOME, and a default put a test's
+      // `noticeboard-cli` / `tree-view` / `inc-a` / `cap-a` onto a live session's record on
+      // 2026-09-07 — a mutation run of the same tests then overwrote that session's declared origin.
+      recordClaimedUnits: claimedUnitsRecorderFor(trace),
     };
     // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one
     // place that knows the store is the live corpus rather than a test double. A memoised loader,
