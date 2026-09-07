@@ -32,6 +32,7 @@
 
 import {
   LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
   PRE_ADR0528_TILE,
   buildRelaxedCells,
   buildScene,
@@ -136,14 +137,14 @@ export interface IslandOptions {
   flowers?: boolean;
   /**
    * The camera the fixture's ground is PROJECTED at, in degrees of elevation. Omitted is the
-   * declared land camera (`LAND_CAMERA_ELEVATION_DEG`, 20°) — what every shipped 2D surface
-   * draws, and therefore what `worldTo3D` receives.
+   * declared land camera (`LAND_CAMERA_ELEVATION_DEG`, 20°) — what every shipped 2D surface draws.
    *
-   * ⚠ IT EXISTS FOR ONE CHECK. `PLAN_VIEW_ELEVATION_DEG` (90°) builds the scene from the
-   * UNPROJECTED outline — the hex cluster's true footprint — which is an independent route to
-   * the footprint the shipped mapper now restores itself (`true-footprint.ts`, ADR-0517 D1); the
-   * two agreeing is what `true-footprint.test.ts` holds. Hand the SAME elevation to `worldTo3D`
-   * (`{ cameraElevationDeg }`) or the mapper will unproject an already-true drawing a second time.
+   * ⚠⚠ AND IT IS NO LONGER WHAT THE 3D MAPPER SHOULD RECEIVE (ADR-0546 D1, 2026-09-08). It used to
+   * be: `worldTo3D` un-projected the drawing itself, and this option existed for the ONE check that
+   * its arithmetic agreed with the scene's own plan-view route. The repair is deleted, so the 3D
+   * arm has to ASK for `PLAN_VIEW_ELEVATION_DEG` (90°) — the unprojected outline, the hex cluster's
+   * true footprint — and {@link islandGroundScene} is the name for that. Hand this fixture's
+   * DEFAULT to `worldTo3D` and it will lay the squashed drawing down as written.
    */
   cameraElevationDeg?: number;
 }
@@ -264,6 +265,24 @@ export function islandAnchors(opts: IslandOptions = {}): IslandAnchors {
     treeSpot: { x: cx, y: cy - groundRadiusToScreenHalfHeight(TREE_NUDGE_ON_GROUND, elevationDeg) },
     labelY: cy + groundRadiusToScreenHalfHeight(PLATE_DROP_ON_GROUND, elevationDeg),
   };
+}
+
+/**
+ * THE FIXTURE ISLAND ON TRUE GROUND — what the 3D mapper must now be handed (ADR-0546 D1).
+ *
+ * `worldTo3D` un-projects nothing since the footprint repair was deleted, so the ground it lays
+ * down is whatever the scene carries. A scene built at the DECLARED land camera is a DRAWING —
+ * fed straight through it is the squashed ribbon (233.8 x 46.2) the 2D page draws, not an island.
+ * This is the shipped 3D arm: `PLAN_VIEW_ELEVATION_DEG`, where `projectGround` is the identity and
+ * every ground coordinate is a true ground distance (233.8 x 135.0, the recipe's own hex cluster).
+ *
+ * ⚠ IT IS A NAMED ARM RATHER THAN THE FIXTURE'S DEFAULT ON PURPOSE. {@link islandScene} still
+ * means "the island as the 2D map draws it", which is what a page comparing against the drawing
+ * needs (`drawnParcels`) and what every SVG arm renders. Flipping the default would have made the
+ * 2D arms silently un-squashed too.
+ */
+export function islandGroundScene(opts: IslandOptions = {}): SceneG {
+  return islandScene({ ...opts, cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
 }
 
 export function islandScene(opts: IslandOptions = {}): SceneG {

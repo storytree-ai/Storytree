@@ -38,7 +38,7 @@ import { createRoot } from 'react-dom/client';
 
 import { ForestWorldCanvas } from '../src/ForestWorldCanvas.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
-import { islandScene } from './island-fixture.js';
+import { islandGroundScene } from './island-fixture.js';
 // ⚠ The report shape is DECLARED ONCE, in the module the driver reads it through — see its
 // header. Importing it is also what puts `__stPalette` on `window` for this file.
 import type { PaletteReport, PanelReading } from './palette-report.js';
@@ -82,7 +82,7 @@ const STAGE_BY_ZOOM = {
  *  widening the house rules refuse, and the Map states the same thing while adding an
  *  immutability fence the object never had. */
 function buildDescriptorsByStatus(): ReadonlyMap<Status, readonly Descriptor3D[]> {
-  return new Map(STATES.map((st) => [st, worldTo3D(islandScene({ status: st }))] as const));
+  return new Map(STATES.map((st) => [st, worldTo3D(islandGroundScene({ status: st }))] as const));
 }
 const DESCRIPTORS = buildDescriptorsByStatus();
 

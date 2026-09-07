@@ -1,28 +1,36 @@
-// true-footprint.test.ts — the drawing's projection undone per island, held without a GPU.
+// true-footprint.test.ts — the per-island affine scale, held without a GPU.
 //
-// What has to hold: every ground z is stretched by exactly the drawing's projection about ITS
-// island's centre and x is never touched; the layout of a forest holds still; a ribbon between two
-// islands lands on both stretched coasts with no step in between; a cave's bearing turns with the
-// rim; and the stretch is invertible. The check that the shipped mapper's route agrees with the
-// scene's own plan-view route — an independent implementation of the same arithmetic — needs the
-// harness's fixture island and lives in `harness/true-footprint-routes.test.ts` (src never imports
-// the harness: `scope-fence.test.ts`).
+// What has to hold: every descriptor moves about ITS OWN island's centre by that island's own
+// factors and no other island's; each island's centre is INVARIANT, so a forest's layout holds
+// still under it; a ribbon between two islands lands on both scaled coasts with no step in
+// between; a cave's bearing turns with the rim; and the operation is exactly invertible.
+//
+// ⚠ THE Z-ONLY STRETCH IS NOW A FIXTURE HERE, NOT AN EXPORT. `stretchAboutIslands` and
+// `restoreTrueFootprint` were deleted with the drawing they repaired (ADR-0546 D1 — the 3D forest
+// stands on true ground, so `worldTo3D` un-projects nothing). Their coverage is kept, expressed
+// through the general operation that survives them: a z-only stretch is the pair `{ x: 1, z: s }`,
+// and holding it here is what keeps the ribbon-blending and bearing rules — the reason
+// `land-per-capability.ts` reuses this module rather than copying it — under test at all.
+//
+// The check that the shipped mapper's route agrees with the scene's own plan-view route — an
+// independent implementation of the same arithmetic — needs the harness's fixture island and lives
+// in `harness/true-footprint-routes.test.ts` (src never imports the harness: `scope-fence.test.ts`).
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG, groundFlattening } from '@storytree/forest-world';
-
-import {
-  islandCentres,
-  nearestCentre,
-  restoreTrueFootprint,
-  scaleAboutIslands,
-  scaledBearing,
-  stretchAboutIslands,
-  stretchedBearing,
-} from './true-footprint.js';
+import { islandCentres, nearestCentre, scaleAboutIslands, scaledBearing } from './true-footprint.js';
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
+
+/** The z-only stretch the module used to export: the same plane scaled along z alone. */
+function stretchAboutIslands<T extends Descriptor3D>(descriptors: readonly T[], factor: number): T[] {
+  return scaleAboutIslands(descriptors, () => ({ x: 1, z: factor }));
+}
+
+/** The cave bearing after that z-only stretch — the `{ x: 1, z: factor }` case of {@link scaledBearing}. */
+function stretchedBearing(bearing: number, factor: number): number {
+  return scaledBearing(bearing, { x: 1, z: factor });
+}
 
 /** A square island of side `side` centred at (cx, cz), one cell, named `id`. */
 function square(id: string, cx: number, cz: number, side = 20): InstanceDescriptor {
@@ -64,13 +72,6 @@ function depthOf(ds: readonly InstanceDescriptor[]): Extent {
   }
   return { w: maxX - minX, d: maxZ - minZ };
 }
-
-test('the land camera is 20° and the stretch it implies is 1 / sin 20° = 2.9238', () => {
-  assert.equal(LAND_CAMERA_ELEVATION_DEG, 20);
-  const stretch = 1 / groundFlattening();
-  assert.ok(Math.abs(stretch - 2.9238) < 5e-4, `stretch ${stretch}`);
-  assert.ok(Math.abs(1 / groundFlattening(PLAN_VIEW_ELEVATION_DEG) - 1) < 1e-12, 'plan view is already true');
-});
 
 test('islandCentres is the mean of each island’s ring vertices; nearestCentre picks by distance', () => {
   const ds = [square('a', 0, 0), square('b', 100, 50)];
@@ -291,14 +292,6 @@ test('⚠ the stretch is exactly invertible: stretching by s then by 1/s is the 
       assert.ok(Math.abs(p.z - ds[i]!.points![j]!.z) < 1e-9);
     }
   }
-});
-
-test('restoreTrueFootprint at the land camera IS the stretch by 1/sin 20°; at plan view it is the identity', () => {
-  const ds = [square('a', 0, 0)];
-  const a = restoreTrueFootprint(ds);
-  const b = stretchAboutIslands(ds, 1 / groundFlattening(LAND_CAMERA_ELEVATION_DEG));
-  assert.deepEqual(a, b);
-  assert.deepEqual(restoreTrueFootprint(ds, PLAN_VIEW_ELEVATION_DEG), ds);
 });
 
 // ---------------------------------------------------------------- the general scale

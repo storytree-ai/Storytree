@@ -72,7 +72,7 @@ import { deliveredForLevel } from '../src/shade-ladder.js';
 import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
 import { LEGACY_SHADE_LEVELS, SHADE_LEVELS } from '../src/shade-ladder.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
-import { islandScene } from './island-fixture.js';
+import { islandGroundScene, islandScene } from './island-fixture.js';
 import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
@@ -338,7 +338,7 @@ export function setLandKit(kit: LoadedKit): void {
 export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
   return kitMeshes(
     kit,
-    dressMapWithCover(worldTo3D(islandScene()), {
+    dressMapWithCover(worldTo3D(islandGroundScene()), {
       relief: LAND_RELIEF_AMPLITUDE,
       footprint: roleFootprints(kit),
     }),
@@ -346,7 +346,7 @@ export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
 }
 
 export function shippedParcels(): InstanceDescriptor[] {
-  return worldTo3D(islandScene()).filter(
+  return worldTo3D(islandGroundScene()).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }
@@ -367,15 +367,18 @@ export function shippedParcels(): InstanceDescriptor[] {
  * the same forest differently and a "moved" would be the scatter's.
  */
 export function drawnTrueParcels(): InstanceDescriptor[] {
-  return worldTo3D(islandScene(), { landAreaPerCapability: null }).filter(
+  // ⚠ THE TRUTH NOW COMES FROM THE SCENE, NOT FROM THE MAPPER (ADR-0546 D1). `worldTo3D` un-projects
+  // nothing any more, so the true footprint is what a PLAN-VIEW scene already carries.
+  return worldTo3D(islandGroundScene(), { landAreaPerCapability: null }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }
 
 export function drawnParcels(): InstanceDescriptor[] {
   // ⚠ AND AT THE SIZE THE DRAWING GIVES IT — the land-per-capability ratio is the mapper's second
-  // in-place resize, and the real map's spacing knows nothing of it either.
-  return worldTo3D(islandScene(), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null }).filter(
+  // in-place resize, and the real map's spacing knows nothing of it either. The scene is built at the
+  // DECLARED camera and mapped as written, which is the drawing itself.
+  return worldTo3D(islandScene(), { landAreaPerCapability: null }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }
@@ -399,7 +402,7 @@ export function drawnParcels(): InstanceDescriptor[] {
  * un-shadowed field, and since 2026-09-04 that is what it gets.
  */
 export function shippedCasters(): ShadowCaster[] {
-  return groundCasters(worldTo3D(islandScene()));
+  return groundCasters(worldTo3D(islandGroundScene()));
 }
 
 /**
@@ -427,7 +430,7 @@ export function shippedMapCasters(): ShadowCaster[] {
   return [
     ...shippedCasters(),
     ...placementCasters(
-      dressMapWithCover(worldTo3D(islandScene()), {
+      dressMapWithCover(worldTo3D(islandGroundScene()), {
         relief: LAND_RELIEF_AMPLITUDE,
         footprint: KIT_FOOTPRINTS_2026_08_29,
       }),

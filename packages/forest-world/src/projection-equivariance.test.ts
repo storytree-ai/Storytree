@@ -630,8 +630,13 @@ test('buildScene is EQUIVARIANT end to end: the ground-built scene projected IS 
 // WHY IT MATTERED, and it is not tidiness. Asking `buildScene` for a PLAN-VIEW scene returned one
 // whose lattice, coast and substrate were plan-view while its anchors were still frozen at the
 // declared camera — a scene at two cameras at once. That is precisely the state ADR-0527 D2's
-// deletion needs to not be in: `worldTo3D` cannot map a TRUE ground surface while the surface's own
-// anchors are a drawing, which is why `restoreTrueFootprint` exists at all.
+// deletion needed not to be in: `worldTo3D` cannot map a TRUE ground surface while the surface's own
+// anchors are a drawing. ✅ THAT DELETION HAS SINCE LANDED (ADR-0546 D1, 2026-09-08):
+// `restoreTrueFootprint` and `stretchAboutIslands` are gone, the mapper un-projects nothing, and a
+// plan-view scene is what the 3D map now asks for rather than an instrument's curiosity. So this
+// section is no longer describing groundwork — it is the fence under a landed change, and the
+// property it holds is what makes "the shipped 2D map cannot see the difference" a proved statement
+// rather than a belief.
 //
 // THE SEAM IS ONE TAG, NOT A SECOND SET OF GROUND TWINS. `anchorSpace` says which space the
 // anchors above arrived in and defaults to `screen`, so every caller that has not moved — the

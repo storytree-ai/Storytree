@@ -62,7 +62,7 @@ import {
 } from '../src/ForestWorldCanvas.js';
 import { groundCasters, placementCasters } from '../src/ground-casters.js';
 import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, RENDER_ELEV_DEG, type KitPlacement } from '../src/kit-vocabulary.js';
-import { LAND_AREA_PER_CAPABILITY, islandLand, type IslandLand } from '../src/land-per-capability.js';
+import { LAND_AREA_PER_CAPABILITY, islandLand, sizeIslandsByCapability, type IslandLand } from '../src/land-per-capability.js';
 import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
 import type { ShadowCaster } from '../src/land-shadow.js';
 import {
@@ -75,6 +75,7 @@ import { dressMapWithCover, type MapDressingOptions } from '../src/map-dressing.
 import { KIT_PROP_INDIRECT_FRACTION } from '../src/prop-lighting.js';
 import { islandCentres } from '../src/true-footprint.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { trueGroundFromDrawing } from './frozen-drawing.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { GPU_TIMER_EXTENSION } from './frame-cost.js';
 import { awaitQuery, readIdentity, type DisjointTimerQuery, type RendererIdentity } from './frame-cost-scene.js';
@@ -222,7 +223,13 @@ const streamMemo = new Map<string, InstanceDescriptor[]>();
 export function armStream(arm: SpacingArm): InstanceDescriptor[] {
   const hit = streamMemo.get(arm.record.id);
   if (hit !== undefined) return hit;
-  const built = worldTo3D(arm.file.scene).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  // ⚠ THE COMMITTED SCENE IS A 2D DRAWING and the mapper stopped repairing one (ADR-0546 D1), so it
+  // is converted at the reader — un-projected about the origin, which is what puts the forest in
+  // the corridor the owner accepted — and only THEN sized. `frozen-drawing.ts` carries the why.
+  const built = sizeIslandsByCapability(
+    trueGroundFromDrawing(worldTo3D(arm.file.scene, { landAreaPerCapability: null })),
+    LAND_AREA_PER_CAPABILITY,
+  ).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
   streamMemo.set(arm.record.id, built);
   return built;
 }

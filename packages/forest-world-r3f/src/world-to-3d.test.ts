@@ -174,15 +174,13 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
       territories: [mkTerritory({ wisps: [{ runId: 'r1', title: 'building unit-a' }] })],
     }),
   );
-  // ⚠ THE WALK'S OWN POSITIONS: the mapper is told the drawing is already true (plan view), so
-  // the per-island footprint restoration (ADR-0517 D1, `true-footprint.test.ts`) is the identity
-  // and every transform below is the World geometry's exactly. The default — the drawing
-  // unprojected — is pinned at the end of this file.
-  // ⚠ The drawing's OWN placement: the footprint restoration switched off (plan view) AND the
-  // ratio switched off (`null`) — since 2026-09-06 an island holding no capability is sized as one
-  // (`LAND_FLOOR_CAPABILITIES`), so the fixture's bare territory no longer sits at the drawing's size by
-  // itself. The mapper's default is held by its own tests at the bottom of this file.
-  const descs = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null });
+  // ⚠ THE WALK'S OWN POSITIONS: since ADR-0546 D1 the mapper un-projects nothing, so every transform
+  // below is the World geometry's exactly — the scene's own coordinates, laid straight onto the
+  // ground plane. Only the land-per-capability ratio is switched off (`null`): since 2026-09-06 an
+  // island holding no capability is sized as one (`LAND_FLOOR_CAPABILITIES`), so the fixture's bare
+  // territory no longer sits at the drawing's size by itself. The ratio's own default is held by its
+  // tests at the bottom of this file.
+  const descs = worldTo3D(scene, { landAreaPerCapability: null });
 
   // kind family → typed descriptor branch, transforms derived from the World geometry: each
   // cell-ground sits at ITS OWN parcel ring's centroid — the relaxed-mesh ground, the one
@@ -374,8 +372,8 @@ test('worldTo3D filters under-island runs into trail-ghost-strip — never a tra
 
 test('worldTo3D maps cave portals to cave-arch descriptors — rim placement, bearing, mouth width', () => {
   assert.ok(CAVE_TRAILS.caves.length > 0, 'the walled-in fixture forces cave portals');
-  // The walk's own placement — the footprint restoration and the ratio switched off as above.
-  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null });
+  // The walk's own placement — the ratio switched off as above; nothing else is in the way.
+  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })), { landAreaPerCapability: null });
   const arches = descs.filter((d): d is InstanceDescriptor => d.kind === 'cave-arch');
   assert.equal(arches.length, CAVE_TRAILS.caves.length, 'one cave-arch per portal');
   // match by island + edge set (portal order is preserved by buildScene)
@@ -1292,60 +1290,42 @@ test('a cave portal with NO status ANYWHERE above it falls back to `unknown`', (
   assert.equal(arches[0]!.material, 'unknown', 'the portal fell back to something other than unknown');
 });
 
-/* ── ⚠⚠ THE DEFAULT IS THE TRUE FOOTPRINT (ADR-0517 D1) ───────────────────────────────────────
-   Every test above that pins a position asks the mapper for the DRAWING (plan view). What ships
-   is the drawing unprojected per island, and this is the one place that holds the default is not
-   the drawing — the arithmetic itself is `true-footprint.test.ts`'s. */
+/* ── ⚠⚠ THE MAPPER ADDS NO GEOMETRY OF ITS OWN (ADR-0546 D1) ─────────────────────────────────
+   Every test above that pins a position reads the scene's own coordinates back off the descriptors,
+   and that is only legitimate because this is true. Between 2026-09-05 and 2026-09-08 it was NOT:
+   the mapper un-projected the drawing per island (`restoreTrueFootprint`, ADR-0517 D1) and those
+   tests had to ask for a plan-view scene to switch the repair off. The owner chose to build the 3D
+   forest on TRUE GROUND instead, so the repair is deleted and the scene is expected to arrive true.
+   This is the block that holds the mapper transparent. */
 
-test('⚠⚠ by default the mapper restores the island’s true footprint: the drawing’s z stretched by 1/sin 20° about the island’s centre', () => {
-  const scene = buildScene(mkInput());
-  // ⚠ The ratio is switched off on BOTH sides: this test is about the restoration alone, and the
-  // ratio's factor reads the island's area, which the restoration changes — so with it on, the two
-  // would differ by a scale as well as a stretch. The ratio's own default is the next test's.
-  const drawn = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null }).filter(asInstance);
-  const shipped = worldTo3D(scene, { landAreaPerCapability: null }).filter(asInstance);
-  assert.equal(drawn.length, shipped.length);
-  const cells = drawn.filter((d) => d.kind === 'cell-ground');
-  assert.ok(cells.length > 0);
-  // The island's centre — the mean of its ring vertices — is invariant, and a ring's z is
-  // stretched by exactly the drawing's projection about it. Derived from the drawing here, never
-  // read back off the module.
-  let sz = 0;
-  let n = 0;
-  for (const c of cells) for (const p of c.points ?? []) {
-    sz += p.z;
-    n += 1;
-  }
-  const cz = sz / n;
-  const stretch = 1 / Math.sin((20 * Math.PI) / 180);
-  for (const [i, d] of shipped.entries()) {
-    const b = drawn[i]!;
-    assert.equal(d.kind, b.kind);
-    // ⚠ To rounding, not to the bit: since the ratio is switched off here, the plan-view side is
-    // handed back untouched while the shipped side goes through the restoration's own
-    // `c + (x − c) · 1` on x — the same number, one ulp apart.
-    assert.ok(Math.abs(d.transform.x - b.transform.x) < 1e-9, 'x never moves');
-    if (d.kind === 'cell-ground') {
-      assert.ok(Math.abs(d.transform.z - cz - (b.transform.z - cz) * stretch) < 1e-9, 'a cell stretches about its island');
-      for (const [j, p] of (d.points ?? []).entries()) {
-        assert.ok(Math.abs(p.z - cz - (b.points![j]!.z - cz) * stretch) < 1e-9);
-      }
-    }
-  }
-  // Not vacuous: the island got deeper.
-  const depth = (ds: InstanceDescriptor[]) => {
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (const c of ds) for (const p of c.points ?? []) {
-      lo = Math.min(lo, p.z);
-      hi = Math.max(hi, p.z);
-    }
-    return hi - lo;
+test('⚠⚠ the mapper lays the scene down as written: an authored ring comes back at the numbers it was authored with, not stretched about its island', () => {
+  // The cell `parcelledGround` authors is the literal square (0, 0) → (10, 10), so its island's
+  // centre is (5, 5) and the numbers below are the scene's own, read straight off the page.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    children: [{ ...parcelledGround([{ id: 'cap-a', cells: 1 }], 'healthy'), id: 'isle-a' }],
   };
-  const before = depth(cells);
-  const after = depth(shipped.filter((d) => d.kind === 'cell-ground'));
-  assert.ok(Math.abs(after - before * stretch) < 1e-6, `${before} → ${after}`);
-  assert.ok(after > before * 2.9);
+  // The ratio is switched off: it scales an island about its own centre by a factor read off its
+  // area, which would move these numbers for a reason that is not the mapper's walk. Its own
+  // default is the next test's.
+  const cells = worldTo3D(scene, { landAreaPerCapability: null }).filter(asInstance).filter((d) => d.kind === 'cell-ground');
+  assert.equal(cells.length, 1);
+  const ring = cells[0]!.points ?? [];
+  assert.equal(ring.length, 4, 'the authored square');
+  assert.deepEqual(
+    [...new Set(ring.map((p) => p.z))].sort((a, b) => a - b),
+    [0, 10],
+    'the ring’s depths are the scene’s own numbers',
+  );
+  assert.deepEqual([...new Set(ring.map((p) => p.x))].sort((a, b) => a - b), [0, 10], 'and so are its widths');
+  for (const p of ring) assert.equal(p.y, 0, 'a ground ring lies on the ground plane');
+  // ⚠ THE DELETION'S OWN RED→GREEN. Until 2026-09-08 the mapper un-projected every ground z about
+  // its island's centre (`restoreTrueFootprint`, ADR-0517 D1), so this ring came back at
+  // 5 ± 5 / sin 20° = -9.62 and 19.62 — the numbers the assertion above now refuses.
+  const stretched = 5 + 5 / Math.sin((20 * Math.PI) / 180);
+  assert.ok(stretched > 19 && stretched < 20, `the repaired depth would have been ${stretched}`);
+  assert.ok(!ring.some((p) => Math.abs(p.z - stretched) < 0.5), 'nothing was un-projected');
 });
 
 /* ---------------------------------------------------------------------------
@@ -1398,7 +1378,12 @@ test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_ARE
   for (const [id, c] of cDrawn) {
     assert.ok(Math.abs(c.x - cShipped.get(id)!.x) < 1e-9 && Math.abs(c.z - cShipped.get(id)!.z) < 1e-9, `${id}'s centre moved`);
   }
-  // The ratio composes with the footprint restoration: a plan-view scene is sized too.
-  const plan = worldTo3D(twoIslands, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(asInstance);
-  assert.ok(Math.abs(islandLand(plan).get('isle-a')!.area - 3 * LAND_AREA_PER_CAPABILITY) < 1e-6);
+  // And the ratio is the ONLY thing the mapper applies now: the sized stream is the drawing scaled
+  // per island about its own centre, so the default and `null` differ by exactly that and nothing
+  // else (the composition the footprint restoration used to sit inside — ADR-0546 D1).
+  for (const [id, land] of islandLand(shipped)) {
+    const drawnArea = islandLand(asDrawn).get(id)!.area;
+    const factor = land.area / drawnArea;
+    assert.ok(factor > 0 && Number.isFinite(factor), `${id} scaled by ${factor}`);
+  }
 });
