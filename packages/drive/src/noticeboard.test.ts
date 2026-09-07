@@ -1125,3 +1125,114 @@ test("declare: with no rider injected the verb is byte-identical to before ADR-0
   });
   assert.equal(a.body, b.body);
 });
+
+// ---------------------------------------------------------------------------
+// declare — THE CLAIMED-UNITS RIDER (ADR-0541 D2)
+// ---------------------------------------------------------------------------
+//
+// `declare` already knows the unit a session is taking. This second rider is how that becomes a
+// RECORDED FACT somewhere the ledger does not reach: the CLI composition root binds it to the
+// session's own traversal declaration, so the trace rail can later name the arc from what the
+// session itself said rather than from a join nobody can check (ADR-0541 D3 refuses the join).
+//
+// `packages/drive` knows nothing about traces — the rider is a seam and the binding lives in the
+// CLI, exactly as `onWorkClaimed`'s does.
+
+test("declare: the units rider is called ONCE with every node the declare actually claimed", async () => {
+  const claims = makeFakeClaims();
+  const calls: Array<readonly string[]> = [];
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onClaimsDeclared: async (nodeIds) => {
+      calls.push(nodeIds);
+      return null;
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a", "cap-a"] }, deps);
+  assert.equal(env.ok, true);
+  // ONCE, with the plural — a session claiming several units records several (ADR-0541 D2), and a
+  // per-node rider would rewrite the same record N times with no way to know which call was last.
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], ["inc-a", "cap-a"]);
+});
+
+test("declare: a node this session was FENCED out of never reaches the units rider", async () => {
+  // ⚠ Recording a unit another session holds would put that session's work on this one's record,
+  // and a reader of the trace could not tell. The rider sees `acquired`, never `nodes`.
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
+  let calls = 0;
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onClaimsDeclared: async () => {
+      calls += 1;
+      return "→ recorded";
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, deps);
+  assert.equal(env.ok, false, "nothing was claimed");
+  assert.equal(calls, 0);
+  assert.doesNotMatch(env.body, /→ recorded/);
+});
+
+test("declare: a PARTIAL declare records only the units it took", async () => {
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER, refuseUnits: ["cap-a"] });
+  const calls: Array<readonly string[]> = [];
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onClaimsDeclared: async (nodeIds) => {
+      calls.push(nodeIds);
+      return null;
+    },
+  };
+  await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a", "cap-a"] }, deps);
+  assert.deepEqual(calls, [["inc-a"]]);
+});
+
+test("declare: the units rider's note renders under the claims, and a null adds nothing at all", async () => {
+  const base = { identity: CLAIM_IDENTITY, now: nowFn, universe: KNOWS_INCREMENT } as const;
+  const said = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: makeFakeClaims(),
+    onClaimsDeclared: async () => "→ trace records this session's units: inc-a",
+  });
+  assert.match(said.body, /trace records this session's units: inc-a/);
+
+  const silent = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: makeFakeClaims(),
+    onClaimsDeclared: async () => null,
+  });
+  const none = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: makeFakeClaims(),
+  });
+  // With nothing to say the verb is byte-identical to a run with no rider injected at all — which
+  // is the ordinary case for a re-declare whose units are already on the record.
+  assert.equal(silent.body, none.body);
+});
+
+test("declare: a THROWING units rider never costs the claim — the rows stand, the failure is said", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onClaimsDeclared: async () => {
+      throw new Error("trace dir is read-only");
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, deps);
+  assert.equal(env.ok, true, "the declare still succeeded");
+  assert.equal(claims.claimed.length, 1, "the claim was still written");
+  assert.match(env.body, /trace unit record failed: trace dir is read-only — the claims themselves stand/);
+});

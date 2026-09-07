@@ -116,6 +116,23 @@ export interface NoticeboardDeps {
    * "not my kind" rather than guessing.
    */
   onWorkClaimed?: (node: { id: string; kind: ClaimKind | null }) => Promise<string | null>;
+  /**
+   * Called ONCE with every node this declare actually claimed, so the session can record what it is
+   * working on somewhere the ledger does not reach (ADR-0541 D2: the units land on this session's
+   * own traversal declaration, and the trace rail then names the arc).
+   *
+   * ONCE AND NOT PER NODE, unlike {@link onWorkClaimed}, because the fact it records is plural: a
+   * session claiming several units records several, and a per-node rider would have to read and
+   * rewrite the same file N times with no way to tell the last call from the others.
+   *
+   * ⚠ IT IS HANDED THE **ACQUIRED** NODES, NEVER THE DECLARED ONES. A node this session was fenced
+   * out of is one it is not writing, and recording it would put work on the session's own record
+   * that another session is doing. An empty acquired list does not call it at all.
+   *
+   * A RIDER on the same contract as its sibling: it runs after the claims are banked, may only ever
+   * ADD a line to the render, and a throw here is caught and reported while every claim stands.
+   */
+  onClaimsDeclared?: (nodeIds: readonly string[]) => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +559,19 @@ export async function noticeboardCommand(
         const msg = err instanceof Error ? err.message : String(err);
         failed.push(nodeId);
         claimLines.push(`    ${nodeId}: claim write FAILED (${msg}) — wisp NOT lit`);
+      }
+    }
+
+    // THE UNITS THIS DECLARE CLAIMED, RECORDED ONCE (ADR-0541 D2) — after the loop, so the plural is
+    // one fact rather than N rewrites, and inside its own guard for the same reason the per-node
+    // rider is: a failing record must never reclassify a claim the store has already granted.
+    if (acquired.length > 0 && deps.onClaimsDeclared !== undefined) {
+      try {
+        const note = await deps.onClaimsDeclared(acquired);
+        if (note !== null && note !== "") claimLines.push(`    ${note}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        claimLines.push(`    (trace unit record failed: ${msg} — the claims themselves stand)`);
       }
     }
 

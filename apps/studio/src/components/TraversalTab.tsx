@@ -29,6 +29,9 @@ import { api } from '../api';
 import {
   buildTraversalTraceList,
   traceAgeLabel,
+  traceArcLabel,
+  traceArcState,
+  traceArcTitle,
   type TraversalIndexState,
   type TraversalTraceRow,
 } from '../lib/traversalIndex';
@@ -75,6 +78,10 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
 
   const list = useMemo(() => buildTraversalTraceList(index), [index]);
   const rows = list.state === 'listed' ? list.rows : [];
+  // Whether the CORPUS answered is a fact about the read, so it is read off the list once rather
+  // than carried on every row (ADR-0541 D1). Absent when the index is not `listed`, and in that
+  // case there are no rows to label anyway.
+  const arcsResolved = list.state === 'listed' && list.arcsResolved;
   const newest = rows[0];
   const chosen = rows.find((row) => row.sessionId === selected) ?? null;
 
@@ -96,7 +103,7 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
           <b data-testid="traversal-index-count">
             {list.state === 'listed' ? list.heading : railHeading(list.state)}
           </b>
-          <span>newest observed first · no claim, no story</span>
+          <span>newest observed first · the arc each session recorded</span>
         </div>
 
         {list.state === 'listed' ? (
@@ -113,6 +120,19 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
               >
                 <span className="traversal-tab-row-sid">{row.sessionId}</span>
                 <span className="traversal-tab-row-count">{row.eventCount}</span>
+                {/* THE ARC THE SESSION RECORDED (ADR-0541 D1) — the owner's own complaint answered:
+                    the rail listed trace ids and nothing else, so every reading was one anonymous
+                    trace against another. `data-arc` carries the CLASSIFICATION rather than the
+                    text, so the stylesheet can mute an absence without re-deriving which kind of
+                    absence it is — and, crucially, without the two that must never collapse
+                    (`no-arc` vs `unrecorded`) sharing one appearance. */}
+                <span
+                  className="traversal-tab-row-arc"
+                  data-arc={traceArcState(row, arcsResolved).state}
+                  title={traceArcTitle(row, arcsResolved)}
+                >
+                  {traceArcLabel(row, arcsResolved)}
+                </span>
                 <span className="traversal-tab-row-sub">{traceAgeLabel(row, newest)}</span>
               </button>
             ))}

@@ -716,9 +716,12 @@ async function main(): Promise<void> {
   // /api/context-windows. The Traversal tab ships in the same compiled studio bundle this backend
   // serves, and until this mount existed all three fell through to localHandler's catch-all
   // `unknown endpoint` — the tab was mounted and broken on the surface the owner actually drives.
-  // It takes no deps (the trace dir and transcript root are ambient, `STORYTREE_TRAVERSAL_DIR` /
-  // `STORYTREE_TRANSCRIPT_DIR` overriding) and must sit BEFORE localHandler's 404 fall-through.
-  const traversalRoutes = createTraversalRoutes();
+  // The trace dir and transcript root stay ambient (`STORYTREE_TRAVERSAL_DIR` /
+  // `STORYTREE_TRANSCRIPT_DIR` overriding); the CORPUS is not, so the document store is injected —
+  // the sessions index resolves each session's recorded unit to the ARC it belongs to (ADR-0541 D1),
+  // and the studio's copy of this route reads `backend.docStore` at the same seam. It must sit
+  // BEFORE localHandler's 404 fall-through.
+  const traversalRoutes = createTraversalRoutes({ docStore: backend.docStore });
   // Pull the three traversal packages and build the trace index NOW, while the window is still
   // opening, rather than on the first request an operator makes — the studio's own `primeTraversalIndex`
   // move, and the same measured reason: the lazy imports are most of a cold read's ~6 s.

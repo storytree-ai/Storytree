@@ -4120,6 +4120,34 @@ button.legend-tile:hover {
 .traversal-tab-row-count {
   font-variant-numeric: tabular-nums;
 }
+/* THE ARC A SESSION RECORDED (ADR-0541 D1), on its own full-width line under the trace id.
+
+   It reads brighter than the age line beneath it because it is what the rail is now FOR: the owner
+   could not tell one trace from another, and an arc name is the thing that tells them apart. The id
+   stays first because it is what the replay is keyed by.
+
+   ⚠ THE ABSENCES DO NOT SHARE AN APPEARANCE, and that is the stylesheet's half of ADR-0541 D4. A
+   session that claimed real work belonging to no arc and a session that recorded nothing are
+   different facts; giving them one grey would undo in CSS exactly what the wire and the classifier
+   go to some trouble to keep apart. So `no-arc` keeps full weight — it is an ANSWER — while only
+   `unrecorded` and `unresolved` fade, and even those keep distinct words. */
+.traversal-tab-row-arc {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--accent);
+}
+.traversal-tab-row-arc[data-arc='no-arc'] {
+  color: var(--muted);
+  font-style: italic;
+}
+.traversal-tab-row-arc[data-arc='unrecorded'],
+.traversal-tab-row-arc[data-arc='unresolved'] {
+  color: var(--muted);
+  opacity: 0.6;
+}
 .traversal-tab-row-sub {
   grid-column: 1 / -1;
   font-size: 10px;

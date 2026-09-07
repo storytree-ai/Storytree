@@ -34,6 +34,7 @@ const CUT: SessionOriginDeclaration = {
   origin: "cut",
   cutBy: "parent-window-id",
   cutFor: "trace-records-whether-a-session-was-cut-or-human-started",
+  units: [],
   declaredAt: "2026-08-31T09:00:00.000Z",
 };
 
@@ -72,6 +73,7 @@ test("an-origin-declaration-survives-the-process-and-fails-silent-in-both-direct
     origin: "human",
     cutBy: null,
     cutFor: null,
+    units: [],
     declaredAt: "2026-08-31T10:00:00.000Z",
   };
   assert.equal(writeSessionOriginDeclaration(dir, "session-c", corrected), true);

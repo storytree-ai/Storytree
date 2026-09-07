@@ -13,6 +13,9 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTraversalTraceList,
   traceAgeLabel,
+  traceArcLabel,
+  traceArcState,
+  traceArcTitle,
   type TraversalIndexState,
   type TraversalTraceRow,
 } from './traversalIndex';
@@ -20,8 +23,11 @@ import type { TraversalSessionsPayload } from '../types';
 
 const TRACE_DIR = '/home/op/.storytree/traces';
 
-function read(sessions: TraversalSessionsPayload['sessions']): TraversalIndexState {
-  return { status: 'read', payload: { dir: TRACE_DIR, sessions } };
+function read(
+  sessions: TraversalSessionsPayload['sessions'],
+  arcsResolved = true,
+): TraversalIndexState {
+  return { status: 'read', payload: { dir: TRACE_DIR, arcsResolved, sessions } };
 }
 
 function entry(
@@ -29,7 +35,7 @@ function entry(
   lastObservedAt: string | null,
   eventCount = 10,
 ): TraversalSessionsPayload['sessions'][number] {
-  return { sessionId, eventCount, lastObservedAt };
+  return { sessionId, eventCount, lastObservedAt, units: [], arcs: [] };
 }
 
 describe('buildTraversalTraceList — the three absences stay three', () => {
@@ -131,10 +137,12 @@ describe('traceAgeLabel — relative to the newest trace, never to the wall cloc
     sessionId: 'newest',
     eventCount: 1,
     lastObservedAt: '2026-08-12T10:00:00.000Z',
+    units: [],
+    arcs: [],
   };
 
   function rowAt(at: string | null): TraversalTraceRow {
-    return { sessionId: 'row', eventCount: 1, lastObservedAt: at };
+    return { sessionId: 'row', eventCount: 1, lastObservedAt: at, units: [], arcs: [] };
   }
 
   it('labels the newest row as such rather than "0s earlier"', () => {
@@ -159,5 +167,102 @@ describe('traceAgeLabel — relative to the newest trace, never to the wall cloc
 
   it('never produces a negative span if a row somehow post-dates the head of the list', () => {
     expect(traceAgeLabel(rowAt('2026-08-12T11:00:00.000Z'), newest)).toBe('newest');
+  });
+});
+
+describe('traceArcState — the four honest answers, and the two that must never collapse', () => {
+  function row(units: string[], arcs: string[]): TraversalTraceRow {
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs };
+  }
+
+  it('ONE arc reads as that arc', () => {
+    expect(traceArcState(row(['map-arc-inc-01'], ['map-arc']), true)).toEqual({
+      state: 'arcs',
+      arcs: ['map-arc'],
+    });
+    expect(traceArcLabel(row(['map-arc-inc-01'], ['map-arc']), true)).toBe('map-arc');
+  });
+
+  it('SEVERAL arcs are LISTED, never reduced to one', () => {
+    const several = row(['inc-a', 'inc-b'], ['map-arc', 'art-arc']);
+    expect(traceArcState(several, true)).toEqual({ state: 'arcs', arcs: ['map-arc', 'art-arc'] });
+    // Both names reach the label. A rail that showed the first and dropped the second would be
+    // making an editorial call the record does not support.
+    expect(traceArcLabel(several, true)).toContain('map-arc');
+    expect(traceArcLabel(several, true)).toContain('art-arc');
+    expect(traceArcTitle(several, true)).toMatch(/2 arcs/);
+  });
+
+  it('WORKED ON NO ARC and ARC NOT RECORDED never collapse — different states, different words', () => {
+    // ⚠ The load-bearing case (ADR-0541 D4). Both have an empty arc list. Collapsing them reports
+    // known work as unknown and inflates September's apparent unknown share from 13% to 33%.
+    const noArc = row(['r3f-world-spike'], []);
+    const unrecorded = row([], []);
+
+    expect(traceArcState(noArc, true).state).toBe('no-arc');
+    expect(traceArcState(unrecorded, true).state).toBe('unrecorded');
+
+    expect(traceArcLabel(noArc, true)).toMatch(/no arc/);
+    // And it NAMES the unit, so the claim is checkable rather than merely asserted.
+    expect(traceArcLabel(noArc, true)).toContain('r3f-world-spike');
+    expect(traceArcLabel(unrecorded, true)).toBe('arc not recorded');
+    expect(traceArcLabel(noArc, true)).not.toBe(traceArcLabel(unrecorded, true));
+
+    // The long forms differ too — an operator hovering either one is told which fact they have.
+    expect(traceArcTitle(noArc, true)).toMatch(/recorded fact about the work/);
+    expect(traceArcTitle(unrecorded, true)).toMatch(/never recorded/);
+  });
+
+  it('a silent corpus is UNRESOLVED, never "worked on no arc"', () => {
+    // The offline json backend holds no arcs at all. Reporting that absence as a fact about the
+    // work would be a positive claim made on the strength of a store that never answered.
+    const claimed = row(['some-capability'], []);
+    expect(traceArcState(claimed, false)).toEqual({
+      state: 'unresolved',
+      units: ['some-capability'],
+    });
+    expect(traceArcLabel(claimed, false)).toMatch(/unresolved/);
+    expect(traceArcLabel(claimed, false)).not.toMatch(/no arc/);
+  });
+
+  it('a session that recorded NOTHING reads the same however the corpus answered', () => {
+    // A silent store changes nothing about an absence that is the session's own — blaming the store
+    // for it would send an operator to check the wrong thing.
+    expect(traceArcState(row([], []), false).state).toBe('unrecorded');
+    expect(traceArcState(row([], []), true).state).toBe('unrecorded');
+  });
+
+  it('the unrecorded title says WHY it is blank, and that nothing will be inferred to fill it', () => {
+    // The older two-thirds of the list reads blank permanently and by choice (ADR-0541 D5). An
+    // operator who is not told that reasonably assumes it is a defect awaiting a fix.
+    expect(traceArcTitle(row([], []), true)).toMatch(/going forward/i);
+    expect(traceArcTitle(row([], []), true)).toMatch(/pooled worktree slot/i);
+  });
+});
+
+describe('buildTraversalTraceList — the arc fields survive the fold', () => {
+  it('carries units and arcs onto every row, and the payload flag onto the list', () => {
+    const list = buildTraversalTraceList(
+      read([
+        {
+          sessionId: 'a',
+          eventCount: 3,
+          lastObservedAt: '2026-09-05T10:00:00.000Z',
+          units: ['map-arc-inc-01'],
+          arcs: ['map-arc'],
+        },
+      ]),
+    );
+    if (list.state !== 'listed') throw new Error('expected a listed index');
+    expect(list.arcsResolved).toBe(true);
+    expect(list.rows[0]?.units).toEqual(['map-arc-inc-01']);
+    expect(list.rows[0]?.arcs).toEqual(['map-arc']);
+  });
+
+  it('an unflagged payload is treated as UNRESOLVED, not as a resolved empty', () => {
+    // The safe direction for an unknown is the one that refuses to print a positive claim.
+    const list = buildTraversalTraceList(read([entry('a', null)], false));
+    if (list.state !== 'listed') throw new Error('expected a listed index');
+    expect(list.arcsResolved).toBe(false);
   });
 });

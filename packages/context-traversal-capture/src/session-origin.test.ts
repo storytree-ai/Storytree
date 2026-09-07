@@ -125,6 +125,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: a `h
     origin: "human",
     cutBy: "parent-window",
     cutFor: "some-arc",
+    units: [],
     declaredAt: "2026-08-31T00:00:00.000Z",
   };
   assert.deepEqual(resolveSessionOrigin({ env: {}, declaration }), {
@@ -140,6 +141,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: the 
     origin: "cut",
     cutBy: "the-session-that-actually-cut-me",
     cutFor: null,
+    units: [],
     declaredAt: "2026-08-31T00:00:00.000Z",
   };
 
@@ -156,7 +158,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: the 
   assert.deepEqual(
     resolveSessionOrigin({
       env: { [SESSION_ORIGIN_ENV]: "cut", [CUT_BY_SESSION_ENV]: "somebody-else" },
-      declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, declaredAt: null },
+      declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, units: [], declaredAt: null },
     }),
     { kind: "human", cutBy: null, cutFor: null },
   );
@@ -165,7 +167,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: the 
 test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: a declaration this reader cannot understand is no claim at all", () => {
   assert.deepEqual(
     parseSessionOriginDeclaration({ v: 1, origin: "cut", cutBy: "a", cutFor: "b", declaredAt: "t" }),
-    { v: 1, origin: "cut", cutBy: "a", cutFor: "b", declaredAt: "t" },
+    { v: 1, origin: "cut", cutBy: "a", cutFor: "b", units: [], declaredAt: "t" },
   );
 
   // A document with only what it must have: the absent riders degrade to null rather than rejecting
@@ -175,6 +177,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: a de
     origin: "human",
     cutBy: null,
     cutFor: null,
+    units: [],
     declaredAt: null,
   });
 
@@ -184,6 +187,7 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: a de
     origin: "cut",
     cutBy: null,
     cutFor: null,
+    units: [],
     declaredAt: null,
   });
 
@@ -255,13 +259,13 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: decl
 
   // Naming a cutter is the claim, with or without the word beside it.
   assert.deepEqual(declareSessionOrigin({ cutBy: "predecessor", cutFor: "some-arc" }, AT), {
-    declaration: { v: 1, origin: "cut", cutBy: "predecessor", cutFor: "some-arc", declaredAt: AT },
+    declaration: { v: 1, origin: "cut", cutBy: "predecessor", cutFor: "some-arc", units: [], declaredAt: AT },
   });
   assert.deepEqual(declareSessionOrigin({ origin: "cut" }, AT), {
-    declaration: { v: 1, origin: "cut", cutBy: null, cutFor: null, declaredAt: AT },
+    declaration: { v: 1, origin: "cut", cutBy: null, cutFor: null, units: [], declaredAt: AT },
   });
   assert.deepEqual(declareSessionOrigin({ origin: "human" }, AT), {
-    declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, declaredAt: AT },
+    declaration: { v: 1, origin: "human", cutBy: null, cutFor: null, units: [], declaredAt: AT },
   });
 
   // The three refusals, each by CODE — the sentence is the CLI's business, the rule is this one's.
