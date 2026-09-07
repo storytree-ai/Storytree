@@ -118,14 +118,18 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
                 className="traversal-tab-row"
                 onClick={() => setSelected(row.sessionId)}
               >
-                <span className="traversal-tab-row-sid">{row.sessionId}</span>
-                <span className="traversal-tab-row-count">{row.eventCount}</span>
-                {/* THE ARC THE SESSION RECORDED (ADR-0541 D1) — the owner's own complaint answered:
-                    the rail listed trace ids and nothing else, so every reading was one anonymous
-                    trace against another. `data-arc` carries the CLASSIFICATION rather than the
-                    text, so the stylesheet can mute an absence without re-deriving which kind of
-                    absence it is — and, crucially, without the two that must never collapse
-                    (`no-arc` vs `unrecorded`) sharing one appearance. */}
+                {/* THE ARC IS THE TITLE AND THE TRACE ID IS THE SUBTITLE (owner, 2026-09-08,
+                    looking at the shipped rail). The arc led as the third line when it landed, which
+                    put the one thing a reader is scanning for BELOW the one thing they cannot read —
+                    so it had to be tinted with the accent to be seen at all. Leading with it makes
+                    position do that work, and the tint went with the need for it: an arc name is now
+                    ordinary text, and only the ABSENCES are toned, which is the distinction that was
+                    always meant to carry.
+
+                    `data-arc` carries the CLASSIFICATION rather than the text, so the stylesheet can
+                    tone an absence without re-deriving which KIND of absence it is — and, crucially,
+                    without the two that must never collapse (`no-arc` vs `unrecorded`) sharing one
+                    appearance (ADR-0541 D4). */}
                 <span
                   className="traversal-tab-row-arc"
                   data-arc={traceArcState(row, arcsResolved).state}
@@ -133,6 +137,11 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
                 >
                   {traceArcLabel(row, arcsResolved)}
                 </span>
+                <span className="traversal-tab-row-count">{row.eventCount}</span>
+                {/* The trace id keeps its own line and its monospace, because it is still what the
+                    replay is KEYED by — an operator matching a row against `storytree traversal
+                    show <id>` needs it exact. It is simply no longer what the row is called. */}
+                <span className="traversal-tab-row-sid">{row.sessionId}</span>
                 <span className="traversal-tab-row-sub">{traceAgeLabel(row, newest)}</span>
               </button>
             ))}
