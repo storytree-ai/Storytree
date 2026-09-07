@@ -25,6 +25,7 @@ describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retireme
       {
         sessionId: 'sess-old',
         branch: 'claude/sess-old',
+        stale: false,
         claims: [
           {
             unitId: 'story-a',
@@ -32,12 +33,15 @@ describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retireme
             intent: 'real',
             ageMs: 2 * 3_600_000,
             claimedAt: '2026-07-16T10:00:00.000Z',
+            stale: false,
+            heartbeatAgeMs: 60_000,
           },
         ],
       },
       {
         sessionId: 'sess-new',
         branch: 'claude/sess-new',
+        stale: false,
         claims: [
           {
             unitId: 'story-b',
@@ -45,6 +49,8 @@ describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retireme
             intent: 'scoping the map',
             ageMs: 30 * 60_000,
             claimedAt: '2026-07-16T11:30:00.000Z',
+            stale: false,
+            heartbeatAgeMs: 30 * 60_000,
           },
           {
             unitId: 'story-c',
@@ -52,6 +58,8 @@ describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retireme
             intent: '',
             ageMs: 5 * 60_000,
             claimedAt: '2026-07-16T11:55:00.000Z',
+            stale: false,
+            heartbeatAgeMs: 5 * 60_000,
           },
         ],
       },
@@ -105,6 +113,78 @@ describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retireme
       <SessionDock claimGroups={[]} now={NOW} onClose={vi.fn()} />,
     );
     expect(container.querySelector('.claim-groups')).toBeNull();
-    expect(container.textContent).toMatch(/no live claims/i);
+    expect(container.textContent).toMatch(/no claims on the ledger/i);
+  });
+});
+
+// ── ADR-0535 D1: the dock stops rendering a ghost indistinguishably from a live session ─────────
+//
+// The measured defect: the CLI board printed a 554-hour claim marked STALE while this dock, handed
+// a set the studio's own SQL had already emptied, said nothing at all. Now the wire carries every
+// standing row and the dock is what has to sort them. Two rules, and both are refusals:
+//   · a row we have not heard from SAYS SO, and says for how long (never rendered as a live one);
+//   · a plainly-abandoned row is FOLDED, never dropped (hiding it makes the picture tidy, not true).
+describe('SessionDock — three bands (ADR-0535 D1)', () => {
+  const claim = (unitId: string, heardAgeMs: number) => ({
+    unitId,
+    grade: 'work' as const,
+    intent: 'orchestrate',
+    ageMs: heardAgeMs,
+    claimedAt: '2026-07-16T10:00:00.000Z',
+    stale: heardAgeMs >= 2 * 3_600_000,
+    heartbeatAgeMs: heardAgeMs,
+  });
+  const held = (sessionId: string, ...claims: ReturnType<typeof claim>[]): SessionClaimGroup => ({
+    sessionId,
+    branch: `claude/${sessionId}`,
+    stale: claims.every((c) => c.stale),
+    claims,
+  });
+
+  it('marks a held-but-unheard-from row with how long since we last heard', () => {
+    const { container } = render(
+      <SessionDock claimGroups={[held('dark', claim('story-a', 9 * 3_600_000))]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(container.textContent).toContain('story-a');
+    expect(container.textContent).toMatch(/last heard 9h ago/i);
+    expect(container.querySelector('[data-claim-band="unknown"]')).not.toBeNull();
+  });
+
+  it('says NOTHING extra about a live row — the marking is the exception, not the decoration', () => {
+    const { container } = render(
+      <SessionDock claimGroups={[held('live', claim('story-a', 60_000))]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(container.textContent).not.toMatch(/last heard/i);
+    expect(container.querySelector('[data-claim-band="live"]')).not.toBeNull();
+  });
+
+  it('folds the plainly-abandoned rows into tidy-up instead of opening the dock with corpses', () => {
+    // The scale is why this matters and why it is not a filter: 35 of 40 rows on the live ledger
+    // were never refreshed once. Listing them inline buries the live session; dropping them is the
+    // studio's original bug. The fold is shut by default and the rows are still there.
+    const { container } = render(
+      <SessionDock
+        claimGroups={[held('alive', claim('story-a', 60_000)), held('dead', claim('story-z', 400 * 3_600_000))]}
+        now={NOW}
+        onClose={vi.fn()}
+      />,
+    );
+    const fold = container.querySelector('details.claim-tidy-up');
+    expect(fold).not.toBeNull();
+    expect((fold as HTMLDetailsElement).open).toBe(false);
+    expect(fold?.textContent).toContain('story-z');
+    expect(fold?.textContent).toMatch(/1 claim nobody has released/i);
+    // …and the live session is NOT inside the fold — it is on the board above it.
+    expect(fold?.textContent).not.toContain('story-a');
+    expect(container.querySelector('.claim-groups')?.textContent).toContain('story-a');
+    // The header counts what a reader is actually being shown, not the ledger's raw row count.
+    expect(container.querySelector('header h4')?.textContent).toBe('session claims (1)');
+  });
+
+  it('renders NO tidy-up fold when there is nothing to tidy', () => {
+    const { container } = render(
+      <SessionDock claimGroups={[held('live', claim('story-a', 60_000))]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(container.querySelector('details.claim-tidy-up')).toBeNull();
   });
 });

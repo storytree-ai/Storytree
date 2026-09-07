@@ -413,6 +413,7 @@
       "apps/studio/src/components/FloorHealthLamp.tsx": "arc-orientation-lens",
       "apps/studio/src/lib/arcRollups.ts": "arc-orientation-lens",
       "apps/studio/src/lib/arcSurface.ts": "arc-orientation-lens",
+      "apps/studio/src/lib/claimBands.ts": "arc-orientation-lens",
       "apps/studio/src/components/LibraryFinder.tsx": "library-finder",
       "apps/studio/src/components/LibraryFocusGraph.tsx": "library-dag-canvas",
       "apps/studio/src/components/LibraryDiveBody.tsx": "library-dive-body",

@@ -30,8 +30,17 @@ let http: HttpDouble;
 const group = (sessionId: string): SessionClaimGroup => ({
   sessionId,
   branch: `claude/${sessionId}`,
+  stale: false,
   claims: [
-    { unitId: 'story-a', grade: 'work', intent: 'real', ageMs: 60_000, claimedAt: '2026-07-16T11:00:00.000Z' },
+    {
+      unitId: 'story-a',
+      grade: 'work',
+      intent: 'real',
+      ageMs: 60_000,
+      claimedAt: '2026-07-16T11:00:00.000Z',
+      stale: false,
+      heartbeatAgeMs: 60_000,
+    },
   ],
 });
 

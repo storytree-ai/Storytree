@@ -596,8 +596,32 @@ test('THE LINEAR LAW the fence rests on — both halves, because either alone is
   // 2026-09-05 (`land-per-capability.ts`), so the per-unit slope rose by ~1 / LAND_SCALE, and the
   // default 200-unit patch now spans 2.65× more wavelengths than it did. This half is what says so.
   //
-  // (a) the constant IS what the sampler returns at amplitude 1 —
-  assert.equal(maxTerrainSlope(1), PEAK_SLOPE_PER_UNIT_AMPLITUDE);
+  // (a) the constant IS what the sampler returns at amplitude 1 — to the last representable place
+  //     rather than bit for bit, and the slack is ARCHITECTURE, not flake. `landGradient` sums
+  //     `Math.sin`/`Math.cos` terms, which ECMA-262 leaves implementation-approximated, so the
+  //     sum's final bit belongs to the platform: the arm64 dev box returns 0.5481413856707604
+  //     where the x64 CI that pinned this literal returns ...605. One ULP, deterministic on each,
+  //     reproducible on every run — and NOT `Math.hypot`, whose correctly-rounded `Math.sqrt`
+  //     twin gives arm64 the same ...604. `assert.equal` here does not test the sampler, it
+  //     elects an architecture: pinning either value simply chooses whose gate is red.
+  //
+  // ⚠ AND THE TOLERANCE COSTS THE ASSERTION NOTHING — measured, not hoped. Eight ULP of 0.548 is
+  //     9.7e-16, and every drift this half exists to catch clears it by eleven orders of
+  //     magnitude: the 2026-09-05 retune above moved the constant by 0.341 (3.5e14x the
+  //     tolerance), and the smallest sampling nudge that changes the answer at all — the default
+  //     span 200 → 200.5, or the step 0.5 → 0.4 — moves it by 1.2e-4 (1e11x). Nor can a platform
+  //     smuggle a real change through the ULP door by winning the max with a DIFFERENT sample:
+  //     exactly ONE of the 160,801 samples attains the peak and the runner-up is 1.7e-4 below it,
+  //     so there is no near-tie to flip. Scaled by the constant rather than absolute, so a
+  //     re-derived literal carries its own slack instead of needing this epsilon re-tuned too.
+  const atUnitAmplitude = maxTerrainSlope(1);
+  assert.ok(
+    Math.abs(atUnitAmplitude - PEAK_SLOPE_PER_UNIT_AMPLITUDE) <=
+      PEAK_SLOPE_PER_UNIT_AMPLITUDE * 8 * Number.EPSILON,
+    `the sampler says ${atUnitAmplitude} and PEAK_SLOPE_PER_UNIT_AMPLITUDE is ` +
+      `${PEAK_SLOPE_PER_UNIT_AMPLITUDE} — further apart than a last-place difference, so the ` +
+      'wavenumbers have moved and the constant must be re-derived (see the note above)',
+  );
   // (b) and the sampler really is linear in the amplitude, across the whole range this land could
   //     ever wear. The relief is a sum of waves scaled by the amplitude, so its gradient scales
   //     with it exactly — asserted rather than argued, at seven amplitudes.

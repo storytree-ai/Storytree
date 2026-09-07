@@ -226,10 +226,12 @@ export interface LibraryBackend {
   inFlightDepartures?(): Promise<DepartedClaim[] | null>;
 
   /**
-   * EVERY live claim row, all units, all grades (ADR-0200 D7 — the studio session dock's
-   * claims-grouped-by-session view): the raw `ClaimDocT[]` from `events.node_claim` via
-   * `PgClaimStore.listLiveClaims()` (the same store the CLI board reads), staleness filtered in
-   * SQL by heartbeat. Unlike {@link inFlightClaims} (which folds each row to a map-wisp
+   * EVERY STANDING claim row, all units, all grades, STALE ONES INCLUDED (ADR-0200 D7 — the studio
+   * session dock's claims-grouped-by-session view; unfiltered since ADR-0535 D1): the raw
+   * `ClaimDocT[]` from `events.node_claim` via `PgClaimStore.listAllClaims()` — the same read the
+   * CLI board takes, so the two surfaces answer one question about one row. Staleness is MARKED by
+   * the shared fold downstream, never filtered away here. Unlike {@link inFlightClaims} (which
+   * folds each row to a map-wisp
    * `ClaimActivity`), this stays the raw claim shape so the caller (the `/api/claims` handler)
    * folds it through the pure `groupClaimsBySession` — the ONE grouping every ledger view shares
    * (packages/notice-board/src/claim.ts). Same advisory contract as {@link latestVerdicts}: NEVER
@@ -1214,10 +1216,27 @@ export class PgBackend implements LibraryBackend {
   }
 
   /**
-   * Every live claim row via `PgClaimStore.listLiveClaims()` (ADR-0200 D7 dock view) — the SAME
-   * store's already-tested heartbeat stale-filter (no hand-rolled SQL here), raced against the
-   * same ~4s timeout as the other advisory reads above. Null on ANY failure (stopped instance,
-   * missing table, pool build error) — the dock's claims view is advisory, like latestVerdicts().
+   * Every STANDING claim row via `PgClaimStore.listAllClaims()` (ADR-0200 D7 dock view), raced
+   * against the same ~4s timeout as the other advisory reads above. Null on ANY failure (stopped
+   * instance, missing table, pool build error) — the dock's claims view is advisory, like
+   * latestVerdicts().
+   *
+   * ⚠ IT READS THE UNFILTERED TWIN ON PURPOSE (ADR-0535 D1). This used to call `listLiveClaims()`,
+   * which drops stale rows IN SQL — so the browser was handed an ABSENCE where the CLI board, which
+   * has read `listAllClaims()` since ADR-0346 D1, printed the same row marked STALE. Two reads of
+   * one table, two answers, and the arc lane then fell through to the word `quiet`, which asserts
+   * calm: an owner was shown an arc with nobody on it while the session holding it was 432 tool
+   * calls in. A view cannot MARK what it was never handed.
+   *
+   * Liveness is still decided by exactly ONE predicate and still decided HERE, not in the browser:
+   * the shared `groupClaimsBySession` fold (which the `/api/claims` handler applies) stamps
+   * `stale` + `heartbeatAgeMs` onto every row from the same `isReclaimable` the store enforces in
+   * SQL. What changed is that the row now reaches the surface carrying that verdict instead of
+   * being deleted before it could.
+   *
+   * The MAP's claim wisps are deliberately NOT changed with it (`inFlightClaims` above keeps its
+   * own stale filter): a wisp is a positive assertion that someone is orbiting a node, and drawing
+   * one for a corpse would be this same lie pointing the other way.
    */
   async sessionClaims(): Promise<ClaimDocT[] | null> {
     let timer: NodeJS.Timeout | undefined;
@@ -1230,7 +1249,7 @@ export class PgBackend implements LibraryBackend {
           const { store } = await this.#ready();
           const handle = this.#handle;
           if (!handle) throw new Error('no pool');
-          return new store.PgClaimStore(handle.pool).listLiveClaims();
+          return new store.PgClaimStore(handle.pool).listAllClaims();
         })(),
         timeout,
       ]);

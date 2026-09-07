@@ -31,12 +31,14 @@ proof:
       - "apps/studio/src/components/FloorHealthLamp.test.tsx"
       - "apps/studio/src/lib/arcSurface.test.ts"
       - "apps/studio/src/lib/arcRollups.test.ts"
+      - "apps/studio/src/lib/claimBands.test.ts"
       - "apps/studio/src/lib/floorHealth.test.ts"
     sourceGlobs:
       - "apps/studio/src/components/ArcSurface.tsx"
       - "apps/studio/src/components/FloorHealthLamp.tsx"
       - "apps/studio/src/lib/arcSurface.ts"
       - "apps/studio/src/lib/arcRollups.ts"
+      - "apps/studio/src/lib/claimBands.ts"
       - "apps/studio/src/lib/floorHealth.ts"
 ---
 
@@ -259,12 +261,12 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **proven by —** `apps/studio/src/lib/arcSurface.test.ts:126`, `:134`, `:141` (REAL, passing)
 4. **`blocked-is-never-derived-and-the-three-substitutes-are-rejected-by-name`** — the refusal is a
    testable fact, not a comment nobody reads
-   - **asserts —** an authored open question makes an arc `waiting` and that wins over any recency
-     judgement AND over `claimed`; recent activity reads `moving` (RENAMED from `running` by
-     ADR-0351 — the word promised a live session the predicate never measured, and at 2026-08-12
-     velocity it lit every lane, so it was both false and non-discriminating) and older than the
-     window reads `quiet`; a live claim that provably resolves to the arc reads `claimed`, the one
-     ledger-backed state; and NO
+   - **asserts —** an authored open question makes an arc `waiting` and that wins over any other
+     judgement AND over `claimed`; an arc nothing is claimed on reads `quiet` (the recency predicate
+     that once read `moving` here is DELETED, not re-tuned — ADR-0374 D4: recency was never the
+     question, and at 2026-08-12 velocity it lit every lane, so it was both false and
+     non-discriminating); a claim that provably resolves to the arc and has been heard from reads
+     `claimed`, one of the two ledger-backed states; and NO
      input of any shape produces `blocked` — an arc that never landed anything (B2), an arc carrying
      a `proposed` ADR (B1), and an arc gone quiet past the window (B3) are each rejected BY NAME.
      Those three answer *has this arc been quiet*, which is a symptom rather than a cause; at
@@ -293,6 +295,29 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **covers —** `apps/studio/src/lib/arcSurface.ts` (`arcClaimants`)
    - **proven by —** `apps/studio/src/lib/arcSurface.test.ts` (the `arcClaimants` group) +
      `apps/studio/src/components/ArcSurface.test.tsx` (the ADR-0351 group) (REAL, passing)
+5c. **`a-held-but-unheard-from-claim-reads-unknown-and-never-quiet`** — the third band (ADR-0535 D1),
+     and the one this surface was measurably missing
+   - **asserts —** a claim resolving to the arc whose holder has NOT been heard from inside the
+     staleness window reads `unknown`, never `quiet`, and the lane carries HOW LONG since we last
+     heard on the face of the chip rather than only in a tooltip; a claim old enough to be plainly
+     abandoned leaves the arc entirely (a display-only threshold, `CLAIM_ABANDONED_DISPLAY_MS`) and
+     is filed under the session dock's tidy-up fold rather than dropped; one LIVE claimant outranks a
+     dark one on the same arc; `unknown` sorts between `claimed` and `quiet`; and `waiting`,
+     `blocked`, `parked` and `closed` all still outrank it.
+   - **the refusal that carries it —** the surface DOES NOT DECIDE STALENESS. The live/unknown line
+     is the server's own `stale` flag, read off the wire and never recomputed in the browser
+     (`lib/claimBands.ts` holds no copy of `CLAIM_STALE_RECLAIM_MS`), and the display threshold
+     changes no store read and no takeover rule. Two reads of one table diverging is the fault being
+     repaired here; a client-side re-derivation would rebuild it one layer up.
+   - **why it exists —** measured, not theoretical: the owner was shown an arc rendering `quiet` and
+     concluded the work was finished while the session holding it was 432 tool calls in with a PR
+     open. Two faults produced that — the studio's own read dropped the stale row in SQL before the
+     browser saw it, and with the row gone the lane fell through to a word that asserts calm.
+   - **covers —** `apps/studio/src/lib/claimBands.ts`, `apps/studio/src/lib/arcSurface.ts`
+     (`arcClaimants`, `arcState`, `arcLastHeardMs`, `claimChipLabel`, `claimChipTitle`)
+   - **proven by —** `apps/studio/src/lib/claimBands.test.ts`, the ADR-0535 group in
+     `apps/studio/src/lib/arcSurface.test.ts`, and the ADR-0535 group in
+     `apps/studio/src/components/ArcSurface.test.tsx` (REAL, passing)
 5. **`lanes-are-active-only-waiting-first-and-totally-ordered`** — the scan order is the D3 posture
    - **asserts —** closed arcs are dropped (ADR-0239 D3's active-only default — 27 finished
      initiatives above the 20 live ones would bury the answer); lanes order waiting > running >

@@ -165,9 +165,16 @@ export interface Probe {
  *   `sessionClaims` seam yields, plus the request list both probes replay). Each probe prints
  *   `{ [label]: { status, body } }`, which {@link projectClaimsPayload} turns into entries. The
  *   fixture injects at `sessionClaims` because that is exactly where the two surfaces stop sharing
- *   code: the query (`PgClaimStore.listLiveClaims`) and the fold (`groupClaimsBySession`) are both
+ *   code: the query (`PgClaimStore.listAllClaims`) and the fold (`groupClaimsBySession`) are both
  *   shared package code, so what each surface writes for itself is the ENVELOPE — the 405, the
  *   advisory `{ sessions: null }`, and the `null`-versus-`[]` distinction.
+ *
+ *   ⚠ THE INJECTION SEAM IS ALSO THIS ROW'S BLIND SPOT, AND IT COST A REAL DEFECT. Because the
+ *   fixture supplies the rows, WHICH store read each surface takes is invisible here: the studio
+ *   dropped stale rows in SQL (`listLiveClaims`) for months while the CLI board kept them, and this
+ *   harness stayed green throughout because both probes were handed the same fixture. ADR-0535 D1
+ *   put both surfaces back on `listAllClaims`. Nothing below can hold them there — that is the
+ *   surfaces' own doc comments' job, and it is why they say so loudly.
  *
  *   The rows' timestamps are minted by the harness at fixture-write time rather than written down,
  *   because neither route takes an injectable `now` — both call `groupClaimsBySession(claims,
@@ -336,10 +343,15 @@ export const MIRRORS: readonly MirrorTarget[] = [
     // SELECT behind `sessionClaims()`, which a DB-free probe cannot reach". BOTH HALVES OF THAT WERE
     // WRONG, and the second one is what makes this row cheap:
     //
-    //   · There IS no second SELECT. The studio calls `new PgClaimStore(pool).listLiveClaims()`
-    //     (libraryBackend.ts) and the desktop calls `claimLedger.listLiveClaims()` on an instance of
+    //   · There IS no second SELECT. The studio calls `new PgClaimStore(pool).listAllClaims()`
+    //     (libraryBackend.ts) and the desktop calls `claimLedger.listAllClaims()` on an instance of
     //     the SAME class from @storytree/notice-board (electron/backend-entry.ts). One query, one
     //     implementation, its own tests. Nothing there can drift apart.
+    //
+    //     ⚠ READ "cannot drift" PRECISELY: the IMPLEMENTATION cannot, the CHOICE of read can, and
+    //     this harness cannot see the choice because the fixture injects past it (see
+    //     `claims-fixtures` above). Both surfaces read the UNFILTERED twin as of ADR-0535 D1; when
+    //     they did not, this row was green over a genuine divergence.
     //   · The store was never out of reach anyway — ADR-0495 refuted "CI is DB-free".
     //
     // WHAT IS ACTUALLY HAND-COPIED IS THE ENVELOPE, and it is the `/api/arcs` shape exactly: the fold

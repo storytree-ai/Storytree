@@ -1063,17 +1063,31 @@ describe('ArcSurface — the queue behind an arc lives behind a caret (2026-09-0
 });
 
 describe('ArcSurface — `claimed` is the only ledger-backed state, and it never asserts a negative (ADR-0351)', () => {
-  const group = (sessionId: string, ...unitIds: string[]): SessionClaimGroup => ({
-    sessionId,
-    branch: `claude/${sessionId}`,
-    claims: unitIds.map((unitId) => ({
-      unitId,
-      grade: 'work' as const,
-      intent: 'orchestrate',
-      ageMs: 1000,
-      claimedAt: '2026-08-06T00:00:00Z',
-    })),
-  });
+  const group = (sessionId: string, ...unitIds: string[]): SessionClaimGroup =>
+    darkGroup(sessionId, 0, ...unitIds);
+
+  /** A session last heard from `heardAgeMs` ago — `0` is live, past 2 h is DARK (ADR-0535 D1). */
+  const darkGroup = (
+    sessionId: string,
+    heardAgeMs: number,
+    ...unitIds: string[]
+  ): SessionClaimGroup => {
+    const stale = heardAgeMs >= 2 * 60 * 60 * 1_000;
+    return {
+      sessionId,
+      branch: `claude/${sessionId}`,
+      stale,
+      claims: unitIds.map((unitId) => ({
+        unitId,
+        grade: 'work' as const,
+        intent: 'orchestrate',
+        ageMs: 1000,
+        claimedAt: '2026-08-06T00:00:00Z',
+        stale,
+        heartbeatAgeMs: heardAgeMs,
+      })),
+    };
+  };
 
   it('lights `claimed` when a live session holds the arc, and outranks the recency states', async () => {
     render(
@@ -1106,6 +1120,62 @@ describe('ArcSurface — `claimed` is the only ledger-backed state, and it never
     expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('quiet');
     expect(surface.querySelectorAll('[data-arc-state="unclaimed"]')).toHaveLength(0);
     expect((surface.textContent ?? '').toLowerCase()).not.toContain('unclaimed');
+  });
+
+  // ── ADR-0535 D1: the lane that misled the owner ────────────────────────────────────────────
+  //
+  // He looked at an arc rendering `quiet` and concluded the work was finished. It was not: the
+  // session holding it was 432 tool calls in with a PR open, and its liveness stamp had simply gone
+  // dark. These are the assertions that make that rendering unreachable.
+
+  it('renders `unknown` — NOT `quiet` — for an arc held by a session nobody has heard from', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'dark-arc', increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[darkGroup('s1', 5 * 60 * 60 * 1_000, 'dark-arc')]}
+      />,
+    );
+    await settle();
+    const lane = screen.getByTestId('arc-lane:dark-arc');
+    expect(lane.getAttribute('data-arc-state')).toBe('unknown');
+    // The word alone is not enough. THE AGE IS ON THE FACE OF THE CHIP, because the owner who was
+    // misled read a word and drew a conclusion — he did not hover.
+    expect(lane.querySelector('.arc-state-chip')?.textContent).toBe('unknown · 5h');
+    // …and the tooltip says what the surface is actually claiming, which is nothing about whether
+    // the session stopped.
+    const title = lane.querySelector('.arc-state-chip')?.getAttribute('title') ?? '';
+    expect(title).toContain('last heard from 5h ago');
+    expect(title).toMatch(/not a report that it stopped/i);
+  });
+
+  it('a live claimant on the same arc still reads `claimed`, with no age appended', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'held-arc', increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[group('s1', 'held-arc')]}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-lane:held-arc').querySelector('.arc-state-chip')?.textContent).toBe(
+      'claimed',
+    );
+  });
+
+  it('a plainly-abandoned claim leaves the lane alone — tidy-up is not an arc state', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'corpse-arc', increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[darkGroup('dead', 400 * 60 * 60 * 1_000, 'corpse-arc')]}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-lane:corpse-arc').getAttribute('data-arc-state')).toBe('quiet');
   });
 
   it('`waiting` still outranks `claimed` — the owner-actionable state stays on top', async () => {
