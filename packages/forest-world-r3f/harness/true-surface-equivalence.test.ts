@@ -8,51 +8,50 @@
 // lands. This file is that measurement, and its result is more specific than either a pass or a
 // blocker.
 //
-// ⚠⚠ THE FOOTPRINT AGREES EXACTLY. THE INTERIOR IS A DIFFERENT TESSELLATION. Measured here: both
-// arms draw 174 descriptors in the same kinds, every height is identical (`y` differs by exactly 0),
-// and the island's x and z EXTENTS agree to the unit — so the repair really does restore the true
-// footprint, which is the claim ADR-0517 D1 rests on. What does NOT hold is a cell-to-cell
-// correspondence: matched 1:1 by nearest neighbour of the same kind, the worst pair is ~62 units
-// apart on an island spanning 222 x 122. There is no correspondence to compare because the RELAXED
-// SUBSTRATE DECOMPOSES DIFFERENTLY at the two cameras — the same fault class ADR-0367 names, where
-// "an island re-decomposing 50 -> 52 cells" is a recorded instance.
+// ⚠⚠ THE ARMS AGREE, ON ALL 174 DESCRIPTORS. Measured here: both arms draw 174 descriptors in the
+// same kinds, every height is identical (`y` differs by exactly 0), the island's x and z extents
+// agree to the unit — and across a NINETY-DEGREE change of camera, on an island spanning 222 x 122,
+// the worst-placed descriptor of any kind moves **0.348 units**. ADR-0527 D5's bar, restated by
+// ADR-0540 D3 as tile-for-tile agreement, is MET WITH NO EXCEPTION RECORDED, which is the outcome
+// that option was chosen for. `restoreTrueFootprint` is released for deletion.
 //
-// ⚠⚠ CORRECTED 2026-09-07 — THE SUBSTRATE IS NOT THE BLOCKER, AND THE SENTENCE ABOVE THAT SAID SO
-// IS WRONG. The paragraph above reads "the RELAXED SUBSTRATE DECOMPOSES DIFFERENTLY at the two
-// cameras". That was inferred from a single whole-population number, and separating the population
-// refutes it: **the mosaic agrees.** Split by kind, and matched 1:1 BEST-FIRST rather than in one
-// arm's own order, the 164 `cell-ground` cells — the mosaic itself, the thing the un-projection is
-// suspected of re-cutting — differ by at most **0.348 units** on an island spanning 222 x 122, across
-// a NINETY-DEGREE change of camera. The entire ~62-unit disagreement is the ten `uat-bloom` markers.
-// `substrate.ts` already cuts on the ground: its `GROUND` constant pins every `hexCenter`/`hexCorners`
-// call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects ONCE, at the very end. There was
-// never a camera in the cut.
+// ⚠ THE THREE THINGS THAT HAD TO BE TRUE, AND THE ORDER THEY WERE ESTABLISHED IN — because two of
+// them were asserted here BEFORE they were measured, and one of those was wrong.
 //
-// ⚠ AND THE HEADLINE NUMBER WAS INFLATED BY ITS OWN MATCHER. The 1:1 pairing below walks ONE arm in
-// ITS OWN ORDER and takes each descriptor's nearest unused partner, which is greedy, not generous: an
-// early displaced marker steals a partner and cascades. Unrestricted nearest-neighbour puts every A
-// within 30.7 of some B and 170 of the 174 within ONE unit. Read "most generous" in the test below as
-// what it is — a greedy walk — and read the by-kind test at the end of this file for the real figures.
+//  1. THE MOSAIC. This file once read "the RELAXED SUBSTRATE DECOMPOSES DIFFERENTLY at the two
+//     cameras". That was inferred from a single whole-population number and it is FALSE. Split by
+//     kind and matched best-first, the 164 `cell-ground` cells always differed by at most 0.348
+//     units. `substrate.ts` already cuts on the ground — its `GROUND` constant pins every
+//     `hexCenter`/`hexCorners` call to `PLAN_VIEW_ELEVATION_DEG` and `buildRelaxedCells` projects
+//     ONCE, at the very end. There was never a camera in the cut, and nothing was changed to fix it.
 //
-// ⚠ WHY THE TEN MARKERS DISAGREE, WHICH IS NOT THE SAME DEFECT. `buildUatMarkers` draws up to twenty
-// polar candidates and accepts the first that clears the tree well, the spacing floor, the land, AND
-// the nameplate band. The first three are ground distances (ADR-0367 D1). The fourth,
-// `clearsPlate`, is a SCREEN test on purpose — the nameplate is screen art, and its own comment says
-// so. So a different camera accepts a different candidate, and the markers land elsewhere. That is a
-// documented design choice about what a flower may sit under, not a distance measured in the wrong
-// space, and undoing it is a LOOK question rather than a repair.
+//  2. THE MATCHER. The greedy 1:1 walk below takes each descriptor's nearest UNUSED partner in one
+//     arm's own order, so an early displaced marker steals a partner and the displacement cascades
+//     through everything behind it. That inflated the headline number to ~62 units. It is worth
+//     knowing that greedy and best-first now return the SAME 0.348: with nothing displaced there is
+//     nothing left to cascade, which is its own evidence about what the cascade was made of.
 //
-// WHAT A LATER SESSION SHOULD TAKE FROM THIS. ADR-0527 D5's bar, restated by ADR-0540 D3 as
-// tile-for-tile agreement, is MET ON THE TILES TODAY. What cannot meet it is a decoration whose
-// placement deliberately reads the camera. That is an owner-level fork rather than a session's call,
-// and it is authored on `forest-geometry-rebuild-arc` — do not settle it from here.
+//  3. THE MARKERS — the only thing that was actually broken, and the only thing that was fixed.
+//     `buildUatMarkers` draws up to twenty polar candidates and accepts the first that clears the
+//     tree well, the spacing floor, the land AND the nameplate band. The first three are ground
+//     distances (ADR-0367 D1). The fourth was a SCREEN test — `y < labelY - 14` — because the
+//     nameplate had no world position, so a different camera accepted a different candidate and the
+//     ten markers landed on different ground. ADR-0545 gave the plate a ground baseline and made the
+//     band's clearance a ground distance like the other three; this fixture's plate drop and tree
+//     nudge, frozen screen offsets for the same reason, were recovered onto the ground with it.
+//     The markers now agree to 0.312.
+//
+// ⚠ WHAT THIS FILE DOES NOT SAY. 0.348 is not zero, and it is not claimed to be: it is the
+// substrate's own residue under a 90-degree swing, present before this landing and unchanged by it.
+// The thresholds below are stated against it rather than against 0 so a real regression has somewhere
+// to show, and every one of them is an upper bound on a measured figure — never a golden.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG } from '@storytree/forest-world';
 
-import { islandScene } from './island-fixture.js';
+import { islandAnchors, islandScene } from './island-fixture.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 
 /** One arm: build the island at a camera and map it, telling the mapper the same camera.
@@ -119,18 +118,21 @@ test('the true-surface arm and the un-projected drawing agree on the island FOOT
   }
 });
 
-test('⚠ the two arms DO disagree overall — but read the next test before naming a cause', () => {
-  // Pinned as a MEASUREMENT, and it still holds — the arms DO disagree. What it does not do is say
-  // WHERE, and its original comment named the substrate, which the by-kind test at the end of this
-  // file measures and refutes. Kept unchanged so the number this decision was taken on is still on
-  // the record; read it as "something disagrees", never as "the substrate re-cuts".
+test('the two arms agree EVEN UNDER THE GREEDY MATCHER — the cascade went with what caused it', () => {
+  // THIS TEST WAS A TRIPWIRE ASSERTING THE OPPOSITE, and its own message named the day it would fire:
+  // "if this is now <small>, the last camera-dependent placement may be gone". It fired. Inverted
+  // here rather than deleted, because the matcher it uses is the WEAKER of the two and that is
+  // exactly what makes its agreement worth asserting.
+  //
+  // The walk below takes each descriptor's nearest UNUSED partner in one arm's own order, so a single
+  // displaced descriptor can steal a partner some later one needed and the error cascades. Under the
+  // old placement that inflated the disagreement to ~62 units on ten displaced markers. It now
+  // returns the SAME figure as the best-first matching at the end of this file, which is the
+  // strongest available statement that nothing is displaced at all: a greedy matcher can only differ
+  // from a best-first one when there is something for it to get wrong.
   const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
   const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
 
-  // Matched 1:1 by nearest neighbour of the same kind — the most generous pairing available, and
-  // strictly better than by index. If a later change makes the substrate camera-independent this
-  // separation collapses and the assertion fails, which is the point: it is a tripwire on the
-  // blocker, so the day it is fixed is the day someone is told.
   const used = new Set<number>();
   let worst = 0;
   for (const p of trueSurface) {
@@ -150,10 +152,15 @@ test('⚠ the two arms DO disagree overall — but read the next test before nam
     worst = Math.max(worst, bestD);
   }
   assert.ok(
-    worst > 10,
-    `the arms are expected to DISAGREE somewhere while the marker scatter reads the camera — if ` +
-      `this is now ${worst.toFixed(2)}, the last camera-dependent placement may be gone and ` +
-      `ADR-0527 D5 / ADR-0540 are worth re-reading`,
+    worst < 1,
+    `every descriptor must land within a unit of its partner across a 90-degree camera swing; the ` +
+      `worst moved ${worst.toFixed(3)} units. A figure in the TENS is the old signature — a ground ` +
+      `placement rule reading the camera, cascading through the greedy pairing (ADR-0545)`,
+  );
+  assert.equal(
+    used.size,
+    trueSurface.length,
+    'and the matching must be total, or the number above is about a subset nobody named',
   );
 });
 
@@ -197,9 +204,11 @@ function worstUnderBestFirstMatching(
 const ofKind = (ds: readonly InstanceDescriptor[], kind: string): InstanceDescriptor[] =>
   ds.filter((d) => d.kind === kind);
 
-test('THE MOSAIC AGREES — the substrate is camera-independent, and the disagreement is elsewhere', () => {
-  // ⚠ THIS TEST EXISTS BECAUSE THE TEST ABOVE WAS READ AS SAYING SOMETHING IT CANNOT SAY. One number
-  // over a mixed population named the substrate as the cause; separating the population refutes it.
+test('THE MOSAIC AND THE MARKERS BOTH AGREE — split by kind, so neither can hide inside the other', () => {
+  // ⚠ THIS TEST EXISTS BECAUSE THE TEST ABOVE WAS ONCE READ AS SAYING SOMETHING IT CANNOT SAY. One
+  // number over a mixed population named the substrate as the cause; separating the population
+  // refuted it and named the markers instead. The split is KEPT now that both agree, because a
+  // single whole-population bound is exactly what let ten displaced markers read as 164 re-cut tiles.
   const trueSurface = drawn(arm(PLAN_VIEW_ELEVATION_DEG));
   const drawing = drawn(arm(LAND_CAMERA_ELEVATION_DEG));
 
@@ -218,18 +227,25 @@ test('THE MOSAIC AGREES — the substrate is camera-independent, and the disagre
     `the mosaic must be camera-independent: worst cell moved ${mosaicWorst.toFixed(3)} units`,
   );
 
-  // AND THE WHOLE OF THE DISAGREEMENT IS THE MARKERS. Kept as a tripwire in the same shape as the
-  // test above: the day a session makes the marker scatter camera-independent — which is an owner
-  // question about what a flower may sit under, not a repair — this fails and says so.
+  // AND THE MARKERS AGREE TOO — the term ADR-0540 D2 was waiting on. This was the other inverted
+  // tripwire: it asserted `> 10` and named the day it failed as the day to re-read ADR-0540. It
+  // failed, at 0.31. The markers were the WHOLE of the old disagreement, so this bound and the
+  // mosaic's above now cover the same population between them.
+  //
+  // ⚠ THE MARKERS ARE HELD TO THE MOSAIC'S OWN TOLERANCE, deliberately. They are placed by rejection
+  // sampling against ground keep-outs measured off the mosaic, so they cannot be steadier than the
+  // ground they are sampled on — and holding them to a LOOSER bound than the substrate would leave
+  // room for exactly the defect that was here, at a tenth of its old size.
   const bloomA = ofKind(trueSurface, 'uat-bloom');
   const bloomB = ofKind(drawing, 'uat-bloom');
   assert.ok(bloomA.length > 0, 'the fixture must draw UAT markers for this to measure anything');
   assert.equal(bloomB.length, bloomA.length, 'and the same number at both cameras');
   const bloomWorst = worstUnderBestFirstMatching(bloomA, bloomB);
   assert.ok(
-    bloomWorst > 10,
-    `the markers are expected to move while \`clearsPlate\` reads the camera — if this is now ` +
-      `${bloomWorst.toFixed(2)}, re-read ADR-0540 and the question on forest-geometry-rebuild-arc`,
+    bloomWorst < 1,
+    `every UAT marker must land on the same ground at both cameras; the worst moved ` +
+      `${bloomWorst.toFixed(3)} units. A figure in the TENS means a ground placement keep-out is ` +
+      `reading the screen again — the nameplate band was the last one (ADR-0545)`,
   );
 
   // The two populations together ARE the whole scene, so nothing is being quietly excluded from the
@@ -239,4 +255,43 @@ test('THE MOSAIC AGREES — the substrate is camera-independent, and the disagre
     trueSurface.length,
     'every drawn descriptor must be one of the two kinds this test separates',
   );
+});
+
+test('the fixture\'s recovered anchors DRAW WHAT THEY DREW at the declared camera', () => {
+  // ⚠ THE THING THE EQUIVALENCE ABOVE CANNOT SEE. Two arms agreeing tells you nothing about
+  // whether either is where it was: a fixture that moved BOTH arms by the same amount would agree
+  // perfectly and quietly re-draw every comparison page in this package.
+  //
+  // ADR-0545 recovered two frozen SCREEN offsets in `island-fixture.ts` onto the ground — the plate's
+  // 46 px drop and the tree's 6 px nudge — so that the plate keep-out and the tree WELL draw the same
+  // ground circle at every camera instead of sliding with the angle. Both were authored to project
+  // back onto the pixel they always sat at, and this is that claim, asserted rather than asserted-in-
+  // a-comment. `check:mutation-diff` reports this fixture as a coverage GAP (the rung mutates a
+  // project's `src/`, and this lives in `harness/`), so it is the only thing standing under it.
+  const t = islandAnchors();
+  const centroidY = t.centroid.y;
+  assert.ok(
+    Math.abs(t.labelY - (centroidY + 46)) < 1e-9,
+    `the nameplate must still be drawn 46 px below the centroid at the declared camera, not ` +
+      `${(t.labelY - centroidY).toFixed(4)}`,
+  );
+  assert.ok(
+    Math.abs(t.treeSpot.y - (centroidY - 6)) < 1e-9,
+    `the tree must still stand 6 px above the centroid at the declared camera, not ` +
+      `${(centroidY - t.treeSpot.y).toFixed(4)}`,
+  );
+  // And they are RECOVERED rather than re-frozen: ask for plan view and both offsets open out by the
+  // camera's own foreshortening, which is what makes them ground lines rather than screen ones.
+  const plan = islandAnchors({ cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  const flattening = Math.sin((LAND_CAMERA_ELEVATION_DEG * Math.PI) / 180);
+  for (const [name, atPlan, atDeclared] of [
+    ['nameplate', plan.labelY - plan.centroid.y, 46],
+    ['tree', plan.centroid.y - plan.treeSpot.y, 6],
+  ] as const) {
+    assert.ok(
+      Math.abs(atPlan * flattening - atDeclared) < 1e-9,
+      `the ${name} offset must be the SAME GROUND LINE at both cameras: ${atPlan.toFixed(3)} in plan ` +
+        `view projects to ${(atPlan * flattening).toFixed(4)}, against ${atDeclared} declared`,
+    );
+  }
 });

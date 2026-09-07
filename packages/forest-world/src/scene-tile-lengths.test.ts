@@ -18,6 +18,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { groundRadiusToScreenHalfHeight, unprojectGround } from './camera.js';
 import { TILE_SCALE, tileUnits } from './hex.js';
 import { crownRadius } from './sizing.js';
 import {
@@ -184,17 +185,33 @@ test('ADR-0528: the garden is handed THE ISLAND’S OWN CELLS — its accents an
   for (const p of placed) assert.ok(inCell(p), `an accent at (${p.x}, ${p.y}) sits off the island’s only owned cell`);
 });
 
+/** The elevation the band test's sampler is run at — deliberately NOT the declared camera, so a
+ *  clearance that only holds at 20 degrees cannot pass. */
+const ELEVATION = 12;
+
 test('ADR-0528: a garden hero keeps the re-based NAMEPLATE BAND clear — 18 tile units above the plate, on a fixture where the band is where the sampler actually draws', () => {
   // The shipped island's plate sits far below the sampling disc, so the band is never reached and any
   // number would pass. Pull the plate up into the disc: now the bound is what decides a draw.
   const t = shippedTerritory({ id: 'library', labelY: 210, groundRadius: 60, screenRadius: 60 });
-  const band = t.labelY - tileUnits(18);
+  // 18 tile units ON THE GROUND (ADR-0545). The clearance used to be read straight off the screen,
+  // which made it 18 units only in plan view and ~53 ground units at the declared camera — the
+  // over-enforcement this file's neighbours describe, and the reason a hero's spot moved with the
+  // angle it was seen from. Projected here through the camera's own verb, at the same elevation the
+  // sampler is run at, so the band means the same ground either way.
+  const band = t.labelY - groundRadiusToScreenHalfHeight(tileUnits(18), ELEVATION);
   const ids: GardenHeroId[] = ['cottage', 'gazebo'];
   const halfW = new Map<GardenHeroId, number>([['cottage', 8], ['gazebo', 7]]);
-  const spots = placeGardenHeroes(t, ids, halfW, null, 12);
+  const spots = placeGardenHeroes(t, ids, halfW, null, ELEVATION);
   assert.equal(spots.size, ids.length, 'both heroes settled');
   for (const [id, p] of spots) {
     assert.ok(p.y < band, `${id} at y ${p.y} sits inside the nameplate band (clear above ${band})`);
+    // The same statement in the space it is now made in: un-project the screen gap and it is a
+    // clearance of at least 18 ground units, whatever camera the sampler was asked for.
+    const groundGap = unprojectGround({ x: 0, y: t.labelY - p.y }, ELEVATION).y;
+    assert.ok(
+      groundGap > tileUnits(18),
+      `${id} clears the plate by ${groundGap.toFixed(2)} ground units, under the 18 the band names`,
+    );
   }
   // THE GUARD: the sampler's own disc reaches past the band on this island, so the bound rejected
   // draws rather than being slack — the mirrored band below the plate is inside the disc too.

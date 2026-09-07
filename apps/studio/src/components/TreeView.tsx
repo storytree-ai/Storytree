@@ -752,7 +752,10 @@ function territoryToScene(
     groundRadius: t.groundRadius,
     screenRadius: t.radius,
     treeSpot: t.groundTreeSpot,
-    labelY: t.labelY,
+    // The GROUND baseline, under the same tag (ADR-0545). `t.labelY` is its projected twin and is
+    // what this file's own React chrome draws at; handing THAT one over while the tag says `ground`
+    // is what left the marker scatter's fourth keep-out reading the camera.
+    labelY: t.groundLabelY,
     coastGroundLoops: t.coastGroundLoops,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
     plants: t.caps.map((spot) => capToScene(spot, now)),

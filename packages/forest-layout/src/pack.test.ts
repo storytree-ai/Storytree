@@ -339,3 +339,51 @@ test("a road implied by SEVERAL capability edges lists them all, comma-separated
   // that happens to run the two pairs together.
   assert.ok(edge.title.includes('p-one, c-two'), `the via list must be comma-separated: ${edge.title}`);
 });
+
+// ---------------------------------------------------------------------------------------------
+// THE NAMEPLATE'S TWO BASELINES — a screen drawing and the ground line it stands on
+// ---------------------------------------------------------------------------------------------
+
+test('label-baselines-are-twins: groundLabelY projects onto labelY at the declared camera', () => {
+  // ADR-0545 gave the nameplate a GROUND baseline so the marker scatter and the garden could ask
+  // "is this spot in front of the plate?" on the ground instead of on the screen. `labelY` stays
+  // beside it because this package's own React renderer draws at the declared camera and wants
+  // screen — the same two-consumers arrangement as `radius` / `groundRadius`.
+  //
+  // The two are computed INDEPENDENTLY (one from projected tile centres, one from plan-view ones),
+  // which is what makes this assertion worth making: it is the only thing standing between the
+  // studio's plate and a silent 3x drop, and a twin nobody checks is how two spaces get mixed.
+  const world = packWorld([story('alpha', 6), story('beta', 3, ['alpha'])]);
+  assert.ok(world.territories.length >= 2, 'the corpus must lay out both islands');
+
+  for (const t of world.territories) {
+    assert.ok(
+      Math.abs(groundRadiusToScreenHalfHeight(t.groundLabelY) - t.labelY) < 1e-9,
+      `${t.story.id}: the ground baseline ${t.groundLabelY.toFixed(4)} projects to ` +
+        `${groundRadiusToScreenHalfHeight(t.groundLabelY).toFixed(4)}, but the plate is drawn at ` +
+        `${t.labelY.toFixed(4)} — the twins have drifted`,
+    );
+    // And they are genuinely two numbers rather than one aliased twice: the ground line is FARTHER
+    // from the horizon than its own projection by the camera's foreshortening, so a copy-paste that
+    // returned `labelY` for both fails here even though the assertion above would still pass in plan
+    // view. Stated on the MAGNITUDE, because an island north of the world origin carries a negative
+    // baseline and "further south" is not the same claim as "further from zero" there.
+    assert.ok(Math.abs(t.labelY) > 1, `${t.story.id}: a baseline at zero would make the next line vacuous`);
+    assert.ok(
+      Math.abs(t.groundLabelY) > Math.abs(t.labelY),
+      `${t.story.id}: the ground baseline (${t.groundLabelY.toFixed(2)}) must be farther out than ` +
+        `its projection (${t.labelY.toFixed(2)}) at any camera below plan view`,
+    );
+    // The plate stands SOUTH of the island's own southernmost tile centre, on the ground — which is
+    // what "in front of the island" means once it is a ground question rather than a screen one.
+    const southmost = Math.max(
+      ...t.tiles.map((h) => hexCenter(h, { elevationDeg: 90 }).y),
+      t.groundCentroid.y,
+    );
+    assert.ok(
+      t.groundLabelY > southmost + HEX_R,
+      `${t.story.id}: the plate at ${t.groundLabelY.toFixed(2)} sits inside the island, whose ` +
+        `southern ground edge is ${(southmost + HEX_R).toFixed(2)}`,
+    );
+  }
+});

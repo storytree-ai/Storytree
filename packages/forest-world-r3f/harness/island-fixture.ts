@@ -36,9 +36,11 @@ import {
   buildRelaxedCells,
   buildScene,
   groundFlattening,
+  groundRadiusToScreenHalfHeight,
   hexCenter,
   type Axial,
   type RelaxedCell,
+  type Pt,
   type SceneG,
   type SceneInput,
   type SceneParcelInput,
@@ -218,6 +220,52 @@ export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; st
   return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? fallback }));
 }
 
+/** The nameplate's drop below the island centroid, in GROUND units — the ground line whose
+ *  projection at the declared camera is the 46 px this fixture has always drawn the plate at. */
+const PLATE_DROP_ON_GROUND = 46 / groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+
+/** The story tree's nudge north of the centroid, in GROUND units — same recovery as
+ *  {@link PLATE_DROP_ON_GROUND} and for the same reason. A flat `cy - 6` froze the trunk at a screen
+ *  offset while the island under it foreshortened, so the tree WELL — a ground keep-out measured from
+ *  it — drew a different circle at every camera: 6 ground units in plan view against 17.5 at the
+ *  declared one. The declared camera is unchanged; every other camera now gets the same ground. */
+const TREE_NUDGE_ON_GROUND = 6 / groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+
+/**
+ * The island's three ANCHORS at a given camera — the centroid, the tree's spot, and the nameplate's
+ * baseline.
+ *
+ * ⚠ EXPORTED BECAUSE THE SCENE CANNOT ANSWER IT EITHER, in the same way {@link islandCapabilities}
+ * is. `buildScene` returns a drawing, and two of these are consulted as KEEP-OUTS rather than drawn:
+ * the tree well and the nameplate band decide where the UAT markers and the garden may stand
+ * (ADR-0545). A test that wants to know whether the fixture still anchors them where it always did
+ * has to be handed the numbers; reading a marker's position back and inferring the band from it is
+ * the same confusion of a rule with its output that this whole seam exists to undo.
+ *
+ * `islandScene` builds its territory from this, so the two cannot drift.
+ */
+export interface IslandAnchors {
+  /** The island's centre, projected at the requested camera. */
+  centroid: Pt;
+  /** Where the story tree stands — the origin of the tree WELL keep-out. */
+  treeSpot: Pt;
+  /** The nameplate's baseline — the origin of the plate band keep-out (ADR-0545). */
+  labelY: number;
+}
+
+export function islandAnchors(opts: IslandOptions = {}): IslandAnchors {
+  const elevation = opts.cameraElevationDeg === undefined ? {} : { elevationDeg: opts.cameraElevationDeg };
+  const elevationDeg = opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  const centres = ISLAND_TILES.map((h) => hexCenter(h, { ...elevation, hexR: PRE_ADR0528_TILE.hexR }));
+  const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
+  const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
+  return {
+    centroid: { x: cx, y: cy },
+    treeSpot: { x: cx, y: cy - groundRadiusToScreenHalfHeight(TREE_NUDGE_ON_GROUND, elevationDeg) },
+    labelY: cy + groundRadiusToScreenHalfHeight(PLATE_DROP_ON_GROUND, elevationDeg),
+  };
+}
+
 export function islandScene(opts: IslandOptions = {}): SceneG {
   // The camera every ground coordinate below is projected at — threaded to EVERY consumer that
   // takes one (the hex centres, the relaxed cells, the territory's screen radius and the scene),
@@ -240,15 +288,28 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!, lattice),
   }));
 
+  // The three anchors come from the one exported definition, so a test asking where the nameplate
+  // and the tree stand is asking about the island this function actually builds.
+  const anchors = islandAnchors(opts);
   const territory: SceneTerritoryInput = {
     id: 'context-traversal-capture',
     status: islandStatus(opts),
     caps: parcels.length,
-    centroid: { x: cx, y: cy },
+    centroid: anchors.centroid,
     groundRadius: 70,
     screenRadius: 70 * groundFlattening(elevationDeg),
-    treeSpot: { x: cx, y: cy - 6 },
-    labelY: cy + 46,
+    treeSpot: anchors.treeSpot,
+    // THE NAMEPLATE'S BASELINE IS A GROUND LINE THE CAMERA PROJECTS (ADR-0545), not a fixed screen
+    // drop. It used to be a flat `cy + 46`, which froze the plate at whatever camera the caller asked
+    // for while the island under it foreshortened — so the marker scatter's plate keep-out drew a
+    // DIFFERENT ground line at every elevation, and the ten UAT markers landed on different ground.
+    // That was the whole of the disagreement `true-surface-equivalence.test.ts` measures between the
+    // plan-view and declared-camera arms; the mosaic under them never moved.
+    //
+    // Authored so the DECLARED camera is byte-for-byte what it was — 46 px below the centroid, the
+    // drop every comparison page in this package was judged at — with the ground line that projects
+    // to it recovered once, here, rather than re-derived per camera.
+    labelY: anchors.labelY,
     coastGroundLoops: [],
     decor: [],
     plants: [],
