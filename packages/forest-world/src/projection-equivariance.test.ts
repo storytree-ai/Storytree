@@ -703,7 +703,7 @@ function territoryWithAnchors(
         capId: `cap-${i}`,
         status: 'healthy' as const,
         testCount: i + 1,
-        theme: (i === 0 ? 'meadow' : 'woodland') as const,
+        theme: i === 0 ? ('meadow' as const) : ('woodland' as const),
         // The Voronoi seed is matched against `relaxedCells`, which arrive already projected — so a
         // seed left in the ground plane re-partitions the island's own ground under its flora.
         seed: { x: at.x, y: at.y },
