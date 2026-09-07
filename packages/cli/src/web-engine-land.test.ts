@@ -200,6 +200,11 @@ test("⚠ NO DRIFT IS NOT NOTHING TO DO — a stale gitlink is a BUMP, and the v
   assert.equal(plan.kind, "bump-only");
   assert.equal(plan.reason, "pin-behind-web");
   assert.equal(plan.kind === "bump-only" ? plan.pinTo : "", webHead);
+  // The message has to say that the WEBSITE half is finished, or a reader arriving at a stranded
+  // landing cannot tell this apart from "the sync has not run yet" and re-runs the whole ceremony.
+  const message = plan.kind === "bump-only" ? plan.message : "";
+  assert.match(message, /already done and merged/);
+  assert.match(message, /38f7d480/, "and it names the commit it is about to pin, abbreviated");
 });
 
 test("refuses to pin a web commit that has NOT landed on the website's main", () => {
