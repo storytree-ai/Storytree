@@ -60,6 +60,7 @@
     "check:palette-transcription": "pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/palette-transcription-check.ts",
     "sync:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts --check",
+    "land:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts --land",
     "ci:affected": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/ci-affected-main.ts",
     "gate": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/gate-run.ts",
     "gate:bg": "node scripts/gate-bg.mjs",
