@@ -56,7 +56,9 @@ spine-observed regression red→green; the historical offline passes above do no
 Capturing the final stdin with an injected process runner is an automated observation of prompt
 composition, never a real author run or a signed verdict.
 
-## Proof walkthrough (runtime amendment, written first)
+## Guidance
+
+### Proof walkthrough (runtime amendment, written first)
 
 Given an existing resolver, a specification with distinctive guidance and declared contract IDs,
 and the existing Codex runner injection seam, a machine test:
@@ -91,8 +93,6 @@ and the existing Codex runner injection seam, a machine test:
 The new regression must fail against current prompt behavior, not an invented symbol or a
 fabricated red. An injected runner only observes final prompt composition; it does not replace the
 ordinary real author that writes this regression through the spine.
-
-## Guidance
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
@@ -188,6 +188,30 @@ concrete — deliberately HERE, in the injection layer, so the gate itself stays
 Whichever author is selected, its proof feedback remains untrusted: the deterministic spine reruns
 the registered command out of band and remains the sole red/green/verdict authority (see the
 story's executor-seam section).
+
+### Required contract observations
+
+These are the existing assertions from this file's Contracts section, reproduced here because this
+Guidance section is the normal leaf brief. Each named contract requires its full assertion; a
+matching title alone is insufficient.
+
+The shell-feedback prohibition in contracts 9 and 10 also rejects optional suggestions to run
+proof, test, typecheck or build commands as substitute feedback. Final-stdin assertions must reject
+that grant even when the same text correctly reserves observations or signing to the spine.
+A prohibition or runtime comparison may name an unavailable tool; test the instruction's meaning
+rather than requiring the tool name's erasure.
+
+- **`spec-files-locate-and-load`** — `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
+- **`proof-mode-vocabulary-maps`** — integration-test→capability, UAT→story, contract-test→contract, operator-attested shared.
+- **`registry-is-explicit`** — the library story + capabilities are covered; unknown ids return null.
+- **`real-walls-really-wall`** — the verdict-line and notice-board entries' walls hold; every install-bearing entry registers a typecheck (the registry-wide invariant).
+- **`unregistered-is-not-buildable`** — both refusals carry guidance, never a guess.
+- **`prove-spec-fields-come-off-the-real-spec`** — the resolved ProveSpec mirrors the node's identity.
+- **`dry-run-glue-end-to-end`** — the whole chain over an InMemoryStore.
+- **`real-mode-walk-earns-its-tree`** — the verdict's commitSha is the spine's commit; `git status` is genuinely clean.
+- **`prompts-brief-the-real-constraints`** — BOTH phases in all three REAL arms preserve outcome, guidance, contract IDs, the exact declared test/source scope, dependency restrictions, required outputs and stop-if-test-wrong behavior. For multiple literal test targets, AUTHOR_TEST names the complete permitted set instead of claiming only the spotlight is writable; IMPLEMENT may read those tests but writes only its source targets. Additional allowed paths remain optional unless already required by the existing manifest, and wildcard scope never becomes Codex promotion authority. A machine capturing actual final Codex stdin after rendered-role and adapter composition sees available native shell/`apply_patch` authoring and exact observed promotion, no promised `PreToolUse`/OS containment, no instruction to use unavailable proof/typecheck tools, and an explicit prohibition on substituting shell proof/typecheck feedback. The spine alone observes and signs. The same runtime truthfulness holds for live-smoke while its synthetic pair and deliberate absence of real contract IDs remain unchanged. Explicit Claude retains its actual tool and enforcement instructions. The standalone three-argument `realPrompts` helper retains its legacy Claude prose, while production REAL/live-smoke resolution explicitly supplies the selected runtime; omitted build runtime therefore remains Codex. The existing Codex model default and all proof/scoping/promotion inputs are unchanged.
+- **`feedback-tools-spawn-the-same-oracle`** — explicit Claude's `run_proof` spawns the exact CONFIRM oracle in REAL and live-smoke, and `run_typecheck` is armed and advertised only with its registered installed-node command. Codex's actual `feedbackToolNames` remains empty, its launch keeps MCP disabled, and BOTH phases of every REAL arm and live-smoke tell it to stop for the spine's independent observations without demanding unavailable feedback or authorizing a shell substitute. Installed Codex nodes still receive the spine-owned typecheck requirement. Native authoring tool availability, default runtime/model, registered commands and spine observation/signing authority are unchanged.
+- **`briefs-name-the-declared-contract-ids`** — `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
 
 ## Integration test
 
