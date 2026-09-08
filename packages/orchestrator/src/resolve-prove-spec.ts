@@ -1132,28 +1132,37 @@ export function realPrompts(
   // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
   // The Claude branch (the DEFAULT here, for helper-call compatibility) is untouched, byte-for-byte.
   const codexRuntime = runtime === "codex";
-  // Only LITERAL scope entries are ever named as writable/readable — a wildcard/glob-magic entry is
-  // a hook-wall pattern, never a Codex promotion target (`codexPromotionManifest` filters it the same
-  // way), so naming it here would claim write authority Codex structurally does not have. Singular
-  // case (one literal entry, the spotlight file) is byte-identical to the old literal for every
-  // migrated single-file node.
-  const literalSourceGlobs = real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  // The set of scope entries this RUNTIME actually has write authority over, beyond the spotlight
+  // itself. Codex's promotion authority is the finite manifest — a wildcard/glob-magic entry is a
+  // hook-wall pattern only, never a Codex promotion target (`codexPromotionManifest` filters it the
+  // same way) — so only its LITERAL siblings are ever named. Claude's actual write wall
+  // (`PathWriteScope`) is glob-based and genuinely grants a wildcard match, so nothing is filtered
+  // for it: naming only the literals would silently narrow what Claude is truthfully told it may
+  // write (discrepancy #3). Either way the spotlight itself is excluded from "additional" — whether
+  // or not it is itself one of the literal scope entries (discrepancy #1: a spotlight matched ONLY
+  // by a wildcard is never itself in this list, so it must never be subtracted twice).
+  const additionalScope = (spotlight: string, scopeGlobs: readonly string[]): string[] => {
+    const candidates = codexRuntime ? scopeGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g)) : [...scopeGlobs];
+    return candidates.filter((g) => g !== spotlight);
+  };
+  // Singular case (nothing beyond the spotlight) is byte-identical to the old literal for every
+  // migrated single-file node, for both runtimes.
+  const additionalSourceGlobs = additionalScope(real.sourceFile, real.scope.sourceGlobs);
   const sourcesNamed =
-    literalSourceGlobs.length <= 1
+    additionalSourceGlobs.length === 0
       ? `\`${real.sourceFile}\``
       : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
-        `${literalSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
+        `${additionalSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
   // The COMPLETE permitted test set (never reduced to the spotlight testFile): AUTHOR_TEST's write
   // wall is scoped to real.scope.testGlobs, not just real.testFile, so a multi-file fixture must name
   // every allowed target — an unnamed sibling test file would read as unauthored territory when it is
   // in fact allowed, and (for IMPLEMENT) readable. Singular case is byte-identical to the old literal.
-  // A wildcard entry is excluded from the named set for the same reason `sourcesNamed` excludes one.
-  const literalTestGlobs = real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  const additionalTestGlobs = additionalScope(real.testFile, real.scope.testGlobs);
   const testsNamed =
-    literalTestGlobs.length <= 1
+    additionalTestGlobs.length === 0
       ? `\`${real.testFile}\``
       : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
-        `scope (matching ${literalTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
+        `scope (matching ${additionalTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
         `read them but writes only its source targets`;
   const typecheckClose = codexRuntime
     ? `There is no automated feedback tool for the type check here — write type-legal code from ` +
@@ -1294,7 +1303,11 @@ export function realPrompts(
       `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}`,
     implement:
       `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
-      `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
+      // Discrepancy #2: an optional additional literal source file the manifest genuinely permits
+      // must not be hidden behind "write ONLY <spotlight>" — name the full permitted set instead.
+      `then ${
+        additionalSourceGlobs.length === 0 ? `write ONLY \`${real.sourceFile}\`` : `write ${sourcesNamed}`
+      } so that test passes. Writes to the test file are ` +
       `refused in this phase. ${greenClose("write", "the proof")} If you conclude the test itself ` +
       `is wrong, stop and say so plainly instead of working around it.`,
   };

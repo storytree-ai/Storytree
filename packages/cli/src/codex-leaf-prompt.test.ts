@@ -12,7 +12,7 @@ import {
   CodexPhaseAuthor,
   FileToolExecutor,
   FILE_WRITE_TOOLS,
-  buildCodexExecArgs,
+  DEFAULT_CODEX_MODEL,
 } from "@storytree/agent";
 import type { CodexCommand, CodexCommandResult, CodexRunner, CodexPromotionManifest } from "@storytree/agent";
 import { renderLeafPhasePrompts } from "@storytree/drive";
@@ -37,6 +37,8 @@ import {
   realProofCommand,
   workEvent,
   rollupStatus,
+  DRY_RUN_TEST_REL,
+  DRY_RUN_IMPL_REL,
 } from "@storytree/orchestrator";
 import type {
   NodeSpec,
@@ -171,6 +173,62 @@ const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
 };
 
 /**
+ * Discrepancy #1 regression fixture (`prompts-brief-the-real-constraints`): the REQUIRED target in
+ * EACH phase is matched ONLY by a wildcard scope entry — it is NEVER itself a literal member of
+ * `scope.testGlobs`/`scope.sourceGlobs` — alongside ONE additional literal entry.
+ * `codexPromotionManifest` always includes the required target plus every literal scope entry
+ * regardless of whether the spotlight itself is literal, so the MANIFEST stays correct; the source
+ * defect is in the PROSE the phase briefs compose, which filters each scope down to its literal
+ * entries and reads a length `<= 1` as "nothing extra to name" — but when the spotlight itself is
+ * NOT one of the surviving literals, that ONE surviving literal IS the extra file, and it goes
+ * unmentioned. A broader-than-single-literal edit-existing source scope requires an explicit suite
+ * `proofCommand` (the schema's own refine), so this fixture declares one to stay schema-valid.
+ */
+const WSPOT_TEST_FILE = "packages/widget/src/generated/widget.test.ts";
+const WSPOT_TEST_WILDCARD = "packages/widget/src/generated/*.test.ts";
+const WSPOT_TEST_EXTRA = "packages/widget/src/widget-optional.test.ts";
+const WSPOT_TEST_UNNAMED_SIBLING = "packages/widget/src/generated/other-thing.test.ts";
+
+const WSPOT_SOURCE_FILE = "packages/widget/src/generated/widget.ts";
+const WSPOT_SOURCE_WILDCARD = "packages/widget/src/generated/*.ts";
+const WSPOT_SOURCE_EXTRA = "packages/widget/src/widget-optional.ts";
+const WSPOT_SOURCE_UNNAMED_SIBLING = "packages/widget/src/generated/other-thing.ts";
+
+const WILDCARD_ONLY_SPOTLIGHT_REAL: RealProofConfig = {
+  testFile: WSPOT_TEST_FILE,
+  sourceFile: WSPOT_SOURCE_FILE,
+  editsExisting: true,
+  install: true,
+  typecheck: { file: "pnpm", args: ["--filter", "@storytree/widget", "typecheck"] },
+  proofCommand: { file: "pnpm", args: ["--filter", "@storytree/widget", "test"] },
+  scope: {
+    testGlobs: [WSPOT_TEST_WILDCARD, WSPOT_TEST_EXTRA],
+    sourceGlobs: [WSPOT_SOURCE_WILDCARD, WSPOT_SOURCE_EXTRA],
+  },
+};
+
+/**
+ * Discrepancy #2 regression fixture: a plain NET-NEW node (no `editsExisting`, no wildcard at all)
+ * whose source scope carries the spotlight PLUS one additional literal file. The manifest and
+ * `sourcesNamed` both compute the additional literal correctly here (nothing wildcard-shaped is
+ * involved) — the defect is that the net-new IMPLEMENT brief hardcodes
+ * `write ONLY \`${real.sourceFile}\`` instead of naming the full permitted set, so the optional
+ * literal the leaf may also write goes unmentioned and unpermitted in the prose.
+ */
+const NET_NEW_OPTIONAL_SOURCE_TEST = "packages/widget/src/widget-optional.test.ts";
+const NET_NEW_OPTIONAL_SOURCE_FILE = "packages/widget/src/widget-optional.ts";
+const NET_NEW_OPTIONAL_SOURCE_EXTRA = "packages/widget/src/widget-optional-helper.ts";
+
+const NET_NEW_OPTIONAL_SOURCE_REAL: RealProofConfig = {
+  testFile: NET_NEW_OPTIONAL_SOURCE_TEST,
+  sourceFile: NET_NEW_OPTIONAL_SOURCE_FILE,
+  scope: {
+    testGlobs: [NET_NEW_OPTIONAL_SOURCE_TEST],
+    sourceGlobs: [NET_NEW_OPTIONAL_SOURCE_FILE, NET_NEW_OPTIONAL_SOURCE_EXTRA],
+  },
+};
+
+/**
  * Parse the ADAPTER's OWN rendered "allowed target set" / "Required outputs" sections out of a
  * captured final Codex stdin (see `captureCodexFinalStdin`'s composed `fullPrompt` in
  * `packages/agent/src/codex-author.ts`) — the section the adapter builds itself from the
@@ -198,9 +256,13 @@ const CODEX_TRUTHFULNESS_FIXTURES: readonly RealProofConfig[] = [
 
 function resolveRealFor(
   real: RealProofConfig,
-  opts: { runtime?: "codex" | "claude"; phasePrompts?: LeafPhasePrompts } = {},
+  opts: {
+    runtime?: "codex" | "claude";
+    phasePrompts?: LeafPhasePrompts;
+    specOverrides?: Partial<NodeSpec>;
+  } = {},
 ): ResolveResult {
-  const spec = specWithReal(real);
+  const spec = specWithReal(real, opts.specOverrides);
   return resolveProveSpec(spec, {
     mode: "real",
     workspace: os.tmpdir(),
@@ -248,22 +310,68 @@ function captureCodexRunner(): { runner: CodexRunner; commands: CodexCommand[] }
   };
 }
 
-interface CodexFinalStdin {
-  AUTHOR_TEST: string;
-  IMPLEMENT: string;
+/** One phase's captured final Codex input: the composed `stdin` AND the launch `args` vector. */
+interface CodexFinalCapture {
+  stdin: string;
+  args: string[];
+}
+
+interface CodexFinalCaptures {
+  AUTHOR_TEST: CodexFinalCapture;
+  IMPLEMENT: CodexFinalCapture;
 }
 
 /**
- * Build a CodexPhaseAuthor mirroring `resolveReal`'s codex construction (write globs + exact
- * promotion manifest + the write wall + the rendered role), inject a runner, and read the actual
- * final `stdin` the adapter sends for each phase — after it appends the "## Phase brief" section
- * and its own exact-target/spine-observes-and-signs language.
+ * Build a CodexPhaseAuthor over an EXPLICIT write-scope/promotion-manifest pair, inject a runner,
+ * and read the ACTUAL final `stdin` AND launch `args` the adapter composes for each phase — after
+ * it appends the "## Phase brief" section and its own exact-target/spine-observes-and-signs
+ * language, and after `buildCodexExecArgs` builds the real launch vector `CodexPhaseAuthor.author`
+ * hands its runner. This never replaces the real spine-driven author — it is the same wiring
+ * pattern `resolveReal`/`resolveProveSpec` themselves use, applied here as a TEST seam (an
+ * injected runner is legal on CodexPhaseAuthor; production supplies none).
+ */
+async function captureCodexFinalInput(
+  seam: {
+    writeGlobs: { AUTHOR_TEST: string[]; IMPLEMENT: string[] };
+    promotionManifests: { AUTHOR_TEST: CodexPromotionManifest; IMPLEMENT: CodexPromotionManifest };
+    isWriteAllowed: (phase: "AUTHOR_TEST" | "IMPLEMENT", relPath: string) => boolean;
+  },
+  briefs: PhasePrompts,
+  role: LeafPhasePrompts,
+): Promise<CodexFinalCaptures> {
+  const captureFor = async (
+    phase: "AUTHOR_TEST" | "IMPLEMENT",
+    brief: string,
+  ): Promise<CodexFinalCapture> => {
+    const cap = captureCodexRunner();
+    const author = new CodexPhaseAuthor({
+      cwd: CODEX_TEST_CWD,
+      writeGlobs: seam.writeGlobs,
+      promotionManifests: seam.promotionManifests,
+      isWriteAllowed: seam.isWriteAllowed,
+      phasePrompts: role,
+      runner: cap.runner,
+    });
+    await author.author(phase, brief);
+    const exec = cap.commands[1];
+    assert.ok(exec, `codex exec command was captured for ${phase}`);
+    return { stdin: exec.stdin ?? "", args: exec.args };
+  };
+  return {
+    AUTHOR_TEST: await captureFor("AUTHOR_TEST", briefs.authorTest),
+    IMPLEMENT: await captureFor("IMPLEMENT", briefs.implement),
+  };
+}
+
+/**
+ * REAL-mode capture: mirrors `resolveReal`'s codex construction (write globs + exact promotion
+ * manifest built by the PRODUCTION `codexPromotionManifest` + the write wall).
  */
 async function captureCodexFinalStdin(
   real: RealProofConfig,
   briefs: PhasePrompts,
   role: LeafPhasePrompts,
-): Promise<CodexFinalStdin> {
+): Promise<CodexFinalCaptures> {
   const scope = new PathWriteScope(real.scope);
   // The PRODUCTION finite manifest builder (never a manually reconstructed stand-in): this is what
   // `resolveReal` itself hands `CodexPhaseAuthor` — it filters any wildcard/glob-magic scope entry
@@ -272,25 +380,45 @@ async function captureCodexFinalStdin(
     AUTHOR_TEST: codexPromotionManifest(real.testFile, real.scope.testGlobs),
     IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
   };
-  const captureFor = async (phase: "AUTHOR_TEST" | "IMPLEMENT", brief: string): Promise<string> => {
-    const cap = captureCodexRunner();
-    const author = new CodexPhaseAuthor({
-      cwd: CODEX_TEST_CWD,
+  return captureCodexFinalInput(
+    {
       writeGlobs: { AUTHOR_TEST: real.scope.testGlobs, IMPLEMENT: real.scope.sourceGlobs },
       promotionManifests: manifests,
       isWriteAllowed: (p, rel) => scope.isWriteAllowed(p, rel),
-      phasePrompts: role,
-      runner: cap.runner,
-    });
-    await author.author(phase, brief);
-    const exec = cap.commands[1];
-    assert.ok(exec, `codex exec command was captured for ${phase}`);
-    return exec.stdin ?? "";
+    },
+    briefs,
+    role,
+  );
+}
+
+/**
+ * LIVE-SMOKE capture: mirrors `resolveProveSpec`'s SHARED synthetic write-scope + finite manifest
+ * for the add(2,3) pair (`DRY_RUN_TEST_REL`/`DRY_RUN_IMPL_REL`) — the same construction the smoke
+ * branch of `resolveProveSpec` itself uses for its Codex arm.
+ */
+const SMOKE_WRITE_GLOBS = { AUTHOR_TEST: ["*.test.cjs"], IMPLEMENT: [DRY_RUN_IMPL_REL] };
+
+async function captureCodexSmokeFinalStdin(
+  briefs: PhasePrompts,
+  role: LeafPhasePrompts,
+): Promise<CodexFinalCaptures> {
+  const scope = new PathWriteScope({
+    testGlobs: SMOKE_WRITE_GLOBS.AUTHOR_TEST,
+    sourceGlobs: SMOKE_WRITE_GLOBS.IMPLEMENT,
+  });
+  const manifests: { AUTHOR_TEST: CodexPromotionManifest; IMPLEMENT: CodexPromotionManifest } = {
+    AUTHOR_TEST: codexPromotionManifest(DRY_RUN_TEST_REL, [DRY_RUN_TEST_REL]),
+    IMPLEMENT: codexPromotionManifest(DRY_RUN_IMPL_REL, [DRY_RUN_IMPL_REL]),
   };
-  return {
-    AUTHOR_TEST: await captureFor("AUTHOR_TEST", briefs.authorTest),
-    IMPLEMENT: await captureFor("IMPLEMENT", briefs.implement),
-  };
+  return captureCodexFinalInput(
+    {
+      writeGlobs: SMOKE_WRITE_GLOBS,
+      promotionManifests: manifests,
+      isWriteAllowed: (p, rel) => scope.isWriteAllowed(p, rel),
+    },
+    briefs,
+    role,
+  );
 }
 
 // ── spec-files-locate-and-load ────────────────────────────────────────────────────────────────────
@@ -604,7 +732,23 @@ test("prompts-brief-the-real-constraints: default and explicit Codex REAL builds
           /cannot run shell commands/i,
           "Codex authors with native shell/apply_patch — the brief must not deny it",
         );
+        assert.match(text, /native shell\/apply_patch/, "the brief names Codex's actual native authoring");
       }
+      // Dependency restrictions: an install-bearing arm forbids ADDING a dependency; an install-free
+      // arm forbids a package-VALUE import (builtins/relative only).
+      if (real.install === true) {
+        assert.match(result.spec.prompts.authorTest, /can NEVER add one/);
+        assert.match(result.spec.prompts.implement, /can NEVER add one/);
+      } else {
+        assert.match(result.spec.prompts.authorTest, /has NO node_modules/);
+        assert.match(result.spec.prompts.implement, /has NO node_modules/);
+      }
+      // Stop-if-test-wrong duty: IMPLEMENT never instructs working around a test the leaf believes
+      // is wrong.
+      assert.match(
+        result.spec.prompts.implement,
+        /stop and say so plainly instead of working around it/,
+      );
     }
   }
 });
@@ -673,10 +817,10 @@ test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_
     //    EXACTLY: the literal optional target stays allowed-but-not-required, and each phase keeps
     //    its own test/source duty (AUTHOR_TEST's manifest never leaks into IMPLEMENT's, or vice versa).
     const finalStdin = await captureCodexFinalStdin(real, result.spec.prompts, role);
-    const authorTargets = extractCodexTargetLists(finalStdin.AUTHOR_TEST);
+    const authorTargets = extractCodexTargetLists(finalStdin.AUTHOR_TEST.stdin);
     assert.deepEqual(new Set(authorTargets.allowed), new Set(testManifest.allowedTargets));
     assert.deepEqual(authorTargets.required, testManifest.requiredTargets);
-    const implementTargets = extractCodexTargetLists(finalStdin.IMPLEMENT);
+    const implementTargets = extractCodexTargetLists(finalStdin.IMPLEMENT.stdin);
     assert.deepEqual(new Set(implementTargets.allowed), new Set(sourceManifest.allowedTargets));
     assert.deepEqual(implementTargets.required, sourceManifest.requiredTargets);
 
@@ -698,6 +842,88 @@ test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_
       "IMPLEMENT must not claim every path under the source scope (wildcard matches included) is writable",
     );
   }
+
+  // 4. Discrepancy #1 (`WILDCARD_ONLY_SPOTLIGHT_REAL`): the REQUIRED target itself is matched ONLY
+  //    by a wildcard scope entry in EACH phase, alongside one additional literal. The manifest is
+  //    correct regardless (codexPromotionManifest never depends on whether the spotlight is
+  //    literal); the brief prose must still name BOTH the spotlight and the additional literal.
+  const wspotTestManifest = codexPromotionManifest(
+    WILDCARD_ONLY_SPOTLIGHT_REAL.testFile,
+    WILDCARD_ONLY_SPOTLIGHT_REAL.scope.testGlobs,
+  );
+  const wspotSourceManifest = codexPromotionManifest(
+    WILDCARD_ONLY_SPOTLIGHT_REAL.sourceFile,
+    WILDCARD_ONLY_SPOTLIGHT_REAL.scope.sourceGlobs,
+  );
+  assert.deepEqual(new Set(wspotTestManifest.allowedTargets), new Set([WSPOT_TEST_FILE, WSPOT_TEST_EXTRA]));
+  assert.deepEqual(wspotTestManifest.requiredTargets, [WSPOT_TEST_FILE]);
+  assert.ok(!wspotTestManifest.allowedTargets.includes(WSPOT_TEST_WILDCARD));
+  assert.ok(!wspotTestManifest.allowedTargets.includes(WSPOT_TEST_UNNAMED_SIBLING));
+  assert.deepEqual(new Set(wspotSourceManifest.allowedTargets), new Set([WSPOT_SOURCE_FILE, WSPOT_SOURCE_EXTRA]));
+  assert.deepEqual(wspotSourceManifest.requiredTargets, [WSPOT_SOURCE_FILE]);
+  assert.ok(!wspotSourceManifest.allowedTargets.includes(WSPOT_SOURCE_WILDCARD));
+  assert.ok(!wspotSourceManifest.allowedTargets.includes(WSPOT_SOURCE_UNNAMED_SIBLING));
+
+  for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
+    const result = resolveRealFor(WILDCARD_ONLY_SPOTLIGHT_REAL, { ...runtimeOpt, phasePrompts: role });
+    assert.equal(result.ok, true, result.ok ? "" : result.reason);
+    if (!result.ok) continue;
+    assert.ok(
+      result.spec.prompts.authorTest.includes(`\`${WSPOT_TEST_FILE}\``),
+      "AUTHOR_TEST names the spotlight test file even when it is matched only by a wildcard entry",
+    );
+    assert.ok(
+      result.spec.prompts.authorTest.includes(`\`${WSPOT_TEST_EXTRA}\``),
+      "AUTHOR_TEST must still name the additional literal test file — filtering the scope to its " +
+        "literal entries and reading a length <= 1 as \"nothing extra\" silently drops it when the " +
+        "spotlight itself is not one of the surviving literals",
+    );
+    assert.ok(
+      result.spec.prompts.implement.includes(`\`${WSPOT_SOURCE_FILE}\``),
+      "IMPLEMENT names the spotlight source file even when it is matched only by a wildcard entry",
+    );
+    assert.ok(
+      result.spec.prompts.implement.includes(`\`${WSPOT_SOURCE_EXTRA}\``),
+      "IMPLEMENT must still name the additional literal source file it may also edit",
+    );
+  }
+
+  // 5. Discrepancy #2 (`NET_NEW_OPTIONAL_SOURCE_REAL`): a plain net-new node (no wildcard, no
+  //    editsExisting) whose source scope permits an additional literal file beyond the spotlight.
+  //    The manifest already permits it; the net-new IMPLEMENT brief must not instruct
+  //    spotlight-only writing ("write ONLY `<spotlight>`") when a second file is genuinely allowed.
+  const nnManifest = codexPromotionManifest(
+    NET_NEW_OPTIONAL_SOURCE_REAL.sourceFile,
+    NET_NEW_OPTIONAL_SOURCE_REAL.scope.sourceGlobs,
+  );
+  assert.deepEqual(
+    new Set(nnManifest.allowedTargets),
+    new Set([NET_NEW_OPTIONAL_SOURCE_FILE, NET_NEW_OPTIONAL_SOURCE_EXTRA]),
+  );
+  assert.deepEqual(nnManifest.requiredTargets, [NET_NEW_OPTIONAL_SOURCE_FILE]);
+
+  for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
+    const result = resolveRealFor(NET_NEW_OPTIONAL_SOURCE_REAL, runtimeOpt);
+    assert.equal(result.ok, true, result.ok ? "" : result.reason);
+    if (!result.ok) continue;
+    // The precise defect: the "write ONLY `<spotlight>`" sentence itself is the instruction the
+    // leaf follows, and it must not spell out spotlight-only writing when the manifest permits a
+    // second file — independent of whatever a DIFFERENT sentence (the shared "conventions" file
+    // listing) happens to also say elsewhere in the same brief.
+    assert.ok(
+      !result.spec.prompts.implement.includes(
+        `write ONLY \`${NET_NEW_OPTIONAL_SOURCE_FILE}\` so that test passes`,
+      ),
+      "a net-new node's IMPLEMENT brief must not instruct spotlight-only writing " +
+        "(\"write ONLY `<spotlight>` so that test passes\") when the manifest permits an additional " +
+        "literal source file",
+    );
+    assert.ok(
+      result.spec.prompts.implement.includes(`\`${NET_NEW_OPTIONAL_SOURCE_EXTRA}\``),
+      "a net-new node's IMPLEMENT brief must permit the optional additional literal source file the " +
+        "manifest allows",
+    );
+  }
 });
 
 test("prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition", async () => {
@@ -710,7 +936,7 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
   if (!result.ok) return;
   const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, role);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
-    const text = finalStdin[phase];
+    const { stdin: text, args } = finalStdin[phase];
     assert.match(text, /red-builder|green-builder/, `${phase}: the rendered role survives composition`);
     assert.match(text, /Phase brief/, `${phase}: the phase-brief section header survives composition`);
     assert.doesNotMatch(text, /run_proof/, `${phase}: Codex's final stdin must not promise run_proof`);
@@ -724,6 +950,18 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     // must stay intact regardless of the (buggy) task-brief prose above.
     assert.match(text, /spine will run all registered proof commands after you stop/);
     assert.match(text, /disposable replica/);
+
+    // The ACTUAL captured launch (not a standalone buildCodexExecArgs call with a hand-picked
+    // model): MCP stays disabled and the DEFAULT model is selected — observed from the real
+    // invocation `CodexPhaseAuthor.author` made, not merely asserted about the helper in isolation.
+    assert.ok(args.includes("mcp_servers={}"), `${phase}: the captured launch disables MCP`);
+    const modelIndex = args.indexOf("--model");
+    assert.ok(modelIndex >= 0, `${phase}: the captured launch names a model`);
+    assert.equal(
+      args[modelIndex + 1],
+      DEFAULT_CODEX_MODEL,
+      `${phase}: the captured launch selects the default model (no override was supplied)`,
+    );
   }
 });
 
@@ -741,10 +979,14 @@ test("prompts-brief-the-real-constraints: an offline rendered role (renderLeafPh
   if (!result.ok) return;
   const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
-    assert.match(finalStdin[phase], /red-builder|green-builder/, `${phase}: the fixture role survives composition`);
-    assert.doesNotMatch(finalStdin[phase], /run_proof/, `${phase}: Codex must not be told about run_proof`);
+    assert.match(
+      finalStdin[phase].stdin,
+      /red-builder|green-builder/,
+      `${phase}: the fixture role survives composition`,
+    );
+    assert.doesNotMatch(finalStdin[phase].stdin, /run_proof/, `${phase}: Codex must not be told about run_proof`);
     assert.doesNotMatch(
-      finalStdin[phase],
+      finalStdin[phase].stdin,
       /cannot run shell commands/i,
       `${phase}: Codex must not be told it cannot use shell`,
     );
@@ -768,8 +1010,8 @@ test(
     if (!result.ok) return;
     const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
     for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
-      assert.doesNotMatch(finalStdin[phase], /run_proof/);
-      assert.doesNotMatch(finalStdin[phase], /cannot run shell commands/i);
+      assert.doesNotMatch(finalStdin[phase].stdin, /run_proof/);
+      assert.doesNotMatch(finalStdin[phase].stdin, /cannot run shell commands/i);
     }
   },
 );
@@ -785,6 +1027,41 @@ test("prompts-brief-the-real-constraints: explicit Claude REAL/live-smoke briefs
       assert.match(text, /You cannot run shell commands/);
     }
   }
+
+  // Discrepancy #3: Claude's ACTUAL write wall is glob-based (`PathWriteScope`), unlike Codex's
+  // finite promotion manifest — so for a wildcard scope, Claude's brief must not be narrowed to the
+  // literal entries only. It should retain / name the wildcard-based permission it genuinely has.
+  const wildcardResult = resolveRealFor(EDIT_EXISTING_WILDCARD_REAL, { runtime: "claude" });
+  assert.equal(wildcardResult.ok, true);
+  if (wildcardResult.ok) {
+    assert.ok(wildcardResult.liveAuthor instanceof ClaudeAgentAuthor);
+    const claudeScope = new PathWriteScope(EDIT_EXISTING_WILDCARD_REAL.scope);
+    assert.equal(
+      claudeScope.isWriteAllowed("AUTHOR_TEST", EDIT_TEST_WILDCARD_SIBLING),
+      true,
+      "Claude's actual write wall genuinely permits a file matched only by the wildcard test-scope entry",
+    );
+    assert.equal(
+      claudeScope.isWriteAllowed("IMPLEMENT", EDIT_SOURCE_WILDCARD_SIBLING),
+      true,
+      "Claude's actual write wall genuinely permits a file matched only by the wildcard source-scope entry",
+    );
+    assert.ok(
+      wildcardResult.spec.prompts.authorTest.includes(`\`${EDIT_TEST_WILDCARD}\``),
+      "Claude's AUTHOR_TEST brief must name its actual glob-based test scope — unlike Codex's finite " +
+        "promotion manifest, PathWriteScope really does grant write authority over the wildcard match, " +
+        "and unconditionally filtering it out of the prose (the same filter Codex needs) silently " +
+        "narrows what Claude is told it may write",
+    );
+    assert.ok(
+      wildcardResult.spec.prompts.implement.includes(`\`${EDIT_SOURCE_WILDCARD}\``),
+      "Claude's IMPLEMENT brief must name its actual glob-based source scope for the same reason",
+    );
+    for (const text of [wildcardResult.spec.prompts.authorTest, wildcardResult.spec.prompts.implement]) {
+      assert.match(text, /run_proof/);
+      assert.match(text, /You cannot run shell commands/);
+    }
+  }
 });
 
 test("prompts-brief-the-real-constraints: the standalone 3-arg realPrompts helper keeps its legacy Claude-tool prose (compatibility contract)", () => {
@@ -794,6 +1071,22 @@ test("prompts-brief-the-real-constraints: the standalone 3-arg realPrompts helpe
   const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
   assert.match(prompts.authorTest, /run_proof/);
   assert.match(prompts.authorTest, /You cannot run shell commands/);
+
+  // The legacy 3-arg call's default (runtime omitted → Claude) must retain Claude's ACTUAL
+  // glob-based write wall for a wildcard scope too — the Codex-only literal-filtering must not
+  // silently narrow what this legacy call tells Claude it may write.
+  const wildcardSpec = specWithReal(EDIT_EXISTING_WILDCARD_REAL);
+  const wildcardPrompts = realPrompts(
+    wildcardSpec,
+    EDIT_EXISTING_WILDCARD_REAL,
+    realProofCommand(EDIT_EXISTING_WILDCARD_REAL, REPO_ROOT).display,
+  );
+  const claudeScope = new PathWriteScope(EDIT_EXISTING_WILDCARD_REAL.scope);
+  assert.equal(claudeScope.isWriteAllowed("AUTHOR_TEST", EDIT_TEST_WILDCARD_SIBLING), true);
+  assert.ok(
+    wildcardPrompts.authorTest.includes(`\`${EDIT_TEST_WILDCARD}\``),
+    "the legacy 3-arg helper's default (Claude) must still name its real glob-based test scope",
+  );
 });
 
 test("feedback-tools-spawn-the-same-oracle: explicit Claude REAL install-node arms run_proof + run_typecheck spawning the exact CONFIRM oracle", () => {
@@ -815,7 +1108,11 @@ test("feedback-tools-spawn-the-same-oracle: explicit Claude REAL install-node ar
   ]);
 });
 
-test("feedback-tools-spawn-the-same-oracle: Codex's actual feedbackToolNames stays empty and MCP stays disabled in both REAL and live-smoke", () => {
+test("feedback-tools-spawn-the-same-oracle: Codex's actual feedbackToolNames stays empty and MCP stays disabled in both REAL and live-smoke", async () => {
+  const role: LeafPhasePrompts = {
+    AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
+    IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
+  };
   for (const mode of ["real", "live-smoke"] as const) {
     const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
     const result = resolveProveSpec(spec, {
@@ -834,6 +1131,22 @@ test("feedback-tools-spawn-the-same-oracle: Codex's actual feedbackToolNames sta
       assert.doesNotMatch(text, /run_typecheck/);
     }
   }
-  const args = buildCodexExecArgs({ model: "gpt-5.6-terra", cwd: "/tmp/codex-leaf-prompt" });
-  assert.ok(args.includes("mcp_servers={}"), "Codex's launch config disables MCP");
+
+  // The ACTUAL captured launch for BOTH smoke phases (the same capture/assertion path the REAL-mode
+  // final-stdin test uses, applied to the smoke's own synthetic write scope): MCP stays disabled and
+  // the DEFAULT model is selected — observed from a real `CodexPhaseAuthor.author` invocation, never
+  // a standalone `buildCodexExecArgs` call with a hand-picked model (not evidence of a real launch).
+  const smokeBriefs = liveSmokePrompts(loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md")));
+  const smokeCapture = await captureCodexSmokeFinalStdin(smokeBriefs, role);
+  for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
+    const { args } = smokeCapture[phase];
+    assert.ok(args.includes("mcp_servers={}"), `${phase}: the smoke's captured launch disables MCP`);
+    const modelIndex = args.indexOf("--model");
+    assert.ok(modelIndex >= 0, `${phase}: the smoke's captured launch names a model`);
+    assert.equal(
+      args[modelIndex + 1],
+      DEFAULT_CODEX_MODEL,
+      `${phase}: the smoke's captured launch selects the default model`,
+    );
+  }
 });
