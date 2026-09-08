@@ -4,9 +4,9 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { linearToSrgb255 } from './land-grain.js';
+import { grainPerturbNormal, linearToSrgb255 } from './land-grain.js';
 import { grassScalar } from './land-grass.js';
-import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
+import { LAND_RELIEF_AMPLITUDE, landNormal } from './land-relief.js';
 import { indices, peakSlopeAt } from './land-shadow.js';
 import { DIRT_RAMP } from './land-wear.js';
 import {
@@ -247,4 +247,58 @@ test('rockGlsl is held to an EXACT GOLDEN — the only assertion that sees a bla
       '}',
     ].join('\n'),
   );
+});
+
+// ------------------------------------------------- WHY THE MASK READS THE GEOMETRIC NORMAL
+
+// ⚠⚠ THE MEASUREMENT ADR-0553's MECHANISM RESTS ON, held as a test rather than as prose in a
+// header. `banded-ground-material.ts` feeds `st_rockMask` the normal captured BEFORE the detail
+// map and the grain; until 2026-09-08 it fed the BUMPED one. The two assertions below are the
+// before and the after of exactly that swap on the shipped constants, and they are the reason the
+// interior grass came out grey while `interiorMinimumUp()` said it could not.
+//
+// ⚠ THE GRAIN IS ONLY HALF THE BUMP. The detail normal map runs FIRST, at
+// `SHIPPED_DETAIL_STRENGTH`, and it is a decoded PNG — a browser's job, not this suite's. So the
+// figure below is a FLOOR on what the bumped route delivered, never the whole of it.
+
+/** One interior grid, sampled the same way for both arms. Far from any coast, so the shore fall
+ *  (`shore-fall.ts`) never enters and the only relief is `landNormal`'s own. */
+const interiorSamples = (): readonly { readonly x: number; readonly z: number }[] => {
+  const pts: { x: number; z: number }[] = [];
+  for (let i = 0; i < 160; i++) {
+    for (let j = 0; j < 160; j++) pts.push({ x: -60 + i * 0.75, z: -60 + j * 0.75 });
+  }
+  return pts;
+};
+
+test('ON THE GEOMETRY the interior wears NO rock at all — the ramp ends never open', () => {
+  const worst = interiorSamples().reduce((lo, { x, z }) => Math.min(lo, landNormal(x, z).y), 1);
+  // The sampler's own answer must agree with the arithmetic `interiorMinimumUp()` states, or one
+  // of the two is describing a land the other does not have.
+  assert.ok(Math.abs(worst - interiorMinimumUp()) < 1e-3, `sampled ${worst}, derived ${interiorMinimumUp()}`);
+  // ⚠ AND IT CLEARS THE CEILING, which is the whole claim: at 0.910 against a `hi` of 0.90 there
+  // is no interior fragment the ramp admits, so the mask is exactly zero rather than merely small.
+  assert.ok(worst > ROCK_SLOPE_RAMP[1], `${worst} must clear the ramp ceiling ${ROCK_SLOPE_RAMP[1]}`);
+  for (const { x, z } of interiorSamples()) {
+    assert.equal(rockMask(landNormal(x, z).y, ROCK_SLOPE_RAMP[0], ROCK_SLOPE_RAMP[1]), 0);
+  }
+});
+
+test('THE GRAIN ALONE opens it across the interior — the departure`s measured cost', () => {
+  const pts = interiorSamples();
+  let painted = 0;
+  let worst = 1;
+  for (const { x, z } of pts) {
+    const up = grainPerturbNormal(landNormal(x, z), x, z).y;
+    worst = Math.min(worst, up);
+    if (rockMask(up, ROCK_SLOPE_RAMP[0], ROCK_SLOPE_RAMP[1]) > 0) painted++;
+  }
+  const share = painted / pts.length;
+  // ⚠ A SHARE AND A DEPTH, because either alone is unfalsifiable: a stray fragment at 0.8999 would
+  // satisfy a count and paint nothing anybody could see, and one deep fragment would satisfy a
+  // depth. Measured 2026-09-08 at the shipped grain strength: 6.2% of samples, reaching 0.758.
+  assert.ok(share > 0.04, `the grain must open the ramp across the interior, got ${(share * 100).toFixed(2)}%`);
+  assert.ok(worst < 0.8, `and open it deeply, got ${worst.toFixed(4)}`);
+  // The bump is what moved: the geometry underneath these very samples cleared the ceiling above.
+  assert.ok(worst < interiorMinimumUp(), 'the bump is the only thing that made this ground steep');
 });

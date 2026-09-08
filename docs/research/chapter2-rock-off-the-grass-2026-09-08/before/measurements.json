@@ -1,0 +1,5889 @@
+{
+  "measuredAt": "2026-09-08T05:16:02.592Z",
+  "renderer": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "calibration": {
+    "probe": 0.3176470588235294,
+    "scale": 3.1481481481481484,
+    "target": 1,
+    "floor": 0.8
+  },
+  "settled": {
+    "reads": 3,
+    "waitedMs": 500
+  },
+  "kits": [
+    {
+      "url": "/assets/dressing-kit.glb",
+      "wireBytes": 1782636,
+      "gpuBytes": 201326589,
+      "textures": 9,
+      "textureEdges": [
+        2048
+      ],
+      "dataSlots": [
+        "metalnessMap",
+        "normalMap"
+      ],
+      "triangles": 6000,
+      "loadMs": 398.7999999523163
+    }
+  ],
+  "map": {
+    "generatedAt": "2026-09-07T22:11:59.855Z",
+    "studio": {
+      "url": "http://127.0.0.1:5417",
+      "head": "92e1bff783dea16562283d2abb52eac285678338",
+      "branch": "claude/real-forest-render"
+    },
+    "arm": {
+      "id": "shipped",
+      "spacing": {},
+      "tile": {
+        "hexR": 11.063374578680804,
+        "quota": "max(1, capabilities) × 1 hexes",
+        "tilesPerCapability": 1
+      },
+      "file": "shipped.json",
+      "islands": 35,
+      "world": {
+        "width": 787,
+        "height": 1293
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 103,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1003523
+    }
+  },
+  "projection": {
+    "drawnElevationDeg": 20,
+    "viewedElevationDeg": 50,
+    "depthGain": 2.23976411351175,
+    "matchedPxPerUnit": 1.4246309027487822
+  },
+  "extents": {
+    "real": {
+      "w": 661.0763252410966,
+      "d": 3523.5107136825864
+    },
+    "synthetic": {
+      "w": 2139.254529793938,
+      "d": 3457.527333771617
+    },
+    "realIslands": 35,
+    "syntheticIslands": 35,
+    "widthRatio": 0.30902181859807687,
+    "depthRatio": 1.0190839792549065,
+    "areaRatio": 0.314919184573516,
+    "realDepthOverWidth": 5.3299605191542,
+    "syntheticDepthOverWidth": 1.6162299930268982
+  },
+  "landAreaPerCapability": 318,
+  "costBatch": 60,
+  "rows": [
+    {
+      "picture": "fit",
+      "elevationDeg": 49.99999999999999,
+      "pxPerUnit": 0.5746794563705578,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "groundTriangles": 116998,
+      "meshes": 4,
+      "bounds": {
+        "centres": {
+          "w": 617.8174230769225,
+          "d": 3478.5631037611997
+        },
+        "ground": {
+          "w": 661.0763252410966,
+          "d": 3523.5107136825864
+        },
+        "unitsPerCapability": {
+          "min": 317.9999999998836,
+          "max": 318.0000000001455
+        },
+        "islands": 35,
+        "totalLand": 65825.99999999907
+      },
+      "tightest": {
+        "a": "studio-cloud",
+        "b": "uat-detail-studio",
+        "centres": 58.36160984616755,
+        "water": 11.113403474515058,
+        "overlap": false
+      },
+      "occlusionCoverage": 0.0836818754961939,
+      "screen": {
+        "w": 667.8011894226074,
+        "h": 2704.1607739120354,
+        "wPx": 383.7716245009959,
+        "hPx": 1554.0256434903554
+      },
+      "box": {
+        "w": 384,
+        "h": 1558,
+        "x0": 1088,
+        "y0": 23,
+        "pixels": 21739
+      },
+      "landPx": 21739,
+      "landShare": 0.005307373046875,
+      "landShareOfBox": 0.03633631525459991,
+      "families": 53,
+      "status": {
+        "map": {
+          "islands": [
+            {
+              "id": "agent",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 147,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 67,
+                "unknown": 4,
+                "unhealthy": 76
+              },
+              "familyVotes": {
+                "healthy": 67,
+                "unknown": 4,
+                "unhealthy": 76
+              },
+              "ownShare": 0.4557823129251701,
+              "foreignShare": 0.54421768707483,
+              "pass": false
+            },
+            {
+              "id": "app-guide",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 203,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 85,
+                "unhealthy": 104,
+                "unknown": 13,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 85,
+                "unhealthy": 104,
+                "unknown": 13,
+                "building": 1
+              },
+              "ownShare": 0.4187192118226601,
+              "foreignShare": 0.5812807881773399,
+              "pass": false
+            },
+            {
+              "id": "app-surface",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 154,
+                "unhealthy": 180,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "healthy": 154,
+                "unhealthy": 180,
+                "unknown": 2
+              },
+              "ownShare": 0.4583333333333333,
+              "foreignShare": 0.5416666666666666,
+              "pass": false
+            },
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 187,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 77,
+                "healthy": 90,
+                "unknown": 20
+              },
+              "familyVotes": {
+                "unhealthy": 77,
+                "healthy": 90,
+                "unknown": 20
+              },
+              "ownShare": 0.48128342245989303,
+              "foreignShare": 0.5187165775401069,
+              "pass": true
+            },
+            {
+              "id": "art-factory",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 216,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 94,
+                "healthy": 108,
+                "mapped": 1,
+                "building": 2,
+                "unknown": 11
+              },
+              "familyVotes": {
+                "unhealthy": 94,
+                "healthy": 108,
+                "mapped": 1,
+                "building": 2,
+                "unknown": 11
+              },
+              "ownShare": 0.5,
+              "foreignShare": 0.5,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 264,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 118,
+                "unhealthy": 128,
+                "unknown": 17,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 118,
+                "unhealthy": 128,
+                "unknown": 17,
+                "building": 1
+              },
+              "ownShare": 0.44696969696969696,
+              "foreignShare": 0.553030303030303,
+              "pass": false
+            },
+            {
+              "id": "ci-cd",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 288,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 83,
+                "mapped": 11,
+                "building": 93,
+                "healthy": 98,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "unhealthy": 83,
+                "mapped": 11,
+                "building": 93,
+                "healthy": 98,
+                "unknown": 3
+              },
+              "ownShare": 0.3402777777777778,
+              "foreignShare": 0.6597222222222222,
+              "pass": true
+            },
+            {
+              "id": "cli",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 160,
+                "unhealthy": 113,
+                "building": 61,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "healthy": 160,
+                "unhealthy": 113,
+                "building": 61,
+                "unknown": 2
+              },
+              "ownShare": 0.47619047619047616,
+              "foreignShare": 0.5238095238095238,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 295,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 147,
+                "unhealthy": 141,
+                "unknown": 7
+              },
+              "familyVotes": {
+                "healthy": 147,
+                "unhealthy": 141,
+                "unknown": 7
+              },
+              "ownShare": 0.49830508474576274,
+              "foreignShare": 0.5016949152542373,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 186,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 92,
+                "unhealthy": 75,
+                "unknown": 15,
+                "building": 4
+              },
+              "familyVotes": {
+                "healthy": 92,
+                "unhealthy": 75,
+                "unknown": 15,
+                "building": 4
+              },
+              "ownShare": 0.4946236559139785,
+              "foreignShare": 0.5053763440860215,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 113,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 44,
+                "healthy": 61,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "unhealthy": 44,
+                "healthy": 61,
+                "unknown": 8
+              },
+              "ownShare": 0.5398230088495575,
+              "foreignShare": 0.46017699115044247,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 231,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 141,
+                "healthy": 90
+              },
+              "familyVotes": {
+                "unhealthy": 141,
+                "healthy": 90
+              },
+              "ownShare": 0.38961038961038963,
+              "foreignShare": 0.6103896103896104,
+              "pass": false
+            },
+            {
+              "id": "desktop",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 572,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 360,
+                "unhealthy": 129,
+                "building": 73,
+                "unknown": 10
+              },
+              "familyVotes": {
+                "healthy": 360,
+                "unhealthy": 129,
+                "building": 73,
+                "unknown": 10
+              },
+              "ownShare": 0.6293706293706294,
+              "foreignShare": 0.3706293706293706,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1235,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unknown": 17,
+                "healthy": 551,
+                "unhealthy": 658,
+                "building": 9
+              },
+              "familyVotes": {
+                "unknown": 17,
+                "healthy": 551,
+                "unhealthy": 658,
+                "building": 9
+              },
+              "ownShare": 0.4461538461538462,
+              "foreignShare": 0.5538461538461539,
+              "pass": false
+            },
+            {
+              "id": "embedded-terminal",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 98,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 53,
+                "healthy": 43,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "unhealthy": 53,
+                "healthy": 43,
+                "unknown": 2
+              },
+              "ownShare": 0.4387755102040816,
+              "foreignShare": 0.5612244897959183,
+              "pass": false
+            },
+            {
+              "id": "feedback-graduation",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "ownShare": 0.8928571428571429,
+              "foreignShare": 0.10714285714285714,
+              "pass": true
+            },
+            {
+              "id": "forest-world",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 48,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 25,
+                "unhealthy": 22,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "healthy": 25,
+                "unhealthy": 22,
+                "unknown": 1
+              },
+              "ownShare": 0.5208333333333334,
+              "foreignShare": 0.4791666666666667,
+              "pass": true
+            },
+            {
+              "id": "library",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 670,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 20,
+                "healthy": 344,
+                "unhealthy": 124,
+                "building": 182
+              },
+              "familyVotes": {
+                "unknown": 20,
+                "healthy": 344,
+                "unhealthy": 124,
+                "building": 182
+              },
+              "ownShare": 0.5134328358208955,
+              "foreignShare": 0.48656716417910445,
+              "pass": true
+            },
+            {
+              "id": "library-review",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 464,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 292,
+                "unhealthy": 120,
+                "building": 29,
+                "unknown": 15,
+                "mapped": 8
+              },
+              "familyVotes": {
+                "healthy": 292,
+                "unhealthy": 120,
+                "building": 29,
+                "unknown": 15,
+                "mapped": 8
+              },
+              "ownShare": 0.6293103448275862,
+              "foreignShare": 0.3706896551724138,
+              "pass": true
+            },
+            {
+              "id": "library-tech-tree-overlay",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 713,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 381,
+                "healthy": 314,
+                "unknown": 18
+              },
+              "familyVotes": {
+                "unhealthy": 381,
+                "healthy": 314,
+                "unknown": 18
+              },
+              "ownShare": 0.44039270687237025,
+              "foreignShare": 0.5596072931276297,
+              "pass": false
+            },
+            {
+              "id": "notice-board",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 187,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 88,
+                "unhealthy": 96,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 88,
+                "unhealthy": 96,
+                "unknown": 3
+              },
+              "ownShare": 0.47058823529411764,
+              "foreignShare": 0.5294117647058824,
+              "pass": false
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 153,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 97,
+                "unhealthy": 23,
+                "healthy": 32,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 97,
+                "unhealthy": 23,
+                "healthy": 32,
+                "unknown": 1
+              },
+              "ownShare": 0.6339869281045751,
+              "foreignShare": 0.3660130718954248,
+              "pass": true
+            },
+            {
+              "id": "proof-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "ownShare": 0.9285714285714286,
+              "foreignShare": 0.07142857142857142,
+              "pass": true
+            },
+            {
+              "id": "storage-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 49,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "familyVotes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "ownShare": 0.8979591836734694,
+              "foreignShare": 0.10204081632653061,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 1077,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 300,
+                "unknown": 5,
+                "unhealthy": 278,
+                "mapped": 30,
+                "building": 464
+              },
+              "familyVotes": {
+                "healthy": 300,
+                "unknown": 5,
+                "unhealthy": 278,
+                "mapped": 30,
+                "building": 464
+              },
+              "ownShare": 0.4308263695450325,
+              "foreignShare": 0.5691736304549675,
+              "pass": true
+            },
+            {
+              "id": "studio-cloud",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 82,
+                "unhealthy": 95,
+                "building": 154,
+                "mapped": 5
+              },
+              "familyVotes": {
+                "healthy": 82,
+                "unhealthy": 95,
+                "building": 154,
+                "mapped": 5
+              },
+              "ownShare": 0.24404761904761904,
+              "foreignShare": 0.7559523809523809,
+              "pass": false
+            },
+            {
+              "id": "studio-members",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 240,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 121,
+                "unhealthy": 99,
+                "unknown": 20
+              },
+              "familyVotes": {
+                "healthy": 121,
+                "unhealthy": 99,
+                "unknown": 20
+              },
+              "ownShare": 0.5041666666666667,
+              "foreignShare": 0.49583333333333335,
+              "pass": true
+            },
+            {
+              "id": "terminal-repo-picker",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 140,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 55,
+                "healthy": 77,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "unhealthy": 55,
+                "healthy": 77,
+                "unknown": 8
+              },
+              "ownShare": 0.55,
+              "foreignShare": 0.45,
+              "pass": true
+            },
+            {
+              "id": "terminal-tabs",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 114,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 51,
+                "unhealthy": 57,
+                "unknown": 6
+              },
+              "familyVotes": {
+                "healthy": 51,
+                "unhealthy": 57,
+                "unknown": 6
+              },
+              "ownShare": 0.4473684210526316,
+              "foreignShare": 0.5526315789473685,
+              "pass": false
+            },
+            {
+              "id": "uat-attestation",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 186,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 80,
+                "unhealthy": 93,
+                "unknown": 13
+              },
+              "familyVotes": {
+                "healthy": 80,
+                "unhealthy": 93,
+                "unknown": 13
+              },
+              "ownShare": 0.43010752688172044,
+              "foreignShare": 0.5698924731182796,
+              "pass": false
+            },
+            {
+              "id": "uat-criterion-detail",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 196,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 112,
+                "unknown": 12,
+                "unhealthy": 67,
+                "building": 5
+              },
+              "familyVotes": {
+                "healthy": 112,
+                "unknown": 12,
+                "unhealthy": 67,
+                "building": 5
+              },
+              "ownShare": 0.5714285714285714,
+              "foreignShare": 0.42857142857142855,
+              "pass": true
+            },
+            {
+              "id": "uat-detail-studio",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 112,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 35,
+                "unknown": 4,
+                "unhealthy": 70,
+                "building": 3
+              },
+              "familyVotes": {
+                "healthy": 35,
+                "unknown": 4,
+                "unhealthy": 70,
+                "building": 3
+              },
+              "ownShare": 0.3125,
+              "foreignShare": 0.6875,
+              "pass": false
+            },
+            {
+              "id": "website",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "ownShare": 0.9821428571428571,
+              "foreignShare": 0.017857142857142856,
+              "pass": true
+            },
+            {
+              "id": "website-experience",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 473,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "mapped": 21,
+                "building": 128,
+                "unhealthy": 120,
+                "healthy": 183,
+                "unknown": 21
+              },
+              "familyVotes": {
+                "mapped": 21,
+                "building": 128,
+                "unhealthy": 120,
+                "healthy": 183,
+                "unknown": 21
+              },
+              "ownShare": 0.386892177589852,
+              "foreignShare": 0.6131078224101479,
+              "pass": true
+            },
+            {
+              "id": "wisp-as-story-claim",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 315,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 144,
+                "unhealthy": 54,
+                "building": 111,
+                "mapped": 1,
+                "unknown": 5
+              },
+              "familyVotes": {
+                "healthy": 144,
+                "unhealthy": 54,
+                "building": 111,
+                "mapped": 1,
+                "unknown": 5
+              },
+              "ownShare": 0.45714285714285713,
+              "foreignShare": 0.5428571428571428,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "bare": {
+          "islands": [
+            {
+              "id": "agent",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 147,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 73,
+                "unknown": 4,
+                "unhealthy": 70
+              },
+              "familyVotes": {
+                "healthy": 73,
+                "unknown": 4,
+                "unhealthy": 70
+              },
+              "ownShare": 0.4965986394557823,
+              "foreignShare": 0.5034013605442177,
+              "pass": true
+            },
+            {
+              "id": "app-guide",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 203,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 96,
+                "unhealthy": 93,
+                "unknown": 13,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 96,
+                "unhealthy": 93,
+                "unknown": 13,
+                "building": 1
+              },
+              "ownShare": 0.4729064039408867,
+              "foreignShare": 0.5270935960591133,
+              "pass": true
+            },
+            {
+              "id": "app-surface",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 172,
+                "unhealthy": 162,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "healthy": 172,
+                "unhealthy": 162,
+                "unknown": 2
+              },
+              "ownShare": 0.5119047619047619,
+              "foreignShare": 0.4880952380952381,
+              "pass": true
+            },
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 185,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 103,
+                "unhealthy": 61,
+                "unknown": 21
+              },
+              "familyVotes": {
+                "healthy": 103,
+                "unhealthy": 61,
+                "unknown": 21
+              },
+              "ownShare": 0.5567567567567567,
+              "foreignShare": 0.44324324324324327,
+              "pass": true
+            },
+            {
+              "id": "art-factory",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 216,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 85,
+                "healthy": 116,
+                "building": 2,
+                "unknown": 13
+              },
+              "familyVotes": {
+                "unhealthy": 85,
+                "healthy": 116,
+                "building": 2,
+                "unknown": 13
+              },
+              "ownShare": 0.5370370370370371,
+              "foreignShare": 0.46296296296296297,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 264,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 130,
+                "unhealthy": 115,
+                "unknown": 18,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 130,
+                "unhealthy": 115,
+                "unknown": 18,
+                "building": 1
+              },
+              "ownShare": 0.49242424242424243,
+              "foreignShare": 0.5075757575757576,
+              "pass": true
+            },
+            {
+              "id": "ci-cd",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 288,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 69,
+                "mapped": 12,
+                "building": 97,
+                "healthy": 107,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "unhealthy": 69,
+                "mapped": 12,
+                "building": 97,
+                "healthy": 107,
+                "unknown": 3
+              },
+              "ownShare": 0.3715277777777778,
+              "foreignShare": 0.6284722222222222,
+              "pass": true
+            },
+            {
+              "id": "cli",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 185,
+                "unhealthy": 84,
+                "building": 65,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "healthy": 185,
+                "unhealthy": 84,
+                "building": 65,
+                "unknown": 2
+              },
+              "ownShare": 0.5505952380952381,
+              "foreignShare": 0.4494047619047619,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 295,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 163,
+                "unhealthy": 125,
+                "unknown": 7
+              },
+              "familyVotes": {
+                "healthy": 163,
+                "unhealthy": 125,
+                "unknown": 7
+              },
+              "ownShare": 0.5525423728813559,
+              "foreignShare": 0.44745762711864406,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 186,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 98,
+                "unhealthy": 69,
+                "unknown": 15,
+                "building": 4
+              },
+              "familyVotes": {
+                "healthy": 98,
+                "unhealthy": 69,
+                "unknown": 15,
+                "building": 4
+              },
+              "ownShare": 0.5268817204301075,
+              "foreignShare": 0.4731182795698925,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 113,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 43,
+                "healthy": 62,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "unhealthy": 43,
+                "healthy": 62,
+                "unknown": 8
+              },
+              "ownShare": 0.5486725663716814,
+              "foreignShare": 0.45132743362831856,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 231,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 134,
+                "healthy": 97
+              },
+              "familyVotes": {
+                "unhealthy": 134,
+                "healthy": 97
+              },
+              "ownShare": 0.4199134199134199,
+              "foreignShare": 0.5800865800865801,
+              "pass": false
+            },
+            {
+              "id": "desktop",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 568,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 382,
+                "unhealthy": 81,
+                "building": 92,
+                "mapped": 1,
+                "unknown": 12
+              },
+              "familyVotes": {
+                "healthy": 382,
+                "unhealthy": 81,
+                "building": 92,
+                "mapped": 1,
+                "unknown": 12
+              },
+              "ownShare": 0.6725352112676056,
+              "foreignShare": 0.3274647887323944,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1235,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 18,
+                "healthy": 634,
+                "unhealthy": 574,
+                "building": 9
+              },
+              "familyVotes": {
+                "unknown": 18,
+                "healthy": 634,
+                "unhealthy": 574,
+                "building": 9
+              },
+              "ownShare": 0.5133603238866397,
+              "foreignShare": 0.48663967611336034,
+              "pass": true
+            },
+            {
+              "id": "embedded-terminal",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 98,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 49,
+                "healthy": 45,
+                "unknown": 4
+              },
+              "familyVotes": {
+                "unhealthy": 49,
+                "healthy": 45,
+                "unknown": 4
+              },
+              "ownShare": 0.45918367346938777,
+              "foreignShare": 0.5408163265306123,
+              "pass": false
+            },
+            {
+              "id": "feedback-graduation",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "ownShare": 0.8928571428571429,
+              "foreignShare": 0.10714285714285714,
+              "pass": true
+            },
+            {
+              "id": "forest-world",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 48,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 26,
+                "unhealthy": 21,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "healthy": 26,
+                "unhealthy": 21,
+                "unknown": 1
+              },
+              "ownShare": 0.5416666666666666,
+              "foreignShare": 0.4583333333333333,
+              "pass": true
+            },
+            {
+              "id": "library",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 670,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 20,
+                "healthy": 369,
+                "unhealthy": 98,
+                "building": 183
+              },
+              "familyVotes": {
+                "unknown": 20,
+                "healthy": 369,
+                "unhealthy": 98,
+                "building": 183
+              },
+              "ownShare": 0.5507462686567164,
+              "foreignShare": 0.44925373134328356,
+              "pass": true
+            },
+            {
+              "id": "library-review",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 460,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 313,
+                "unhealthy": 94,
+                "building": 29,
+                "unknown": 15,
+                "mapped": 9
+              },
+              "familyVotes": {
+                "healthy": 313,
+                "unhealthy": 94,
+                "building": 29,
+                "unknown": 15,
+                "mapped": 9
+              },
+              "ownShare": 0.6804347826086956,
+              "foreignShare": 0.31956521739130433,
+              "pass": true
+            },
+            {
+              "id": "library-tech-tree-overlay",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 709,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 349,
+                "healthy": 342,
+                "unknown": 18
+              },
+              "familyVotes": {
+                "unhealthy": 349,
+                "healthy": 342,
+                "unknown": 18
+              },
+              "ownShare": 0.4823695345557123,
+              "foreignShare": 0.5176304654442877,
+              "pass": false
+            },
+            {
+              "id": "notice-board",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 187,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 100,
+                "unhealthy": 84,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 100,
+                "unhealthy": 84,
+                "unknown": 3
+              },
+              "ownShare": 0.5347593582887701,
+              "foreignShare": 0.46524064171123,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 153,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 103,
+                "unhealthy": 15,
+                "healthy": 34,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 103,
+                "unhealthy": 15,
+                "healthy": 34,
+                "unknown": 1
+              },
+              "ownShare": 0.673202614379085,
+              "foreignShare": 0.32679738562091504,
+              "pass": true
+            },
+            {
+              "id": "proof-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "ownShare": 0.9285714285714286,
+              "foreignShare": 0.07142857142857142,
+              "pass": true
+            },
+            {
+              "id": "storage-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 49,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "familyVotes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "ownShare": 0.8979591836734694,
+              "foreignShare": 0.10204081632653061,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 1077,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 349,
+                "unknown": 5,
+                "unhealthy": 186,
+                "mapped": 39,
+                "building": 498
+              },
+              "familyVotes": {
+                "healthy": 349,
+                "unknown": 5,
+                "unhealthy": 186,
+                "mapped": 39,
+                "building": 498
+              },
+              "ownShare": 0.4623955431754875,
+              "foreignShare": 0.5376044568245125,
+              "pass": true
+            },
+            {
+              "id": "studio-cloud",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 96,
+                "unhealthy": 64,
+                "building": 166,
+                "mapped": 10
+              },
+              "familyVotes": {
+                "healthy": 96,
+                "unhealthy": 64,
+                "building": 166,
+                "mapped": 10
+              },
+              "ownShare": 0.2857142857142857,
+              "foreignShare": 0.7142857142857143,
+              "pass": false
+            },
+            {
+              "id": "studio-members",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 240,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 137,
+                "unhealthy": 83,
+                "unknown": 20
+              },
+              "familyVotes": {
+                "healthy": 137,
+                "unhealthy": 83,
+                "unknown": 20
+              },
+              "ownShare": 0.5708333333333333,
+              "foreignShare": 0.42916666666666664,
+              "pass": true
+            },
+            {
+              "id": "terminal-repo-picker",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 140,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 46,
+                "healthy": 86,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "unhealthy": 46,
+                "healthy": 86,
+                "unknown": 8
+              },
+              "ownShare": 0.6142857142857143,
+              "foreignShare": 0.38571428571428573,
+              "pass": true
+            },
+            {
+              "id": "terminal-tabs",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 111,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 52,
+                "unhealthy": 49,
+                "unknown": 10
+              },
+              "familyVotes": {
+                "healthy": 52,
+                "unhealthy": 49,
+                "unknown": 10
+              },
+              "ownShare": 0.46846846846846846,
+              "foreignShare": 0.5315315315315315,
+              "pass": true
+            },
+            {
+              "id": "uat-attestation",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 182,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 83,
+                "unhealthy": 86,
+                "unknown": 13
+              },
+              "familyVotes": {
+                "healthy": 83,
+                "unhealthy": 86,
+                "unknown": 13
+              },
+              "ownShare": 0.45604395604395603,
+              "foreignShare": 0.5439560439560439,
+              "pass": false
+            },
+            {
+              "id": "uat-criterion-detail",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 196,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 121,
+                "unknown": 12,
+                "unhealthy": 58,
+                "building": 5
+              },
+              "familyVotes": {
+                "healthy": 121,
+                "unknown": 12,
+                "unhealthy": 58,
+                "building": 5
+              },
+              "ownShare": 0.6173469387755102,
+              "foreignShare": 0.3826530612244898,
+              "pass": true
+            },
+            {
+              "id": "uat-detail-studio",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 112,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 36,
+                "unknown": 4,
+                "unhealthy": 69,
+                "building": 3
+              },
+              "familyVotes": {
+                "healthy": 36,
+                "unknown": 4,
+                "unhealthy": 69,
+                "building": 3
+              },
+              "ownShare": 0.32142857142857145,
+              "foreignShare": 0.6785714285714286,
+              "pass": false
+            },
+            {
+              "id": "website",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "ownShare": 0.9821428571428571,
+              "foreignShare": 0.017857142857142856,
+              "pass": true
+            },
+            {
+              "id": "website-experience",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 468,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "mapped": 23,
+                "building": 136,
+                "healthy": 202,
+                "unknown": 22,
+                "unhealthy": 85
+              },
+              "familyVotes": {
+                "mapped": 23,
+                "building": 136,
+                "healthy": 202,
+                "unknown": 22,
+                "unhealthy": 85
+              },
+              "ownShare": 0.43162393162393164,
+              "foreignShare": 0.5683760683760684,
+              "pass": true
+            },
+            {
+              "id": "wisp-as-story-claim",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 315,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 159,
+                "building": 111,
+                "mapped": 1,
+                "unhealthy": 38,
+                "unknown": 6
+              },
+              "familyVotes": {
+                "healthy": 159,
+                "building": 111,
+                "mapped": 1,
+                "unhealthy": 38,
+                "unknown": 6
+              },
+              "ownShare": 0.5047619047619047,
+              "foreignShare": 0.49523809523809526,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "unshadowed": {
+          "islands": [
+            {
+              "id": "agent",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 147,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 136,
+                "unknown": 4,
+                "unhealthy": 7
+              },
+              "familyVotes": {
+                "healthy": 136,
+                "unknown": 4,
+                "unhealthy": 7
+              },
+              "ownShare": 0.9251700680272109,
+              "foreignShare": 0.07482993197278912,
+              "pass": true
+            },
+            {
+              "id": "app-guide",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 203,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 156,
+                "unhealthy": 31,
+                "unknown": 15,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 156,
+                "unhealthy": 31,
+                "unknown": 15,
+                "building": 1
+              },
+              "ownShare": 0.7684729064039408,
+              "foreignShare": 0.2315270935960591,
+              "pass": true
+            },
+            {
+              "id": "app-surface",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 294,
+                "unhealthy": 39,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 294,
+                "unhealthy": 39,
+                "unknown": 3
+              },
+              "ownShare": 0.875,
+              "foreignShare": 0.125,
+              "pass": true
+            },
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 185,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 155,
+                "unknown": 26,
+                "unhealthy": 4
+              },
+              "familyVotes": {
+                "healthy": 155,
+                "unknown": 26,
+                "unhealthy": 4
+              },
+              "ownShare": 0.8378378378378378,
+              "foreignShare": 0.16216216216216217,
+              "pass": true
+            },
+            {
+              "id": "art-factory",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 216,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 189,
+                "unhealthy": 3,
+                "building": 4,
+                "unknown": 20
+              },
+              "familyVotes": {
+                "healthy": 189,
+                "unhealthy": 3,
+                "building": 4,
+                "unknown": 20
+              },
+              "ownShare": 0.875,
+              "foreignShare": 0.125,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 264,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 221,
+                "unhealthy": 13,
+                "unknown": 28,
+                "building": 2
+              },
+              "familyVotes": {
+                "healthy": 221,
+                "unhealthy": 13,
+                "unknown": 28,
+                "building": 2
+              },
+              "ownShare": 0.8371212121212122,
+              "foreignShare": 0.16287878787878787,
+              "pass": true
+            },
+            {
+              "id": "ci-cd",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 288,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 140,
+                "building": 108,
+                "unknown": 3,
+                "unhealthy": 36,
+                "mapped": 1
+              },
+              "familyVotes": {
+                "healthy": 140,
+                "building": 108,
+                "unknown": 3,
+                "unhealthy": 36,
+                "mapped": 1
+              },
+              "ownShare": 0.4861111111111111,
+              "foreignShare": 0.5138888888888888,
+              "pass": true
+            },
+            {
+              "id": "cli",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 228,
+                "unhealthy": 31,
+                "building": 73,
+                "mapped": 1,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 228,
+                "unhealthy": 31,
+                "building": 73,
+                "mapped": 1,
+                "unknown": 3
+              },
+              "ownShare": 0.6785714285714286,
+              "foreignShare": 0.32142857142857145,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 295,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 270,
+                "unhealthy": 17,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "healthy": 270,
+                "unhealthy": 17,
+                "unknown": 8
+              },
+              "ownShare": 0.9152542372881356,
+              "foreignShare": 0.0847457627118644,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 186,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 159,
+                "unhealthy": 4,
+                "unknown": 17,
+                "building": 6
+              },
+              "familyVotes": {
+                "healthy": 159,
+                "unhealthy": 4,
+                "unknown": 17,
+                "building": 6
+              },
+              "ownShare": 0.8548387096774194,
+              "foreignShare": 0.14516129032258066,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 113,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 102,
+                "unhealthy": 3,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "healthy": 102,
+                "unhealthy": 3,
+                "unknown": 8
+              },
+              "ownShare": 0.9026548672566371,
+              "foreignShare": 0.09734513274336283,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 231,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 182,
+                "unhealthy": 49
+              },
+              "familyVotes": {
+                "healthy": 182,
+                "unhealthy": 49
+              },
+              "ownShare": 0.7878787878787878,
+              "foreignShare": 0.21212121212121213,
+              "pass": true
+            },
+            {
+              "id": "desktop",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 568,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 438,
+                "unhealthy": 3,
+                "building": 113,
+                "unknown": 14
+              },
+              "familyVotes": {
+                "healthy": 438,
+                "unhealthy": 3,
+                "building": 113,
+                "unknown": 14
+              },
+              "ownShare": 0.7711267605633803,
+              "foreignShare": 0.22887323943661972,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1235,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 20,
+                "healthy": 1175,
+                "building": 12,
+                "unhealthy": 28
+              },
+              "familyVotes": {
+                "unknown": 20,
+                "healthy": 1175,
+                "building": 12,
+                "unhealthy": 28
+              },
+              "ownShare": 0.951417004048583,
+              "foreignShare": 0.048582995951417005,
+              "pass": true
+            },
+            {
+              "id": "embedded-terminal",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 98,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 6,
+                "healthy": 86,
+                "unknown": 6
+              },
+              "familyVotes": {
+                "unhealthy": 6,
+                "healthy": 86,
+                "unknown": 6
+              },
+              "ownShare": 0.8775510204081632,
+              "foreignShare": 0.12244897959183673,
+              "pass": true
+            },
+            {
+              "id": "feedback-graduation",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 50,
+                "healthy": 5,
+                "unknown": 1
+              },
+              "ownShare": 0.8928571428571429,
+              "foreignShare": 0.10714285714285714,
+              "pass": true
+            },
+            {
+              "id": "forest-world",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 48,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 45,
+                "unknown": 2,
+                "unhealthy": 1
+              },
+              "familyVotes": {
+                "healthy": 45,
+                "unknown": 2,
+                "unhealthy": 1
+              },
+              "ownShare": 0.9375,
+              "foreignShare": 0.0625,
+              "pass": true
+            },
+            {
+              "id": "library",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 670,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 20,
+                "healthy": 441,
+                "unhealthy": 17,
+                "building": 192
+              },
+              "familyVotes": {
+                "unknown": 20,
+                "healthy": 441,
+                "unhealthy": 17,
+                "building": 192
+              },
+              "ownShare": 0.6582089552238806,
+              "foreignShare": 0.3417910447761194,
+              "pass": true
+            },
+            {
+              "id": "library-review",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 460,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 368,
+                "unhealthy": 36,
+                "building": 38,
+                "unknown": 18
+              },
+              "familyVotes": {
+                "healthy": 368,
+                "unhealthy": 36,
+                "building": 38,
+                "unknown": 18
+              },
+              "ownShare": 0.8,
+              "foreignShare": 0.2,
+              "pass": true
+            },
+            {
+              "id": "library-tech-tree-overlay",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 709,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 641,
+                "unhealthy": 49,
+                "unknown": 19
+              },
+              "familyVotes": {
+                "healthy": 641,
+                "unhealthy": 49,
+                "unknown": 19
+              },
+              "ownShare": 0.9040902679830748,
+              "foreignShare": 0.09590973201692525,
+              "pass": true
+            },
+            {
+              "id": "notice-board",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 187,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 172,
+                "unhealthy": 10,
+                "unknown": 5
+              },
+              "familyVotes": {
+                "healthy": 172,
+                "unhealthy": 10,
+                "unknown": 5
+              },
+              "ownShare": 0.9197860962566845,
+              "foreignShare": 0.08021390374331551,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 153,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 103,
+                "healthy": 42,
+                "unhealthy": 7,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 103,
+                "healthy": 42,
+                "unhealthy": 7,
+                "unknown": 1
+              },
+              "ownShare": 0.673202614379085,
+              "foreignShare": 0.32679738562091504,
+              "pass": true
+            },
+            {
+              "id": "proof-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "healthy": 52,
+                "unhealthy": 3,
+                "unknown": 1
+              },
+              "ownShare": 0.9285714285714286,
+              "foreignShare": 0.07142857142857142,
+              "pass": true
+            },
+            {
+              "id": "storage-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 49,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "familyVotes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "ownShare": 0.8979591836734694,
+              "foreignShare": 0.10204081632653061,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 1077,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 449,
+                "unknown": 3,
+                "unhealthy": 47,
+                "building": 578
+              },
+              "familyVotes": {
+                "healthy": 449,
+                "unknown": 3,
+                "unhealthy": 47,
+                "building": 578
+              },
+              "ownShare": 0.5366759517177344,
+              "foreignShare": 0.46332404828226553,
+              "pass": true
+            },
+            {
+              "id": "studio-cloud",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 126,
+                "unhealthy": 34,
+                "building": 176
+              },
+              "familyVotes": {
+                "healthy": 126,
+                "unhealthy": 34,
+                "building": 176
+              },
+              "ownShare": 0.375,
+              "foreignShare": 0.625,
+              "pass": false
+            },
+            {
+              "id": "studio-members",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 240,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 204,
+                "unknown": 30,
+                "unhealthy": 6
+              },
+              "familyVotes": {
+                "healthy": 204,
+                "unknown": 30,
+                "unhealthy": 6
+              },
+              "ownShare": 0.85,
+              "foreignShare": 0.15,
+              "pass": true
+            },
+            {
+              "id": "terminal-repo-picker",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 140,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 132,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "healthy": 132,
+                "unknown": 8
+              },
+              "ownShare": 0.9428571428571428,
+              "foreignShare": 0.05714285714285714,
+              "pass": true
+            },
+            {
+              "id": "terminal-tabs",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 111,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 82,
+                "unhealthy": 18,
+                "unknown": 11
+              },
+              "familyVotes": {
+                "healthy": 82,
+                "unhealthy": 18,
+                "unknown": 11
+              },
+              "ownShare": 0.7387387387387387,
+              "foreignShare": 0.26126126126126126,
+              "pass": true
+            },
+            {
+              "id": "uat-attestation",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 182,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 134,
+                "unhealthy": 25,
+                "unknown": 23
+              },
+              "familyVotes": {
+                "healthy": 134,
+                "unhealthy": 25,
+                "unknown": 23
+              },
+              "ownShare": 0.7362637362637363,
+              "foreignShare": 0.26373626373626374,
+              "pass": true
+            },
+            {
+              "id": "uat-criterion-detail",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 196,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 163,
+                "unknown": 15,
+                "unhealthy": 6,
+                "building": 12
+              },
+              "familyVotes": {
+                "healthy": 163,
+                "unknown": 15,
+                "unhealthy": 6,
+                "building": 12
+              },
+              "ownShare": 0.8316326530612245,
+              "foreignShare": 0.1683673469387755,
+              "pass": true
+            },
+            {
+              "id": "uat-detail-studio",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 112,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 79,
+                "unknown": 7,
+                "unhealthy": 22,
+                "building": 4
+              },
+              "familyVotes": {
+                "healthy": 79,
+                "unknown": 7,
+                "unhealthy": 22,
+                "building": 4
+              },
+              "ownShare": 0.7053571428571429,
+              "foreignShare": 0.29464285714285715,
+              "pass": true
+            },
+            {
+              "id": "website",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "ownShare": 0.9821428571428571,
+              "foreignShare": 0.017857142857142856,
+              "pass": true
+            },
+            {
+              "id": "website-experience",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 468,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "building": 172,
+                "healthy": 254,
+                "unknown": 27,
+                "unhealthy": 15
+              },
+              "familyVotes": {
+                "building": 172,
+                "healthy": 254,
+                "unknown": 27,
+                "unhealthy": 15
+              },
+              "ownShare": 0.5427350427350427,
+              "foreignShare": 0.45726495726495725,
+              "pass": true
+            },
+            {
+              "id": "wisp-as-story-claim",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 315,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 179,
+                "building": 120,
+                "mapped": 1,
+                "unknown": 6,
+                "unhealthy": 9
+              },
+              "familyVotes": {
+                "healthy": 179,
+                "building": 120,
+                "mapped": 1,
+                "unknown": 6,
+                "unhealthy": 9
+              },
+              "ownShare": 0.5682539682539682,
+              "foreignShare": 0.43174603174603177,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "norock": {
+          "islands": [
+            {
+              "id": "agent",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 147,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 136,
+                "unknown": 4,
+                "unhealthy": 7
+              },
+              "familyVotes": {
+                "healthy": 136,
+                "unknown": 4,
+                "unhealthy": 7
+              },
+              "ownShare": 0.9251700680272109,
+              "foreignShare": 0.07482993197278912,
+              "pass": true
+            },
+            {
+              "id": "app-guide",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 203,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 156,
+                "unhealthy": 30,
+                "unknown": 16,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 156,
+                "unhealthy": 30,
+                "unknown": 16,
+                "building": 1
+              },
+              "ownShare": 0.7684729064039408,
+              "foreignShare": 0.2315270935960591,
+              "pass": true
+            },
+            {
+              "id": "app-surface",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 294,
+                "unhealthy": 39,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 294,
+                "unhealthy": 39,
+                "unknown": 3
+              },
+              "ownShare": 0.875,
+              "foreignShare": 0.125,
+              "pass": true
+            },
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 185,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 156,
+                "unknown": 27,
+                "unhealthy": 2
+              },
+              "familyVotes": {
+                "healthy": 156,
+                "unknown": 27,
+                "unhealthy": 2
+              },
+              "ownShare": 0.8432432432432433,
+              "foreignShare": 0.15675675675675677,
+              "pass": true
+            },
+            {
+              "id": "art-factory",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 216,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 192,
+                "unhealthy": 3,
+                "building": 4,
+                "unknown": 17
+              },
+              "familyVotes": {
+                "healthy": 192,
+                "unhealthy": 3,
+                "building": 4,
+                "unknown": 17
+              },
+              "ownShare": 0.8888888888888888,
+              "foreignShare": 0.1111111111111111,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 264,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 223,
+                "unhealthy": 13,
+                "unknown": 27,
+                "building": 1
+              },
+              "familyVotes": {
+                "healthy": 223,
+                "unhealthy": 13,
+                "unknown": 27,
+                "building": 1
+              },
+              "ownShare": 0.8446969696969697,
+              "foreignShare": 0.1553030303030303,
+              "pass": true
+            },
+            {
+              "id": "ci-cd",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 288,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 140,
+                "building": 109,
+                "unhealthy": 36,
+                "mapped": 1,
+                "unknown": 2
+              },
+              "familyVotes": {
+                "healthy": 140,
+                "building": 109,
+                "unhealthy": 36,
+                "mapped": 1,
+                "unknown": 2
+              },
+              "ownShare": 0.4861111111111111,
+              "foreignShare": 0.5138888888888888,
+              "pass": true
+            },
+            {
+              "id": "cli",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 228,
+                "unhealthy": 31,
+                "building": 73,
+                "mapped": 1,
+                "unknown": 3
+              },
+              "familyVotes": {
+                "healthy": 228,
+                "unhealthy": 31,
+                "building": 73,
+                "mapped": 1,
+                "unknown": 3
+              },
+              "ownShare": 0.6785714285714286,
+              "foreignShare": 0.32142857142857145,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 295,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 273,
+                "unhealthy": 17,
+                "unknown": 5
+              },
+              "familyVotes": {
+                "healthy": 273,
+                "unhealthy": 17,
+                "unknown": 5
+              },
+              "ownShare": 0.9254237288135593,
+              "foreignShare": 0.07457627118644068,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 186,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 160,
+                "unhealthy": 4,
+                "unknown": 16,
+                "building": 6
+              },
+              "familyVotes": {
+                "healthy": 160,
+                "unhealthy": 4,
+                "unknown": 16,
+                "building": 6
+              },
+              "ownShare": 0.8602150537634409,
+              "foreignShare": 0.13978494623655913,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 113,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 103,
+                "unhealthy": 2,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "healthy": 103,
+                "unhealthy": 2,
+                "unknown": 8
+              },
+              "ownShare": 0.911504424778761,
+              "foreignShare": 0.08849557522123894,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 231,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 183,
+                "unhealthy": 48
+              },
+              "familyVotes": {
+                "healthy": 183,
+                "unhealthy": 48
+              },
+              "ownShare": 0.7922077922077922,
+              "foreignShare": 0.2077922077922078,
+              "pass": true
+            },
+            {
+              "id": "desktop",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 568,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 437,
+                "unhealthy": 3,
+                "building": 114,
+                "unknown": 14
+              },
+              "familyVotes": {
+                "healthy": 437,
+                "unhealthy": 3,
+                "building": 114,
+                "unknown": 14
+              },
+              "ownShare": 0.7693661971830986,
+              "foreignShare": 0.2306338028169014,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1235,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 15,
+                "healthy": 1179,
+                "building": 13,
+                "unhealthy": 28
+              },
+              "familyVotes": {
+                "unknown": 15,
+                "healthy": 1179,
+                "building": 13,
+                "unhealthy": 28
+              },
+              "ownShare": 0.9546558704453442,
+              "foreignShare": 0.045344129554655874,
+              "pass": true
+            },
+            {
+              "id": "embedded-terminal",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 98,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 6,
+                "healthy": 87,
+                "unknown": 5
+              },
+              "familyVotes": {
+                "unhealthy": 6,
+                "healthy": 87,
+                "unknown": 5
+              },
+              "ownShare": 0.8877551020408163,
+              "foreignShare": 0.11224489795918367,
+              "pass": true
+            },
+            {
+              "id": "feedback-graduation",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 52,
+                "unknown": 1,
+                "healthy": 3
+              },
+              "familyVotes": {
+                "building": 52,
+                "unknown": 1,
+                "healthy": 3
+              },
+              "ownShare": 0.9285714285714286,
+              "foreignShare": 0.07142857142857142,
+              "pass": true
+            },
+            {
+              "id": "forest-world",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 48,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 45,
+                "unknown": 2,
+                "unhealthy": 1
+              },
+              "familyVotes": {
+                "healthy": 45,
+                "unknown": 2,
+                "unhealthy": 1
+              },
+              "ownShare": 0.9375,
+              "foreignShare": 0.0625,
+              "pass": true
+            },
+            {
+              "id": "library",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 670,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unknown": 20,
+                "healthy": 440,
+                "unhealthy": 15,
+                "building": 195
+              },
+              "familyVotes": {
+                "unknown": 20,
+                "healthy": 440,
+                "unhealthy": 15,
+                "building": 195
+              },
+              "ownShare": 0.6567164179104478,
+              "foreignShare": 0.34328358208955223,
+              "pass": true
+            },
+            {
+              "id": "library-review",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 460,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 369,
+                "unhealthy": 36,
+                "building": 38,
+                "unknown": 17
+              },
+              "familyVotes": {
+                "healthy": 369,
+                "unhealthy": 36,
+                "building": 38,
+                "unknown": 17
+              },
+              "ownShare": 0.8021739130434783,
+              "foreignShare": 0.19782608695652174,
+              "pass": true
+            },
+            {
+              "id": "library-tech-tree-overlay",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 709,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 643,
+                "unhealthy": 46,
+                "unknown": 20
+              },
+              "familyVotes": {
+                "healthy": 643,
+                "unhealthy": 46,
+                "unknown": 20
+              },
+              "ownShare": 0.9069111424541608,
+              "foreignShare": 0.0930888575458392,
+              "pass": true
+            },
+            {
+              "id": "notice-board",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 187,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 172,
+                "unhealthy": 10,
+                "unknown": 5
+              },
+              "familyVotes": {
+                "healthy": 172,
+                "unhealthy": 10,
+                "unknown": 5
+              },
+              "ownShare": 0.9197860962566845,
+              "foreignShare": 0.08021390374331551,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 153,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 104,
+                "healthy": 41,
+                "unhealthy": 7,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 104,
+                "healthy": 41,
+                "unhealthy": 7,
+                "unknown": 1
+              },
+              "ownShare": 0.6797385620915033,
+              "foreignShare": 0.3202614379084967,
+              "pass": true
+            },
+            {
+              "id": "proof-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 56
+              },
+              "familyVotes": {
+                "healthy": 56
+              },
+              "ownShare": 1,
+              "foreignShare": 0,
+              "pass": true
+            },
+            {
+              "id": "storage-protocol",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 49,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "familyVotes": {
+                "healthy": 44,
+                "unknown": 3,
+                "unhealthy": 2
+              },
+              "ownShare": 0.8979591836734694,
+              "foreignShare": 0.10204081632653061,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 1077,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 448,
+                "unknown": 2,
+                "unhealthy": 47,
+                "building": 580
+              },
+              "familyVotes": {
+                "healthy": 448,
+                "unknown": 2,
+                "unhealthy": 47,
+                "building": 580
+              },
+              "ownShare": 0.5385329619312906,
+              "foreignShare": 0.46146703806870937,
+              "pass": true
+            },
+            {
+              "id": "studio-cloud",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 336,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 126,
+                "unhealthy": 34,
+                "building": 176
+              },
+              "familyVotes": {
+                "healthy": 126,
+                "unhealthy": 34,
+                "building": 176
+              },
+              "ownShare": 0.375,
+              "foreignShare": 0.625,
+              "pass": false
+            },
+            {
+              "id": "studio-members",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 240,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 205,
+                "unknown": 30,
+                "unhealthy": 5
+              },
+              "familyVotes": {
+                "healthy": 205,
+                "unknown": 30,
+                "unhealthy": 5
+              },
+              "ownShare": 0.8541666666666666,
+              "foreignShare": 0.14583333333333334,
+              "pass": true
+            },
+            {
+              "id": "terminal-repo-picker",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 140,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 132,
+                "unknown": 8
+              },
+              "familyVotes": {
+                "healthy": 132,
+                "unknown": 8
+              },
+              "ownShare": 0.9428571428571428,
+              "foreignShare": 0.05714285714285714,
+              "pass": true
+            },
+            {
+              "id": "terminal-tabs",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 111,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 82,
+                "unhealthy": 18,
+                "unknown": 11
+              },
+              "familyVotes": {
+                "healthy": 82,
+                "unhealthy": 18,
+                "unknown": 11
+              },
+              "ownShare": 0.7387387387387387,
+              "foreignShare": 0.26126126126126126,
+              "pass": true
+            },
+            {
+              "id": "uat-attestation",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 182,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 135,
+                "unhealthy": 24,
+                "unknown": 23
+              },
+              "familyVotes": {
+                "healthy": 135,
+                "unhealthy": 24,
+                "unknown": 23
+              },
+              "ownShare": 0.7417582417582418,
+              "foreignShare": 0.25824175824175827,
+              "pass": true
+            },
+            {
+              "id": "uat-criterion-detail",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 196,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 164,
+                "unknown": 13,
+                "building": 14,
+                "unhealthy": 5
+              },
+              "familyVotes": {
+                "healthy": 164,
+                "unknown": 13,
+                "building": 14,
+                "unhealthy": 5
+              },
+              "ownShare": 0.8367346938775511,
+              "foreignShare": 0.16326530612244897,
+              "pass": true
+            },
+            {
+              "id": "uat-detail-studio",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 112,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 80,
+                "unknown": 6,
+                "unhealthy": 22,
+                "building": 4
+              },
+              "familyVotes": {
+                "healthy": 80,
+                "unknown": 6,
+                "unhealthy": 22,
+                "building": 4
+              },
+              "ownShare": 0.7142857142857143,
+              "foreignShare": 0.2857142857142857,
+              "pass": true
+            },
+            {
+              "id": "website",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 56,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "familyVotes": {
+                "building": 55,
+                "unknown": 1
+              },
+              "ownShare": 0.9821428571428571,
+              "foreignShare": 0.017857142857142856,
+              "pass": true
+            },
+            {
+              "id": "website-experience",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 468,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "building": 174,
+                "healthy": 256,
+                "unknown": 27,
+                "unhealthy": 11
+              },
+              "familyVotes": {
+                "building": 174,
+                "healthy": 256,
+                "unknown": 27,
+                "unhealthy": 11
+              },
+              "ownShare": 0.5470085470085471,
+              "foreignShare": 0.452991452991453,
+              "pass": true
+            },
+            {
+              "id": "wisp-as-story-claim",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 315,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 179,
+                "building": 120,
+                "mapped": 1,
+                "unknown": 6,
+                "unhealthy": 9
+              },
+              "familyVotes": {
+                "healthy": 179,
+                "building": 120,
+                "mapped": 1,
+                "unknown": 6,
+                "unhealthy": 9
+              },
+              "ownShare": 0.5682539682539682,
+              "foreignShare": 0.43174603174603177,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        }
+      },
+      "islandsInFrame": 35,
+      "islandRectPx": {
+        "min": 106.69967476088607,
+        "median": 537.8731414306909
+      },
+      "readGround": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 295,
+          "median": {
+            "r": 88,
+            "g": 117,
+            "b": 70
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 295,
+          "median": {
+            "r": 90,
+            "g": 121,
+            "b": 71
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 295,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 76
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 295,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 76
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      },
+      "readGroundCore": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 70,
+          "median": {
+            "r": 84,
+            "g": 109,
+            "b": 68
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 70,
+          "median": {
+            "r": 88,
+            "g": 112,
+            "b": 68
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 70,
+          "median": {
+            "r": 96,
+            "g": 130,
+            "b": 76
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 70,
+          "median": {
+            "r": 96,
+            "g": 130,
+            "b": 76
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      }
+    },
+    {
+      "picture": "matched",
+      "elevationDeg": 49.99999999999999,
+      "pxPerUnit": 1.4246309027487822,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "groundTriangles": 116998,
+      "meshes": 4,
+      "bounds": {
+        "centres": {
+          "w": 617.8174230769225,
+          "d": 3478.5631037611997
+        },
+        "ground": {
+          "w": 661.0763252410966,
+          "d": 3523.5107136825864
+        },
+        "unitsPerCapability": {
+          "min": 317.9999999998836,
+          "max": 318.0000000001455
+        },
+        "islands": 35,
+        "totalLand": 65825.99999999907
+      },
+      "tightest": {
+        "a": "studio-cloud",
+        "b": "uat-detail-studio",
+        "centres": 58.36160984616755,
+        "water": 11.113403474515058,
+        "overlap": false
+      },
+      "occlusionCoverage": 0.0836818754961939,
+      "screen": {
+        "w": 667.8011894226074,
+        "h": 2704.1607739120354,
+        "wPx": 951.3702113438397,
+        "hPx": 3852.4310045161487
+      },
+      "box": {
+        "w": 554,
+        "h": 1393,
+        "x0": 983,
+        "y0": 107,
+        "pixels": 46588
+      },
+      "landPx": 46588,
+      "landShare": 0.0113740234375,
+      "landShareOfBox": 0.060368889315064234,
+      "families": 44,
+      "status": {
+        "map": {
+          "islands": [
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1108,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 506,
+                "healthy": 498,
+                "unknown": 104
+              },
+              "familyVotes": {
+                "unhealthy": 506,
+                "healthy": 498,
+                "unknown": 104
+              },
+              "ownShare": 0.44945848375451264,
+              "foreignShare": 0.5505415162454874,
+              "pass": false
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1426,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 587,
+                "unhealthy": 745,
+                "unknown": 92,
+                "building": 2
+              },
+              "familyVotes": {
+                "healthy": 587,
+                "unhealthy": 745,
+                "unknown": 92,
+                "building": 2
+              },
+              "ownShare": 0.41164095371669,
+              "foreignShare": 0.5883590462833099,
+              "pass": false
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1816,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 820,
+                "unhealthy": 954,
+                "unknown": 42
+              },
+              "familyVotes": {
+                "healthy": 820,
+                "unhealthy": 954,
+                "unknown": 42
+              },
+              "ownShare": 0.45154185022026433,
+              "foreignShare": 0.5484581497797357,
+              "pass": false
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1056,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 480,
+                "unhealthy": 456,
+                "unknown": 90,
+                "building": 30
+              },
+              "familyVotes": {
+                "healthy": 480,
+                "unhealthy": 456,
+                "unknown": 90,
+                "building": 30
+              },
+              "ownShare": 0.45454545454545453,
+              "foreignShare": 0.5454545454545454,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 642,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 248,
+                "healthy": 337,
+                "unknown": 57
+              },
+              "familyVotes": {
+                "unhealthy": 248,
+                "healthy": 337,
+                "unknown": 57
+              },
+              "ownShare": 0.5249221183800623,
+              "foreignShare": 0.4750778816199377,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1300,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 847,
+                "healthy": 447,
+                "unknown": 6
+              },
+              "familyVotes": {
+                "unhealthy": 847,
+                "healthy": 447,
+                "unknown": 6
+              },
+              "ownShare": 0.34384615384615386,
+              "foreignShare": 0.6561538461538462,
+              "pass": false
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 7273,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "building": 30,
+                "unknown": 80,
+                "healthy": 2850,
+                "unhealthy": 4313
+              },
+              "familyVotes": {
+                "building": 30,
+                "unknown": 80,
+                "healthy": 2850,
+                "unhealthy": 4313
+              },
+              "ownShare": 0.39186030523855353,
+              "foreignShare": 0.6081396947614465,
+              "pass": false
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 881,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 495,
+                "unhealthy": 178,
+                "healthy": 195,
+                "unknown": 13
+              },
+              "familyVotes": {
+                "building": 495,
+                "unhealthy": 178,
+                "healthy": 195,
+                "unknown": 13
+              },
+              "ownShare": 0.5618615209988649,
+              "foreignShare": 0.43813847900113506,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 6273,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 1599,
+                "unknown": 25,
+                "unhealthy": 2048,
+                "mapped": 177,
+                "building": 2424
+              },
+              "familyVotes": {
+                "healthy": 1599,
+                "unknown": 25,
+                "unhealthy": 2048,
+                "mapped": 177,
+                "building": 2424
+              },
+              "ownShare": 0.3864179818268771,
+              "foreignShare": 0.6135820181731229,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "bare": {
+          "islands": [
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1060,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 600,
+                "unhealthy": 345,
+                "unknown": 115
+              },
+              "familyVotes": {
+                "healthy": 600,
+                "unhealthy": 345,
+                "unknown": 115
+              },
+              "ownShare": 0.5660377358490566,
+              "foreignShare": 0.4339622641509434,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1426,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 714,
+                "unhealthy": 616,
+                "unknown": 94,
+                "building": 2
+              },
+              "familyVotes": {
+                "healthy": 714,
+                "unhealthy": 616,
+                "unknown": 94,
+                "building": 2
+              },
+              "ownShare": 0.5007012622720898,
+              "foreignShare": 0.4992987377279102,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1816,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 989,
+                "unhealthy": 786,
+                "unknown": 41
+              },
+              "familyVotes": {
+                "healthy": 989,
+                "unhealthy": 786,
+                "unknown": 41
+              },
+              "ownShare": 0.5446035242290749,
+              "foreignShare": 0.4553964757709251,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1056,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 556,
+                "unhealthy": 376,
+                "unknown": 93,
+                "building": 31
+              },
+              "familyVotes": {
+                "healthy": 556,
+                "unhealthy": 376,
+                "unknown": 93,
+                "building": 31
+              },
+              "ownShare": 0.5265151515151515,
+              "foreignShare": 0.4734848484848485,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 642,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "unhealthy": 242,
+                "healthy": 343,
+                "unknown": 57
+              },
+              "familyVotes": {
+                "unhealthy": 242,
+                "healthy": 343,
+                "unknown": 57
+              },
+              "ownShare": 0.5342679127725857,
+              "foreignShare": 0.4657320872274143,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1300,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "unhealthy": 775,
+                "healthy": 519,
+                "unknown": 6
+              },
+              "familyVotes": {
+                "unhealthy": 775,
+                "healthy": 519,
+                "unknown": 6
+              },
+              "ownShare": 0.3992307692307692,
+              "foreignShare": 0.6007692307692307,
+              "pass": false
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 7273,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "building": 30,
+                "unknown": 81,
+                "healthy": 3695,
+                "unhealthy": 3467
+              },
+              "familyVotes": {
+                "building": 30,
+                "unknown": 81,
+                "healthy": 3695,
+                "unhealthy": 3467
+              },
+              "ownShare": 0.508043448370686,
+              "foreignShare": 0.4919565516293139,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 881,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 557,
+                "unhealthy": 101,
+                "healthy": 210,
+                "unknown": 13
+              },
+              "familyVotes": {
+                "building": 557,
+                "unhealthy": 101,
+                "healthy": 210,
+                "unknown": 13
+              },
+              "ownShare": 0.6322360953461975,
+              "foreignShare": 0.3677639046538025,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 6273,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 2069,
+                "unknown": 25,
+                "unhealthy": 1181,
+                "mapped": 250,
+                "building": 2748
+              },
+              "familyVotes": {
+                "healthy": 2069,
+                "unknown": 25,
+                "unhealthy": 1181,
+                "mapped": 250,
+                "building": 2748
+              },
+              "ownShare": 0.4380679100908656,
+              "foreignShare": 0.5619320899091343,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "unshadowed": {
+          "islands": [
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1060,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 880,
+                "unknown": 141,
+                "unhealthy": 39
+              },
+              "familyVotes": {
+                "healthy": 880,
+                "unknown": 141,
+                "unhealthy": 39
+              },
+              "ownShare": 0.8301886792452831,
+              "foreignShare": 0.16981132075471697,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1426,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 1232,
+                "unhealthy": 48,
+                "unknown": 143,
+                "building": 3
+              },
+              "familyVotes": {
+                "healthy": 1232,
+                "unhealthy": 48,
+                "unknown": 143,
+                "building": 3
+              },
+              "ownShare": 0.8639551192145862,
+              "foreignShare": 0.13604488078541374,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1816,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 1670,
+                "unhealthy": 98,
+                "unknown": 48
+              },
+              "familyVotes": {
+                "healthy": 1670,
+                "unhealthy": 98,
+                "unknown": 48
+              },
+              "ownShare": 0.9196035242290749,
+              "foreignShare": 0.08039647577092511,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1056,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 894,
+                "unhealthy": 15,
+                "unknown": 103,
+                "building": 44
+              },
+              "familyVotes": {
+                "healthy": 894,
+                "unhealthy": 15,
+                "unknown": 103,
+                "building": 44
+              },
+              "ownShare": 0.8465909090909091,
+              "foreignShare": 0.1534090909090909,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 642,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 564,
+                "unhealthy": 19,
+                "unknown": 59
+              },
+              "familyVotes": {
+                "healthy": 564,
+                "unhealthy": 19,
+                "unknown": 59
+              },
+              "ownShare": 0.8785046728971962,
+              "foreignShare": 0.12149532710280374,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1300,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 983,
+                "unhealthy": 310,
+                "unknown": 7
+              },
+              "familyVotes": {
+                "healthy": 983,
+                "unhealthy": 310,
+                "unknown": 7
+              },
+              "ownShare": 0.7561538461538462,
+              "foreignShare": 0.24384615384615385,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 7273,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "building": 34,
+                "unknown": 95,
+                "healthy": 6970,
+                "unhealthy": 174
+              },
+              "familyVotes": {
+                "building": 34,
+                "unknown": 95,
+                "healthy": 6970,
+                "unhealthy": 174
+              },
+              "ownShare": 0.9583390622851643,
+              "foreignShare": 0.04166093771483569,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 881,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 557,
+                "healthy": 251,
+                "unhealthy": 59,
+                "unknown": 14
+              },
+              "familyVotes": {
+                "building": 557,
+                "healthy": 251,
+                "unhealthy": 59,
+                "unknown": 14
+              },
+              "ownShare": 0.6322360953461975,
+              "foreignShare": 0.3677639046538025,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 6273,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 2724,
+                "unknown": 14,
+                "unhealthy": 288,
+                "building": 3247
+              },
+              "familyVotes": {
+                "healthy": 2724,
+                "unknown": 14,
+                "unhealthy": 288,
+                "building": 3247
+              },
+              "ownShare": 0.5176151761517616,
+              "foreignShare": 0.4823848238482385,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": true
+        },
+        "norock": {
+          "islands": [
+            {
+              "id": "arc",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1060,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 892,
+                "unhealthy": 35,
+                "unknown": 133
+              },
+              "familyVotes": {
+                "healthy": 892,
+                "unhealthy": 35,
+                "unknown": 133
+              },
+              "ownShare": 0.8415094339622642,
+              "foreignShare": 0.15849056603773584,
+              "pass": true
+            },
+            {
+              "id": "binding-staleness",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1426,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 1241,
+                "unhealthy": 48,
+                "unknown": 131,
+                "building": 6
+              },
+              "familyVotes": {
+                "healthy": 1241,
+                "unhealthy": 48,
+                "unknown": 131,
+                "building": 6
+              },
+              "ownShare": 0.8702664796633941,
+              "foreignShare": 0.1297335203366059,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1816,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 1677,
+                "unhealthy": 97,
+                "unknown": 42
+              },
+              "familyVotes": {
+                "healthy": 1677,
+                "unhealthy": 97,
+                "unknown": 42
+              },
+              "ownShare": 0.9234581497797357,
+              "foreignShare": 0.07654185022026432,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-spawn",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1056,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 895,
+                "unhealthy": 15,
+                "unknown": 102,
+                "building": 44
+              },
+              "familyVotes": {
+                "healthy": 895,
+                "unhealthy": 15,
+                "unknown": 102,
+                "building": 44
+              },
+              "ownShare": 0.8475378787878788,
+              "foreignShare": 0.15246212121212122,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-telemetry",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 642,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 565,
+                "unhealthy": 18,
+                "unknown": 59
+              },
+              "familyVotes": {
+                "healthy": 565,
+                "unhealthy": 18,
+                "unknown": 59
+              },
+              "ownShare": 0.8800623052959502,
+              "foreignShare": 0.11993769470404984,
+              "pass": true
+            },
+            {
+              "id": "context-traversal-transcript",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 1300,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 984,
+                "unhealthy": 309,
+                "unknown": 7
+              },
+              "familyVotes": {
+                "healthy": 984,
+                "unhealthy": 309,
+                "unknown": 7
+              },
+              "ownShare": 0.7569230769230769,
+              "foreignShare": 0.24307692307692308,
+              "pass": true
+            },
+            {
+              "id": "drive-machinery",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 7273,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "building": 36,
+                "unknown": 88,
+                "healthy": 6982,
+                "unhealthy": 167
+              },
+              "familyVotes": {
+                "building": 36,
+                "unknown": 88,
+                "healthy": 6982,
+                "unhealthy": 167
+              },
+              "ownShare": 0.9599890004124846,
+              "foreignShare": 0.040010999587515465,
+              "pass": true
+            },
+            {
+              "id": "proof-binding-integrity",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 881,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "building": 570,
+                "healthy": 243,
+                "unhealthy": 56,
+                "unknown": 12
+              },
+              "familyVotes": {
+                "building": 570,
+                "healthy": 243,
+                "unhealthy": 56,
+                "unknown": 12
+              },
+              "ownShare": 0.6469920544835415,
+              "foreignShare": 0.3530079455164586,
+              "pass": true
+            },
+            {
+              "id": "studio",
+              "status": "proposed",
+              "ownFamily": "building",
+              "groundPixels": 6273,
+              "empty": false,
+              "readFamily": "building",
+              "votes": {
+                "healthy": 2723,
+                "unknown": 13,
+                "unhealthy": 284,
+                "building": 3253
+              },
+              "familyVotes": {
+                "healthy": 2723,
+                "unknown": 13,
+                "unhealthy": 284,
+                "building": 3253
+              },
+              "ownShare": 0.5185716563047983,
+              "foreignShare": 0.48142834369520165,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": true
+        }
+      },
+      "islandsInFrame": 9,
+      "islandRectPx": {
+        "min": 1737.27898462016,
+        "median": 3474.2467110864977
+      },
+      "readGround": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 1816,
+          "median": {
+            "r": 84,
+            "g": 111,
+            "b": 70
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 1816,
+          "median": {
+            "r": 89,
+            "g": 120,
+            "b": 71
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 1816,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 77
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 1816,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 77
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      },
+      "readGroundCore": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 352,
+          "median": {
+            "r": 84,
+            "g": 110,
+            "b": 67
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 352,
+          "median": {
+            "r": 88,
+            "g": 117,
+            "b": 69
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 352,
+          "median": {
+            "r": 95,
+            "g": 127,
+            "b": 75
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 352,
+          "median": {
+            "r": 95,
+            "g": 128,
+            "b": 75
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      }
+    },
+    {
+      "picture": "one",
+      "elevationDeg": 49.99999999999999,
+      "pxPerUnit": 8,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "groundTriangles": 116998,
+      "meshes": 4,
+      "bounds": {
+        "centres": {
+          "w": 617.8174230769225,
+          "d": 3478.5631037611997
+        },
+        "ground": {
+          "w": 661.0763252410966,
+          "d": 3523.5107136825864
+        },
+        "unitsPerCapability": {
+          "min": 317.9999999998836,
+          "max": 318.0000000001455
+        },
+        "islands": 35,
+        "totalLand": 65825.99999999907
+      },
+      "tightest": {
+        "a": "studio-cloud",
+        "b": "uat-detail-studio",
+        "centres": 58.36160984616755,
+        "water": 11.113403474515058,
+        "overlap": false
+      },
+      "occlusionCoverage": 0.0836818754961939,
+      "screen": {
+        "w": 667.8011894226074,
+        "h": 2704.1607739120354,
+        "wPx": 5342.409515380859,
+        "hPx": 21633.286191296284
+      },
+      "box": {
+        "w": 503,
+        "h": 420,
+        "x0": 1006,
+        "y0": 596,
+        "pixels": 143116
+      },
+      "landPx": 143116,
+      "landShare": 0.0349404296875,
+      "landShareOfBox": 0.6774401211776957,
+      "families": 52,
+      "status": {
+        "map": {
+          "islands": [
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 55523,
+              "empty": false,
+              "readFamily": "unhealthy",
+              "votes": {
+                "healthy": 23620,
+                "unhealthy": 30599,
+                "unknown": 1277,
+                "mapped": 27
+              },
+              "familyVotes": {
+                "healthy": 23620,
+                "unhealthy": 30599,
+                "unknown": 1277,
+                "mapped": 27
+              },
+              "ownShare": 0.4254092898438485,
+              "foreignShare": 0.5745907101561515,
+              "pass": false
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": false
+        },
+        "bare": {
+          "islands": [
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 55523,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 30091,
+                "unhealthy": 24154,
+                "unknown": 1278
+              },
+              "familyVotes": {
+                "healthy": 30091,
+                "unhealthy": 24154,
+                "unknown": 1278
+              },
+              "ownShare": 0.5419555859733804,
+              "foreignShare": 0.4580444140266196,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": true
+        },
+        "unshadowed": {
+          "islands": [
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 55523,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 51158,
+                "unhealthy": 2906,
+                "unknown": 1459
+              },
+              "familyVotes": {
+                "healthy": 51158,
+                "unhealthy": 2906,
+                "unknown": 1459
+              },
+              "ownShare": 0.9213839309835563,
+              "foreignShare": 0.07861606901644363,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": true
+        },
+        "norock": {
+          "islands": [
+            {
+              "id": "context-traversal-capture",
+              "status": "healthy",
+              "ownFamily": "healthy",
+              "groundPixels": 55523,
+              "empty": false,
+              "readFamily": "healthy",
+              "votes": {
+                "healthy": 51367,
+                "unhealthy": 2871,
+                "unknown": 1285
+              },
+              "familyVotes": {
+                "healthy": 51367,
+                "unhealthy": 2871,
+                "unknown": 1285
+              },
+              "ownShare": 0.9251481368081695,
+              "foreignShare": 0.07485186319183042,
+              "pass": true
+            }
+          ],
+          "pairs": [
+            {
+              "a": "building",
+              "b": "healthy",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "building",
+              "b": "mapped",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "building",
+              "b": "proposed",
+              "minDistance": 0
+            },
+            {
+              "a": "building",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "building",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "healthy",
+              "b": "mapped",
+              "minDistance": 48.31666379211214
+            },
+            {
+              "a": "healthy",
+              "b": "proposed",
+              "minDistance": 25.583588489498496
+            },
+            {
+              "a": "healthy",
+              "b": "unhealthy",
+              "minDistance": 46.016301459374155
+            },
+            {
+              "a": "healthy",
+              "b": "unknown",
+              "minDistance": 25.116329349648208
+            },
+            {
+              "a": "mapped",
+              "b": "proposed",
+              "minDistance": 35.070357853891366
+            },
+            {
+              "a": "mapped",
+              "b": "unhealthy",
+              "minDistance": 30.09651142574501
+            },
+            {
+              "a": "mapped",
+              "b": "unknown",
+              "minDistance": 40.94398612739116
+            },
+            {
+              "a": "proposed",
+              "b": "unhealthy",
+              "minDistance": 65.53113763700429
+            },
+            {
+              "a": "proposed",
+              "b": "unknown",
+              "minDistance": 28.935963782117227
+            },
+            {
+              "a": "unhealthy",
+              "b": "unknown",
+              "minDistance": 42.15174966712532
+            }
+          ],
+          "zeroPairs": [
+            [
+              "building",
+              "proposed"
+            ]
+          ],
+          "allPass": true
+        }
+      },
+      "islandsInFrame": 1,
+      "islandRectPx": {
+        "min": 156159.90946231748,
+        "median": 156159.90946231748
+      },
+      "readGround": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 55523,
+          "median": {
+            "r": 82,
+            "g": 108,
+            "b": 69
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 55523,
+          "median": {
+            "r": 89,
+            "g": 120,
+            "b": 71
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 55523,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 77
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 55523,
+          "median": {
+            "r": 99,
+            "g": 131,
+            "b": 77
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      },
+      "readGroundCore": {
+        "map": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 10062,
+          "median": {
+            "r": 85,
+            "g": 110,
+            "b": 68
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "unhealthy"
+        },
+        "bare": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 10062,
+          "median": {
+            "r": 89,
+            "g": 117,
+            "b": 71
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "unshadowed": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 10062,
+          "median": {
+            "r": 95,
+            "g": 128,
+            "b": 75
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        },
+        "norock": {
+          "island": "context-traversal-capture",
+          "status": "healthy",
+          "groundPixels": 10062,
+          "median": {
+            "r": 95,
+            "g": 128,
+            "b": 75
+          },
+          "expected": {
+            "darkest": {
+              "r": 108,
+              "g": 142,
+              "b": 72
+            },
+            "brightest": {
+              "r": 140,
+              "g": 184,
+              "b": 94
+            }
+          },
+          "nearest": "healthy"
+        }
+      }
+    }
+  ],
+  "costs": [
+    {
+      "picture": "fit",
+      "batch": 60,
+      "gpuMsPerFrame": 3.8889824,
+      "gpuBatchNs": 233338944,
+      "disjoint": false,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "timerQueryAvailable": true,
+      "hidden": false
+    },
+    {
+      "picture": "matched",
+      "batch": 60,
+      "gpuMsPerFrame": 1.1435349333333333,
+      "gpuBatchNs": 68612096,
+      "disjoint": false,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "timerQueryAvailable": true,
+      "hidden": false
+    },
+    {
+      "picture": "one",
+      "batch": 60,
+      "gpuMsPerFrame": 0.4237994666666667,
+      "gpuBatchNs": 25427968,
+      "disjoint": false,
+      "drawCalls": 5,
+      "triangles": 687408,
+      "timerQueryAvailable": true,
+      "hidden": false
+    }
+  ]
+}

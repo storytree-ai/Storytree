@@ -566,7 +566,16 @@ export const SHIPPED_WEAR_MIX = 0.85;
 /** LAYER 4 — rock on the steep ground, on the RECIPE'S OWN ENDS (`ROCK_SLOPE_RAMP`, 0.72 / 0.90).
  *  On this mesh those ends bite only on the beach's ring chain (the interior's up-component never
  *  drops below 0.91, `interiorMinimumUp()`), which is what the approved render shows: rock at the
- *  steep coast and NONE across the grass. From 2026-09-02 to 2026-09-03 the map wore a stated
+ *  steep coast and NONE across the grass.
+ *
+ *  ⚠⚠ THAT SENTENCE ONLY BECAME TRUE ON 2026-09-08, AND NOT BY MOVING A NUMBER HERE. The mask was
+ *  fed the BUMPED normal — the detail map and the grain having already tilted it — so it opened
+ *  across the interior on ground the geometry says is flat, and the map wore grey over its grass
+ *  while this comment said it could not. `banded-ground-material.ts` now captures the geometric
+ *  normal before either bump (ADR-0553, the owner's taste: "minus the rocks and the logs"). The
+ *  ends are untouched, because the ends were never the fault.
+ *
+ *  From 2026-09-02 to 2026-09-03 the map wore a stated
  *  departure, [0.88, 0.95], that put grey veins along the interior's swells — chosen boldly under
  *  ADR-0503 and never scaled back, but not in the picture the owner stamped, and he asked for that
  *  picture "minus the rocks" (ADR-0506). Ladder, so the departure can be re-picked from a rendered
