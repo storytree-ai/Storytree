@@ -1358,12 +1358,20 @@ export function ForestWorldCanvas({ descriptors, showTrails = false, viewport }:
     /* ⚠ `orthographic` is the fence (ADR-0380 D6 fence 4), and `fov` is GONE rather than merely
        unused: R3F reads the presence of `fov` as a request for a PerspectiveCamera, so leaving it
        beside `orthographic` is the one way to write this that silently keeps the old projection.
-       `near`/`far` now clip along the view direction rather than radially, and the eye sits
-       `back * √2` away, so the same 1/4000 range still contains the whole world. */
+
+       ⚠⚠ `near`/`far` COME FROM THE FRAMING NOW, and the literal pair they replace was WRONG on any
+       world larger than the harness's. This read `near: 1, far: 4000` with a comment claiming "the
+       same 1/4000 range still contains the whole world" — true of one island, false of a forest.
+       The eye backs off with the world's spread, so past a spread of about 850 units the ground
+       itself sits behind the far plane: measured on storytree's real 35-island forest, 6227 to 8492
+       units along the view direction against a far plane at 4000, and the studio's land view came
+       up 99.8% background with nothing erroring and every test in this package green. See
+       `clipRange` in `camera-framing.ts` for why it is twice the radius and why `near` may be
+       negative. */
     <Canvas
       orthographic
       {...EXACT_COLOUR_CANVAS_PROPS}
-      camera={{ position: frame.position, near: 1, far: 4000 }}
+      camera={{ position: frame.position, near: frame.near, far: frame.far }}
     >
       <color attach="background" args={['#101418']} />
       <CalibratedLights />

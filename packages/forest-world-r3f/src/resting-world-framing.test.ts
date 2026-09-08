@@ -24,6 +24,8 @@ import {
   islandDeliveredDiameters,
   orthographicZoomFor,
   restingWorldFraming,
+  type CameraFraming,
+  type RestingWorldFraming,
 } from './camera-framing.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
@@ -313,4 +315,97 @@ test('dropping the point-like instance would move the frame — so its anchor re
   const short = restingWorldFraming(withoutWisp, viewport);
   assert.ok(Math.abs(full.target[0] - short.target[0]) > 100);
   assert.ok(full.resting.extentShown < short.resting.extentShown);
+});
+
+// ---------------------------------------------------------------------------
+// THE CLIP RANGE — the defect the first real mount found, and the shape of the fixture that
+// finds it again.
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ THE FIXTURE HAS TO BE BIG, and that is the whole finding. The canvas shipped with
+// `near: 1, far: 4000` written into its JSX and a comment asserting that range contained the
+// world. It did — for every fixture this package had. storytree's real forest is 661 x 3524 ground
+// units, and at that size the eye backs off far enough that the GROUND sits behind the far plane:
+// measured 2026-09-08, 6227 to 8492 along the view direction, and the studio's land view came up
+// 99.8% background with nothing erroring and every test here green. A fixed clip range cannot fail
+// on a fixture smaller than itself, so the assertions below are stated at the REAL forest's scale.
+
+/** The ground extent of storytree's real 35-island forest, measured off the live studio's own
+ *  scene on 2026-09-08 — the size that broke the shipped pair. */
+const REAL_FOREST = { width: 661, depth: 3524 };
+
+/** A forest of that extent: islands strung down the depth axis, which is the real shape. */
+function realScaleForest(): InstanceDescriptor[] {
+  const count = 35;
+  const pitch = REAL_FOREST.depth / (count - 1);
+  return Array.from({ length: count }, (_, i) =>
+    parcel(`s-${i}`, (i % 2) * REAL_FOREST.width, i * pitch, 48),
+  );
+}
+
+/** Every ground point's distance from the eye ALONG THE VIEW DIRECTION — what `near`/`far` clip. */
+function depthsAlongView(instances: readonly InstanceDescriptor[], framing: RestingWorldFraming | CameraFraming): number[] {
+  const [ex, ey, ez] = framing.position;
+  const dx = framing.target[0] - ex;
+  const dy = framing.target[1] - ey;
+  const dz = framing.target[2] - ez;
+  const len = Math.hypot(dx, dy, dz);
+  const out: number[] = [];
+  for (const i of instances) {
+    for (const p of i.points ?? [i.transform]) {
+      out.push(((p.x - ex) * dx + (p.y - ey) * dy + (p.z - ez) * dz) / len);
+    }
+  }
+  return out;
+}
+
+test('the REAL forest’s ground is inside the clip range — the fixed 1/4000 pair was not', () => {
+  const world = realScaleForest();
+  const framing = restingWorldFraming(world, VIEWPORT);
+  const depths = depthsAlongView(world, framing);
+  const nearest = Math.min(...depths);
+  const farthest = Math.max(...depths);
+  assert.ok(framing.near < nearest, `near ${framing.near} must be in front of ${nearest}`);
+  assert.ok(framing.far > farthest, `far ${framing.far} must be behind ${farthest}`);
+  // ⚠ NON-VACUITY, and it is the whole point: the range this replaces really did cut the world out.
+  // Without it the assertions above would pass on any fixture and prove nothing.
+  assert.ok(farthest > 4000, `the shipped far plane was 4000 and this world reaches ${farthest}`);
+});
+
+test('the range survives a PAN to the far end of the forest, which is what MapControls allows', () => {
+  // The viewer drags the target across the world; the eye follows. A range bracketed around the
+  // OPENING view would clip the moment someone panned to the other end, which is the same defect
+  // arriving a gesture later instead of at mount.
+  const world = realScaleForest();
+  const framing = restingWorldFraming(world, VIEWPORT);
+  const [ex, ey, ez] = framing.position;
+  const [tx, ty, tz] = framing.target;
+  for (const shift of [-REAL_FOREST.depth, REAL_FOREST.depth]) {
+    const panned: CameraFraming = {
+      target: [tx, ty, tz + shift],
+      position: [ex, ey, ez + shift],
+      halfHeight: framing.halfHeight,
+      near: framing.near,
+      far: framing.far,
+    };
+    const depths = depthsAlongView(world, panned);
+    assert.ok(framing.near < Math.min(...depths), `panned by ${shift}: near clips`);
+    assert.ok(framing.far > Math.max(...depths), `panned by ${shift}: far clips`);
+  }
+});
+
+test('the FIT framing gets the same range — the defect was the canvas’s, not one framing rule’s', () => {
+  // `frameWorld` is what the harness's own pages open on, and it backs the eye off by the same
+  // rule. Fixing only the resting path would leave the fit clipping a big world.
+  const world = realScaleForest();
+  const fit = frameWorld([...world]);
+  const depths = depthsAlongView(world, fit);
+  assert.ok(fit.near < Math.min(...depths));
+  assert.ok(fit.far > Math.max(...depths));
+});
+
+test('an empty world still gets a usable range rather than a degenerate one', () => {
+  const fit = frameWorld([]);
+  assert.ok(Number.isFinite(fit.near) && Number.isFinite(fit.far));
+  assert.ok(fit.far > fit.near);
 });

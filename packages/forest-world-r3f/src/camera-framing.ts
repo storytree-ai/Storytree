@@ -141,6 +141,60 @@ export interface CameraFraming {
    *  camera this is the whole framing — the eye's DISTANCE no longer affects the delivered scale,
    *  so `position` now sets only the view DIRECTION and the clip range. */
   halfHeight: number;
+  /** The near clip plane, world units along the view direction from the eye. */
+  near: number;
+  /** The far clip plane, world units along the view direction from the eye. */
+  far: number;
+}
+
+/**
+ * HOW MUCH ROOM THE CLIP RANGE LEAVES FOR WHAT STANDS ON THE GROUND, world units.
+ *
+ * Everything this module measures is a ground-plane footprint — cell rings, ribbons, anchors — but
+ * what the canvas DRAWS also has height: the kit's trees reach about 90 units, and a wisp floats
+ * above its island. Bracketing the range on the ground alone would clip the tops off the near row.
+ */
+const CLIP_HEADROOM = 200;
+
+/**
+ * THE CLIP RANGE THAT CONTAINS THE WORLD — and it is derived rather than declared, because the one
+ * that was declared did not.
+ *
+ * ⚠⚠ THE CANVAS SHIPPED WITH `near: 1, far: 4000` WRITTEN INTO ITS JSX, and that pair is only ever
+ * correct for a small world. The eye backs off with the world's spread — `frameWorld` puts it
+ * `max(260, spread · 2.6) · √2` from the target — so a world whose spread passes about 850 units
+ * puts its own ground BEHIND the far plane and the canvas draws an empty frame. Measured 2026-09-08
+ * on storytree's real 35-island forest, the first world of that size this canvas was ever handed:
+ * the ground sat **6227 to 8492 units** along the view direction against a far plane at 4000, and
+ * the studio's land view came up 99.8% background. Nothing errored, nothing warned, and every test
+ * in this package was green — a fixed clip range cannot fail on a fixture smaller than itself.
+ *
+ * ⚠ THE `2 ·` IS FOR THE VIEWER, not for safety margin. `MapControls` pans, which moves the target
+ * and the eye together across a forest 3,524 units deep; a range bracketed tightly around the
+ * OPENING view would clip the far end the moment someone panned to it. Twice the radius is exactly
+ * the worst case — the target at one edge of the world, the geometry at the other.
+ *
+ * ⚠ AND A GENEROUS RANGE COSTS AN ORTHOGRAPHIC CAMERA NOTHING. Its depth is linear in world units,
+ * so widening the range does not trade away precision the way it would under perspective; there is
+ * no reason to make this tight and one measured reason not to. `near` may come out NEGATIVE on a
+ * world wider than the eye is far, which is legal for an orthographic frustum (the near plane is
+ * simply behind the eye) and is what containing the world actually requires — clamping it to a
+ * positive number would reintroduce the same clipping at the near edge.
+ */
+function clipRange(
+  instances: readonly InstanceDescriptor[],
+  target: readonly [number, number, number],
+  position: readonly [number, number, number],
+): { near: number; far: number } {
+  const eyeDistance = Math.hypot(position[0] - target[0], position[1] - target[1], position[2] - target[2]);
+  let radius = 0;
+  for (const instance of instances) {
+    for (const p of instance.points ?? [instance.transform]) {
+      radius = Math.max(radius, Math.hypot(p.x - target[0], p.y - target[1], p.z - target[2]));
+    }
+  }
+  const reach = 2 * radius + CLIP_HEADROOM;
+  return { near: eyeDistance - reach, far: eyeDistance + reach };
 }
 
 /** How much world half-height the RETIRED perspective camera framed per unit it backed off.
@@ -164,7 +218,9 @@ const EMPTY_WORLD_HALF_HEIGHT = 260 * FRAME_HALF_HEIGHT_PER_BACK;
 export function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
   if (instances.length === 0) {
     const eye = eyeOffset(260);
-    return { target: [0, 0, 0], position: [0, eye.y, eye.z], halfHeight: EMPTY_WORLD_HALF_HEIGHT };
+    const target: [number, number, number] = [0, 0, 0];
+    const position: [number, number, number] = [0, eye.y, eye.z];
+    return { target, position, halfHeight: EMPTY_WORLD_HALF_HEIGHT, ...clipRange(instances, target, position) };
   }
   let sx = 0;
   let sz = 0;
@@ -180,10 +236,13 @@ export function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
   }
   const back = Math.max(260, spread * 2.6);
   const eye = eyeOffset(back);
+  const target: [number, number, number] = [cx, 0, cz];
+  const position: [number, number, number] = [cx, eye.y, cz + eye.z];
   return {
-    target: [cx, 0, cz],
-    position: [cx, eye.y, cz + eye.z],
+    target,
+    position,
     halfHeight: back * FRAME_HALF_HEIGHT_PER_BACK,
+    ...clipRange(instances, target, position),
   };
 }
 
@@ -401,10 +460,12 @@ export function restingWorldFraming(
   // separate the two. ⚠ The `z` term is NOT equivalent and is not disabled: `fit.target[2]` is the
   // world's own depth centroid and is routinely non-zero.
   const eye = { y: fit.position[1] - fit.target[1], z: fit.position[2] - fit.target[2] };
+  const position: [number, number, number] = [target[0], target[1] + eye.y, target[2] + eye.z];
   return {
     target,
-    position: [target[0], target[1] + eye.y, target[2] + eye.z],
+    position,
     halfHeight,
+    ...clipRange(instances, target, position),
     resting,
   };
 }
