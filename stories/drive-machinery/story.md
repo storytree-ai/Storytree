@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: proposed
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write, capability-proof-continuity]
 # `oq-hygiene-gate` was DROPPED from this list on 2026-08-30 when it retired (ADR-0477 removed the
 # library `references` field its input lived in). The drop is required, not cosmetic: rollupStoryGreen
 # iterates this array with no retired filter, so a retired id left here computes null and DROPS the
@@ -130,7 +130,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (26)
+## Capabilities (27)
 
 Listed roots-first (a capability appears after everything it depends on). `proposed` means this
 greenfield unit lacks a current signed pass; the Proof blockquote in each file records the standing
@@ -165,6 +165,7 @@ evidence and any unsigned live arms without treating either as brownfield proven
 | 25 | [`post-build-curation-pass`](post-build-curation-pass.md) | A green story build ends by enacting a scoped curator's open-question judgments behind a kind fence the curator cannot open. | proposed | — |
 | 26 | [`build-usage-accounting`](build-usage-accounting.md) | A build's per-slice token accounting lands on its own event stream as a kind no verdict reads. | proposed | `work-verdict-event-log` |
 | 27 | [`phase-activity-write`](phase-activity-write.md) | Each phase the spine commits to is recorded as a fresh phase-stamped `building` event by an observer that lives outside the gate. | proposed | `work-verdict-event-log` |
+| 28 | [`capability-proof-continuity`](capability-proof-continuity.md) | A reader resolving a reviewed capability rename receives its unchanged original evidence with an explicit qualification of that evidence against the current obligation. | proposed | `work-verdict-event-log` |
 
 Capabilities 24–27 were authored on 2026-08-07 (`capability-layer-coverage-arc`) over greenfield drive
 code that was already implemented and already had a passing colocated suite, but which no node's
@@ -175,12 +176,25 @@ without current signed passes. Like capabilities 19–23, they are deliberately 
 frozen covers-list changes what an already-signed verdict claims, so it stays a separate, id-aware
 decision.
 
+Capability 28 is the net-new pure resolver in `rendering-engine-structure-arc` (ADR-0559). Its
+capability boundary is the event-log integration: one supplied raw specification/event snapshot set
+resolves into immutable historical evidence and explicit current-obligation qualification. It is
+unproven until its own spine-observed red→green; no existing reliability gate covers it. Its contract
+does not claim that Git provenance, persistence or production proof consumers are already wired.
+
 ## Dependency graph (code-derived)
 
 **Within-story** edges, read off the real imports/calls (ADR-0010 §3), never hand-drawn from UAT
 need. The graph is acyclic; `halt-aware-sequence`, `red-green-phase-machine`, and
 `work-verdict-event-log` are the roots. Type-only imports are counted (the contract shape IS the
 coupling) and marked.
+
+- `capability-proof-continuity` → `work-verdict-event-log` *(authored, ADR-0559)*
+  - consumes the existing `RollupEvent` protocol in the planned pure
+    `packages/orchestrator/src/proof/capability-continuity.ts` resolver. Its integration proof uses
+    real `workEvent` construction and the unchanged exact-ID `rollupStatus` semantics. This is the
+    declared input boundary; it does not reverse the edge by teaching the event store to rename
+    immutable events. No loader or consumer dependency is claimed before that integration exists.
 
 - `phase-scoped-write-wall` → `red-green-phase-machine`
   - `write-scoped-executor.ts:16` imports `Phase` + `WriteScope` (type-only); the wall's whole
