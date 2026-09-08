@@ -5,7 +5,7 @@
 // sits behind.
 
 import { describe, it, expect } from 'vitest';
-import { driftBadge, presentStories, provenStatus, worldStatus } from './worldStatus';
+import { driftBadge, presentStories, provenStatus, storyStatus, worldStatus } from './worldStatus';
 import type { DriftState, TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
 
 const pass: TreeVerdict = { outcome: 'pass', at: '2026-06-14T00:00:00.000Z' };
@@ -90,13 +90,38 @@ describe('provenStatus (ADR-0395: provenance before proof)', () => {
     },
   );
 
-  it('never emits unhealthy', () => {
+  it('keeps the capability tier free of unhealthy', () => {
     for (const row of matrix) {
       for (const verdict of [pass, fail, undefined]) {
         expect(provenStatus(row.authored, verdict)).not.toBe('unhealthy');
       }
     }
   });
+});
+
+describe('storyStatus (ADR-0560: story failures fail closed)', () => {
+  const matrix: Array<{
+    authored: WorkStatus | null;
+    pass: WorkStatus | null;
+    fail: WorkStatus | null;
+    missing: WorkStatus | null;
+  }> = [
+    { authored: 'proposed', pass: 'healthy', fail: 'unhealthy', missing: 'proposed' },
+    { authored: 'building', pass: 'healthy', fail: 'unhealthy', missing: 'proposed' },
+    { authored: 'mapped', pass: 'healthy', fail: 'unhealthy', missing: 'mapped' },
+    { authored: 'healthy', pass: 'healthy', fail: 'unhealthy', missing: 'proposed' },
+    { authored: 'unhealthy', pass: 'healthy', fail: 'unhealthy', missing: 'unhealthy' },
+    { authored: null, pass: 'healthy', fail: 'unhealthy', missing: null },
+  ];
+
+  it.each(matrix)(
+    'folds authored=$authored across pass, fail, and missing proof',
+    ({ authored, pass: passed, fail: failed, missing }) => {
+      expect(storyStatus(authored, pass)).toBe(passed);
+      expect(storyStatus(authored, fail)).toBe(failed);
+      expect(storyStatus(authored, undefined)).toBe(missing);
+    },
+  );
 });
 
 describe('presentStories', () => {
@@ -128,36 +153,36 @@ describe('presentStories', () => {
     expect(out[0]?.status).toBe('proposed');
   });
 
-  it('a story UAT pass greens the crown; a UAT fail leaves it on the authored rung', () => {
+  it('a story UAT pass greens the crown; a UAT fail makes the crown unhealthy', () => {
     expect(presentStories([story('s', 'proposed', [], pass)])[0]?.status).toBe('healthy');
-    // ADR-0296: the fail no longer withers the crown — it simply fails to green it.
-    expect(presentStories([story('s', 'proposed', [], fail)])[0]?.status).toBe('proposed');
+    expect(presentStories([story('s', 'proposed', [], fail)])[0]?.status).toBe('unhealthy');
   });
 
-  it('applies provenance-before-proof to both tiers', () => {
+  it('applies the story and capability proof folds at their distinct tiers', () => {
     const scenarios: Array<{
       authored: WorkStatus | null;
       verdict: TreeVerdict | undefined;
-      expected: WorkStatus | null;
+      storyExpected: WorkStatus | null;
+      capabilityExpected: WorkStatus | null;
     }> = [
-      { authored: 'proposed', verdict: pass, expected: 'healthy' },
-      { authored: 'proposed', verdict: fail, expected: 'proposed' },
-      { authored: 'proposed', verdict: undefined, expected: 'proposed' },
-      { authored: 'building', verdict: pass, expected: 'healthy' },
-      { authored: 'building', verdict: fail, expected: 'proposed' },
-      { authored: 'building', verdict: undefined, expected: 'proposed' },
-      { authored: 'mapped', verdict: pass, expected: 'healthy' },
-      { authored: 'mapped', verdict: fail, expected: 'mapped' },
-      { authored: 'mapped', verdict: undefined, expected: 'mapped' },
-      { authored: 'healthy', verdict: pass, expected: 'healthy' },
-      { authored: 'healthy', verdict: fail, expected: 'proposed' },
-      { authored: 'healthy', verdict: undefined, expected: 'proposed' },
-      { authored: 'unhealthy', verdict: pass, expected: 'healthy' },
-      { authored: 'unhealthy', verdict: fail, expected: 'proposed' },
-      { authored: 'unhealthy', verdict: undefined, expected: 'proposed' },
-      { authored: null, verdict: pass, expected: 'healthy' },
-      { authored: null, verdict: fail, expected: null },
-      { authored: null, verdict: undefined, expected: null },
+      { authored: 'proposed', verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: 'proposed', verdict: fail, storyExpected: 'unhealthy', capabilityExpected: 'proposed' },
+      { authored: 'proposed', verdict: undefined, storyExpected: 'proposed', capabilityExpected: 'proposed' },
+      { authored: 'building', verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: 'building', verdict: fail, storyExpected: 'unhealthy', capabilityExpected: 'proposed' },
+      { authored: 'building', verdict: undefined, storyExpected: 'proposed', capabilityExpected: 'proposed' },
+      { authored: 'mapped', verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: 'mapped', verdict: fail, storyExpected: 'unhealthy', capabilityExpected: 'mapped' },
+      { authored: 'mapped', verdict: undefined, storyExpected: 'mapped', capabilityExpected: 'mapped' },
+      { authored: 'healthy', verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: 'healthy', verdict: fail, storyExpected: 'unhealthy', capabilityExpected: 'proposed' },
+      { authored: 'healthy', verdict: undefined, storyExpected: 'proposed', capabilityExpected: 'proposed' },
+      { authored: 'unhealthy', verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: 'unhealthy', verdict: fail, storyExpected: 'unhealthy', capabilityExpected: 'proposed' },
+      { authored: 'unhealthy', verdict: undefined, storyExpected: 'unhealthy', capabilityExpected: 'proposed' },
+      { authored: null, verdict: pass, storyExpected: 'healthy', capabilityExpected: 'healthy' },
+      { authored: null, verdict: fail, storyExpected: 'unhealthy', capabilityExpected: null },
+      { authored: null, verdict: undefined, storyExpected: null, capabilityExpected: null },
     ];
     const out = presentStories(
       scenarios.map(({ authored, verdict }, index) =>
@@ -165,9 +190,9 @@ describe('presentStories', () => {
       ),
     );
 
-    expect(out.map((s) => s.status)).toEqual(scenarios.map((s) => s.expected));
+    expect(out.map((s) => s.status)).toEqual(scenarios.map((s) => s.storyExpected));
     expect(out.map((s) => s.capabilities[0]?.status)).toEqual(
-      scenarios.map((s) => s.expected),
+      scenarios.map((s) => s.capabilityExpected),
     );
   });
 

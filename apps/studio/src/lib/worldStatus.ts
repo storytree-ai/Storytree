@@ -14,9 +14,11 @@
 //   (ADR-0033 d.4).
 // - BROWN exclusively means genuine inherited brownfield provenance (ADR-0395):
 //   only authored `mapped` can fall through to mapped without a current pass.
-//   Defensive authored `healthy`/`unhealthy` and greenfield `proposed`/`building`
-//   fall through to proposed amber when proof is missing or failing. A signed
-//   failure stays legible on the node panel's verdict line.
+//   On capabilities, defensive authored `healthy`/`unhealthy` and greenfield
+//   `proposed`/`building` fall through to proposed amber when proof is missing
+//   or failing (ADR-0296). Story crowns fail closed instead (ADR-0560): a signed
+//   failure or an explicitly authored unresolved `unhealthy` state withers the
+//   story, while proposed remains the genuine pre-baseline greenfield state.
 // - Offline (DB down, verdicts absent) everything falls back to the authored
 //   ladder, so a proven world UNDER-claims — the StoreBanner is the global
 //   "proof layer absent" signal, and the map's database-connection light
@@ -62,6 +64,25 @@ export function provenStatus(
 }
 
 /**
+ * The status a STORY crown wears once its own UAT proof is folded in.
+ *
+ * Story health is deliberately stricter than capability presentation
+ * (ADR-0560 D1/D5): a signed failure or an explicitly authored unresolved
+ * unhealthy state renders unhealthy. A pass still wins and greens the crown;
+ * otherwise the provenance fold preserves mapped brownfield and genuine
+ * pre-baseline proposed greenfield. Capability presentation continues to use
+ * {@link provenStatus}, retaining ADR-0296's withdrawn failure hue there.
+ */
+export function storyStatus(
+  status: WorkStatus | null,
+  verdict: TreeVerdict | undefined,
+): WorkStatus | null {
+  if (verdict?.outcome === 'pass') return 'healthy';
+  if (verdict?.outcome === 'fail' || status === 'unhealthy') return 'unhealthy';
+  return worldStatus(status);
+}
+
+/**
  * The DISTINCT drift marker a unit wears in the world (ADR-0016 §3 + ADR-0040 §7) — a SEPARATE
  * dimension from the proven hue ({@link provenStatus}), never a replacement for it. A once-green unit
  * that drifts keeps its green status AND gains this badge, so the "proven once, at commit X" record
@@ -79,7 +100,8 @@ export function driftBadge(drift: DriftState | undefined): DriftBadge | undefine
 
 /**
  * The stories the world renders: retired pruned (both tiers), building folded
- * into proposed, proof folded into the hue ({@link provenStatus}), and the
+ * into proposed, tier-aware proof folded into the hue ({@link storyStatus} and
+ * {@link provenStatus}), and the
  * binding-staleness drift surfaced as a DISTINCT badge ({@link driftBadge}) that
  * rides ALONGSIDE the proven hue — never downgrading it (ADR-0040 §7). Everything
  * downstream of the fetch — layout, roads, focus, legend, panel — sees only this
@@ -94,7 +116,7 @@ export function presentStories(stories: TreeStory[]): TreeStory[] {
       const badge = driftBadge(s.drift);
       const story: TreeStory = {
         ...rest,
-        status: provenStatus(s.status, s.verdict),
+        status: storyStatus(s.status, s.verdict),
         capabilities: s.capabilities
           .filter((c) => c.status !== 'retired')
           .map((c): TreeCapability => {
