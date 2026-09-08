@@ -1,0 +1,194 @@
+{
+  "measuredAt": "2026-09-08T07:03:40.876Z",
+  "url": "http://127.0.0.1:5481/",
+  "arm": "vite dev — the build the owner ran when he reported the lag",
+  "renderer": {
+    "name": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "software": false
+  },
+  "viewport": {
+    "width": 1600,
+    "height": 1000
+  },
+  "load": {
+    "landViewDrawnAtMs": 6590,
+    "mapOnlyDrawnAtMs": 5214,
+    "landViewSettle": {
+      "settled": true,
+      "waitedMs": 25860,
+      "windowMedianMs": 16.69999999999709
+    },
+    "mapOnlySettle": {
+      "settled": true,
+      "waitedMs": 2036,
+      "windowMedianMs": 16.699999999999818
+    }
+  },
+  "cpu": {
+    "totalMs": 6742.833000000146,
+    "byStage": {
+      "store-payload": 0,
+      "scene-build": 0,
+      "land-stream": 0,
+      "three-and-r3f": 0,
+      "kit-decode": 2.118,
+      "react-and-studio": 0,
+      "idle": 4163.447000000041,
+      "gc": 81.21,
+      "unattributed": 2496.057999999989
+    },
+    "ranked": [
+      {
+        "stage": "idle",
+        "ms": 4163.447000000041,
+        "share": 61.74625709994525
+      },
+      {
+        "stage": "unattributed",
+        "ms": 2496.057999999989,
+        "share": 37.017941865087494
+      },
+      {
+        "stage": "gc",
+        "ms": 81.21,
+        "share": 1.2043899055485763
+      },
+      {
+        "stage": "kit-decode",
+        "ms": 2.118,
+        "share": 0.03141112941696693
+      },
+      {
+        "stage": "store-payload",
+        "ms": 0,
+        "share": 0
+      },
+      {
+        "stage": "scene-build",
+        "ms": 0,
+        "share": 0
+      },
+      {
+        "stage": "land-stream",
+        "ms": 0,
+        "share": 0
+      },
+      {
+        "stage": "three-and-r3f",
+        "ms": 0,
+        "share": 0
+      },
+      {
+        "stage": "react-and-studio",
+        "ms": 0,
+        "share": 0
+      }
+    ]
+  },
+  "network": {
+    "storePayloadMs": 24054.700000047684,
+    "storePayloadBytes": 39334057,
+    "canvasChunkMs": 0,
+    "canvasChunkBytes": 0,
+    "otherMs": 284.199999332428,
+    "otherBytes": 7378800
+  },
+  "apiRequests": [
+    {
+      "path": "/api/assets",
+      "durationMs": 5624,
+      "transferSizeBytes": 38995636
+    },
+    {
+      "path": "/api/tree",
+      "durationMs": 3722,
+      "transferSizeBytes": 256035
+    },
+    {
+      "path": "/api/docs",
+      "durationMs": 715,
+      "transferSizeBytes": 71677
+    },
+    {
+      "path": "/api/floor-health",
+      "durationMs": 6977,
+      "transferSizeBytes": 1962
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 592,
+      "transferSizeBytes": 1900
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 651,
+      "transferSizeBytes": 1900
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 855,
+      "transferSizeBytes": 1472
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 894,
+      "transferSizeBytes": 1472
+    },
+    {
+      "path": "/api/me",
+      "durationMs": 433,
+      "transferSizeBytes": 415
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 212,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 3017,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 223,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 140,
+      "transferSizeBytes": 397
+    }
+  ],
+  "frames": {
+    "harnessFloor": {
+      "frames": 180,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.700000000000273,
+      "worstMs": 16.800000000000068,
+      "late": 0
+    },
+    "idle": {
+      "frames": 360,
+      "medianMs": 16.69999999999709,
+      "p95Ms": 16.799999999995634,
+      "worstMs": 16.80000000000291,
+      "late": 0
+    },
+    "drag": {
+      "frames": 360,
+      "medianMs": 16.69999999999709,
+      "p95Ms": 16.700000000004366,
+      "worstMs": 16.80000000000291,
+      "late": 0
+    },
+    "controlIdle": {
+      "frames": 313,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 33.399999999999636,
+      "worstMs": 50.100000000000364,
+      "late": 44
+    },
+    "budgetMs": 16.666666666666668
+  }
+}
