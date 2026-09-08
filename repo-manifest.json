@@ -448,6 +448,7 @@
       "apps/studio/src/components/TreeView.tsx": "studio",
       "apps/studio/src/components/LandView*.tsx": "r3f-world-spike",
       "apps/studio/src/lib/landView*.ts": "r3f-world-spike",
+      "apps/studio/src/lib/canvasRegistration*.ts": "r3f-world-spike",
       "apps/studio/src/components/buildWorld.relocation.*": "studio",
       "apps/studio/src/components/Act2IntroControl.tsx": "act2-intro-cursor",
       "apps/studio/src/components/act2Intro.ts": "act2-intro-cursor",
