@@ -3,11 +3,12 @@ id: "green-gate"
 tier: capability
 story: ci-cd
 title: "The green gate — verify proves a PR against the merge of branch and main"
-outcome: "A PR's verify job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the three web checks (grounding, engine, and — since ADR-0336 — the Act 1 static-import-closure wall), typecheck, test, build, and the generated root CLAUDE.md + AGENTS.md guidance plus all four harness-native specialist-agent directories in sync — and a red anything blocks the merge."
+outcome: "A PR's verify job proves the merge of branch+main through every required repository and shared-environment check, including exact UAT revision continuity; a red anything blocks the merge."
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [486]
+arc: story-green-monotonicity-arc
+decisions: [560, 486]
 # ⚠ THE PROOF IS DELIBERATELY SPLIT, NOT STRETCHED (ADR-0486). Contracts 2, 3 and 4 are static-YAML
 # audits over the real `.github/workflows/ci.yml` and are fully assertable offline. Contract 1 is
 # MIXED: its repo-owned half — that the `verify` checkout does not OVERRIDE actions/checkout's
@@ -99,7 +100,8 @@ proves it against the **merge of branch + main** — `pnpm check:boundaries`,
 `pnpm check:mirror-conformance`, `pnpm check:web-grounding`, `pnpm check:web-engine`,
 `pnpm check:web-experience-closure` (ADR-0336), `pnpm -r typecheck`, `pnpm -r test`,
 `pnpm -r build`, `pnpm check:guidance`, `pnpm check:agents` —
-and a red anything blocks the merge (ADR-0022).
+plus the authenticated shared-environment checks including UAT revision continuity — and a red
+anything blocks the merge (ADRs 0022 and 0560).
 
 **The workflow file is the live list; this paragraph is a reading of it, not a second source.** The
 set moves (ADR-0302 D4 deleted the three seed-sync rungs; ADR-0311 D2 retired thirteen more,
@@ -130,8 +132,13 @@ step it does run is blocking, and that `automerge` cannot outrun it — never a 
   answer. But ordering is about WHEN a verdict arrives, never about whether it binds: every step is
   required, there is no soft/optional step, a red in any one fails `verify`, and `automerge`
   (`needs: verify`) never runs.
+- **Proof continuity is authenticated and late.** The pure candidate-revision judge belongs to
+  [`cli`'s `uat-revision-continuity-gate`](../cli/uat-revision-continuity-gate.md). This capability
+  owns the pipeline fact: the thin check runs in both the canonical local plan and `verify` only
+  after branch-local tests have passed, with the live verdict credential available, and its non-zero
+  exit is as blocking as every other verify step. A store outage is red, never an optional skip.
 
-## Contracts (4)
+## Contracts (5)
 
 1. **`proves-against-merge-ref`** — `verify` runs on the merge of branch+main, not the branch alone
    - **asserts —** the `verify` job's checkout step does NOT override actions/checkout's
@@ -188,3 +195,8 @@ step it does run is blocking, and that `automerge` cannot outrun it — never a 
 4. **`red-blocks-the-merge`** — a red `verify` stops the pipeline
    - **asserts —** `automerge` declares `needs: verify`, so a non-green `verify` means the merge step
      never runs; there is no path to `main` that skips a green `verify`.
+5. **`changed-uat-revision-proof-is-a-blocking-shared-environment-step`** — continuity is enforced where its evidence exists.
+   - **asserts —** the canonical local plan and `verify` both invoke the same UAT revision continuity
+     check, classify it as shared-environment/authenticated, and keep it required after branch-local
+     proof; removing it from either plan, making it advisory, or running it without store hydration
+     fails the pipeline audit.

@@ -35,6 +35,7 @@
     "check:library-dag-acyclic": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-library-dag-acyclic.ts",
     "hierarchy:load": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/load-hierarchy.ts",
     "check:hierarchy-drift": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-hierarchy-drift.ts",
+    "check:uat-revision-continuity": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-uat-revision-continuity.ts",
     "check:hierarchy-camps": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-hierarchy-camps.ts",
     "check:gcloudignore-mirror": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-gcloudignore-mirror.ts",
     "probe:depth-from-work": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-depth-from-work.ts",

@@ -34,6 +34,20 @@ function readCiYaml(): string {
   return readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
 }
 
+function realVerifySteps(): string[] {
+  const block = jobBlock(readCiYaml(), "verify");
+  assert.notEqual(block, null, "the real workflow must still declare its verify job");
+  return stepItems(block!);
+}
+
+function namedStep(steps: readonly string[], name: string): string {
+  const step = steps.find((item) =>
+    item.split("\n").some((line) => line.trim() === `- name: ${name}`),
+  );
+  assert.notEqual(step, undefined, `verify must declare the step ${JSON.stringify(name)}`);
+  return step!;
+}
+
 // ── fixtures ───────────────────────────────────────────────────────────────────
 //
 // Small literal workflows, each isolating ONE mechanism from the real (larger, and liable to change)
@@ -368,6 +382,66 @@ describe("generated-views-in-sync: verify runs both generated-view checks", () =
     // that verify carries no continue-on-error step already covers them, so a regression that made
     // either one soft would red THAT test, not silently pass here.
     assert.deepEqual(softStepLines(readCiYaml(), "verify"), []);
+  });
+});
+
+describe("UAT revision continuity is a required authenticated merge wall", () => {
+  it("the real verify job runs the exact-revision continuity check", () => {
+    assert.equal(
+      jobRunsCheck(readCiYaml(), "verify", "check:uat-revision-continuity"),
+      true,
+      "a changed existing UAT revision must not reach automerge without its current signed witness",
+    );
+  });
+
+  it("the continuity wall is covered by the no-soft-step contract", () => {
+    assert.deepEqual(softStepLines(readCiYaml(), "verify"), []);
+  });
+
+  it("switches only the final continuity rung to the verdict-reader identity", () => {
+    const steps = realVerifySteps();
+    const presence = namedStep(
+      steps,
+      "Authenticate to GCP for live guidance (keyless WIF — ADR-0021)",
+    );
+    const continuityAuthName =
+      "Authenticate to GCP for UAT revision continuity (keyless WIF — ADR-0021)";
+    const continuityAuth = namedStep(steps, continuityAuthName);
+    const continuity = namedStep(steps, "Changed UAT revisions carry current proof");
+
+    assert.match(
+      presence,
+      /service_account: storytree-ci-presence@storytree-498613\.iam\.gserviceaccount\.com/,
+      "the existing live-guidance block must retain its deliberately narrower presence identity",
+    );
+    assert.match(
+      continuityAuth,
+      /workload_identity_provider: projects\/635716509357\/locations\/global\/workloadIdentityPools\/github-actions\/providers\/github/,
+    );
+    assert.match(
+      continuityAuth,
+      /service_account: storytree-ci-webverdict@storytree-498613\.iam\.gserviceaccount\.com/,
+    );
+    assert.equal(
+      steps.indexOf(continuity),
+      steps.indexOf(continuityAuth) + 1,
+      "the verdict-capable credential must be minted immediately before its only consumer",
+    );
+    assert.equal(
+      steps.indexOf(continuity),
+      steps.length - 1,
+      "continuity must remain the final verify step so no later step inherits its wider credential",
+    );
+    assert.deepEqual(
+      steps.filter((step) => step.includes("storytree-ci-webverdict")),
+      [continuityAuth, continuity],
+      "only the dedicated auth step and continuity itself may name the verdict identity",
+    );
+    assert.match(
+      continuity,
+      /STORYTREE_DB_USER: storytree-ci-webverdict@storytree-498613\.iam/,
+    );
+    assert.doesNotMatch(continuity, /storytree-ci-presence/);
   });
 });
 

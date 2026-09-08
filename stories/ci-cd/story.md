@@ -5,6 +5,7 @@ title: "CI/CD — the one enforced pipeline every green unit crosses to reach tr
 outcome: "Every contributor's green unit reaches trunk — and the surfaces that ride on trunk stay fresh — through one enforced pipeline; nothing reaches main unproven."
 status: proposed
 proof_mode: UAT
+arc: story-green-monotonicity-arc
 # ci-cd depends on the two sibling surfaces its post-merge side-effects WRITE TO (ADR-0058 §1, §3):
 # deploy-on-merge needs studio-cloud's Cloud Run + IAP service as a deploy target, and
 # merge-presence-retire needs notice-board's presence store as a write target — real OUTBOUND
@@ -137,7 +138,7 @@ are therefore never reused or shifted.)*
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the two web checks, typecheck, test, build, and root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync — and a red anything blocks the merge. | proposed | — |
+| 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves the merge of branch+main through every required repository and shared-environment check, including exact UAT revision continuity; a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |

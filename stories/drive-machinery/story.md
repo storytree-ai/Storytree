@@ -5,6 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: proposed
 proof_mode: UAT
+arc: story-green-monotonicity-arc
 capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write, capability-proof-continuity]
 # `oq-hygiene-gate` was DROPPED from this list on 2026-08-30 when it retired (ADR-0477 removed the
 # library `references` field its input lived in). The drop is required, not cosmetic: rollupStoryGreen
@@ -140,7 +141,7 @@ evidence and any unsigned live arms without treating either as brownfield proven
 |---|---|---|---|---|
 | 1 | [`halt-aware-sequence`](halt-aware-sequence.md) | The spine composes leaf steps in strict order and a halted step can never be reported as a pass. | proposed | — |
 | 2 | [`red-green-phase-machine`](red-green-phase-machine.md) | A unit advances through the spine-owned phase ladder only via fail-closed transitions the spine itself legitimizes. | proposed | — |
-| 3 | [`work-verdict-event-log`](work-verdict-event-log.md) | A unit's lifecycle status is derived as a pure projection over typed work and signing events, never hand-maintained. | proposed | — |
+| 3 | [`work-verdict-event-log`](work-verdict-event-log.md) | Unit lifecycle and story health derive from typed proof events plus a durable story baseline; missing later proof cannot silently reset established green. | proposed | — |
 | 4 | [`phase-scoped-write-wall`](phase-scoped-write-wall.md) | A leaf write outside the current phase's scope is refused before it reaches the real executor, and the refusal is recorded. | proposed | `red-green-phase-machine` |
 | 5 | [`shell-test-observer`](shell-test-observer.md) | Red or green is a fact the spine reads off a spawned proof command's own exit code, never a claim a leaf could forge. | proposed | `red-green-phase-machine` |
 | 6 | [`prove-it-gate`](prove-it-gate.md) | A unit earns a signed PASS verdict only by walking the whole red→green ladder with spine-observed evidence on a clean committed tree. | proposed | `red-green-phase-machine` |

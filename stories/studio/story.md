@@ -5,6 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
+arc: story-green-monotonicity-arc
 capabilities: [dev-server-persistence-backbone, read-corpus, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read]
 # ⚠ TWO CAPABILITIES LEFT THIS LIST ON 2026-08-31 (`prove-unproven-capabilities-arc` inc-25, Group 2).
 # `seed-library-corpus` and `resolve-comment` are `status: retired` and are removed from the array so
@@ -218,7 +219,7 @@ capabilities now actually deliver.
 | 18 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
 | 19 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
 | 20 | [`store-connection-signal`](store-connection-signal.md) | An operator reading the forest map can see at a glance whether the live store is connected, without opening anything. | — |
-| 21 | [`map-live-hierarchy-read`](map-live-hierarchy-read.md) | The forest map's question and its proof come from one clock, so a criterion re-worded since the app was built no longer reads as unproven. | — |
+| 21 | [`map-live-hierarchy-read`](map-live-hierarchy-read.md) | The forest map reads the live hierarchy through the shared durable story-health fold, preserving established green through proof absence and rendering story failure or explicit health issues unhealthy. | — |
 
 Rows 18–19 (`arc-orientation-lens`, `act2-intro-cursor` — rows 20–21 before the 2026-08-31 renumber) are **greenfield `proposed` units registered retrospectively** by
 `capability-layer-coverage-arc` increment 4 (2026-08-07). Their implementation and tests were built
