@@ -393,6 +393,13 @@ export function restingWorldFraming(
     0,
     -centreV / SHIPPED_GROUND_FLATTENING,
   ];
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT for the mutant generated, stated
+  // precisely rather than claimed in general. Stryker rewrites the `y` term to
+  // `fit.position[1] + fit.target[1]`, and `frameWorld` returns `target: [cx, 0, cz]` on EVERY
+  // path — the empty-world branch included — because the target is a point on the ground plane and
+  // the ground plane is y = 0. Adding and subtracting zero are the same number, so no fixture can
+  // separate the two. ⚠ The `z` term is NOT equivalent and is not disabled: `fit.target[2]` is the
+  // world's own depth centroid and is routinely non-zero.
   const eye = { y: fit.position[1] - fit.target[1], z: fit.position[2] - fit.target[2] };
   return {
     target,

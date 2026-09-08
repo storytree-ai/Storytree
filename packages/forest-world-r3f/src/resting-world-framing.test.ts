@@ -198,3 +198,119 @@ test('a world with land but no NAMED island still frames, on the extent floor', 
   assert.equal(framing.resting.bound, 'undetermined');
   assert.ok(Number.isFinite(framing.halfHeight) && framing.halfHeight > 0);
 });
+
+// ---------------------------------------------------------------------------
+// ONE AWKWARD WORLD — off-centre, mixed-shape, and carrying the two descriptor shapes the
+// symmetric ribbon above cannot separate.
+// ---------------------------------------------------------------------------
+//
+// ⚠ THE RIBBON FIXTURE IS SYMMETRIC ABOUT x = 0 AND ITS ISLANDS ARE SQUARE, and a symmetric
+// fixture cannot tell a difference from a sum: `minU + maxU` and `maxU - minU` are the same number
+// when the world straddles the origin, and an island's delivered box binds on whichever side you
+// like when it is as wide as it is deep. `check:mutation-diff` found exactly that hole — five
+// mutants of the world's own arithmetic survived it. So this world is deliberately awkward:
+//
+//   · OFF-CENTRE in x, so a centre is not a half-width and a span is not a sum;
+//   · WIDE ENOUGH that the frame does not contain its width, so `extentShown`'s width term is a
+//     real reading rather than a clamp at 1;
+//   · one island far DEEPER than it is wide and far from the origin, so its delivered depth is
+//     what its diameter binds on;
+//   · a POINT-LIKE instance (a wisp carries no ring) standing at the world's far edge, so the
+//     extent has to read an anchor rather than only rings;
+//   · and an island whose only cell has an EMPTY ring, which bounds nothing and must be passed
+//     over rather than counted as an island of no size.
+
+/** A rectangular parcel from (`x0`, `z0`) to (`x1`, `z1`) on the ground. */
+function box(island: string, x0: number, z0: number, x1: number, z1: number): InstanceDescriptor {
+  return {
+    kind: 'cell-ground',
+    transform: { x: (x0 + x1) / 2, y: 0, z: (z0 + z1) / 2 },
+    group: 'cell-ground',
+    material: 'healthy',
+    island,
+    points: [
+      { x: x0, y: 0, z: z0 },
+      { x: x1, y: 0, z: z0 },
+      { x: x1, y: 0, z: z1 },
+      { x: x0, y: 0, z: z1 },
+    ],
+  };
+}
+
+const AWKWARD: InstanceDescriptor[] = [
+  // 120 across, 40 deep, off to the +x side of the origin.
+  box('wide', 1000, 0, 1120, 40),
+  // 10 across, 200 deep, far down the +z axis — its DELIVERED depth (200 · sin 50° = 153) is what
+  // its diameter binds on, and its z centre is nowhere near the origin.
+  box('deep', 1000, 2000, 1010, 2200),
+  // Carries no ring at all: a point-like family standing at the world's far +x edge.
+  { kind: 'wisp-sprite', transform: { x: 3200, y: 0, z: 0 }, group: 'wisp-sprite' },
+  // An island whose only cell bounds nothing. It is not an island of size zero — it is an island
+  // there is nothing to measure, and folding a zero in would drag the median toward a size no
+  // island has.
+  { kind: 'cell-ground', transform: { x: 1000, y: 0, z: 0 }, group: 'cell-ground', island: 'ghost', points: [] },
+];
+
+/** The awkward world's expected numbers, DERIVED here from the fixture and the shared constants
+ *  rather than recalled from a run. */
+function awkwardExpectation(viewport: { width: number; height: number }) {
+  const f = SHIPPED_GROUND_FLATTENING;
+  const wide = Math.max(120, 40 * f);
+  const deep = Math.max(10, 200 * f);
+  // Two islands, so `restingFrame` takes the LOWER median — a size an island really is.
+  const median = Math.min(wide, deep);
+  const scale = Math.min(viewport.width, viewport.height) / (RESTING_ISLAND_SPANS * median);
+  const minU = 1000;
+  const maxU = 3200; // the wisp, which carries no ring
+  const contentWidth = maxU - minU;
+  const contentHeight = 2200 * f; // v runs from -2200·f (the deep island's far edge) up to 0
+  const shown = (framePx: number, units: number) => Math.min(1, framePx / (units * scale));
+  return {
+    scale,
+    targetX: (minU + maxU) / 2,
+    extentShown: shown(viewport.width, contentWidth) * shown(viewport.height, contentHeight),
+  };
+}
+
+test('an island with an EMPTY ring is passed over, not counted as an island of no size', () => {
+  // Two islands have land; the third bounds nothing. A zero diameter would become the median and
+  // blow the composition open — and reading its box without checking would be a crash.
+  assert.equal(islandDeliveredDiameters(AWKWARD).length, 2);
+  assert.ok(islandDeliveredDiameters(AWKWARD).every((d) => d > 0));
+});
+
+test('a DEEP island’s diameter binds on its delivered depth, wherever it sits', () => {
+  const deepOnly = [box('deep', 1000, 2000, 1010, 2200)];
+  const [d] = islandDeliveredDiameters(deepOnly);
+  // 200 units of ground depth deliver `200 · sin 50°`, which is still more than its 10-unit width.
+  assert.ok(d !== undefined && Math.abs(d - 200 * SHIPPED_GROUND_FLATTENING) < 1e-9, `diameter ${d}`);
+});
+
+test('the awkward world frames on its own extent, centre and anchor — every term read', () => {
+  const viewport = { width: 1600, height: 900 };
+  const want = awkwardExpectation(viewport);
+  const framing = restingWorldFraming(AWKWARD, viewport);
+  assert.equal(framing.resting.bound, 'designed');
+  assert.ok(Math.abs(framing.resting.scale - want.scale) < 1e-9, `scale ${framing.resting.scale}`);
+  // The horizontal centre is a MIDPOINT of the world's own edges — and the +x edge is the wisp's
+  // anchor, which is the point-like instance the ring-only reading would have dropped.
+  assert.ok(Math.abs(framing.target[0] - want.targetX) < 1e-9, `target x ${framing.target[0]}`);
+  // `extentShown` reads both spans, and neither is clamped here — this world is wider than the
+  // frame shows and deeper than it shows.
+  assert.ok(framing.resting.extentShown < 1 && framing.resting.extentShown > 0);
+  assert.ok(
+    Math.abs(framing.resting.extentShown - want.extentShown) < 1e-9,
+    `extentShown ${framing.resting.extentShown} wanted ${want.extentShown}`,
+  );
+});
+
+test('dropping the point-like instance would move the frame — so its anchor really is read', () => {
+  // The separation, stated: without the wisp the world is 120 units wide instead of 2200, so both
+  // the centre and the fraction shown move. This is what makes the assertions above choose.
+  const withoutWisp = AWKWARD.filter((d) => d.kind !== 'wisp-sprite');
+  const viewport = { width: 1600, height: 900 };
+  const full = restingWorldFraming(AWKWARD, viewport);
+  const short = restingWorldFraming(withoutWisp, viewport);
+  assert.ok(Math.abs(full.target[0] - short.target[0]) > 100);
+  assert.ok(full.resting.extentShown < short.resting.extentShown);
+});

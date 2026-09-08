@@ -53,6 +53,13 @@ export function trueGroundFromDrawing<T extends Descriptor3D>(
   elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
 ): T[] {
   const factor = 1 / groundFlattening(elevationDeg);
+  // The two ways an elevation fails to name a scale, and they are different failures: EDGE-ON
+  // (0°, or 180°) flattens the ground plane to a line, so the inverse is infinite and nothing
+  // recovers the depth; BELOW THE HORIZON (a negative elevation) inverts it, which would mirror
+  // the whole forest front-to-back while looking exactly like a scale.
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — `<= 0` and `< 0` cannot be separated
+  // here. `factor` is `1 / sin θ` and `Math.sin` is finite for every finite input, so `factor` is
+  // never exactly 0; the only input that could reach it is an infinite sine, which does not exist.
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new Error(`true-ground: elevation ${elevationDeg}° gives a factor of ${factor}, which is not a scale`);
   }
