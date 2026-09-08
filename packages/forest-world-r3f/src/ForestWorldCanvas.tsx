@@ -32,7 +32,12 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { Line, MapControls } from '@react-three/drei';
 import { Color, OrthographicCamera, type Mesh, type Texture } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
-import { frameWorld, orthographicZoomFor } from './camera-framing.js';
+import {
+  frameWorld,
+  orthographicZoomFor,
+  restingWorldFraming,
+  type FramingViewport,
+} from './camera-framing.js';
 import {
   cellGroundGeometry,
   type CellGroundGeometryInput,
@@ -1188,6 +1193,22 @@ export interface ForestWorldCanvasProps {
    *  no focus concept on this canvas yet, the honest minimal reveal is all-or-nothing —
    *  a future focus feature filters strips by their `edges` metadata instead. */
   showTrails?: boolean;
+  /**
+   * THE FRAME THIS CANVAS IS DELIVERED INTO, CSS px — present ⇒ open on the DESIGNED RESTING VIEW
+   * (ADR-0471), absent ⇒ open on the fit.
+   *
+   * ⚠ IT IS A PROP RATHER THAN A MEASUREMENT TAKEN INSIDE, and the reason is where the two numbers
+   * are needed. `restingFrame` decides a scale AND an anchor, so it has to run before the
+   * `<Canvas>` is written — `position` and the `MapControls` target are both set there — while
+   * `useThree(s => s.size)` is only readable from inside it. A mounting surface already knows its
+   * own container's size (it laid it out), so asking for it is honest; measuring it a second time
+   * one layer down would be the same number arriving a frame later.
+   *
+   * ⚠ ABSENT IS THE HARNESS'S ANSWER AND STAYS THE DEFAULT. A capture page renders one island or a
+   * synthetic crowd into a fixed buffer and wants the whole of it; cropping evidence to a product
+   * composition would change what every comparison page in `harness/` measures.
+   */
+  viewport?: FramingViewport;
 }
 
 /** Apply the framing to the orthographic camera — and PRESERVE THE VIEWER'S OWN ZOOM across a
@@ -1274,7 +1295,7 @@ function CalibratedLights() {
  * 2.5D isometric per ADR-0380 D6 fence 4). Client-only
  * (`ssr:false` posture — the site lazy-loads this island after the inflection).
  */
-export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
+export function ForestWorldCanvas({ descriptors, showTrails = false, viewport }: ForestWorldCanvasProps) {
   // The relaxed-mesh parcels — the ONE ground substrate this canvas draws. A second, classic
   // extruded-hex ground component used to be mounted unconditionally beside this one, filtered
   // off the descriptor stream by its own retired mesh family; both the component and the family
@@ -1328,7 +1349,11 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   const trails = showTrails ? byKind(descriptors, 'trail-strip') : [];
   const caves = byKind(descriptors, 'cave-arch');
   const wisps = byKind(descriptors, 'wisp-sprite');
-  const frame = frameWorld(descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped'));
+  // ⚠ THE TWO FRAMINGS ARE ONE DECISION MADE ONCE, not a flag read at three call sites: `position`,
+  // the `MapControls` target and the orthographic zoom all come from this one object, so a surface
+  // cannot end up framed by one rule and anchored by another.
+  const instances = descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  const frame = viewport ? restingWorldFraming(instances, viewport) : frameWorld(instances);
   return (
     /* ⚠ `orthographic` is the fence (ADR-0380 D6 fence 4), and `fov` is GONE rather than merely
        unused: R3F reads the presence of `fov` as a request for a PerspectiveCamera, so leaving it

@@ -13,18 +13,26 @@
 // frustum; the eye's DISTANCE no longer affects the delivered scale, so `position` sets only the
 // view direction and the clip range.
 //
-// ⚠⚠ THIS IS NOT THE SHIPPED FRAMING, AND HAS NOT BEEN SINCE 2026-08-28. `restingFrame`
+// ⚠⚠ `frameWorld` IS THE FIT, AND IT IS NO LONGER THE ONLY FRAMING HERE. `restingFrame`
 // (`packages/forest-world/src/resting-view.ts`, ADR-0471) is the ONE place that decides how much
-// forest a surface opens on. Both maps a visitor can actually reach converge on it: the studio's
-// SVG map through `apps/studio/src/lib/worldCamera.ts`, and the public `/forest/` page through
-// `web/src/scripts/forest-arrival.ts`. `<ForestWorldCanvas>` is mounted only in this package's own
-// dev harness — verified 2026-08-30 with the `web/` submodule checked out, which is what
-// `adopt-the-land-into-the-shipped-map-arc-inc-01` could only record as UNVERIFIED: the website
-// syncs this whole directory but imports from it ONLY `act2-director`'s pure zod state machine
-// (`web/src/scripts/act2-{walkthrough,script,validate}.ts`), and nothing anywhere imports this
-// file or `ForestWorldCanvas`. ADR-0471 D8 records why this rule was left behind rather than
-// converted: `InstanceDescriptor` carries no island identity, so there is nothing here to pin a
-// composition to.
+// forest a surface opens on, and this module ADOPTS it — see {@link restingWorldFraming} at the
+// foot of the file, which is ADR-0471 D8's conversion performed. The two rules now divide by
+// AUDIENCE rather than by surface: a product view opens on the designed resting frame, and a
+// harness capture page opens on the fit, because an evidence picture wants the whole of whatever
+// it is measuring.
+//
+// ⚠ D8's STATED BLOCKER — "`InstanceDescriptor` carries no island identity, so there is nothing
+// here to pin a composition to" — IS DISCHARGED, and the ADR is corrected in place rather than
+// argued with here. The `island` field landed on `cell-ground` and `uat-bloom` on 2026-08-31
+// (`1ac19fc8`), three days after D8 was written and for an unrelated reason.
+//
+// ⚠ AND THE SURFACE COUNT IN THIS HEADER MOVED WITH IT. Until 2026-09-08 `<ForestWorldCanvas>` was
+// mounted only in this package's own dev harness — verified 2026-08-30 with the `web/` submodule
+// checked out: the website syncs this whole directory but imports from it ONLY `act2-director`'s
+// pure zod state machine (`web/src/scripts/act2-{walkthrough,script,validate}.ts`). The studio's
+// LAND VIEW (`apps/studio/src/components/LandView.tsx`, ADR-0530's route C staged as its first
+// half) is now a second mount, beside the SVG map and never instead of it. The website is still
+// not one.
 //
 // ⚠ WHAT THIS RULE ACTUALLY FRAMES — about 2x the vertical room a flat world can occupy, and the
 // margin is NOT headroom. `spread` is a max over GROUND |x| and |z|, but the eye looks down at
@@ -37,10 +45,10 @@
 // ⚠ AND IT IS DELIBERATELY LEFT THAT WAY — do not "fix" it with a `sin(elev)` factor. The repair
 // was proposed, costed at ~1.3x more delivered detail, and declined: nothing a visitor sees is
 // framed by this function, so that 1.3x accrues to nobody, and `resting-view.ts` says the framing
-// is ONE
-// decision now and a second must not be added. If this canvas is ever mounted it adopts
-// `restingFrame` — which means giving `InstanceDescriptor` island identity first — rather than
-// growing a better fit of its own. Repairing the fit would be building the wrong thing better. The
+// is ONE decision now and a second must not be added. That declining is what
+// {@link restingWorldFraming} discharges: the mounted view adopts `restingFrame` instead of
+// growing a better fit here, so repairing the fit would still be building the wrong thing better —
+// and `frameWorld`'s remaining audience, the capture pages, wants the margin it has. The
 // `2.6` was born in the original spike commit `ee675ad3`, where `back` was a perspective camera's
 // eye DISTANCE, beside a comment reading "the camera backs off proportionally to the world's
 // spread"; it was never a headroom decision by anyone.
@@ -59,6 +67,8 @@
 // a 92-unit hero-tree crown was measured to move the over-frame only 2.154 → 1.972, and tall
 // objects were said to need a factor of 1.09 against the 2.15 reserved. Anyone re-opening this
 // re-measures those two; the decision above rests on the 2.154 that this file can re-derive.
+
+import { groundFlattening, restingFrame, type RestingFrame } from '@storytree/forest-world';
 
 import { RENDER_ELEV_DEG } from './kit-vocabulary.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
@@ -191,4 +201,203 @@ export function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
  *  other axis on any non-square canvas. */
 export function orthographicZoomFor(halfHeight: number, shortSideCssPx: number): number {
   return Math.max(shortSideCssPx, 1) / (2 * Math.max(halfHeight, Number.EPSILON));
+}
+
+// ---------------------------------------------------------------------------
+// THE DESIGNED RESTING FRAME, ADOPTED (ADR-0471 D1/D8)
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ D8'S STATED BLOCKER IS DISCHARGED, AND THE ADR IS CORRECTED IN PLACE RATHER THAN RESTATED
+// HERE. When ADR-0471 was accepted (2026-08-28) it recorded that this canvas could not adopt
+// `restingFrame` because "`InstanceDescriptor` carries no island identity except on `cave-arch`,
+// so its framing has no island size to pin to", and that supplying one meant threading
+// `SceneTerritoryInput.groundRadius` through `worldTo3D`. Island identity landed three days later
+// for an unrelated reason — `1ac19fc8`, "the shipped map can say whose signature that is", which
+// put `island` on `cell-ground` and `uat-bloom` so a UAT bloom could be attributed to the story
+// that signed it. So the field exists, and it did NOT arrive by the route D8 predicted: nothing
+// threads `groundRadius`, because an island's ground diameter is MEASURED off the parcel rings the
+// mapper already emits rather than asserted by its layout. That is the better answer of the two —
+// the size this frames on is the size the canvas actually draws.
+//
+// WHAT IS ADOPTED, AND IT IS THE WHOLE COMPOSITION RATHER THAN THE SCALE ALONE. `restingFrame`
+// decides how much forest a surface opens on (the frame's shorter side spans
+// `RESTING_ISLAND_SPANS` median islands) and the two shipped 2D surfaces also bottom-anchor it, so
+// the crop opens on the forest's FOUNDATION and runs the canopy off the top edge. Taking the scale
+// without the anchor would put this view on the MIDDLE of the corridor while the map beside it
+// shows the bottom — two surfaces framed by the same rule and opening on different forest, which
+// reads as a defect and not as a composition. Both halves come from the shared rule; neither is
+// invented here.
+//
+// ⚠ IT DOES NOT REPLACE {@link frameWorld}, which stays the FIT the dev harness opens on. A
+// harness page renders one island or a synthetic crowd into a fixed capture buffer and wants the
+// whole of it; the resting view is a product composition about arrival, and pinning a capture to
+// it would crop evidence pages for a reason that has nothing to do with what they measure.
+
+/**
+ * GROUND-PLANE FORESHORTENING AT THE SHIPPED EYE — how much of a ground DEPTH this camera
+ * delivers, as a fraction of the ground WIDTH it delivers for the same distance.
+ *
+ * The eye sits at {@link SHIPPED_ELEVATION_DEG} above the ground plane with its azimuth fixed
+ * (ADR-0380 D6 fence 4), so the camera's right axis is world +x and its up axis is
+ * `(0, cos θ, -sin θ)`. A ground displacement along x projects onto right at full length; one
+ * along z projects onto up at `sin θ` of its length. `restingFrame` compares an island's size
+ * against a frame in CSS px, so every extent handed to it has to be in the space the frame
+ * actually delivers — which is this one, not raw ground.
+ *
+ * It is `groundFlattening` at THIS camera rather than a second `Math.sin`: the same function the
+ * land's own projection uses, asked about a different eye (ADR-0367 D1 — one projection scalar,
+ * never a second copy).
+ */
+export const SHIPPED_GROUND_FLATTENING: number = groundFlattening(SHIPPED_ELEVATION_DEG);
+
+/** A point in the space the camera DELIVERS: `u` across the frame, `v` up it, both in world units.
+ *  `v` runs OPPOSITE to ground z, because SVG y → 3D z means +z is the bottom of the page. */
+interface Delivered {
+  u: number;
+  v: number;
+}
+
+/** An axis-aligned box in delivered space; `null` stands for "nothing to bound". */
+interface DeliveredBox {
+  minU: number;
+  maxU: number;
+  minV: number;
+  maxV: number;
+}
+
+/** Every ground point an instance occupies: its parcel/ribbon `points` when it carries a footprint,
+ *  and otherwise the single point it stands at. A `cell-ground` ring is what gives an island its
+ *  measured size; a point-like family contributes its anchor so the world's extent still contains
+ *  it. */
+function deliveredPointsOf(instance: InstanceDescriptor): Delivered[] {
+  const pts = instance.points ?? [instance.transform];
+  return pts.map((p) => ({ u: p.x, v: -p.z * SHIPPED_GROUND_FLATTENING }));
+}
+
+/** The delivered bounding box of a point set, or `null` when the set is empty. */
+function boxOf(points: readonly Delivered[]): DeliveredBox | null {
+  const first = points[0];
+  if (first === undefined) return null;
+  let box: DeliveredBox = { minU: first.u, maxU: first.u, minV: first.v, maxV: first.v };
+  for (const p of points) {
+    box = {
+      minU: Math.min(box.minU, p.u),
+      maxU: Math.max(box.maxU, p.u),
+      minV: Math.min(box.minV, p.v),
+      maxV: Math.max(box.maxV, p.v),
+    };
+  }
+  return box;
+}
+
+/**
+ * EVERY ISLAND'S DELIVERED DIAMETER, world units — the quantity `restingFrame` pins the
+ * composition to, one entry per island the descriptors name.
+ *
+ * ⚠ MEASURED OFF THE GROUND THE CANVAS DRAWS, never asserted by the layout. An island's cells are
+ * the `cell-ground` descriptors carrying its {@link InstanceDescriptor.island}, and each one's
+ * `points` is the parcel's own closed ring — so the diameter here is the extent of the land this
+ * canvas will actually stand, including whatever the relaxation and the per-capability sizing did
+ * to it. Reading a `groundRadius` through the mapper instead (what ADR-0471 D8 expected to be
+ * necessary) would state a size the drawn island need not have.
+ *
+ * ⚠ THE LARGER SIDE OF THE DELIVERED BOX, because "diameter" has to mean one number and the
+ * delivered box of a round island is anisotropic by construction: at 50° a ground disc of diameter
+ * D delivers `D` across and `D · sin 50°` up. The larger side is therefore the island's own GROUND
+ * diameter, which is the quantity the 2D map pins its composition to as well — so the two surfaces
+ * span nine of the same thing rather than nine of two different things.
+ *
+ * ⚠ ONLY `cell-ground` COUNTS. A bloom or a cave carries an island id too, but it is a point on the
+ * island rather than a part of its land, and folding those in would report a diameter that shrinks
+ * as an island's props do.
+ */
+export function islandDeliveredDiameters(instances: readonly InstanceDescriptor[]): number[] {
+  const byIsland = new Map<string, Delivered[]>();
+  for (const instance of instances) {
+    if (instance.kind !== 'cell-ground') continue;
+    const id = instance.island;
+    if (id === undefined) continue;
+    const points = byIsland.get(id) ?? [];
+    points.push(...deliveredPointsOf(instance));
+    byIsland.set(id, points);
+  }
+  const diameters: number[] = [];
+  for (const points of byIsland.values()) {
+    const box = boxOf(points);
+    if (box === null) continue;
+    diameters.push(Math.max(box.maxU - box.minU, box.maxV - box.minV));
+  }
+  return diameters;
+}
+
+/** The framing this canvas opens on when it opens on the designed resting view, plus the report of
+ *  WHICH rule chose the scale — carried through so a surface's evidence can say why it framed the
+ *  way it did rather than leaving a reader to re-derive it from the number (`RestingBound`). */
+export interface RestingWorldFraming extends CameraFraming {
+  readonly resting: RestingFrame;
+}
+
+/** The viewport the framing is delivered into, CSS px. */
+export interface FramingViewport {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * FRAME THE WORLD ON THE DESIGNED RESTING VIEW — this canvas's half of ADR-0471 D1.
+ *
+ * The scale is `restingFrame`'s, converted exactly as D8 says: `halfHeight = shortSide / (2 *
+ * scale)`, which is the inverse of {@link orthographicZoomFor} and therefore lands the camera at a
+ * `zoom` of `scale` — one delivered CSS px per world unit, the same number the studio's SVG map
+ * puts on its own `<g class="world-camera">`.
+ *
+ * The ANCHOR is `restingWorld`'s: horizontally centred, vertically bottom-aligned on the world's
+ * own bottom edge. A resting scale is deliberately tighter than the fit, so where the anchor sits
+ * decides which forest you see; bottom-anchoring is what opens the view on the foundation the
+ * system is built on and runs the canopy off the top, which is the composition rather than an
+ * overflow (`resting-view.ts`).
+ *
+ * ⚠ THE EYE'S DISTANCE IS STILL THE FIT'S, and that is deliberate rather than an oversight. On an
+ * orthographic camera `position` sets only the view DIRECTION and the clip range — it cannot
+ * affect the delivered scale — so the eye keeps backing off with the world's spread, which is what
+ * keeps `near`/`far` containing a forest the viewer has since panned across.
+ *
+ * An empty world falls through to {@link frameWorld} rather than inventing a composition for a
+ * forest with no islands in it.
+ */
+export function restingWorldFraming(
+  instances: readonly InstanceDescriptor[],
+  viewport: FramingViewport,
+): RestingWorldFraming {
+  const fit = frameWorld([...instances]);
+  const world = boxOf(instances.flatMap((i) => deliveredPointsOf(i)));
+  if (world === null || viewport.width <= 0 || viewport.height <= 0) {
+    return { ...fit, resting: { scale: 1, islandPx: 0, extentShown: 1, bound: 'undetermined' } };
+  }
+  const resting = restingFrame({
+    islandDiameters: islandDeliveredDiameters(instances),
+    contentWidth: world.maxU - world.minU,
+    contentHeight: world.maxV - world.minV,
+    frameWidth: viewport.width,
+    frameHeight: viewport.height,
+  });
+  const shortSide = Math.min(viewport.width, viewport.height);
+  const halfHeight = shortSide / (2 * resting.scale);
+  // Bottom-aligned: the frame's own bottom edge sits on the world's, so the target is half a
+  // frame-height above it. The frame's vertical half-extent is the FULL height over the scale —
+  // not `halfHeight`, which is measured against the shorter side and is the same number only on a
+  // portrait viewport.
+  const centreV = world.minV + viewport.height / (2 * resting.scale);
+  const target: [number, number, number] = [
+    (world.minU + world.maxU) / 2,
+    0,
+    -centreV / SHIPPED_GROUND_FLATTENING,
+  ];
+  const eye = { y: fit.position[1] - fit.target[1], z: fit.position[2] - fit.target[2] };
+  return {
+    target,
+    position: [target[0], target[1] + eye.y, target[2] + eye.z],
+    halfHeight,
+    resting,
+  };
 }

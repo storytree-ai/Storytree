@@ -7857,3 +7857,61 @@ button.legend-tile:hover {
   stroke: var(--garden-grass-blade, #8a9663);
   stroke-linecap: round;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE LAND VIEW — the 3D land drawn BESIDE the working map
+   (`a-land-view-beside-the-working-map`, ADR-0530 route C staged as its first half).
+
+   ⚠ EVERY RULE HERE IS SCOPED UNDER `.has-land-view`, which `TreeView` only sets behind
+   `?landView=1`. With the view closed the map route carries not one changed declaration — the
+   working map keeps the whole width, the column flex chain and every measurement it takes off its
+   own frame. That is what "beside, not instead of" has to mean in CSS as well as in prose.
+   ───────────────────────────────────────────────────────────────────────────── */
+.tree-layout.has-land-view {
+  flex-direction: row;
+}
+/* The map keeps the larger share: this is a view to CHECK the land against, not a second map to
+   work in, and a split that gave the two equal weight would say the opposite. */
+.tree-layout.has-land-view > .world-frame {
+  width: auto;
+  flex: 3 1 0;
+}
+.land-view {
+  display: flex;
+  flex-direction: column;
+  flex: 2 1 0;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.land-view-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.land-view-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* The canvas fills this box, and the box is what `ResizeObserver` reports as the frame the
+     resting composition is measured in. */
+  display: flex;
+}
+.land-view-frame > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.land-view-status {
+  margin: auto;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 13px;
+}
+.land-view-error {
+  color: var(--warn);
+}

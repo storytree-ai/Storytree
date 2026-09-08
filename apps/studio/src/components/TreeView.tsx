@@ -76,6 +76,8 @@ import {
   type PackOptions,
   type SpacingTuning,
 } from '@storytree/forest-layout';
+import { readLandView } from '../lib/landView.js';
+import { LandView } from './LandView.js';
 import { readSceneExport, sceneExportBridge } from '../lib/sceneExport.js';
 import {
   WorldLegend,
@@ -2424,6 +2426,15 @@ export function TreeView({
   );
   const scene = useMemo(() => (sceneInput ? buildScene(sceneInput) : null), [sceneInput]);
 
+  // `?landView=1` — THE LAND VIEW, beside the working map and never instead of it
+  // (`a-land-view-beside-the-working-map`, ADR-0530 route C staged as its first half; ADR-0550
+  // settled that mounting proceeds now). It reads the SAME `scene` the SVG map is drawn from, so
+  // there is no second layout, no second camera and no second framing rule — and it takes nothing
+  // from the map: without the flag, this whole branch is absent and the route is byte-for-byte the
+  // one that shipped. `lib/landView.ts` carries what it is, what it does NOT assert, and why the
+  // scene it is handed has to be un-projected first.
+  const landView = useMemo(() => readLandView(search), [search]);
+
   // `?sceneExport=1` — the SCENE-EXPORT BRIDGE (ADR-0521's ladder instrument). Behind the flag only,
   // the built scene graph and the layout's own bookkeeping are parked on `window` for a driver to
   // read, so the 3D comparison page renders the REAL forest as this map lays it out rather than a
@@ -3068,7 +3079,10 @@ export function TreeView({
     // map is the whole content area. The claim ledger stays reachable through a story panel's
     // claim rows → the session dock (the counter was owner-cited clutter).
     <div className="tree-wrap" data-cache-provisional={cacheProvisional ? 'true' : undefined}>
-      <div className="tree-layout">
+      {/* ⚠ THE MODIFIER IS WHAT SPLITS THE ROUTE, and it is absent unless the flag is set: the
+          working map keeps the whole width, the whole flex chain and every one of its own
+          measurements when the land view is closed. */}
+      <div className={`tree-layout${landView ? ' has-land-view' : ''}`}>
         <SharedIslandsPanel
           connection={connectionReading}
           islands={sharedIslands}
@@ -3442,6 +3456,11 @@ export function TreeView({
               (ADR-0404), and a build is dispatched by typing the CLI verb in this very terminal. */}
           <surfaces.BottomDock />
         </div>
+
+        {/* THE LAND VIEW — beside the working map, never over it and never instead of it. It is a
+            SIBLING of `.world-frame`, so the map above keeps its own frame, its own camera and its
+            own hit targets; this panel reads the same `scene` and draws it. */}
+        {landView && <LandView scene={scene} />}
 
         {selected && (
           <StoryPanel

@@ -79,3 +79,26 @@ export {
   type WorldState,
   type DirectorState,
 } from './act2-director.js';
+
+// HOW A MOUNTED SURFACE FRAMES THE WORLD — the pure half of the camera (`camera-framing.ts`), no
+// React and no three, so a test can hold the framing without a browser or a GPU. `frameWorld` is
+// the FIT the dev harness's capture pages open on; `restingWorldFraming` is ADR-0471's designed
+// resting composition, which is what a PRODUCT view opens on (the studio's land view).
+export {
+  FRAME_HALF_HEIGHT_PER_BACK,
+  SHIPPED_ELEVATION_DEG,
+  SHIPPED_GROUND_FLATTENING,
+  frameWorld,
+  islandDeliveredDiameters,
+  orthographicZoomFor,
+  restingWorldFraming,
+  shippedElevationDeg,
+  type CameraFraming,
+  type FramingViewport,
+  type RestingWorldFraming,
+} from './camera-framing.js';
+
+// A 2D DRAWING PUT BACK ON TRUE GROUND — the one-way legacy input adapter (`true-ground.ts`) every
+// surface whose scene was built at the declared land camera comes through, and the three-step
+// pipeline that turns such a scene into the shipped 3D stream in the one order that is correct.
+export { landStreamFromDrawing, trueGroundFromDrawing } from './true-ground.js';

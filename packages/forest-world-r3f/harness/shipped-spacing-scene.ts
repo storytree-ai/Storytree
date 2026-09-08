@@ -75,7 +75,7 @@ import { dressMapWithCover, type MapDressingOptions } from '../src/map-dressing.
 import { KIT_PROP_INDIRECT_FRACTION } from '../src/prop-lighting.js';
 import { islandCentres } from '../src/true-footprint.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
-import { trueGroundFromDrawing } from './frozen-drawing.js';
+import { landStreamFromDrawing } from '../src/true-ground.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { GPU_TIMER_EXTENSION } from './frame-cost.js';
 import { awaitQuery, readIdentity, type DisjointTimerQuery, type RendererIdentity } from './frame-cost-scene.js';
@@ -225,11 +225,13 @@ export function armStream(arm: SpacingArm): InstanceDescriptor[] {
   if (hit !== undefined) return hit;
   // ⚠ THE COMMITTED SCENE IS A 2D DRAWING and the mapper stopped repairing one (ADR-0546 D1), so it
   // is converted at the reader — un-projected about the origin, which is what puts the forest in
-  // the corridor the owner accepted — and only THEN sized. `frozen-drawing.ts` carries the why.
-  const built = sizeIslandsByCapability(
-    trueGroundFromDrawing(worldTo3D(arm.file.scene, { landAreaPerCapability: null })),
-    LAND_AREA_PER_CAPABILITY,
-  ).filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  // the corridor the owner accepted — and only THEN sized. `true-ground.ts` carries the why and
+  // owns the ORDER: this page used to spell the three steps itself, and spells them through the
+  // shared function since 2026-09-08 so the studio's land view and this page cannot drift into two
+  // pipelines that look alike.
+  const built = landStreamFromDrawing(arm.file.scene).filter(
+    (d): d is InstanceDescriptor => d.kind !== 'skipped',
+  );
   streamMemo.set(arm.record.id, built);
   return built;
 }
