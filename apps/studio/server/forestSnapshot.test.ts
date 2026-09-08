@@ -255,8 +255,9 @@ describe('toForestSnapshot — the published allow-list', () => {
 
     expect(by.get('proven')).toBe('healthy');
     expect(by.get('unproven')).toBe('proposed');
-    // a signed FAIL under-claims to unproven; it never paints green (ADR-0296 / ADR-0040)
-    expect(by.get('failed')).toBe('proposed');
+    // Story UAT fails close to unhealthy; ADR-0296's fail-to-authored-rung rule remains
+    // capability-only (ADR-0560 D1/D5).
+    expect(by.get('failed')).toBe('unhealthy');
     expect(by.get('brownfield')).toBe('mapped');
     // retired units do not render at all (ADR-0038)
     expect(by.has('gone')).toBe(false);

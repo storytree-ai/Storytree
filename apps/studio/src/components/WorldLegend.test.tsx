@@ -115,9 +115,9 @@ describe('legendFacts', () => {
     expect(legendFacts([story('s', 'mapped', [cap('c', 'mapped')])]).anyProven).toBe(false);
   });
 
-  it('the dead-flora fact is GONE — the legend no longer has a withered state to ground (ADR-0296)', () => {
-    // Was `anyDeadFlora`. With `unhealthy` withdrawn from the rendered vocabulary the legend has
-    // no withered tile to gate, so the fact it was computed for no longer exists.
+  it('the dead-flora fact is GONE — unhealthy is a story-only state (ADR-0296 / ADR-0560)', () => {
+    // Was `anyDeadFlora`. Story crowns may now wither, but capability flora still cannot, so the
+    // dead-flora fact remains withdrawn.
     const facts = legendFacts([story('s', 'mapped', [cap('c', 'unhealthy')])]);
     expect('anyDeadFlora' in facts).toBe(false);
   });
@@ -161,8 +161,9 @@ describe('WorldLegend (adaptive bar)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
     const treeCopy = screen.getByRole('region', { name: 'legend — story trees' }).textContent ?? '';
-    expect(treeCopy).toMatch(/amber[^.]*greenfield[^.]*current signed pass/i);
-    expect(treeCopy).toMatch(/authored [“"]healthy[”"][^.]*[“"]unhealthy[”"][^.]*proposed/i);
+    expect(treeCopy).toMatch(/amber[^.]*greenfield[^.]*never established[^.]*baseline/i);
+    expect(treeCopy).toMatch(/authored [“"]healthy[”"][^.]*proposed/i);
+    expect(treeCopy).toMatch(/withered[^.]*unhealthy[^.]*proof failed/i);
     expect(treeCopy).toMatch(/brown[^.]*inherited brownfield[^.]*adoption/i);
     expect(treeCopy).not.toMatch(/authored [“"]healthy[”"][^.]*(?:renders|waits)[^.]*brown/i);
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
@@ -177,8 +178,11 @@ describe('WorldLegend (adaptive bar)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'proof' }));
     const proofCopy = screen.getByRole('region', { name: 'legend — proof' }).textContent ?? '';
-    expect(proofCopy).toMatch(/signed pass[^.]*only[^.]*green/i);
-    expect(proofCopy).toMatch(/signed fail[^.]*node panel[^.]*authored rung/i);
+    expect(proofCopy).toMatch(/signed proof[^.]*establishes green/i);
+    expect(proofCopy).toMatch(/undertaken capability[^.]*own UAT[^.]*reliability obligations/i);
+    expect(proofCopy).toMatch(/baseline[^.]*stays green[^.]*later scope[^.]*incomplete/i);
+    expect(proofCopy).toMatch(/story failure[^.]*withers/i);
+    expect(proofCopy).toMatch(/capability[^.]*current signed pass[^.]*failure[^.]*node panel/i);
   });
 
   it('proof hues light their tiles without the retired witness vocabulary', () => {
@@ -190,7 +194,7 @@ describe('WorldLegend (adaptive bar)', () => {
     renderLegend(stories);
     fireEvent.click(screen.getByRole('button', { name: 'proof' }));
     expect(screen.getByRole('region', { name: 'legend — proof' }).textContent).toContain(
-      'different claims',
+      'combined story proof',
     );
     expect(screen.getByText('proven green').closest('.legend-tile')?.className).not.toContain(
       'is-absent',
@@ -280,10 +284,9 @@ describe('WorldLegend (adaptive bar)', () => {
     const onToggleStatus = vi.fn();
     renderLegend(offlineWorld(), { onToggleStatus });
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
-    // healthy doesn't occur in this world. `unhealthy` is no longer a fan state at all
-    // — ADR-0296 withdrew it from the world's rendered vocabulary, so the fan is
-    // proposed / mapped / healthy and only healthy is absent here.
-    expect(screen.getAllByText('not in world yet')).toHaveLength(1);
+    // healthy and story-only unhealthy do not occur in this world; both remain visible as dimmed
+    // states in the complete story-status fan.
+    expect(screen.getAllByText('not in world yet')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: /^proposed/ }));
     expect(onToggleStatus).toHaveBeenCalledWith('proposed');
     // building and retired are not legend STATUS states — the world folds
@@ -346,15 +349,11 @@ describe('WorldLegend — sprite art sheet (ADR-0230)', () => {
     expect(document.querySelector('.legend-bar .story-tree')).toBeNull();
   });
 
-  it('the withered sprites are never reached — `unhealthy` left the picture (ADR-0296)', () => {
-    // The sheet still CARRIES `tree:unhealthy` / `flora:unhealthy` (the art is retained, not
-    // deleted), and the fold means the legend can no longer be handed the state. Even fed a raw
-    // `unhealthy` world directly — bypassing `provenStatus` — the legend draws neither withered
-    // sprite. This is the pin that the withdrawal is complete on the legend surface.
-    renderLegend([story('s', 'unhealthy', [cap('c', 'unhealthy')])], { spriteSheet: sheet });
+  it('story unhealthy reaches the withered tree sprite but capability flora stays alive', () => {
+    renderLegend([story('s', 'unhealthy', [cap('c', 'proposed')])], { spriteSheet: sheet });
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
-    expect(spriteHrefs()).not.toContain('/art-sheets/test/tree-withered.png');
+    expect(spriteHrefs()).toContain('/art-sheets/test/tree-withered.png');
     expect(spriteHrefs()).not.toContain('/art-sheets/test/flora-dead.png');
-    expect(screen.queryByText('withered')).toBeNull();
+    expect(screen.getByRole('button', { name: /^unhealthy/ })).toBeTruthy();
   });
 });
