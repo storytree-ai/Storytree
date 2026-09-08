@@ -416,6 +416,7 @@ const DECLARED_SHARED_FLOOR = [
   "check:guidance",
   "check:hierarchy-camps",
   "check:hierarchy-drift",
+  "check:uat-revision-continuity",
   "check:land-art",
   "check:library-dag-acyclic",
   "check:mirror-conformance",
