@@ -46,6 +46,7 @@ import {
   SHIPPED_LAYERS,
   SHIPPED_SAND_MIX,
   SHIPPED_SHADOW_DEPTH,
+  SHIPPED_BLIGHT,
   SHIPPED_WHEAT,
   shippedGroundBuild,
   type ShippedGroundBuild,
@@ -507,6 +508,12 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
     // THE WHEAT — layer 1 on the in-progress rows (2026-09-06), as the canvas passes it. Its
     // rows are the status rows, which this table carries first and in the map's own order.
     wheat: SHIPPED_WHEAT,
+    // THE BLIGHT — layer 1 re-palettised onto the charred token and split by its crack network
+    // (2026-09-08), as the canvas passes it. Its row is a status row, which this table carries
+    // first and in the map's own order. ⚠ It cannot repaint the cliff either, for the reason the
+    // masked layers above cannot — the blight gate names one status row, the skirt's rock rows are
+    // not it, so an ungated row multiplies the layer by zero exactly as before.
+    blight: SHIPPED_BLIGHT,
   };
   const shadow = build.field === null ? null : groundAtlasTexture(build.field);
   if (shadow !== null) opts.shadowAtlas = shadow;

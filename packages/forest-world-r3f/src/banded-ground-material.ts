@@ -61,6 +61,7 @@ import {
 } from './land-grain.js';
 import { grassGlsl } from './land-grass.js';
 import { wheatGlsl } from './land-wheat.js';
+import { blightGlsl, type BlightPalette } from './land-blight.js';
 import { rockGlsl } from './land-rock.js';
 import { sandGlsl } from './land-sand.js';
 import { wearGlsl } from './land-wear.js';
@@ -203,6 +204,51 @@ export interface GroundWheatLayer {
    *  and is refused, as is a lift that is not a finite number. No default — a wheat handed
    *  without its lift is the shape a comparison page's control goes stale in. */
   lift: number;
+}
+
+/**
+ * THE UNHEALTHY GROUND, PAINTED FOR THE READ (`src/land-blight.ts`,
+ * `paint-the-unhealthy-ground-for-the-read-not-the-richness`): layer 1's structure re-palettised
+ * onto the charred `unhealthy` token and burned toward black, split by a crack network the
+ * approved recipe does not contain — because the recipe paints a HEALTHY island and the read this
+ * token needs is the structure a green island never shows.
+ *
+ * ⚠⚠ IT WIDENS ADR-0492 D1's GATE BY A THIRD TOKEN, IT DOES NOT DELETE IT. The grass and the
+ * wheat keep their rows and their factors; the blight has its own row and its own factor, and it
+ * enters through the SAME paint seam as its own `mix` immediately after theirs. A row named by
+ * this gate and either of the others is REFUSED: it would be painted twice through one seam,
+ * which is neither layer.
+ *
+ * ⚠⚠ AND — UNLIKE THE WHEAT — ITS GATE IS NOT PROMOTED INTO `grassGate`. That single absence is
+ * the whole of the increment's "the layers are chosen, not copied": layers 2, 3 and 4 (the shore
+ * sand, the worn path, the slope rock) all ride `grassGate`, so a blighted row wears none of
+ * them. Each exclusion is an argument about the read and `land-blight.ts` carries all three; the
+ * shortest is layer 4's, which was measured on 2026-09-08 to desaturate a real-map island past
+ * its own status, and which would therefore push the unhealthy ground toward exactly the grey the
+ * healthy islands already deliver.
+ *
+ * ⚠ A MIX INTO THE STATUS COLOUR, NEVER A COVER (ADR-0490 D5): `mix(c, blight * level,
+ * uBlightMix * blightGate)` with the factor below 1, so the island's own charred token stays in
+ * every fragment.
+ *
+ * ⚠ IT REQUIRES {@link BandedGroundMaterialOptions.grass} and is refused without it: its base
+ * rides `st_grassScalar` / `st_grassDrift` / `st_grassSrgb`, which only the grass source declares.
+ * Its crack network is its own and is the only field it evaluates. ABSENT means the emitted
+ * source is byte-identical to the one this file produced before the blight existed.
+ */
+export interface GroundBlightLayer {
+  /** How much of the blight colour enters the delivered pixel on a blighted row — its OWN factor,
+   *  so a scale-back here never moves the grass or the wheat. Never 1.0 (ADR-0490 D5's seam, kept
+   *  literally). No default, for the grass's reason. */
+  mix: number;
+  /** WHICH RAMP ROWS WEAR THE BLIGHT — `BLIGHT_STATUS_GATE` resolved through the caller's own row
+   *  ordering. Empty is refused; a row shared with the grass or the wheat is refused. */
+  rows: readonly number[];
+  /** HOW FAR THE GROUND HAS DIED — the burn and the crack strength of one `BLIGHT_RUNGS` rung,
+   *  the ladder the owner scales along. Written into the source, like the ramp stops: a page
+   *  comparing rungs compiles one shader per rung. A burn outside [0, 1) is refused (1 is black,
+   *  and black is the sea); a crack strength outside [0, 1] is refused. */
+  palette: BlightPalette;
 }
 
 /**
@@ -385,6 +431,13 @@ export interface BandedGroundMaterialOptions {
    *  ⚠ IT REQUIRES {@link grass}, and is refused without it: it reads the grass's own scalar,
    *  drift and transfer, which only the grass source declares. */
   wheat?: GroundWheatLayer;
+  /** WEAR the blight on the unhealthy rows — layer 1 re-palettised onto the charred token and
+   *  split by a crack network. See {@link GroundBlightLayer}; absent leaves the emitted source
+   *  byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grass}, and is refused without it: its base reads the grass's own
+   *  scalar, drift and transfer, which only the grass source declares. */
+  blight?: GroundBlightLayer;
   /** WEAR the approved ground's LAYER 2 — the shore sand and its band. See
    *  {@link GroundSandLayer}; absent leaves the emitted source byte-identical.
    *
@@ -898,6 +951,60 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         'gate — one row wears one painted layer, never the sum of two',
     );
   }
+  const blight = opts.blight;
+  // ⚠ REFUSED FOR THE WHEAT'S REASON. `blightGlsl()` calls `st_grassScalar`, `st_grassDrift` and
+  // `st_grassSrgb`, which only the grass source declares — the blight's BASE is the grass's
+  // structure wearing a burned colour. Its crack network is its own and is the one field it adds.
+  if (blight !== undefined && grass === undefined) {
+    throw new Error(
+      'banded-ground-material: the blight layer needs the grass — its base is layer 1’s own ' +
+        'structure re-palettised, and reads the scalar, drift and transfer only the grass source declares',
+    );
+  }
+  // ⚠ AN EMPTY GATE IS REFUSED, for the grass's and the wheat's reason.
+  if (blight !== undefined && blight.rows.length === 0) {
+    throw new Error(
+      'banded-ground-material: the blight layer was given no rows to dress — a gate that ' +
+        'matches nothing draws the flat charcoal at the painted charcoal’s cost',
+    );
+  }
+  // ⚠⚠ A BURN OF 1 IS BLACK, AND BLACK IS THE SEA. The scene background is a near-black
+  // (`#101418`), and a metric that scores an island in isolation rewards painting it darker right
+  // up to the point it merges with the water (measured, PR #1792). The ladder therefore runs
+  // strictly below 1, and NaN would write `NaN` into six stop constants and compile a shader that
+  // draws black — the same failure by another route.
+  if (blight !== undefined && !(Number.isFinite(blight.palette.burn) && blight.palette.burn >= 0 && blight.palette.burn < 1)) {
+    throw new Error(
+      `banded-ground-material: the blight layer's burn is ${blight.palette.burn}; it runs from 0 ` +
+        '(the ramps re-expressed on the charred token) up to but never reaching 1, which is black',
+    );
+  }
+  if (blight !== undefined && !(Number.isFinite(blight.palette.crackMix) && blight.palette.crackMix >= 0 && blight.palette.crackMix <= 1)) {
+    throw new Error(
+      `banded-ground-material: the blight layer's crack strength is ${blight.palette.crackMix}; ` +
+        'it is a mix factor and runs from 0 (the base alone) to 1',
+    );
+  }
+  const strayBlightRow = blight?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
+  if (strayBlightRow !== undefined) {
+    throw new Error(
+      `banded-ground-material: the blight layer names row ${strayBlightRow}, which is not a ramp row ` +
+        `of the ${opts.tokens.length} this material was handed`,
+    );
+  }
+  // ⚠⚠ A ROW IN TWO PAINT GATES IS REFUSED, for the grass/wheat pair's reason: a row two gates
+  // name would deliver the SUM of two layers at the sum of two factors — a colour neither layer's
+  // instrument ever measured. The wheat rows to test against — `[]` only when there is no wheat.
+  // Stryker disable next-line ConditionalExpression,ArrayDeclaration: EQUIVALENT — the `[]` arm exists only
+  // to type the constant, and a material with no wheat has no wheat row for a blight row to share.
+  const wheatRows: readonly number[] = wheat === undefined ? [] : wheat.rows;
+  const sharedBlightRow = blight?.rows.find((row) => grassRows.includes(row) || wheatRows.includes(row));
+  if (sharedBlightRow !== undefined) {
+    throw new Error(
+      `banded-ground-material: row ${sharedBlightRow} is named by the blight gate AND another ` +
+        'painted gate — one row wears one painted layer, never the sum of two',
+    );
+  }
   const shadowed = ladder !== null;
   const [grainDark, grainLight] = grainStops();
 
@@ -940,6 +1047,10 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // rules. Uploaded rather than written in, like the grass's — it is the number a scale-back moves.
   const wheatUniforms: Record<string, { value: number }> = {};
   if (wheat !== undefined) wheatUniforms['uWheatMix'] = { value: wheat.mix };
+  // The blight's own factor, by statement for the wheat's two reasons: an unblighted material must
+  // carry no uniform the shader never declares, and the factor must be the layer's own.
+  const blightUniforms: Record<string, { value: number }> = {};
+  if (blight !== undefined) blightUniforms['uBlightMix'] = { value: blight.mix };
   // Layer 2's field, by statement for the same two reasons: an unsanded material must carry NO
   // `uShore*` uniform at all, and the shorter spellings are refused by the anti-slop rules.
   const sandUniforms: Record<string, { value: Texture } | { value: number }> = {};
@@ -1012,6 +1123,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     ...grainUniforms,
     ...grassUniforms,
     ...wheatUniforms,
+    ...blightUniforms,
     ...sandUniforms,
     ...wearUniforms,
     ...rockUniforms,
@@ -1028,6 +1140,10 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // and transfer — it declares no field of its own. Before the sand's, so a sanded-and-wheated
   // shader carries the recipe's order grass → wheat → sand → wear → rock.
   const wheatSource = wheat === undefined ? '' : `      ${wheatGlsl(wheat).split('\n').join('\n      ')}\n`;
+  // Appended after the wheat's, and it declares a field of its own (the crack network) on top of
+  // the grass's scalar, drift and transfer. Absent leaves the source byte-identical.
+  const blightSource =
+    blight === undefined ? '' : `      ${blightGlsl(blight.palette).split('\n').join('\n      ')}\n`;
   // Appended AFTER the grass source, because `sandGlsl()` calls `st_grassScalar` and
   // `st_grassSrgb`, and GLSL ES 1.0 resolves calls against declarations already seen.
   const sandSource = sand === undefined ? '' : `      ${sandGlsl().split('\n').join('\n      ')}\n`;
@@ -1049,6 +1165,8 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   const grassUniformDecls = grass === undefined ? '' : '\n      uniform float uGrassMix;';
   // Appended after the grass's, so an unwheated shader is byte-identical.
   const wheatUniformDecls = wheat === undefined ? '' : '\n      uniform float uWheatMix;';
+  /** Appended after the wheat's, so an unblighted shader is byte-identical. */
+  const blightUniformDecls = blight === undefined ? '' : '\n      uniform float uBlightMix;';
   // Appended after the grass's, so an unsanded shader is byte-identical.
   const sandUniformDecls =
     sand === undefined
@@ -1146,6 +1264,23 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // ⚠ NOT GATED ON `grass` HERE: it is spliced only inside `grassStage`, which is empty without the
   // grass, so a grass-less paint line is computed and never emitted — a condition on it would be a
   // branch no material can observe.
+  // ⚠⚠ THE BLIGHT'S OWN LINE, AND WHY IT IS A SECOND `mix` RATHER THAN A THIRD TERM IN
+  // `st_paintColour`. The grass and the wheat share one combiner because they are ONE treatment on
+  // two palettes and the layers above ride both. The blight is neither: its gate is deliberately
+  // NOT promoted into `grassGate` (that absence is what drops the shore sand, the worn path and
+  // the slope rock from an unhealthy island — `land-blight.ts` carries the three arguments), so
+  // folding it into the shared combiner would have bought nothing and would have moved every byte
+  // of the wheat's emitted shader, retiring a golden this arc's own control arms stand on.
+  // On a grass or wheat row `blightGate` is 0 and the mix is the identity.
+  const blightLine =
+    blight === undefined
+      ? ''
+      : `        // THE UNHEALTHY GROUND — layer 1 re-palettised onto the charred token and burned,
+        // split by a crack network no other island wears (src/land-blight.ts), on its own row at
+        // its own factor, through this same seam (ADR-0490 D5): a mix INTO the island's charcoal.
+        ${gateGlsl('blightGate', blight.rows)}
+        c = mix(c, st_blightColour(vWorld.xz) * level, uBlightMix * blightGate);
+`;
   const paintLine =
     wheat === undefined
         ? '        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'
@@ -1158,6 +1293,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // the rock as a grass island does.
         grassGate = max(grassGate, wheatGate);
 `;
+  const paintStage = paintLine + blightLine;
   // LAYER 1, COMPOSITED BETWEEN THE RAMP SELECTION AND THE WRITE — which is the recipe's own
   // order and not merely a convenient place. In `mat_attribute()` the grass is the BASE and the
   // grain is applied LAST, over everything; here the base is the parcel's status colour, so the
@@ -1178,7 +1314,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // gate names, the same measurement admits 0.4065. Every other row multiplies the mix by
         // zero and delivers exactly the pixel it delivered before this layer existed.
         ${grassGateGlsl(grass.rows)}
-${paintLine}${
+${paintStage}${
   sand === undefined
     ? ''
     : `        // LAYER 2 — the shore sand, over layer 1 and masked to the beach (build_land.py:869-893).
@@ -1336,9 +1472,9 @@ ${paintLine}${
     `,
     fragmentShader: `
       ${bandGlsl(lit).split('\n').join('\n      ')}
-${grainSource}${grassSource}${wheatSource}${sandSource}${wearSource}${rockSource}
+${grainSource}${grassSource}${wheatSource}${blightSource}${sandSource}${wearSource}${rockSource}
       uniform vec3 uRamp[${ramp.length}];
-      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${wheatUniformDecls}${sandUniformDecls}${wearUniformDecls}${rockUniformDecls}${detailUniformDecls}${shadowUniformDecls}
+      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${wheatUniformDecls}${blightUniformDecls}${sandUniformDecls}${wearUniformDecls}${rockUniformDecls}${detailUniformDecls}${shadowUniformDecls}
       varying float vStatus;
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 
