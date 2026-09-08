@@ -171,6 +171,20 @@ const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
 };
 
 /**
+ * A net-new REAL fixture whose finite Codex manifest admits one optional literal source target.
+ * The wildcard is deliberately a wall-only entry: it must not become promotion authority, while
+ * the literal helper is genuinely writable in IMPLEMENT.
+ */
+const NET_NEW_OPTIONAL_TARGET_REAL: RealProofConfig = {
+  testFile: "packages/widget/src/optional-target.test.ts",
+  sourceFile: "packages/widget/src/optional-target.ts",
+  scope: {
+    testGlobs: ["packages/widget/src/optional-target.test.ts", "packages/widget/src/optional-target-helper.test.ts", "packages/widget/src/generated/*.test.ts"],
+    sourceGlobs: ["packages/widget/src/optional-target.ts", "packages/widget/src/optional-target-helper.ts", "packages/widget/src/generated/*.ts"],
+  },
+};
+
+/**
  * Parse the ADAPTER's OWN rendered "allowed target set" / "Required outputs" sections out of a
  * captured final Codex stdin (see `captureCodexFinalStdin`'s composed `fullPrompt` in
  * `packages/agent/src/codex-author.ts`) — the section the adapter builds itself from the
@@ -705,10 +719,11 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
     IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
   };
-  const result = resolveRealFor(INSTALL_REAL, { phasePrompts: role });
+  const real = NET_NEW_OPTIONAL_TARGET_REAL;
+  const result = resolveRealFor(real, { phasePrompts: role });
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, role);
+  const finalStdin = await captureCodexFinalStdin(real, result.spec.prompts, role);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
     const text = finalStdin[phase];
     assert.match(text, /red-builder|green-builder/, `${phase}: the rendered role survives composition`);
@@ -725,6 +740,29 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     assert.match(text, /spine will run all registered proof commands after you stop/);
     assert.match(text, /disposable replica/);
   }
+
+  const manifest = codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs);
+  const optionalSource = "packages/widget/src/optional-target-helper.ts";
+  assert.ok(manifest.allowedTargets.includes(optionalSource), "the literal helper is an admitted IMPLEMENT target");
+  assert.ok(!manifest.requiredTargets.includes(optionalSource), "the literal helper stays optional");
+  assert.ok(
+    !manifest.allowedTargets.includes("packages/widget/src/generated/other.ts"),
+    "a wildcard-only sibling is not promotion authority",
+  );
+
+  // Assert the action-bearing IMPLEMENT instruction rather than accepting the optional path merely
+  // occurring in conventions or the adapter's read-only packing list. This must grant every finite
+  // allowed source target write authority; otherwise Codex is told to write ONLY the spotlight even
+  // though the spine will promote the optional literal.
+  const implementAction = /Phase IMPLEMENT —([\s\S]*?)Writes to the test file are refused/.exec(
+    finalStdin.IMPLEMENT,
+  );
+  assert.ok(implementAction, "the final stdin contains the IMPLEMENT authoring imperative");
+  assert.match(
+    implementAction![1]!,
+    /optional-target-helper\.ts/,
+    "IMPLEMENT grants write authority to the optional literal source target",
+  );
 });
 
 test("prompts-brief-the-real-constraints: an offline rendered role (renderLeafPhasePrompts over the Library fixture) composes truthfully for Codex", async () => {

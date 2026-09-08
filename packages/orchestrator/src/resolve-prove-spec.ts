@@ -1294,7 +1294,7 @@ export function realPrompts(
       `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}`,
     implement:
       `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
-      `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
+      `then write ONLY within ${sourcesNamed} so that test passes. Writes to the test file are ` +
       `refused in this phase. ${greenClose("write", "the proof")} If you conclude the test itself ` +
       `is wrong, stop and say so plainly instead of working around it.`,
   };
