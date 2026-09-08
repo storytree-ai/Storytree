@@ -48,7 +48,7 @@ import { CredentialBridge } from "./credential-bridge.js";
 // implement, so the caller composing one (today: nobody — see the module header) needs no import
 // from here either.
 
-/** Which leaf runtime a build runs on — the Claude Agent SDK by default, Codex opt-in (ADR-0232). */
+/** Which leaf runtime a build runs on — Codex by default, Claude explicit (ADR-0555). */
 export type BuildRuntime = "claude" | "codex";
 
 /**
@@ -103,9 +103,9 @@ export function credentialedBuildRunner(opts: CredentialedBuildRunnerOpts): Buil
   const env = opts.env ?? (process.env as Record<string, string | undefined>);
   const explicit = opts.explicitEnvVars ?? new Set<string>();
 
-  return async (unitId, sink, runtime = "claude") => {
+  return async (unitId, sink, runtime = "codex") => {
     // Codex authenticates through the official CLI's saved ChatGPT login. It neither needs nor may
-    // be rejected by the Claude keychain bridge; the caller passes `runtime: codex` straight through
+    // be rejected by the Claude keychain bridge; the default passes `runtime: codex` straight through
     // to the node/story build entries, whose Codex author invokes that supported path.
     if (runtime === "codex") {
       return opts.runner(unitId, sink, runtime);

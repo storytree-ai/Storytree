@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { MIRRORS } from "./mirror-conformance.js";
 
@@ -236,6 +237,15 @@ test("mutation-diff: several scripts naming the same file yield one entry", () =
     b: "pnpm -C packages/cli exec tsx src/x.ts",
   });
   assert.deepEqual(entries, ["packages/cli/src/x.ts"]);
+});
+
+test("mutation-diff: the model-driven UAT executable is registered as a root entry point", () => {
+  const rootPackage = JSON.parse(
+    readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+  ) as { scripts?: Record<string, string> };
+
+  assert.ok(rootPackage.scripts !== undefined);
+  assert.ok(entryPointsFromScripts(rootPackage.scripts).includes("packages/drive/src/uat-drive.run.ts"));
 });
 
 test("mutation-diff: an exempt entry point is dropped from mutation and REPORTED", () => {

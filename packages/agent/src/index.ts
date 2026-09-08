@@ -1,7 +1,7 @@
 // @storytree/agent — the agent runtimes (ADR-0011 / ADR-0030). This package is the SOLE model-
 // runtime import site (ADR-0004): the owned loop on the raw Messages API (the offline/test
-// executor and pivot-out fallback) plus the Claude-default and Codex-opt-in subscription leaves,
-// all behind the runtime-agnostic PhaseAuthor seam (ADR-0030 / ADR-0232).
+// executor and pivot-out fallback) plus the Codex-default and explicit-Claude subscription leaves,
+// all behind the runtime-agnostic PhaseAuthor seam (ADR-0030 / ADR-0232 / ADR-0555).
 export type {
   Model,
   ModelMessage,

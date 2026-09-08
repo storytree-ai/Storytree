@@ -204,13 +204,11 @@ test("Codex subscription boundary: only ChatGPT login status is accepted", () =>
   assert.equal(verifyCodexSubscriptionAuth("Logged in using ChatGPT\n", { OPENAI_API_KEY: "present" }).ok, false);
 });
 
-test("UAT provider setting: Claude is the default and Codex is explicit", () => {
-  // ADR-0435 (owner-directed 2026-08-24) reversed the 2026-08-20 default after the Codex quota was
-  // exhausted with a month-long reset, which halted every model-driven walk at once. An UNSET
-  // variable must select Claude — that is the whole point, since a fleet of dispatched sessions
-  // inherits the default rather than setting anything.
-  assert.deepEqual(resolveUatDriveProvider(undefined), { ok: true, provider: "claude" });
-  assert.deepEqual(resolveUatDriveProvider("  "), { ok: true, provider: "claude" });
+test("UAT provider setting: Codex is the default and Claude is explicit", () => {
+  // ADR-0555 (owner-directed 2026-09-08) moves the implicit route with the available subscription.
+  // A dispatched session sets nothing, so both unset and blank must select Codex.
+  assert.deepEqual(resolveUatDriveProvider(undefined), { ok: true, provider: "codex" });
+  assert.deepEqual(resolveUatDriveProvider("  "), { ok: true, provider: "codex" });
   assert.deepEqual(resolveUatDriveProvider("codex"), { ok: true, provider: "codex" });
   assert.deepEqual(resolveUatDriveProvider("claude"), { ok: true, provider: "claude" });
   // The refusal is what keeps a typo from silently falling back to a metered route.

@@ -176,8 +176,8 @@ never silently.
   bridge. No `desktop` edge; no `pty-session-manager` change.
 - **It changes the INTERACTIVE terminal, NOT the prove-it-gate (ADR-0186 Scope / ADR-0174 CRITICAL note).**
   Signed `--real` verdicts still come **only** from the deterministic spine driving the selected
-  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
-  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  `PhaseAuthor` — `CodexPhaseAuthor` is the omitted-runtime default and `--runtime claude` selects
+  `ClaudeAgentAuthor` explicitly (ADR-0555) — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
   walk (`packages/orchestrator/*`). This story changes only the interactive terminal — how many
   sessions it holds, and which one a seed lands in. The prove-it-gate runtime binding and the whole
   `packages/orchestrator` spine are **UNTOUCHED** (ADR-0020 / ADR-0030 / ADR-0091 stand). It also does NOT

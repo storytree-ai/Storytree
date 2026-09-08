@@ -170,7 +170,8 @@ Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctl
    - **covers —** `apps/studio/src/lib/buildCommand.ts` (the id interpolation) *(provisional path)*
 4. **`cbc-selects-the-requested-runtime`** — the command preserves the selected authoring runtime
    - **asserts —** for the same unit and scope, selecting `claude` or `codex` changes only the final
-     `--runtime` value; the composer never drops the selector or substitutes the compatibility default.
+     `--runtime` value; the composer never drops the selector or substitutes the implicit CLI default
+     (Claude while this retired capability was live, Codex after ADR-0555).
    - **covers —** `apps/studio/src/lib/buildCommand.ts` (the runtime interpolation)
 
 ## Guidance — re-proving the existing composer honestly

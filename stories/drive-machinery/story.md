@@ -23,7 +23,7 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # are now declared cross-story edges — they were exempt substrate dependencies before ADR-0075.
 # ADR-0058 §3 + the now-authored stories/agent organism: the spine imports @storytree/agent as a
 # RUNTIME dependency (OwnedLoopAuthor + the gate consume the PhaseAuthor seam; resolve-prove-spec
-# binds ClaudeAgentAuthor by default or CodexPhaseAuthor when explicitly selected) — the cross-story
+# binds CodexPhaseAuthor by default or ClaudeAgentAuthor when explicitly selected) — the cross-story
 # edge the "PhaseAuthor seam is CONSUMED, not owned"
 # section below predicted this frontmatter would gain once the leaf organism was authored. Declared
 # CONSUMER-side here; the agent root organism is depends_on [] (it imports no @storytree/* package).
@@ -48,11 +48,13 @@ consumed_by: [cli]
 # of Story UAT legs 3/4/7 (184 — leg 4 landed as the observe ancestry gate-5, leg 3 as the
 # live-artifact witnessable-verdict gate-6, leg 7 as the cold-start dogfood-probe witness gate-7
 # (dogfood-probe.run.ts / dogfood-witness.check.ts); all three legs now machine — no human UAT leg
-# remains), and the ChatGPT-funded Codex live leaf beside the Claude compatibility default (232), and the
+# remains), the ChatGPT-funded Codex live leaf first added beside the then-default Claude leaf (232),
+# the later selection reversal that makes Codex the omitted-runtime default and retains Claude as the
+# explicit alternative (555), and the
 # accounting-only `liveAuthorOverride` widening of the resolver's author seam that lets a
 # live-spend-only adapter earn a MACHINE activation leg with no agent and no credentials (243 —
 # capabilities 22 and 23).
-decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184, 232, 243]
+decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184, 232, 243, 555]
 ---
 
 # The drive machinery
@@ -102,8 +104,8 @@ declared cross-story interface to that organism, and the frontmatter `depends_on
 `packages/agent` imports no `@storytree/*` package so it is a depends_on-[] root organism) is recorded
 in the agent story. The original case below stands as the rationale:
 
-`packages/agent` — the `PhaseAuthor` seam type, the live `ClaudeAgentAuthor` compatibility default,
-the opt-in `CodexPhaseAuthor` (`--runtime codex`, ADR-0232), and the owned-loop internals
+`packages/agent` — the `PhaseAuthor` seam type, the default `CodexPhaseAuthor` and the explicit
+`ClaudeAgentAuthor` alternative (`--runtime claude`, ADR-0555), and the owned-loop internals
 (`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-tools.ts`) — is
 **not a capability of this story** (it is the `agent` organism's). The reasoning:
 
@@ -307,8 +309,8 @@ was a second evidence site until 2026-08-30 and went with `oq-hygiene-gate`, lea
 standing on the store-connection seam alone), the `storage-protocol` + `proof-protocol` root-port
 edges (ADR-0075), and the **`agent`** edge — the
 spine imports `@storytree/agent` to consume the `PhaseAuthor` seam (`OwnedLoopAuthor` + the gate +
-the prove-spec resolver) and bind `ClaudeAgentAuthor` by default or `CodexPhaseAuthor` when
-`--runtime codex` is selected. See the "PhaseAuthor seam is CONSUMED, not owned" section above for
+the prove-spec resolver) and bind `CodexPhaseAuthor` by default or `ClaudeAgentAuthor` when
+`--runtime claude` is selected (ADR-0555). See the "PhaseAuthor seam is CONSUMED, not owned" section above for
 the now-settled modeling call.
 
 ## Units

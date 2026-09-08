@@ -66,17 +66,17 @@ store and render in our own UI. No external trace SaaS.
 | Concern | Choice | Why |
 |---|---|---|
 | Language / runtime | TypeScript, Node 24, pnpm workspaces | model-agnostic, owns the loop |
-| Per-node coding agent | **the owned loop** (`packages/agent`, on the Anthropic Messages API) | we own the agent loop + context engineering; emits a clean event stream + diffs |
+| Per-node coding agent | `PhaseAuthor` seam: Codex subscription leaf by default, Claude subscription leaf explicitly, owned loop offline/pivot-out | the deterministic spine keeps the proof boundary and exact-file promotion independent of the selected leaf |
 | Runtime store | **Cloud SQL Postgres** via typed `node-pg` (`packages/library/src/store` — the old `packages/store` dissolved, ADR-0077) | concurrency-safe shared state; JSONB + zod-validated. DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection — durable workflows stay a reserved future target |
 | Orchestration | thin custom layer | the story-DAG + event store; small, ours |
 | Observability | own event store | owned-loop events + orchestrator events → typed event log → UI. No per-trace SaaS |
 | Tree UI | **SVG** hex-forest world (ADR-0036/0069; PixiJS was rejected) | procedural SVG scenes, no engine dependency; R3F/WebGL stays a far-future website target (ADR-0145) |
-| Models | via `PhaseAuthor` | Claude subscription by default; opt-in Codex reuses saved ChatGPT auth; owned loop stays offline/pivot-out |
+| Models | via `PhaseAuthor` | Codex reuses saved ChatGPT auth by default; Claude is explicit; owned loop stays offline/pivot-out |
 
 See ADR-0001 — `storytree library artifact adr-0001` — for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
-Google ADK; the Claude Agent SDK, initially passed over, later became the default **live**
-runtime per ADR-0030, with the owned loop demoted to the offline executor; ADR-0232 adds an
-opt-in ChatGPT-subscription Codex leaf through the same proof boundary).
+Google ADK; the Claude Agent SDK, initially passed over, later became the first default **live**
+runtime per ADR-0030, with the owned loop demoted to the offline executor; ADR-0232 added a
+ChatGPT-subscription Codex leaf through the same proof boundary, and ADR-0555 made it the default).
 
 ## Principles
 
@@ -86,8 +86,8 @@ opt-in ChatGPT-subscription Codex leaf through the same proof boundary).
 - **Parallel from day one.** Concurrency-safe state is a foundation, not a
   retrofit — learned the hard way from v1's store-lock races and story-ID
   collisions.
-- **Model-agnostic, self-hosted.** API keys, not a subscription; your data and
-  traces stay yours.
+- **Model-agnostic, self-hosted.** Subscription-funded leaves behind one seam; your data and traces
+  stay in Storytree's own store.
 
 ## Repo layout
 

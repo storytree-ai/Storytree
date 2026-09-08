@@ -29,8 +29,8 @@ const script = readFileSync(scriptPath, "utf8");
 // convergent steps, so they carry no `# @step:` marker and are intentionally excluded here.
 //
 // `codex-cli` is DECLARED here and OPT-IN at run time (`-WithCodex`), and the two are not in
-// tension: ADR-0030 makes Codex the opt-in runtime, so a default explorer run must not install a
-// product needing a ChatGPT subscription the dev may not have — but the step must still EXIST by
+// tension: ADR-0555 makes the PINNED wrapper the default build/UAT leaf, while a default explorer
+// run still must not install the separate interactive product — but the step must still EXIST by
 // name, because `storytree doctor --dev`'s `codex-cli` probe carries it as its `fixStep` and D6's
 // repair loop re-invokes it as `-Step codex-cli`. A fixStep naming a step the script does not
 // declare would be a dead entry in the repair vocabulary, which is the failure the marker inventory
@@ -46,6 +46,17 @@ const EXPECTED_STEPS = [
   "claude-cli",
   "codex-cli",
 ] as const;
+
+test("the default Codex leaf's ChatGPT sign-in instruction is not hidden behind the optional product install", () => {
+  const noticeStart = script.indexOf("# Codex subscription auth is required by the default build/UAT leaf");
+  const noticeEnd = script.indexOf("# Desktop app:", noticeStart);
+  assert.notEqual(noticeStart, -1, "the installer must explain why the Codex sign-in is required");
+  assert.notEqual(noticeEnd, -1, "the Codex notice must remain a bounded trailing action");
+  const notice = script.slice(noticeStart, noticeEnd);
+  assert.doesNotMatch(notice, /if \(\$WithCodex\)/, "sign-in is required even without a global Codex product install");
+  assert.match(notice, /packages\/agent\/node_modules\/@openai\/codex\/bin\/codex\.js/);
+  assert.match(notice, /node.*\$pinnedCodex.*login/);
+});
 
 test("Invoke-Step enforces the idempotency guard (never installs when already satisfied)", () => {
   const fnStart = script.indexOf("function Invoke-Step");

@@ -77,7 +77,7 @@ test("operation-env-lifetime: credentialed-build-runner: keychain oauth token is
   const { calls, envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  const result = await runner("some-unit", () => undefined);
+  const result = await runner("some-unit", () => undefined, "claude");
 
   assert.equal(result.ok, true, "the base runner's envelope must propagate");
   assert.deepEqual(calls, ["some-unit"], "the base runner must run exactly once");
@@ -110,7 +110,7 @@ test("operation-env-lifetime: credentialed-build-runner: an explicitly-set env c
     explicitEnvVars: new Set([OAUTH_VAR]),
   });
 
-  await runner("some-unit", () => undefined);
+  await runner("some-unit", () => undefined, "claude");
 
   assert.equal(
     envSnapshots[0]?.[OAUTH_VAR],
@@ -130,7 +130,7 @@ test("credentialed-build-runner: api-key kind is injected under ANTHROPIC_API_KE
   const { envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  await runner("some-unit", () => undefined);
+  await runner("some-unit", () => undefined, "claude");
 
   assert.equal(
     envSnapshots[0]?.[API_KEY_VAR],
@@ -152,7 +152,7 @@ test("runtime-credential-partition: credentialed-build-runner: oauth is preferre
   const { envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  await runner("some-unit", () => undefined);
+  await runner("some-unit", () => undefined, "claude");
 
   assert.equal(envSnapshots[0]?.[OAUTH_VAR], "kc-oauth", "oauth must be the brokered kind");
   assert.equal(
@@ -173,7 +173,7 @@ test("operation-env-lifetime: credentialed-build-runner: falls through to a file
   const { calls, envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  await runner("some-unit", () => undefined);
+  await runner("some-unit", () => undefined, "claude");
 
   assert.deepEqual(calls, ["some-unit"], "the build must still run on the secrets-file tier");
   assert.equal(
@@ -195,7 +195,7 @@ test("runtime-credential-partition: credentialed-build-runner: rejects with the 
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
   await assert.rejects(
-    () => runner("some-unit", () => undefined),
+    () => runner("some-unit", () => undefined, "claude"),
     (err: unknown) => {
       assert.ok(err instanceof Error, "must reject with an Error");
       assert.ok(
@@ -208,7 +208,7 @@ test("runtime-credential-partition: credentialed-build-runner: rejects with the 
   assert.equal(calls.length, 0, "the base runner must never run without a credential");
 });
 
-test("runtime-credential-partition: Codex uses saved ChatGPT auth without requiring a Claude credential", async () => {
+test("runtime-credential-partition: the default Codex runtime uses saved ChatGPT auth without requiring a Claude credential", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   const env: Record<string, string | undefined> = {};
   const seen: Array<{ unitId: string; runtime: string | undefined }> = [];
@@ -218,7 +218,7 @@ test("runtime-credential-partition: Codex uses saved ChatGPT auth without requir
   };
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  const result = await runner("some-unit", () => undefined, "codex");
+  const result = await runner("some-unit", () => undefined);
 
   assert.equal(result.ok, true);
   assert.deepEqual(seen, [{ unitId: "some-unit", runtime: "codex" }]);
@@ -239,7 +239,7 @@ test("runtime-credential-partition: credentialed-build-runner: a stray CURSOR_AP
   });
 
   await assert.rejects(
-    () => runner("some-unit", () => undefined),
+    () => runner("some-unit", () => undefined, "claude"),
     /no.*credential|not.*stored/i,
   );
   assert.deepEqual(calls, [], "Cursor's env must not invoke the Claude runner");
@@ -257,7 +257,7 @@ test("credentialed-build-runner: the base runner's full envelope (incl. next) su
   const { runner: base } = makeStubRunner(env, envelope);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
-  const result = await runner("some-unit", () => undefined);
+  const result = await runner("some-unit", () => undefined, "claude");
 
   assert.deepEqual(result, envelope, "the envelope must pass through byte-for-byte");
 });

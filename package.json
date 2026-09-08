@@ -14,6 +14,7 @@
     "test": "pnpm -r test",
     "lint": "oxlint",
     "storytree": "node packages/cli/launch.mjs",
+    "uat:drive": "pnpm -C packages/drive exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/uat-drive.run.ts",
     "check:boundaries": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-boundaries.ts",
     "check:ownership-totality": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-ownership-totality.ts",
     "check:contract-grammar": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-contract-grammar.ts",

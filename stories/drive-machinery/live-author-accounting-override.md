@@ -8,7 +8,7 @@ outcome: "An offline caller can supply the resolved live author for accounting, 
 status: proposed
 proof_mode: integration-test
 depends_on: [prove-spec-resolution]
-decisions: [243, 30, 20]
+decisions: [243, 30, 20, 555]
 proof:
   command:
     file: pnpm
@@ -60,7 +60,8 @@ Given a real-buildable node spec and a scripted `PhaseAuthor`:
    names both option names;
 4. in case 1, read `spec.author` back and confirm it is the scripted override and never the canned
    live author, with the canned author's `queryFn` never invoked; and
-5. resolve with neither option and confirm the `else` branch still constructs its own live leaf.
+5. resolve with neither option and confirm the `else` branch still constructs its own live leaf —
+   `CodexPhaseAuthor` when the runtime is omitted under ADR-0555.
 
 The observable is the `ResolveResult` object itself — its `ok` flag, its key set, the identity of the
 objects it carries, and the refusal reason's text.
@@ -89,8 +90,9 @@ stub would let a mis-wiring go unnoticed; a throwing one cannot.
 `resolve-prove-spec.ts:489-490`), set `liveAuthor = opts.liveAuthorOverride` when it is supplied.
 `liveAuthorOverride` supplied WITHOUT `authorOverride` is REFUSED fail-closed —
 `{ ok: false, reason, registered: realBuildableNodeIds() }` — because it is meaningless there and
-would silently claim a live leaf ran; the reason must name BOTH option names literally. Nothing about
-the `else` branch changes: with no override at all the resolver still constructs the real leaf.
+would silently claim a live leaf ran; the reason must name BOTH option names literally. The shape of
+the `else` branch does not change: with no override at all the resolver still constructs the real leaf,
+whose omitted-runtime class is `CodexPhaseAuthor` under ADR-0555.
 
 **D6 — document the asymmetry AT THE SEAM, in the source.** The JSDoc on `authorOverride`
 (`resolve-prove-spec.ts:210-214`) and on the new `liveAuthorOverride` must state that `authorOverride`
@@ -176,7 +178,7 @@ subprocess, no network, no credential, no model.
 5. **`the-else-branch-still-constructs-its-own-live-leaf`**
    - **asserts —** with NEITHER option supplied, a REAL resolve still returns `ok: true` with a
      constructed `liveAuthor` that is an instance of the default runtime's concrete class
-     (`ClaudeAgentAuthor`), and `spec.author` is that same constructed leaf. Construction alone must
+     (`CodexPhaseAuthor` under ADR-0555), and `spec.author` is that same constructed leaf. Construction alone must
      issue no query and read no credential; the test never calls `author()`.
    - **falsifiability —** goes RED against an implementation that made `liveAuthorOverride` the ONLY
      producer of `liveAuthor` — i.e. one that deleted or short-circuited the `else` branch's

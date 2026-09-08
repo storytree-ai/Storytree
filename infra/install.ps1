@@ -47,11 +47,10 @@ param(
   [string]$RepoUrl = 'https://github.com/storytree-ai/Storytree.git',
   # Skip the final desktop-app launch (provision only) - used by re-run/repair flows.
   [switch]$SkipLaunch,
-  # Also install the Codex CLI (the 'codex-cli' step). OPT-IN, deliberately: ADR-0030 makes the Claude
-  # Agent SDK the default runtime and Codex the opt-in one, and Codex needs a ChatGPT subscription
-  # this installer's explorer may not have. A default run must not install a product the dev did not
-  # ask for - but the step still EXISTS, so `-Step codex-cli` repairs it (the D6 repair vocabulary,
-  # which is what `storytree doctor`'s codex-cli fixStep names).
+  # Also install the global Codex CLI (the 'codex-cli' step). OPT-IN, deliberately: `pnpm install`
+  # already supplies the pinned default build/UAT leaf (ADR-0555); the global product is needed only
+  # for an interactive Codex session. The step still EXISTS, so `-Step codex-cli` repairs it (the D6
+  # repair vocabulary, which is what `storytree doctor`'s codex-cli fixStep names).
   [switch]$WithCodex,
   # Run ONLY the named `# @step:<name>` and stop - the D6 targeted repair (ADR-0207). The guide's
   # repair loop names the exact step to re-invoke (doctor's fixStep -> planRepairs' InstallerStepAction
@@ -192,9 +191,10 @@ Invoke-Step -Name 'claude-cli' `
   -Check  { Test-Have claude } `
   -Install { irm https://claude.ai/install.ps1 | iex; Update-SessionPath }
 
-# @step:codex-cli - the OPT-IN second runtime (ADR-0030 / ADR-0232). Skipped unless -WithCodex, but
-# always reachable by name so `-Step codex-cli` is a real repair - that is what doctor's `codex-cli`
-# fixStep points at. Same D3 trust invariant as claude-cli, and MORE binding: ADR-0232 accepts saved
+# @step:codex-cli - the optional GLOBAL session product (ADR-0232 / ADR-0555). The pinned default
+# build/UAT leaf arrived with `pnpm install`; this step is skipped unless -WithCodex, but remains
+# reachable by name so `-Step codex-cli` is a real repair for the interactive-product WARN. Same D3
+# trust invariant as claude-cli, and MORE binding: ADR-0232 accepts saved
 # ChatGPT-managed auth ONLY (an API-key fallback is forbidden), so `codex login` is the dev's own
 # browser action and never something this script performs. Installing the CLI does NOT produce a
 # credential - `storytree doctor --dev` reports the two separately for exactly that reason.
@@ -236,15 +236,17 @@ if (Test-Path $claudeCreds) {
   Write-Warn "Claude login - not yet done. Run 'claude' and complete sign-in in your browser (your own subscription)."
 }
 
-# Codex is the opt-in runtime, so this notice is only shown when the dev asked for it. Detect and
-# instruct, never capture (ADR-0207 D3): a Codex sign-in writes ~/.codex/auth.json in the dev's own
-# browser session, and ADR-0232 accepts nothing else. Reported as a NOTICE and never a failure - a
-# box with no Codex is a complete configuration, it simply cannot drive the opt-in runtime.
-if ($WithCodex) {
-  if (Test-Have codex) {
-    Write-Info "Codex login - run 'codex login' and sign in with your ChatGPT account. Installing the CLI does NOT sign you in, and 'storytree doctor --dev' reports the two separately."
+# Codex subscription auth is required by the default build/UAT leaf (ADR-0555). Detect and instruct,
+# never capture (ADR-0207 D3): a browser sign-in writes ~/.codex/auth.json, and ADR-0232 accepts
+# nothing else. The global product remains optional; the pinned wrapper exposes the same login flow.
+if (Test-Have codex) {
+  Write-Info "Codex login - run 'codex login' and sign in with your ChatGPT account. Installing the CLI does NOT sign you in, and 'storytree doctor --dev' reports the binary and login separately."
+} else {
+  $pinnedCodex = Join-Path $CheckoutDir 'packages/agent/node_modules/@openai/codex/bin/codex.js'
+  if (Test-Path $pinnedCodex) {
+    Write-Info "Codex login - run 'node `"$pinnedCodex`" login' and sign in with your ChatGPT account. The pinned default leaf and a global Codex product share the same saved login."
   } else {
-    Write-Warn "Codex CLI - not resolvable after the step. Open a NEW shell (PATH is broadcast to new processes only) before concluding it failed."
+    Write-Warn "Codex leaf - the pinned wrapper is absent. Re-run the provision step, then sign in; 'storytree doctor --dev' treats this as a failure."
   }
 }
 

@@ -589,10 +589,11 @@ test("feedbackCommandsFor: run_proof always (the SAME command, really spawnable)
   assert.match(red.stderr, /boom/);
 });
 
-test("real-mode resolution arms the live leaf with run_proof + run_typecheck (install node)", () => {
+test("explicit Claude real-mode resolution arms run_proof + run_typecheck (install node)", () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
   const result = resolveProveSpec(spec, {
     mode: "real",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "r-feedback",
@@ -607,10 +608,11 @@ test("real-mode resolution arms the live leaf with run_proof + run_typecheck (in
   ]);
 });
 
-test("real-mode resolution for a no-install node arms run_proof only", () => {
+test("explicit Claude real-mode resolution for a no-install node arms run_proof only", () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
   const result = resolveProveSpec(spec, {
     mode: "real",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "r-feedback2",
@@ -621,10 +623,11 @@ test("real-mode resolution for a no-install node arms run_proof only", () => {
   assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
 });
 
-test("live-smoke resolution arms run_proof over the synthetic pair", () => {
+test("explicit Claude live-smoke resolution arms run_proof over the synthetic pair", () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
   const result = resolveProveSpec(spec, {
     mode: "live-smoke",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "r-smoke",
@@ -635,7 +638,7 @@ test("live-smoke resolution arms run_proof over the synthetic pair", () => {
   assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
 });
 
-test("live runtime selection preserves Claude by default and admits Codex only explicitly", () => {
+test("live runtime selection defaults to Codex and preserves Claude explicitly", () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
   const base = {
     mode: "live-smoke" as const,
@@ -645,18 +648,18 @@ test("live runtime selection preserves Claude by default and admits Codex only e
     signerInputs: { flag: "tester@example.com" },
   };
 
-  const compatibility = resolveProveSpec(spec, base);
-  assert.equal(compatibility.ok, true);
-  if (!compatibility.ok) return;
-  assert.ok(compatibility.liveAuthor instanceof ClaudeAgentAuthor);
-  assert.equal(compatibility.liveAuthor.runtime, "claude");
+  const defaultRuntime = resolveProveSpec(spec, base);
+  assert.equal(defaultRuntime.ok, true);
+  if (!defaultRuntime.ok) return;
+  assert.ok(defaultRuntime.liveAuthor instanceof CodexPhaseAuthor);
+  assert.equal(defaultRuntime.liveAuthor.runtime, "codex");
 
-  const codex = resolveProveSpec(spec, { ...base, runtime: "codex" });
-  assert.equal(codex.ok, true);
-  if (!codex.ok) return;
-  assert.ok(codex.liveAuthor instanceof CodexPhaseAuthor);
-  assert.equal(codex.liveAuthor.runtime, "codex");
-  assert.deepEqual(codex.liveAuthor.feedbackToolNames, []);
+  const claude = resolveProveSpec(spec, { ...base, runtime: "claude" });
+  assert.equal(claude.ok, true);
+  if (!claude.ok) return;
+  assert.ok(claude.liveAuthor instanceof ClaudeAgentAuthor);
+  assert.equal(claude.liveAuthor.runtime, "claude");
+  assert.deepEqual(defaultRuntime.liveAuthor.feedbackToolNames, []);
 });
 
 test("Codex promotion manifests widen only to additional literal phase-scope targets", () => {
@@ -1053,11 +1056,12 @@ test("contract 2 — a spec-borne node with NO registry entry resolves (dry-run 
   assert.equal(result.spec.unitId, "spec-only-fixture");
 });
 
-test("contract 2 — real-mode arms the leaf off a spec-borne install config (run_proof + run_typecheck)", () => {
+test("contract 2 — explicit Claude real-mode arms the leaf off a spec-borne install config (run_proof + run_typecheck)", () => {
   const specOnly = { ...loadById("tree-view"), id: "spec-only-install" };
   assert.equal(lookupNodeBuildConfig("spec-only-install"), null, "not in the registry");
   const result = resolveProveSpec(specOnly, {
     mode: "real",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "spec-real-1",
@@ -1071,10 +1075,11 @@ test("contract 2 — real-mode arms the leaf off a spec-borne install config (ru
   ]);
 });
 
-test("contract 2 — real-mode off a spec-borne NO-install config arms run_proof only", () => {
+test("contract 2 — explicit Claude real-mode off a spec-borne NO-install config arms run_proof only", () => {
   const specOnly = { ...loadById("verdict-line"), id: "spec-only-noinstall" };
   const result = resolveProveSpec(specOnly, {
     mode: "real",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "spec-real-2",
@@ -1218,7 +1223,7 @@ test("B — a declared pnpm proofCommand delegates to platformShellCommand (cmd.
   assert.deepEqual(command, platformShellCommand({ ...pnpmCmd, cwd: "/ws" }));
 });
 
-test("B — real-mode arms run_proof with the declared command (spec-borne, no registry entry)", () => {
+test("B — explicit Claude real-mode arms run_proof with the declared command (spec-borne, no registry entry)", () => {
   const base = loadById("verdict-line");
   const bc = base.buildConfig;
   assert.ok(bc?.real !== undefined);
@@ -1235,6 +1240,7 @@ test("B — real-mode arms run_proof with the declared command (spec-borne, no r
   };
   const result = resolveProveSpec(specOnly, {
     mode: "real",
+    runtime: "claude",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: "b-arm-1",

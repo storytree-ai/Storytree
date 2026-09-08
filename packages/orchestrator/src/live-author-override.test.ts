@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { ClaudeAgentAuthor } from "@storytree/agent";
+import { ClaudeAgentAuthor, CodexPhaseAuthor } from "@storytree/agent";
 import type { PhaseAuthor, SdkQueryFn } from "@storytree/agent";
 
 import { loadNodeSpec, findNodeSpecFile } from "./node-spec.js";
@@ -147,13 +147,13 @@ test("the-canned-live-author-is-never-the-authoring-leaf", async () => {
 test("the-else-branch-still-constructs-its-own-live-leaf", () => {
   const spec = loadById("verdict-line");
   // No authorOverride, no liveAuthorOverride: the resolver must still construct a REAL live leaf
-  // (a genuine ClaudeAgentAuthor instance), exactly as it does today.
+  // (a genuine CodexPhaseAuthor instance), exactly as ADR-0555 requires.
   const result = resolveProveSpec(spec, baseRealOpts("live-author-override-5"));
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.ok(
-    result.liveAuthor instanceof ClaudeAgentAuthor,
+    result.liveAuthor instanceof CodexPhaseAuthor,
     "with no override at all the resolver still constructs its own real live leaf",
   );
 });

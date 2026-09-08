@@ -34,8 +34,8 @@ needs the DB up (`pnpm db:up`); losing the offline read was a named accepted
 cost, and the command REFUSES with that reason rather than reporting an empty decision log.
 
 The headline current-state facts those ADRs encode: pi is gone — we own the agent loop (0011), now
-demoted behind two subscription-funded live leaves — **Claude Agent SDK by default, Codex opt-in**
-(0030 / 0232); the **library tier lives in shared Cloud
+demoted behind two subscription-funded live leaves — **Codex by default, Claude Agent SDK by explicit
+selection** (0030 / 0232 / 0555); the **library tier lives in shared Cloud
 SQL Postgres**, DBOS deferred (0017 / 0019); the **prove-it-gate is BUILT** spine-side (0020); **DB
 auth is keyless** Cloud SQL IAM via ambient ADC (0021 — credentials are present, verify with `gcloud
 auth application-default print-access-token`, don't assume unauthenticated).
@@ -86,12 +86,11 @@ model-events), never by importing another organism's source.
 - **`packages/agent`** — the leaf executors behind the `PhaseAuthor` seam (`phase-author.ts`): the **owned loop** (now the offline/deterministic executor + pivot-out
   fallback): `model.ts` (the `Model` seam + `ScriptedModel` + `AnthropicModel`), `run-turn.ts`,
   `step.ts` (fail-closed `runStep`/`runStepValidated`), `tool-executor.ts`, `fs-tools.ts` (the real
-  local file tool surface — read/write/edit/list/run); and **`ClaudeAgentAuthor`** (`sdk-author.ts`
-  — the compatibility-default live runtime on the Claude Agent SDK, subscription-funded, write
-  scope held by a fail-closed `PreToolUse` hook); and **`CodexPhaseAuthor`** (`codex-author.ts` —
-  opt-in via `--runtime codex`, default model `gpt-5.6-terra`, saved ChatGPT-managed auth only,
-  API-key fallback forbidden, authoring in a disposable replica from which the spine promotes one
-  exact phase-checked file). Also owns the
+  local file tool surface — read/write/edit/list/run); and **`CodexPhaseAuthor`** (`codex-author.ts` —
+  the default live runtime on saved ChatGPT-managed auth, API-key fallback forbidden, authoring in a
+  disposable replica from which the spine promotes the exact phase manifest); and
+  **`ClaudeAgentAuthor`** (`sdk-author.ts` — selected explicitly with `--runtime claude`,
+  subscription-funded, write scope held by a fail-closed `PreToolUse` hook). Also owns the
   model-event vocabulary `port` (`model-events.ts`) — orchestrator consumes it across the seam.
 - **`packages/orchestrator`** — the deterministic spine **and the proof RULER** (the
   "farmer"): `sequence.ts` (`runSequence` / `runLoop`, with the *halted-is-never-a-pass*

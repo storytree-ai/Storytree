@@ -678,8 +678,9 @@ export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor | PiPhaseAuthor;
 export function resolveLiveRuntime(
   value: string | undefined,
 ): { ok: true; runtime: LiveRuntime } | { ok: false; reason: string } {
-  if (value === undefined || value === "claude") return { ok: true, runtime: "claude" };
-  if (value === "codex") return { ok: true, runtime: "codex" };
+  if (value === undefined) value = "codex";
+  if (value === "codex") return { ok: true, runtime: value };
+  if (value === "claude") return { ok: true, runtime: "claude" };
   if (value === "pi") return { ok: true, runtime: "pi" };
   return {
     ok: false,
@@ -696,7 +697,7 @@ export interface DriveNodeArgs {
   signer: string;
   /** Selected live leaf model (live only). */
   model?: string;
-  /** Subscription-funded live leaf. Default: Claude. */
+  /** Subscription-funded live leaf. Default: Codex (ADR-0555). */
   runtime?: LiveRuntime;
   /** OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live only). Absent = no USD ceiling (ADR-0130). */
   budgetUsd?: number;
@@ -1276,7 +1277,7 @@ export interface NodeBuildOpts {
   real?: boolean;
   /** `--model` — runtime-relative live model override. Defaults are owned by each leaf. */
   model?: string;
-  /** `--runtime claude|codex` — explicit live leaf selection. Default: Claude compatibility path. */
+  /** `--runtime claude|codex` — explicit live leaf selection. Default: Codex (ADR-0555). */
   runtime?: string;
   /**
    * `--budget` — OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default:
@@ -1368,7 +1369,7 @@ export async function nodeBuild(
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk (zero cost)\n" +
         "  --live      subscription leaf smoke: --runtime claude|codex authors the SYNTHETIC\n" +
-        "              add(2,3) pair through the gate (default: claude)\n" +
+        "              add(2,3) pair through the gate (default: codex)\n" +
         "  --real      Phase F: the leaf authors the node's REAL test/impl in a fresh git\n" +
         "              worktree; the spine runs the node's REAL proof command and commits the\n" +
         "              authored files before the GATE reads the real tree",
@@ -1382,7 +1383,7 @@ export async function nodeBuild(
   const mode = real ? "real" : live ? "live-smoke" : "dry-run";
   const runtimeResult = resolveLiveRuntime(opts.runtime);
   if (!runtimeResult.ok) {
-    return { ok: false, body: runtimeResult.reason, next: [`storytree node build ${unitId} --live --runtime claude`] };
+    return { ok: false, body: runtimeResult.reason, next: [`storytree node build ${unitId} --live --runtime codex`] };
   }
   const runtime = runtimeResult.runtime;
   if (!live && !real && opts.runtime !== undefined) {
@@ -2053,7 +2054,7 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      the node's actual proofs.",
       "",
       "  storytree node build <id> --live [--runtime claude|codex] [--model <id>] [--budget <usd>] [--actor <email>]",
-      "      the live smoke: a REAL subscription-funded leaf (Claude by default, Codex opt-in) authors",
+      "      the live smoke: a REAL subscription-funded leaf (Codex by default, Claude explicit) authors",
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
       "      Claude needs Claude Code auth; Codex requires saved ChatGPT-managed Codex auth and",
       "      defaults to gpt-5.6-terra. --budget is an optional Claude-only per-slice cap.",

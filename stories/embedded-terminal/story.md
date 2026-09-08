@@ -95,8 +95,8 @@ the watching rides for free.
 
 - **It replaces the interactive orchestrator, NOT the prove-it-gate (ADR-0174 CRITICAL scoping note).**
   Signed `--real` verdicts still come **only** from the deterministic spine driving the selected
-  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
-  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  `PhaseAuthor` — `CodexPhaseAuthor` is the omitted-runtime default and `--runtime claude` selects
+  `ClaudeAgentAuthor` explicitly (ADR-0555) — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
   walk (`packages/orchestrator/src/prove-it-gate.ts` etc.) — i.e. `story build --real` /
   `node build --real`. The selected live leaf is **entirely separate** from the interactive surface and
   is

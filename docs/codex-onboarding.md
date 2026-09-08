@@ -4,9 +4,10 @@
 finish — you should not need to open a research note, and every step below says what proves it took
 and what can check that proof for you.
 
-Codex is the **opt-in** runtime here. ADR-0030 makes the Claude Agent SDK the default and Codex the
-alternative, so a host with no Codex at all is a *complete* configuration, not a broken one. Nothing
-in this document is required to work on storytree.
+Codex is the **default subscription runtime for builds and model-driven UAT** (ADR-0555); Claude is
+the explicit alternative. A development host therefore needs the pinned Codex leaf and a
+ChatGPT-managed login. The separate global CLI or Desktop install is still optional unless this
+host will also drive interactive Codex sessions.
 
 > **The one thing people get wrong, up front:** `pnpm install` gives you the Codex **binary** and
 > never the Codex **credential**. They are separate steps with separate failure modes, and only a
@@ -22,7 +23,7 @@ them involves the Codex product at all.
 | | **Journey A — the session driver** | **Journey B — the prove-it leaf** |
 | --- | --- | --- |
 | What it is | A person opens Codex Desktop, or the `codex` CLI, on this repository, and it runs the orchestrator loop: orient, claim, build, gate, land. This is what "using Codex with storytree" usually means. | The deterministic spine drives one `codex exec` turn per phase inside a disposable replica and promotes an exact target set. It is a **build tool**, invoked by whichever session is driving — which may well be a *Claude* session. |
-| How you invoke it | Codex Desktop, or `codex` | `pnpm storytree node build <id> --live --runtime codex` |
+| How you invoke it | Codex Desktop, or `codex` | `pnpm storytree node build <id> --live` (`--runtime codex` is the explicit spelling) |
 | Where its binary comes from | **you install it** — `npm install -g @openai/codex`, or Codex Desktop | **`pnpm install`** — `packages/agent` pins `@openai/codex`, and the wrapper lands in `packages/agent/node_modules` |
 | What else it needs | a ChatGPT sign-in | **the same** ChatGPT sign-in |
 
@@ -100,18 +101,23 @@ against.
 
 - **Guidance projections.** `pnpm build:guidance && pnpm build:agents` (needs the live DB up)
   produce the root `AGENTS.md` Codex reads and the ten files in `.codex/agents/*.toml`. Both are
-  drift-gated by `pnpm gate` (`check:guidance` / `check:agents`), so this is the **one** step in
-  either journey that a machine will notice you skipped.
+  drift-gated by `pnpm gate` (`check:guidance` / `check:agents`). The committed
+  `.codex/config.toml` raises Codex's project-instruction byte limit above the generated file's
+  current size; without it, Codex's default 32 KiB limit cuts the session-orchestrator instructions
+  off mid-ceremony. The gate holds that relationship rather than relying on a hand-copied byte
+  count.
 - **Worktrees.** `storytree worktree create --runtime codex` deliberately **refuses**: Codex Desktop
   owns `~/.codex/worktrees/*` and storytree will neither mint nor reap in a directory another
   product manages. Let the product make the worktree, or make one by hand with `git worktree add` —
   both work, because session identity is derived from git topology alone. The identity you *get*
   differs: a hand-made tree announces itself by its own name, a product-managed one as
   `storytree`, `storytree1`, … which is harder to recognise on the claim ledger.
-- **Provisioning that worktree.** Run `pnpm install` in it. Claude sessions get this from a
-  `SessionStart` hook; **Codex has no such hook** (§5), so the session does it, and nothing
-  announces the failure case. `doctor --dev` → `dependencies-current`, run inside the worktree, is
-  the check.
+- **Provisioning that worktree.** Codex now gets the same fresh/stale-worktree provisioner from the
+  repository's `SessionStart` hook. It runs `pnpm install` only when the worktree needs it and
+  announces the still-broken case to the session. `doctor --dev` → `dependencies-current`, run
+  inside the worktree, remains the independent check. On first use, review and trust the project
+  hooks with `/hooks`; Codex records trust against their content hash, so changed hooks must be
+  reviewed again.
 - **Claim, build, gate, land** exactly as any session does.
 
 ---
@@ -123,7 +129,7 @@ against.
 | B1 | `pnpm install` at the repo root. **This IS the Codex install for the leaf** — `packages/agent` pins `@openai/codex`, so the wrapper appears at `packages/agent/node_modules/@openai/codex/bin/codex.js`. | the file is there and answers `--version` | `doctor --dev` → `codex-cli`, which reports `workspace-only` for exactly this state |
 | B2 | **Nothing.** The ChatGPT saved login from A5 must already exist. | `codex login status` → `Logged in using ChatGPT` | `doctor --dev` → `codex-login`; and the leaf itself refuses closed with `Codex subscription auth required` |
 | B3 | Keep metered keys out of the environment. | `OPENAI_API_KEY` / `CODEX_API_KEY` / `CODEX_ACCESS_TOKEN` unset | the leaf strips all three, case-insensitively, before both child processes — you cannot defeat this by exporting one |
-| B4 | `pnpm storytree node build <id> --live --runtime codex` | the spine's signed verdict | the prove-it gate. `--budget` is **refused** (subscription quota is not a USD cap) and `--max-turns` is fixed at 1 |
+| B4 | `pnpm storytree node build <id> --live` (or explicit `--runtime codex`) | the spine's signed verdict | the prove-it gate. `--budget` is **refused** (subscription quota is not a USD cap) and `--max-turns` is fixed at 1 |
 | B5 | For `--real`, the live database as well. | `events.verdict` rows | `ensureLiveDb` starts it for you |
 
 **The coupling, stated out loud, because nothing else in this repository states it.** Unlike the
@@ -180,15 +186,16 @@ can reach is indistinguishable from an absent one.
 | | no login | `~/.codex/auth.json` has not been written. Do A5. |
 | | not determined | no Codex binary could be asked. That is the `codex-cli` finding, not a credential one. |
 
-Both rows are **WARN and never FAIL**, on purpose: Codex is opt-in, so a Claude-only box must not be
-reported as broken, and a permanently-red doctor teaches people to ignore doctor.
+`codex-cli: workspace-only` is a **WARN**, because the pinned wrapper can run the default leaf even
+though no interactive Codex session can start from PATH. An absent wrapper and every non-ChatGPT,
+logged-out, or undetermined `codex-login` state are **FAIL**: the default build/UAT route cannot run.
 
 ⚠ **What these rows cannot see.** Like every `--dev` probe except `toolchain-shell`, they run in the
 shell that launched doctor — which by construction is one where the toolchain resolved. A host where
 `codex` resolves for your interactive shell but **not** for an ssh-driven or hook-driven one reads
 `path` here and still fails that work. `toolchain-shell` is the probe that asks that question, and
-`codex` is deliberately not on its list, because requiring it would turn an existing probe
-permanently red on every Claude-only box.
+`codex` is deliberately not on its list: the default leaf invokes the pinned Node wrapper, while a
+PATH-resolved product is required only for an interactive Codex session.
 
 On Windows, `infra/install.ps1 -WithCodex` performs A4 as the `codex-cli` step, and
 `infra/install.ps1 -Step codex-cli` repairs just that step — which is what the `codex-cli` row's fix
@@ -198,20 +205,35 @@ Codex-specific part.
 
 ---
 
-## 5. What Codex does not get that Claude does — and why that is not currently breaking anything
+## 5. Codex-native session mechanics
 
-Claude sessions are wrapped in `.claude/settings.json` hooks that Codex has no equivalent of:
-worktree health auto-repair on session start, `pnpm install` provisioning of a fresh or stale
-worktree, the claim-ledger anchor nudge, worktree pruning, just-in-time definition injection, and a
-status line.
+Codex now has native lifecycle hooks, so `.codex/hooks.json` carries the Claude mechanics whose
+contracts actually match the Codex events:
 
-The **knowledge** half is at genuine parity — the root `AGENTS.md` and `.codex/agents/*.toml` are
-both generated and both drift-gated. It is the **mechanical self-healing** half that does not exist.
+- `SessionStart` provisions a fresh or stale worktree, injects the claim/origin nudge, and launches
+  the fail-silent all-worktree activity sweep through Codex's native background-hook mode.
+- `UserPromptSubmit` runs the same prompt-keyed Library definition injection.
+- `.codex/config.toml` explicitly enables hooks and gives the generated `AGENTS.md` enough byte
+  budget to load in full.
 
-Stated precisely so it is not overstated: this is not breaking anything today. Provisioning happens;
-the session does it rather than a hook, and it works. What is absent is the mechanism that
-*announces* the failure case — so on Codex, do the checks in this document deliberately, because
-nothing will do them for you.
+These are repository hooks, so the project must be trusted and their exact definitions reviewed in
+`/hooks`. Commands run from the session working directory and keep the existing bounded/fail-silent
+contracts. See the current [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) for the
+event and trust model.
+
+This is behavioural parity, not a second Storytree-owned harness. Four Claude-specific surfaces are
+deliberately not copied:
+
+- remote credential bootstrap checks `CLAUDE_CODE_REMOTE` and belongs only to Claude's web pods;
+- empty-slot auto-repair is hard-coded to Claude-owned `.claude/worktrees` and `claude/*` branches;
+- pruning owns `.claude/worktrees`, while Codex owns and reaps `~/.codex/worktrees` itself;
+- Claude's custom status line has no Codex project configuration counterpart. The same claim state
+  remains available through `storytree noticeboard mine --pg` and the studio.
+
+The **knowledge** half remains one-source rather than copied: the root `AGENTS.md` and the ten
+`.codex/agents/*.toml` files are generated from the live Library and drift-gated. ADR-0291
+deliberately gives Codex the generated session-orchestrator digest, not Claude's hand-authored
+repository tour; the larger byte budget ensures that chosen projection is complete.
 
 ---
 

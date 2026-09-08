@@ -40,12 +40,14 @@ consumed_by: [cli]
 # bounded feedback tools (35), the organism rebuild that gave this package the model-event vocabulary
 # port (68), ports-as-root-organisms (75) under which this leaf was a declared root, the retirement of
 # the Cursor second-harness leaf (198, superseding 177), and the ChatGPT-funded Codex second live leaf
-# (232, superseding 198 while preserving the Cursor retirement). ADR-0138's claim-at-spawn wall is
+# (232, superseding 198 while preserving the Cursor retirement), and the later selection reversal that
+# makes Codex the omitted-runtime default while retaining Claude as an explicit alternative (555,
+# superseding 435). ADR-0138's claim-at-spawn wall is
 # deliberately NOT listed: it decided the spawn gate, never this organism's outcome, and ADR-0175
 # deleted that gate. It stays a deciding ADR on the units whose code it really decides
 # (wisp-as-story-claim, chat-subagent-spawn, spawn-visibility, scoped-glue-actuator); packages/agent
 # only ever HOSTED some of that code.
-decisions: [4, 11, 30, 35, 68, 75, 232]
+decisions: [4, 11, 30, 35, 68, 75, 232, 555]
 ---
 
 # The agent runtime — the swappable leaf behind the PhaseAuthor seam
@@ -57,9 +59,9 @@ red/green or reports a verdict.
 
 `packages/agent` is storytree's **leaf-runtime organism**: the model seam, the turn loop, the
 fail-closed step runner, the real local file-tool surface, the model-event vocabulary port, and both
-live `PhaseAuthor` implementations — `ClaudeAgentAuthor` on the Claude Agent SDK (the compatibility
-default) and `CodexPhaseAuthor` on the official Codex CLI using saved ChatGPT authentication
-(`--runtime codex`, default model `gpt-5.6-terra`; ADR-0232). The owned loop remains the
+live `PhaseAuthor` implementations — `CodexPhaseAuthor` on the official Codex CLI using saved ChatGPT
+authentication (the omitted-runtime default, model `gpt-5.6-terra`) and `ClaudeAgentAuthor` on the
+Claude Agent SDK (the explicit `--runtime claude` alternative; ADR-0232 as amended by ADR-0555). The owned loop remains the
 offline/deterministic executor and pivot-out fallback (ADR-0011), adapted to the same seam by
 `OwnedLoopAuthor` in drive-machinery. This package is the **single model-runtime import site**
 (ADR-0004, widened here): the third-party runtime imports live behind the runtime-agnostic seam, so
@@ -197,10 +199,12 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
 > superseded by ADR-0232 without reversing that retirement).** The former
 > `cursor-sdk-leaf` capability (a read-only Cursor SDK admission handshake) and its `@cursor/sdk`
 > machinery are removed — Cursor was a metered API billing path, not a subscription-funded harness, so
-> no Storytree surface may invite Cursor API spend. ADR-0232 supplies the fresh decision and explicit
-> funding model that ADR-0198 required: `ClaudeAgentAuthor` remains the compatibility default, while
-> `CodexPhaseAuthor` is an explicit `--runtime codex` live leaf funded only through saved
-> ChatGPT-managed authentication. No replacement Cursor work is planned here.
+> no Storytree surface may invite Cursor API spend. ADR-0232 supplied the fresh decision and explicit
+> funding model that ADR-0198 required: at that time `ClaudeAgentAuthor` remained the compatibility
+> default while `CodexPhaseAuthor` was an explicit `--runtime codex` live leaf funded only through
+> saved ChatGPT-managed authentication. ADR-0555 later reversed only the selection default: omitted
+> runtime now selects Codex, while `--runtime claude` retains Claude as the explicit alternative. No
+> replacement Cursor work is planned here.
 
 ## Dependency graph (code-derived)
 
@@ -224,15 +228,15 @@ contract shape IS the coupling) and marked.
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
 - The second live implementation also consumes `phase-author-seam`: `codex-author.ts` implements
-  `CodexPhaseAuthor` over the official Codex CLI. It is selected explicitly at the injection layer,
-  without changing the Claude-specific `live-sdk-leaf` capability above.
+  `CodexPhaseAuthor` over the official Codex CLI. The injection layer binds it by default when the
+  runtime is omitted (ADR-0555), without changing the Claude-specific `live-sdk-leaf` capability above.
 
 **Cross-story:** **none outbound** — `depends_on: []`. No source file in this package imports another
 storytree organism, in value or in type; the one edge this story used to carry went with the
 claim-at-spawn gate ADR-0175 deleted (see **Direction & the no-cycle check**). Inbound: the `PhaseAuthor` seam (and the
 re-exported model-event vocabulary `port`) is consumed by `drive-machinery` (the spine's
-`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `ClaudeAgentAuthor` (the
-compatibility default) or `CodexPhaseAuthor` (`--runtime codex`) in the CLI's build path — declared
+`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `CodexPhaseAuthor` (the
+omitted-runtime default) or `ClaudeAgentAuthor` (`--runtime claude`) in the CLI's build path — declared
 as the drive-machinery `depends_on agent` edge and this story's `consumed_by: [cli]`.
 
 ## This story's published interface (ADR-0010 §4)
@@ -334,8 +338,8 @@ greens on it — the deletion removed a second signature at the story rung, not 
 > because signed rows exist against it.
 
 
-5. **The selected live runtime authors a real slice.** _(witness: machine)_ _(proof-gate: agent#gate-2)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:380a683e4995990d)_ _(previous-revision-id: uatr1:b7b5052c7e21a3a2)_
-   compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
+5. **The selected live runtime authors a real slice.** _(witness: machine)_ _(proof-gate: agent#gate-2)_ With Codex as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:c05dad8de498513d)_ _(previous-revision-id: uatr1:380a683e4995990d)_
+   omitted-runtime default or Claude selected explicitly via `--runtime claude` (ADR-0555), the leaf runs one
    subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
    out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
    the leaf; the spine reruns the registered command out of band. *(write-scope decisions proven

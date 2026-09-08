@@ -292,7 +292,7 @@ export interface StoryBuildOpts {
   real?: boolean;
   /** `--model` — the SDK leaf's model (live/real only). */
   model?: string;
-  /** `--runtime claude|codex` — explicit live leaf selection. Default: Claude compatibility path. */
+  /** `--runtime claude|codex` — explicit live leaf selection. Default: Codex (ADR-0555). */
   runtime?: string;
   /**
    * `--budget` — OPTIONAL TOTAL USD ceiling across every node (live/real only). Default: NONE — no USD
@@ -410,7 +410,7 @@ export async function storyBuild(
       body:
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk of every node, topo-ordered (zero cost)\n" +
-        "  --live      a real subscription leaf per node (--runtime claude|codex; Claude default),\n" +
+        "  --live      a real subscription leaf per node (--runtime claude|codex; Codex default),\n" +
         "              SYNTHETIC task; --budget is an optional Claude-only ceiling\n" +
         "  --real      ADR-0057 §3 expansion D: chain node build --real over the WHOLE story —\n" +
         "              each node authored for real in ONE shared worktree in dependency order, signed,\n" +
@@ -426,7 +426,7 @@ export async function storyBuild(
   const mode = real ? "real" : live ? "live" : "dry-run";
   const runtimeResult = resolveLiveRuntime(opts.runtime);
   if (!runtimeResult.ok) {
-    return { ok: false, body: runtimeResult.reason, next: [`storytree story build ${storyId} --live --runtime claude`] };
+    return { ok: false, body: runtimeResult.reason, next: [`storytree story build ${storyId} --live --runtime codex`] };
   }
   const runtime = runtimeResult.runtime;
   if (!live && !real && opts.runtime !== undefined) {
@@ -1193,7 +1193,7 @@ export function storyHelp(): Envelope {
       "      the gate builds the capabilities and WITHHOLDS the story node, fail-closed.",
       "",
       "  storytree story build <story-id> --live [--runtime claude|codex] [--budget <usd>] [--model <id>] [--actor <email>]",
-      "      the same chain with a REAL subscription leaf per node (Claude default, Codex opt-in),",
+      "      the same chain with a REAL subscription leaf per node (Codex default, Claude explicit),",
       "      but the TASK per node is still synthetic. Codex defaults to gpt-5.6-terra and requires",
       "      saved ChatGPT-managed auth; --budget is an optional Claude-only total ceiling.",
       "",
