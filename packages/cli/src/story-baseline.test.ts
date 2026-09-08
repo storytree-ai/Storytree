@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,7 @@ import { SIGNING_EVENT_KIND, type Verdict } from "@storytree/proof-protocol";
 import type { RollupEvent, StoryBaselineStore } from "@storytree/orchestrator";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
-import { makeGateDeps, makeUatDeps, run } from "./commands.js";
+import { makeGateDeps, makeUatDeps, readGitState, run } from "./commands.js";
 import {
   loadAllStoryBaselineCandidates,
   loadStoryBaselineCandidate,
@@ -355,13 +356,18 @@ test("command dispatch wires baseline backfill and the optional gate/UAT advance
   assert.equal(wrongArea.ok, false);
   assert.match(wrongArea.body, /unknown story command "other"/);
 
-  const defaulted = await run(["story", "baseline", "backfill", "good", "--pg"], {
+  const dirty = await run(["story", "baseline", "backfill", "good", "--pg"], {
     store: offlineDeps.store,
     uatStore: new InMemoryStore(),
     storiesDir: root,
+    storyBaselineBackfill: {
+      gitState: () => ({ commitSha: "dirty", clean: false }),
+      resolveSigner: () => ({ ok: true, signer: "owner@example.com" }),
+      now: () => new Date("2026-09-09T00:00:00.000Z"),
+    },
   });
-  assert.equal(defaulted.ok, false);
-  assert.match(defaulted.body, /clean committed HEAD/);
+  assert.equal(dirty.ok, false);
+  assert.match(dirty.body, /clean committed HEAD/);
   const noDirectoryOverride = await run(["story", "baseline", "backfill"], {
     store: offlineDeps.store,
   });
@@ -379,4 +385,84 @@ test("command dispatch wires baseline backfill and the optional gate/UAT advance
   assert.equal(corpusDefault.ok, true);
   assert.match(corpusDefault.body, /drive-machinery: declined/);
   assert.doesNotMatch(corpusDefault.body, /story declaration not found or unreadable/);
+});
+
+test("command dispatch drives the real story-baseline git, signer and clock defaults", async () => {
+  const root = mkdtempSync(join(tmpdir(), "story-baseline-defaults-"));
+  const entryCwd = process.cwd();
+  const entrySigner = process.env["STORYTREE_SIGNER"];
+  const git = (args: readonly string[]): string =>
+    execFileSync("git", [...args], { cwd: root, encoding: "utf8" }).trim();
+
+  try {
+    writeSpec(root, "good", [
+      "---", "id: good", "tier: story", "title: Good", "outcome: works", "status: proposed",
+      "proof_mode: UAT", "capabilities:", "  - cap-good", "---", "", "Body.",
+    ]);
+    writeFileSync(join(root, "good", "cap-good.md"), [
+      "---", "id: cap-good", "tier: capability", "title: Cap", "outcome: works", "status: building",
+      "proof_mode: integration-test", "---", "", "Body.",
+    ].join("\n"));
+    writeFileSync(join(root, "tracked.txt"), "clean\n");
+    git(["init", "-b", "main"]);
+    git(["config", "user.email", "fixture@storytree.test"]);
+    git(["config", "user.name", "fixture"]);
+    git(["config", "commit.gpgsign", "false"]);
+    git(["config", "core.autocrlf", "false"]);
+    git(["add", "-A"]);
+    git(["commit", "-m", "fixture"]);
+    const head = git(["rev-parse", "HEAD"]);
+
+    process.env["STORYTREE_SIGNER"] = "fixture@storytree.test";
+    process.chdir(root);
+    assert.deepEqual(readGitState(), { commitSha: head, clean: true });
+
+    const store = new InMemoryStore();
+    await store.appendEvent({
+      id: "proof",
+      kind: SIGNING_EVENT_KIND,
+      type: "created",
+      doc: {
+        unitId: "cap-good", proofMode: "capability", outcome: "pass", commitSha: head,
+        signer: "spine:storytree", runId: "proof", evidence: [], at: "2026-09-09T00:00:00.000Z",
+      },
+      actor: "spine:storytree",
+    });
+    const before = Date.now();
+    const recorded = await run(["story", "baseline", "backfill", "good", "--pg"], {
+      store,
+      uatStore: store,
+      storiesDir: root,
+    });
+    const after = Date.now();
+    assert.equal(recorded.ok, true, recorded.body);
+    assert.match(recorded.body, /good: recorded/);
+    const events = await store.readEvents();
+    const baseline = events.find((event) =>
+      (event.doc as { storyBaseline?: unknown }).storyBaseline !== undefined,
+    )?.doc as Verdict | undefined;
+    assert.ok(baseline !== undefined);
+    assert.equal(baseline.commitSha, head, "the public route used the real git default's HEAD");
+    assert.equal(baseline.signer, "fixture@storytree.test", "the public route used the real signer default");
+    assert.ok(
+      Date.parse(baseline.at) >= before && Date.parse(baseline.at) <= after,
+      "the public route stamped the baseline with the real clock default",
+    );
+
+    writeFileSync(join(root, "tracked.txt"), "dirty\n");
+    assert.deepEqual(readGitState(), { commitSha: head, clean: false });
+    const refused = await run(["story", "baseline", "backfill", "good", "--pg"], {
+      store,
+      uatStore: store,
+      storiesDir: root,
+    });
+    assert.equal(refused.ok, false);
+    assert.match(refused.body, /clean committed HEAD/);
+    assert.equal((await store.readEvents()).length, events.length, "dirty default git state appended nothing");
+  } finally {
+    process.chdir(entryCwd);
+    if (entrySigner === undefined) delete process.env["STORYTREE_SIGNER"];
+    else process.env["STORYTREE_SIGNER"] = entrySigner;
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
 });

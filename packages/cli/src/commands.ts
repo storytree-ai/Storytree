@@ -2472,7 +2472,7 @@ function currentBranch(): string {
  * and whether the tree is clean. Null when git can't answer (no repo / git missing) — `uat attest`
  * then refuses, because a verdict must pin a real commit.
  */
-function readGitState(): GitState | null {
+export function readGitState(): GitState | null {
   try {
     const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
