@@ -97,10 +97,13 @@ The pinned test performs this walkthrough, in order:
    captures**. The same helper also resolves both Codex selections in live-smoke and captures both
    phases: **4 smoke captures**, preserving its synthetic pair and absence of real contract IDs.
    Each capture checks actual empty feedback tools, model/MCP launch selection, native authoring,
-   spine-only observations/signing, exact allowed versus required targets, phase test/source
-   duties, dependency/typecheck restrictions and stop-if-test-wrong behavior. REAL captures also
-   check the distinctive outcome, guidance and every declared ID survived composition. Use the
-   complete role-plus-brief input, not a raw-brief substitute.
+   spine-only observations/signing, exact allowed versus required targets, phase-appropriate
+   test/source duties, dependency/typecheck restrictions and stopping behavior. AUTHOR_TEST stops
+   after writing its test; REAL IMPLEMENT preserves the frozen test and stops/reports if it is
+   wrong. Smoke retains its synthetic phase duties. Assert equivalent behavior in the composed
+   input, not an IMPLEMENT-only sentence in AUTHOR_TEST. REAL captures also check the distinctive
+   outcome, guidance and every declared ID survived composition. Use the complete role-plus-brief
+   input, not a raw-brief substitute.
 4. **Qualify the same instruction assertion.** Exercise positive controls accepting a correctly
    qualified unavailable-tool prohibition/runtime comparison and nonauthorizing wildcard context.
    Negative controls must reject unavailable-tool instructions, obsolete no-shell/containment
