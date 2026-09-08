@@ -357,10 +357,11 @@ export interface GroundWearLayer {
  * wears is therefore a ladder the owner reads (ADR-0503), and `ROCK_SLOPE_RAMP` is the provenance
  * those rungs are stated against — never a taste value baked in here.
  *
- * ⚠ A NAMED DEPARTURE: the mask reads the grain-PERTURBED normal. Cycles' `Geometry.Normal` is
- * the unbumped one; here the relieved normal is what the stage holds, so the mask carries a
- * little of the grain's relief. Recorded on both sides of the seam so neither mistakes it for
- * the recipe.
+ * ⚠⚠ AND THE MASK READS THE GEOMETRIC NORMAL, WHICH IS THE RECIPE'S OWN AND NOT THE STAGE'S
+ * CONVENIENT ONE. Until ADR-0553 it read the BUMPED normal — the one the detail map and the
+ * grain have already tilted — which is why the fact above did not deliver: the interior was
+ * flat enough, and the bump made it steep anyway. The shader captures `geoN` before either
+ * bump touches it.
  *
  * ⚠ IT NEEDS THE GRASS, and is refused without it: the rock ramp is driven by layer 1's own base
  * scalar, which only the grass source declares.
@@ -1218,6 +1219,18 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // the recipe's order (NormalMap → Bump, build_land.py:958-965), so the grain relieves an
   // already-detailed normal. It starts with its own newline and ends without one, so the line it
   // rides on joins to the grain stage exactly as it did when the layer was absent.
+  // THE GEOMETRIC NORMAL, CAPTURED BEFORE ANY BUMP TOUCHES IT — layer 4's only input, emitted
+  // ONLY when there is a rock layer so a rock-less shader stays byte-identical.
+  const rockGeoCapture =
+    rock === undefined
+      ? ''
+      : `
+        // THE SURFACE'S OWN NORMAL, TAKEN BEFORE THE DETAIL MAP AND THE GRAIN — the slope mask
+        // below reads THIS and never \`n\`. Cycles feeds the rock ramp \`Geometry.Normal\`, which is
+        // evaluated before the normal map and the bump (build_land.py:912-925), and a mask fed the
+        // BUMPED normal answers a different question: not "is this ground steep" but "did a texel
+        // of a 128-texel cliff map tilt this fragment". See land-rock.ts for what that cost.
+        vec3 geoN = n;`;
   const detailStage =
     detail === undefined
       ? ''
@@ -1380,19 +1393,18 @@ ${paintStage}${
       : `        // LAYER 4 — rock on slope (build_land.py:912-925), over the path, driven by the
         // surface's own normal rather than by a noise (the recipe's own comment at :912).
         //
-        // ⚠ A NAMED DEPARTURE: n here is the grain-PERTURBED normal. Cycles reads
-        // Geometry.Normal, the UNBUMPED surface normal, evaluated before the normal map and the
-        // bump; feeding the mask the relieved normal lets it carry a little of the grain's
-        // relief. land-rock.ts records the departure so its twin cannot mistake it for the recipe.
+        // ⚠⚠ IT READS geoN, NOT n — the departure that fed this mask the BUMPED normal is
+        // withdrawn (ADR-0553). n carries the detail map and the grain, and those two put grey
+        // across the interior grass the owner asked to be rid of: the relief's own steepest
+        // interior slope leaves an up-component of 0.910, above the 0.90 ceiling, so on the
+        // GEOMETRY the interior mask is identically zero and only the shore fall is steep.
         //
-        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN. On the shipped mesh the interior's up-component
-        // never drops below 0.91, so the recipe's 0.72 / 0.90 bite only on the beach's ring chain;
-        // which rungs the map wears is a ladder the owner reads (ADR-0503), and a page comparing
-        // them compiles ONE shader.
+        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN — which rungs the map wears is a ladder the
+        // owner reads (ADR-0503), and a page comparing them compiles ONE shader.
         //
         // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token
         // — are never repainted: an ungated row multiplies the whole layer by zero.
-        float rockMask = st_rockMask(n.y, uRockLo, uRockHi);
+        float rockMask = st_rockMask(geoN.y, uRockLo, uRockHi);
         c = mix(c, st_rockColour(vWorld.xz) * level, uRockMix * rockMask * grassGate);
 `;
   const writeColour = grainColour
@@ -1479,7 +1491,7 @@ ${grainSource}${grassSource}${wheatSource}${blightSource}${sandSource}${wearSour
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 
       void main() {
-        vec3 n = normalize(vNormal);${detailStage}
+        vec3 n = normalize(vNormal);${rockGeoCapture}${detailStage}
 ${grainNormalStage}        // Half-lambert: wrapped so the terminator lands inside the ladder's range instead of
         // collapsing every back-facing pixel onto the darkest rung. Still a single scalar, so
         // the closure argument is untouched.

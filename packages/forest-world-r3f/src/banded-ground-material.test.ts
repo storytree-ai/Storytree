@@ -1479,19 +1479,18 @@ const ROCK_STAGE =
   '        // LAYER 4 — rock on slope (build_land.py:912-925), over the path, driven by the\n' +
   "        // surface's own normal rather than by a noise (the recipe's own comment at :912).\n" +
   '        //\n' +
-  '        // ⚠ A NAMED DEPARTURE: n here is the grain-PERTURBED normal. Cycles reads\n' +
-  '        // Geometry.Normal, the UNBUMPED surface normal, evaluated before the normal map and the\n' +
-  "        // bump; feeding the mask the relieved normal lets it carry a little of the grain's\n" +
-  '        // relief. land-rock.ts records the departure so its twin cannot mistake it for the recipe.\n' +
+  '        // ⚠⚠ IT READS geoN, NOT n — the departure that fed this mask the BUMPED normal is\n' +
+  '        // withdrawn (ADR-0553). n carries the detail map and the grain, and those two put grey\n' +
+  "        // across the interior grass the owner asked to be rid of: the relief's own steepest\n" +
+  '        // interior slope leaves an up-component of 0.910, above the 0.90 ceiling, so on the\n' +
+  '        // GEOMETRY the interior mask is identically zero and only the shore fall is steep.\n' +
   '        //\n' +
-  "        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN. On the shipped mesh the interior's up-component\n" +
-  "        // never drops below 0.91, so the recipe's 0.72 / 0.90 bite only on the beach's ring chain;\n" +
-  '        // which rungs the map wears is a ladder the owner reads (ADR-0503), and a page comparing\n' +
-  '        // them compiles ONE shader.\n' +
+  '        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN — which rungs the map wears is a ladder the\n' +
+  '        // owner reads (ADR-0503), and a page comparing them compiles ONE shader.\n' +
   '        //\n' +
   "        // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token\n" +
   '        // — are never repainted: an ungated row multiplies the whole layer by zero.\n' +
-  '        float rockMask = st_rockMask(n.y, uRockLo, uRockHi);\n' +
+  '        float rockMask = st_rockMask(geoN.y, uRockLo, uRockHi);\n' +
   '        c = mix(c, st_rockColour(vWorld.xz) * level, uRockMix * rockMask * grassGate);\n';
 
 /** The detail stage exactly as the material emits it — starting with the newline that joins it
@@ -1532,7 +1531,7 @@ test('ABSENT WEAR, ROCK AND DETAIL CHANGE NOTHING — the sanded shader is byte-
   assert.deepEqual(Object.keys(m.uniforms).sort(), SANDED_UNIFORMS);
   assert.ok(!/uWear|uRock|uDetail/.test(m.fragmentShader), 'no new uniform declared');
   assert.ok(!/st_wear|st_dirt|st_rock/.test(m.fragmentShader), 'no new helper spliced in');
-  assert.ok(!/detailN|detailT|detailB|wearUnits|rockMask/.test(m.fragmentShader), 'no new stage');
+  assert.ok(!/detailN|detailT|detailB|wearUnits|rockMask|geoN/.test(m.fragmentShader), 'no new stage');
   assert.ok(!/GENERATED from land-(wear|rock)/.test(m.fragmentShader));
   // ⚠ THE JOIN AT EACH OF THE FOUR SITES, named — the check a "does it mention the layer"
   // sweep cannot make. Every one of the new pieces is a `: ''` on the same template line as its
@@ -1592,7 +1591,10 @@ test('NON-VACUITY: the whole stack really does fill every one of those four site
   // And what each site now joins to, exactly.
   assert.ok(m.fragmentShader.includes(`${sandBlock}\n      // GENERATED from land-wear.ts`));
   assert.ok(m.fragmentShader.includes('uniform float uSandWidth;\n      uniform sampler2D uWearTex;'));
-  assert.ok(m.fragmentShader.includes('vec3 n = normalize(vNormal);\n        // LAYER 6'));
+  // ⚠ THE NORMAL SITE NOW JOINS ONTO THE ROCK'S GEOMETRIC CAPTURE (ADR-0553), which the
+  // detail stage then follows — both halves asserted so neither can go missing unseen.
+  assert.ok(m.fragmentShader.includes("vec3 n = normalize(vNormal);\n        // THE SURFACE'S OWN NORMAL"));
+  assert.ok(m.fragmentShader.includes('vec3 geoN = n;\n        // LAYER 6'));
   assert.ok(
     m.fragmentShader.includes('uRockMix * rockMask * grassGate);\n        gl_FragColor = vec4(c, 1.0);'),
   );
@@ -1815,19 +1817,47 @@ test('the WEAR STAGE is emitted line for line, and rides the shadow`s own coordi
   assert.ok(m.fragmentShader.includes('uWearMix * wear * grassGate'));
 });
 
-test('the ROCK STAGE is emitted line for line, reads n.y, and takes its ends from the uniforms', () => {
+test('the ROCK STAGE is emitted line for line, reads geoN.y, and takes its ends from the uniforms', () => {
   const m = layered();
   assert.ok(m.fragmentShader.includes(ROCK_STAGE), 'the rock stage must arrive whole, comment block included');
-  // ⚠ `n.y` — the UP component in three's world space. `n.z` would ramp on the north-facing
+  // ⚠ `.y` — the UP component in three's world space. `.z` would ramp on the north-facing
   // slopes and still compile.
-  assert.ok(m.fragmentShader.includes('st_rockMask(n.y, uRockLo, uRockHi)'));
-  assert.ok(!m.fragmentShader.includes('st_rockMask(n.z'));
+  assert.ok(m.fragmentShader.includes('st_rockMask(geoN.y, uRockLo, uRockHi)'));
+  assert.ok(!m.fragmentShader.includes('st_rockMask(geoN.z'));
+  // ⚠⚠ AND NEVER `n`, WHICH IS THE WHOLE OF ADR-0553'S MECHANISM. `n` has been through the
+  // detail map and the grain by the time this stage runs, so a mask reading it paints rock
+  // wherever a bump texel tilted a fragment — which on this land is the interior grass.
+  assert.ok(!m.fragmentShader.includes('st_rockMask(n.'), 'the mask must not read the bumped normal');
   assert.ok(m.fragmentShader.includes('uRockMix * rockMask * grassGate'));
+});
+
+test('the GEOMETRIC NORMAL is captured before either bump, and only when there is rock', () => {
+  const m = layered();
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  // ⚠ ORDER IS THE ASSERTION, not the presence of a line. `vec3 geoN = n;` placed after the
+  // detail stage would compile, would keep every string below true, and would paint exactly the
+  // interior rock this change removes.
+  const captureAt = body.indexOf('vec3 geoN = n;');
+  const detailAt = body.indexOf('vec3 detailN =');
+  const grainAt = body.indexOf('st_grainGradient(vWorld.xz)');
+  const maskAt = body.indexOf('st_rockMask(geoN.y');
+  assert.ok(captureAt >= 0, 'the capture is emitted');
+  assert.ok(detailAt > captureAt, 'captured BEFORE the detail map bends the normal');
+  assert.ok(grainAt > captureAt, 'and BEFORE the grain does');
+  assert.ok(maskAt > grainAt, 'while the mask itself still runs after both, in the recipe`s order');
+  // ⚠ AND IT COSTS A ROCK-LESS SHADER NOTHING: absent means absent, so every figure taken
+  // against a shader without layer 4 still stands byte for byte.
+  assert.ok(!sanded().fragmentShader.includes('geoN'), 'no capture without a rock layer');
 });
 
 test('the DETAIL STAGE is emitted line for line, BETWEEN the normal and the grain`s bump', () => {
   const m = layered();
-  assert.ok(m.fragmentShader.includes(`vec3 n = normalize(vNormal);${DETAIL_STAGE}\n`), 'appended to the normal`s own line');
+  // ⚠ THE ROCK'S GEOMETRIC CAPTURE NOW SITS BETWEEN THEM (ADR-0553) — one line, emitted only
+  // when there is a rock layer, so the detail stage still joins onto the last thing before it.
+  assert.ok(
+    m.fragmentShader.includes(`vec3 geoN = n;${DETAIL_STAGE}\n`),
+    'appended to the geometric capture, which is itself appended to the normal`s own line',
+  );
   // ⚠ THE ORDER IS THE RECIPE'S: NormalMap → Bump. A detail stage after the grain's gradient
   // would relieve the grain rather than the other way round — a different picture wearing the
   // same two names.

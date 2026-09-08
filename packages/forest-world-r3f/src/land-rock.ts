@@ -29,11 +29,17 @@
 // against. `interiorMinimumUp()` below states the fact as a value a test holds rather than a
 // number in prose.
 //
-// ⚠ A NAMED DEPARTURE THE MATERIAL MAKES, recorded here because this module's twin cannot see
-// it: Cycles' `Geometry.Normal` is the UNBUMPED surface normal, evaluated before the normal map
-// and the bump. The material feeds the mask the grain-PERTURBED normal, so the mask carries a
-// little of the grain's relief. `rockMask` itself is the recipe's arithmetic on whatever
-// up-component it is handed.
+// ⚠⚠ THE MATERIAL USED TO DEPART HERE, AND THAT DEPARTURE IS WITHDRAWN (ADR-0553, 2026-09-08).
+// Cycles' `Geometry.Normal` is the UNBUMPED surface normal, evaluated before the normal map and
+// the bump; the material fed the mask the BUMPED one instead, so the mask asked "did a texel of a
+// 128-texel cliff map tilt this fragment" rather than "is this ground steep". That is what put
+// grey across the interior grass, and it is why the measured fact above did not deliver the
+// picture it promised: the interior IS flat enough — the bump made it steep anyway. Measured on
+// the shipped constants, over an interior grid: on the geometry the mask is 0 everywhere; with
+// the grain's bump alone it is non-zero on 6.2% of samples, reaching an up-component of 0.758.
+// The detail map at `SHIPPED_DETAIL_STRENGTH` is applied first and adds more.
+// `land-rock.test.ts` holds both numbers. `rockMask` itself is the recipe's arithmetic on
+// whatever up-component it is handed.
 
 import {
   grassScalar,
