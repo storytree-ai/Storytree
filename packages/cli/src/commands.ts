@@ -39,6 +39,8 @@ import {
   stringFieldsForKind,
   REPO_ROOT_ENV,
   resolveRepoRoot,
+  crownObligations,
+  activeReliabilityGates,
 } from "@storytree/library";
 import type {
   UatTestCriterion,
@@ -54,6 +56,11 @@ import {
   resolveSignerFromEnv,
   shellObserveCommand,
   runShellCommand,
+  advanceStoryBaseline,
+} from "@storytree/orchestrator";
+import type {
+  StoryBaselineBackfillCandidate,
+  StoryBaselineProvenance,
 } from "@storytree/orchestrator";
 import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
@@ -312,6 +319,7 @@ import {
 } from "./uat.js";
 import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate, type GateBuildDriverDeps } from "./gate-build-driver.js";
+import { storyBaselineBackfillCommand } from "./story-baseline.js";
 
 // RETIRED_FIELDS (the retired-field denylist) moved to `@storytree/drive`'s health module with
 // the checks it feeds — re-imported via the ./health.js shim above.
@@ -2500,6 +2508,102 @@ function loadStoryReliabilityGates(storiesDir: string, storyId: string): Reliabi
   }
 }
 
+/** One story's exact declaration for the shared durable story-health fold (ADR-0560 D2/D5). */
+function loadStoryBaselineCandidate(
+  storiesDir: string,
+  storyId: string,
+): StoryBaselineBackfillCandidate {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return { storyId, error: "story.md not found" };
+  try {
+    const spec = loadNodeSpec(file);
+    if (spec.tier !== "story") return { storyId, error: "the declaration is not a story" };
+    let unresolvedHealthIssue = false;
+    const capabilities = spec.capabilities.map((id) => {
+      const capabilityFile = findNodeSpecFile(storiesDir, id);
+      if (capabilityFile === null) {
+        unresolvedHealthIssue = true;
+        return { id };
+      }
+      try {
+        return { id, status: loadNodeSpec(capabilityFile).status };
+      } catch {
+        unresolvedHealthIssue = true;
+        return { id };
+      }
+    });
+    const coverage = activeReliabilityGates(spec.reliabilityGates);
+    if (unresolvedHealthIssue) {
+      return {
+        storyId,
+        declaration: {
+          capabilities,
+          obligations: crownObligations(spec.uatTestCriteria, spec.reliabilityGates),
+        },
+        coverage,
+        unresolvedHealthIssue: true,
+      };
+    }
+    return {
+      storyId,
+      declaration: {
+        capabilities,
+        obligations: crownObligations(spec.uatTestCriteria, spec.reliabilityGates),
+      },
+      coverage,
+    };
+  } catch (error) {
+    return {
+      storyId,
+      error: error instanceof Error ? error.message : "story declaration is unreadable",
+    };
+  }
+}
+
+function loadAllStoryBaselineCandidates(storiesDir: string): StoryBaselineBackfillCandidate[] {
+  if (!existsSync(storiesDir)) return [];
+  return readdirSync(storiesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => loadStoryBaselineCandidate(storiesDir, entry.name));
+}
+
+/** One production composition used by every CLI proof writer that can complete a story. */
+function makeStoryBaselineAdvancer(
+  storiesDir: string,
+  store: UatVerdictStoreLike | null,
+): ((storyId: string, provenance: StoryBaselineProvenance) => Promise<unknown>) | undefined {
+  if (store === null) return undefined;
+  return async (storyId, provenance) => {
+    const candidate = loadStoryBaselineCandidate(storiesDir, storyId);
+    if (candidate.declaration === undefined) {
+      throw new Error(candidate.error ?? `story declaration "${storyId}" is unreadable`);
+    }
+    const common = {
+      storyId,
+      declaration: candidate.declaration,
+      store,
+      provenance,
+    };
+    if (candidate.coverage !== undefined && candidate.unresolvedHealthIssue !== undefined) {
+      return advanceStoryBaseline({
+        ...common,
+        coverage: candidate.coverage,
+        unresolvedHealthIssue: candidate.unresolvedHealthIssue,
+      });
+    }
+    if (candidate.coverage !== undefined) {
+      return advanceStoryBaseline({ ...common, coverage: candidate.coverage });
+    }
+    if (candidate.unresolvedHealthIssue !== undefined) {
+      return advanceStoryBaseline({
+        ...common,
+        unresolvedHealthIssue: candidate.unresolvedHealthIssue,
+      });
+    }
+    return advanceStoryBaseline(common);
+  };
+}
+
 /**
  * A story's adoptable facts for the adopt-plan classifier (ADR-0097 Layer 2): its status + declared
  * capabilities + reliability gates. Null for a missing/odd spec or a non-story tier (a capability has
@@ -2846,8 +2950,10 @@ function makeGateOpts(values: BuildValues): GateOpts {
  * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
  */
 function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
-  return {
-    store: deps.uatStore ?? null,
+  const store = deps.uatStore ?? null;
+  const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
+  const gateDeps: GateDeps = {
+    store,
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     gitState: readGitState,
@@ -2864,6 +2970,8 @@ function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): G
     },
     now: () => new Date(),
   };
+  if (baselineAdvancer !== undefined) gateDeps.advanceStoryBaseline = baselineAdvancer;
+  return gateDeps;
 }
 
 /**
@@ -2923,8 +3031,10 @@ function makeUatOpts(values: {
 
 /** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
 function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
-  return {
-    store: deps.uatStore ?? null,
+  const store = deps.uatStore ?? null;
+  const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
+  const uatDeps: UatDeps = {
+    store,
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     gitState: readGitState,
@@ -2940,6 +3050,8 @@ function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir
     },
     readCorpusStories: () => readCorpusStoryDocs(storiesDir),
   };
+  if (baselineAdvancer !== undefined) uatDeps.advanceStoryBaseline = baselineAdvancer;
+  return uatDeps;
 }
 
 /** One story's RAW spec markdown, read pre-parse (the revision recompute repairs what will not parse). */
@@ -3541,13 +3653,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "story") {
     if (sub === undefined || help) return storyHelp();
+    if (sub === "baseline" && third === "backfill") {
+      const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+      return storyBaselineBackfillCommand(rest, {
+        store: deps.uatStore ?? null,
+        candidates: () => loadAllStoryBaselineCandidates(storiesDir),
+        gitState: readGitState,
+        resolveSigner: () => resolveSignerFromEnv(),
+        now: () => new Date(),
+      });
+    }
     // ADR-0097 Layer 2's adoption-plan report MOVED to `storytree adopt plan <story>` (the command-surface
     // reshape — adoption actions nest under `adopt`). `story` now drives only the build chain.
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run  (adoption-plan moved to: storytree adopt plan <story-id>)`,
-        next: ["storytree story build library --dry-run", "storytree adopt plan library"],
+        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run | storytree story baseline backfill --pg  (adoption-plan moved to: storytree adopt plan <story-id>)`,
+        next: ["storytree story build library --dry-run", "storytree story baseline backfill --pg", "storytree adopt plan library"],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);

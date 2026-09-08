@@ -122,6 +122,7 @@
       "packages/cli/src/tree.ts": "tree-view",
       "packages/cli/src/tree-verdicts.ts": "verdict-glyphs",
       "packages/cli/src/work-log*.ts": "work-verdict-event-log",
+      "packages/cli/src/story-baseline*.ts": "work-verdict-event-log",
     "packages/cli/src/scope-reading*.ts": "phase-scoped-write-wall",
       "packages/cli/src/tree-attestations.ts": "attestation-surface",
       "packages/cli/src/attest.ts": "attestation-signals",

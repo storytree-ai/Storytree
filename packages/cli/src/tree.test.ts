@@ -17,7 +17,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
+import {
+  SIGNING_EVENT_KIND,
+  storyBaselineScope,
+  type StoryBaselineScope,
+} from "@storytree/proof-protocol";
 
 import { treeCommand, type TreeDeps } from "./tree.js";
 import { authoredUat, fixtureBinding, fixtureCriterionId } from "./uat-test-fixtures.js";
@@ -44,6 +48,7 @@ interface FixtureVerdictDoc {
   at: string;
   criterionId?: string;
   revisionId?: string;
+  storyBaseline?: StoryBaselineScope;
 }
 
 /** A signed-verdict event for a per-test UAT id, shaped for the verdict reader seam. */
@@ -52,6 +57,7 @@ function verdictEvent(
   unitId: string,
   outcome: "pass" | "fail",
   revisionId?: string,
+  baseline?: StoryBaselineScope,
 ) {
   const doc: FixtureVerdictDoc = {
     unitId,
@@ -66,6 +72,7 @@ function verdictEvent(
     doc.criterionId = unitId;
     doc.revisionId = revisionId;
   }
+  if (baseline !== undefined) doc.storyBaseline = baseline;
   return { seq, kind: SIGNING_EVENT_KIND, doc };
 }
 
@@ -401,6 +408,23 @@ test("focused view: a story with one unproven test under-claims (crown –, the 
   assert.match(env.body, /UAT proof: unproven/, "the story UAT under-claims");
   assert.match(env.body, new RegExp(`${C1}\\s+witness=machine\\s+proven=✓`), "the proven test → ✓");
   assert.match(env.body, new RegExp(`${C2}\\s+witness=human\\s+proven=–`), "the unproven test → –");
+});
+
+test("focused and bare views preserve an established baseline when current proof is absent", async () => {
+  const scope = storyBaselineScope(["cap-a", "cap-b", "cap-c"], [C1, C2]);
+  const verdicts = {
+    async readEvents() {
+      return [verdictEvent(1, "demo-story", "pass", undefined, scope)];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
+  const focused = await treeCommand("demo-story", deps);
+  const bare = await treeCommand(undefined, deps);
+  assert.equal(focused.ok, true);
+  assert.match(focused.body, /Story: demo-story ✓/);
+  assert.match(focused.body, /status:  healthy/);
+  assert.match(focused.body, /story green: GREEN — delivered baseline stands/);
+  assert.match(bare.body, /demo-story ✓  Demo Story  status=healthy/);
 });
 
 // ── ADR-0097: brownfield adoption — would-be UAT relaxation + (covers:) crown coverage ──

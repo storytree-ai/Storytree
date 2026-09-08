@@ -7,8 +7,8 @@
 // uses.
 
 import { describe, it, expect } from 'vitest';
-import { SIGNING_EVENT_KIND } from '@storytree/proof-protocol';
-import { rollupStoryGreen, rollupCapStatus } from '@storytree/orchestrator';
+import { SIGNING_EVENT_KIND, storyBaselineScope } from '@storytree/proof-protocol';
+import { resolveStoryHealth, rollupCapStatus } from '@storytree/orchestrator';
 
 import {
   applyUatCrowns,
@@ -40,7 +40,18 @@ function noCoverage(): Map<string, { id: string; covers?: readonly string[] }[]>
   return new Map();
 }
 
-function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at: string) {
+interface FixtureVerdictEvent {
+  kind: string;
+  seq: number;
+  doc: Record<string, unknown>;
+}
+
+function verdictEvent(
+  seq: number,
+  unitId: string,
+  outcome: 'pass' | 'fail',
+  at: string,
+): FixtureVerdictEvent {
   return {
     kind: SIGNING_EVENT_KIND,
     seq,
@@ -78,7 +89,7 @@ describe('applyUatCrowns', () => {
       criterionVerdictEvent(2, C1, 'pass', '2026-06-20T01:00:00.000Z'),
       criterionVerdictEvent(3, C2, 'pass', '2026-06-20T02:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
   });
 
@@ -86,7 +97,7 @@ describe('applyUatCrowns', () => {
     const stories = [story('proof-protocol', { capabilities: [] })];
     const map = new Map([['proof-protocol', [C1]]]);
     const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T02:00:00.000Z')];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
   });
 
@@ -101,7 +112,7 @@ describe('applyUatCrowns', () => {
     const map = new Map([['demo', [C1]]]);
     // The UAT is proven, but demo.cap-a never earned a signed pass.
     const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T01:00:00.000Z')];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
@@ -109,7 +120,7 @@ describe('applyUatCrowns', () => {
     const stories = [story('demo', { verdict: { outcome: 'pass', at: 'stale' } })];
     const map = new Map([['demo', [C1, C2]]]);
     const events = [criterionVerdictEvent(1, C1, 'pass', '2026-06-20T01:00:00.000Z')];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
@@ -121,7 +132,7 @@ describe('applyUatCrowns', () => {
       criterionVerdictEvent(2, C2, 'pass', '2026-06-20T02:00:00.000Z'),
       criterionVerdictEvent(3, C2, 'fail', '2026-06-20T03:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '2026-06-20T03:00:00.000Z' });
   });
 
@@ -133,15 +144,15 @@ describe('applyUatCrowns', () => {
       criterionVerdictEvent(2, C1, 'pass', '2026-06-20T02:00:00.000Z'),
       verdictEvent(3, 'demo.cap-a', 'fail', '2026-06-20T03:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '2026-06-20T03:00:00.000Z' });
   });
 
-  it('leaves a story with no per-test tests untouched (its own-unit verdict stands)', () => {
+  it('does not treat a legacy own-unit pass without a baseline as durable green', () => {
     const stories = [story('legacy', { verdict: { outcome: 'pass', at: 'own-unit' } })];
     const map = new Map<string, { id: string }[]>(); // legacy declares no per-test tests
-    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
-    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: 'own-unit' });
+    applyUatCrowns(stories, map, noCoverage(), [], resolveStoryHealth);
+    expect(stories[0]!.verdict).toBeUndefined();
   });
 
   // ── ADR-0097: brownfield capability coverage via an adopted gate ──
@@ -155,7 +166,7 @@ describe('applyUatCrowns', () => {
 
     // Only the gate is adopted → covered-cap greens via coverage, pocket-cap holds the crown unproven.
     const gateOnly = [verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z')];
-    applyUatCrowns(stories, map, coverage, gateOnly, rollupStoryGreen);
+    applyUatCrowns(stories, map, coverage, gateOnly, resolveStoryHealth);
     expect(stories[0]!.verdict).toBeUndefined();
 
     // Once pocket-cap also earns its own pass, every cap is satisfied and the crown greens.
@@ -166,7 +177,7 @@ describe('applyUatCrowns', () => {
       verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z'),
       verdictEvent(2, 'pocket-cap', 'pass', '2026-06-23T02:00:00.000Z'),
     ];
-    applyUatCrowns(stories2, map, coverage, both, rollupStoryGreen);
+    applyUatCrowns(stories2, map, coverage, both, resolveStoryHealth);
     expect(stories2[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-23T02:00:00.000Z' });
   });
 });
@@ -208,6 +219,27 @@ describe('applyCapCoverage', () => {
 // ── ADR-0443: the crown reaches stories it used to skip, and the map agrees with the CLI ─────────
 
 describe('applyUatCrowns — ADR-0443', () => {
+  it('keeps an established story healthy when a criterion revision changes without a current witness', () => {
+    const stories = [story('demo')];
+    const revised = { ...C1, revisionId: 'uatr1:9999999999999999' };
+    const baseline = verdictEvent(1, 'demo', 'pass', '2026-09-08T00:00:00.000Z');
+    baseline.doc = { ...baseline.doc, storyBaseline: storyBaselineScope([], [C1.criterionId]) };
+    applyUatCrowns(
+      stories,
+      new Map([['demo', [revised]]]),
+      noCoverage(),
+      [baseline],
+      resolveStoryHealth,
+    );
+    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-09-08T00:00:00.000Z' });
+  });
+
+  it('turns an explicit unresolved story error into a failing crown', () => {
+    const stories = [story('demo', { error: 'story declaration unreadable' })];
+    applyUatCrowns(stories, new Map([['demo', []]]), noCoverage(), [], resolveStoryHealth);
+    expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '' });
+  });
+
   it('crowns a story whose obligation set is EMPTY, on its proven capabilities alone (D2/D3)', () => {
     // The state D2 unblocks: every acceptance step is unsignable, so `crownObligations` returns [].
     // Before ADR-0443 this story was SKIPPED here (`if (!tests || tests.length === 0) continue`) and
@@ -215,7 +247,7 @@ describe('applyUatCrowns — ADR-0443', () => {
     const stories = [story('binding-staleness-ish', { capabilities: [cap('s.cap-a')] })];
     const map = new Map([['binding-staleness-ish', [] as never[]]]);
     const events = [verdictEvent(1, 's.cap-a', 'pass', '2026-08-25T00:00:00.000Z')];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-08-25T00:00:00.000Z' });
   });
 
@@ -223,15 +255,15 @@ describe('applyUatCrowns — ADR-0443', () => {
     // `website`: no capabilities, no obligations. Both clauses pass vacuously; only D3 holds it grey.
     const stories = [story('website-ish', { capabilities: [cap('s.cap-a')] })];
     const map = new Map([['website-ish', [] as never[]]]);
-    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), [], resolveStoryHealth);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
-  it('leaves a legacy story with NOTHING to read untouched — its own-unit verdict stands', () => {
+  it('leaves a legacy story with nothing to prove genuinely pre-baseline', () => {
     const stories = [story('legacy', { capabilities: [], verdict: { outcome: 'pass', at: 'own' } })];
     const map = new Map([['legacy', [] as never[]]]);
-    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
-    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: 'own' });
+    applyUatCrowns(stories, map, noCoverage(), [], resolveStoryHealth);
+    expect(stories[0]!.verdict).toBeUndefined();
   });
 
   it('a `proposed` capability nobody began does not withhold a proven story crown (D1)', () => {
@@ -250,7 +282,7 @@ describe('applyUatCrowns — ADR-0443', () => {
       verdictEvent(1, 'demo.cap-a', 'pass', '2026-08-25T00:00:00.000Z'),
       criterionVerdictEvent(2, C1, 'pass', '2026-08-25T01:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, resolveStoryHealth);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-08-25T01:00:00.000Z' });
   });
 
@@ -269,7 +301,7 @@ describe('applyUatCrowns — ADR-0443', () => {
     ];
     const crowns = [verdictsOnly, merged].map((events) => {
       const stories = [story('demo', { capabilities: [cap('demo.cap-a')] })];
-      applyUatCrowns(stories, new Map([['demo', [C1]]]), noCoverage(), events, rollupStoryGreen);
+      applyUatCrowns(stories, new Map([['demo', [C1]]]), noCoverage(), events, resolveStoryHealth);
       return stories[0]!.verdict;
     });
     expect(crowns[0]).toEqual({ outcome: 'pass', at: '2026-08-25T01:00:00.000Z' });

@@ -107,10 +107,16 @@ test("gate list on a story with no gates says so", async () => {
 
 test("gate run observes an observe gate green at a clean HEAD and signs an adopted verdict", async () => {
   const store = memStore();
+  const baselineCalls: Array<{ storyId: string; commitSha: string; signer: string }> = [];
   const env = await gateCommand(
     { mode: "run", target: "proof-protocol#gate-1" },
     {},
-    deps({ store }),
+    deps({
+      store,
+      advanceStoryBaseline: async (storyId, provenance) => {
+        baselineCalls.push({ storyId, commitSha: provenance.commitSha, signer: provenance.signer });
+      },
+    }),
   );
   assert.equal(env.ok, true);
   assert.match(env.body, /Adopted reliability gate/);
@@ -122,6 +128,11 @@ test("gate run observes an observe gate green at a clean HEAD and signs an adopt
   const doc = store.events[0]?.doc as { proofMode: string; unitId: string };
   assert.equal(doc.proofMode, "adopted");
   assert.equal(doc.unitId, "proof-protocol#gate-1");
+  assert.deepEqual(baselineCalls, [{
+    storyId: "proof-protocol",
+    commitSha: "abc1234",
+    signer: "spine@storytree",
+  }]);
   // The reliability-gate roll-up now reads GREEN.
   assert.match(env.body, /reliability gates: GREEN/);
 });
@@ -177,6 +188,7 @@ test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the 
   interface SeenShape { gate?: ReliabilityGate; signer?: string }
 
   const seen: SeenShape = {};
+  const baselineCalls: string[] = [];
   const env = await gateCommand(
     { mode: "run", target: "brown#gate-1" },
     { real: true, signer: "builder@example.com" },
@@ -189,6 +201,9 @@ test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the 
         if (signer !== undefined) seen.signer = signer;
         return { ok: true, body: `drove ${gate.id} via ${gate.buildNode}` };
       },
+      advanceStoryBaseline: async (storyId) => {
+        baselineCalls.push(storyId);
+      },
     }),
   );
   assert.equal(env.ok, true);
@@ -196,6 +211,7 @@ test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the 
   assert.equal(seen.gate?.id, "brown#gate-1");
   assert.equal(seen.gate?.buildNode, "brown-seam");
   assert.equal(seen.signer, "builder@example.com");
+  assert.deepEqual(baselineCalls, ["brown"]);
 });
 
 test("gate run --real on a build-tests gate refuses when the build driver is not wired (read-only/offline)", async () => {
