@@ -421,10 +421,11 @@ export function applyUatCrowns(
   }) => { status: string | null },
 ): void {
   for (const story of stories) {
-    // The hierarchy read builds this map for every story, including an empty obligation list.
-    // Treat that totality as the input contract; manufacturing a second fallback would make a
-    // missing declaration indistinguishable from a genuinely obligation-free story.
-    const tests = uatTestCriteriaByStory.get(story.id)!;
+    // An unreadable story declaration never reaches the obligation collector, so absence here is
+    // the error-path representation of "no obligations could be read", not a second health rule.
+    // Normalise only the declaration input; `unresolvedHealthIssue` below remains the shared
+    // resolver's reason to mark that node unhealthy. This mirrors the studio fold exactly.
+    const tests = uatTestCriteriaByStory.get(story.id) ?? [];
     const capabilityIds = story.capabilities.map((c) => c.id);
     // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id.
     const capabilities: StoryCapabilityRef[] = story.capabilities.map((c) => ({

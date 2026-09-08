@@ -479,6 +479,33 @@ test("tree-verdicts: an explicit story health issue is unhealthy even when proof
   }
 });
 
+test("tree-verdicts: an unreadable story with no obligation-map entry still resolves unhealthy", async () => {
+  const broken: DTStory = {
+    id: "broken",
+    title: "broken",
+    outcome: "",
+    status: null,
+    proofMode: "",
+    uatWitness: "human",
+    dependsOn: [],
+    consumedBy: [],
+    decisions: [],
+    capabilities: [],
+    error: "story declaration unreadable",
+  };
+
+  await foldVerdicts([broken], new Map(), new Map(), {
+    latestVerdicts: null,
+    verdictEvents: null,
+  });
+
+  assert.deepEqual(
+    broken.verdict,
+    { outcome: "fail", at: "" },
+    "the absent obligation entry is normalised for the resolver instead of throwing the whole /api/tree response",
+  );
+});
+
 // ADR-0443 D2/D3: this fixture's ONE leg is a `machine` criterion naming no `(proof-gate:)`, so it is
 // UNSIGNABLE — no adopt pass can ever sign it, and holding the island grey on it is a permanent block
 // rather than an incentive. It therefore leaves the obligation set, the crown rests on the story's
