@@ -696,6 +696,8 @@
       "packages/drive/src/hierarchy-projection.ts": "work-hierarchy-store-projection",
       "packages/cli/src/load-hierarchy.ts": "work-hierarchy-store-projection",
       "packages/cli/src/hierarchy-drift.ts": "work-hierarchy-drift-gate",
+      "packages/cli/src/uat-revision-continuity.ts": "uat-revision-continuity-gate",
+      "packages/cli/src/check-uat-revision-continuity.ts": "uat-revision-continuity-gate",
     "packages/cli/src/gcloudignore-mirror.ts": "container-image",
     "packages/cli/src/check-gcloudignore-mirror.ts": "container-image",
     "packages/cli/src/hierarchy-camps.ts": "work-hierarchy-camp-fence",
@@ -781,6 +783,13 @@
           "live"
         ],
         "because": "`check:hierarchy-drift` — the gap between the two clocks IS its verdict. It reads the checkout's projection and the store's mirror and reports whether they still describe the same tree, so it necessarily spans both and belongs to neither camp."
+      },
+      "packages/cli/src/check-uat-revision-continuity.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "ADR-0560's merge wall compares the candidate checkout with its merge-base hierarchy. It also reads live signed verdicts, but not the live work-hierarchy projection: the hierarchy question is proof of this candidate and therefore checkout-canonical."
       },
       "packages/cli/src/leaf-test-strength.run.ts": {
         "camp": "prove",

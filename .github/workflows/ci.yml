@@ -502,6 +502,16 @@ jobs:
           git fetch --depth=1 origin +refs/heads/main:refs/remotes/origin/main
           pnpm check:hierarchy-drift
 
+      # ADR-0560 D3/D4: the fetched `origin/main` above also anchors this exact-revision continuity
+      # wall at `merge-base(origin/main, HEAD)`. Unlike the mirror check, this compares the base
+      # hierarchy to the candidate hierarchy and reads the signed verdict stream. It remains its
+      # own required step so the green-gate audit can see the wall directly. A missing ref,
+      # credential, store read, criterion identity or revision is a hard red.
+      - name: Changed UAT revisions carry current proof
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:uat-revision-continuity
+
   # ---------------------------------------------------------------------------
   # Auto-merge-on-green, done inside free Actions (GitHub-native auto-merge is
   # paywalled on private repos). Runs only for PRs, only after `verify` passes.

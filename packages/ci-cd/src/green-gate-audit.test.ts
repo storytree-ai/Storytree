@@ -371,6 +371,20 @@ describe("generated-views-in-sync: verify runs both generated-view checks", () =
   });
 });
 
+describe("UAT revision continuity is a required authenticated merge wall", () => {
+  it("the real verify job runs the exact-revision continuity check", () => {
+    assert.equal(
+      jobRunsCheck(readCiYaml(), "verify", "check:uat-revision-continuity"),
+      true,
+      "a changed existing UAT revision must not reach automerge without its current signed witness",
+    );
+  });
+
+  it("the continuity wall is covered by the no-soft-step contract", () => {
+    assert.deepEqual(softStepLines(readCiYaml(), "verify"), []);
+  });
+});
+
 // ── contract 4 ───────────────────────────────────────────────────────────────────
 
 describe("red-blocks-the-merge: automerge cannot run without a green verify", () => {
