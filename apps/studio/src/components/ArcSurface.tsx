@@ -641,9 +641,12 @@ function ArcBriefingPanel({
         )}
       </section>
 
-      {/* `blocked` is named and left UNLIT rather than omitted — an owner who was told the surface
-          distinguishes blocked must be able to see that it currently cannot, instead of reading its
-          absence as "nothing is blocked" (ADR-0314 D4, untouched by this arc). */}
+      {/* ⚠ `blocked` LIGHTS NOW — this note is no longer "the state is unlit", it is "the state has
+          one of its two sources". ADR-0523's arc-to-arc gate supplies the unmet-dependency half
+          (`BLOCKED_IS_DERIVABLE` flipped true); the CLAIM half — a story or capability this arc needs
+          being held by somebody else — is still not derivable. So the note stays for the same reason
+          it was written under ADR-0314 D4: a reader must not take an arc's silence on `blocked` as
+          proof that nothing is stopping it. Only its SUBJECT moved. */}
       <p className="arc-briefing-blocked-note muted small" data-testid="arc-blocked-note">
         {BLOCKED_UNAVAILABLE_NOTE}
       </p>
