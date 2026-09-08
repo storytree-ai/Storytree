@@ -154,7 +154,16 @@ export interface CameraFraming {
  * what the canvas DRAWS also has height: the kit's trees reach about 90 units, and a wisp floats
  * above its island. Bracketing the range on the ground alone would clip the tops off the near row.
  */
-const CLIP_HEADROOM = 200;
+export const CLIP_HEADROOM = 200;
+
+/** The near and far clip planes, world units along the view direction from the eye. Named rather
+ *  than returned anonymously, because `anti-slop/no-known-value-widening` reads an anonymous object
+ *  return annotation as discarded type evidence — and because a test that re-derives the rule needs
+ *  a contract to derive against. */
+export interface ClipRange {
+  near: number;
+  far: number;
+}
 
 /**
  * THE CLIP RANGE THAT CONTAINS THE WORLD — and it is derived rather than declared, because the one
@@ -185,11 +194,22 @@ function clipRange(
   instances: readonly InstanceDescriptor[],
   target: readonly [number, number, number],
   position: readonly [number, number, number],
-): { near: number; far: number } {
+): ClipRange {
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT for the `y` term only, and stated
+  // precisely. `target[1]` is 0 on EVERY path that produces a `CameraFraming` — the target is a
+  // point on the ground plane, and both producers write the 0 as a literal — so adding and
+  // subtracting it are the same number and no fixture can separate them. The x and z terms are NOT
+  // equivalent and are killed by `assertClipRangeRule`, which re-derives this expression over a
+  // world whose target is nowhere near the origin.
   const eyeDistance = Math.hypot(position[0] - target[0], position[1] - target[1], position[2] - target[2]);
   let radius = 0;
   for (const instance of instances) {
     for (const p of instance.points ?? [instance.transform]) {
+      // Stryker disable next-line ArithmeticOperator: EQUIVALENT for the `y` term only, same reason
+      // as above — `target[1]` is always 0. It is worth keeping the term rather than dropping it:
+      // an instance's own `p.y` is not always 0 (a wisp is drawn above its island, and the ADR-0517
+      // families carry height), so the DISTANCE this measures is genuinely three-dimensional even
+      // where the target's own height is not.
       radius = Math.max(radius, Math.hypot(p.x - target[0], p.y - target[1], p.z - target[2]));
     }
   }

@@ -85,6 +85,7 @@ export {
 // the FIT the dev harness's capture pages open on; `restingWorldFraming` is ADR-0471's designed
 // resting composition, which is what a PRODUCT view opens on (the studio's land view).
 export {
+  CLIP_HEADROOM,
   FRAME_HALF_HEIGHT_PER_BACK,
   SHIPPED_ELEVATION_DEG,
   SHIPPED_GROUND_FLATTENING,
@@ -94,6 +95,7 @@ export {
   restingWorldFraming,
   shippedElevationDeg,
   type CameraFraming,
+  type ClipRange,
   type FramingViewport,
   type RestingWorldFraming,
 } from './camera-framing.js';

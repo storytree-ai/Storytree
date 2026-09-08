@@ -18,6 +18,7 @@ import test from 'node:test';
 import { RESTING_ISLAND_SPANS, groundFlattening } from '@storytree/forest-world';
 
 import {
+  CLIP_HEADROOM,
   SHIPPED_ELEVATION_DEG,
   SHIPPED_GROUND_FLATTENING,
   frameWorld,
@@ -408,4 +409,81 @@ test('an empty world still gets a usable range rather than a degenerate one', ()
   const fit = frameWorld([]);
   assert.ok(Number.isFinite(fit.near) && Number.isFinite(fit.far));
   assert.ok(fit.far > fit.near);
+});
+
+/** What a re-derivation of the clip rule measured: the radius the rule was derived against, and the
+ *  radius the RINGS alone would have given. Named rather than returned anonymously — the anti-slop
+ *  rule that binds source binds tests too (`overrides` is empty). */
+interface ClipDerivation {
+  radius: number;
+  ringRadius: number;
+}
+
+/** Re-derive the clip rule for one world and hold the framing to it, so a caller can state which of
+ *  the two radii its fixture actually exercises. */
+function assertClipRangeRule(
+  world: readonly InstanceDescriptor[],
+  viewport: { width: number; height: number },
+): ClipDerivation {
+  const framing = restingWorldFraming(world, viewport);
+  const [ex, ey, ez] = framing.position;
+  const [tx, ty, tz] = framing.target;
+  const eyeDistance = Math.hypot(ex - tx, ey - ty, ez - tz);
+  const far = (p: { x: number; y: number; z: number }) => Math.hypot(p.x - tx, p.y - ty, p.z - tz);
+  let radius = 0;
+  let ringRadius = 0;
+  for (const instance of world) {
+    // ⚠ THE POINT-LIKE FALLBACK IS PART OF THE RULE: an instance with no ring contributes the point
+    // it stands at, and where that point is the farthest thing in the world, dropping it brings the
+    // far plane in ahead of something the canvas draws.
+    for (const p of instance.points ?? [instance.transform]) radius = Math.max(radius, far(p));
+    for (const p of instance.points ?? []) ringRadius = Math.max(ringRadius, far(p));
+  }
+  const reach = 2 * radius + CLIP_HEADROOM;
+  assert.ok(Math.abs(framing.far - (eyeDistance + reach)) < 1e-9, `far ${framing.far}`);
+  assert.ok(Math.abs(framing.near - (eyeDistance - reach)) < 1e-9, `near ${framing.near}`);
+  // NON-VACUITY: the target is nowhere near the origin, so every `a - b` in the derivation really
+  // is a different number from `a + b`.
+  assert.ok(Math.abs(tx) > 100 || Math.abs(tz) > 100, 'the target is off the origin, so signs matter');
+  return { radius, ringRadius };
+}
+
+test('the clip range IS the stated rule, re-derived \u2014 containment alone acquits a sign error', () => {
+  // ⚠⚠ CONTAINMENT IS NOT ENOUGH, and `check:mutation-diff` said so: every sign error inside
+  // `clipRange` makes the range WIDER, so a test that only asks "is the world inside?" passes on
+  // all of them. Six mutants survived exactly that — the eye distance's three terms, the radius's
+  // three, and dropping the point-like fallback. So the rule is re-derived here instead: bracket
+  // the eye's OWN distance from the target by twice the world's radius about that target, plus
+  // `CLIP_HEADROOM` for what stands on the ground.
+  assertClipRangeRule(AWKWARD, { width: 1600, height: 900 });
+  assertClipRangeRule(realScaleForest(), VIEWPORT);
+});
+
+test('a POINT-LIKE instance at the world\u2019s far edge sets the range, ring or no ring', () => {
+  // ⚠ A SEPARATE FIXTURE, AND ITS SHAPE IS FORCED. In the awkward world above the deep island is
+  // farther from the target than the wisp, so that world exercises the rule but cannot show that
+  // the ringless fallback matters — and neither can the obvious "wisp far past the land", because
+  // the frame BOTTOM-ANCHORS on the world's own bottom edge, so a wisp that defines that edge drags
+  // the target to itself. What separates the two is a ringless instance at the world's TOP, which
+  // the anchor runs AWAY from: the land sits deep, the frame anchors on the land, and the wisp is
+  // then the farthest thing from the target by a wide margin.
+  const world: InstanceDescriptor[] = [
+    parcel('home', 0, 3000, 40),
+    parcel('home', 60, 3000, 40),
+    { kind: 'wisp-sprite', transform: { x: 30, y: 0, z: 0 }, group: 'wisp-sprite' },
+  ];
+  const { radius, ringRadius } = assertClipRangeRule(world, VIEWPORT);
+  assert.ok(radius > ringRadius * 2, `the ringless instance sets the radius (${radius} vs ${ringRadius})`);
+
+  // AND THE SEPARATION: read off the rings alone, the far plane would come in AHEAD of the wisp —
+  // an instance the canvas draws, clipped out by a range that never heard of it.
+  const framing = restingWorldFraming(world, VIEWPORT);
+  const wispDepth = Math.max(...depthsAlongView(world.slice(2), framing));
+  const eyeDistance = Math.hypot(
+    framing.position[0] - framing.target[0],
+    framing.position[1] - framing.target[1],
+    framing.position[2] - framing.target[2],
+  );
+  assert.ok(wispDepth > eyeDistance + 2 * ringRadius + CLIP_HEADROOM, 'a rings-only far plane would clip it');
+  assert.ok(framing.far > wispDepth, 'and the real one does not');
 });
