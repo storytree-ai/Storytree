@@ -128,6 +128,9 @@ importers:
       '@storytree/forest-world':
         specifier: workspace:*
         version: link:../../packages/forest-world
+      '@storytree/forest-world-r3f':
+        specifier: workspace:*
+        version: link:../../packages/forest-world-r3f
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library

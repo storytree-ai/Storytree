@@ -73,7 +73,15 @@ capabilities: [dev-server-persistence-backbone, read-corpus, annotate-topic, bro
 # guarantee, and it still does not import `@storytree/cli`. The module is pulled lazily inside the
 # handler (the vite config-load trap, same as `loadDrive()`), but check:boundaries reads the code
 # graph rather than the emit, so the edge is declared here.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture, context-traversal-transcript, arc]
+# `mount-the-land-on-a-real-surface-arc` (increment `a-land-view-beside-the-working-map`, ADR-0530
+# route C staged as its first half): the studio mounts the 3D LAND — `@storytree/forest-world-r3f`,
+# owned by `website-experience` — as a SECOND view beside the SVG map. The edge reads oddly at first
+# glance (a studio depending on the website's story) and it is the honest one: that package is where
+# the 3D mapper and canvas live, and ADR-0530 named this exact coupling as a cost taken knowingly
+# ("the two-repo mirror tax starts being paid by studio work"). It is a real runtime edge even though
+# the canvas is `React.lazy`-loaded — check:boundaries reads the code graph, not the emit, the same
+# reading that makes the three traversal edges above declarable.
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture, context-traversal-transcript, arc, website-experience]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the

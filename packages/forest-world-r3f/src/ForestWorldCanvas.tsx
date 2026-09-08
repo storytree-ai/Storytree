@@ -32,7 +32,12 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { Line, MapControls } from '@react-three/drei';
 import { Color, OrthographicCamera, type Mesh, type Texture } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
-import { frameWorld, orthographicZoomFor } from './camera-framing.js';
+import {
+  frameWorld,
+  orthographicZoomFor,
+  restingWorldFraming,
+  type FramingViewport,
+} from './camera-framing.js';
 import {
   cellGroundGeometry,
   type CellGroundGeometryInput,
@@ -1188,6 +1193,22 @@ export interface ForestWorldCanvasProps {
    *  no focus concept on this canvas yet, the honest minimal reveal is all-or-nothing —
    *  a future focus feature filters strips by their `edges` metadata instead. */
   showTrails?: boolean;
+  /**
+   * THE FRAME THIS CANVAS IS DELIVERED INTO, CSS px — present ⇒ open on the DESIGNED RESTING VIEW
+   * (ADR-0471), absent ⇒ open on the fit.
+   *
+   * ⚠ IT IS A PROP RATHER THAN A MEASUREMENT TAKEN INSIDE, and the reason is where the two numbers
+   * are needed. `restingFrame` decides a scale AND an anchor, so it has to run before the
+   * `<Canvas>` is written — `position` and the `MapControls` target are both set there — while
+   * `useThree(s => s.size)` is only readable from inside it. A mounting surface already knows its
+   * own container's size (it laid it out), so asking for it is honest; measuring it a second time
+   * one layer down would be the same number arriving a frame later.
+   *
+   * ⚠ ABSENT IS THE HARNESS'S ANSWER AND STAYS THE DEFAULT. A capture page renders one island or a
+   * synthetic crowd into a fixed buffer and wants the whole of it; cropping evidence to a product
+   * composition would change what every comparison page in `harness/` measures.
+   */
+  viewport?: FramingViewport;
 }
 
 /** Apply the framing to the orthographic camera — and PRESERVE THE VIEWER'S OWN ZOOM across a
@@ -1274,7 +1295,7 @@ function CalibratedLights() {
  * 2.5D isometric per ADR-0380 D6 fence 4). Client-only
  * (`ssr:false` posture — the site lazy-loads this island after the inflection).
  */
-export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
+export function ForestWorldCanvas({ descriptors, showTrails = false, viewport }: ForestWorldCanvasProps) {
   // The relaxed-mesh parcels — the ONE ground substrate this canvas draws. A second, classic
   // extruded-hex ground component used to be mounted unconditionally beside this one, filtered
   // off the descriptor stream by its own retired mesh family; both the component and the family
@@ -1328,17 +1349,29 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   const trails = showTrails ? byKind(descriptors, 'trail-strip') : [];
   const caves = byKind(descriptors, 'cave-arch');
   const wisps = byKind(descriptors, 'wisp-sprite');
-  const frame = frameWorld(descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped'));
+  // ⚠ THE TWO FRAMINGS ARE ONE DECISION MADE ONCE, not a flag read at three call sites: `position`,
+  // the `MapControls` target and the orthographic zoom all come from this one object, so a surface
+  // cannot end up framed by one rule and anchored by another.
+  const instances = descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  const frame = viewport ? restingWorldFraming(instances, viewport) : frameWorld(instances);
   return (
     /* ⚠ `orthographic` is the fence (ADR-0380 D6 fence 4), and `fov` is GONE rather than merely
        unused: R3F reads the presence of `fov` as a request for a PerspectiveCamera, so leaving it
        beside `orthographic` is the one way to write this that silently keeps the old projection.
-       `near`/`far` now clip along the view direction rather than radially, and the eye sits
-       `back * √2` away, so the same 1/4000 range still contains the whole world. */
+
+       ⚠⚠ `near`/`far` COME FROM THE FRAMING NOW, and the literal pair they replace was WRONG on any
+       world larger than the harness's. This read `near: 1, far: 4000` with a comment claiming "the
+       same 1/4000 range still contains the whole world" — true of one island, false of a forest.
+       The eye backs off with the world's spread, so past a spread of about 850 units the ground
+       itself sits behind the far plane: measured on storytree's real 35-island forest, 6227 to 8492
+       units along the view direction against a far plane at 4000, and the studio's land view came
+       up 99.8% background with nothing erroring and every test in this package green. See
+       `clipRange` in `camera-framing.ts` for why it is twice the radius and why `near` may be
+       negative. */
     <Canvas
       orthographic
       {...EXACT_COLOUR_CANVAS_PROPS}
-      camera={{ position: frame.position, near: 1, far: 4000 }}
+      camera={{ position: frame.position, near: frame.near, far: frame.far }}
     >
       <color attach="background" args={['#101418']} />
       <CalibratedLights />

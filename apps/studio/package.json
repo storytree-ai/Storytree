@@ -27,6 +27,7 @@
     "@storytree/drive": "workspace:*",
     "@storytree/forest-layout": "workspace:*",
     "@storytree/forest-world": "workspace:*",
+    "@storytree/forest-world-r3f": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
