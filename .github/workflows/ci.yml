@@ -507,9 +507,20 @@ jobs:
       # hierarchy to the candidate hierarchy and reads the signed verdict stream. It remains its
       # own required step so the green-gate audit can see the wall directly. A missing ref,
       # credential, store read, criterion identity or revision is a hard red.
+      #
+      # AUTHORITY STAYS SPLIT. The live-guidance steps above keep `storytree-ci-presence`, whose
+      # deliberate boundary excludes verdict history. This last step switches to the already-
+      # provisioned website-verdict identity: its repo-scoped WIF binding and SQL grants permit
+      # SELECT on `events.verdict` without granting presence access to lifecycle history.
+      - name: Authenticate to GCP for UAT revision continuity (keyless WIF — ADR-0021)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-webverdict@storytree-498613.iam.gserviceaccount.com
+
       - name: Changed UAT revisions carry current proof
         env:
-          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          STORYTREE_DB_USER: storytree-ci-webverdict@storytree-498613.iam
         run: pnpm check:uat-revision-continuity
 
   # ---------------------------------------------------------------------------
