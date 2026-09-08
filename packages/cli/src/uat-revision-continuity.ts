@@ -3,11 +3,7 @@ import {
   WorkHierarchySnapshot,
   type ProjectedStory,
 } from "@storytree/library";
-import {
-  CriterionVerdict,
-  SIGNING_EVENT_KIND,
-  Verdict,
-} from "@storytree/proof-protocol";
+import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
 import {
   rollupCriterionStatus,
   type RollupEvent,
@@ -175,15 +171,16 @@ function candidateChanges(
 }
 
 /**
- * Read valid signing events while refusing a corrupt event stream. We cannot safely decide whether
- * a malformed signing row belongs to the changed criterion — its identity is the malformed part —
- * so fail-closed means refusing it rather than assuming it is unrelated.
+ * Read valid signing events while refusing a corrupt event stream. General Verdict rows stay in the
+ * stream: the established exact criterion rollup ignores them, while first validating them here
+ * lets this wall distinguish a valid non-criterion proof from a malformed signing row.
  */
 type RelevantEvents =
   | { readonly ok: true; readonly events: RollupEvent[] }
   | { readonly ok: false; readonly lines: readonly string[] };
 
 function relevantEvents(rawEvents: readonly unknown[]): RelevantEvents {
+  const signingEvents = new Set<RollupEvent>();
   for (const rawEvent of rawEvents) {
     if (rawEvent === null || typeof rawEvent !== "object") {
       return {
@@ -202,22 +199,16 @@ function relevantEvents(rawEvents: readonly unknown[]): RelevantEvents {
         lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
       };
     }
+    signingEvents.add({
+      seq: seq as number,
+      kind: SIGNING_EVENT_KIND,
+      doc: parsed.data,
+    });
   }
 
-  const signingEvents = rawEvents.filter(
-    (rawEvent): rawEvent is Record<string, unknown> =>
-      (rawEvent as Record<string, unknown>)["kind"] === SIGNING_EVENT_KIND,
-  );
-  const criterionEvents = signingEvents.filter(
-    (event) => Verdict.parse(event["doc"]).criterionId !== undefined,
-  );
   return {
     ok: true,
-    events: criterionEvents.map((event) => ({
-      seq: event["seq"] as number,
-      kind: SIGNING_EVENT_KIND,
-      doc: CriterionVerdict.parse(event["doc"]),
-    })),
+    events: [...signingEvents],
   };
 }
 
