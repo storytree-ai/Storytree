@@ -14,6 +14,7 @@ import {
   loadAllStoryBaselineCandidates,
   loadStoryBaselineCandidate,
   makeStoryBaselineAdvancer,
+  renderBackfill,
   storyBaselineBackfillCommand,
 } from "./story-baseline.js";
 
@@ -21,6 +22,28 @@ const criterion = {
   criterionId: "uatc_111111111111111111111111",
   revisionId: "uatr1:1111111111111111",
 };
+
+test("story baseline backfill counts and renders each report state exactly", () => {
+  const result = renderBackfill([
+    { storyId: "accepted", state: "recorded", reason: "complete proof", fingerprint: "scope:one" },
+    { storyId: "rejected", state: "declined", reason: "proof incomplete" },
+    { storyId: "later", state: "deferred", reason: "outside this pass" },
+  ]);
+
+  assert.equal(
+    result.body,
+    [
+      "story baseline backfill: 1 recorded, 1 declined, 1 deferred (limit 100).",
+      "",
+      "  ✓ accepted: recorded — complete proof (scope:one)",
+      "  – rejected: declined — proof incomplete",
+      "  · later: deferred — outside this pass",
+      "",
+      "Every story was reported. Authored status was not consulted; only complete current signed proof recorded a baseline.",
+    ].join("\n"),
+  );
+  assert.deepEqual(result.next, ["storytree tree --pg"]);
+});
 
 test("story baseline backfill reports accepted, unproven and unreadable stories without authored-status input", async () => {
   const events: RollupEvent[] = [{

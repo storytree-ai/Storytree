@@ -148,7 +148,7 @@ export async function storyBaselineBackfillCommand(
   return renderBackfill(reports);
 }
 
-function renderBackfill(reports: readonly StoryBaselineBackfillReport[]): Envelope {
+export function renderBackfill(reports: readonly StoryBaselineBackfillReport[]): Envelope {
   const recorded = reports.filter((report) => report.state === "recorded").length;
   const declined = reports.filter((report) => report.state === "declined").length;
   const deferred = reports.filter((report) => report.state === "deferred").length;
