@@ -51,112 +51,61 @@ proof:
 > genuinely-live legs are need-gated, not standing tests.
 
 **Runtime repair status — unlanded candidate, acceptance incomplete.** Ordinary run
-`real-mtsxdpie` produced the existing source and CLI test at
-`a6e87916e14be2a47c02378b345adc4fdb584860`. Its mechanical pass and eleven named contracts do not
-discharge the missing assertions below. The candidate removes the original Codex unavailable-tool
-and no-shell contradiction, but still advertises wildcard write permission beyond Codex's finite
-promotion targets. The declared edit-existing proof must earn a fresh ordinary spine-observed
-regression red→green on that remaining behavior and complete the existing acceptance assertions.
+`real-mtszyjma` produced the current source and CLI test at
+`ff9366fb9aa19716dc3c2a8dc1dc1ca21d0c8963`. Its mechanical pass and eleven named contracts do not
+discharge the missing assertions below. The finite-list parser and the earlier broad Codex
+wildcard invitation are repaired; remaining target-authority discrepancies and incomplete test
+bodies are identified in the completion table. The declared edit-existing proof must earn a fresh
+ordinary spine-observed regression red→green on current source behavior and complete every row.
 Capturing the final stdin with an injected process runner is an automated observation of prompt
 composition, never a real author run or a signed verdict.
 
 ## Guidance
 
-### Re-drive the existing candidate: finite Codex write targets
+### Complete the existing candidate
 
-The resolver source and CLI test now EXIST. Revise their current behavior and assertions; do not
-rebuild the test suite from an empty file. The source regression is one behavior: Codex's final
-instructions must grant exactly the write authority its existing finite promotion manifest grants.
-The current `testsNamed` describes wildcard matches as permitted; the edit-existing IMPLEMENT
-brief says every path under the source scope is writable. The unchanged `codexPromotionManifest`
-instead includes the required target and additional literal targets, never wildcard expansion.
+The existing CLI test must complete EVERY row below in the same AUTHOR_TEST phase. Keep its
+current test titles and eleven contract IDs; extend their bodies and shared helpers rather than
+rebuilding the file or stopping after one named regression. Existing finite-manifest extraction
+and the correctly scoped wildcard checks are the regression baseline, not the next source red.
+Preserve their substance while replacing blanket wildcard-presence exclusions with assertions
+about permission. No incomplete assertion is frozen as built.
 
-Pin that regression by rewriting the body of the existing test in
-`packages/cli/src/codex-leaf-prompt.test.ts` with this EXACT title and contract ID retained:
+The current source has three related target-authority discrepancies: it hides an optional literal
+when the spotlight is matched only by a wildcard and filtering leaves one literal; net-new
+IMPLEMENT still says to write only the spotlight even when the manifest permits another literal;
+and unconditional filtering narrows explicit Claude's actual glob scope and the legacy helper
+call. The first rows below assert those remaining behaviors. Do not reuse the already-fixed broad
+Codex wildcard invitation as the expected red, or manufacture red from tool-name erasure, a broken
+fixture, missing import or absent file.
 
-`prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set, not just the spotlight testFile`
+All fixture configurations must pass the existing proof-config schema; an edit-existing fixture
+with a broad source scope declares an explicit suite proof command. Use the production
+`codexPromotionManifest` by its existing relative import. Runtime scope and promotion semantics
+are observed inputs to the test, never changed to accommodate the prompt.
 
-Use an edit-existing fixture with a required test/source pair, one additional literal test/source
-pair, and wildcard entries in BOTH scopes. Include a concrete sibling matched only by each
-wildcard to distinguish the glob scope from the finite allowed set. Use the existing production
-`codexPromotionManifest` exported from `packages/orchestrator/src/resolve-prove-spec.ts` (available
-to the CLI test by relative import), not a test-local reimplementation or a new public export.
-Resolve the fixture with omitted runtime and explicit Codex, then use the existing injected runner
-to capture the actual final `CodexCommand.stdin` in both phases. Assert in this order:
+The table identifies existing tests by unique title text; retain each full existing title and ID.
+The helper rows support those existing bodies and do not create new proof authority.
 
-1. Each production manifest's allowed targets equal its required target plus the additional
-   literal target, its required outputs contain only the required target, and neither the wildcard
-   nor the sibling admitted only by that wildcard is an allowed target.
-2. The final adapter-composed allowed and required lists equal those production manifests. The
-   literal optional target remains optional; the brief preserves the phase's test/source duties.
-3. The phase instructions grant no write authority to wildcard matches or to every source-scope
-   path. Assert against the current affirmative permission claims even though the final adapter
-   appends a correct finite list. A wildcard may be mentioned as non-authorizing context; its mere
-   presence is not the defect. This instruction/manifest contradiction is the expected assertion
-   failure against the current source, not an import error, absent file or tool-name-erasure red.
+| Existing body or helper | Required completion in this AUTHOR_TEST |
+| --- | --- |
+| `for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set` | Retain production manifest and final allowed/required list assertions. Add a valid fixture whose spotlight is matched only by a wildcard plus one additional literal in each phase. Assert that the manifest contains spotlight plus optional literal, only spotlight is required, and the actual final phase instructions preserve both permissions. Add the net-new optional-source case: IMPLEMENT must permit the optional literal rather than instructing spotlight-only writing. These are current-source assertion failures; the wildcard-only sibling still receives no Codex write permission. |
+| `explicit Claude REAL/live-smoke briefs are UNCHANGED` and `standalone 3-arg realPrompts helper` | Exercise explicit Claude in REAL and smoke, and the legacy helper call. For a valid wildcard scope, compare the brief's granted scope to `PathWriteScope`: Claude retains its actual glob-based permission; Codex's finite promotion rule must not silently narrow it. Preserve bounded feedback, no arbitrary shell tool and legacy call compatibility. |
+| `baseSpec`, `specWithReal`, `resolveRealFor`, `captureCodexFinalStdin` and `extractCodexTargetLists` | Build schema-valid fixtures with distinctive outcome, guidance and contract IDs. Keep the fixed list parser and production manifests. Return the actual captured `CodexCommand.stdin` AND launch arguments from the injected runner after `CodexPhaseAuthor.author` composes them. Observe the selected default model and disabled MCP from that launch; a separate hardcoded `buildCodexExecArgs` call is not evidence of the captured launch. This remains automated input observation, not a successful real author or signed proof. |
+| `default and explicit Codex REAL builds` and `the actual final Codex stdin composed by CodexPhaseAuthor` | Drive one shared final-input assertion over all three REAL arms × installed/uninstalled × omitted/explicit Codex × AUTHOR_TEST/IMPLEMENT. Each fixture supplies distinctive outcome, guidance and contract IDs. Assert actual native authoring availability, no unavailable feedback instructions or shell substitute, spine-only observations/signing, unchanged selected model/launch, exact allowed/required targets, outcome/guidance/IDs, dependency restrictions and each phase's test/source and stop-if-test-wrong duties. Raw-brief checks alone do not satisfy this row. |
+| `default Codex LIVE-SMOKE brief` and `Codex's actual feedbackToolNames stays empty and MCP stays disabled` | Use the same capture/assertion path for both smoke phases and both Codex selections, with smoke's synthetic test/source pair and deliberate absence of real contract IDs. Check actual empty feedback tools and captured MCP/model selection. Judge the complete role-plus-brief instructions; do not invent a source failure from a prohibition already supplied by the rendered role. |
+| `an offline rendered role` and `the CURRENT LIVE roles` | Replace the shared historical corpus fixture with neutral role artifacts in the test's own injected Library store. Run the shared complete final-input matrix with those rendered roles. The existing opt-in calls `renderLeafPhasePrompts()` without a store and reuses the SAME matrix and assertions; ordinary tests stay offline. A missing/contradictory live role fails that check. |
+| Existing final-input assertion bodies | Exercise controls that accept correctly qualified tool prohibitions/runtime comparisons and nonauthorizing wildcard context, but reject unavailable-tool instructions, obsolete no-shell/containment claims and optional shell proof/test/typecheck/build feedback grants even beside a spine-signing disclaimer. Assertions judge instruction meaning; blanket token exclusions are invalid. |
+| `explicit Claude REAL install-node arms run_proof + run_typecheck spawning the exact CONFIRM oracle` | Use the existing `realProofCommand`, `feedbackCommandsFor` and bounded `executeFeedback` seams to invoke feedback and observe the actual spawned command/output against the registered CONFIRM oracle in REAL and smoke. Exercise installed and uninstalled cases so typecheck is armed and advertised only when registered. Tool-name arrays alone do not prove this row; no private author fields or real model calls are needed. |
+| `registry-is-explicit`, `real-walls-really-wall`, `prove-spec-fields-come-off-the-real-spec`, `briefs-name-the-declared-contract-ids` | Complete their existing bodies: the full declared Library registration set and unknown refusal; the named entries' actual phase walls plus install/typecheck invariant; signer as well as node/run identity propagation; IDs in both phases of assembly and all three REAL arms, absent-contract parity and smoke absence. Each assertion stays under its own existing contract ID. |
+| `spec-files-locate-and-load`, `proof-mode-vocabulary-maps`, `unregistered-is-not-buildable`, `dry-run-glue-end-to-end`, `real-mode-walk-earns-its-tree` | Preserve their substantive existing loader/refusal, vocabulary, resolution and offline machinery assertions. The scripted author in the offline machinery fixture does not replace this real run's author. |
 
-Keep already-correct source behavior: selected default Codex, truthful native shell/`apply_patch`
-authoring, blind proof feedback, legacy three-argument helper compatibility, explicit Claude
-selection, and unchanged proof commands, scope enforcement, manifests and spine authority.
-Correct the prompt's claims rather than widening promotion to make those claims true.
-
-The existing incomplete test bodies are NOT built proof to freeze. Their correction is part of
-this same AUTHOR_TEST phase under the unchanged file fence and all eleven obligations. Retain
-existing titles and contract IDs, preserve substantive passing assertions, and extend existing
-bodies/helpers instead of adding new test blocks wherever they can carry the required assertions:
-
-- Replace manually reconstructed capture manifests with the production finite manifests and
-  retain the actual captured launch arguments. Complete the final-input matrix below for both
-  phases, both default/explicit Codex choices, every REAL arm with/without installation, and smoke;
-  include actual default-model/MCP selection, exact targets and the unit/phase obligations.
-- Replace the shared historical role fixture with neutral roles in the test's own injected
-  Library store. The live opt-in must reuse the same complete final-input assertions through the
-  uninjected live renderer; its current two string exclusions are insufficient.
-- Replace blanket unavailable-tool-name exclusions with instruction assertions that allow a
-  prohibition or runtime comparison, but reject optional shell proof/test/typecheck/build feedback
-  grants even alongside a spine-signing disclaimer. Exercise those distinctions in the existing
-  assertion bodies; do not make correct prohibitions into the regression red.
-- Exercise Claude's actual bounded oracle spawning and registered-only typecheck for REAL and
-  smoke; a feedback-tool-name array alone does not prove the oracle contract.
-- Complete the preserved registration, write-wall, signer-propagation and contract-ID assertions
-  in their existing bodies. The complete declared obligations below remain the acceptance floor;
-  an eleven-name coverage report is not evidence that these missing assertions were supplied.
-
-### Proof walkthrough (runtime amendment, written first)
-
-Given an existing resolver, a specification with distinctive guidance and declared contract IDs,
-and the existing Codex runner injection seam, a machine test:
-
-1. Resolves omitted-runtime and explicit Codex REAL builds for net-new, edit-existing and
-   refactor-for-testability fixtures, with and without installed dependencies, then passes each
-   resolved phase brief and its rendered role through `CodexPhaseAuthor`. It captures the actual
-   final `CodexCommand.stdin` in both AUTHOR_TEST and IMPLEMENT, after the adapter appends the
-   phase manifest. It also checks the default Codex live-smoke path.
-2. Reads that final stdin and the actual launch arguments: native shell/`apply_patch` authoring is
-   available, MCP and proof/typecheck feedback tools are absent, and the text neither orders an
-   unavailable tool nor falsely denies the available authoring tools. It expressly withholds a
-   shell substitute for registered proof/typecheck feedback and assigns observations, promotion
-   and signing to the spine. Exact allowed and required phase targets, outcome, guidance, declared
-   contract IDs and the phase's test/source duties survive composition. Live-smoke deliberately
-   retains its synthetic target pair and absence of the real unit's contract block.
-   For a REAL fixture with more than one literal test target, AUTHOR_TEST names the complete
-   permitted test set without reducing it to the spotlight `testFile`; IMPLEMENT can read those
-   tests while retaining its source-only write duty. Allowed targets remain distinct from required
-   outputs: an additional allowed path is not made mandatory merely because it is permitted, and
-   a wildcard scope does not grant Codex new promotion targets.
-3. Resolves explicit Claude builds and observes that the advertised bounded feedback tools match
-   the tools actually armed: the exact proof oracle, plus typecheck only when registered. It
-   compares default and explicit Codex launch selection to the existing model default and checks
-   that none of these prompt changes changes a proof command, scope, promotion manifest or spine
-   observation/signing seam.
-4. Runs the same final-stdin assertions with an offline Library fixture for standing coverage and,
-   explicitly outside the ordinary offline suite, with current live roles rendered through
-   `renderLeafPhasePrompts()` without an injected store. A missing or contradictory live role
-   fails that live check; an offline fixture pass alone does not establish live composition.
-
-The new regression must fail against current prompt behavior, not an invented symbol or a
-fabricated red. An injected runner only observes final prompt composition; it does not replace the
-ordinary real author that writes this regression through the spine.
+AUTHOR_TEST is complete only when every required row is authored, with a genuine remaining-source
+assertion failure and no fixture/syntax failure. IMPLEMENT changes only the existing resolver to
+satisfy that complete suite. Preserve default Codex/model selection, native shell/`apply_patch`
+authoring, blind feedback, explicit Claude and legacy helper behavior, proof commands, scope
+enforcement, finite manifests and spine authority. A mechanically signed pass or eleven matching
+test names alone does not discharge the acceptance requirements.
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
