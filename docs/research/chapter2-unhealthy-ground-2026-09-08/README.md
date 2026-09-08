@@ -123,7 +123,7 @@ that reads as "the crack layer does nothing" and is wrong about the only thing t
 | picture | the burn alone, vs the flat token | the crack network alone, vs the burn |
 |---|---|---|
 | fitted forest | 84.1% of the island past 20/255 | **19.0%** (56 of 295 island pixels) |
-| 8 px/unit | 67.5% | **16.6%** (9,209 of 55,523 island pixels) |
+| 8 px/unit | 67.5% | **16.3%** (9,034 of 55,523 island pixels) |
 
 And the finding that settles it: **the crack network is what keeps the island out of the water.** At
 the shipped burn with the cracks off, the island's median sits **17.8** above the sea — below the bar,
@@ -164,40 +164,59 @@ not ship.
 
 ---
 
-## 6. ⚠ A DEFECT IN THE `real-forest` INSTRUMENT, FOUND ON THE WAY — reported, not repaired
+## 6. ⚠⚠ A DEFECT IN THE `real-forest` INSTRUMENT, FOUND ON THE WAY — and now FIXED
 
-**`real-forest-scene.ts` reads its FIRST render of each scene, and a first render can be photographed
-before its textures have reached the GPU.** The frame it measures is therefore darker than the frame
-it saves, and the status verdict it derives is a plausible number in the alarming direction.
+> ⚠ **THIS SECTION WAS CORRECTED IN PLACE, the same day, and its first version named the wrong
+> cause.** It said the frame was "photographed before its textures reach the GPU" on the FIRST
+> render, and prescribed rendering twice. Rendering twice was then tried and **the figures did not
+> move by a single island** — two synchronous passes sit in the same tick, before any decode can
+> run. The FACT was right and the FIX was wrong. What follows is the measured version.
+
+**`real-forest-scene.ts` measured frames that were not finished, and its published status figures
+were artefacts.** The saved PNGs were always correct; only the numbers were wrong.
 
 Reproduced here, without a browser:
 
-- `real-forest-measure` reports the island `agent` (healthy) in the fitted forest voting
+- `measure-real-forest` reported the island `agent` (healthy) in the fitted forest voting
   **12 `healthy` / 25 `unknown` / 110 `unhealthy`**, `pass: false`.
 - The same 147 pixels of **its own committed `3d-fit.png`**, re-classified outside the browser with
   the instrument's own reader table and its own `W_LUMA` weighting, vote
-  **67 `healthy` / 4 `unknown` / 76 `unhealthy`** — which is exactly what this page reports for the
-  identical frame.
-- The two PNGs are byte-identical outside a 36×27 box (the forced island), so it is not a different
-  render, a different camera or a different rect: the per-island ground-pixel counts match exactly
-  (147, 295, 10,348 in total).
-- The `norock` arm — the one with **no kit meshes standing on the ground** — reproduces to within a
-  few pixels (126 reported vs 136 recomputed). The arm carrying kit meshes is the one thrown, which
-  is what points at texture upload.
+  **67 `healthy` / 4 `unknown` / 76 `unhealthy`**.
+- The two PNGs are byte-identical outside a 36×27 box, and the per-island ground-pixel counts match
+  exactly (147, 295, 10,348 in total) — so it is not a different render, camera or rect.
 
-**What this changes.** The headline "**1 of 35** islands read as their own status family, **31 of 35**
-with the rock removed" is partly an artefact of when the frame was taken. Measured warm, on this
-page, the map arm reads **22 of 35** — `healthy 17/30`, `proposed 4/4`, `unhealthy 1/1`. The rock
-finding **survives in direction** (the healthy islands still misread more often than not, and
-removing the rock still fixes them), but not at that magnitude.
+**The cause, isolated by experiment rather than inferred.** A SECOND runner constructed on the same
+page three seconds later read **22/35** where the first read **1/35**, with `agent` at 67/4/76 —
+agreeing exactly with the outside-the-browser recomputation. So the variable is TIME, not the render
+count: the runner measures before the kit's asynchronously-decoded textures have reached the GPU,
+and they render as their fallback until they land.
 
-**This page does not inherit it:** `frameOf` renders twice and measures the second frame, and says
-why in terms.
+⚠⚠ **AND THE ARM ORDER MANUFACTURED A CONCLUSION.** The four arms are measured in order — `map`,
+`bare`, `unshadowed`, `norock` — so each was measured on a warmer page than the last. Cold, the pass
+counts were **1, 1, 1, 31**: a monotone rise that tracks *measurement order*, not the arms. That is
+where "removing the rock fixes it" came from. Warm, they are **22, 29, 34, 34** — the props cost 7
+islands, their cast shadow costs 5, and **the rock costs none**: 24 of 35 islands shift a handful of
+votes between `unshadowed` and `norock` and **zero change pass or fail**, at every zoom.
 
-Repairing `real-forest-scene.ts` belongs to `mount-the-land-on-a-real-surface-arc`, which owns that
-instrument and the conclusions drawn from it.
+**An arm ladder is the right instrument for attribution and is defenceless against a drift that
+follows the order the arms are taken in.** The counter is to settle first, and to be suspicious when
+a result lines up that neatly with the sequence.
 
----
+**The fix, landed:** `settleFrames` in `harness/real-forest-scene.ts` draws and reads back until two
+consecutive readbacks are **byte-identical**, waiting between them, and REFUSES if the frame never
+settles — a page whose output keeps changing has no measurement to report. It measures the property
+instead of guessing a delay, costs two readbacks on a page that was already warm, and both this page
+and the real-forest page ask for it once at construction. Both drivers now print how long they
+waited. `../chapter2-real-forest-2026-09-08/README.md` §4 carries the corrected figures.
+
+**What it changes for the mount work:** ADR-0549 and the parked increment `rock-leaves-the-grass`
+rest on the cold attribution. Their premise is refuted at its source, which is an owner call and not
+an agent one — authored as an open question on `mount-the-land-on-a-real-surface-arc`.
+
+**What it does NOT change: this row.** The blight figures were taken on a page whose control frame
+was rendered first and were re-taken with the settle: every median, every separation and every sea
+margin above is identical, and the pictures are byte-identical. Only the moved-pixel shares drift by
+one to two points, because the frame they are compared AGAINST was the cold one.
 
 ## 7. THE FILES
 
