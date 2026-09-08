@@ -463,3 +463,42 @@ test('the GROUND half does NOT move with the camera — the layout is re-project
   // `hexCenter` sites also claimed to be.
   assert.deepEqual(plan.empties, shipped.empties);
 });
+
+// ---------------------------------------------------------------------------------------------
+// THE KEEP-IN WALK IS A CORRECTION, NOT A ROUTINE — it must not fire on a spot already on soil
+//
+// ⚠ WHY THIS IS ASSERTED AS A SPREAD RATHER THAN AS A STEP COUNT: `steps` is internal, and the
+// walk's own postcondition ("the spot ends up on owned soil") is satisfied by a walk that fired
+// four times as well as by one that never fired — so it cannot separate them. What CAN is the
+// walk's arithmetic: each step leaves the offset at 75% of itself (`p += (anchor - p) * 0.25`), so
+// a garden walked its full four steps sits at 0.75^4 = 31.6% of its ring radius, bunched around
+// the trunk. The bar below is derived from that factor, not chosen: measured on this corpus the
+// shipped gardens reach 48.4%-77.2% of their island's ground radius, and a fully-walked one would
+// reach 15.3%-24.4%. 40% sits between the two with margin on both sides.
+//
+// It is the assertion that holds the walk's CONDITION honest — both the ownership test and the
+// point handed to `pixelToHex`. Break either and every capability walks the full four steps.
+// ---------------------------------------------------------------------------------------------
+
+test('a garden REACHES OUT across its island — the keep-in walk corrects the few, never pulls in the many', () => {
+  const world = packWorld(cameraCorpus());
+  // ⚠ ONE STEP OF THE WALK, spelled out, so the bar below is arithmetic rather than a number
+  // somebody liked. Four of them is what a garden that walked every time would be left with.
+  const perStep = 0.75;
+  const fullyWalked = perStep ** 4;
+  assert.ok(fullyWalked < 0.32, `four steps must collapse the ring for this bar to separate, got ${fullyWalked}`);
+
+  for (const t of world.territories) {
+    const reaches = t.caps.map((c) =>
+      Math.hypot(c.groundSpot.x - t.groundTreeSpot.x, c.groundSpot.y - t.groundTreeSpot.y),
+    );
+    assert.ok(reaches.length > 0, `${t.story.id} must have capabilities for this to mean anything`);
+    const ratio = Math.max(...reaches) / t.groundRadius;
+    assert.ok(
+      ratio > 0.4,
+      `${t.story.id}: its garden reaches only ${(ratio * 100).toFixed(1)}% of the island's ground radius — ` +
+        `a garden walked all four steps would sit near ${(fullyWalked * 100).toFixed(1)}%, so the keep-in walk ` +
+        'is firing on spots that were already on owned soil',
+    );
+  }
+});
