@@ -3,12 +3,7 @@ import {
   WorkHierarchySnapshot,
   type ProjectedStory,
 } from "@storytree/library";
-import {
-  CriterionId,
-  CriterionRevisionId,
-  CriterionVerdict,
-  SIGNING_EVENT_KIND,
-} from "@storytree/proof-protocol";
+import { CriterionVerdict, SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import {
   rollupCriterionStatus,
   type RollupEvent,
@@ -60,20 +55,12 @@ interface CriterionOwner {
 }
 
 interface IndexedHierarchy {
-  readonly snapshot: WorkHierarchySnapshot;
   readonly criteria: ReadonlyMap<string, CriterionOwner>;
 }
 
 type HierarchyRead =
   | { readonly ok: true; readonly value: IndexedHierarchy }
   | { readonly ok: false; readonly lines: readonly string[] };
-
-function issueText(error: { readonly issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[] }): string {
-  return error.issues
-    .slice(0, 3)
-    .map((issue) => `${issue.path.map(String).join(".") || "root"}: ${issue.message}`)
-    .join("; ");
-}
 
 /** Parse and index one side, refusing every shape that makes stable criterion identity ambiguous. */
 function readHierarchy(raw: unknown | null, side: "base" | "candidate"): HierarchyRead {
@@ -88,10 +75,7 @@ function readHierarchy(raw: unknown | null, side: "base" | "candidate"): Hierarc
   if (!parsed.success) {
     return {
       ok: false,
-      lines: [
-        `✗ ${side} hierarchy is unreadable — it does not satisfy the work-hierarchy schema.`,
-        `  ${issueText(parsed.error)}`,
-      ],
+      lines: [`✗ ${side} hierarchy is unreadable — it does not satisfy the work-hierarchy schema.`],
     };
   }
 
@@ -117,6 +101,7 @@ function readHierarchy(raw: unknown | null, side: "base" | "candidate"): Hierarc
   for (const story of parsed.data.stories) {
     if (storyIds.has(story.id)) {
       lines.push(`✗ ${side} hierarchy has duplicate story identity ${story.id}.`);
+      continue;
     }
     storyIds.add(story.id);
     if (story.error !== undefined) {
@@ -128,7 +113,7 @@ function readHierarchy(raw: unknown | null, side: "base" | "candidate"): Hierarc
 
   return lines.length > 0
     ? { ok: false, lines }
-    : { ok: true, value: { snapshot: parsed.data, criteria } };
+    : { ok: true, value: { criteria } };
 }
 
 function indexStoryCriteria(
@@ -138,21 +123,6 @@ function indexStoryCriteria(
   lines: string[],
 ): void {
   for (const criterion of story.uatTestCriteria) {
-    // WorkHierarchySnapshot already validates these. Keeping the explicit check here makes the
-    // identity/revision fail-closed rule visible at the decision boundary rather than relying on a
-    // future projection schema continuing to carry it.
-    if (!CriterionId.safeParse(criterion.criterionId).success) {
-      lines.push(
-        `✗ ${side} story ${story.id} carries malformed criterion identity ${JSON.stringify(criterion.criterionId)}.`,
-      );
-      continue;
-    }
-    if (!CriterionRevisionId.safeParse(criterion.revisionId).success) {
-      lines.push(
-        `✗ ${side} story ${story.id} › ${criterion.criterionId} carries malformed revision ${JSON.stringify(criterion.revisionId)}.`,
-      );
-      continue;
-    }
     const previous = criteria.get(criterion.criterionId);
     if (previous !== undefined) {
       lines.push(
@@ -197,62 +167,51 @@ function candidateChanges(
       newRevisionId: after.revisionId,
     });
   }
-  changes.sort(
-    (a, b) => a.storyId.localeCompare(b.storyId) || a.criterionId.localeCompare(b.criterionId),
-  );
   return { changes, errors };
 }
 
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 /**
- * Select valid signing events for changed criteria and name corrupt rows that claim one of those
- * identities. An unrelated old malformed row cannot block every PR forever; one that claims the
- * very identity being trusted cannot be silently ignored.
+ * Read valid signing events while refusing a corrupt event stream. We cannot safely decide whether
+ * a malformed signing row belongs to the changed criterion — its identity is the malformed part —
+ * so fail-closed means refusing it rather than assuming it is unrelated.
  */
-interface RelevantEvents {
-  readonly events: RollupEvent[];
-  readonly errors: string[];
-}
+type RelevantEvents =
+  | { readonly ok: true; readonly events: RollupEvent[] }
+  | { readonly ok: false; readonly lines: readonly string[] };
 
-function relevantEvents(
-  rawEvents: readonly unknown[],
-  changedIds: ReadonlySet<string>,
-): RelevantEvents {
-  const events: RollupEvent[] = [];
-  const errors: string[] = [];
-
+function relevantEvents(rawEvents: readonly unknown[]): RelevantEvents {
   for (const rawEvent of rawEvents) {
-    const event = objectRecord(rawEvent);
-    if (event?.["kind"] !== SIGNING_EVENT_KIND) continue;
-    const doc = objectRecord(event["doc"]);
-    const claimedUnit = typeof doc?.["unitId"] === "string" ? doc["unitId"] : undefined;
-    const claimedCriterion =
-      typeof doc?.["criterionId"] === "string" ? doc["criterionId"] : undefined;
-    if (
-      (claimedUnit === undefined || !changedIds.has(claimedUnit)) &&
-      (claimedCriterion === undefined || !changedIds.has(claimedCriterion))
-    ) {
-      continue;
+    if (rawEvent === null || typeof rawEvent !== "object") {
+      return {
+        ok: false,
+        lines: ["✗ signed verdict store returned a malformed event row."],
+      };
     }
+    const event = rawEvent as Record<string, unknown>;
+    if (event["kind"] !== SIGNING_EVENT_KIND) continue;
 
     const parsed = CriterionVerdict.safeParse(event["doc"]);
     const seq = event["seq"];
-    if (!parsed.success || typeof seq !== "number" || !Number.isSafeInteger(seq)) {
-      errors.push(
-        `✗ malformed signed witness claims criterion ${claimedCriterion ?? claimedUnit ?? "?"}; ` +
-          "its identity/revision cannot be trusted.",
-      );
-      continue;
+    if (!parsed.success || !Number.isSafeInteger(seq)) {
+      return {
+        ok: false,
+        lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
+      };
     }
-    events.push({ seq, kind: SIGNING_EVENT_KIND, doc: parsed.data });
   }
 
-  return { events, errors };
+  const signingEvents = rawEvents.filter(
+    (rawEvent): rawEvent is Record<string, unknown> =>
+      (rawEvent as Record<string, unknown>)["kind"] === SIGNING_EVENT_KIND,
+  );
+  return {
+    ok: true,
+    events: signingEvents.map((event) => ({
+      seq: event["seq"] as number,
+      kind: SIGNING_EVENT_KIND,
+      doc: CriterionVerdict.parse(event["doc"]),
+    })),
+  };
 }
 
 /** Judge exact-revision continuity without filesystem, git, network or database access. */
@@ -260,12 +219,9 @@ export function judgeUatRevisionContinuity(
   inputs: UatRevisionContinuityInputs,
 ): UatRevisionContinuityVerdict {
   const base = readHierarchy(inputs.base, "base");
+  if (!base.ok) return { ok: false, changes: [], lines: base.lines };
   const candidate = readHierarchy(inputs.candidate, "candidate");
-  const unreadable = [
-    ...(base.ok ? [] : base.lines),
-    ...(candidate.ok ? [] : candidate.lines),
-  ];
-  if (unreadable.length > 0) return { ok: false, changes: [], lines: unreadable };
+  if (!candidate.ok) return { ok: false, changes: [], lines: candidate.lines };
 
   if (inputs.events === null) {
     return {
@@ -278,19 +234,13 @@ export function judgeUatRevisionContinuity(
     };
   }
 
-  // The guarded return above proves both reads succeeded; spelling the narrowing once keeps the
-  // remainder about the rule rather than repeated assertions.
-  if (!base.ok || !candidate.ok) throw new Error("unreachable hierarchy read state");
   const comparison = candidateChanges(base.value.criteria, candidate.value.criteria);
   if (comparison.errors.length > 0) {
     return { ok: false, changes: [], lines: comparison.errors };
   }
 
-  const changedIds = new Set(comparison.changes.map((change) => change.criterionId));
-  const selected = relevantEvents(inputs.events, changedIds);
-  if (selected.errors.length > 0) {
-    return { ok: false, changes: [], lines: selected.errors };
-  }
+  const selected = relevantEvents(inputs.events);
+  if (!selected.ok) return { ok: false, changes: [], lines: selected.lines };
 
   const changes: ChangedCriterionRevision[] = comparison.changes.map((change) => ({
     ...change,
@@ -319,25 +269,26 @@ export function judgeUatRevisionContinuity(
     };
   }
 
-  const currentCount = candidate.value.snapshot.stories.reduce(
-    (count, story) => count + story.uatTestCriteria.length,
-    0,
-  );
+  const currentCount = candidate.value.criteria.size;
+  if (changes.length === 0) {
+    return {
+      ok: true,
+      changes,
+      lines: [
+        `✓ no existing UAT criterion revisions changed against ${inputs.baseRef} ` +
+          `(${String(currentCount)} candidate criteria read).`,
+      ],
+    };
+  }
   return {
     ok: true,
     changes,
-    lines:
-      changes.length === 0
-        ? [
-            `✓ no existing UAT criterion revisions changed against ${inputs.baseRef} ` +
-              `(${String(currentCount)} candidate criteria read).`,
-          ]
-        : [
-            `✓ ${String(changes.length)} changed existing UAT criterion revision(s) each have a current signed pass.`,
-            ...changes.map(
-              (change) =>
-                `  ${change.storyId} › ${change.criterionId}: ${change.oldRevisionId} → ${change.newRevisionId}`,
-            ),
-          ],
+    lines: [
+      `✓ ${String(changes.length)} changed existing UAT criterion revision(s) each have a current signed pass.`,
+      ...changes.map(
+        (change) =>
+          `  ${change.storyId} › ${change.criterionId}: ${change.oldRevisionId} → ${change.newRevisionId}`,
+      ),
+    ],
   };
 }

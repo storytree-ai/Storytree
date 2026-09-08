@@ -1,65 +1,83 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  SIGNING_EVENT_KIND,
-  type Verdict,
-} from "@storytree/proof-protocol";
+import { SIGNING_EVENT_KIND, type Verdict } from "@storytree/proof-protocol";
 
 import {
   judgeUatRevisionContinuity,
+  type ChangedCriterionRevision,
   type UatRevisionContinuityInputs,
+  type UatRevisionContinuityVerdict,
 } from "./uat-revision-continuity.js";
 
 const OLD = "uatr1:380a683e4995990d";
 const CURRENT = "uatr1:c05dad8de498513d";
 const CRITERION = "uatc_027e3e8ad2253d327fc15c07";
+const OLD_B = "uatr1:bbbbbbbbbbbbbbbb";
+const CURRENT_B = "uatr1:dddddddddddddddd";
+const CRITERION_B = "uatc_bbbbbbbbbbbbbbbbbbbbbbbb";
+const BASE_REF = "merge-base(origin/main, HEAD)";
 
 function criterion(criterionId = CRITERION, revisionId = OLD) {
   return {
     criterionId,
     revisionId,
-    title: "Codex is the default runtime",
+    title: `Criterion ${criterionId}`,
     witness: "machine" as const,
   };
 }
 
-function snapshot(revisionId = OLD, extraCriteria: readonly ReturnType<typeof criterion>[] = []) {
+function story(
+  id = "agent",
+  criteria: readonly ReturnType<typeof criterion>[] = [criterion()],
+  error?: string,
+) {
+  return {
+    id,
+    title: `Story ${id}`,
+    outcome: `${id} works.`,
+    status: "proposed" as const,
+    proofMode: "story",
+    uatWitness: "machine" as const,
+    dependsOn: [],
+    consumedBy: [],
+    decisions: [560],
+    building: false,
+    capabilities: [],
+    uatTestCriteria: [...criteria],
+    reliabilityGates: [],
+    error,
+  };
+}
+
+function snapshot(stories: readonly ReturnType<typeof story>[] = [story()]) {
   return {
     schemaVersion: 1,
     commitSha: "a".repeat(40),
     storiesTreeSha: "b".repeat(40),
     generatedAt: "2026-09-09T00:00:00.000Z",
     generator: "test",
-    stories: [
-      {
-        id: "agent",
-        title: "Agent",
-        outcome: "Agents build Storytree.",
-        status: "proposed",
-        proofMode: "story",
-        uatWitness: "machine",
-        dependsOn: [],
-        consumedBy: [],
-        decisions: [560],
-        building: false,
-        capabilities: [],
-        uatTestCriteria: [criterion(CRITERION, revisionId), ...extraCriteria],
-        reliabilityGates: [],
-      },
-    ],
+    stories: [...stories],
     capabilities: [],
   };
+}
+
+function revisionSnapshot(
+  revisionId = OLD,
+  extraCriteria: readonly ReturnType<typeof criterion>[] = [],
+) {
+  return snapshot([story("agent", [criterion(CRITERION, revisionId), ...extraCriteria])]);
 }
 
 function signedCriterion(
   revisionId: string,
   outcome: Verdict["outcome"] = "pass",
   seq = 1,
+  criterionId = CRITERION,
 ) {
   const doc: Verdict = {
-    unitId: CRITERION,
-    criterionId: CRITERION,
+    unitId: criterionId,
+    criterionId,
     revisionId,
     proofMode: "adopted",
     outcome,
@@ -75,145 +93,375 @@ function signedCriterion(
 
 function inputs(over: Partial<UatRevisionContinuityInputs> = {}): UatRevisionContinuityInputs {
   return {
-    base: snapshot(OLD),
-    candidate: snapshot(CURRENT),
+    base: revisionSnapshot(OLD),
+    candidate: revisionSnapshot(CURRENT),
     events: [signedCriterion(OLD)],
-    baseRef: "merge-base(origin/main, HEAD)",
+    baseRef: BASE_REF,
     ...over,
   };
 }
 
+function change(
+  witnessed: boolean,
+  criterionId = CRITERION,
+  oldRevisionId = OLD,
+  newRevisionId = CURRENT,
+  storyId = "agent",
+): ChangedCriterionRevision {
+  return { storyId, criterionId, oldRevisionId, newRevisionId, witnessed };
+}
+
+function missingVerdict(
+  changes: readonly ChangedCriterionRevision[] = [change(false)],
+): UatRevisionContinuityVerdict {
+  const missing = changes.filter((entry) => !entry.witnessed);
+  return {
+    ok: false,
+    changes,
+    lines: [
+      `✗ ${String(missing.length)} changed existing UAT criterion revision(s) lack a current signed pass:`,
+      "",
+      ...missing.map(
+        (entry) =>
+          `  ${entry.storyId} › ${entry.criterionId}: ${entry.oldRevisionId} → ${entry.newRevisionId} — UNWITNESSED`,
+      ),
+      "",
+      "  Drive and sign each candidate revision before landing; an old-revision verdict cannot prove new acceptance text.",
+    ],
+  };
+}
+
+function exact(actual: UatRevisionContinuityVerdict, expected: UatRevisionContinuityVerdict): void {
+  assert.deepEqual(actual, expected);
+}
+
 describe("PR #1892: changing Agent's existing criterion revision cannot silently land unproved", () => {
   it("reds on the stale old-revision witness and names the exact story, criterion and transition", () => {
-    const verdict = judgeUatRevisionContinuity(inputs());
-
-    assert.equal(verdict.ok, false);
-    assert.deepEqual(verdict.changes, [
-      {
-        storyId: "agent",
-        criterionId: CRITERION,
-        oldRevisionId: OLD,
-        newRevisionId: CURRENT,
-        witnessed: false,
-      },
-    ]);
-    assert.match(verdict.lines.join("\n"), /agent/);
-    assert.match(verdict.lines.join("\n"), new RegExp(CRITERION));
-    assert.match(
-      verdict.lines.join("\n"),
-      new RegExp(`${OLD.replace(":", "\\:")}.*${CURRENT.replace(":", "\\:")}`),
-    );
+    exact(judgeUatRevisionContinuity(inputs()), missingVerdict());
   });
 
   it("greens only after the candidate revision has a current signed pass", () => {
-    const verdict = judgeUatRevisionContinuity(
-      inputs({ events: [signedCriterion(OLD), signedCriterion(CURRENT, "pass", 2)] }),
-    );
-
-    assert.equal(verdict.ok, true, verdict.lines.join("\n"));
-    assert.equal(verdict.changes[0]?.witnessed, true);
-  });
-
-  it("keeps a later signed failure red even when the candidate revision passed earlier", () => {
-    const verdict = judgeUatRevisionContinuity(
-      inputs({
-        events: [
-          signedCriterion(CURRENT, "pass", 1),
-          signedCriterion(CURRENT, "fail", 2),
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ events: [signedCriterion(OLD), signedCriterion(CURRENT, "pass", 2)] }),
+      ),
+      {
+        ok: true,
+        changes: [change(true)],
+        lines: [
+          "✓ 1 changed existing UAT criterion revision(s) each have a current signed pass.",
+          `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
         ],
-      }),
+      },
+    );
+  });
+
+  it("uses the latest exact-revision verdict in sequence order", () => {
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          events: [
+            signedCriterion(CURRENT, "pass", 1),
+            signedCriterion(CURRENT, "fail", 2),
+          ],
+        }),
+      ),
+      missingVerdict(),
+    );
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          events: [
+            signedCriterion(CURRENT, "pass", 9),
+            signedCriterion(CURRENT, "fail", 2),
+          ],
+        }),
+      ),
+      {
+        ok: true,
+        changes: [change(true)],
+        lines: [
+          "✓ 1 changed existing UAT criterion revision(s) each have a current signed pass.",
+          `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
+        ],
+      },
+    );
+  });
+
+  it("reports every changed criterion while naming only the missing witnesses as red", () => {
+    const base = snapshot([
+      story("agent", [criterion(CRITERION, OLD), criterion(CRITERION_B, OLD_B)]),
+    ]);
+    const candidate = snapshot([
+      story("agent", [criterion(CRITERION, CURRENT), criterion(CRITERION_B, CURRENT_B)]),
+    ]);
+    const first = change(true);
+    const second = change(false, CRITERION_B, OLD_B, CURRENT_B);
+
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ base, candidate, events: [signedCriterion(CURRENT)] }),
+      ),
+      missingVerdict([first, second]),
     );
 
-    assert.equal(verdict.ok, false);
-    assert.equal(verdict.changes[0]?.witnessed, false);
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          base,
+          candidate,
+          events: [
+            signedCriterion(CURRENT),
+            signedCriterion(CURRENT_B, "pass", 2, CRITERION_B),
+          ],
+        }),
+      ),
+      {
+        ok: true,
+        changes: [first, { ...second, witnessed: true }],
+        lines: [
+          "✓ 2 changed existing UAT criterion revision(s) each have a current signed pass.",
+          `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
+          `  agent › ${CRITERION_B}: ${OLD_B} → ${CURRENT_B}`,
+        ],
+      },
+    );
   });
 });
 
-it("a newly added criterion id is additive expansion and needs no replacement witness", () => {
-  const added = criterion("uatc_aaaaaaaaaaaaaaaaaaaaaaaa", "uatr1:aaaaaaaaaaaaaaaa");
-  const verdict = judgeUatRevisionContinuity(
-    inputs({ base: snapshot(OLD), candidate: snapshot(OLD, [added]), events: [] }),
-  );
+describe("replacement continuity is distinct from additive expansion", () => {
+  it("allows a newly added criterion id without charging it as a replacement", () => {
+    const added = criterion(CRITERION_B, CURRENT_B);
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          base: revisionSnapshot(OLD),
+          candidate: revisionSnapshot(OLD, [added]),
+          events: [],
+        }),
+      ),
+      {
+        ok: true,
+        changes: [],
+        lines: [
+          `✓ no existing UAT criterion revisions changed against ${BASE_REF} (2 candidate criteria read).`,
+        ],
+      },
+    );
+  });
 
-  assert.equal(verdict.ok, true, verdict.lines.join("\n"));
-  assert.deepEqual(verdict.changes, []);
+  it("reports an unchanged or removed population with the exact candidate count", () => {
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ base: revisionSnapshot(OLD), candidate: revisionSnapshot(OLD), events: [] }),
+      ),
+      {
+        ok: true,
+        changes: [],
+        lines: [
+          `✓ no existing UAT criterion revisions changed against ${BASE_REF} (1 candidate criteria read).`,
+        ],
+      },
+    );
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          base: revisionSnapshot(OLD),
+          candidate: snapshot([story("agent", [])]),
+          events: [],
+        }),
+      ),
+      {
+        ok: true,
+        changes: [],
+        lines: [
+          `✓ no existing UAT criterion revisions changed against ${BASE_REF} (0 candidate criteria read).`,
+        ],
+      },
+    );
+  });
 });
 
-describe("the continuity decision fails closed when an input cannot establish identity or proof", () => {
-  it("refuses an unreadable merge-base hierarchy", () => {
-    const verdict = judgeUatRevisionContinuity(inputs({ base: null }));
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /base.*unreadable/i);
-  });
-
-  it("refuses an unreadable candidate hierarchy", () => {
-    const verdict = judgeUatRevisionContinuity(inputs({ candidate: null }));
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /candidate.*unreadable/i);
-  });
-
-  it("refuses an unavailable signed-verdict store, even when no revision changed", () => {
-    const verdict = judgeUatRevisionContinuity(
-      inputs({ base: snapshot(OLD), candidate: snapshot(OLD), events: null }),
-    );
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /verdict store.*unavailable/i);
-  });
-
-  it("refuses a criterion identity duplicated across stories", () => {
-    const duplicate = snapshot(CURRENT);
-    duplicate.stories.push({
-      ...duplicate.stories[0]!,
-      id: "another-story",
-      title: "Another story",
+describe("hierarchy reads fail closed before continuity is judged", () => {
+  it("refuses a missing base or candidate projection with exact provenance", () => {
+    exact(judgeUatRevisionContinuity(inputs({ base: null })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ base hierarchy is unreadable — no base projection was supplied."],
     });
-    const verdict = judgeUatRevisionContinuity(inputs({ candidate: duplicate }));
-
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /ambiguous.*criterion/i);
-    assert.match(verdict.lines.join("\n"), new RegExp(CRITERION));
+    exact(judgeUatRevisionContinuity(inputs({ candidate: null })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ candidate hierarchy is unreadable — no candidate projection was supplied."],
+    });
   });
 
-  it("refuses a stable criterion id that moved to another story", () => {
-    const moved = snapshot(CURRENT);
-    moved.stories[0] = { ...moved.stories[0]!, id: "different-owner" };
-    const verdict = judgeUatRevisionContinuity(inputs({ candidate: moved }));
-
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /changed owner.*agent.*different-owner/i);
-  });
-
-  it("refuses a malformed candidate revision instead of treating it as a change", () => {
-    const malformed = snapshot(CURRENT);
+  it("refuses malformed base and candidate schemas without trusting partial fields", () => {
+    exact(judgeUatRevisionContinuity(inputs({ base: { schemaVersion: 1 } })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ base hierarchy is unreadable — it does not satisfy the work-hierarchy schema."],
+    });
+    const malformed = revisionSnapshot(CURRENT);
     malformed.stories[0]!.uatTestCriteria[0]!.revisionId = "latest";
-    const verdict = judgeUatRevisionContinuity(inputs({ candidate: malformed }));
-
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /candidate.*unreadable|revisionId/i);
+    exact(judgeUatRevisionContinuity(inputs({ candidate: malformed })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ candidate hierarchy is unreadable — it does not satisfy the work-hierarchy schema."],
+    });
   });
 
-  it("refuses a hierarchy projection from an unknown schema version", () => {
-    const unknownSchema = { ...snapshot(CURRENT), schemaVersion: 99 };
-    const verdict = judgeUatRevisionContinuity(inputs({ candidate: unknownSchema }));
-
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /schema version 99/i);
+  it("refuses a syntactically valid projection whose story population is empty", () => {
+    exact(judgeUatRevisionContinuity(inputs({ base: snapshot([]) })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ base hierarchy is unreadable — it contains zero stories."],
+    });
+    exact(judgeUatRevisionContinuity(inputs({ candidate: snapshot([]) })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ candidate hierarchy is unreadable — it contains zero stories."],
+    });
   });
 
-  it("refuses a malformed event that claims the changed criterion identity", () => {
+  it("refuses unknown base and candidate schema versions", () => {
+    exact(
+      judgeUatRevisionContinuity(inputs({ base: { ...revisionSnapshot(OLD), schemaVersion: 99 } })),
+      {
+        ok: false,
+        changes: [],
+        lines: ["✗ base hierarchy is unreadable — schema version 99 does not match 1."],
+      },
+    );
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ candidate: { ...revisionSnapshot(CURRENT), schemaVersion: 98 } }),
+      ),
+      {
+        ok: false,
+        changes: [],
+        lines: ["✗ candidate hierarchy is unreadable — schema version 98 does not match 1."],
+      },
+    );
+  });
+
+  it("refuses duplicate story identity without indexing the duplicate body", () => {
+    const duplicate = snapshot([
+      story("agent", [criterion(CRITERION, CURRENT)]),
+      story("agent", [criterion(CRITERION_B, CURRENT_B)]),
+    ]);
+    exact(judgeUatRevisionContinuity(inputs({ candidate: duplicate })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ candidate hierarchy has duplicate story identity agent."],
+    });
+  });
+
+  it("refuses a projected story error instead of indexing its criteria", () => {
+    const unreadable = snapshot([
+      story("broken", [criterion(CRITERION, CURRENT)], "story.md did not parse"),
+    ]);
+    exact(judgeUatRevisionContinuity(inputs({ candidate: unreadable })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ candidate story broken is unreadable — story.md did not parse"],
+    });
+  });
+
+  it("refuses criterion identity duplicated across two stories", () => {
+    const duplicate = snapshot([
+      story("agent", [criterion(CRITERION, CURRENT)]),
+      story("another-story", [criterion(CRITERION, CURRENT)]),
+    ]);
+    exact(judgeUatRevisionContinuity(inputs({ candidate: duplicate })), {
+      ok: false,
+      changes: [],
+      lines: [
+        `✗ candidate hierarchy has ambiguous criterion identity ${CRITERION}: agent and another-story both claim it.`,
+      ],
+    });
+  });
+
+  it("refuses a stable criterion id moved to another story", () => {
+    const moved = snapshot([story("different-owner", [criterion(CRITERION, CURRENT)])]);
+    exact(judgeUatRevisionContinuity(inputs({ candidate: moved })), {
+      ok: false,
+      changes: [],
+      lines: [
+        `✗ criterion ${CRITERION} changed owner from agent to different-owner; stable identity is ambiguous, so continuity was not judged.`,
+      ],
+    });
+  });
+});
+
+describe("signed verdict stream reads fail closed", () => {
+  it("refuses an unavailable store even when no revision changed", () => {
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ base: revisionSnapshot(OLD), candidate: revisionSnapshot(OLD), events: null }),
+      ),
+      {
+        ok: false,
+        changes: [],
+        lines: [
+          "✗ signed verdict store is unavailable — proof continuity was not judged.",
+          "  This is a FAILURE, never a skip: a missing witness and an unread witness cannot both mean green.",
+        ],
+      },
+    );
+  });
+
+  it("refuses null and primitive event rows", () => {
+    for (const malformed of [null, "event"] as const) {
+      exact(judgeUatRevisionContinuity(inputs({ events: [malformed] })), {
+        ok: false,
+        changes: [],
+        lines: ["✗ signed verdict store returned a malformed event row."],
+      });
+    }
+  });
+
+  it("ignores a well-shaped non-signing event", () => {
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({
+          events: [{ seq: 7, kind: "work", doc: {} }, signedCriterion(CURRENT, "pass", 8)],
+        }),
+      ),
+      {
+        ok: true,
+        changes: [change(true)],
+        lines: [
+          "✓ 1 changed existing UAT criterion revision(s) each have a current signed pass.",
+          `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
+        ],
+      },
+    );
+  });
+
+  it("refuses a signing row with malformed verdict identity or revision", () => {
     const malformed = {
       seq: 9,
       kind: SIGNING_EVENT_KIND,
-      doc: {
-        unitId: CRITERION,
-        criterionId: CRITERION,
-        revisionId: CURRENT,
-        outcome: "pass",
-      },
+      doc: { unitId: CRITERION, criterionId: CRITERION, revisionId: CURRENT, outcome: "pass" },
     };
-    const verdict = judgeUatRevisionContinuity(inputs({ events: [malformed] }));
+    exact(judgeUatRevisionContinuity(inputs({ events: [malformed] })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
+    });
+  });
 
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.lines.join("\n"), /malformed.*signed witness/i);
+  it("refuses non-numeric and non-integral signing sequences independently", () => {
+    for (const seq of ["1", 1.5] as const) {
+      exact(
+        judgeUatRevisionContinuity(inputs({ events: [{ ...signedCriterion(CURRENT), seq }] })),
+        {
+          ok: false,
+          changes: [],
+          lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
+        },
+      );
+    }
   });
 });
