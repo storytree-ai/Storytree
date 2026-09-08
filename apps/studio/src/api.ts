@@ -203,6 +203,12 @@ async function chatStream(
 
 const q = encodeURIComponent;
 
+/** THE PREFIX EVERY STUDIO API PATH SHARES, exported so nothing outside this file has to spell one.
+ *  `check:desktop-route-coverage` derives the called-route set from THIS module, so a path literal
+ *  anywhere else in frontend source blinds it — and it reds rather than reporting a sweep it could
+ *  not make. A reader of a resource timing needs the prefix without needing a route. */
+export const API_PATH_PREFIX = '/api/';
+
 export const api = {
   listDocs: (): Promise<DocMeta[]> => http('/api/docs'),
   tree: (): Promise<TreePayload> => http('/api/tree'),

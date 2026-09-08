@@ -254,3 +254,119 @@ describe('frameCost', () => {
     expect(() => frameCost([])).toThrow(/measured nothing/);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// THE RULES AND THE BOUNDARIES THE TESTS ABOVE LEFT UNWITNESSED
+//
+// `check:mutation-diff` reported twenty survivors over this module, and reading them was the
+// cheapest review it has had: each one named a line whose behaviour nothing here pinned. Two were
+// dead guards and are now DELETED rather than tested (the empty-url early return, the quantile's
+// clamp — both provably unable to change an answer). The rest are below, and they are not padding:
+// a stage rule with no test is a bucket that can be renamed to `""` and nobody notices.
+// ---------------------------------------------------------------------------------------------
+
+describe('every stage rule is witnessed by its own path', () => {
+  it('places each module family the load actually touches', () => {
+    // One assertion per RULE, not per family: `scene-build` is reached by three different paths and
+    // `kit-decode` by two, and a test hitting only one leaves the others free to be blanked.
+    expect(stageOf('http://x/apps/studio/src/lib/sceneAdapter.ts')).toBe('scene-build');
+    expect(stageOf('http://x/apps/studio/src/lib/kit-loader.ts')).toBe('kit-decode');
+    expect(stageOf('http://x/node_modules/.vite/deps/@react-three_fiber.js')).toBe('three-and-r3f');
+    expect(stageOf('http://x/node_modules/.vite/deps/drei/index.js')).toBe('three-and-r3f');
+    expect(stageOf('http://x/node_modules/.vite/deps/react-dom_client.js')).toBe('react-and-studio');
+  });
+
+  it('an empty url still comes back unattributed now the guard that said so is gone', () => {
+    // The guard was equivalent — no rule matches '' — so the behaviour is asserted where it always
+    // belonged, on the function, rather than defended by a branch nothing could separate.
+    expect(stageOf('')).toBe('unattributed');
+  });
+});
+
+describe('the boundaries', () => {
+  it('the truncation refusal NAMES both counts, so a reader can see which end was lost', () => {
+    // A refusal that says only "truncated" cannot be acted on; the two lengths are the diagnosis.
+    expect(() => stageSplit({ nodes: [node(1, '')], samples: [1, 1, 1], timeDeltas: [1000] })).toThrow(
+      /3 sample\(s\) against 1 time delta\(s\)/,
+    );
+  });
+
+  it('shareOf answers 0 on an empty split rather than NaN', () => {
+    // NaN would print as "NaN%" in every row of the report — a division by a total nobody checked.
+    const empty = stageSplit({ nodes: [], samples: [], timeDeltas: [] });
+    expect(empty.totalMs).toBe(0);
+    expect(shareOf(empty, 'land-stream')).toBe(0);
+  });
+
+  it('a frame EXACTLY at the late bar is not late — the bar is exclusive and stays that way', () => {
+    // 25.0 ms is one and a half budgets exactly. Late means WORSE than the bar; a `>=` here would
+    // start counting the boundary frame and the count would creep on a healthy run.
+    expect(frameCost([LATE_FRAME_MS, LATE_FRAME_MS]).late).toBe(0);
+    expect(frameCost([LATE_FRAME_MS + 0.1]).late).toBe(1);
+  });
+
+  it('the network split adds bytes on every branch — a sign flip is a plausible-looking total', () => {
+    // `+=` mutated to `-=` leaves a negative total, which reads as a units bug rather than as the
+    // arithmetic fault it is. Each of the three accumulators is asserted, not just the interesting one.
+    const n = networkSplit([
+      { name: 'http://x/api/tree', durationMs: 10, transferSizeBytes: 1000 },
+      { name: 'http://x/api/assets', durationMs: 20, transferSizeBytes: 3000 },
+      { name: 'http://x/src/main.tsx', durationMs: 5, transferSizeBytes: 700 },
+      { name: 'http://x/src/other.tsx', durationMs: 5, transferSizeBytes: 300 },
+    ]);
+    expect(n.storePayloadBytes).toBe(4000);
+    expect(n.otherBytes).toBe(1000);
+    expect(n.canvasChunkBytes).toBe(0);
+  });
+
+  it('a .gltf is recognised by its ENDING, which is the only place an extension can be', () => {
+    const n = networkSplit([{ name: 'http://x/assets/kit.gltf', durationMs: 3, transferSizeBytes: 42 }]);
+    expect(n.canvasChunkBytes).toBe(42);
+  });
+
+  it('cpuSplitIsReportable withholds a profile that was never busy at all', () => {
+    // Nothing ran: there is no split to report, and 0/0 must not become a share.
+    const allIdle = stageSplit(profile([{ id: 1, callFrame: { functionName: '(idle)', url: '' } }], [[1, 5000]]));
+    expect(busyMs(allIdle)).toBe(0);
+    expect(cpuSplitIsReportable(allIdle)).toBe(false);
+  });
+
+  it('cpuSplitIsReportable takes EXACTLY a quarter as reportable — the bar is inclusive', () => {
+    // A quarter placed is the least this instrument will stand behind. Stated as an equality case
+    // so the bar cannot drift to `>` and start withholding a split it was written to accept.
+    const quarter = stageSplit(
+      profile(
+        [
+          { id: 1, callFrame: { functionName: 'f', url: 'http://x/packages/forest-world/src/hex.ts' } },
+          { id: 2, callFrame: { functionName: 'n', url: 'http://x/assets/minified.js' } },
+        ],
+        [[1, 1000], [2, 3000]],
+      ),
+    );
+    expect(busyMs(quarter)).toBe(4);
+    expect(quarter.byStage.unattributed).toBe(3);
+    expect(cpuSplitIsReportable(quarter)).toBe(true);
+  });
+
+  it('rankedStages breaks a tie by SUBTRACTING the declared positions, so the order is a real order', () => {
+    // Adding the two indices is symmetric in a and b, which is not a comparator at all — it ranks
+    // by the pair's sum and gives a different answer depending on where the sort happens to start.
+    const split = stageSplit(
+      profile(
+        [
+          { id: 1, callFrame: { functionName: 'f', url: 'http://x/packages/forest-world/src/hex.ts' } },
+          { id: 2, callFrame: { functionName: 'g', url: 'http://x/packages/forest-layout/src/pack.ts' } },
+          { id: 3, callFrame: { functionName: 'h', url: 'http://x/node_modules/three/build/three.js' } },
+        ],
+        [[1, 5000], [2, 5000], [3, 5000]],
+      ),
+    );
+    // All three tie on time, so the whole order is the declared one: scene-build, land-stream,
+    // three-and-r3f — exactly their positions in the stage list.
+    expect(rankedStages(split).slice(0, 3).map((r) => r.stage)).toEqual([
+      'scene-build',
+      'land-stream',
+      'three-and-r3f',
+    ]);
+  });
+});

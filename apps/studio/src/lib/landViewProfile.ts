@@ -100,7 +100,11 @@ const STAGE_RULES: readonly StageRule[] = [
  * own time inside one of our packages' figures.
  */
 export function stageOf(url: string): LoadStage {
-  if (url === '') return 'unattributed';
+  // ⚠ THE `url === ''` EARLY RETURN THAT STOOD HERE IS GONE, AND IT WAS DOING NOTHING. No rule
+  // below matches the empty string, so an empty url already fell through to `unattributed` by the
+  // ordinary path — the mutation rung reported both of its mutants as survivors, which is what a
+  // guard wearing a correctness guard's clothes over an identity looks like. Deleted rather than
+  // annotated, the playbook's own preference. The BEHAVIOUR it described is still asserted below.
   for (const rule of STAGE_RULES) {
     if (rule.test(url)) return rule.stage;
   }
@@ -113,7 +117,7 @@ export interface StageSplit {
   readonly byStage: Readonly<Record<LoadStage, number>>;
 }
 
-const ZERO: Record<LoadStage, number> = {
+const ZERO = {
   'store-payload': 0,
   'scene-build': 0,
   'land-stream': 0,
@@ -123,7 +127,7 @@ const ZERO: Record<LoadStage, number> = {
   idle: 0,
   gc: 0,
   unattributed: 0,
-};
+} satisfies Record<LoadStage, number>;
 
 /**
  * ⚠⚠ WAITING IS NOT UNPLACEABLE, AND CONFLATING THEM RUINS THE ANSWER. V8's synthetic frames all
@@ -171,7 +175,7 @@ export function stageSplit(profile: CpuProfile): StageSplit {
     const byUrl = stageOf(node.callFrame.url);
     stageById.set(node.id, byUrl === 'unattributed' ? syntheticStage(node.callFrame.functionName) ?? byUrl : byUrl);
   }
-  const byStage: Record<LoadStage, number> = { ...ZERO };
+  const byStage = { ...ZERO };
   let totalMs = 0;
   for (const [i, id] of profile.samples.entries()) {
     // Microseconds in, milliseconds out — the unit every other timing in the report is in.
@@ -183,6 +187,11 @@ export function stageSplit(profile: CpuProfile): StageSplit {
   }
   return { totalMs, byStage };
 }
+
+/** ⚠ IMPORTED RATHER THAN SPELLED. `check:desktop-route-coverage` derives the called-route set from
+ *  `api.ts` alone, so an `/api/…` literal anywhere else in frontend source blinds that derivation —
+ *  it reds, correctly, rather than reporting a perfect sweep it could not see. */
+import { API_PATH_PREFIX } from '../api.js';
 
 /** One network fetch, as `performance.getEntriesByType('resource')` reports it. */
 export interface ResourceTiming {
@@ -220,7 +229,7 @@ export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
   let otherMs = 0;
   let otherBytes = 0;
   for (const e of entries) {
-    if (e.name.includes('/api/')) {
+    if (e.name.includes(API_PATH_PREFIX)) {
       storePayloadMs += e.durationMs;
       storePayloadBytes += e.transferSizeBytes;
     } else if (isCanvasPayload(e.name)) {
@@ -300,8 +309,12 @@ export function frameCost(deltasMs: readonly number[]): FrameCost {
 /** The value at `q` of an already-sorted list, by nearest rank — no interpolation, so every figure
  *  reported IS a frame that actually happened rather than an average of two that did. */
 function quantile(sorted: readonly number[], q: number): number {
-  const i = Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1));
-  return sorted[i] ?? 0;
+  // ⚠ NO CLAMP, AND ITS ABSENCE IS ARITHMETIC RATHER THAN OPTIMISM. For 0 < q <= 1 and a non-empty
+  // list, `ceil(q * n) - 1` lies in `[0, n - 1]` by construction — `ceil(q * n) >= 1` gives the
+  // lower end and `ceil(q * n) <= n` the upper — so a `min`/`max` pair around it can never change
+  // an answer. Both were here, and the mutation rung reported both as survivors: no input
+  // separates them from their absence. `frameCost` refuses the empty list before this is reached.
+  return sorted[Math.ceil(q * sorted.length) - 1] ?? 0;
 }
 
 /** A stage's share of the sampled total, as a percentage. Shares are taken against the WHOLE,
