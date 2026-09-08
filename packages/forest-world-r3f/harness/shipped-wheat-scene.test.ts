@@ -21,6 +21,7 @@ import {
   WHEAT_GATE_ROWS,
 } from '../src/ForestWorldCanvas.js';
 import { GRASS_STATUS_GATE } from '../src/land-grass.js';
+import { BLIGHT_STATUS_GATE } from '../src/land-blight.js';
 import { GRASS_TOKEN_REFERENCE, WHEAT_ANCHORS, WHEAT_LIFTS, WHEAT_STATUS_GATE } from '../src/land-wheat.js';
 import { SHADOW_DEPTH, SHADOW_EDGE } from '../src/shadow-rung.js';
 import { separationOf } from './ground-cover.js';
@@ -79,8 +80,15 @@ test('the shipped wheat is one rung of the ladder, at the grass`s strength, on t
   assert.equal(GRASS_TOKEN_REFERENCE, SHIPPED_GROUND_COLOUR.get('healthy'));
 });
 
-test('the shadow`s depth follows the PAINTED gate — the green and the yellow deep, every other token at the derived rung', () => {
-  assert.deepEqual([...PAINTED_STATUS_GATE], [...GRASS_STATUS_GATE, ...WHEAT_STATUS_GATE]);
+test('the shadow`s depth follows the PAINTED gate — every painted token deep, every other at the derived rung', () => {
+  // ⚠ THE GATE IS DERIVED FROM THE PAINT GATES AND WIDENS WITH THEM. It was the grass's alone,
+  // then the grass's and the wheat's (2026-09-06), and since 2026-09-08 it also carries the
+  // blight's — a token cannot be painted without its shadow or shadowed without its paint, which
+  // is the whole reason `PAINTED_STATUS_GATE` is derived rather than listed.
+  assert.deepEqual(
+    [...PAINTED_STATUS_GATE],
+    [...GRASS_STATUS_GATE, ...WHEAT_STATUS_GATE, ...BLIGHT_STATUS_GATE],
+  );
   assert.deepEqual([...SHIPPED_SHADOW_DEPTH.deepTokens], PAINTED_STATUS_GATE.map((s) => SHIPPED_GROUND_COLOUR.get(s)!));
   assert.equal(SHIPPED_SHADOW_DEPTH.deep, SHADOW_DEPTH);
   assert.equal(SHIPPED_SHADOW_DEPTH.edge, SHADOW_EDGE);

@@ -72,6 +72,7 @@ import { dressMapWithCover } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
 import { WHEAT_STATUS_GATE, wheatAnchor, wheatLift } from './land-wheat.js';
+import { BLIGHT_STATUS_GATE, blightRung } from './land-blight.js';
 import { ROCK_SLOPE_RAMP } from './land-rock.js';
 import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
 import { islandPaths } from './island-path.js';
@@ -88,6 +89,7 @@ import {
   type GroundGrassLayer,
   type GroundRockLayer,
   type GroundWheatLayer,
+  type GroundBlightLayer,
 } from './banded-ground-material.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
@@ -279,11 +281,20 @@ export const GRASS_GATE_ROWS: readonly number[] = GRASS_STATUS_GATE.map(groundRo
  *  wheat cannot draw two colours for one authored state. */
 export const WHEAT_GATE_ROWS: readonly number[] = WHEAT_STATUS_GATE.map(groundRowOf);
 
+/** THE RAMP ROW THE BLIGHT DRESSES — {@link BLIGHT_STATUS_GATE} resolved through the SAME
+ *  {@link groundRowOf}, for the reason `GRASS_GATE_ROWS` gives. One status, one row: nothing else
+ *  in {@link GROUND_COLOUR} carries the charred token. */
+export const BLIGHT_GATE_ROWS: readonly number[] = BLIGHT_STATUS_GATE.map(groundRowOf);
+
 /** EVERY STATUS THAT WEARS A PAINTED STACK — the grass's tokens and the wheat's, the gate the
  *  shadow's depth follows (`paint-every-land-type-arc`: every land type is painted, and the deep
  *  shadow is part of the stack a painted island wears). Derived from the two layer gates rather
  *  than listed, so a token cannot be painted without its shadow or shadowed without its paint. */
-export const PAINTED_STATUS_GATE: readonly string[] = [...GRASS_STATUS_GATE, ...WHEAT_STATUS_GATE];
+export const PAINTED_STATUS_GATE: readonly string[] = [
+  ...GRASS_STATUS_GATE,
+  ...WHEAT_STATUS_GATE,
+  ...BLIGHT_STATUS_GATE,
+];
 
 /**
  * HOW DEEP AND HOW SOFT THE SHIPPED SHADOW IS DRAWN — `shadow-rung.ts`'s picks, gated to the
@@ -414,6 +425,44 @@ export const SHIPPED_WHEAT: GroundWheatLayer = {
   rows: WHEAT_GATE_ROWS,
   anchor: SHIPPED_WHEAT_ANCHOR,
   lift: SHIPPED_WHEAT_LIFT,
+};
+
+/**
+ * HOW FAR THE SHIPPED UNHEALTHY GROUND HAS DIED — which rung of `BLIGHT_RUNGS` the unhealthy
+ * islands wear, chosen from a rendered ladder by the look under the owner's standing
+ * bold-and-scale-back direction (ADR-0503 D3), and shown to him with the sheet it was chosen from
+ * (`docs/research/chapter2-unhealthy-ground-2026-09-08/`).
+ *
+ * ⚠⚠ TUNED FOR THE READ RATHER THAN FOR RICHNESS, WHICH IS A STANDING CONSTRAINT AND NOT AN
+ * UNFINISHED JOB. `unhealthy` is the rollup of a FAILED proof: it appears suddenly, it is rare,
+ * and it is the one state a viewer most needs to catch at a glance. A later session that finds
+ * this island stark and "improves" it toward the subtlety the green and the wheat were tuned for
+ * would be undoing the decision, not polishing it. The decision is recorded rather than left in a
+ * constant's comment.
+ *
+ * ⚠ WHY THE LADDER HAD TO BE BOLD AT ALL, measured on the real map rather than argued. The
+ * `unhealthy` token is rgb(87, 84, 74); a HEALTHY island on the real 35-island map delivers
+ * rgb(87, 97, 74), because the slope-gated rock greys a small island across its whole surface
+ * (2026-09-08, `docs/research/chapter2-real-forest-2026-09-08/`). Drawn flat, an unhealthy island
+ * would be within thirteen units of one channel of the islands around it.
+ *
+ * ⚠ THE LADDER, one island forced unhealthy @ 8 px/unit and the real forest fitted, on the RTX
+ * 2060 — `sick` / `dying` / `dead` / `scorched`, each a burn on the base and a crack strength
+ * together. Scaling back is one edit here along rungs already rendered.
+ */
+export const SHIPPED_BLIGHT_RUNG = blightRung('dead');
+
+/** HOW MUCH BLIGHT THE UNHEALTHY GROUND WEARS — its own factor, set equal to the grass's so the
+ *  painted tokens carry their treatments at one strength, but its OWN constant so a scale-back on
+ *  either never moves the other. Never 1.0 (ADR-0490 D5). */
+export const SHIPPED_BLIGHT_MIX = SHIPPED_GRASS_MIX;
+
+/** THE BLIGHT AS THE SHIPPED GROUND WEARS IT — the rung's palette, the factor and the gate in one
+ *  value. */
+export const SHIPPED_BLIGHT: GroundBlightLayer = {
+  mix: SHIPPED_BLIGHT_MIX,
+  rows: BLIGHT_GATE_ROWS,
+  palette: SHIPPED_BLIGHT_RUNG.palette,
 };
 
 /**
@@ -573,6 +622,10 @@ export function buildGroundMaterial(
    *  material as it drew until 2026-09-06, the yellow islands flat, which is what the wheat
    *  ladder's control arm needs. The canvas never passes it. */
   wheat: GroundWheatLayer | null = SHIPPED_WHEAT,
+  /** THE BLIGHT — {@link SHIPPED_BLIGHT} unless a COMPARISON arm asks otherwise; `null` is the
+   *  material as it drew until 2026-09-08, the unhealthy islands flat, which is what the blight
+   *  ladder's control arm needs. The canvas never passes it. */
+  blight: GroundBlightLayer | null = SHIPPED_BLIGHT,
 ) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
@@ -590,6 +643,9 @@ export function buildGroundMaterial(
   // would turn an ordinary "this arm wears no grass" into a throw. By statement, absent means
   // absent, for the grass's own reason.
   if (wheat !== null && grass !== undefined) opts.wheat = wheat;
+  // ⚠ THE BLIGHT RIDES THE GRASS TOO (its base is the grass's structure), offered only where
+  // there is a grass to ride, for the wheat's reason.
+  if (blight !== null && grass !== undefined) opts.blight = blight;
   // ⚠ LAYER 2 RIDES LAYER 1, so it is offered only when there is a layer 1 to ride and an atlas to
   // sample through — the material refuses either combination anyway, and refusing here as well
   // would turn an ordinary "this arm wears no grass" into a throw.

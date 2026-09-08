@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the unhealthy ground, painted for the read — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      code { color: #d7c07a; }
+      figure { margin: 0 0 18px; }
+      figcaption { margin-top: 6px; font: 12px/1.6 ui-monospace, Menlo, monospace; color: #90a4ae; max-width: 120ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The unhealthy ground, painted for the read &mdash; not for the richness</h1>
+      <p>
+        <strong>A forced-token fixture.</strong> The published map carries no
+        <code>unhealthy</code> island (21 <code>healthy</code> + 14 <code>proposed</code> as at
+        2026-08-28), so this row cannot be judged on the shipped map at all. What is rendered here
+        is the <em>real</em> 35-island layout &mdash; real island sizes, real neighbours, real
+        props &mdash; with exactly one island's status forced. Nothing on this page is a live
+        judgement about anything the map draws today.
+      </p>
+      <p>
+        <strong>Legibility over richness, deliberately.</strong> <code>unhealthy</code> is the
+        rollup of a failed proof: it appears suddenly, it is rare, and it is the one state a viewer
+        most needs to catch at a glance. On the green islands and on the wheat, richness and
+        legibility point the same way; here they pull apart, and a subtle unhealthy island that
+        takes a second to identify is a worse outcome than a stark one.
+      </p>
+      <p>
+        <strong>The acceptance question is the first picture.</strong> In a forest of green and
+        gold islands, can a single unhealthy one be found without being told where it is?
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedBlight } from './shipped-blight-scene.ts';
+      try {
+        await mountShippedBlight(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
