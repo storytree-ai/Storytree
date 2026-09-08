@@ -515,6 +515,93 @@ export function buildRealForestScene(
   };
 }
 
+/**
+ * HOW MANY CONSECUTIVE IDENTICAL READBACKS COUNT AS SETTLED, and how long to wait between them.
+ *
+ * ⚠⚠ THIS PAGE PUBLISHED A CONCLUSION OFF A FRAME THAT WAS NOT FINISHED, and the fix is not the one
+ * that looks obvious. A runner built moments after its kit loads measures before the kit's
+ * asynchronously-decoded textures have reached the GPU: they render as their fallback, the buffer
+ * `gl.readPixels` hands back is darker than the PNG the same page saves a moment later, and a
+ * categorical verdict over those pixels comes back plausible, in the ALARMING direction, with
+ * nothing in the output to say which frame it was.
+ *
+ * Measured 2026-09-08 (`docs/research/chapter2-unhealthy-ground-2026-09-08/README.md` §6): for the
+ * island `agent` in the fitted forest this page reported the ground voting 12 `healthy` / 25
+ * `unknown` / 110 `unhealthy`, where the SAME 147 pixels of ITS OWN committed `3d-fit.png` —
+ * re-classified outside the browser with this repo's own `fullReaderTable()` and `W_LUMA` — vote
+ * 67 / 4 / 76. The two frames are byte-identical outside one island's rect and every island's
+ * ground-pixel count matches exactly, so it was neither a different camera nor a different rect.
+ *
+ * ⚠⚠ AND RENDERING TWICE IN A ROW DOES NOT FIX IT — measured, not assumed. Two synchronous passes
+ * sit in the same tick, before any decode has had a chance to run, and the reported figures did not
+ * move by a single island. What DOES fix it is TIME: a second runner built three seconds later on
+ * the same page read 22/35 where the first read 1/35, agreeing exactly with the outside-the-browser
+ * recomputation. So the settle below is a real wait between real readbacks, and it is asked for
+ * ONCE at construction — after which every synchronous read downstream is warm and the page's own
+ * API is untouched.
+ */
+export const SETTLE_STABLE_READS = 2;
+export const SETTLE_WAIT_MS = 250;
+export const SETTLE_MAX_READS = 40;
+
+/** How the settle ended, for the report — a measurement that had to wait says how long it waited. */
+export interface SettleReport {
+  reads: number;
+  waitedMs: number;
+}
+
+/**
+ * DRAW AND READ BACK UNTIL THE FRAME STOPS CHANGING, or refuse.
+ *
+ * ⚠ IT MEASURES THE PROPERTY RATHER THAN GUESSING THE CAUSE. "Wait 500 ms" would be a number
+ * nobody could defend on another machine; "read until two consecutive readbacks are byte-identical"
+ * is the thing actually wanted, and it costs nothing on a page that was already warm (two reads).
+ *
+ * ⚠ IT REFUSES RATHER THAN RETURNING A LAST-BEST FRAME. A page whose output never stabilises is a
+ * page whose numbers mean nothing, and the one thing this whole function exists to prevent is a
+ * measurement that looks like a measurement. `read` is expected to return a FRESH buffer each call.
+ */
+export async function settleFrames(
+  draw: () => void,
+  read: () => Uint8ClampedArray,
+  wait: (ms: number) => Promise<void>,
+  opts: { stable?: number; waitMs?: number; maxReads?: number } = {},
+): Promise<SettleReport> {
+  const stable = opts.stable ?? SETTLE_STABLE_READS;
+  const waitMs = opts.waitMs ?? SETTLE_WAIT_MS;
+  const maxReads = opts.maxReads ?? SETTLE_MAX_READS;
+  let previous: Uint8ClampedArray | null = null;
+  let agreements = 1;
+  let reads = 0;
+  let waitedMs = 0;
+  while (reads < maxReads) {
+    draw();
+    const frame = read();
+    reads += 1;
+    if (previous !== null) {
+      agreements = sameFrame(previous, frame) ? agreements + 1 : 1;
+      if (agreements >= stable) return { reads, waitedMs };
+    }
+    previous = frame;
+    await wait(waitMs);
+    waitedMs += waitMs;
+  }
+  throw new Error(
+    `real-forest-scene: the frame never settled — ${maxReads} readbacks over ${waitedMs} ms and no ` +
+      `${stable} consecutive draws agreed. A page whose output keeps changing cannot be measured.`,
+  );
+}
+
+/** Byte equality over two readbacks. A named function rather than an inline loop, so the mutation
+ *  rung can attribute a mutant in the comparison to the test that kills it. */
+export function sameFrame(a: Uint8ClampedArray, b: Uint8ClampedArray): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------- what the ground was delivered at
 
 /**
@@ -646,6 +733,9 @@ export interface RealForestRunner {
   read(picture: RealPictureId): RealForestReading;
   cost(spec: RealCostSpec): Promise<RealCostReading>;
   snapshot(picture: RealPictureId, armId?: RealArmId): string;
+  /** How long the runner had to wait for its first frame to stop changing — reported, so a reader
+   *  can see the settle happened rather than trusting that it did. */
+  settled(): SettleReport;
 }
 
 export async function fetchJsonFromPage(url: string): Promise<unknown> {
@@ -708,7 +798,25 @@ export async function createRealForestRunner(fetchJson: FetchJson = fetchJsonFro
     height: h,
   });
 
+  // ⚠⚠ SETTLE BEFORE ANY MEASUREMENT — see {@link settleFrames}. Asked for ONCE, here, on the
+  // picture that carries the most geometry, so every synchronous read below is taken on a finished
+  // frame and the runner's own API stays synchronous. Nothing is memoised until this returns.
+  const settleScene = sceneFor('fit', 'map');
+  const settled = await settleFrames(
+    () => {
+      renderer.setSize(settleScene.width, settleScene.height, false);
+      renderer.render(settleScene.scene, settleScene.camera);
+    },
+    () => {
+      const buf = new Uint8Array(settleScene.width * settleScene.height * 4);
+      gl.readPixels(0, 0, settleScene.width, settleScene.height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      return new Uint8ClampedArray(buf.buffer);
+    },
+    (ms) => new Promise<void>((resolve) => { window.setTimeout(resolve, ms); }),
+  );
+
   return {
+    settled: () => settled,
     manifest: () => manifest,
     identity: () => readIdentity(gl),
     calibration: () => cal,

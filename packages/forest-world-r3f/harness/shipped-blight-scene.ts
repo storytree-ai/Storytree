@@ -87,8 +87,10 @@ import {
   loadRealForest,
   realIslandRects,
   rectInFrame,
+  settleFrames,
   type GroundSample,
   type RealIslandRect,
+  type SettleReport,
 } from './real-forest-scene.js';
 import {
   fullReaderTable,
@@ -253,14 +255,19 @@ export interface BlightScene {
 }
 
 /**
- * ⚠⚠ THE RECTS ARE PROJECTED AFTER THE RENDER, AND THE ORDER IS LOAD-BEARING.
+ * ⚠ THE RECTS ARE PROJECTED AFTER THE RENDER, AND THE ORDER IS LOAD-BEARING.
  * `realIslandRects` projects through `camera.matrixWorldInverse`, and THREE fills that in during
- * `renderer.render` — `camera.updateMatrixWorld()` does not, it only updates `matrixWorld`. Asking
- * for the rects before the first render therefore projects through a STALE inverse and hands the
- * status reader rectangles that have nothing to do with the frame. It does not throw and it does
- * not look wrong: this page reported 22 of 35 islands reading as their own status where the same
- * frame, projected correctly, reports 1 — a plausible number, in the reassuring direction, from an
- * instrument that was sampling the wrong pixels.
+ * `renderer.render` — `camera.updateMatrixWorld()` does NOT, it only updates `matrixWorld`. Asking
+ * for the rects before any render therefore projects through a stale inverse and hands the status
+ * reader rectangles that have nothing to do with the frame, without throwing.
+ *
+ * ⚠ AND THE HONEST NOTE ON HOW MUCH THAT COST HERE: nothing measurable. This page was written the
+ * wrong way round, the order was corrected, and every reported number stayed the same to the byte —
+ * `orientedCamera` leaves the inverse in a state that happened to project correctly. The order is
+ * kept because it is the one that is RIGHT BY CONSTRUCTION rather than by luck. The discrepancy
+ * that was briefly blamed on it turned out to be the frame not having settled (`settleFrames`), and
+ * the moral is the one worth carrying: a plausible number is not evidence for the first cause you
+ * reach for.
  */
 export function rectsFor(built: BlightScene, shrink?: number): RealIslandRect[] {
   return realIslandRects(built.stream, built.camera, built.width, built.height, shrink);
@@ -610,6 +617,9 @@ export interface BlightRunner {
   caption: (arm: string) => string;
   neighbour: (arm: string) => string | null;
   palette: () => BlightPaletteReport;
+  /** How long the runner waited for its first frame to stop changing — reported, so a reader can
+   *  see the settle happened rather than trusting that it did. */
+  settled: () => SettleReport;
   layout: () => BlightLayout;
   render: (arm: string, pic: BlightPictureId) => Promise<{ reading: BlightReading; png: string }>;
 }
@@ -652,27 +662,9 @@ export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPag
   const controlFrames = new Map<BlightPictureId, BlightFrame>();
   const burnFrames = new Map<BlightPictureId, BlightFrame>();
 
-  /**
-   * ⚠⚠ RENDERED TWICE, AND THE SECOND FRAME IS THE ONE MEASURED. This is not caution: a
-   * FIRST render of a freshly built scene can be photographed before its textures have finished
-   * reaching the GPU, and the frame it hands back is darker than the one anybody ever sees.
-   *
-   * Measured 2026-09-08 on `real-forest-scene.ts`, which reads its first render: for the island
-   * `agent` in the fitted forest it reported the ground voting 12 `healthy` / 110 `unhealthy`,
-   * where the SAME 147 pixels of the SAME frame — re-classified outside the browser, from that
-   * page's own committed PNG, with that page's own weighted metric — vote 67 / 76. The arm
-   * carrying kit meshes was the one thrown; the arm with nothing standing on it reproduced to
-   * within a few pixels. So the headline "1 of 35 islands read as their own status" is partly an
-   * artefact of when the frame was taken, and a status verdict is exactly the kind of reading that
-   * cannot notice: it comes back a plausible number, in the alarming direction.
-   *
-   * This page will not inherit that. `docs/research/chapter2-unhealthy-ground-2026-09-08/README.md`
-   * carries the reproduction; repairing the other page belongs to the arc that owns it.
-   */
   const frameOf = (armId: string, pic: BlightPictureId) => {
     const built = buildBlightScene(kit, lit, arm, armId, pic);
     renderer.setSize(built.width, built.height, false);
-    renderer.render(built.scene, built.camera);
     renderer.info.reset();
     renderer.render(built.scene, built.camera);
     // ⚠ READ BACK THROUGH `gl.readPixels`, NOT A 2D CONTEXT — the canvas is a WebGL one and has no
@@ -698,6 +690,25 @@ export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPag
     burnFrames.set(pic, frame);
     return frame;
   };
+
+  // ⚠⚠ SETTLE BEFORE ANY MEASUREMENT — `real-forest-scene.ts`'s {@link settleFrames} carries the
+  // measurement behind this. A runner built moments after its kit loads reads before the kit's
+  // asynchronously-decoded textures have reached the GPU, and the categorical verdicts below would
+  // come back plausible, in the alarming direction, off a frame nobody ever sees. Rendering twice
+  // in a row does NOT fix it: two synchronous passes sit in the same tick. Asked for ONCE, here.
+  const settleScene = buildBlightScene(kit, lit, arm, CONTROL_ARM, 'forest');
+  const settled = await settleFrames(
+    () => {
+      renderer.setSize(settleScene.width, settleScene.height, false);
+      renderer.render(settleScene.scene, settleScene.camera);
+    },
+    () => {
+      const buf = new Uint8Array(settleScene.width * settleScene.height * 4);
+      gl.readPixels(0, 0, settleScene.width, settleScene.height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      return new Uint8ClampedArray(buf.buffer);
+    },
+    (ms) => new Promise<void>((resolve) => { window.setTimeout(resolve, ms); }),
+  );
 
   const render = async (armId: string, pic: BlightPictureId) => {
     const control = controlFrame(pic);
@@ -752,6 +763,7 @@ export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPag
     caption: armCaption,
     neighbour: neighbourArm,
     palette: blightPaletteReport,
+    settled: () => settled,
     layout: () => ({
       id: arm.record.id,
       islands: arm.record.islands,

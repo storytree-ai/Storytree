@@ -83,6 +83,7 @@ const result = await page.evaluate(async () => {
   return {
     identity: window.__blightIdentity ?? null,
     palette: r.palette(),
+    settled: r.settled(),
     layout: r.layout(),
     captions: Object.fromEntries(r.arms.map((a) => [a, r.caption(a)])),
     rows,
@@ -148,6 +149,7 @@ const measurements = {
   forcedIsland: FORCED_ISLAND,
   shippedRung: SHIPPED_RUNG,
   palette: result.palette,
+  settled: result.settled,
   layout: result.layout,
   seaBar: SEA_BAR,
   rows: result.rows,
@@ -188,6 +190,7 @@ const lines = [
   'THE UNHEALTHY GROUND, PAINTED FOR THE READ — a forced-token fixture on the REAL map',
   `measured ${measurements.measuredAt}`,
   `renderer  ${identity.vendor} — ${identity.renderer} (software=${identity.software})`,
+  `settled   ${result.settled.reads} readbacks over ${result.settled.waitedMs} ms before the first measurement`,
   `map       ${result.layout.islands} islands, exported ${result.layout.generatedAt} from the studio at ${String(result.layout.head).slice(0, 8)}`,
   `forced    ${result.layout.forced} → unhealthy · frame status mix ${JSON.stringify(result.layout.statusMix)}`,
   '',

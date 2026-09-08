@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-09-07T23:58:29.552Z",
+  "measuredAt": "2026-09-08T01:17:14.617Z",
   "renderer": {
     "vendor": "Google Inc. (NVIDIA Corporation)",
     "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
@@ -41,6 +41,10 @@
       "3 worn path",
       "4 slope rock"
     ]
+  },
+  "settled": {
+    "reads": 3,
+    "waitedMs": 500
   },
   "layout": {
     "id": "shipped",
@@ -1113,14 +1117,14 @@
         "medianMargin": 34.17
       },
       "moved": {
-        "pixels": 70,
+        "pixels": 111,
         "islandPixels": 295,
-        "share": 0.23728813559322035
+        "share": 0.376271186440678
       },
       "movedVsBurn": {
-        "pixels": 97,
+        "pixels": 58,
         "islandPixels": 295,
-        "share": 0.3288135593220339
+        "share": 0.19661016949152543
       },
       "verdict": {
         "islands": [
@@ -2084,14 +2088,14 @@
         "medianMargin": 27.169999999999998
       },
       "moved": {
-        "pixels": 180,
+        "pixels": 189,
         "islandPixels": 295,
-        "share": 0.6101694915254238
+        "share": 0.6406779661016949
       },
       "movedVsBurn": {
-        "pixels": 57,
+        "pixels": 56,
         "islandPixels": 295,
-        "share": 0.19322033898305085
+        "share": 0.18983050847457628
       },
       "verdict": {
         "islands": [
@@ -3057,9 +3061,9 @@
         "medianMargin": 20.06
       },
       "moved": {
-        "pixels": 223,
+        "pixels": 219,
         "islandPixels": 295,
-        "share": 0.7559322033898305
+        "share": 0.7423728813559322
       },
       "movedVsBurn": {
         "pixels": 56,
@@ -4030,9 +4034,9 @@
         "medianMargin": 12.060000000000002
       },
       "moved": {
-        "pixels": 225,
+        "pixels": 222,
         "islandPixels": 295,
-        "share": 0.7627118644067796
+        "share": 0.752542372881356
       },
       "movedVsBurn": {
         "pixels": 56,
@@ -5944,14 +5948,14 @@
         "medianMargin": 53.83
       },
       "moved": {
-        "pixels": 3,
+        "pixels": 0,
         "islandPixels": 55523,
-        "share": 0.0000540316625542568
+        "share": 0
       },
       "movedVsBurn": {
-        "pixels": 37493,
+        "pixels": 37490,
         "islandPixels": 55523,
-        "share": 0.6752697080489166
+        "share": 0.6752156763863624
       },
       "verdict": {
         "islands": [
@@ -6142,14 +6146,14 @@
         "medianMargin": 37.239999999999995
       },
       "moved": {
-        "pixels": 11278,
+        "pixels": 17070,
         "islandPixels": 55523,
-        "share": 0.20312303009563604
+        "share": 0.30744015993372115
       },
       "movedVsBurn": {
-        "pixels": 15484,
+        "pixels": 9585,
         "islandPixels": 55523,
-        "share": 0.2788754209967041
+        "share": 0.17263116186085045
       },
       "verdict": {
         "islands": [
@@ -6340,14 +6344,14 @@
         "medianMargin": 31.240000000000006
       },
       "moved": {
-        "pixels": 27140,
+        "pixels": 29026,
         "islandPixels": 55523,
-        "share": 0.4888064405741765
+        "share": 0.5227743457666192
       },
       "movedVsBurn": {
-        "pixels": 9282,
+        "pixels": 9000,
         "islandPixels": 55523,
-        "share": 0.1671739639428705
+        "share": 0.1620949876627704
       },
       "verdict": {
         "islands": [
@@ -6538,14 +6542,14 @@
         "medianMargin": 24.539999999999996
       },
       "moved": {
-        "pixels": 33235,
+        "pixels": 33124,
         "islandPixels": 55523,
-        "share": 0.5985807683302415
+        "share": 0.596581596815734
       },
       "movedVsBurn": {
-        "pixels": 9209,
+        "pixels": 9034,
         "islandPixels": 55523,
-        "share": 0.1658591934873836
+        "share": 0.16270734650505195
       },
       "verdict": {
         "islands": [
@@ -6736,14 +6740,14 @@
         "medianMargin": 18.430000000000003
       },
       "moved": {
-        "pixels": 33981,
+        "pixels": 33874,
         "islandPixels": 55523,
-        "share": 0.6120166417520667
+        "share": 0.6100895124542982
       },
       "movedVsBurn": {
-        "pixels": 9201,
+        "pixels": 9063,
         "islandPixels": 55523,
-        "share": 0.1657151090539056
+        "share": 0.16322965257640978
       },
       "verdict": {
         "islands": [
@@ -6934,14 +6938,14 @@
         "medianMargin": 19.759999999999994
       },
       "moved": {
-        "pixels": 37493,
+        "pixels": 37490,
         "islandPixels": 55523,
-        "share": 0.6752697080489166
+        "share": 0.6752156763863624
       },
       "movedVsBurn": {
-        "pixels": 3,
+        "pixels": 0,
         "islandPixels": 55523,
-        "share": 0.0000540316625542568
+        "share": 0
       },
       "verdict": {
         "islands": [

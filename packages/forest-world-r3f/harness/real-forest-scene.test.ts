@@ -19,6 +19,9 @@ import { armStream, type SpacingArm, type SpacingSceneFile } from './shipped-spa
 import {
   REAL_FOREST_ARM,
   REAL_FOREST_EVIDENCE_DIR,
+  SETTLE_STABLE_READS,
+  sameFrame,
+  settleFrames,
   extentComparison,
   realIslandRects,
   rectInFrame,
@@ -161,4 +164,74 @@ test('rectInFrame asks the full rect, so a corner-clipped island still counts', 
   assert.equal(rectInFrame({ x0: -10, x1: 5, y0: -10, y1: 5 }, 100, 100), true);
   assert.equal(rectInFrame({ x0: -20, x1: -1, y0: 10, y1: 20 }, 100, 100), false);
   assert.equal(rectInFrame({ x0: 101, x1: 120, y0: 10, y1: 20 }, 100, 100), false);
+});
+
+// ---------------------------------------------------------------- the settle
+
+/** A scripted readback sequence — each `draw` advances to the next frame in the script. */
+function scripted(frames: readonly (readonly number[])[]) {
+  let i = -1;
+  return {
+    draw: () => { i = Math.min(i + 1, frames.length - 1); },
+    read: () => new Uint8ClampedArray(frames[Math.max(0, i)]!),
+    drawn: () => i + 1,
+  };
+}
+
+const noWait = async (): Promise<void> => {};
+
+test('the settle returns once two consecutive readbacks AGREE, and not before', async () => {
+  // Three different frames, then a repeat: the settle must not return on the changing ones.
+  const s = scripted([[1, 1], [2, 2], [3, 3], [3, 3]]);
+  const got = await settleFrames(s.draw, s.read, noWait);
+  assert.equal(got.reads, 4);
+  assert.equal(s.drawn(), 4);
+  assert.equal(SETTLE_STABLE_READS, 2);
+});
+
+test('a page that was already warm settles in the minimum reads and waits almost nothing', async () => {
+  const s = scripted([[7, 7], [7, 7]]);
+  const got = await settleFrames(s.draw, s.read, noWait);
+  // ⚠ TWO, NEVER ONE. A single readback agrees with nothing, so it cannot be evidence of stability;
+  // returning after it would make the whole function a no-op that reads like a guarantee.
+  assert.equal(got.reads, 2);
+});
+
+test('a frame that NEVER settles is REFUSED, never returned as a last best guess', async () => {
+  let n = 0;
+  const changing = () => new Uint8ClampedArray([n, n]);
+  await assert.rejects(
+    settleFrames(() => { n += 1; }, changing, noWait, { maxReads: 5 }),
+    /the frame never settled/,
+  );
+  // ⚠ THE POINT OF THE REFUSAL: a page whose output keeps changing has no measurement to report, and
+  // the one failure this whole seam exists to prevent is a number that looks like a measurement.
+});
+
+test('the settle honours a caller`s stability requirement — three agreements is stricter than two', async () => {
+  const s = scripted([[1, 1], [2, 2], [2, 2], [2, 2]]);
+  assert.equal((await settleFrames(s.draw, s.read, noWait, { stable: 3 })).reads, 4);
+  const t = scripted([[1, 1], [2, 2], [2, 2], [2, 2]]);
+  assert.equal((await settleFrames(t.draw, t.read, noWait, { stable: 2 })).reads, 3);
+});
+
+test('the settle WAITS between readbacks, and reports how long it waited', async () => {
+  const waits: number[] = [];
+  const s = scripted([[1, 1], [2, 2], [2, 2]]);
+  const got = await settleFrames(s.draw, s.read, async (ms) => { waits.push(ms); }, { waitMs: 40 });
+  // ⚠ THE WAIT IS THE WHOLE FIX AND A TEST HAS TO SEE IT HAPPEN. Rendering twice in a row does NOT
+  // fix this (measured 2026-09-08: the reported figures did not move by a single island) — two
+  // synchronous passes sit in the same tick, before any texture decode has had a chance to run.
+  assert.deepEqual(waits, [40, 40]);
+  assert.equal(got.waitedMs, 80);
+});
+
+test('frame equality is byte equality, and a length difference is a difference', () => {
+  assert.ok(sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2, 3])));
+  assert.ok(!sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2, 4])));
+  assert.ok(!sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2])));
+  assert.ok(sameFrame(new Uint8ClampedArray([]), new Uint8ClampedArray([])));
+  // ⚠ THE LAST BYTE COUNTS. A loop stopping one short would call two frames identical that differ
+  // exactly where a rim pixel lives.
+  assert.ok(!sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2, 3, 9])));
 });

@@ -113,38 +113,57 @@ island's rather than diluted toward zero.
 
 ### 4. Are the six status terrains still separable at the real map's zoom?
 
-**No — and the cause is one layer, named.** PR #1804 demonstrated the six terrains on the harness
-island, never on a forest. Repeated here on the real map, four arms, each moving exactly one thing:
+> ⚠⚠ **THIS SECTION WAS CORRECTED IN PLACE ON 2026-09-08, hours after it landed, and its original
+> answer was WRONG IN BOTH DIRECTIONS.** It said "no — and the cause is one layer, the slope-gated
+> rock". Measured warm, the answer is "mostly yes", and the rock changes **no island's verdict at
+> all**. What was wrong was not the reader, the palette, the rects or the pictures — it was the
+> **frame the numbers were taken on**. This page read back its first render of each scene, before
+> the kit's asynchronously-decoded textures had reached the GPU, so every figure below was measured
+> on a frame darker than the PNG this same page saved. The saved PNGs were always correct and are
+> **byte-identical** before and after the fix; only the numbers moved. `settleFrames` in
+> `harness/real-forest-scene.ts` now waits for two consecutive byte-identical readbacks before any
+> measurement, and the report prints how long it waited.
+>
+> ⚠ **Rendering twice in a row does NOT fix it** — that was tried first and the figures did not move
+> by a single island: two synchronous passes sit in the same tick, before any decode can run. What
+> fixed it was TIME. Full reproduction: `../chapter2-unhealthy-ground-2026-09-08/README.md` §6.
 
-| arm | islands reading as their own status, whole forest fitted | read island at 8 px/unit |
+**Mostly yes at the fitted forest — and what costs islands is the DRESSING and its CAST SHADOW, not
+the rock.** PR #1804 demonstrated the six terrains on the harness island, never on a forest.
+Repeated here on the real map, four arms, each moving exactly one thing:
+
+| arm | islands reading as their own status, fitted | as first reported (cold) |
 |---|---|---|
-| `map` — the frame the map draws | **1 / 35** | 0 / 1 (own-share 6.5%) |
-| `bare` — the same ground, nothing standing on it | 1 / 35 | 0 / 1 (10.0%) |
-| `unshadowed` — atlas built from no casters | 1 / 35 | 0 / 1 (25.9%) |
-| **`norock`** — the slope-gated rock layer removed | **31 / 35** | **1 / 1 (77.1%)** |
+| `map` — the frame the map draws | **22 / 35** | 1 / 35 |
+| `bare` — the same ground, nothing standing on it | **29 / 35** | 1 / 35 |
+| `unshadowed` — atlas built from no casters | **34 / 35** | 1 / 35 |
+| `norock` — the slope-gated rock layer removed | **34 / 35** | 31 / 35 |
 
-The read island `context-traversal-capture` is `healthy`. The map delivers its ground at
-**rgb(87, 97, 74)** — a desaturated olive-grey that the reader calls `unhealthy`. With layer 4
-removed it delivers **rgb(93, 122, 71)**, which reads `healthy`, and which is within a few units of
-what the synthetic-crowd control delivers on its own page (**rgb(87, 120, 70)**, measured with the
-same sampler). The reader models `healthy` from rgb(108,142,72) to rgb(140,184,94), so **both**
-surfaces sit below its darkest modelled rung; what separates them is not brightness but **hue**.
+Read down the corrected column and the attribution is plain, because each step moves one thing:
+the **props** cost 7 islands (22 → 29), the **cast shadow** they throw costs a further 5 (29 → 34),
+and the **rock costs none at all** (34 → 34).
 
-**Why the real forest and not the crowd.** The rock layer is gated on **slope**, and
-`LAND_RELIEF_AMPLITUDE` is in absolute world units. Since ADR-0520 an island's ground area follows
-its capability count, so the real map's islands are far smaller than the fixture the demonstration
-ran on — the same relief over a smaller island is a **steeper** island, and a slope-gated grey mixes
-in across the whole surface instead of banding its edges. Sampling the island's core (25% rect)
-rather than the reader's 60% rect changes nothing, so this is not the shore band or the rim: it is
-uniform over the island.
+**The rock changes pixels and changes no verdict.** Comparing `unshadowed` with `norock` island by
+island: 24 of 35 islands shift a handful of votes — single digits out of roughly 200 — and **zero
+islands change pass or fail**, at every zoom. On the read island at 8 px/unit the rock moves 209 of
+55,523 ground pixels. The read island `context-traversal-capture` is `healthy` and delivers
+**rgb(99, 131, 76)** with the rock and **rgb(99, 131, 76)** without it: identical to the byte.
 
-The cast shadow is a real but secondary contributor: it costs a further 6.5 → 10.0 → 25.9 points of
-own-share at the read zoom.
+⚠⚠ **HOW THE ORIGINAL RUN MANUFACTURED THE ROCK CONCLUSION, because the shape is worth carrying.**
+The four arms are measured **in order** — `map`, `bare`, `unshadowed`, `norock` — so each arm was
+measured on a warmer page than the one before it. Cold, the pass counts were 1, 1, 1, 31: a monotone
+rise that tracks **measurement order**, not the arms. The last arm looked like a cure because it was
+measured last. An arm ladder is exactly the right instrument for attribution and it is **defenceless
+against a drift that follows the order the arms are taken in**; the counter is to settle first, and
+to notice when a result lines up suspiciously well with the sequence.
 
-⚠ **This is a finding, not a repair, and it is not this increment's to fix.** No shipped surface
-draws this ground. The one thing it does settle is that "the terrains are separable" cannot be
-carried over from the fixture island to the real map — the property was demonstrated at an island
-size the map no longer draws.
+**What still holds.** `map` at 22/35 is not a clean bill: 13 islands still misread at the fitted
+forest, and the two arms that fix them are the ones that remove things the map actually draws. The
+ORIGINAL comparison was also conflated independently of the settling — it read the delivered colour
+of `map` (props + shadow + rock) against `norock` (no props, no shadow, no rock) and credited the
+whole difference to the rock. The `unshadowed` → `norock` step is the rock's own, and it is nil.
+
+⚠ **This remains a finding, not a repair.** No shipped surface draws this ground.
 
 The palette's one zero-separation pair is `building`/`proposed`, which is ADR-0462 D1/D2's own
 decision (one authored token under two keys) and a measured identity rather than a defect.
