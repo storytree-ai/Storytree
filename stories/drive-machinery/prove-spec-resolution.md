@@ -81,109 +81,85 @@ ordinary continuity build actually consumes.
 
 ## Guidance
 
-### Next revision: the actual final-input witness
+### Whole-file runtime witness
 
-This revision proves one behavior: Codex's composed phase instructions preserve the unit's duties
-and grant the write authority of its actual finite manifest. Rewrite the body of the existing
-test with this EXACT title and contract ID retained:
+Complete the existing `packages/cli/src/codex-leaf-prompt.test.ts` as the one substantive
+coverage surface for this capability. Each existing CLI body must substantiate its full assertion;
+retain complete bodies and complete incomplete ones, rather than stopping after expanding one body.
+Retain every existing test title and all eleven contract IDs, without new `test()`/`it()` blocks.
+The exact existing entrypoint title remains required, but it is an entrypoint into the whole-file
+task, not the whole task:
 
 `prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition`
 
-The full capture matrix below is this test's execution path, through shared helpers. Adding only
-optional-target cases to the existing multi-file test does not author this witness. Keep existing
-test titles and all eleven IDs; revise existing bodies/helpers, without new `test()`/`it()` blocks
-for this bounded revision. Preserve the correct finite-list parser, production manifest assertions
-and substantive existing contracts 1, 2, 5, 7 and 8. Incomplete or invalid assertions are not built
-proof to freeze.
+Build valid, distinctive fixtures through `baseSpec`, `specWithReal` and `resolveRealFor`; each
+must pass the existing proof-config schema and carry distinctive outcome, guidance and declared
+contract IDs. Broad edit-existing scope retains its explicit suite proof command. Keep the
+production finite-list parser and manifest assertions. The helper captures actual
+`CodexCommand.stdin` and launch arguments after `CodexPhaseAuthor.author`, using production
+`codexPromotionManifest` and `PathWriteScope`; model and MCP observations come from that captured
+launch, never from a separate `buildCodexExecArgs` call. This is an automated composition
+observation, never a real author run or signature.
 
-The complete witness is one authoring unit, not a source-case assertion followed by optional
-coverage. Its one shared inventory/capture/assertion helper has a declared expected-key set before
-any optional-target red is claimed; it rejects a duplicate, a missing named key, or a path that
-does not execute every assertion. Three REAL authoring shapes (net-new, edit-existing, and
-refactor-for-testability) × uninstalled and installed dependencies × omitted and explicit Codex
-runtime × AUTHOR_TEST and IMPLEMENT is the **24-cell REAL matrix**. The one live-smoke shape ×
-omitted and explicit Codex runtime × both phases is the **4-cell smoke matrix**. The helper is the
-only execution route for neutral offline roles and opt-in current-live roles as well as REAL and
-smoke; a separate loop, label count, or spot check is not this witness.
+One shared inventory/capture/assertion helper is the only execution route. Its declared expected
+keys reject a duplicate, a missing named key, and a route that skips an assertion: net-new,
+edit-existing and refactor-for-testability × uninstalled and installed dependencies × omitted and
+explicit Codex runtime × AUTHOR_TEST and IMPLEMENT is the **24-cell REAL inventory**; one
+live-smoke shape × omitted and explicit Codex × both phases is the **4-cell smoke inventory**.
+Use that same 28-cell route and every assertion with neutral roles rendered from this test's own
+injected Library store and with opt-in current-live roles from `renderLeafPhasePrompts()` with no
+injected store. The historical fixture corpus, a raw brief, a loop-derived count, or a two-string
+spot check is not an alternate route. Ordinary tests remain offline; smoke keeps its synthetic pair
+and deliberate absence of real contract IDs.
 
-The pinned test performs this walkthrough, in order:
+For every capture, assert actual empty Codex feedback tools; the captured default model and disabled
+MCP; native authoring; spine-only observation/signing; exact allowed and required finite targets;
+phase duties; dependency and typecheck restrictions; and stopping behavior. AUTHOR_TEST stops after
+its test; REAL IMPLEMENT preserves that test and stops/reports when it is wrong; smoke keeps its
+synthetic duties. REAL input preserves each distinctive outcome, guidance and declared ID. Compare
+literal target membership directly where sufficient; the witness does not prescribe a fragile text
+parser.
 
-1. **Build valid, distinctive inputs.** Revise `baseSpec`, `specWithReal` and `resolveRealFor`
-   so each fixture passes the existing proof-config schema and supplies distinctive outcome,
-   guidance and declared contract IDs. Broad edit-existing source scope requires an explicit suite
-   proof command. Render neutral red/green role artifacts from the test's own injected Library
-   store through `renderLeafPhasePrompts(store)`; the shared historical corpus fixture is not the
-   role authority for this test.
-2. **Capture the command actually composed.** Revise `captureCodexFinalStdin` to return actual
-   `CodexCommand.stdin` AND launch arguments after `CodexPhaseAuthor.author`. Use production
-   `codexPromotionManifest` through its existing relative import and the actual `PathWriteScope`.
-   Read model/MCP selection from the captured launch and compare with the existing default;
-   a separate hardcoded `buildCodexExecArgs` call cannot supply that observation. This injected
-   runner observes composition only; it does not need to produce a successful real author result
-   and never creates a signature.
-3. **Run the one complete route.** Execute the declared 24-cell REAL and 4-cell smoke inventories
-   through that helper. Its expected-key set, not a count derived from a loop, proves each distinct
-   key ran exactly once. Smoke keeps its synthetic pair and absence of real contract IDs. Reuse the
-   same helper and every assertion for neutral roles rendered from the injected store and for
-   current live roles rendered with no injected store; no raw-brief, stale-fixture, or two-string
-   alternate path may stand in for either role source.
-   Each capture checks actual empty feedback tools, model/MCP launch selection, native authoring,
-   spine-only observations/signing, exact allowed versus required targets, phase-appropriate
-   test/source duties, dependency/typecheck restrictions and stopping behavior. AUTHOR_TEST stops
-   after writing its test; REAL IMPLEMENT preserves the frozen test and stops/reports if it is
-   wrong. Smoke retains its synthetic phase duties. Assert equivalent behavior in the composed
-   input, not an IMPLEMENT-only sentence in AUTHOR_TEST. REAL captures also check the distinctive
-   outcome, guidance and every declared ID survived composition. Use the complete role-plus-brief
-   input, not a raw-brief substitute.
-4. **Qualify both instruction predicates before the source regression.** Apply the full-composed-
-   input truthfulness predicate to the rendered role, phase brief and adapter together: positive
-   controls accept a correctly qualified unavailable-tool prohibition/runtime comparison and
-   nonauthorizing wildcard context; negative controls reject unavailable-tool instructions,
-   obsolete no-shell/containment claims, and optional shell proof/test/typecheck/build feedback
-   grants, including beside a spine-signing disclaimer. Separately, apply the delimited phase-action
-   permission predicate to the action clause itself: positives accept net-new `write`, edit-existing
-   `EDIT`, and refactor-for-testability `BEHAVIOUR-PRESERVING REFACTOR` when each grants the optional
-   literal; negatives reject a spotlight-only action and an explicit denial of that literal. Both
-   predicates run through the shared helper before the source assertion. Blanket token erasure is
-   invalid: a role-supplied prohibition remains part of the complete input, while a mention outside
-   the delimited action clause is not write authority.
-5. **Earn the source red through that witness.** Include schema-valid optional-target fixtures in
-   the REAL matrix: spotlight admitted only by a wildcard plus exactly one additional literal
-   in each phase; and a net-new fixture with an optional literal source. Assert production and
-   final adapter lists contain spotlight plus optional literal, require only spotlight and exclude
-   a wildcard-only sibling. Apply the already-qualified phase-action predicate to every REAL source
-   arm: an optional literal is writable only when net-new's `write`, edit-existing's `EDIT`, or
-   refactor-for-testability's `BEHAVIOUR-PRESERVING REFACTOR` actually grants it. A mention in
-   `sourcesNamed`, shared conventions, a read-only description, or an allowed-target list is not
-   authority. At current source, a spotlight admitted only via wildcard plus exactly one additional
-   literal entry collapses that literal from the named set, net-new IMPLEMENT instructs
-   spotlight-only writing, and the explicit-Claude
-   wildcard/legacy-scope leg is not preserved. Those assertion failures are the regression; fixed
-   broad wildcard prose, missing imports/files, invalid fixtures and broken controls are not reds.
+Before any source-coupled assertion, apply two qualified predicates through that helper. The
+full-composed-input truthfulness predicate reads rendered role, phase brief and adapter together:
+positive controls accept a qualified unavailable-tool prohibition/runtime comparison and
+nonauthorizing wildcard context; negative controls reject unavailable-tool instructions, obsolete
+no-shell/containment claims, and shell proof/test/typecheck/build pseudo-feedback, including beside
+a spine-signing disclaimer. The separate delimited phase-action permission predicate reads only the
+action clause: positives accept net-new `write`, edit-existing `EDIT`, and
+refactor-for-testability `BEHAVIOUR-PRESERVING REFACTOR` when they grant the optional literal;
+negatives reject spotlight-only action and explicit optional-literal denial. Blanket token erasure
+is invalid: role text remains in the whole composed input, while a mention outside the action clause
+is not write authority.
 
-The helper's offline route renders neutral roles from its injected store; its opt-in current-live
-route calls `renderLeafPhasePrompts()` with NO injected store. Missing or contradictory live roles
-fail that same route. Ordinary tests remain offline.
+Use schema-valid fixtures where a spotlight is admitted only via wildcard plus exactly one
+additional literal entry, and where net-new has an optional literal source. Production and final
+adapter manifests must admit spotlight plus optional literal, require only spotlight, and exclude a
+wildcard-only sibling. Apply the action predicate to every REAL source arm. Author the minimum
+resolver changes warranted by current behavior: net-new must grant its optional literal;
+`literalSourceGlobs.length <= 1` and `literalTestGlobs.length <= 1` must not drop the sole
+additional literal when the spotlight is admitted only by wildcard; and the unconditional literal
+filter must not narrow explicit-Claude legacy scope. Derive each red from then-current behavior
+after the controls pass; do not preserve a defect, use a rejected diagnostic predicate, invent a
+later red, or change runtime defaults or authority to make the unit pass.
 
-**Whole-capability acceptance remains pending.** The walkthrough and every one of the eleven full
-contract assertions below are the completion bar for this same revision. Explicit Claude's
-wildcard scope and legacy three-argument helper must still match `PathWriteScope`. Its REAL/smoke
-feedback must still actually spawn the exact CONFIRM oracle through `realProofCommand`,
-`feedbackCommandsFor` and bounded `executeFeedback`, with typecheck armed/advertised only for
-its registered installed-node command. Complete the existing registry, walls, identity and
-declared-ID bodies: full Library registrations plus unknown refusal; named phase walls and the
-install/typecheck invariant; signer and node/run fields; both phases of assembly and all REAL
-arms, IDs independent of guidance, empty-contract parity and smoke absence. Complete these
-existing acceptance debts normally in this AUTHOR_TEST: they remain distinct from the
-source-coupled optional-literal regression, but are not deferrable from this witness and none is
-frozen as complete.
+Complete the eleven existing assertions in this same CLI file. In addition to the retained complete
+bodies, write the currently incomplete observations: the registry covers the full Library
+story/capability set plus unknown refusal; named AUTHOR_TEST/IMPLEMENT walls cover the required
+entries and the install/typecheck invariant; resolved identity includes signer plus node/run fields;
+and declared IDs cover both assembly phases, all three REAL arms, guidance independence,
+empty-contract parity and smoke absence. Explicit Claude must actually execute the exact CONFIRM
+oracle through `realProofCommand`, `feedbackCommandsFor` and bounded `executeFeedback` in REAL and
+smoke, with `run_typecheck` armed and advertised only for its registered installed-node command.
+Its wildcard scope and legacy three-argument helper remain compatible with `PathWriteScope`.
 
-IMPLEMENT remains confined to the existing resolver. Preserve default Codex/model selection,
-native shell/`apply_patch` authoring, blind feedback, explicit Claude and legacy compatibility,
-proof commands, scopes, finite manifests and spine authority. Re-derive any later source regression
-from then-current behavior under fresh choreography; this brief promises no future regression red
-and does not preserve a defect to obtain one. A signed partial revision or eleven matching test
-names cannot close the runtime repair while any full acceptance assertion remains unverified.
+IMPLEMENT may edit only `packages/orchestrator/src/resolve-prove-spec.ts`; AUTHOR_TEST may edit only
+the existing CLI spotlight and its required output. The existing
+`packages/orchestrator/src/resolve-prove-spec.test.ts` stays read-only in the proof command as the
+regression floor. Preserve default Codex/model selection, native shell/`apply_patch` authoring,
+blind feedback, explicit Claude and legacy compatibility, commands, scopes, finite manifests and
+spine authority. A signed partial revision or eleven matching names cannot close the runtime repair
+while any full assertion remains unverified.
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
