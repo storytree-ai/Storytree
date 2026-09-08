@@ -20,8 +20,11 @@
 // colours differ by THIRTEEN units on one channel and by nothing at all on the other two: an
 // unhealthy island drawn as a flat token would be, on the map as it draws today, very nearly the
 // same colour as the healthy islands around it. Hue alone therefore cannot carry this token, and
-// the separation has to come from PATTERN — which is the channel ADR-0414 named alongside hue and
-// which this row is the strongest case for.
+// the separation has to come from PATTERN — which is ADR-0492's own "second signal channel (texture
+// presence) alongside hue", itself a reading of ADR-0414 D1's general "everything on the map is
+// signal for something", and which this row is the strongest case for. ⚠ The clause is ADR-0492's
+// and NOT ADR-0414's; ADR-0551 D1 carries a dated in-place correction of exactly this attribution,
+// which the librarian pass caught on the landing.
 //
 // ⚠⚠ THE LAYER SET IS CHOSEN, NOT COPIED, AND A DROPPED LAYER IS A FINDING. The green wears six.
 // The unhealthy ground wears the base paint, the cracks, the detail normal and the grain — and

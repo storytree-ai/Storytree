@@ -52,8 +52,10 @@ Hue alone therefore cannot carry this token, and there is no hue free to move it
 the clay, the in-progress token owns the gold, `unknown` owns the pale slate, the sea owns the dark
 blue. So the separation is taken in the one channel nothing else on this map uses — **high internal
 contrast**: a near-black ground split by a pale bone network of closed plates, at a scale the fitted
-forest can still resolve as texture. That is ADR-0414's "texture presence as a signal channel
-alongside hue", and this row is its strongest case.
+forest can still resolve as texture. That is **ADR-0492's** own "second signal channel (texture
+presence) alongside hue" — itself a reading of ADR-0414 D1's general "everything on the map is
+signal for something" — and this row is its strongest case. ⚠ This paragraph first credited the
+clause to ADR-0414, which carries no such clause; ADR-0551 D1 carries the dated in-place correction.
 
 **Zero colours are authored.** Every colour is the token scaled in linear space, ratio-preserving:
 the base ramps are the grass's own stops rebased onto the token (the wheat's algebra, imported) and
