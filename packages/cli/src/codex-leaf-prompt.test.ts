@@ -633,6 +633,28 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
 test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set, not just the spotlight testFile", async () => {
   const real = EDIT_EXISTING_WILDCARD_REAL;
 
+  // A wildcard can admit the spotlight while exactly one different literal remains an optional
+  // promotion target. The prose must still grant that literal write authority; counting only
+  // literal entries used to collapse this shape to the spotlight file.
+  const wildcardSpotlightReal: RealProofConfig = {
+    ...NET_NEW_REAL,
+    scope: {
+      testGlobs: ["packages/widget/src/*.test.ts", EDIT_TEST_EXTRA],
+      sourceGlobs: ["packages/widget/src/*.ts", EDIT_SOURCE_EXTRA],
+    },
+  };
+  const wildcardSpotlight = resolveRealFor(wildcardSpotlightReal);
+  assert.equal(wildcardSpotlight.ok, true, wildcardSpotlight.ok ? "" : wildcardSpotlight.reason);
+  if (!wildcardSpotlight.ok) return;
+  assert.ok(
+    wildcardSpotlight.spec.prompts.authorTest.includes(EDIT_TEST_EXTRA),
+    "AUTHOR_TEST grants the sole optional literal test target when the spotlight is wildcard-admitted",
+  );
+  assert.ok(
+    wildcardSpotlight.spec.prompts.implement.includes(EDIT_SOURCE_EXTRA),
+    "IMPLEMENT grants the sole optional literal source target when the spotlight is wildcard-admitted",
+  );
+
   // 1. The production finite-manifest builder resolves each scope to the required target plus the
   //    additional literal target ONLY; its required outputs stay singular; and neither the wildcard
   //    glob itself nor the concrete sibling file it would match (via PathWriteScope's own pattern
