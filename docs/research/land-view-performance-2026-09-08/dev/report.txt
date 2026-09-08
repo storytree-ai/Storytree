@@ -1,0 +1,53 @@
+THE LAND VIEW'S LOAD AND FRAME COST, on the real forest, in the studio
+measured  2026-09-08T07:02:28.521Z
+renderer  ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0) (software=false)
+arm       vite dev — the build the owner ran when he reported the lag
+
+1. TIME TO THE LAND BEING ON SCREEN
+   with the land view   12496 ms
+   the map alone        8073 ms   <- the control: what a member pays without the flag
+   the land view's own  4423 ms
+
+   AND THE HONEST READING OF "TAKES A WHILE" — a canvas with a size is not a page that has
+   finished. Time from there until a whole second of frames comes in under two budgets:
+   land view  +22011 ms
+   map alone  +19295 ms
+   so a viewer waits 34.5 s for a land view that has stopped moving,
+   against 27.4 s for the map alone.
+
+2. WHERE THE CPU WENT — self time, 12861.2 ms sampled (9318.5 ms of it BUSY),
+   shares against the WHOLE, waiting included
+   land-stream         7209.4 ms  56.1%
+   idle                3542.6 ms  27.5%
+   unattributed        1463.1 ms  11.4%
+   react-and-studio     377.5 ms  2.9%
+   gc                   189.0 ms  1.5%
+   scene-build           65.8 ms  0.5%
+   three-and-r3f         13.8 ms  0.1%
+   store-payload          0.0 ms  0.0%
+   kit-decode             0.0 ms  0.0%
+   ⚠ `unattributed` is anything with no module url that is not idle or GC. It is reported
+     rather than divided out; a split that cannot say what it missed is not a split.
+
+   EVERY /api/ CALL, largest first — ⚠ `transferSize` UNDER-REPORTS (the dev arm read 0.07 MB
+   where the server sent 37.2 MiB), so confirm any byte figure with curl against the server:
+          70 kB     161 ms  /api/docs
+           0 kB       1 ms  /api/me
+           0 kB       1 ms  /api/me
+
+3. WHAT THE NETWORK COST — per request, and they OVERLAP, so these do not sum to a timeline
+   store payload (/api/)   163.1 ms  0.07 MB   <- the map pays this too
+   the canvas + the kit    317.8 ms  0.59 MB   <- only a land-view viewer pays this
+   everything else         5365.3 ms  11.69 MB
+
+4. FRAME COST ONCE IT HAS SETTLED — 60 Hz budget is 16.7 ms
+   HARNESS FLOOR      median 16.7 ms over 180 frames on about:blank — the control that makes the rest mean something
+   idle, land view    median 16.7 ms  p95 16.8 ms  worst 16.8 ms  late 0/360
+   idle, map alone    median 16.7 ms  p95 16.7 ms  worst 233.3 ms  late 2/346
+   under a drag       median 16.7 ms  p95 16.8 ms  worst 33.3 ms  late 1/359
+   "late" is over 25.0 ms — rAF reports an ON-TIME 60 Hz frame as 16.7 ms, so a strict
+   comparison against the 16.667 budget calls every healthy frame late (it did, 216 of 360).
+   ⚠ READ `worst` AND `over budget`, NOT ONLY THE PERCENTILE: with sixty frames p95 sits at the
+     57th, so a stall rarer than four frames in sixty is invisible to it by construction.
+
+IT DECIDES NOTHING. This is the split the increment asked for before any cure is chosen.
