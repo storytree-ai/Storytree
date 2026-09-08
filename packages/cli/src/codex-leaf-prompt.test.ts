@@ -47,6 +47,13 @@ import type {
   LeafPhasePrompts,
   ResolveResult,
 } from "@storytree/orchestrator";
+// `codexPromotionManifest` is deliberately NOT re-exported from `@storytree/orchestrator`'s public
+// barrel (this node's guidance: "not a test-local reimplementation or a new public export") — this
+// is the same relative cross-package import `packages/orchestrator/src/resolve-prove-spec.test.ts`
+// already uses for its own copy of the same function, sanctioned test scaffolding under
+// `check:boundaries`'s `isTestScaffolding` (a `*.test.ts` file may reuse another organism's
+// internals across the package boundary, ADR-0010 §5).
+import { codexPromotionManifest } from "../../orchestrator/src/resolve-prove-spec.js";
 
 /**
  * `prove-spec-resolution`'s runtime amendment (contracts 9 and 10): the phase briefs `resolveReal`
@@ -133,17 +140,53 @@ const REFACTOR_FOR_TESTS_REAL: RealProofConfig = {
   proofCommand: { file: "pnpm", args: ["--filter", "@storytree/widget", "test"] },
 };
 
-/** A REAL fixture whose AUTHOR_TEST scope names MORE than one literal test file. */
-const MULTI_TEST_REAL: RealProofConfig = {
-  ...INSTALL_REAL,
+/**
+ * ADR-0057 §3 regression fixture (`prompts-brief-the-real-constraints`): an edit-existing REAL scope
+ * carrying a required test/source pair, ONE additional literal test/source pair, and a WILDCARD entry
+ * in BOTH the test and the source scope — plus a concrete sibling file matched ONLY by each wildcard
+ * (never itself a literal scope entry). This is the shape that distinguishes the glob SCOPE
+ * `PathWriteScope` matches by pattern from the finite Codex promotion manifest, which never expands a
+ * pattern into a new allowed target.
+ */
+const EDIT_TEST_FILE = "packages/widget/src/widget.test.ts";
+const EDIT_TEST_EXTRA = "packages/widget/src/widget-helpers.test.ts";
+const EDIT_TEST_WILDCARD = "packages/widget/src/generated/*.test.ts";
+const EDIT_TEST_WILDCARD_SIBLING = "packages/widget/src/generated/other.test.ts";
+
+const EDIT_SOURCE_FILE = "packages/widget/src/widget.ts";
+const EDIT_SOURCE_EXTRA = "packages/widget/src/widget-helpers.ts";
+const EDIT_SOURCE_WILDCARD = "packages/widget/src/generated/*.ts";
+const EDIT_SOURCE_WILDCARD_SIBLING = "packages/widget/src/generated/other.ts";
+
+const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
+  testFile: EDIT_TEST_FILE,
+  sourceFile: EDIT_SOURCE_FILE,
+  editsExisting: true,
+  install: true,
+  typecheck: { file: "pnpm", args: ["--filter", "@storytree/widget", "typecheck"] },
   scope: {
-    testGlobs: [
-      "packages/widget/src/widget.test.ts",
-      "packages/widget/src/widget-helpers.test.ts",
-    ],
-    sourceGlobs: ["packages/widget/src/widget.ts"],
+    testGlobs: [EDIT_TEST_FILE, EDIT_TEST_EXTRA, EDIT_TEST_WILDCARD],
+    sourceGlobs: [EDIT_SOURCE_FILE, EDIT_SOURCE_EXTRA, EDIT_SOURCE_WILDCARD],
   },
 };
+
+/**
+ * Parse the ADAPTER's OWN rendered "allowed target set" / "Required outputs" sections out of a
+ * captured final Codex stdin (see `captureCodexFinalStdin`'s composed `fullPrompt` in
+ * `packages/agent/src/codex-author.ts`) — the section the adapter builds itself from the
+ * `CodexPromotionManifest`, independent of whatever the (possibly buggy) phase-brief prose above it
+ * claims.
+ */
+function extractCodexTargetLists(stdin: string): { allowed: string[]; required: string[] } {
+  const match =
+    /allowed target set for this phase is:\n([\s\S]*?)\n\nRequired outputs:\n([\s\S]*?)\n\nAfter you stop/.exec(
+      stdin,
+    );
+  assert.ok(match, "the adapter's own allowed/required target sections are present in the final stdin");
+  const parseTargets = (block: string): string[] =>
+    block.split("\n").map((line) => line.replace(/^- `/, "").replace(/`$/, ""));
+  return { allowed: parseTargets(match![1]!), required: parseTargets(match![2]!) };
+}
 
 /** Every arm the runtime amendment must brief truthfully: net-new (±install), edit-existing, R2. */
 const CODEX_TRUTHFULNESS_FIXTURES: readonly RealProofConfig[] = [
@@ -222,15 +265,12 @@ async function captureCodexFinalStdin(
   role: LeafPhasePrompts,
 ): Promise<CodexFinalStdin> {
   const scope = new PathWriteScope(real.scope);
+  // The PRODUCTION finite manifest builder (never a manually reconstructed stand-in): this is what
+  // `resolveReal` itself hands `CodexPhaseAuthor` — it filters any wildcard/glob-magic scope entry
+  // out of `allowedTargets`, which a naive `[...new Set(scope.testGlobs)]` reconstruction would not.
   const manifests: { AUTHOR_TEST: CodexPromotionManifest; IMPLEMENT: CodexPromotionManifest } = {
-    AUTHOR_TEST: {
-      allowedTargets: [...new Set(real.scope.testGlobs)],
-      requiredTargets: [real.testFile],
-    },
-    IMPLEMENT: {
-      allowedTargets: [...new Set(real.scope.sourceGlobs)],
-      requiredTargets: [real.sourceFile],
-    },
+    AUTHOR_TEST: codexPromotionManifest(real.testFile, real.scope.testGlobs),
+    IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
   };
   const captureFor = async (phase: "AUTHOR_TEST" | "IMPLEMENT", brief: string): Promise<string> => {
     const cap = captureCodexRunner();
@@ -590,14 +630,72 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
   }
 });
 
-test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set, not just the spotlight testFile", () => {
-  const result = resolveRealFor(MULTI_TEST_REAL);
-  assert.equal(result.ok, true);
-  if (!result.ok) return;
-  for (const testTarget of MULTI_TEST_REAL.scope.testGlobs) {
+test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set, not just the spotlight testFile", async () => {
+  const real = EDIT_EXISTING_WILDCARD_REAL;
+
+  // 1. The production finite-manifest builder resolves each scope to the required target plus the
+  //    additional literal target ONLY; its required outputs stay singular; and neither the wildcard
+  //    glob itself nor the concrete sibling file it would match (via PathWriteScope's own pattern
+  //    matching) is ever an allowed target — codexPromotionManifest never expands a pattern.
+  const testManifest = codexPromotionManifest(real.testFile, real.scope.testGlobs);
+  const sourceManifest = codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs);
+  assert.deepEqual(new Set(testManifest.allowedTargets), new Set([EDIT_TEST_FILE, EDIT_TEST_EXTRA]));
+  assert.deepEqual(testManifest.requiredTargets, [EDIT_TEST_FILE]);
+  assert.ok(!testManifest.allowedTargets.includes(EDIT_TEST_WILDCARD), "the wildcard itself is never an allowed target");
+  assert.ok(
+    !testManifest.allowedTargets.includes(EDIT_TEST_WILDCARD_SIBLING),
+    "a file matched only by the wildcard is never an allowed target",
+  );
+
+  assert.deepEqual(new Set(sourceManifest.allowedTargets), new Set([EDIT_SOURCE_FILE, EDIT_SOURCE_EXTRA]));
+  assert.deepEqual(sourceManifest.requiredTargets, [EDIT_SOURCE_FILE]);
+  assert.ok(!sourceManifest.allowedTargets.includes(EDIT_SOURCE_WILDCARD), "the source wildcard itself is never an allowed target");
+  assert.ok(
+    !sourceManifest.allowedTargets.includes(EDIT_SOURCE_WILDCARD_SIBLING),
+    "a source file matched only by the wildcard is never an allowed target",
+  );
+
+  const role: LeafPhasePrompts = {
+    AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
+    IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
+  };
+
+  for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
+    const result = resolveRealFor(real, { ...runtimeOpt, phasePrompts: role });
+    assert.equal(result.ok, true, result.ok ? "" : result.reason);
+    if (!result.ok) continue;
     assert.ok(
-      result.spec.prompts.authorTest.includes(testTarget),
-      `AUTHOR_TEST names ${testTarget} — the complete permitted test set`,
+      result.liveAuthor instanceof CodexPhaseAuthor,
+      "omitted runtime defaults to Codex, and explicit codex selects it too",
+    );
+
+    // 2. The final adapter-composed allowed/required target lists equal those production manifests
+    //    EXACTLY: the literal optional target stays allowed-but-not-required, and each phase keeps
+    //    its own test/source duty (AUTHOR_TEST's manifest never leaks into IMPLEMENT's, or vice versa).
+    const finalStdin = await captureCodexFinalStdin(real, result.spec.prompts, role);
+    const authorTargets = extractCodexTargetLists(finalStdin.AUTHOR_TEST);
+    assert.deepEqual(new Set(authorTargets.allowed), new Set(testManifest.allowedTargets));
+    assert.deepEqual(authorTargets.required, testManifest.requiredTargets);
+    const implementTargets = extractCodexTargetLists(finalStdin.IMPLEMENT);
+    assert.deepEqual(new Set(implementTargets.allowed), new Set(sourceManifest.allowedTargets));
+    assert.deepEqual(implementTargets.required, sourceManifest.requiredTargets);
+
+    // 3. The PHASE INSTRUCTIONS themselves — the brief prose the adapter wraps, BEFORE its own
+    //    correct finite-list section above — must grant no write authority to a wildcard match or to
+    //    "every path under source scope". Mentioning a wildcard as non-authorizing context would be
+    //    fine (its mere presence is not the defect); naming it as part of what may be WRITTEN is the
+    //    regression this test pins, and it is currently true of the unmodified source.
+    assert.ok(
+      !result.spec.prompts.authorTest.includes(`\`${EDIT_TEST_WILDCARD}\``),
+      "AUTHOR_TEST's permitted-scope listing must not name the wildcard test-scope entry as writable",
+    );
+    assert.ok(
+      !result.spec.prompts.implement.includes(`\`${EDIT_SOURCE_WILDCARD}\``),
+      "IMPLEMENT's scope listing must not name the wildcard source-scope entry as writable",
+    );
+    assert.ok(
+      !result.spec.prompts.implement.includes("every path under your source scope is writable"),
+      "IMPLEMENT must not claim every path under the source scope (wildcard matches included) is writable",
     );
   }
 });

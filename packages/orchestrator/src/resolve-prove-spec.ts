@@ -1132,20 +1132,28 @@ export function realPrompts(
   // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
   // The Claude branch (the DEFAULT here, for helper-call compatibility) is untouched, byte-for-byte.
   const codexRuntime = runtime === "codex";
+  // Only LITERAL scope entries are ever named as writable/readable — a wildcard/glob-magic entry is
+  // a hook-wall pattern, never a Codex promotion target (`codexPromotionManifest` filters it the same
+  // way), so naming it here would claim write authority Codex structurally does not have. Singular
+  // case (one literal entry, the spotlight file) is byte-identical to the old literal for every
+  // migrated single-file node.
+  const literalSourceGlobs = real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
   const sourcesNamed =
-    real.scope.sourceGlobs.length === 1 && real.scope.sourceGlobs[0] === real.sourceFile
+    literalSourceGlobs.length <= 1
       ? `\`${real.sourceFile}\``
       : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
-        `${real.scope.sourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
+        `${literalSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
   // The COMPLETE permitted test set (never reduced to the spotlight testFile): AUTHOR_TEST's write
   // wall is scoped to real.scope.testGlobs, not just real.testFile, so a multi-file fixture must name
   // every allowed target — an unnamed sibling test file would read as unauthored territory when it is
   // in fact allowed, and (for IMPLEMENT) readable. Singular case is byte-identical to the old literal.
+  // A wildcard entry is excluded from the named set for the same reason `sourcesNamed` excludes one.
+  const literalTestGlobs = real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
   const testsNamed =
-    real.scope.testGlobs.length === 1 && real.scope.testGlobs[0] === real.testFile
+    literalTestGlobs.length <= 1
       ? `\`${real.testFile}\``
       : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
-        `scope (matching ${real.scope.testGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
+        `scope (matching ${literalTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
         `read them but writes only its source targets`;
   const typecheckClose = codexRuntime
     ? `There is no automated feedback tool for the type check here — write type-legal code from ` +
@@ -1271,8 +1279,8 @@ export function realPrompts(
       implement:
         `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
         `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
-        `more than one — every path under your source scope is writable; writes to the test file ` +
-        `are refused). ${greenClose("edit", "the proof")} If you conclude the test itself ` +
+        `more than one of the named source files; writes to the test file are refused). ` +
+        `${greenClose("edit", "the proof")} If you conclude the test itself ` +
         `is wrong, stop and say so plainly instead of working around it.`,
     };
   }
