@@ -97,13 +97,14 @@ and substantive existing contracts 1, 2, 5, 7 and 8. Incomplete or invalid asser
 proof to freeze.
 
 The complete witness is one authoring unit, not a source-case assertion followed by optional
-coverage. Its capture plan has a counted inventory before any optional-target red is claimed:
-three REAL authoring shapes (net-new, edit-existing, and refactor-for-testability) × uninstalled
-and installed dependencies × omitted and explicit Codex runtime × AUTHOR_TEST and IMPLEMENT is
-the **24-cell REAL matrix**. The one live-smoke shape × omitted and explicit Codex runtime × both
-phases is the **4-cell smoke matrix**. The shared helper records those keys and rejects a duplicate
-or missing cell; a passing subset, even one that reaches the optional-literal assertion, is not
-this witness.
+coverage. Its one shared inventory/capture/assertion helper has a declared expected-key set before
+any optional-target red is claimed; it rejects a duplicate, a missing named key, or a path that
+does not execute every assertion. Three REAL authoring shapes (net-new, edit-existing, and
+refactor-for-testability) × uninstalled and installed dependencies × omitted and explicit Codex
+runtime × AUTHOR_TEST and IMPLEMENT is the **24-cell REAL matrix**. The one live-smoke shape ×
+omitted and explicit Codex runtime × both phases is the **4-cell smoke matrix**. The helper is the
+only execution route for neutral offline roles and opt-in current-live roles as well as REAL and
+smoke; a separate loop, label count, or spot check is not this witness.
 
 The pinned test performs this walkthrough, in order:
 
@@ -120,10 +121,12 @@ The pinned test performs this walkthrough, in order:
    a separate hardcoded `buildCodexExecArgs` call cannot supply that observation. This injected
    runner observes composition only; it does not need to produce a successful real author result
    and never creates a signature.
-3. **Run one complete matrix and assertion.** Execute the counted 24-cell REAL inventory above.
-   The same helper also resolves the 4-cell smoke inventory, preserving its synthetic pair and
-   absence of real contract IDs. It must prove that it covered each distinct key, rather than
-   deriving the count from a loop or accepting one fixture twice.
+3. **Run the one complete route.** Execute the declared 24-cell REAL and 4-cell smoke inventories
+   through that helper. Its expected-key set, not a count derived from a loop, proves each distinct
+   key ran exactly once. Smoke keeps its synthetic pair and absence of real contract IDs. Reuse the
+   same helper and every assertion for neutral roles rendered from the injected store and for
+   current live roles rendered with no injected store; no raw-brief, stale-fixture, or two-string
+   alternate path may stand in for either role source.
    Each capture checks actual empty feedback tools, model/MCP launch selection, native authoring,
    spine-only observations/signing, exact allowed versus required targets, phase-appropriate
    test/source duties, dependency/typecheck restrictions and stopping behavior. AUTHOR_TEST stops
@@ -132,34 +135,35 @@ The pinned test performs this walkthrough, in order:
    input, not an IMPLEMENT-only sentence in AUTHOR_TEST. REAL captures also check the distinctive
    outcome, guidance and every declared ID survived composition. Use the complete role-plus-brief
    input, not a raw-brief substitute.
-4. **Qualify the same instruction assertion.** Exercise positive controls accepting a correctly
-   qualified unavailable-tool prohibition/runtime comparison and nonauthorizing wildcard context.
-   Negative controls must reject unavailable-tool instructions, obsolete no-shell/containment
-   claims and optional shell proof/test/typecheck/build feedback grants, including beside a
-   spine-signing disclaimer. Apply that same assertion to the captures. Blanket token erasure is
-   invalid; a role-supplied prohibition is part of the complete input, not a missing-smoke defect.
+4. **Qualify both instruction predicates before the source regression.** Apply the full-composed-
+   input truthfulness predicate to the rendered role, phase brief and adapter together: positive
+   controls accept a correctly qualified unavailable-tool prohibition/runtime comparison and
+   nonauthorizing wildcard context; negative controls reject unavailable-tool instructions,
+   obsolete no-shell/containment claims, and optional shell proof/test/typecheck/build feedback
+   grants, including beside a spine-signing disclaimer. Separately, apply the delimited phase-action
+   permission predicate to the action clause itself: positives accept net-new `write`, edit-existing
+   `EDIT`, and refactor-for-testability `BEHAVIOUR-PRESERVING REFACTOR` when each grants the optional
+   literal; negatives reject a spotlight-only action and an explicit denial of that literal. Both
+   predicates run through the shared helper before the source assertion. Blanket token erasure is
+   invalid: a role-supplied prohibition remains part of the complete input, while a mention outside
+   the delimited action clause is not write authority.
 5. **Earn the source red through that witness.** Include schema-valid optional-target fixtures in
    the REAL matrix: spotlight admitted only by a wildcard plus exactly one additional literal
    in each phase; and a net-new fixture with an optional literal source. Assert production and
    final adapter lists contain spotlight plus optional literal, require only spotlight and exclude
-   a wildcard-only sibling. Then assert the final phase instructions preserve the optional
-   permission at the phase-action level, not merely by path occurrence: delimit the `Phase
-   IMPLEMENT` imperative that grants write authority from shared conventions, read-only path
-   descriptions and the adapter's appended target list. An optional literal occurring in
-   `sourcesNamed` or an allowed-target list does not make it writable if that later imperative says
-   `write ONLY <spotlight>`. The positive control accepts an IMPLEMENT action that grants the
-   optional literal write authority; negative controls reject both that contradictory spotlight-only
-   action and an explicit prohibition on writing the optional literal. At current source, the
-   one-literal branch omits the optional target and net-new IMPLEMENT instructs spotlight-only
-   writing. Those assertion failures are the regression; fixed broad wildcard prose, missing
-   imports/files, invalid fixtures and broken controls are not reds.
+   a wildcard-only sibling. Apply the already-qualified phase-action predicate to every REAL source
+   arm: an optional literal is writable only when net-new's `write`, edit-existing's `EDIT`, or
+   refactor-for-testability's `BEHAVIOUR-PRESERVING REFACTOR` actually grants it. A mention in
+   `sourcesNamed`, shared conventions, a read-only description, or an allowed-target list is not
+   authority. At current source, a spotlight admitted only via wildcard plus exactly one additional
+   literal entry collapses that literal from the named set, net-new IMPLEMENT instructs
+   spotlight-only writing, and the explicit-Claude
+   wildcard/legacy-scope leg is not preserved. Those assertion failures are the regression; fixed
+   broad wildcard prose, missing imports/files, invalid fixtures and broken controls are not reds.
 
-Route the offline neutral-role and CURRENT LIVE-role paths through that same inventory and
-capture/assertion helper, replacing stale fixture assumptions and blanket exclusions. The offline
-path renders neutral roles from its injected store. The opt-in current-live path calls
-`renderLeafPhasePrompts()` with NO injected store and runs the **same 24 REAL + 4 smoke cells and
-assertions**. Missing or contradictory live roles fail that check. Ordinary tests remain offline.
-This exact shared offline/live path is part of the next witness, not a later two-string spot check.
+The helper's offline route renders neutral roles from its injected store; its opt-in current-live
+route calls `renderLeafPhasePrompts()` with NO injected store. Missing or contradictory live roles
+fail that same route. Ordinary tests remain offline.
 
 **Whole-capability acceptance remains pending.** The walkthrough and every one of the eleven full
 contract assertions below are the completion bar for this same revision. Explicit Claude's
