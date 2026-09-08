@@ -60,6 +60,25 @@ source regression on the complete final-input witness below; the whole runtime r
 Capturing the final stdin with an injected process runner is an automated observation of prompt
 composition, never a real author run or a signed verdict.
 
+**Authoring prerequisite under the 2026-09-09 owner re-steer.** Continuity's implementation is a
+pure event resolver, but its ordinary REAL build is not: `nodeBuild` calls `buildNodeReal`, which
+calls `resolveProveSpec`/`resolveReal`; an omitted runtime constructs `CodexPhaseAuthor` and passes
+the Codex `realPrompts` result into its phases. Main's false default-Codex instructions therefore
+reach a default GPT-5.6 Terra continuity leaf before its own proof can begin. Repair that shared
+authoring path first. This is an execution prerequisite, not a new `depends_on` edge for
+[`capability-proof-continuity`](capability-proof-continuity.md).
+
+The smallest feasible runtime unit is the complete revision already specified below: the actual
+final-input witness, its source-coupled optional-literal and Claude-compatibility regression, and
+all eleven substantive contract assertions. A core-prose-only subrevision cannot be driven as this
+capability because a normal signed build attests the whole unit; it would leave the recorded
+optional-target and explicit-Claude source regressions, plus unverified wall and typecheck-control
+observations, under that attestation. The completed Astra attempt is unlanded evidence, not a retry
+seed. Run the defined revision with the repository-default GPT-5.6 Terra leaf, then continue the
+owner-directed order: continuity, renderer rename, four-way capability split, and safe downstream
+fan-out. This preserves the product DAG while naming the shared proof-authoring repair that every
+ordinary continuity build actually consumes.
+
 ## Guidance
 
 ### Next revision: the actual final-input witness
