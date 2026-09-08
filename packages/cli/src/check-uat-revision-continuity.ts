@@ -15,10 +15,12 @@ import {
   type WorkHierarchySnapshot,
 } from "@storytree/library";
 import { closePool, createPool } from "@storytree/library/store";
-import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { commitShaOf, git, storiesTreeSha } from "./hierarchy-git.js";
-import { judgeUatRevisionContinuity } from "./uat-revision-continuity.js";
+import {
+  judgeUatRevisionContinuity,
+  readUatRevisionVerdictEvents,
+} from "./uat-revision-continuity.js";
 
 /**
  * `pnpm check:uat-revision-continuity` — the I/O shell for ADR-0560 D3/D4's merge wall.
@@ -111,7 +113,7 @@ async function main(): Promise<number> {
   let handle: Awaited<ReturnType<typeof createPool>> | undefined;
   try {
     handle = await createPool();
-    events = await new PgWorkStore(handle.pool).readEvents();
+    events = await readUatRevisionVerdictEvents(handle.pool);
   } catch (error) {
     storeError = error;
   } finally {

@@ -49,6 +49,35 @@ export interface UatRevisionContinuityVerdict {
   readonly lines: readonly string[];
 }
 
+/** The least-privilege query surface needed by the continuity merge wall. */
+export interface UatRevisionVerdictQueryClient {
+  query(text: string): Promise<{ readonly rows: readonly unknown[] }>;
+}
+
+/**
+ * Read only signed verdict history and shape it for the pure judge. Query failures propagate to the
+ * shell, while malformed rows either reject here or retain invalid seq/doc values for the judge's
+ * fail-closed validation. No lifecycle, usage or scope table is part of this reader's authority.
+ */
+export async function readUatRevisionVerdictEvents(
+  client: UatRevisionVerdictQueryClient,
+): Promise<RollupEvent[]> {
+  const result = await client.query("SELECT seq, doc FROM events.verdict ORDER BY seq");
+  const events = new Set<RollupEvent>();
+  for (const rawRow of result.rows) {
+    if (rawRow === null || typeof rawRow !== "object") {
+      throw new Error("events.verdict returned a malformed row");
+    }
+    const row = rawRow as Record<string, unknown>;
+    events.add({
+      seq: Number(row["seq"]),
+      kind: SIGNING_EVENT_KIND,
+      doc: row["doc"],
+    });
+  }
+  return [...events];
+}
+
 interface CriterionOwner {
   readonly storyId: string;
   readonly revisionId: string;

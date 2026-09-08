@@ -5,6 +5,7 @@ import { SIGNING_EVENT_KIND, type Verdict } from "@storytree/proof-protocol";
 
 import {
   judgeUatRevisionContinuity,
+  readUatRevisionVerdictEvents,
   type ChangedCriterionRevision,
   type UatRevisionContinuityInputs,
   type UatRevisionContinuityVerdict,
@@ -499,5 +500,65 @@ describe("signed verdict stream reads fail closed", () => {
         },
       );
     }
+  });
+});
+
+describe("the continuity store seam reads only the signed-verdict table", () => {
+  it("issues the exact least-privilege query and shapes ordered signing events", async () => {
+    const calls: string[] = [];
+    const first = signedStory(7);
+    const second = signedCriterion(CURRENT, "pass", 8);
+    const events = await readUatRevisionVerdictEvents({
+      async query(text) {
+        calls.push(text);
+        return {
+          rows: [
+            { seq: "7", doc: first.doc },
+            { seq: 8, doc: second.doc },
+          ],
+        };
+      },
+    });
+
+    assert.deepEqual(calls, ["SELECT seq, doc FROM events.verdict ORDER BY seq"]);
+    assert.deepEqual(events, [first, second]);
+  });
+
+  it("propagates query failures so an unavailable or unauthorized store is red", async () => {
+    const denied = new Error("permission denied for table verdict");
+    await assert.rejects(
+      readUatRevisionVerdictEvents({
+        query() {
+          return Promise.reject(denied);
+        },
+      }),
+      (error) => error === denied,
+    );
+  });
+
+  it("rejects non-object verdict rows instead of shaping unreadable data", async () => {
+    for (const row of [null, "not-a-row"] as const) {
+      await assert.rejects(
+        readUatRevisionVerdictEvents({
+          async query() {
+            return { rows: [row] };
+          },
+        }),
+        /events\.verdict returned a malformed row/,
+      );
+    }
+  });
+
+  it("leaves malformed seq and doc values visible to the fail-closed judge", async () => {
+    const events = await readUatRevisionVerdictEvents({
+      async query() {
+        return { rows: [{ seq: "not-a-sequence", doc: {} }] };
+      },
+    });
+    exact(judgeUatRevisionContinuity(inputs({ events })), {
+      ok: false,
+      changes: [],
+      lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
+    });
   });
 });
