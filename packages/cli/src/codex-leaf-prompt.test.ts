@@ -171,6 +171,35 @@ const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
 };
 
 /**
+ * The spotlight is admitted by the hook's wildcard rather than a literal entry.  The promotion
+ * manifest must still include that required spotlight, plus the additional literal permission;
+ * the wildcard is context for the hook and never a third promoted target.
+ */
+const WILDCARD_SPOTLIGHT_TEST = "packages/widget/src/generated/spotlight.test.ts";
+const WILDCARD_SPOTLIGHT_TEST_OPTIONAL = "packages/widget/src/widget-helpers.test.ts";
+const WILDCARD_SPOTLIGHT_SOURCE = "packages/widget/src/generated/spotlight.ts";
+const WILDCARD_SPOTLIGHT_SOURCE_OPTIONAL = "packages/widget/src/widget-helpers.ts";
+const WILDCARD_SPOTLIGHT_REAL: RealProofConfig = {
+  testFile: WILDCARD_SPOTLIGHT_TEST,
+  sourceFile: WILDCARD_SPOTLIGHT_SOURCE,
+  editsExisting: true,
+  proofCommand: { file: "pnpm", args: ["--filter", "@storytree/widget", "test"] },
+  scope: {
+    testGlobs: ["packages/widget/src/generated/*.test.ts", WILDCARD_SPOTLIGHT_TEST_OPTIONAL],
+    sourceGlobs: ["packages/widget/src/generated/*.ts", WILDCARD_SPOTLIGHT_SOURCE_OPTIONAL],
+  },
+};
+
+/** A net-new source scope may admit an optional literal alongside the required spotlight. */
+const NET_NEW_OPTIONAL_SOURCE_REAL: RealProofConfig = {
+  ...NET_NEW_REAL,
+  scope: {
+    testGlobs: [NET_NEW_REAL.testFile],
+    sourceGlobs: [NET_NEW_REAL.sourceFile, "packages/widget/src/widget-helpers.ts"],
+  },
+};
+
+/**
  * Parse the ADAPTER's OWN rendered "allowed target set" / "Required outputs" sections out of a
  * captured final Codex stdin (see `captureCodexFinalStdin`'s composed `fullPrompt` in
  * `packages/agent/src/codex-author.ts`) — the section the adapter builds itself from the
@@ -696,6 +725,46 @@ test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_
     assert.ok(
       !result.spec.prompts.implement.includes("every path under your source scope is writable"),
       "IMPLEMENT must not claim every path under the source scope (wildcard matches included) is writable",
+    );
+  }
+
+  // 4. A required spotlight matched only by a wildcard is still a promoted target because the
+  //    registry explicitly names it as testFile/sourceFile.  The wildcard itself remains only a
+  //    hook wall, while the extra literals remain optional permissions in both the rendered brief
+  //    and the adapter's finite promotion list.
+  for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
+    const result = resolveRealFor(WILDCARD_SPOTLIGHT_REAL, { ...runtimeOpt, phasePrompts: role });
+    assert.equal(result.ok, true, result.ok ? "" : result.reason);
+    if (!result.ok) continue;
+    const finalStdin = await captureCodexFinalStdin(
+      WILDCARD_SPOTLIGHT_REAL,
+      result.spec.prompts,
+      role,
+    );
+    assert.deepEqual(
+      new Set(extractCodexTargetLists(finalStdin.AUTHOR_TEST).allowed),
+      new Set([WILDCARD_SPOTLIGHT_TEST, WILDCARD_SPOTLIGHT_TEST_OPTIONAL]),
+    );
+    assert.deepEqual(extractCodexTargetLists(finalStdin.AUTHOR_TEST).required, [WILDCARD_SPOTLIGHT_TEST]);
+    assert.deepEqual(
+      new Set(extractCodexTargetLists(finalStdin.IMPLEMENT).allowed),
+      new Set([WILDCARD_SPOTLIGHT_SOURCE, WILDCARD_SPOTLIGHT_SOURCE_OPTIONAL]),
+    );
+    assert.deepEqual(extractCodexTargetLists(finalStdin.IMPLEMENT).required, [WILDCARD_SPOTLIGHT_SOURCE]);
+    assert.match(result.spec.prompts.authorTest, new RegExp(`\\\`${WILDCARD_SPOTLIGHT_TEST_OPTIONAL}\\\``));
+    assert.match(result.spec.prompts.implement, new RegExp(`\\\`${WILDCARD_SPOTLIGHT_SOURCE_OPTIONAL}\\\``));
+  }
+
+  // 5. Net-new IMPLEMENT has the same permission obligation: the optional literal source is
+  //    writable, so the phase prose must not reduce the authority to spotlight-only writing.
+  const netNew = resolveRealFor(NET_NEW_OPTIONAL_SOURCE_REAL, { phasePrompts: role });
+  assert.equal(netNew.ok, true, netNew.ok ? "" : netNew.reason);
+  if (netNew.ok) {
+    assert.match(netNew.spec.prompts.implement, /widget-helpers\.ts/);
+    assert.doesNotMatch(
+      netNew.spec.prompts.implement,
+      /then write ONLY `packages\/widget\/src\/widget\.ts`/,
+      "net-new IMPLEMENT must preserve its optional literal source permission",
     );
   }
 });

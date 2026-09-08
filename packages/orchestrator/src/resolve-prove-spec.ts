@@ -1137,7 +1137,12 @@ export function realPrompts(
   // way), so naming it here would claim write authority Codex structurally does not have. Singular
   // case (one literal entry, the spotlight file) is byte-identical to the old literal for every
   // migrated single-file node.
-  const literalSourceGlobs = real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  const literalSourceGlobs = [
+    ...new Set([
+      real.sourceFile,
+      ...real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g)),
+    ]),
+  ];
   const sourcesNamed =
     literalSourceGlobs.length <= 1
       ? `\`${real.sourceFile}\``
@@ -1148,7 +1153,12 @@ export function realPrompts(
   // every allowed target — an unnamed sibling test file would read as unauthored territory when it is
   // in fact allowed, and (for IMPLEMENT) readable. Singular case is byte-identical to the old literal.
   // A wildcard entry is excluded from the named set for the same reason `sourcesNamed` excludes one.
-  const literalTestGlobs = real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  const literalTestGlobs = [
+    ...new Set([
+      real.testFile,
+      ...real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g)),
+    ]),
+  ];
   const testsNamed =
     literalTestGlobs.length <= 1
       ? `\`${real.testFile}\``
@@ -1294,7 +1304,7 @@ export function realPrompts(
       `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}`,
     implement:
       `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
-      `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
+      `then write within ${sourcesNamed} so that test passes. Writes to the test file are ` +
       `refused in this phase. ${greenClose("write", "the proof")} If you conclude the test itself ` +
       `is wrong, stop and say so plainly instead of working around it.`,
   };
