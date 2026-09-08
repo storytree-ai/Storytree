@@ -39,8 +39,6 @@ import {
   stringFieldsForKind,
   REPO_ROOT_ENV,
   resolveRepoRoot,
-  crownObligations,
-  activeReliabilityGates,
 } from "@storytree/library";
 import type {
   UatTestCriterion,
@@ -56,11 +54,6 @@ import {
   resolveSignerFromEnv,
   shellObserveCommand,
   runShellCommand,
-  advanceStoryBaseline,
-} from "@storytree/orchestrator";
-import type {
-  StoryBaselineBackfillCandidate,
-  StoryBaselineProvenance,
 } from "@storytree/orchestrator";
 import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
@@ -319,7 +312,12 @@ import {
 } from "./uat.js";
 import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate, type GateBuildDriverDeps } from "./gate-build-driver.js";
-import { storyBaselineBackfillCommand } from "./story-baseline.js";
+import {
+  loadAllStoryBaselineCandidates,
+  makeStoryBaselineAdvancer,
+  storyBaselineBackfillCommand,
+  type StoryBaselineBackfillDeps,
+} from "./story-baseline.js";
 
 // RETIRED_FIELDS (the retired-field denylist) moved to `@storytree/drive`'s health module with
 // the checks it feeds — re-imported via the ./health.js shim above.
@@ -2324,6 +2322,11 @@ export interface RunDeps {
   readonly uatStore?: UatVerdictStoreLike | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
+  /** Backfill-only process seams; the live composition supplies git, identity and wall clock. */
+  readonly storyBaselineBackfill?: Pick<
+    StoryBaselineBackfillDeps,
+    "gitState" | "resolveSigner" | "now"
+  >;
   /**
    * The ADR-number allocator (ADR-0050): the live store when --pg; null/absent offline — `storytree
    * adr new` then falls back to max+1 with a loud "not reserved" warning. Injectable for tests.
@@ -2506,102 +2509,6 @@ function loadStoryReliabilityGates(storiesDir: string, storyId: string): Reliabi
   } catch {
     return [];
   }
-}
-
-/** One story's exact declaration for the shared durable story-health fold (ADR-0560 D2/D5). */
-function loadStoryBaselineCandidate(
-  storiesDir: string,
-  storyId: string,
-): StoryBaselineBackfillCandidate {
-  const file = path.join(storiesDir, storyId, "story.md");
-  if (!existsSync(file)) return { storyId, error: "story.md not found" };
-  try {
-    const spec = loadNodeSpec(file);
-    if (spec.tier !== "story") return { storyId, error: "the declaration is not a story" };
-    let unresolvedHealthIssue = false;
-    const capabilities = spec.capabilities.map((id) => {
-      const capabilityFile = findNodeSpecFile(storiesDir, id);
-      if (capabilityFile === null) {
-        unresolvedHealthIssue = true;
-        return { id };
-      }
-      try {
-        return { id, status: loadNodeSpec(capabilityFile).status };
-      } catch {
-        unresolvedHealthIssue = true;
-        return { id };
-      }
-    });
-    const coverage = activeReliabilityGates(spec.reliabilityGates);
-    if (unresolvedHealthIssue) {
-      return {
-        storyId,
-        declaration: {
-          capabilities,
-          obligations: crownObligations(spec.uatTestCriteria, spec.reliabilityGates),
-        },
-        coverage,
-        unresolvedHealthIssue: true,
-      };
-    }
-    return {
-      storyId,
-      declaration: {
-        capabilities,
-        obligations: crownObligations(spec.uatTestCriteria, spec.reliabilityGates),
-      },
-      coverage,
-    };
-  } catch (error) {
-    return {
-      storyId,
-      error: error instanceof Error ? error.message : "story declaration is unreadable",
-    };
-  }
-}
-
-function loadAllStoryBaselineCandidates(storiesDir: string): StoryBaselineBackfillCandidate[] {
-  if (!existsSync(storiesDir)) return [];
-  return readdirSync(storiesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => loadStoryBaselineCandidate(storiesDir, entry.name));
-}
-
-/** One production composition used by every CLI proof writer that can complete a story. */
-function makeStoryBaselineAdvancer(
-  storiesDir: string,
-  store: UatVerdictStoreLike | null,
-): ((storyId: string, provenance: StoryBaselineProvenance) => Promise<unknown>) | undefined {
-  if (store === null) return undefined;
-  return async (storyId, provenance) => {
-    const candidate = loadStoryBaselineCandidate(storiesDir, storyId);
-    if (candidate.declaration === undefined) {
-      throw new Error(candidate.error ?? `story declaration "${storyId}" is unreadable`);
-    }
-    const common = {
-      storyId,
-      declaration: candidate.declaration,
-      store,
-      provenance,
-    };
-    if (candidate.coverage !== undefined && candidate.unresolvedHealthIssue !== undefined) {
-      return advanceStoryBaseline({
-        ...common,
-        coverage: candidate.coverage,
-        unresolvedHealthIssue: candidate.unresolvedHealthIssue,
-      });
-    }
-    if (candidate.coverage !== undefined) {
-      return advanceStoryBaseline({ ...common, coverage: candidate.coverage });
-    }
-    if (candidate.unresolvedHealthIssue !== undefined) {
-      return advanceStoryBaseline({
-        ...common,
-        unresolvedHealthIssue: candidate.unresolvedHealthIssue,
-      });
-    }
-    return advanceStoryBaseline(common);
-  };
 }
 
 /**
@@ -2949,7 +2856,7 @@ function makeGateOpts(values: BuildValues): GateOpts {
  * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
  * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
  */
-function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
   const store = deps.uatStore ?? null;
   const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
   const gateDeps: GateDeps = {
@@ -3030,7 +2937,7 @@ function makeUatOpts(values: {
 }
 
 /** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
-function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
+export function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
   const store = deps.uatStore ?? null;
   const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
   const uatDeps: UatDeps = {
@@ -3655,12 +3562,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub === undefined || help) return storyHelp();
     if (sub === "baseline" && third === "backfill") {
       const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+      const overrides = deps.storyBaselineBackfill;
       return storyBaselineBackfillCommand(rest, {
         store: deps.uatStore ?? null,
         candidates: () => loadAllStoryBaselineCandidates(storiesDir),
-        gitState: readGitState,
-        resolveSigner: () => resolveSignerFromEnv(),
-        now: () => new Date(),
+        gitState: overrides?.gitState ?? readGitState,
+        resolveSigner: overrides?.resolveSigner ?? resolveSignerFromEnv,
+        now: overrides?.now ?? (() => new Date()),
       });
     }
     // ADR-0097 Layer 2's adoption-plan report MOVED to `storytree adopt plan <story>` (the command-surface

@@ -182,7 +182,7 @@ export async function treeCommand(
       let title = "(unknown)";
       let status = "(unknown)";
       let capCount = 0;
-      let crown = verdictEvents === null ? "" : " –";
+      let crown = "";
       try {
         const spec = loadNodeSpec(storyFile);
         title = spec.title;
@@ -190,21 +190,25 @@ export async function treeCommand(
         capCount = spec.capabilities.length;
         if (verdictEvents !== null) {
           let unresolvedHealthIssue = false;
-          const capabilities: StoryCapabilityRef[] = spec.capabilities.map((capabilityId) => {
+          const statuses = new Map<string, StoryCapabilityRef["status"]>();
+          for (const capabilityId of spec.capabilities) {
             const capabilityFile = path.join(dir, `${capabilityId}.md`);
             if (!existsSync(capabilityFile)) {
               unresolvedHealthIssue = true;
               failures.push(specLoadFailure(capabilityFile, new Error("capability spec not found")));
-              return { id: capabilityId };
+              continue;
             }
             try {
-              return { id: capabilityId, status: loadNodeSpec(capabilityFile).status };
+              statuses.set(capabilityId, loadNodeSpec(capabilityFile).status);
             } catch (err) {
               unresolvedHealthIssue = true;
               failures.push(specLoadFailure(capabilityFile, err));
-              return { id: capabilityId };
             }
-          });
+          }
+          const capabilities: StoryCapabilityRef[] = spec.capabilities.map((capabilityId) => ({
+            id: capabilityId,
+            status: statuses.get(capabilityId),
+          }));
           const gates = activeReliabilityGates(spec.reliabilityGates);
           const health = resolveStoryHealth({
             storyId: id,
@@ -381,7 +385,7 @@ export async function treeCommand(
   const expansion =
     verdictEvents === null
       ? undefined
-      : expansionBeyondBaseline(storyHealth?.baseline ?? null, {
+      : expansionBeyondBaseline(storyHealth!.baseline, {
           capabilities: capRefs,
           obligations: ownObligations,
         });
@@ -458,7 +462,7 @@ export async function treeCommand(
           : "";
     const greenWord =
       storyGreen === "healthy"
-        ? storyHealth?.currentStatus === "healthy"
+        ? storyHealth!.currentStatus === "healthy"
           ? "GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed"
           : "GREEN — delivered baseline stands; current proof is incomplete and remains visible below"
         : storyGreen === "unhealthy"

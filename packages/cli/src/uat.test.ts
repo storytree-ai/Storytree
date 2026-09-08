@@ -679,13 +679,19 @@ test("run: ADR-0408 — a machine acceptance leg carries NO approvedBy, and the 
 
 test("run: a RED check signs nothing and says so — a red is left red (ADR-0405 D4)", async () => {
   const f = fakeStore();
+  let baselineCalls = 0;
   const r = await uatCommand(
     { mode: "run", target: "demo" },
     {},
-    baseDeps({ store: f.store, observe: async () => ({ code: 1 }) }),
+    baseDeps({
+      store: f.store,
+      observe: async () => ({ code: 1 }),
+      advanceStoryBaseline: async () => { baselineCalls += 1; },
+    }),
   );
   assert.equal(r.ok, false);
   assert.equal(f.verdicts.length, 0);
+  assert.equal(baselineCalls, 0, "zero signed criteria cannot advance the story baseline");
   assert.match(r.body, new RegExp(`✗ ${C2}`));
 });
 

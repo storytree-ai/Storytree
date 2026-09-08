@@ -421,7 +421,10 @@ export function applyUatCrowns(
   }) => { status: string | null },
 ): void {
   for (const story of stories) {
-    const tests = uatTestCriteriaByStory.get(story.id) ?? [];
+    // The hierarchy read builds this map for every story, including an empty obligation list.
+    // Treat that totality as the input contract; manufacturing a second fallback would make a
+    // missing declaration indistinguishable from a genuinely obligation-free story.
+    const tests = uatTestCriteriaByStory.get(story.id)!;
     const capabilityIds = story.capabilities.map((c) => c.id);
     // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id.
     const capabilities: StoryCapabilityRef[] = story.capabilities.map((c) => ({
@@ -512,10 +515,9 @@ export async function foldVerdicts(
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
     applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, resolveStoryHealth);
   } else {
-    const unhealthyStories = stories.filter((story) => story.error !== undefined);
-    if (unhealthyStories.length > 0) {
-      const { resolveStoryHealth } = await loadOrchestrator();
-      applyUatCrowns(unhealthyStories, uatTestCriteriaByStory, coverageByStory, [], resolveStoryHealth);
-    }
+    // The same resolver abstains for ordinary pre-baseline stories and resolves only explicit
+    // health issues unhealthy, so no pre-filter can drift into a second story-health rule.
+    const { resolveStoryHealth } = await loadOrchestrator();
+    applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, [], resolveStoryHealth);
   }
 }
