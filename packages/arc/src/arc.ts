@@ -132,6 +132,66 @@ export function arcScopeOf(opts: {
   return "active";
 }
 
+/**
+ * THE QUEUE, AT WORKLIST ALTITUDE (ADR-0523's surface, extended to `arc list`).
+ *
+ * `arc show` has rendered an arc's gates since ADR-0523 and the studio's lane list nests a gated arc
+ * under its blocker — but `arc list` said NOTHING, and `arc list` is the surface a session actually
+ * reads when it picks work up (`merge-ceremony`'s closing leg names it by name). So the one place a
+ * reader chooses an arc was the one place the board could not say "you may not start this yet", and
+ * finding out cost an `arc show` per candidate — which nobody spends before choosing.
+ *
+ * TWO DIRECTIONS, and they are not symmetric. The gate edge lives on the GATED arc (ADR-0523 D1), so
+ * `⛔` is read straight off the row's own `gates`, while `↳ holds up` has to be counted across the
+ * whole corpus — a blocker names none of the arcs queued behind it, by design.
+ *
+ * Counted over EVERY rollup, not the shown scope: an active arc holding up work is holding it up
+ * whether or not the queued arc is on this page, and a count that shrank when you passed `--closed`
+ * would be reporting the filter rather than the board.
+ */
+export interface ArcListQueueNote {
+  /** `⛔ ` when at least one of this arc's own gates is still shut, else `""` — the row's tag slot. */
+  marker: string;
+  /** The indented continuation lines for this row; empty for the ungated majority. */
+  lines: string[];
+}
+
+/**
+ * PURE: what one row says about its queue. `all` is every rollup in the store, `arc` the row.
+ *
+ * A SHUT gate and an UNRESOLVED blocker both mark. `blockerMissing` is a permanent wait, never a
+ * satisfied gate (`ArcRollupGate`), and `shut` is already true for it — the marker follows
+ * `shut` alone so the two can never disagree, and the LINE names the unresolvable case out loud
+ * because "queued behind an arc that does not exist" is a data defect a reader must be able to see.
+ *
+ * A SATISFIED gate earns no marker and no line. An arc whose blocker has closed is startable, and
+ * saying anything at all on its row would put a permanent scar on every arc that was ever queued.
+ */
+export function arcListQueueNote(arc: ArcRollup, all: readonly ArcRollup[]): ArcListQueueNote {
+  const shut = arc.gates.filter((g) => g.shut);
+  const heldUp = all.filter((other) => other.gates.some((g) => g.id === arc.id && g.shut));
+  const lines: string[] = [];
+  for (const gate of shut) {
+    lines.push(
+      gate.blockerMissing
+        ? `      ⛔ queued behind \`${gate.id}\` — NO SUCH ARC, so this is a permanent wait until the gate is corrected`
+        : `      ⛔ queued behind ${gate.title} (\`${gate.id}\`)`,
+    );
+  }
+  if (heldUp.length > 0) {
+    // Named, not just counted, and bounded: the ids are what a reader needs to go and look, and the
+    // fan-out this surface exists for is one-to-many, so an unbounded list could run a row wide.
+    const shownIds = heldUp.slice(0, 3).map((a) => `\`${a.id}\``);
+    const more = heldUp.length - shownIds.length;
+    lines.push(
+      `      ↳ holds up ${heldUp.length} arc${heldUp.length === 1 ? "" : "s"}: ` +
+        shownIds.join(", ") +
+        (more > 0 ? `, +${more} more` : ""),
+    );
+  }
+  return { marker: shut.length > 0 ? "⛔ " : "", lines };
+}
+
 async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
   // The rollup, not a bare `queryDocs({kind:"arc"})`. Since the fold (ADR-0305 D1) an arc's
   // increments are their OWN rows, so counting them means joining — and `loadArcRollups` loads the
@@ -177,7 +237,16 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     // The state tag rides every non-active row so `--all` / `--closed` / `--parked` are never the old
     // blind list; under the default scope only active arcs show, so it never appears there.
     const tag = a.lifecycle === "active" ? "" : `[${a.lifecycle}] `;
-    return `  ${a.id.padEnd(width)}  ${landed.length} landed${openNote}, ${lastNote}  — ${tag}${a.title}`;
+    // THE QUEUE RIDES THE ROW (see `arcListQueueNote`). The marker leads the tag rather than
+    // following it: a reader scanning this column for what they may take needs `⛔` at a fixed x, and
+    // an arc that is BOTH parked and queued would otherwise indent its marker past the ones beside it.
+    const queue = arcListQueueNote(a, rollups);
+    return [
+      `  ${a.id.padEnd(width)}  ${landed.length} landed${openNote}, ${lastNote}  — ${queue.marker}${tag}${a.title}`,
+      // Only the queued and the blocking rows gain a line, which is the property the surface is
+      // required to preserve: an ungated arc costs no extra line at all (ADR-0523's `gates` doc).
+      ...queue.lines,
+    ].join("\n");
   });
 
   const label = scope === "all" ? "arc(s)" : `${scope} arc(s)`;

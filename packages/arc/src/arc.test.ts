@@ -3813,3 +3813,144 @@ test("question new on a CLOSED arc separates its reopen note from the header and
   assert.equal(l[3], "");
   assert.match(l[4] ?? "", /^# Which way now$/);
 });
+
+// ---------------------------------------------------------------------------
+// THE QUEUE AT WORKLIST ALTITUDE — `arc list` says what blocks what.
+//
+// ADR-0523 shipped the gate on TWO surfaces: `arc show` (the ⛔ QUEUED banner above the prose) and
+// the studio's lane list (a caret, chips, and the `blocked` state). `arc list` was the third and it
+// was SILENT — and it is the one a session actually reads when it picks work up, so the single place
+// a reader CHOOSES an arc was the one place the board could not say "not this one, not yet".
+// ---------------------------------------------------------------------------
+
+test("arc list marks a gated arc ⛔, names its blocker, and says what the blocker holds up", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await gateArcs(new InMemoryStore());
+    await arcGate(writeDeps(store), "paint-arc", {
+      needs: "ground-arc",
+      reason: "The wheat re-palettises the green stack.",
+    });
+    await arcGate(writeDeps(store), "third-arc", { needs: "ground-arc" });
+
+    const res = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(res.ok, true);
+
+    // THE GATED ROW: the marker sits in the tag slot, and the continuation line names the blocker —
+    // an id, because "go and look at it" is the only useful next move and a title is not addressable.
+    assert.match(res.body, /paint-arc +0 landed, .* — ⛔ paint-arc/);
+    assert.match(res.body, /⛔ queued behind ground-arc \(`ground-arc`\)/);
+
+    // THE BLOCKER'S ROW: counted across the corpus, because the edge lives on the GATED arc and a
+    // blocker names none of the arcs queued behind it (ADR-0523 D1). One-to-many is the shape the
+    // owner asked about, so the fan is reported as a COUNT plus the ids.
+    assert.match(res.body, /↳ holds up 2 arcs: `paint-arc`, `third-arc`/);
+    assert.doesNotMatch(res.body, /ground-arc {2}.* — ⛔/, "a blocker is not itself queued");
+
+    // BOTH HALVES OF THE MATCH BIND, and this is what pins them. `paint-arc` is itself gated and
+    // `third-arc` carries a shut gate — so a rule that dropped the "names THIS arc" test, or read the
+    // pair as an OR, would report `paint-arc` as holding `third-arc` up. It holds up nothing.
+    const heldUpLines = res.body.split("\n").filter((l) => l.includes("holds up"));
+    assert.deepEqual(
+      heldUpLines,
+      ["      \u21b3 holds up 2 arcs: `paint-arc`, `third-arc`"],
+      "exactly ONE row holds anything up — `paint-arc` and `third-arc` are gated, they are not blockers",
+    );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc list counts the fan in the singular, and truncates a long one rather than running the row wide", async () => {
+  const fx = diskFixture();
+  try {
+    // ONE queued arc reads "1 arc", not "1 arcs". The fan is the shape this surface exists for, so
+    // the two ends of it — the smallest and one past the bound — are both pinned.
+    const one = await gateArcs(new InMemoryStore());
+    await arcGate(writeDeps(one), "paint-arc", { needs: "ground-arc" });
+    const single = await arcCommand("list", undefined, depsFor(one, fx));
+    assert.match(single.body, /↳ holds up 1 arc: `paint-arc`$/m);
+
+    // FIVE queued arcs: three are NAMED and the rest are counted. A blocker with a wide fan must not
+    // run its row off the screen, and a bare "+2" with no total would make the reader do the sum.
+    const many = new InMemoryStore();
+    for (const id of ["ground-arc", "q1-arc", "q2-arc", "q3-arc", "q4-arc", "q5-arc"]) {
+      await many.upsertDoc({
+        id,
+        kind: "arc",
+        doc: {
+          kind: "arc",
+          id,
+          title: id,
+          description: "d",
+          intent: "i",
+          endState: "e",
+          createdAt: "2026-09-01",
+          updatedAt: "2026-09-01",
+        },
+      });
+    }
+    for (const id of ["q1-arc", "q2-arc", "q3-arc", "q4-arc", "q5-arc"]) {
+      await arcGate(writeDeps(many), id, { needs: "ground-arc" });
+    }
+    const wide = await arcCommand("list", undefined, depsFor(many, fx));
+    assert.match(wide.body, /↳ holds up 5 arcs: `q1-arc`, `q2-arc`, `q3-arc`, \+2 more$/m);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc list stays silent about the ungated majority, and about a gate whose blocker has closed", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await gateArcs(new InMemoryStore());
+
+    // NOTHING GATED: not one row gains a marker or an extra line. This is the property ADR-0523's
+    // `gates` doc requires the surface to preserve — an ungated arc costs no width and no line — so
+    // it is asserted as the WHOLE body rather than as an absence of two substrings. An extra line,
+    // an empty marker that stopped being empty, or a lost separator all show up here and nowhere else.
+    const quiet = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(
+      quiet.body,
+      [
+        "storytree arc — 3 active arc(s)",
+        "",
+        "  ground-arc  0 landed, no landings yet  — ground-arc",
+        "  paint-arc   0 landed, no landings yet  — paint-arc",
+        "  third-arc   0 landed, no landings yet  — third-arc",
+      ].join("\n"),
+    );
+
+    // A SATISFIED GATE IS SILENT TOO. `paint-arc` was queued and its blocker has since closed, so it
+    // is startable — and saying anything on its row would leave a permanent scar on every arc that
+    // was ever queued. `arc show` still renders the released gate in full; the WORKLIST does not.
+    await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+    await arcClose(writeDeps(store), "ground-arc", { outcome: "delivered" });
+    const released = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(released.ok, true);
+    assert.match(released.body, /paint-arc/);
+    assert.doesNotMatch(released.body, /⛔/, "a closed blocker holds nothing up");
+    assert.doesNotMatch(released.body, /holds up/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc list reports an UNRESOLVABLE blocker as a permanent wait, never as a satisfied gate", async () => {
+  const fx = diskFixture();
+  try {
+    // `arc gate` refuses a blocker that does not exist, so this shape can only arrive by a blocker
+    // being RETIRED after the edge was authored — which is exactly when a reader most needs telling.
+    // Reading "I could not find it" as "it closed" would start the work the queue exists to hold.
+    const store = await gateArcs(new InMemoryStore());
+    await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+    await store.deleteDoc("ground-arc", { reason: "retired under the gate" });
+
+    const res = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, / — ⛔ paint-arc/);
+    assert.match(res.body, /queued behind `ground-arc` — NO SUCH ARC/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
