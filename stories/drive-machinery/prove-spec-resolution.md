@@ -68,49 +68,65 @@ reach a default GPT-5.6 Terra continuity leaf before its own proof can begin. Re
 authoring path first. This is an execution prerequisite, not a new `depends_on` edge for
 [`capability-proof-continuity`](capability-proof-continuity.md).
 
-The smallest feasible runtime unit is the complete revision already specified below: the actual
-final-input witness, its source-coupled optional-literal and Claude-compatibility regression, and
-all eleven substantive contract assertions. A core-prose-only subrevision cannot be driven as this
-capability because a normal signed build attests the whole unit; it would leave the recorded
-optional-target and explicit-Claude source regressions, plus unverified wall and typecheck-control
-observations, under that attestation. The completed Astra attempt is unlanded evidence, not a retry
-seed. Run the defined revision with the repository-default GPT-5.6 Terra leaf, then continue the
-owner-directed order: continuity, renderer rename, four-way capability split, and safe downstream
-fan-out. This preserves the product DAG while naming the shared proof-authoring repair that every
-ordinary continuity build actually consumes.
+The smallest feasible runtime unit is the selected-runtime final-input revision specified below.
+It repairs the recorded optional-target and explicit-Claude source regressions and gives their
+actual Codex launch/composition boundary a substantive witness. The registered proof command
+already executes substantive resolver cases for contracts 1–8, the original Claude portion of
+contract 10, and contract 11; cloning those assertions into the CLI spotlight would not strengthen
+their proof. The completed Astra attempt is unlanded evidence, not a retry seed. Run the defined
+revision with the repository-default GPT-5.6 Terra leaf, then continue the owner-directed order:
+continuity, renderer rename, four-way capability split, and safe downstream fan-out. This preserves
+the product DAG while naming the shared proof-authoring repair that every ordinary continuity build
+actually consumes.
 
 ## Guidance
 
-### Whole-file runtime witness
+### Selected-runtime final-input witness
 
-Complete the existing `packages/cli/src/codex-leaf-prompt.test.ts` as the one substantive
-coverage surface for this capability. Each existing CLI body must substantiate its full assertion;
-retain complete bodies and complete incomplete ones, rather than stopping after expanding one body.
-Retain every existing test title and all eleven contract IDs, without new `test()`/`it()` blocks.
-The exact existing entrypoint title remains required, but it is an entrypoint into the whole-file
-task, not the whole task:
+Retain all eleven contracts, their assertions and IDs, every existing CLI title, the existing
+resolver cases, and the declared commands and fences. The resolver suite is read-only but runs in
+the registered proof command: its substantive cases remain the execution baseline for contracts
+1–8, the original Claude oracle/typecheck assertion in contract 10, and contract 11. Its contract
+10 evidence is deliberately compositional — `feedbackCommandsFor` executes the supplied
+proof/typecheck commands, resolution supplies the same REAL command to the spine and feedback
+helper, and explicit-Claude REAL/no-install/live-smoke cases observe the armed tools — rather than
+a callback invocation through one resolved author. That is disclosed test granularity, not an
+absent assertion. Existing CLI spot checks for those contracts remain meaningful corroboration and
+are frozen.
+
+AUTHOR_TEST changes only this existing C9 body, retaining its title and adding no
+`test()`/`it()` block:
 
 `prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition`
 
 Build valid, distinctive fixtures through `baseSpec`, `specWithReal` and `resolveRealFor`; each
 must pass the existing proof-config schema and carry distinctive outcome, guidance and declared
 contract IDs. Broad edit-existing scope retains its explicit suite proof command. Keep the
-production finite-list parser and manifest assertions. The helper captures actual
-`CodexCommand.stdin` and launch arguments after `CodexPhaseAuthor.author`, using production
-`codexPromotionManifest` and `PathWriteScope`; model and MCP observations come from that captured
-launch, never from a separate `buildCodexExecArgs` call. This is an automated composition
-observation, never a real author run or signature.
+production finite-list parser and manifest assertions. C9 may add fixture and capture helpers only
+for this same production final-input boundary. They capture actual `CodexCommand.stdin` and launch
+arguments after `CodexPhaseAuthor.author`, using production `codexPromotionManifest` and
+`PathWriteScope`; model and MCP observations come from that captured launch, never from a separate
+`buildCodexExecArgs` call. This is an automated composition observation, never a real author run
+or signature. Any new C9 fixture/capture helper preserves the behavior and call signature of its
+existing callers, so the frozen CLI bodies need no rewrite.
 
-One shared inventory/capture/assertion helper is the only execution route. Its declared expected
-keys reject a duplicate, a missing named key, and a route that skips an assertion: net-new,
+The C9 body owns its substantive assertions. Its shared fixture/capture route has declared expected
+keys that reject a duplicate, a missing named key, and a route that skips an assertion: net-new,
 edit-existing and refactor-for-testability × uninstalled and installed dependencies × omitted and
 explicit Codex runtime × AUTHOR_TEST and IMPLEMENT is the **24-cell REAL inventory**; one
 live-smoke shape × omitted and explicit Codex × both phases is the **4-cell smoke inventory**.
-Use that same 28-cell route and every assertion with neutral roles rendered from this test's own
-injected Library store and with opt-in current-live roles from `renderLeafPhasePrompts()` with no
-injected store. The historical fixture corpus, a raw brief, a loop-derived count, or a two-string
-spot check is not an alternate route. Ordinary tests remain offline; smoke keeps its synthetic pair
-and deliberate absence of real contract IDs.
+Every case is checked with neutral roles rendered from this test's own injected Library store and
+with opt-in current-live roles from `renderLeafPhasePrompts()` with no injected store. The historical
+fixture corpus, a raw brief, a loop-derived count, or a two-string spot check is not an alternate
+route. Ordinary tests remain offline; smoke keeps its synthetic pair and deliberate absence of real
+contract IDs. The shared route prepares only this C9 capture boundary; it cannot be a common
+assertion that vouches for the other contracts.
+
+The 28 captures are Codex-only. In the same C9 body, separately resolve the bounded explicit-Claude
+wildcard/legacy case and observe its declared scope against `PathWriteScope`; also preserve the
+existing three-argument `realPrompts(spec, real, proofDisplay)` compatibility observation. This
+qualifies the explicit-Claude source regression without a Claude author, model execution, login,
+or C10 oracle assertion, and adds no test block.
 
 For every capture, assert actual empty Codex feedback tools; the captured default model and disabled
 MCP; native authoring; spine-only observation/signing; exact allowed and required finite targets;
@@ -143,23 +159,14 @@ filter must not narrow explicit-Claude legacy scope. Derive each red from then-c
 after the controls pass; do not preserve a defect, use a rejected diagnostic predicate, invent a
 later red, or change runtime defaults or authority to make the unit pass.
 
-Complete the eleven existing assertions in this same CLI file. In addition to the retained complete
-bodies, write the currently incomplete observations: the registry covers the full Library
-story/capability set plus unknown refusal; named AUTHOR_TEST/IMPLEMENT walls cover the required
-entries and the install/typecheck invariant; resolved identity includes signer plus node/run fields;
-and declared IDs cover both assembly phases, all three REAL arms, guidance independence,
-empty-contract parity and smoke absence. Explicit Claude must actually execute the exact CONFIRM
-oracle through `realProofCommand`, `feedbackCommandsFor` and bounded `executeFeedback` in REAL and
-smoke, with `run_typecheck` armed and advertised only for its registered installed-node command.
-Its wildcard scope and legacy three-argument helper remain compatible with `PathWriteScope`.
-
 IMPLEMENT may edit only `packages/orchestrator/src/resolve-prove-spec.ts`; AUTHOR_TEST may edit only
-the existing CLI spotlight and its required output. The existing
+the named existing C9 CLI body and its C9-only fixture/capture helpers. No other CLI body is
+rewritten. The existing
 `packages/orchestrator/src/resolve-prove-spec.test.ts` stays read-only in the proof command as the
 regression floor. Preserve default Codex/model selection, native shell/`apply_patch` authoring,
 blind feedback, explicit Claude and legacy compatibility, commands, scopes, finite manifests and
-spine authority. A signed partial revision or eleven matching names cannot close the runtime repair
-while any full assertion remains unverified.
+spine authority. A signed partial revision or eleven matching names cannot close the runtime repair:
+the C9 final-input witness and each retained substantive baseline assertion remain required.
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
@@ -236,13 +243,13 @@ and must not force an adapter sanitizer or a shared-fixture source edit.
 Live red/green role wording is supplied by the guidance curator. This leaf authors no Library
 artifact, manifest or dependency change.
 
-Every preserved contract ID below must name a substantive test of its own assertion in the CLI
-spotlight: the existing coverage reader reads that file, not every file run by the proof command.
-Use the existing meaningful resolver cases as the behavioral baseline for unchanged contracts,
-and exercise each corresponding assertion through its production boundary in the CLI suite.
-Do not claim an unchanged contract merely because the old suite also ran: an ID on a placeholder,
-a shared happy case or an unrelated assertion does not prove it. Contract 11's declared-ID briefing
-remains intact. This test work does not change the coverage reader or promotion manifest.
+The gate-time coverage reader remains name-granular and reads the CLI spotlight. Its eleven names
+are not a claim that every semantic assertion lives there. The registered proof command executes
+the resolver baseline named above, and the C9 body supplies the new selected-Codex composition and
+launch evidence, including Codex's empty feedback tools, disabled MCP and spine-only feedback
+posture. Do not claim an unchanged contract merely because a matching title exists: its retained
+resolver or CLI case must remain substantive. This work does not change the coverage reader or
+promotion manifest.
 
 Code edges for the `depends_on`, all imports in `resolve-prove-spec.ts`: `PathWriteScope` (from
 `./phase-machine.js`), `OwnedLoopAuthor` (`./owned-loop-author.js`), `ShellTestExecutor` +
@@ -339,7 +346,7 @@ and typechecks as the regression floor.
 10. **`feedback-tools-spawn-the-same-oracle`** — advertised feedback matches the selected runtime's armed tools without adding Codex proof authority
     - **asserts —** explicit Claude's `run_proof` spawns the exact CONFIRM oracle in REAL and live-smoke, and `run_typecheck` is armed and advertised only with its registered installed-node command. Codex's actual `feedbackToolNames` remains empty, its launch keeps MCP disabled, and BOTH phases of every REAL arm and live-smoke tell it to stop for the spine's independent observations without demanding unavailable feedback or authorizing a shell substitute. Installed Codex nodes still receive the spine-owned typecheck requirement. Native authoring tool availability, default runtime/model, registered commands and spine observation/signing authority are unchanged.
     - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` — `feedbackCommandsFor`, the selected-runtime arming and brief wiring in `resolveProveSpec` / `resolveReal`, and REAL/live-smoke feedback wording.
-    - **proven by —** `packages/cli/src/codex-leaf-prompt.test.ts` — real spawn assertions for Claude's bounded oracle, the runtime arming/brief matrix and final-stdin versus actual Codex launch/feedback assertions for offline and explicitly loaded live roles. The unchanged `packages/orchestrator/src/resolve-prove-spec.test.ts` remains a regression floor. Amended behavior is UNPROVEN until the ordinary real spine observes its regression red→green.
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.test.ts` — `feedbackCommandsFor: run_proof always (the SAME command, really spawnable); run_typecheck only when registered` executes supplied proof/typecheck commands, while the explicit-Claude REAL installed/no-install and live-smoke resolution tests observe the selected armed tools. `resolveReal` supplies the same REAL proof command to the spine executor and feedback helper, so this is substantive collaborator-level evidence rather than a callback invocation through one resolved author. The amended C9 final-input witness in `packages/cli/src/codex-leaf-prompt.test.ts` separately observes Codex's actual empty feedback tools, disabled MCP launch and spine-only feedback posture after production composition; it does not replace the Claude baseline.
 11. **`briefs-name-the-declared-contract-ids`** — the phase briefs carry the unit's declared contract ids, independent of what `## Guidance` restates
     - **asserts —** `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
     - **covers —** `resolve-prove-spec.ts` — the `contractsBrief` helper and its splice sites in `assemblePrompts` and the three `realPrompts` arms
