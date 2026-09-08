@@ -21,6 +21,7 @@ import {
   armCaption,
   armSpec,
   blightPaletteReport,
+  type BlightFrame,
   darkestGroundLuma,
   maxChannelGap,
   medianOfRects,
@@ -121,7 +122,7 @@ const rect = (x0: number, y0: number, x1: number, y1: number, id = 'i', status =
 });
 
 /** A 4x1 frame: background, then three named colours. */
-function frameOf(pixels: readonly Rgb255[]): { data: Uint8ClampedArray; width: number; height: number } {
+function frameOf(pixels: readonly Rgb255[]): BlightFrame {
   const data = new Uint8ClampedArray(pixels.length * 4);
   pixels.forEach((p, i) => {
     data[i * 4] = p.r;

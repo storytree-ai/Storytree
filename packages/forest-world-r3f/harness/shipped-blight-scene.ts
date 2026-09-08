@@ -411,7 +411,7 @@ export interface BlightReading {
    * rung moved the median 3/255 on the fitted forest — a number that would have read as "the crack
    * layer does nothing" and been wrong about the only thing this row rests on.
    */
-  moved: { pixels: number; islandPixels: number; share: number };
+  moved: MovedPixels;
   /**
    * THE SAME READING TAKEN AGAINST THE `nocracks` ARM — what the CRACK NETWORK alone moves.
    *
@@ -421,21 +421,42 @@ export interface BlightReading {
    * crack lands a pixel back NEAR the flat token it was moved away from. The crack layer's own
    * contribution has to be measured against the burn, which is what this is.
    */
-  movedVsBurn: { pixels: number; islandPixels: number; share: number };
+  movedVsBurn: MovedPixels;
   /** Every island's status verdict in this frame — the map-wide reading, reported not fenced. */
   verdict: StatusTruthVerdict;
   /** How many islands in frame wear each status — so a separation over one island says so. */
-  statusCounts: Record<string, number>;
+  statusCounts: StatusMix;
 }
 
 const luma = (c: Rgb255): number => 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
 
+/** A frame as this module reads one — a `readPixels` buffer plus what it was read at, the same
+ *  shape `status-truth.ts`'s own `Frame` takes. */
+export interface BlightFrame {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
+/** A pooled median over some ground, and how many pixels went into it. */
+export interface PooledMedian {
+  median: Rgb255;
+  pixels: number;
+}
+
+/** How many pixels crossed the bar between two frames, out of how much island. */
+export interface MovedPixels {
+  pixels: number;
+  islandPixels: number;
+  share: number;
+}
+
 /** The median colour of the ground inside a set of rects, background excluded. */
 export function medianOfRects(
-  frame: { data: Uint8ClampedArray; width: number; height: number },
+  frame: BlightFrame,
   background: Rgb255,
   rects: readonly RealIslandRect[],
-): { median: Rgb255; pixels: number } {
+): PooledMedian {
   const rs: number[] = [];
   const gs: number[] = [];
   const bs: number[] = [];
@@ -464,11 +485,7 @@ export function medianOfRects(
 }
 
 /** The darkest ground LUMA inside one island's rect — the number the sea fence is read against. */
-export function darkestGroundLuma(
-  frame: { data: Uint8ClampedArray; width: number; height: number },
-  background: Rgb255,
-  rect: RealIslandRect,
-): number {
+export function darkestGroundLuma(frame: BlightFrame, background: Rgb255, rect: RealIslandRect): number {
   let darkest = Infinity;
   const x0 = Math.max(0, Math.floor(rect.rect.x0));
   const y0 = Math.max(0, Math.floor(rect.rect.y0));
@@ -488,12 +505,12 @@ export function darkestGroundLuma(
 /** HOW MANY PIXELS IN ONE RECT MOVED past `bar` on any channel between two frames of the same
  *  scene — ADR-0490 D6's own reading, over the island's ground only. */
 export function movedPixels(
-  a: { data: Uint8ClampedArray; width: number; height: number },
-  b: { data: Uint8ClampedArray; width: number; height: number },
+  a: BlightFrame,
+  b: BlightFrame,
   background: Rgb255,
   rect: RealIslandRect,
   bar = 20,
-): { pixels: number; islandPixels: number; share: number } {
+): MovedPixels {
   const x0 = Math.max(0, Math.floor(rect.rect.x0));
   const y0 = Math.max(0, Math.floor(rect.rect.y0));
   const x1 = Math.min(a.width, Math.ceil(rect.rect.x1));
@@ -522,7 +539,7 @@ export function maxChannelGap(a: Rgb255, b: Rgb255): number {
 
 /** THE PAIRWISE READ, in numbers: the forced island against every other status in the frame. */
 export function neighbourSeparations(
-  frame: { data: Uint8ClampedArray; width: number; height: number },
+  frame: BlightFrame,
   background: Rgb255,
   rects: readonly RealIslandRect[],
   forcedMedian: Rgb255,
@@ -577,26 +594,44 @@ export function blightPaletteReport(): BlightPaletteReport {
 
 // ---------------------------------------------------------------- the runner
 
+/** What map this page is a picture of — printed in every caption so a sheet cannot lose it. */
+export interface BlightLayout {
+  id: string;
+  islands: number;
+  head: string;
+  generatedAt: string;
+  forced: string;
+  statusMix: StatusMix;
+}
+
 export interface BlightRunner {
   arms: readonly string[];
   pictures: readonly BlightPictureId[];
   caption: (arm: string) => string;
   neighbour: (arm: string) => string | null;
   palette: () => BlightPaletteReport;
-  layout: () => { id: string; islands: number; head: string; generatedAt: string; forced: string; statusMix: Record<string, number> };
+  layout: () => BlightLayout;
   render: (arm: string, pic: BlightPictureId) => Promise<{ reading: BlightReading; png: string }>;
 }
 
-/** The status mix of the FORCED stream — what the sheet's caption has to say the frame contains. */
-export function forcedStatusMix(arm: SpacingArm): Record<string, number> {
+/** How many islands wear each status — an open dictionary because the statuses are the map's, not
+ *  a closed set this page may enumerate. */
+export type StatusMix = Record<string, number>;
+
+/** The status mix of the FORCED stream — what the sheet's caption has to say the frame contains.
+ *
+ *  ⚠ `satisfies` rather than an annotated return type, the seam `status-truth.ts`'s
+ *  `fullReaderTable` states this way: the annotation widens the inferred type at the boundary and
+ *  `anti-slop/no-known-value-widening` fires on it. */
+export function forcedStatusMix(arm: SpacingArm) {
   const byIsland = new Map<string, string>();
   for (const d of forcedStream(arm)) {
     if (d.kind !== 'cell-ground' || d.island === undefined) continue;
     byIsland.set(d.island, d.material ?? 'unknown');
   }
-  const out: Record<string, number> = {};
+  const out: StatusMix = {};
   for (const status of byIsland.values()) out[status] = (out[status] ?? 0) + 1;
-  return out;
+  return out satisfies StatusMix;
 }
 
 export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPage): Promise<BlightRunner> {
@@ -614,8 +649,8 @@ export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPag
 
   // The CONTROL arm's frame per picture, so every arm can be read against what the map would draw.
   // Rendered on demand and kept, rather than re-rendered per arm: it is the same frame every time.
-  const controlFrames = new Map<BlightPictureId, { data: Uint8ClampedArray; width: number; height: number }>();
-  const burnFrames = new Map<BlightPictureId, { data: Uint8ClampedArray; width: number; height: number }>();
+  const controlFrames = new Map<BlightPictureId, BlightFrame>();
+  const burnFrames = new Map<BlightPictureId, BlightFrame>();
 
   /**
    * ⚠⚠ RENDERED TWICE, AND THE SECOND FRAME IS THE ONE MEASURED. This is not caution: a
@@ -681,7 +716,7 @@ export async function createBlightRunner(fetchJson: FetchJson = fetchJsonFromPag
     const medianLuma = luma(forced.median);
     const moved = movedPixels(frame, control, background, forcedRect);
     const movedVsBurn = movedPixels(frame, burn, background, forcedRect);
-    const statusCounts: Record<string, number> = {};
+    const statusCounts: StatusMix = {};
     for (const r of inFrame) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
     const reading: BlightReading = {
       arm: armId,

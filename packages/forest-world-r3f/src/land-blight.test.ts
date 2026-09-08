@@ -34,6 +34,7 @@ import {
   grassScalar,
   noiseGlsl,
   rampGlsl,
+  rampLinear,
 } from './land-grass.js';
 import { GRASS_TOKEN_REFERENCE, hexToLinear, liftStop, rebaseStop } from './land-wheat.js';
 import { linearToSrgb255 } from './land-grain.js';
@@ -178,6 +179,24 @@ test('the colour is the burned base with the bone mixed over it by the network t
   assert.ok(f > 0);
 });
 
+test('the drift selects between the two ramps — cool at 0, warm at 1, the midpoint between', () => {
+  const t = 0.42;
+  const cool = rampLinear(blightCool(DEAD), t);
+  const warm = rampLinear(blightWarm(DEAD), t);
+  // ⚠ THE TWO RAMPS MUST ACTUALLY DIFFER AT `t`, or every assertion below is vacuous.
+  assert.notDeepEqual(cool, warm);
+  // No crack, so this is the base alone and the arithmetic under test is the ramp selection.
+  assert.deepEqual(blightLinearOf(DEAD, t, 0, 0), [...cool]);
+  assert.deepEqual(blightLinearOf(DEAD, t, 1, 0), [...warm]);
+  // ⚠ THE MIDPOINT IS WHAT SEPARATES `* d` FROM `/ d`. Both agree at d = 1, and only a d strictly
+  // between the ends can tell a scale from its reciprocal.
+  const mid = blightLinearOf(DEAD, t, 0.5, 0);
+  for (let c = 0; c < 3; c += 1) {
+    assert.ok(Math.abs(mid[c]! - (cool[c]! + (warm[c]! - cool[c]!) * 0.5)) < 1e-12, `channel ${c} does not interpolate`);
+    assert.ok(Math.abs(mid[c]! - cool[c]!) > 1e-15, `channel ${c} did not move off the cool ramp at all`);
+  }
+});
+
 test('a delivered pixel is the linear colour through the transfer, once', () => {
   const lin = blightLinearOf(DEAD, 0.3, 0.7, 0.2);
   assert.deepEqual(blightColourOf(DEAD, 0.3, 0.7, 0.2), {
@@ -194,6 +213,10 @@ test('the ground colour reads the GRASS`s own structure and this module`s networ
     blightColourAt(DEAD, x, z),
     blightColourOf(DEAD, grassScalar(x, z), grassDrift(x, z), blightCrackAt(x, z)),
   );
+});
+
+test('the ladder`s rungs are named, in order — a blanked id is a rung no caption can point at', () => {
+  assert.deepEqual(BLIGHT_RUNGS.map((r) => r.id), ['sick', 'dying', 'dead', 'scorched']);
 });
 
 test('a bolder rung is DARKER and cracks HARDER than the one below it — the ladder is one signal', () => {

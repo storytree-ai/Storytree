@@ -260,9 +260,11 @@ export function blightCrackColour(): Rgb255 {
  *  {@link BLIGHT_CRACK_WIDTH}. Smoothstep so the line has an edge the grain can break rather than
  *  a hard aliasing boundary. */
 export function blightCrackBand(field: number): number {
-  const d = Math.abs(field - 0.5) / BLIGHT_CRACK_WIDTH;
-  if (d >= 1) return 0;
-  const t = clamp01(d);
+  // ⚠ NO EARLY RETURN FOR `d >= 1`, AND ITS ABSENCE IS DELIBERATE. One was written here and the
+  // mutation rung showed BOTH of its mutants equivalent: `clamp01` already pins `t` at 1 past the
+  // width, and the smoothstep polynomial is exactly 0 at t = 1 (1 - 1 x (3 - 2)). A branch whose
+  // two arms provably agree is not a guard — it is a line no test can discriminate.
+  const t = clamp01(Math.abs(field - 0.5) / BLIGHT_CRACK_WIDTH);
   return 1 - t * t * (3 - 2 * t);
 }
 
