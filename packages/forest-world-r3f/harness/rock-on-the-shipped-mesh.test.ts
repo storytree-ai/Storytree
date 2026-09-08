@@ -22,19 +22,16 @@ import test from 'node:test';
 import { GRASS_GATE_ROWS, WHEAT_GATE_ROWS, shippedGroundBuild } from '../src/ForestWorldCanvas.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
 import { ROCK_SLOPE_RAMP, rockMask } from '../src/land-rock.js';
-import { worldTo3D } from '../src/world-to-3d.js';
-import { islandGroundScene } from './island-fixture.js';
+import { shippedParcels } from './shipped-land-scene.js';
 
 /** Every painted ground vertex of the shipped island, as the up-component the rock mask reads —
  *  which is the GEOMETRIC normal, because that is what the mesh carries and what the material now
  *  captures before either bump. */
 const paintedUps = (): readonly number[] => {
-  const stream = worldTo3D(islandGroundScene());
-  const build = shippedGroundBuild(
-    stream.filter((d) => d.kind === 'cell-ground'),
-    [],
-    stream.filter((d) => d.kind === 'trail-strip'),
-  );
+  // ⚠ `shippedParcels()` RATHER THAN A LOCAL FILTER: it is the typed predicate every other harness
+  // page reaches for, so this file cannot end up asking about a different island from theirs. No
+  // casters and no trail strips — neither reaches the ground's NORMALS, which is all this asks.
+  const build = shippedGroundBuild(shippedParcels(), []);
   const geo = cellGroundGeometry(build.input);
   const painted = new Set<number>([...GRASS_GATE_ROWS, ...WHEAT_GATE_ROWS]);
   const ups: number[] = [];
