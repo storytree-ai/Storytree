@@ -20,8 +20,9 @@ depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-
 > end-to-end walks (dry-run glue and the REAL-mode worktree walk with a scripted author) are
 > covered by a real, passing, offline suite (`packages/orchestrator/src/resolve-prove-spec.test.ts`,
 > part of `@storytree/orchestrator` 99/99 — I ran it 2026-06-13). The pocket: live mode binds a
-> REAL author selected at the injection layer — `ClaudeAgentAuthor` is the compatibility default,
-> while `--runtime codex` selects `CodexPhaseAuthor` with saved ChatGPT authentication. Offline
+> REAL author selected at the injection layer — `CodexPhaseAuthor` is the omitted-runtime default
+> with saved ChatGPT authentication, while `--runtime claude` selects `ClaudeAgentAuthor` explicitly
+> (ADR-0555). Offline
 > tests verify construction and scope arming but never run the subscription leaf; the
 > genuinely-live legs are need-gated, not standing tests.
 
@@ -47,13 +48,13 @@ Three files, one act — turn a unit id into everything `proveUnit` needs:
   **dry-run** (offline, zero cost: a scripted phase-aware model behind
   [`owned-loop-phase-author`](owned-loop-phase-author.md), a temp workspace, a real Node test
   runner over a planted red→green pair — proves the GLUE, not the node's proofs);
-  **live-smoke** (ADR-0030 Phase D: the selected REAL author — Claude by default, Codex via
-  `--runtime codex` — authors the synthetic pair under phase-enforced scope); **real** (Phase F:
+  **live-smoke** (ADR-0030 Phase D: the selected REAL author — Codex by default, Claude via
+  `--runtime claude` under ADR-0555 — authors the synthetic pair under phase-enforced scope); **real** (Phase F:
   nothing synthetic — the registry's real files in a
   fresh git worktree, the registry's REAL proof command, and a tree seam that COMMITS the
   authored files spine-side before reading genuine `git status` — `resolveReal`'s default
   `treeState`, which calls `commitAuthored` then `gitTreeState`).
-  For the Claude compatibility runtime, `feedbackCommandsFor` arms the leaf's bounded
+  For the explicitly selected Claude runtime, `feedbackCommandsFor` arms the leaf's bounded
   ADR-0035 tools — `run_proof` spawns
   the SAME command the spine's observations spawn (one oracle, two consumers), `run_typecheck`
   only when registered. The prompt builders (`assemblePrompts`, `realPrompts`) splice the node's

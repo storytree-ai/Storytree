@@ -44,9 +44,10 @@ import {
   honestFramingLive,
   liveLeafLines,
   nodeBuild,
+  nodeHelp,
   resolveLiveRuntime,
 } from "./node-build.js";
-import { storyBuild } from "./story-build.js";
+import { storyBuild, storyHelp } from "./story-build.js";
 import { cannedLiveAuthor } from "./real-chain-fixture.js";
 
 /** A token shaped like the real subscription credential. NOT a credential — no such account. */
@@ -59,14 +60,64 @@ test("resolveLiveRuntime ADMITS pi — the increment-2 refusal, changed on purpo
   assert.equal(pi.ok, true);
   assert.equal(pi.ok && pi.runtime, "pi");
 
-  // The other two are untouched, and an unknown runtime still fails closed naming all three.
-  assert.equal(resolveLiveRuntime("claude").ok, true);
-  assert.equal(resolveLiveRuntime("codex").ok, true);
-  assert.equal(resolveLiveRuntime(undefined).ok, true);
+  // ADR-0555 makes Codex the omitted-value default; both explicit routes remain available, and an
+  // unknown runtime still fails closed naming all three.
+  assert.deepEqual(resolveLiveRuntime("claude"), { ok: true, runtime: "claude" });
+  assert.deepEqual(resolveLiveRuntime("codex"), { ok: true, runtime: "codex" });
+  assert.deepEqual(resolveLiveRuntime(undefined), { ok: true, runtime: "codex" });
   const unknown = resolveLiveRuntime("llama");
   assert.equal(unknown.ok, false);
   assert.match(unknown.ok === false ? unknown.reason : "", /unknown --runtime "llama"/);
   assert.match(unknown.ok === false ? unknown.reason : "", /"pi"/);
+});
+
+test("Codex-default help and invalid-runtime recovery are visible on both build verbs", async () => {
+  const nodeMode = await nodeBuild("verdict-line", {
+    dryRun: false,
+    actor: "t@example.com",
+  });
+  assert.equal(nodeMode.ok, false);
+  assert.match(nodeMode.body, /add\(2,3\) pair through the gate \(default: codex\)/);
+
+  const nodeRuntime = await nodeBuild("verdict-line", {
+    dryRun: false,
+    live: true,
+    runtime: "llama" as never,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(nodeRuntime, {
+    ok: false,
+    body: 'unknown --runtime "llama" — choose "claude", "codex" or "pi"',
+    next: ["storytree node build verdict-line --live --runtime codex"],
+  });
+
+  const storyMode = await storyBuild("library", {
+    dryRun: false,
+    actor: "t@example.com",
+  });
+  assert.equal(storyMode.ok, false);
+  assert.match(storyMode.body, /--runtime claude\|codex; Codex default/);
+
+  const storyRuntime = await storyBuild("library", {
+    dryRun: false,
+    live: true,
+    runtime: "llama" as never,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(storyRuntime, {
+    ok: false,
+    body: 'unknown --runtime "llama" — choose "claude", "codex" or "pi"',
+    next: ["storytree story build library --live --runtime codex"],
+  });
+
+  assert.match(
+    String(nodeHelp().body),
+    /the live smoke: a REAL subscription-funded leaf \(Codex by default, Claude explicit\) authors/,
+  );
+  assert.match(
+    String(storyHelp().body),
+    /the same chain with a REAL subscription leaf per node \(Codex default, Claude explicit\)/,
+  );
 });
 
 test("the composed endpoint satisfies OUR OWN walls — wall 1 does not have to be widened", () => {
@@ -147,7 +198,7 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
     pi.replace(/\s+/g, " "),
     /ADR-0449 GAP, NAMED: this run exercised pi's fence under a FRONTIER model \(the subscription Claude endpoint\), NOT the weaker local open-weight model pi would run day to day — which is the kind of model the trial exists to find an alternative to\. A pass here is evidence about the fence under a capable model only\./,
   );
-  // And it names the leaf that actually ran, not the Claude default.
+  // And it names the leaf that actually ran, not the Codex default.
   assert.match(pi, /pi agent loop against Anthropic on the subscription credential/);
   assert.match(pi, /under pi's in-process tool_call fence/);
   // The shared tail is still present — the gap is APPENDED to the framing, never a replacement.

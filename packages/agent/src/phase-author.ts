@@ -7,10 +7,10 @@
  *  - the owned loop (`OwnedLoopAuthor` in @storytree/orchestrator): ScriptedModel/AnthropicModel +
  *    ToolExecutor + write-scoped decorator — the offline/deterministic test harness and the
  *    pivot-out fallback;
- *  - the Claude Agent SDK ({@link ClaudeAgentAuthor} in ./sdk-author.js): the compatibility-default
- *    live runtime (ADR-0030), subscription-funded, write-scope enforced via PreToolUse hooks;
- *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the opt-in ChatGPT-subscription
- *    live runtime (ADR-0232/0356), authoring in a disposable replica whose observed, explicitly
+ *  - the Claude Agent SDK ({@link ClaudeAgentAuthor} in ./sdk-author.js): the explicit alternative
+ *    live runtime (ADR-0030/0555), subscription-funded, write-scope enforced via PreToolUse hooks;
+ *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the default ChatGPT-subscription
+ *    live runtime (ADR-0232/0356/0555), authoring in a disposable replica whose observed, explicitly
  *    manifested changes only the spine can promote.
  */
 

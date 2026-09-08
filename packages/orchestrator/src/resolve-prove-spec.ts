@@ -256,7 +256,7 @@ export interface DryRunResolveOptions extends BaseResolveOptions {
 /** Live-smoke (ADR-0030/0232): one explicitly selected subscription-funded live leaf. */
 export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   mode: "live-smoke";
-  /** Explicit live leaf. Default: Claude for compatibility. */
+  /** Explicit live leaf. Default: Codex (ADR-0555). */
   runtime?: LiveRuntime;
   /** Model for the selected leaf. Defaults are runtime-owned. */
   model?: string;
@@ -276,7 +276,7 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
  */
 export interface RealResolveOptions extends BaseResolveOptions {
   mode: "real";
-  /** Explicit live leaf. Default: Claude for compatibility. */
+  /** Explicit live leaf. Default: Codex (ADR-0555). */
   runtime?: LiveRuntime;
   /** Model for the selected leaf. Defaults are runtime-owned. */
   model?: string;
@@ -512,7 +512,7 @@ export function resolveProveSpec(
     author = ownedAuthor;
     prompts = assemblePrompts(spec);
   } else {
-    const liveRuntime = opts.runtime ?? "claude";
+    const liveRuntime = opts.runtime ?? "codex";
     if (liveRuntime === "pi") {
       // ADR-0449's admitted trial run. No USD ceiling and no field for one — pi meters nothing this
       // process can read, and the Codex leaf already refuses a fake cap for the same reason
@@ -772,7 +772,7 @@ function resolveReal(
     // path is a separate decision this arc never asked, and taking it silently is exactly the
     // half-landed harness ADR-0177/ADR-0198 retired the Cursor leaf over. Refused by name, so the
     // narrowing is visible rather than inferred from a missing branch.
-    if ((opts.runtime ?? "claude") === "pi") {
+    if ((opts.runtime ?? "codex") === "pi") {
       return {
         ok: false,
         reason:
@@ -782,7 +782,7 @@ function resolveReal(
         registered: realBuildableNodeIds(),
       };
     }
-    if ((opts.runtime ?? "claude") === "codex") {
+    if ((opts.runtime ?? "codex") === "codex") {
       if (opts.maxBudgetUsd !== undefined) {
         return {
           ok: false,

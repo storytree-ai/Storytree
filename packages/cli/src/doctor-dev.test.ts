@@ -220,7 +220,7 @@ const MUTATIONS: ReadonlyArray<{
     probe: "codex-cli",
     why: "no Codex binary answers at all, so NEITHER Codex journey can run here",
     broken: { codexCli: "absent", codexVersion: null, codexLogin: "undetermined" },
-    expected: "WARN",
+    expected: "FAIL",
     detail: /neither on PATH nor the pinned wrapper/,
   },
   {
@@ -238,7 +238,7 @@ const MUTATIONS: ReadonlyArray<{
     probe: "codex-login",
     why: "no ChatGPT sign-in has been done, so `--runtime codex` refuses however installed Codex is",
     broken: { codexLogin: "logged-out" },
-    expected: "WARN",
+    expected: "FAIL",
     detail: /reports no login/,
   },
   {
@@ -247,7 +247,7 @@ const MUTATIONS: ReadonlyArray<{
     probe: "codex-login",
     why: "a login exists but is not ChatGPT-managed, which is the one kind the leaf refuses",
     broken: { codexLogin: "other" },
-    expected: "WARN",
+    expected: "FAIL",
     detail: /NOT ChatGPT-managed/,
   },
   {
@@ -255,7 +255,7 @@ const MUTATIONS: ReadonlyArray<{
     probe: "codex-login",
     why: "no Codex binary could be invoked to ask, so the credential state is unknown, not absent",
     broken: { codexCli: "absent", codexVersion: null, codexLogin: "undetermined" },
-    expected: "WARN",
+    expected: "FAIL",
     detail: /not determined/,
   },
   {
@@ -793,9 +793,8 @@ test("the Codex fix hints INSTRUCT — each names the action, and the credential
 
   const workspaceOnly = hint({ codexCli: "workspace-only" }, "codex-cli");
   assert.match(workspaceOnly, /`pnpm install` alone leaves/, "it says what this state IS");
-  assert.match(workspaceOnly, /--runtime codex.*NOT for an interactive Codex session/s, "…which half works");
+  assert.match(workspaceOnly, /default Codex runtime.*NOT for an interactive Codex session/s, "…which half works");
   assert.match(workspaceOnly, /npm install -g @openai\/codex/, "…the action, if you want the other half");
-  assert.match(workspaceOnly, /only ever drives Claude.*nothing is wrong/s, "…and that this may be no defect at all");
 
   const absent = hint({ codexCli: "absent", codexVersion: null }, "codex-cli");
   assert.match(absent, /NEITHER Codex journey/, "both halves are down");
@@ -889,21 +888,29 @@ test("the PASS details assert exactly what was observed and never a stronger nei
   assert.match(probeNamed(DEV_HEALTHY, "codex-login")!.detail, /ChatGPT-managed/, "…and WHICH login it is");
 });
 
-test("neither Codex probe can FAIL — Codex is opt-in, so a Claude-only box is not broken", () => {
-  // ADR-0030 makes the Claude Agent SDK the default and Codex opt-in, so a box with no Codex is a
-  // complete configuration that simply cannot do Codex work. A FAIL would red the whole fleet
-  // permanently, and a permanently-red doctor teaches readers to ignore doctor — the vacuous green
-  // wearing the other mask. Asserted over EVERY non-healthy state, not one, so a later edit cannot
-  // promote a single arm quietly.
-  for (const codexCli of ["workspace-only", "absent"] as const) {
-    for (const codexLogin of ["other", "logged-out", "undetermined"] as const) {
-      const obs = { ...DEV_HEALTHY, codexCli, codexVersion: null, codexLogin };
-      const report = runDoctor(EXPLORER_HEALTHY, obs);
-      for (const name of ["codex-cli", "codex-login"]) {
-        assert.equal(report.probes.find((p) => p.name === name)!.level, "WARN", `${name}/${codexCli}/${codexLogin}`);
-      }
-      assert.equal(report.ok, true, "a Codex-less box must not break an otherwise-healthy dev sweep");
-    }
+test("the default Codex leaf fails doctor when unusable, while a pinned-only CLI remains sufficient", () => {
+  const pinnedOnly = runDoctor(EXPLORER_HEALTHY, {
+    ...DEV_HEALTHY,
+    codexCli: "workspace-only",
+    codexVersion: "codex-cli 0.145.0",
+  });
+  assert.equal(probeNamed({ ...DEV_HEALTHY, codexCli: "workspace-only" }, "codex-cli")!.level, "WARN");
+  assert.equal(pinnedOnly.ok, true, "the pinned wrapper can drive the default prove-it leaf");
+
+  const absent = runDoctor(EXPLORER_HEALTHY, {
+    ...DEV_HEALTHY,
+    codexCli: "absent",
+    codexVersion: null,
+    codexLogin: "undetermined",
+  });
+  assert.equal(absent.probes.find((p) => p.name === "codex-cli")!.level, "FAIL");
+  assert.equal(absent.ok, false, "an absent default runtime must break the dev sweep");
+
+  for (const codexLogin of ["other", "logged-out", "undetermined"] as const) {
+    const obs = { ...DEV_HEALTHY, codexLogin };
+    const report = runDoctor(EXPLORER_HEALTHY, obs);
+    assert.equal(probeNamed(obs, "codex-login")!.level, "FAIL", codexLogin);
+    assert.equal(report.ok, false, `${codexLogin} cannot run the default subscription leaf`);
   }
 });
 
@@ -912,7 +919,8 @@ test("REGRESSION: the measured box can no longer be reported over in silence", (
   // existed, `storytree doctor --dev` on the owner's Linux box printed "0 failing, 3 warning, 16
   // passing - dev setup is healthy" and did not mention Codex ANYWHERE — no `codex` on PATH, no
   // `~/.codex/auth.json`, and a reader looking for the answer found no row to read. The report may
-  // still say the box is healthy (it is, for Claude work); what it may never do again is say nothing.
+  // now say the box is broken because the default subscription leaf cannot authenticate; what it
+  // may never do again is say nothing.
   const measuredBox: DevObservations = {
     ...DEV_HEALTHY,
     codexCli: "workspace-only",
@@ -924,6 +932,7 @@ test("REGRESSION: the measured box can no longer be reported over in silence", (
   assert.match(text, /codex-login/, "…and one about the Codex credential");
   assert.match(text, /only the pinned leaf wrapper/, "and it must name what IS present, not just what is not");
   assert.match(text, /reports no login/, "and that the credential is the binding gap");
+  assert.match(text, /1 failing/, "the missing default-runtime login must make the sweep non-green");
 });
 
 test("adcCredentialsPath: Windows uses %APPDATA%\\gcloud, POSIX uses ~/.config/gcloud", () => {
@@ -1159,10 +1168,9 @@ test("a fully-broken dev machine with a green explorer half is REPORTED broken, 
   assert.equal(report.ok, false);
   assert.equal(
     report.failing,
-    5,
-    "ADC, the secrets file, gh auth, bun and the toolchain shell are genuinely unmet invariants — " +
-      "bun joined them when 21 packages moved their tests onto it, and toolchain-shell joined them " +
-      "because a machine no OTHER shell can drive runs no hook and answers no ssh-driven command",
+    7,
+    "ADC, the secrets file, gh auth, bun, the Codex binary/login and the toolchain shell are " +
+      "genuinely unmet invariants — the default Codex leaf joins the failures under ADR-0555",
   );
   assert.doesNotMatch(formatDoctorReport(report), /setup is healthy/);
 });

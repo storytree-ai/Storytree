@@ -2884,7 +2884,7 @@ function buildHelp(): Envelope {
       "  storytree build gate <story>#gate-<n> --real   earn a build-tests gate by a real red→green (was `gate run --real`)",
       "",
       "flags: --dry-run (scripted, offline) · --live (subscription leaf smoke) · --real (real build)",
-      "       --runtime claude|codex|pi (default: claude) · --model <runtime-model-id>",
+      "       --runtime claude|codex|pi (default: codex) · --model <runtime-model-id>",
       "       --budget <usd> (Claude only) · --max-turns <n>   ·   --runtime pi is --live only (ADR-0449)",
       "",
       "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",

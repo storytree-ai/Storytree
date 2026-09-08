@@ -373,17 +373,19 @@ const BLOCKING_EVENTS = ["Stop", "PreToolUse", "UserPromptSubmit"] as const;
 
 /**
  * Keywords that identify a noticeboard/ambient hook command. Includes `presence-hook` so the
- * worktree-safe launcher (`scripts/presence-hook.sh`, which is what the shared settings.json
- * actually invokes) is still recognised by the never-blocking-hooks audit even though its
- * command string never names `ambient-presence` directly — and `worktree-activity-hook` for the
- * same reason (ADR-0535 D2): it is a LEDGER-WRITING hook whose command string names neither, so
- * without the keyword the audit would let it be moved onto `PreToolUse` in silence. What earns a
- * keyword here is writing to the claim ledger, not the file it happens to live in.
+ * worktree-safe launchers (`scripts/presence-hook.sh` for Claude and
+ * `packages/cli/ambient-hook.mjs` for Codex) are still recognised by the never-blocking-hooks
+ * audit even though their command strings never name `ambient-presence` directly — and
+ * `worktree-activity-hook` for the same reason (ADR-0535 D2): it is a LEDGER-WRITING hook whose
+ * command string names neither, so without the keyword the audit would let it be moved onto
+ * `PreToolUse` in silence. What earns a keyword here is writing to the claim ledger, not the file
+ * it happens to live in.
  */
 const PRESENCE_KEYWORDS = [
   "noticeboard",
   "ambient-presence",
   "presence-hook",
+  "ambient-hook",
   "worktree-activity-hook",
 ] as const;
 

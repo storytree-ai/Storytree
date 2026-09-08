@@ -1,0 +1,38 @@
+{
+  "description": "Storytree session provisioning and context hooks.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node packages/cli/provision-worktree.mjs --hook",
+            "timeout": 300
+          },
+          {
+            "type": "command",
+            "command": "node packages/cli/ambient-hook.mjs start",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "node packages/cli/ambient-hook.mjs sweep",
+            "timeout": 25,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node packages/cli/definition-injection.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

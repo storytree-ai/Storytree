@@ -103,7 +103,7 @@ export interface GateBuildDriverDeps {
   promote?: boolean;
   /** SDK leaf model (live build only). */
   model?: string;
-  /** Live prove-it leaf runtime. Default: Claude compatibility path. */
+  /** Live prove-it leaf runtime. Default: Codex (ADR-0555). */
   runtime?: string;
   /** Per-authoring-slice USD ceiling (live build only). */
   budgetUsd?: number;

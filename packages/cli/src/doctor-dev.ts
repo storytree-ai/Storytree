@@ -49,13 +49,14 @@
  * report itself unreachable for ~25 minutes.
  *
  * WHAT THIS GROUP OWNS THAT THE EXPLORER SET DOES NOT, ADDED BY `codex-onboarding-journey-arc`: the
- * OPT-IN SECOND RUNTIME. `codex-cli` and `codex-login` sit here rather than beside `claude-cli` /
+ * DEFAULT SUBSCRIPTION BUILD RUNTIME. `codex-cli` and `codex-login` sit here rather than beside `claude-cli` /
  * `claude-credential` on the explorer side, and the symmetry is deliberately not the argument. The
  * Claude CLI is the EXPLORER'S OWN HARNESS — it is what they are reading storytree through — whereas
- * Codex is a way of doing WORK: driving a session, or running the `--runtime codex` prove-it leaf.
+ * Codex is a way of doing WORK: driving a session, or running the default prove-it leaf.
  * An ADR-0207 explorer needs neither, so putting them in the explorer set would hand every explorer
  * two permanent warnings about a runtime they will never use, in the group most sensitive to noise.
- * Both are WARN-only for a stated reason (see the probes); neither can ever break a sweep.
+ * The pinned wrapper is sufficient for the leaf, so `workspace-only` remains a WARN. An absent
+ * wrapper or unusable ChatGPT login is a FAIL because ADR-0555 made that leaf the default.
  *
  * THE REPAIR VOCABULARY. ADR-0207 D6's rule is that a probe never invents machinery — it points at
  * the ONE idempotent step that repairs it. Two of these probes repair through a real `install.ps1`
@@ -100,7 +101,7 @@ export const MACHINE_GUIDE = "docs/machine-onboarding.md";
  * The Codex journey document — the ONE place both Codex journeys are written down
  * (`codex-onboarding-journey-arc`). Named separately from {@link MACHINE_GUIDE} rather than added to
  * {@link GUIDE_ANCHORS}, because it is a different document and not an anchor within that one: the
- * machine guide covers what EVERY runtime needs, and this covers the opt-in one. The Codex hints
+ * machine guide covers what EVERY runtime needs, and this covers Codex's two journeys. The Codex hints
  * name it FIRST and the machine guide second, so a reader following a Codex row lands on the
  * document that answers instead of on a signpost that redirects.
  */
@@ -192,8 +193,8 @@ export type BunState = "present" | "absent";
  * {@link ToolchainShellState}, this one runs in DOCTOR'S OWN environment. A machine where `codex`
  * resolves for the operator's interactive shell but not for an ssh-driven or hook-driven one reads
  * `path` here and still fails that work. `toolchain-shell` is the probe that asks that question, and
- * `codex` is deliberately NOT added to {@link TOOLCHAIN_COMMANDS} — Codex is opt-in (ADR-0030), so
- * requiring it there would turn an existing probe permanently red on every Claude-only box.
+ * `codex` is deliberately NOT added to {@link TOOLCHAIN_COMMANDS}: the default build/UAT leaf uses
+ * the pinned Node wrapper, while PATH Codex is needed only for an interactive Codex session.
  */
 export type CodexCliState = "path" | "workspace-only" | "absent";
 
@@ -548,15 +549,9 @@ export function devProbes(obs: DevObservations): Probe[] {
   // box 2026-08-28: `0 failing, 3 warning, 16 passing - dev setup is healthy`, with no `codex` on PATH
   // and no `~/.codex/auth.json`. A missing probe reads as reassurance, which is worse than a red.
   //
-  // WARN AND NEVER FAIL, on this file's own stated bar. FAIL is reserved for an invariant whose
-  // absence stops THE MACHINE doing work. Codex is opt-in (ADR-0030: Claude Agent SDK by default,
-  // Codex opt-in), so a Claude-only box with no Codex is a complete and correct configuration, not a
-  // broken one — it simply cannot drive Codex sessions or run `--runtime codex` builds, which is what
-  // these details say. A FAIL here would red every box in the fleet permanently, and a permanently-red
-  // doctor teaches readers to ignore doctor: the vacuous green wearing the other mask, exactly the
-  // reasoning `toolchain-shell`'s `login-only` WARN already applies. Promote to FAIL only if Codex
-  // stops being opt-in, or against a box that has DECLARED itself Codex-primary — a state that does
-  // not exist today and should not be invented ahead of a machine that needs it.
+  // ADR-0555 made Codex the default subscription build/UAT leaf. `workspace-only` therefore remains
+  // a WARN: the pinned wrapper is enough to do the default work, although no interactive Codex
+  // session can start from PATH. `absent` is a FAIL because neither default leaf nor session can run.
   //
   // It DOES carry a fixStep: the remedy is an install, which is exactly what the D6 repair vocabulary
   // is for. Its sibling `codex-login` deliberately carries none (see there).
@@ -576,15 +571,14 @@ export function devProbes(obs: DevObservations): Probe[] {
       fixStep: "codex-cli",
       fixHint:
         "this is what `pnpm install` alone leaves, and it is enough for the prove-it leaf " +
-        "(`--runtime codex`) but NOT for an interactive Codex session on this repo. If you want one, " +
-        "install the product (`npm install -g @openai/codex`, or Codex Desktop) and re-run. If this " +
-        "box only ever drives Claude, this row is informational and nothing is wrong. " +
+        "(the default Codex runtime) but NOT for an interactive Codex session on this repo. If you want one, " +
+        "install the product (`npm install -g @openai/codex`, or Codex Desktop) and re-run. " +
         `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   } else {
     probes.push({
       name: "codex-cli",
-      level: "WARN",
+      level: "FAIL",
       detail:
         "no Codex CLI answered — neither on PATH nor the pinned wrapper in packages/agent/node_modules",
       fixStep: "codex-cli",
@@ -626,7 +620,7 @@ export function devProbes(obs: DevObservations): Probe[] {
   } else if (obs.codexLogin === "other") {
     probes.push({
       name: "codex-login",
-      level: "WARN",
+      level: "FAIL",
       detail: "the Codex CLI reports a login that is NOT ChatGPT-managed — the leaf will refuse it",
       fixHint:
         "ADR-0232 accepts subscription (ChatGPT-managed) auth ONLY; an API-key login is forbidden and " +
@@ -637,7 +631,7 @@ export function devProbes(obs: DevObservations): Probe[] {
   } else if (obs.codexLogin === "logged-out") {
     probes.push({
       name: "codex-login",
-      level: "WARN",
+      level: "FAIL",
       detail: "the Codex CLI reports no login — `~/.codex/auth.json` has not been written",
       fixHint:
         "run `codex login` and sign in with your ChatGPT account (a browser action; storytree never " +
@@ -648,7 +642,7 @@ export function devProbes(obs: DevObservations): Probe[] {
   } else {
     probes.push({
       name: "codex-login",
-      level: "WARN",
+      level: "FAIL",
       detail: "Codex login not determined — no Codex CLI could be invoked to ask",
       fixHint:
         "this is the `codex-cli` finding, not a credential one: fix that row first and re-run. A " +

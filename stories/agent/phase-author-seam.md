@@ -25,8 +25,9 @@ it never observes red/green and never reports a verdict.
 
 This is **this story's published cross-story interface** (ADR-0010 §4). It is the pivot seam of
 ADR-0030 §2: the spine hands a leaf exactly two authoring slices and must not care which runtime
-answers. Claude is the compatibility default and Codex is selected explicitly with
-`--runtime codex`; neither selection changes the seam. The seam carries the load-bearing honesty contract — a
+answers. ADR-0555 makes `CodexPhaseAuthor` the omitted-runtime default, while `--runtime claude`
+selects `ClaudeAgentAuthor` explicitly; neither selection changes the seam. The seam carries the
+load-bearing honesty contract — a
 `PhaseAuthor` authors INSIDE the two authoring phases and never decides proof success; the
 deterministic spine alone observes red/green and issues the verdict (ADR-0020). It imports no other
 in-story capability (a root, alongside `model-runtime-seam`).

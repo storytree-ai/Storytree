@@ -13,7 +13,7 @@
 # action read as one anonymous robot. One identity per harness keeps the audit trail honest about
 # WHICH runtime acted — the same reasoning that already produced `storytree-codex-claim-reader` /
 # `storytree-codex-claim-writer`, and the naming follows that precedent (`storytree-<harness>-…`).
-# The two supported leaves are ADR-0030 / ADR-0232: Claude Agent SDK by default, Codex opt-in.
+# The two supported leaves are ADR-0030 / ADR-0232 / ADR-0555: Codex by default, Claude explicit.
 #
 # THE MEASURED RECIPE these identities serve (proved end to end 2026-08-24 against the live service,
 # using the pre-existing `storytree-codex-claim-reader` as a stand-in). THREE things must line up, and

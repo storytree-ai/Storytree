@@ -39,8 +39,8 @@ The operator surface over the whole machinery — two commands, one honest-envel
   `--dry-run` (offline scripted glue walk), `--live` (ADR-0030 SDK smoke over the synthetic pair),
   `--real` (Phase F — fresh worktree, the node's REAL files and proof command, spine commit,
   ADR-0031 promotion with the typecheck/regression pre-checks and push-withhold on red). Live/real
-  author selection is explicit: Claude is the compatibility default and `--runtime codex` selects
-  the ChatGPT-funded Codex leaf (`gpt-5.6-terra` by default). Before
+  author selection is explicit: the ChatGPT-funded Codex leaf is the omitted-runtime default
+  (`gpt-5.6-terra`), while `--runtime claude` selects Claude explicitly (ADR-0555). Before
   any work: a resolvable signer (a verdict must be attributable), the spec file, and — for
   `--real` — the registry's real-proof config and the install⇒typecheck invariant, each a cheap
   fail-closed refusal. `driveNode` (`node-build.ts:461-516`) is the shared single-node walk:
@@ -53,9 +53,9 @@ The operator surface over the whole machinery — two commands, one honest-envel
   [`oq-hygiene-gate`](oq-hygiene-gate.md) live-only at this point, until that capability retired on
   2026-08-30 — ADR-0477 removed the library `references` field the gate's input lived in — and the
   call went with the module. A live `story build` no longer refuses on open-question hygiene.)
-  `--runtime` threads through the whole chain; Claude remains the compatibility
-  default and may opt into a caller-supplied USD ceiling, while Codex refuses `--budget` rather
-  than presenting subscription quota as API spend. The report derives per-node rollups off the one
+  `--runtime` threads through the whole chain; Codex is the omitted-runtime default and refuses
+  `--budget` rather than presenting subscription quota as API spend, while explicit Claude may opt
+  into a caller-supplied USD ceiling (ADR-0555). The report derives per-node rollups off the one
   shared event log.
 - **The verdict store seam** (`resolveVerdictStore`, `node-build.ts:264-328`): in-memory by
   default; `--store pg` swaps in [`work-verdict-event-log`](work-verdict-event-log.md)'s
@@ -92,8 +92,8 @@ Code edges for the `depends_on`: `node-build.ts:11-25` (the resolver/gate/worktr
 (`workEvent`, `rollupStatus`, `verdictLine`) and `:49`
 (`PgWorkStore`). **Cross-story (the story-level `library` edge):** `node-build.ts:44-49` also pulls
 `createPool`/`closePool`/`applySchema` — the library story's store-connection seam. The
-live-author imports are type-only — the consumed executor seam's reporting surface. Claude reports
-advisory API-list-price accounting for compatibility; Codex reports turns/tokens without pretending
+live-author imports are type-only — the consumed executor seam's reporting surface. When selected,
+Claude reports advisory API-list-price accounting; Codex reports turns/tokens without pretending
 that list price is real subscription spend. In both cases the leaf's feedback is untrusted and the
 spine's out-of-band proof commands remain the sole red/green/verdict authority.
 

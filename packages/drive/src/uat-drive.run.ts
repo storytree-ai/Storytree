@@ -4,9 +4,8 @@
  *
  * It is NOT a `*.test.ts` and never runs on a gate pass: each criterion spawns a fresh,
  * subscription-funded session in the repo root, so ADR-0010 §5 keeps it out-of-band — exactly as
- * `dogfood-probe.run.ts` is. The runtime is CLAUDE by default and Codex by explicit selection
- * (ADR-0435 D1/D2); this paragraph said "Codex session" flatly until 2026-08-24, which was true only
- * of the 2026-08-20 default it outlived. The driving session inherits whatever tools the local
+ * `dogfood-probe.run.ts` is. The runtime is CODEX by default and Claude by explicit selection
+ * (ADR-0555 D1/D2). The driving session inherits whatever tools the local
  * install actually has (shell and the storytree CLI always; browser / headless control only where
  * that MCP is configured), which is a property of the machine, not of this harness — a journey
  * through a surface the local session cannot reach is a `fail` with that named as the reason, not a
@@ -33,7 +32,7 @@
  * authored journey, the honesty clause, or the report contract refuses (`auditDrivePrompt`).
  *
  * Usage:
- *   pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts <story-id> [criterion-id…]
+ *   pnpm uat:drive <story-id> [criterion-id…]
  *
  * With no criterion ids it drives every `machine` leg already bound to a UAT-drive witness gate. Name
  * ids explicitly to drive a leg that is not bound yet — which is how ADR-0348 D5's ordering is
@@ -173,7 +172,7 @@ function resolvePinnedCodexEntrypoint(): string {
 }
 
 /** Resolve and prove the runtime once, before a drive can spend subscription time. */
-function verifyCodexRuntime(): DriverRuntime | null {
+function verifyCodexRuntime(selection: ProviderSelection): DriverRuntime | null {
   const explicit = process.env[STORYTREE_CODEX_EXECUTABLE_ENV]?.trim();
   if (explicit !== undefined && !path.isAbsolute(explicit)) {
     console.error(`[uat-drive] REFUSED: ${STORYTREE_CODEX_EXECUTABLE_ENV} must name an absolute executable.`);
@@ -211,7 +210,12 @@ function verifyCodexRuntime(): DriverRuntime | null {
       );
       return null;
     }
-    log(`provider: ${CODEX_DRIVER} — ${verified.detail} (${executable})`);
+    log(
+      `provider: ${CODEX_DRIVER} — ${verified.detail} (${executable}); ` +
+        (selection === "explicit"
+          ? `explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=codex selection`
+          : `default route (${STORYTREE_UAT_DRIVE_PROVIDER_ENV} unset; ADR-0555 D2)`),
+    );
     return { provider: "codex", driver: CODEX_DRIVER, executable, executableArgs };
   } catch (e) {
     const detail = (e as { stderr?: string }).stderr?.trim() || (e as Error).message;
@@ -224,15 +228,13 @@ function verifyCodexRuntime(): DriverRuntime | null {
   }
 }
 
-/** How the provider was chosen: named on the command line, or inherited from the ADR-0435 D1 default. */
+/** How the provider was chosen: named in the environment, or inherited from ADR-0555's default. */
 type ProviderSelection = "explicit" | "default";
 
 /**
- * Claude is the DEFAULT subscription route since ADR-0435 D1; API-key credentials never satisfy this
- * check. The banner says which of the two ways the provider was chosen, because a log that reports an
- * unset default as an explicit selection destroys the one piece of provenance a later reader needs —
- * exactly the gap ADR-0435's own Context complains about, where the Codex default was recorded with no
- * reason a later reader could weigh.
+ * Claude remains an explicit subscription route; API-key credentials never satisfy this check. The
+ * banner still names how the provider was chosen, so any future default movement stays visible in
+ * run provenance rather than being inferred from whichever provider happened to answer.
  */
 function verifyClaudeRuntime(selection: ProviderSelection): DriverRuntime | null {
   const token = process.env["CLAUDE_CODE_OAUTH_TOKEN"]?.trim();
@@ -244,7 +246,7 @@ function verifyClaudeRuntime(selection: ProviderSelection): DriverRuntime | null
     `provider: ${CLAUDE_DRIVER} — ` +
       (selection === "explicit"
         ? `explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`
-        : `default route (${STORYTREE_UAT_DRIVE_PROVIDER_ENV} unset; ADR-0435 D1)`),
+        : `default route (${STORYTREE_UAT_DRIVE_PROVIDER_ENV} unset; ADR-0555 D2)`),
   );
   return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude", executableArgs: [] };
 }
@@ -261,7 +263,7 @@ function readCodexFinalMessage(finalMessagePath: string, stdout: string, stderr:
 async function main(): Promise<number> {
   const [storyId, ...only] = process.argv.slice(2);
   if (storyId === undefined || storyId.trim().length === 0) {
-    console.error("usage: node --import tsx src/uat-drive.run.ts <story-id> [criterion-id…]");
+    console.error("usage: pnpm uat:drive <story-id> [criterion-id…]");
     return 2;
   }
 
@@ -329,7 +331,9 @@ async function main(): Promise<number> {
   const providerSelection: ProviderSelection =
     (process.env[STORYTREE_UAT_DRIVE_PROVIDER_ENV] ?? "").trim() === "" ? "default" : "explicit";
   const runtime =
-    preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime(providerSelection);
+    preference.provider === "codex"
+      ? verifyCodexRuntime(providerSelection)
+      : verifyClaudeRuntime(providerSelection);
   if (runtime === null) return 1;
 
   const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;

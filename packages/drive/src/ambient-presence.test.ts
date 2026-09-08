@@ -728,6 +728,24 @@ test("auditHookConfig: the worktree-activity launcher on SessionStart is NOT a v
   );
 });
 
+test("auditHookConfig: the portable ambient launcher under a blocking event is a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      UserPromptSubmit: [
+        {
+          hooks: [
+            { type: "command", command: "node packages/cli/ambient-hook.mjs sweep" },
+          ],
+        },
+      ],
+    },
+  });
+
+  const violations = auditHookConfig(settings);
+  assert.equal(violations.length, 1);
+  assert.match(violations[0]!, /UserPromptSubmit/);
+});
+
 test("auditHookConfig: noticeboard hook under UserPromptSubmit is a violation", () => {
   const settings = JSON.stringify({
     hooks: {

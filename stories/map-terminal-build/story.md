@@ -124,10 +124,12 @@ story's `terminal-dock-seed`, now superseded).
 ## What this story is NOT (the walls — encode from the ADRs)
 
 - **It re-points the INTERACTIVE dispatch, NOT the prove-it-gate (ADR-0174 CRITICAL scoping note).** Signed
-  `--real` verdicts still come **only** from the deterministic spine driving the selected
-  `PhaseAuthor` — `ClaudeAgentAuthor` is the compatibility default and `--runtime codex` opts into
-  `CodexPhaseAuthor` — through the `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
-  walk (`packages/orchestrator/*`). This story changes only WHERE the map's Build **click** sends its
+  `--real` verdicts still come **only** from the deterministic spine driving the selected `PhaseAuthor`.
+  While this retired story was live, `ClaudeAgentAuthor` was the compatibility default and
+  `--runtime codex` selected `CodexPhaseAuthor`; ADR-0555 later reversed only that selection rule, so
+  omitted runtime now binds Codex and `--runtime claude` binds Claude explicitly. The deterministic
+  walk remains `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`
+  (`packages/orchestrator/*`). This story changes only WHERE the map's Build **click** sends its
   intent — into the terminal (where the user's real Claude Code runs the command) instead of the in-app
   build-registry → SDK author. The command it seeds (`storytree … build --real --store pg`) drives the
   SAME proof path when the user runs it; whether a human fires it from this terminal or a headless job
@@ -137,8 +139,9 @@ story's `terminal-dock-seed`, now superseded).
   embedded terminal exists only where `window.desktopTerminal` is present (the Electron desktop). Where it
   is absent — the hosted studio (members are watch-and-comment only until cloud terminals land, ADR-0174),
   the dev studio in a plain browser, any non-desktop surface — there is no terminal to seed, so the
-  EXISTING `api.build` → build-registry dispatch stays on its Claude compatibility default. Codex is
-  available only when `--runtime codex` is selected explicitly. This is a
+  EXISTING `api.build` → build-registry dispatch stayed on its then-current Claude compatibility default.
+  That was the live state this retired story preserved; ADR-0555 later made Codex the omitted-runtime
+  default and retained Claude through explicit `--runtime claude`. This is a
   feature-detected re-point, not a wholesale retirement of the in-app build path (the dispatch machinery in
   `apps/studio/server` / `packages/drive` is unchanged and still serves the fallback + capability `--live`
   smokes + `desktop-build-mount`'s routed dispatch). Cloud/web terminals are DEFERRED (ADR-0174).

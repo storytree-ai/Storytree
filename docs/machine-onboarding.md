@@ -194,13 +194,14 @@ summary. If you are here to compare this machine against another, the plans must
 `legacy/Agentic` is a second submodule: a read-only vendored copy of the V1 Rust project, reference
 only. You do not need it initialised and you must never edit it.
 
-### Codex — the opt-in second runtime
+### Codex — the default subscription build/UAT runtime
 
-**Skip this if the box only ever drives Claude.** ADR-0030 makes the Claude Agent SDK the default
-and Codex the opt-in alternative, so a box with no Codex is a *complete* configuration —
-`storytree doctor --dev` reports it as two warnings and never a failure.
+ADR-0555 makes the pinned Codex leaf the default for builds and model-driven UAT, with Claude kept
+as an explicit alternative. `pnpm install` supplies that pinned binary; a ChatGPT-managed sign-in
+supplies its credential. The separate global Codex CLI remains optional unless this box will drive
+interactive Codex sessions.
 
-If you do want it, **the whole journey is `docs/codex-onboarding.md`** — both what Codex means here
+**The whole journey is `docs/codex-onboarding.md`** — both what Codex means here
 (a session driver, and a build tool, with different binaries), the three steps only you can perform,
 and what proves each one took. Two things worth knowing before you go there:
 
@@ -213,9 +214,9 @@ and what proves each one took. Two things worth knowing before you go there:
 
 ---
 
-## 2. The three sign-ins
+## 2. The four sign-ins
 
-**Name all three to your human now, before the first one blocks you.** Discovering them one at a
+**Name all four to your human now, before the first one blocks you.** Discovering them one at a
 time, an hour apart, is the single most annoying way to run this section and it is entirely
 avoidable. Each has its own proof; do not treat one passing as evidence for another.
 
@@ -224,6 +225,7 @@ avoidable. Each has its own proof; do not treat one passing as evidence for anot
 | 1 | Google application-default credentials | The Postgres store | `pnpm db:probe` exits 0 |
 | 2 | Claude OAuth token | The Claude Agent SDK leaf | a `--pg` read, then a trivial `--pg` write |
 | 3 | GitHub CLI auth | Cloning, and opening a PR | `gh pr list` returns |
+| 4 | Codex ChatGPT login | The default build and model-driven UAT leaf | `codex login status` prints `Logged in using ChatGPT` |
 
 ### 2.1 Google — application-default credentials
 
@@ -312,7 +314,7 @@ or address`. The cause is that `origin` is an **HTTPS** remote while `gh auth lo
 Run it during setup rather than discovering it after a green gate, at the end of a unit, with a
 commit you cannot push.
 
-**A second GitHub credential you will need, which the three-sign-in table does not cover:** an **SSH
+**A second GitHub credential you will need, which the four-sign-in table does not cover:** an **SSH
 key** on the account. `.gitmodules` points `web` and `legacy/Agentic` at `git@github.com:` URLs, so
 `git submodule update --init web` needs SSH regardless of how `origin` is configured — and without
 the `web` submodule three gate rungs SKIP, which is *unverified*, not passed. `gh auth login` offers
@@ -437,10 +439,10 @@ pnpm storytree doctor --dev      # the machine-level verdict
 ```
 
 **Pass `--dev`; a bare `doctor` is not the dev verdict.** The dev-persona probes — application-default
-credentials, database reachability, the secrets file, GitHub auth, **Bun**, **the toolchain shell**,
-write-authority, worktree identity — are an **opt-in group**, because an explorer legitimately has
+credentials, database reachability, the secrets file, GitHub auth, **Bun**, **the Codex binary and
+login**, **the toolchain shell**, write-authority, worktree identity — are an **opt-in group**, because an explorer legitimately has
 none of them. Bare, `doctor` runs the eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green
-that names what it did not check, not a stopping condition. Three of the eight can only ever WARN by
+that names what it did not check, not a stopping condition. Three of the ten can only ever WARN by
 decision (`db-reachable`, `write-authority`, `worktree-identity`), so green-with-those-warning is the
 expected shape rather than a defect.
 

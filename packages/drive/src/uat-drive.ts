@@ -54,20 +54,18 @@ import { z } from "zod";
  */
 export const UAT_DRIVE_WITNESS_ENTRY = "uat-drive-witness.check.ts";
 
-/** The only live UAT runtime: the owner's ChatGPT-authenticated Codex subscription. */
+/** The persisted driver id for the ChatGPT-authenticated Codex UAT route. */
 export const CODEX_CHATGPT_SUBSCRIPTION_DRIVER = "codex-chatgpt-subscription";
 
 /** An explicit local executable is useful where the Desktop app keeps its CLI outside PATH. */
 export const STORYTREE_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
 
 /**
- * UAT drives default to the CLAUDE subscription; Codex is the explicit selection (ADR-0435,
- * owner-directed 2026-08-24). This reverses the 2026-08-20 default, and the reversal is a funding
- * decision rather than a technical one: the owner's Codex/ChatGPT quota was exhausted with a reset a
- * month out, which halted every model-driven walk in the system at once. Claude was the original
- * route and is unchanged in capability — `uat-drive-witness.check.ts` accepts a `claude-code` record
- * exactly as it accepts a `codex-chatgpt-subscription` one, and `embedded-terminal` leg 5 still
- * witnesses off a Claude drive from 2026-08-13.
+ * UAT drives default to the CODEX ChatGPT subscription; Claude is the explicit selection (ADR-0555,
+ * owner-directed 2026-09-08). ADR-0435 temporarily reversed this while Codex quota was exhausted;
+ * ADR-0555 supersedes that funding route now that Claude is nearly exhausted and Codex has headroom.
+ * This is not a quality ranking: `uat-drive-witness.check.ts` accepts a `claude-code` record exactly
+ * as it accepts a `codex-chatgpt-subscription` one.
  *
  * Both routes stay subscription-only: whichever is selected, API-key and cross-provider credentials
  * are stripped before the child runs and are never a fallback (ADR-0232's rule, untouched).
@@ -81,7 +79,7 @@ export function resolveUatDriveProvider(raw: string | undefined):
   | { ok: true; provider: UatDriveProvider }
   | { ok: false; reason: string } {
   const normalized = raw?.trim().toLowerCase();
-  if (normalized === undefined || normalized === "") return { ok: true, provider: "claude" };
+  if (normalized === undefined || normalized === "") return { ok: true, provider: "codex" };
   if (normalized === "codex" || normalized === "claude") return { ok: true, provider: normalized };
   return {
     ok: false,
@@ -1223,7 +1221,8 @@ export function selectWitnessableDrive(
  * Everything below closes ONE defect with three faces, measured across four production drives:
  * **the spawned drive is indistinguishable from the session that launched it.**
  *
- * `uat-drive.run.ts` spawns a fresh Claude Code session with `bypassPermissions` in the SAME
+ * `uat-drive.run.ts` spawns a fresh subscription-backed coding session (Codex by default; Claude
+ * only when explicitly selected) with the provider's unattended permission mode in the SAME
  * worktree, on the SAME branch, sharing the SAME env, ports and process tree. Everything that keys
  * on "which session is this?" therefore answers with the PARENT, and three separate harms follow:
  *
