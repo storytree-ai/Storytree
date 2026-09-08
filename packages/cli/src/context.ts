@@ -31,6 +31,9 @@
 // the two surfaces describing one transcript differently. This file supplies the identity, the
 // harness hint and the render — the same split `own` / `dispatch` keep.
 
+import os from "node:os";
+import path from "node:path";
+
 import { deriveIdentity, IDENTITY_REFUSAL_BODY } from "@storytree/drive";
 import {
   bandGuidance,
@@ -38,9 +41,12 @@ import {
   HARD_MARK_TOKENS,
   MANDATORY_CATEGORIES,
   MARKS_GOVERN_THE_NEXT_UNIT,
+  readCodexContextWindow,
   readOwnContextWindow,
   readWindowComposition,
   SOFT_MARK_TOKENS,
+  type CodexContextWindowAvailable,
+  type CodexContextWindowUnavailable,
   type ContextBand,
   type OwnWindowRead,
   type WindowComposition,
@@ -67,6 +73,9 @@ export interface ContextDeps {
   /** This session's storytree identity, or `null` in the primary checkout (ADR-0033 D1). */
   readonly sessionId: () => string | null;
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** Codex's current rollout tree. Injected because tests must never read the operator's real task. */
+  readonly codexSessionsRoot: () => string;
+  readonly readCodex: typeof readCodexContextWindow;
   readonly read: typeof readOwnContextWindow;
   /** What the window is MADE OF — read from the SAME file `read` folded, never re-selected. */
   readonly composition: typeof readWindowComposition;
@@ -77,6 +86,8 @@ export function defaultContextDeps(): ContextDeps {
   return {
     sessionId: () => deriveIdentity()?.sessionId ?? null,
     env: process.env,
+    codexSessionsRoot: () => path.join(os.homedir(), ".codex", "sessions"),
+    readCodex: readCodexContextWindow,
     read: readOwnContextWindow,
     composition: readWindowComposition,
     now: () => Date.now(),
@@ -362,17 +373,87 @@ ${MARKS_GOVERN_THE_NEXT_UNIT}`,
   };
 }
 
+/** A Codex absence names the failed join while preserving that no number was observed. */
+function codexAbsenceLines(read: CodexContextWindowUnavailable): readonly string[] {
+  switch (read.reason) {
+    case "identity-unavailable":
+      return [
+        "CODEX_THREAD_ID was unavailable to the reader, so no rollout can be attributed to this task.",
+        "The current Codex task is identified only by that exact harness-provided value.",
+      ];
+    case "rollout-unavailable":
+      return [
+        "No single rollout exactly identified this Codex task.",
+        "A filename, working directory, parent session or newest-file guess is not a task identity.",
+      ];
+    case "usage-unavailable":
+      return [
+        "The exact rollout was found but it carried no usable input-token usage.",
+        "Malformed or missing usage metadata is an absence, not an empty context window.",
+      ];
+  }
+}
+
+function renderCodexAbsence(
+  threadId: string,
+  read: CodexContextWindowUnavailable,
+  sessionsRoot: string,
+): Envelope {
+  return {
+    ok: true,
+    body: [
+      `storytree context — NO READING for Codex task "${threadId}", and that is not a zero.`,
+      "",
+      ...codexAbsenceLines(read),
+      "",
+      `  reason:     ${read.reason}`,
+      `  root:       ${sessionsRoot}`,
+      "",
+      "No occupancy, capacity, composition or scheduling conclusion is inferred from this absence.",
+    ].join("\n"),
+    next: ["storytree context", "storytree own"],
+  };
+}
+
+/** Codex currently exposes raw occupancy only; the render must not borrow Claude's scheduling policy. */
+function renderCodexReading(read: CodexContextWindowAvailable, sessionsRoot: string): Envelope {
+  const capacity =
+    read.modelContextWindow.status === "available"
+      ? `${groupDigits(read.modelContextWindow.tokens)} tokens (declared by Codex)`
+      : "UNAVAILABLE — the rollout did not declare model_context_window; this is not a zero";
+
+  return {
+    ok: true,
+    body: [
+      `storytree context — Codex task "${read.threadId}"`,
+      "",
+      `  resident:          ${groupDigits(read.residentInputTokens)} tokens`,
+      `  peak:              ${groupDigits(read.peakInputTokens)} tokens`,
+      `  usage source:      ${read.usageSource}`,
+      `  capacity:          ${capacity}`,
+      "  composition:       UNAVAILABLE — Codex usage metadata does not expose what fills the window (not exposed)",
+      "  scheduling band:   UNAVAILABLE — the Codex continuation policy is unsettled (policy unsettled)",
+      `  root:              ${sessionsRoot}`,
+      "",
+      "This is the exact task's raw, read-only occupancy. It makes no scheduling judgment.",
+    ].join("\n"),
+    next: ["storytree arc show <arc-id> --pg", "storytree own"],
+  };
+}
+
 export function contextHelp(): Envelope {
   return {
     ok: true,
     body: [
       "storytree context — how full is THIS session's own context window? (ADR-0411 D3/D6)",
       "",
-      "  storytree context        this session's own window: resident tokens, peak, its band — and what",
-      "                           it is made of, by the harness's own labels, with a remedy",
+      "  Claude transcript path   resident tokens, peak, its current band — and what it is made of,",
+      "                           by the harness's own labels, with a remedy",
+      "  Codex rollout path       raw resident tokens, peak, usage source and declared model capacity;",
+      "                           composition and scheduling band are explicitly UNAVAILABLE",
       "",
-      "Run it at an INCREMENT BOUNDARY, before deciding whether to take on the next one — that is",
-      "what ADR-0411 D5 makes it, a scheduling read rather than an interruption. Past the soft mark",
+      "On Claude, run it at an INCREMENT BOUNDARY, before deciding whether to take on the next one —",
+      "that is what ADR-0411 D5 makes it, a scheduling read rather than an interruption. Past the soft mark",
       `(~${thousands(SOFT_MARK_TOKENS)}) take on no NEW increment; at the hard mark (${thousands(HARD_MARK_TOKENS)})` +
         " land what is green, write",
       "the handover onto the owning arc, release your claims, and let a fresh session continue.",
@@ -381,14 +462,19 @@ export function contextHelp(): Envelope {
       `
 ${MARKS_GOVERN_THE_NEXT_UNIT}`,
       "",
-      "It reads and never enforces (D8). D6's point is that the judgement is INFORMED rather than",
+      "Those marks and that band are Claude-only. Codex selects its exact rollout by CODEX_THREAD_ID",
+      "and reports raw resident/peak occupancy plus any capacity Codex declared. Codex composition is",
+      "not exposed and its scheduling policy is unsettled, so neither a band nor the Claude ~700k/850k",
+      "marks are applied to a Codex reading.",
+      "",
+      "It reads and never enforces (D8). On Claude, D6's point is that the judgement is INFORMED rather than",
       "guessed — where this prints no reading, say in your debrief that you ESTIMATED.",
       "",
       "The figure is your OWN conversation window. Helper and subagent windows are never folded in",
       "(ADR-0413 D2 / ADR-0411 D4): a session that fans work out has a small number, and that is",
       "correct rather than an under-report.",
       "",
-      "The `made of:` block splits the window's INTAKE by the labels the harness itself puts on each",
+      "On the Claude path, the `made of:` block splits the window's INTAKE by the labels the harness itself puts on each",
       "record (ADR-0516 D3 — labels and lengths, never content), in bytes (ADR-0330 D1's unit). The",
       "`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no",
       "transcript records and which can only be shown as what was resident at the first request minus",
@@ -396,14 +482,27 @@ ${MARKS_GOVERN_THE_NEXT_UNIT}`,
       // Carries its own trailing blank line so no bare "" spacer sits on a changed span (see above).
       `never zero. The \`remedy:\` line names the one lever the dominant class leaves this session.
 `,
-      "Offline and read-only — host transcripts are local files, so it needs no database and no",
-      "network. `STORYTREE_TRANSCRIPT_DIR` moves the root it reads.",
+      "Offline and read-only — host transcripts and Codex rollouts are local files, so it needs no",
+      "database and no network. `STORYTREE_TRANSCRIPT_DIR` moves the Claude root; Codex reads the",
+      "current user's `.codex/sessions` tree.",
     ].join("\n"),
     next: ["storytree context"],
   };
 }
 
 export function contextCommand(deps: ContextDeps = defaultContextDeps()): Envelope {
+  // Codex has a direct task identity and therefore does not need Storytree's worktree identity.
+  // Select it before the primary-checkout refusal: Codex rollouts can honestly identify the current
+  // task even while the command runs in the shared lobby.
+  const codexThreadId = deps.env.CODEX_THREAD_ID?.trim();
+  if (codexThreadId !== undefined && codexThreadId.length > 0) {
+    const sessionsRoot = deps.codexSessionsRoot();
+    const read = deps.readCodex(sessionsRoot, deps.env);
+    return read.status === "available"
+      ? renderCodexReading(read, sessionsRoot)
+      : renderCodexAbsence(codexThreadId, read, sessionsRoot);
+  }
+
   const sessionId = deps.sessionId();
 
   // The primary checkout has no session identity by decision (ADR-0033 D1), and here that is not a

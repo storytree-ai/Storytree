@@ -11,16 +11,19 @@
  * absence render is pinned on its own words rather than on the envelope's `ok`.
  */
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 
 import type {
+  CodexContextWindowRead,
   OwnWindowArgs,
   OwnWindowOccupancy,
   OwnWindowRead,
   WindowComposition,
 } from "@storytree/context-traversal-transcript";
 
-import { contextCommand, contextHelp, type ContextDeps } from "./context.js";
+import { contextCommand, contextHelp, defaultContextDeps, type ContextDeps } from "./context.js";
 
 const NOW = Date.parse("2026-08-26T12:00:00Z");
 
@@ -92,6 +95,8 @@ function deps(overrides: Partial<ContextDeps> = {}): ContextDeps {
   return {
     sessionId: () => "angry-hopper-092898",
     env: {},
+    codexSessionsRoot: () => "/tmp/codex/sessions",
+    readCodex: () => codexReading(),
     read: () => reading(),
     composition: () => composition(),
     now: () => NOW,
@@ -99,10 +104,174 @@ function deps(overrides: Partial<ContextDeps> = {}): ContextDeps {
   };
 }
 
+function codexReading(
+  overrides: Partial<Extract<CodexContextWindowRead, { status: "available" }>> = {},
+): CodexContextWindowRead {
+  return {
+    status: "available",
+    threadId: "0198de4f-codex-thread",
+    usageSource: "token_usage_record",
+    residentInputTokens: 167_204,
+    peakInputTokens: 234_228,
+    modelContextWindow: { status: "available", tokens: 258_400 },
+    composition: { status: "unavailable", reason: "not-exposed" },
+    schedulingBand: { status: "unavailable", reason: "policy-unsettled" },
+    ...overrides,
+  };
+}
+
+test("the default Codex rollout root is the current user's .codex sessions tree", () => {
+  assert.equal(defaultContextDeps().codexSessionsRoot(), path.join(os.homedir(), ".codex", "sessions"));
+});
+
+test("a Codex task is read by exact thread identity even in the primary checkout", () => {
+  let claudeReads = 0;
+  let compositions = 0;
+  const calls: Array<{ root: string; env: Readonly<Record<string, string | undefined>> }> = [];
+  const env = contextCommand(
+    deps({
+      sessionId: () => {
+        throw new Error("Codex selection must happen before Storytree worktree identity");
+      },
+      env: { CODEX_THREAD_ID: " 0198de4f-codex-thread ", CODEX_SESSION_ID: "parent-thread" },
+      codexSessionsRoot: () => "/users/operator/.codex/sessions",
+      readCodex: (root, identity) => {
+        calls.push({ root, env: identity });
+        return codexReading();
+      },
+      read: () => {
+        claudeReads++;
+        return reading();
+      },
+      composition: () => {
+        compositions++;
+        return composition();
+      },
+    }),
+  );
+
+  assert.equal(env.ok, true);
+  assert.deepEqual(calls, [
+    {
+      root: "/users/operator/.codex/sessions",
+      env: { CODEX_THREAD_ID: " 0198de4f-codex-thread ", CODEX_SESSION_ID: "parent-thread" },
+    },
+  ]);
+  assert.equal(claudeReads, 0);
+  assert.equal(compositions, 0);
+  assert.match(env.body, /Codex task "0198de4f-codex-thread"/);
+  assert.match(env.body, /resident:\s+167,204 tokens/);
+  assert.match(env.body, /peak:\s+234,228 tokens/);
+  assert.match(env.body, /usage source:\s+token_usage_record/);
+  assert.match(env.body, /capacity:\s+258,400 tokens .*declared by Codex/i);
+  assert.match(env.body, /composition:\s+UNAVAILABLE .*not exposed/i);
+  assert.match(env.body, /scheduling band:\s+UNAVAILABLE .*policy is unsettled/i);
+  assert.ok(!/\b(?:CALM|SOFT|HARD)\b/.test(env.body), env.body);
+  assert.ok(!/700k|850k/.test(env.body), env.body);
+  assert.deepEqual(env, {
+    ok: true,
+    body: [
+      'storytree context — Codex task "0198de4f-codex-thread"',
+      "",
+      "  resident:          167,204 tokens",
+      "  peak:              234,228 tokens",
+      "  usage source:      token_usage_record",
+      "  capacity:          258,400 tokens (declared by Codex)",
+      "  composition:       UNAVAILABLE — Codex usage metadata does not expose what fills the window (not exposed)",
+      "  scheduling band:   UNAVAILABLE — the Codex continuation policy is unsettled (policy unsettled)",
+      "  root:              /users/operator/.codex/sessions",
+      "",
+      "This is the exact task's raw, read-only occupancy. It makes no scheduling judgment.",
+    ].join("\n"),
+    next: ["storytree arc show <arc-id> --pg", "storytree own"],
+  });
+});
+
+test("Codex keeps usable occupancy when the rollout declares no model capacity", () => {
+  const env = contextCommand(
+    deps({
+      env: { CODEX_THREAD_ID: "0198de4f-codex-thread" },
+      readCodex: () => codexReading({ modelContextWindow: { status: "unavailable", reason: "not-declared" } }),
+    }),
+  );
+
+  assert.equal(env.ok, true);
+  assert.match(env.body, /resident:\s+167,204 tokens/);
+  assert.match(env.body, /capacity:\s+UNAVAILABLE .*not declare/i);
+  assert.match(env.body, /not a zero/i);
+  assert.ok(!/capacity:\s+0\b/.test(env.body), env.body);
+});
+
+test("Codex identity, rollout and usage absences render as three honest NO READING outcomes", () => {
+  const cases: ReadonlyArray<{
+    reason: Extract<CodexContextWindowRead, { status: "unavailable" }>["reason"];
+    message: RegExp;
+    explanation: readonly [string, string];
+  }> = [
+    {
+      reason: "identity-unavailable",
+      message: /CODEX_THREAD_ID was unavailable/,
+      explanation: [
+        "CODEX_THREAD_ID was unavailable to the reader, so no rollout can be attributed to this task.",
+        "The current Codex task is identified only by that exact harness-provided value.",
+      ],
+    },
+    {
+      reason: "rollout-unavailable",
+      message: /No single rollout exactly identified this Codex task/,
+      explanation: [
+        "No single rollout exactly identified this Codex task.",
+        "A filename, working directory, parent session or newest-file guess is not a task identity.",
+      ],
+    },
+    {
+      reason: "usage-unavailable",
+      message: /exact rollout was found but it carried no usable input-token usage/,
+      explanation: [
+        "The exact rollout was found but it carried no usable input-token usage.",
+        "Malformed or missing usage metadata is an absence, not an empty context window.",
+      ],
+    },
+  ];
+
+  for (const current of cases) {
+    const env = contextCommand(
+      deps({
+        env: { CODEX_THREAD_ID: "0198de4f-codex-thread" },
+        readCodex: () => ({ status: "unavailable", reason: current.reason }),
+      }),
+    );
+    assert.equal(env.ok, true);
+    assert.match(env.body, /NO READING/);
+    assert.match(env.body, current.message);
+    assert.match(env.body, /not a zero/i);
+    assert.ok(!/resident:\s*0\b/.test(env.body), env.body);
+    assert.ok(!/\b(?:CALM|SOFT|HARD)\b|700k|850k/.test(env.body), env.body);
+    assert.deepEqual(env, {
+      ok: true,
+      body: [
+        'storytree context — NO READING for Codex task "0198de4f-codex-thread", and that is not a zero.',
+        "",
+        ...current.explanation,
+        "",
+        `  reason:     ${current.reason}`,
+        "  root:       /tmp/codex/sessions",
+        "",
+        "No occupancy, capacity, composition or scheduling conclusion is inferred from this absence.",
+      ].join("\n"),
+      next: ["storytree context", "storytree own"],
+    });
+  }
+});
+
 test("the primary checkout is refused, and the refusal says why a guess would be worse", () => {
   const env = contextCommand(deps({ sessionId: () => null }));
+  const blankCodexIdentity = contextCommand(
+    deps({ sessionId: () => null, env: { CODEX_THREAD_ID: "   " } }),
+  );
 
   assert.equal(env.ok, false);
+  assert.deepEqual(blankCodexIdentity, env, "a blank Codex identity preserves the Claude flow byte-for-byte");
   assert.match(env.body, /needs a session identity/);
   // The reason has to be the SPECIFIC one, not a generic identity boilerplate: without a worktree
   // there is nothing for a recorded `cwd` to match, so any answer would be somebody else's window.
@@ -219,12 +388,18 @@ test("the synthetic exclusion is reported when it bit, and silent when it did no
   assert.match(many.body, /3 synthetic readings excluded/);
 });
 
-test("help names the marks and says it enforces nothing", () => {
+test("help distinguishes Claude's scheduled composition reading from Codex's raw occupancy", () => {
   const env = contextHelp();
 
   assert.equal(env.ok, true);
-  assert.match(env.body, /resident tokens, peak, its band — and what\n\s+it is made of, by the harness's own labels, with a remedy\n/);
-  assert.match(env.body, /The `made of:` block splits the window's INTAKE by the labels the harness itself puts on each\n/);
+  assert.match(env.body, /Claude transcript path\s+resident tokens, peak, its current band — and what it is made of,\n/);
+  assert.match(env.body, /Codex rollout path\s+raw resident tokens, peak, usage source and declared model capacity;\n/);
+  assert.match(env.body, /composition and scheduling band are explicitly UNAVAILABLE/);
+  assert.match(env.body, /Those marks and that band are Claude-only/);
+  assert.match(env.body, /Codex selects its exact rollout by CODEX_THREAD_ID/);
+  assert.match(env.body, /scheduling policy is unsettled/);
+  assert.match(env.body, /neither a band nor the Claude ~700k\/850k\nmarks are applied to a Codex reading/);
+  assert.match(env.body, /On the Claude path, the `made of:` block splits the window's INTAKE by the labels the harness itself puts on each\n/);
   assert.match(env.body, /record \(ADR-0516 D3 — labels and lengths, never content\), in bytes \(ADR-0330 D1's unit\)\. The\n/);
   assert.match(env.body, /`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no\n/);
   assert.match(env.body, /transcript records and which can only be shown as what was resident at the first request minus\n/);
@@ -234,6 +409,48 @@ test("help names the marks and says it enforces nothing", () => {
   assert.match(env.body, /850k/);
   assert.match(env.body, /never enforces/i);
   assert.match(env.body, /ESTIMATED/);
+  assert.deepEqual(env, {
+    ok: true,
+    body: [
+      "storytree context — how full is THIS session's own context window? (ADR-0411 D3/D6)",
+      "",
+      "  Claude transcript path   resident tokens, peak, its current band — and what it is made of,",
+      "                           by the harness's own labels, with a remedy",
+      "  Codex rollout path       raw resident tokens, peak, usage source and declared model capacity;",
+      "                           composition and scheduling band are explicitly UNAVAILABLE",
+      "",
+      "On Claude, run it at an INCREMENT BOUNDARY, before deciding whether to take on the next one —",
+      "that is what ADR-0411 D5 makes it, a scheduling read rather than an interruption. Past the soft mark",
+      "(~700k) take on no NEW increment; at the hard mark (850k) land what is green, write",
+      "the handover onto the owning arc, release your claims, and let a fresh session continue.",
+      "",
+      "The marks govern whether you take the NEXT unit, never how carefully you do THIS one. If finishing the unit in hand properly crosses a mark, cross it — that is the expected case, not a failure. Below the soft mark there is no economy to practise, and economising on the very artifact you are deciding about is always wrong: if the window cannot hold what your conclusion rests on, hand over or fan out to a subagent whose window is its own, never read it partially.",
+      "",
+      "Those marks and that band are Claude-only. Codex selects its exact rollout by CODEX_THREAD_ID",
+      "and reports raw resident/peak occupancy plus any capacity Codex declared. Codex composition is",
+      "not exposed and its scheduling policy is unsettled, so neither a band nor the Claude ~700k/850k",
+      "marks are applied to a Codex reading.",
+      "",
+      "It reads and never enforces (D8). On Claude, D6's point is that the judgement is INFORMED rather than",
+      "guessed — where this prints no reading, say in your debrief that you ESTIMATED.",
+      "",
+      "The figure is your OWN conversation window. Helper and subagent windows are never folded in",
+      "(ADR-0413 D2 / ADR-0411 D4): a session that fans work out has a small number, and that is",
+      "correct rather than an under-report.",
+      "",
+      "On the Claude path, the `made of:` block splits the window's INTAKE by the labels the harness itself puts on each",
+      "record (ADR-0516 D3 — labels and lengths, never content), in bytes (ADR-0330 D1's unit). The",
+      "`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no",
+      "transcript records and which can only be shown as what was resident at the first request minus",
+      "what the transcript accounts for (D4). It is reported as an unknown quantity, never omitted and",
+      "never zero. The `remedy:` line names the one lever the dominant class leaves this session.",
+      "",
+      "Offline and read-only — host transcripts and Codex rollouts are local files, so it needs no",
+      "database and no network. `STORYTREE_TRANSCRIPT_DIR` moves the Claude root; Codex reads the",
+      "current user's `.codex/sessions` tree.",
+    ].join("\n"),
+    next: ["storytree context"],
+  });
 });
 
 test("every surface that states a mark also says what the mark asks for", () => {

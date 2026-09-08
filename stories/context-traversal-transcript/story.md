@@ -17,6 +17,7 @@ capabilities:
     transcript-occupancy-ingest,
     transcript-decision-read-extraction,
     transcript-decision-read-ingest,
+    codex-own-window-reading,
   ]
 ---
 
@@ -96,6 +97,7 @@ would double every observation.
 | 4 | [`transcript-decision-read-extraction`](transcript-decision-read-extraction.md) | Every decision-record read a host transcript recorded is recovered by argv shape, with each near-miss declined and counted rather than dropped. | — |
 | 5 | [`transcript-decision-read-ingest`](transcript-decision-read-ingest.md) | The decision reads recovered from every host transcript become validated traversal events in each session's own trace, idempotently, and a zero is reported as blindness rather than as silence. | `transcript-decision-read-extraction`, `transcript-session-correlation`, `transcript-occupancy-ingest` |
 | 6 | [`transcript-decision-read-coverage`](transcript-decision-read-coverage.md) | The traversal record's own account of decision reads is reported back — the two recorders counted apart, the unrecordable offers sized as a denominator, and the raw-id join printed beside the resolved one. | `transcript-decision-read-extraction` |
+| 7 | [`codex-own-window-reading`](codex-own-window-reading.md) | The current Codex task can read its raw context-window occupancy honestly from its exact rollout. | — |
 
 The graph is acyclic, and it is two chains sharing one root. Capabilities 1, 2 and 4 each read
 transcript bytes and consume nothing from each other. Capability 3 composes 1 and 2 with increment
@@ -127,6 +129,15 @@ writing those files had nothing legal to claim. 4 and 5 were minted by
 `linked-session-context-arc-inc-34`, because its module landed AFTER that increment was parked and so
 the two-capability decision never considered it. Their specs describe shipped behaviour and invent no
 new obligation.
+
+**Capability 7 is the independent Codex adapter.** Codex records a task identity directly in
+`CODEX_THREAD_ID` and in its rollout's `session_meta`, so it must not inherit capability 2's Claude
+worktree-cwd correlation or capability 1's Claude cache arithmetic. It reads the same owner-facing
+quantity from a different host-written record, preserves the existing Claude path unchanged, and
+exposes only the raw resident, peak and capacity facts the current-session command can safely
+consume. It has no edge on 1 or 2 because it imports neither boundary; duplicating a concept is not
+a dependency. Its `arc: codex-onboarding-journey-arc` stamp records the later initiative that
+authored it while this story remains the package and journey owner.
 
 ## Declared boundaries
 

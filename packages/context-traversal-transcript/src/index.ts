@@ -15,6 +15,19 @@ export {
 } from "./transcript-occupancy.js";
 
 export {
+  readCodexContextWindow,
+  type CodexCompositionUnavailable,
+  type CodexContextWindowAvailable,
+  type CodexContextWindowRead,
+  type CodexContextWindowUnavailable,
+  type CodexContextWindowUnavailableReason,
+  type CodexIdentityEnvironment,
+  type CodexModelContextWindow,
+  type CodexSchedulingBandUnavailable,
+  type CodexUsageSource,
+} from "./codex-context-window.js";
+
+export {
   collectTranscriptFiles,
   correlateTranscriptFile,
   correlateTranscripts,
