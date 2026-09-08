@@ -32,6 +32,7 @@ import {
   observeAndSign,
   rollupStatus,
   rollupStoryUat,
+  SPINE_PRINCIPAL,
   type SignerResult,
 } from "@storytree/orchestrator";
 import type { StoreEvent } from "@storytree/storage-protocol";
@@ -77,6 +78,11 @@ export interface GateDeps {
    */
   driveBuildTestsGate?: (gate: ReliabilityGate, signer?: string) => Promise<Envelope>;
   now: () => Date;
+  /** Shared post-sign transition: records a story baseline iff this append completed current green. */
+  advanceStoryBaseline?: (
+    storyId: string,
+    provenance: { commitSha: string; signer: string; runId: string; at: string },
+  ) => Promise<unknown>;
 }
 
 export interface GateOpts {
@@ -310,6 +316,14 @@ async function gateRun(
           : [`storytree tree ${storyId} --pg   (an integrate gate greens when its capability does)`],
     };
   }
+  if (deps.advanceStoryBaseline !== undefined) {
+    await deps.advanceStoryBaseline(storyId, {
+      commitSha: result.verdict.commitSha,
+      signer: result.verdict.signer,
+      runId: result.verdict.runId,
+      at: result.verdict.at,
+    });
+  }
 
   // Re-read and report the story's reliability-gate roll-up AFTER this adoption.
   const events = await store.readEvents();
@@ -388,5 +402,18 @@ async function gateRunBuildTests(
       next: [`storytree gate run ${gate.id} --real --pg`],
     };
   }
-  return deps.driveBuildTestsGate(gate, opts.signer);
+  const result = await deps.driveBuildTestsGate(gate, opts.signer);
+  if (result.ok && deps.advanceStoryBaseline !== undefined) {
+    const git = deps.gitState();
+    if (git !== null && git.clean) {
+      const at = deps.now().toISOString();
+      await deps.advanceStoryBaseline(storyId, {
+        commitSha: git.commitSha,
+        signer: SPINE_PRINCIPAL,
+        runId: `gate-build:${at}`,
+        at,
+      });
+    }
+  }
+  return result;
 }

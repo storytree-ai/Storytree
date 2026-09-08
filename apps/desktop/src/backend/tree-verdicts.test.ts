@@ -26,7 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Verdict, criterionRevisionId } from "@storytree/proof-protocol";
+import { Verdict, criterionRevisionId, storyBaselineScope } from "@storytree/proof-protocol";
 import { canonicalUatCriterionContent } from "@storytree/library";
 
 import {
@@ -421,6 +421,28 @@ test("tree-verdicts: foldVerdicts greens the plant (own verdict) AND the island 
   }
 });
 
+test("tree-verdicts: durable baseline keeps the island green when current exact proof is absent", async () => {
+  const { dir, cleanup } = await seedStories();
+  try {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    const criterion = uatTestCriteriaByStory.get("alpha")?.[0];
+    assert.ok(criterion && "criterionId" in criterion);
+    const baselineEvent = passEvent(1, "alpha", "story");
+    baselineEvent.doc = Verdict.parse({
+      ...(baselineEvent.doc as Verdict),
+      storyBaseline: storyBaselineScope(["cap-a"], [criterion.criterionId]),
+    });
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
+      latestVerdicts: null,
+      verdictEvents: [baselineEvent],
+    });
+    assert.equal(stories[0]?.verdict?.outcome, "pass");
+    assert.equal(stories[0]?.capabilities[0]?.verdict, undefined, "pending child proof stays visible");
+  } finally {
+    await cleanup();
+  }
+});
+
 // NEVER over-claim: with no verdict source (the json backend / a down DB) the tree carries NO verdict —
 // the authored brown stands. The presence-block discipline (ADR-0033): advisory-absent, never green.
 test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict (under-claims, never over-claims)", async () => {
@@ -438,6 +460,50 @@ test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict 
   } finally {
     await cleanup();
   }
+});
+
+test("tree-verdicts: an explicit story health issue is unhealthy even when proof is unavailable", async () => {
+  const { dir, cleanup } = await seedStories();
+  try {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    const alpha = stories[0];
+    assert.ok(alpha);
+    alpha.error = "story declaration unreadable";
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
+      latestVerdicts: null,
+      verdictEvents: null,
+    });
+    assert.equal(alpha.verdict?.outcome, "fail");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tree-verdicts: an unreadable story with no obligation-map entry still resolves unhealthy", async () => {
+  const broken: DTStory = {
+    id: "broken",
+    title: "broken",
+    outcome: "",
+    status: null,
+    proofMode: "",
+    uatWitness: "human",
+    dependsOn: [],
+    consumedBy: [],
+    decisions: [],
+    capabilities: [],
+    error: "story declaration unreadable",
+  };
+
+  await foldVerdicts([broken], new Map(), new Map(), {
+    latestVerdicts: null,
+    verdictEvents: null,
+  });
+
+  assert.deepEqual(
+    broken.verdict,
+    { outcome: "fail", at: "" },
+    "the absent obligation entry is normalised for the resolver instead of throwing the whole /api/tree response",
+  );
 });
 
 // ADR-0443 D2/D3: this fixture's ONE leg is a `machine` criterion naming no `(proof-gate:)`, so it is

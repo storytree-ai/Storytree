@@ -17,6 +17,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import { SIGNING_EVENT_KIND, storyBaselineScope } from "@storytree/proof-protocol";
+
 import { treeCommand, type TreeDeps } from "./tree.js";
 
 const NOW = new Date("2026-06-11T10:00:00.000Z");
@@ -64,6 +66,26 @@ before(() => {
     ].join("\n"),
   );
   writeFileSync(join(badCap, "cap-broken.md"), "no frontmatter here either\n");
+
+  const missingCap = join(brokenDir, "missing-cap");
+  mkdirSync(missingCap);
+  writeFileSync(
+    join(missingCap, "story.md"),
+    [
+      "---",
+      "id: missing-cap",
+      "tier: story",
+      "title: Missing Cap Story",
+      "outcome: it has one missing capability",
+      "status: proposed",
+      "proof_mode: UAT",
+      "capabilities:",
+      "  - cap-absent",
+      "---",
+      "",
+      "Body.",
+    ].join("\n"),
+  );
 
   // (d) THE CONTROL — a story and a capability that both load, so the non-vacuity test below reads
   //     a dir where nothing failed rather than merely a view that happened not to print.
@@ -127,7 +149,7 @@ test("⚠ NON-VACUITY: a story that loads carries NO failure block at all — th
   const bareLines = bare.body.split("\n");
   assert.equal(bareLines.length, 2, `the bare view of one healthy story is two lines: ${JSON.stringify(bare.body)}`);
   assert.equal(bareLines[0], "Stories:");
-  assert.ok(bareLines[1]?.startsWith("  good-story"), `and the second is the story's row: ${bareLines[1]}`);
+  assert.equal(bareLines[1], "  good-story  Good Story  status=proposed  caps=1");
   // And the focused view is a multi-line render, which is what says the lines were JOINED with a
   // newline rather than run together.
   assert.ok(focused.body.split("\n").length > 4, `the focused body is a block of lines: ${JSON.stringify(focused.body)}`);
@@ -138,13 +160,14 @@ test("⚠ the BARE view still lists a story whose spec throws, and NAMES the rea
   const env = await treeCommand(undefined, brokenDeps());
   // The inventory is what was asked for and it is complete.
   assert.equal(env.ok, true, "one broken story does not fail the whole inventory");
-  for (const id of ["no-frontmatter", "bad-schema", "bad-cap"]) {
+  for (const id of ["no-frontmatter", "bad-schema", "bad-cap", "missing-cap"]) {
     assert.ok(env.body.includes(id), `${id} is still listed`);
   }
   assert.ok(env.body.includes("(unknown)"), "a story that would not load still renders its placeholder row");
   // ⚠ AND THE HALF THAT WAS MISSING: the loader's own words, not a summary of them.
   assert.ok(env.body.includes("spec(s) could not be read"), "the failure block is present");
   assert.ok(env.body.includes("2 spec(s) could not be read"), "exactly the two stories that threw, not three and not one");
+  assert.match(env.body, /no-frontmatter  \(unknown\)  status=unhealthy  caps=0/);
   // ⚠ THE BLANK LINE THAT SEPARATES IT FROM THE LISTING IS PART OF THE BLOCK, not incidental
   // whitespace: without it the header runs straight on from the last story row and reads as one.
   const bodyLines = env.body.split("\n");
@@ -207,4 +230,87 @@ test("⚠ a capability whose file EXISTS but will not parse reads (unreadable), 
   assert.ok(!env.body.includes("(spec missing)"), "which is NOT the same as the file being absent");
   assert.ok(env.body.includes("cap-broken.md"), "and the failing file is named");
   assert.ok(env.body.includes("1 spec(s) could not be read"), "one failure, not the story's own");
+  assert.match(env.body, /status:  unhealthy/, "offline story issues default unhealthy too");
+});
+
+test("durable story health is shared by bare and focused views, while spec issues default unhealthy", async () => {
+  const scope = storyBaselineScope([], []);
+  const verdicts = {
+    readEvents: async () => [{
+      kind: SIGNING_EVENT_KIND,
+      seq: 1,
+      doc: {
+        unitId: "good-story",
+        proofMode: "story",
+        outcome: "pass",
+        commitSha: "head",
+        signer: "spine:storytree",
+        runId: "baseline",
+        storyBaseline: scope,
+        evidence: [],
+        at: "2026-09-09T00:00:00.000Z",
+      },
+    }],
+  };
+  const deps: TreeDeps = {
+    storiesDir: healthyDir,
+    lookupConfig: () => null,
+    now: () => NOW,
+    verdicts,
+  };
+  const bare = await treeCommand(undefined, deps);
+  const focused = await treeCommand("good-story", deps);
+  assert.match(bare.body, /good-story ✓  Good Story  status=healthy  caps=1/);
+  assert.match(focused.body, /^Story: good-story ✓/);
+  assert.match(focused.body, /status:  healthy/);
+  assert.match(focused.body, /GREEN — delivered baseline stands; current proof is incomplete/);
+  assert.match(focused.body, /expanding: 1 capability\(ies\).*cap-good/);
+
+  const unprovenVerdicts = { readEvents: async () => [] };
+  const unproven = await treeCommand(undefined, { ...deps, verdicts: unprovenVerdicts });
+  assert.equal(
+    unproven.body.split("\n")[1],
+    "  good-story –  Good Story  status=proposed  caps=1",
+  );
+  const currentPass = {
+    readEvents: async () => [{
+      kind: SIGNING_EVENT_KIND,
+      seq: 1,
+      doc: {
+        unitId: "cap-good",
+        proofMode: "capability",
+        outcome: "pass",
+        commitSha: "head",
+        signer: "spine:storytree",
+        runId: "proof",
+        evidence: [],
+        at: "2026-09-09T00:00:00.000Z",
+      },
+    }],
+  };
+  const current = await treeCommand("good-story", { ...deps, verdicts: currentPass });
+  assert.match(current.body, /^Story: good-story ✓/);
+  assert.match(current.body, /GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed/);
+
+  const broken = await treeCommand(undefined, { ...brokenDeps(), verdicts });
+  assert.match(broken.body, /no-frontmatter ✗  \(unknown\)  status=unhealthy/);
+  assert.match(broken.body, /bad-cap ✗  Bad Cap Story  status=unhealthy/);
+  assert.match(broken.body, /missing-cap ✗  Missing Cap Story  status=unhealthy/);
+  const missingBareFailure = broken.body.split("\n").find((line) => line.includes("cap-absent.md"));
+  assert.ok(missingBareFailure?.includes("capability spec not found"));
+  const unreadableBareFailure = broken.body.split("\n").find((line) => line.includes("cap-broken.md"));
+  assert.ok(unreadableBareFailure?.includes("no frontmatter block"));
+
+  const missing = await treeCommand("missing-cap", { ...brokenDeps(), verdicts });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /^Story: missing-cap ✗/);
+  assert.match(missing.body, /status:  unhealthy/);
+  assert.match(missing.body, /cap-absent.*\(spec missing\)/);
+  assert.match(missing.body, /capability spec not found/);
+
+  const unreadable = await treeCommand("bad-cap", { ...brokenDeps(), verdicts });
+  const failureLine = unreadable.body.split("\n").find((line) => line.includes("no frontmatter block"));
+  assert.ok(failureLine);
+  assert.ok(failureLine.includes("cap-broken.md"));
+  assert.ok(!failureLine.includes("story.md"));
 });

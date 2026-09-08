@@ -388,10 +388,16 @@ test("attest: refuses on a dirty tree (the verdict pins a commit)", async () => 
 
 test("attest: a human test signs an operator-attested verdict into events.verdict", async () => {
   const f = fakeStore();
+  const baselineCalls: Array<{ storyId: string; signer: string }> = [];
   const r = await uatCommand(
     { mode: "attest", storyId: "demo", target: C1 },
     { note: "saw the relay land" },
-    baseDeps({ store: f.store }),
+    baseDeps({
+      store: f.store,
+      advanceStoryBaseline: async (storyId, provenance) => {
+        baselineCalls.push({ storyId, signer: provenance.signer });
+      },
+    }),
   );
   assert.equal(r.ok, true);
   assert.equal(f.verdicts.length, 1);
@@ -404,6 +410,7 @@ test("attest: a human test signs an operator-attested verdict into events.verdic
   assert.equal(v.signer, "owner@example.com");
   assert.equal(v.commitSha, "cafebabe0123");
   assert.equal(v.evidence[0]?.note, "saw the relay land");
+  assert.deepEqual(baselineCalls, [{ storyId: "demo", signer: "owner@example.com" }]);
   assert.match(r.body, /SIGNED verdict/);
 });
 
@@ -639,7 +646,17 @@ test("run: refuses a DIRTY tree — the verdict pins the commit it observed", as
 
 test("run: signs the observe-bound machine leg and NOTHING for the human/either legs", async () => {
   const f = fakeStore();
-  const r = await uatCommand({ mode: "run", target: "demo" }, {}, baseDeps({ store: f.store }));
+  const baselineCalls: Array<{ storyId: string; signer: string }> = [];
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({
+      store: f.store,
+      advanceStoryBaseline: async (storyId, provenance) => {
+        baselineCalls.push({ storyId, signer: provenance.signer });
+      },
+    }),
+  );
   assert.equal(r.ok, true);
   assert.equal(f.verdicts.length, 1, "exactly one criterion verdict");
   const v = f.verdicts[0]!;
@@ -649,6 +666,7 @@ test("run: signs the observe-bound machine leg and NOTHING for the human/either 
   assert.equal(v.unitId, C2);
   assert.equal(v.revisionId, R2);
   assert.equal(v.outcome, "pass");
+  assert.deepEqual(baselineCalls, [{ storyId: "demo", signer: "spine@storytree" }]);
 });
 
 test("run: ADR-0408 — a machine acceptance leg carries NO approvedBy, and the signer is the spine", async () => {
@@ -661,13 +679,19 @@ test("run: ADR-0408 — a machine acceptance leg carries NO approvedBy, and the 
 
 test("run: a RED check signs nothing and says so — a red is left red (ADR-0405 D4)", async () => {
   const f = fakeStore();
+  let baselineCalls = 0;
   const r = await uatCommand(
     { mode: "run", target: "demo" },
     {},
-    baseDeps({ store: f.store, observe: async () => ({ code: 1 }) }),
+    baseDeps({
+      store: f.store,
+      observe: async () => ({ code: 1 }),
+      advanceStoryBaseline: async () => { baselineCalls += 1; },
+    }),
   );
   assert.equal(r.ok, false);
   assert.equal(f.verdicts.length, 0);
+  assert.equal(baselineCalls, 0, "zero signed criteria cannot advance the story baseline");
   assert.match(r.body, new RegExp(`✗ ${C2}`));
 });
 

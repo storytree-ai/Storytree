@@ -312,6 +312,12 @@ import {
 } from "./uat.js";
 import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate, type GateBuildDriverDeps } from "./gate-build-driver.js";
+import {
+  loadAllStoryBaselineCandidates,
+  makeStoryBaselineAdvancer,
+  storyBaselineBackfillCommand,
+  type StoryBaselineBackfillDeps,
+} from "./story-baseline.js";
 
 // RETIRED_FIELDS (the retired-field denylist) moved to `@storytree/drive`'s health module with
 // the checks it feeds — re-imported via the ./health.js shim above.
@@ -2316,6 +2322,11 @@ export interface RunDeps {
   readonly uatStore?: UatVerdictStoreLike | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
+  /** Backfill-only process seams; the live composition supplies git, identity and wall clock. */
+  readonly storyBaselineBackfill?: Pick<
+    StoryBaselineBackfillDeps,
+    "gitState" | "resolveSigner" | "now"
+  >;
   /**
    * The ADR-number allocator (ADR-0050): the live store when --pg; null/absent offline — `storytree
    * adr new` then falls back to max+1 with a loud "not reserved" warning. Injectable for tests.
@@ -2461,7 +2472,7 @@ function currentBranch(): string {
  * and whether the tree is clean. Null when git can't answer (no repo / git missing) — `uat attest`
  * then refuses, because a verdict must pin a real commit.
  */
-function readGitState(): GitState | null {
+export function readGitState(): GitState | null {
   try {
     const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
@@ -2845,9 +2856,11 @@ function makeGateOpts(values: BuildValues): GateOpts {
  * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
  * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
  */
-function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
-  return {
-    store: deps.uatStore ?? null,
+export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+  const store = deps.uatStore ?? null;
+  const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
+  const gateDeps: GateDeps = {
+    store,
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     gitState: readGitState,
@@ -2864,6 +2877,8 @@ function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): G
     },
     now: () => new Date(),
   };
+  if (baselineAdvancer !== undefined) gateDeps.advanceStoryBaseline = baselineAdvancer;
+  return gateDeps;
 }
 
 /**
@@ -2922,9 +2937,11 @@ function makeUatOpts(values: {
 }
 
 /** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
-function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
-  return {
-    store: deps.uatStore ?? null,
+export function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
+  const store = deps.uatStore ?? null;
+  const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
+  const uatDeps: UatDeps = {
+    store,
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     gitState: readGitState,
@@ -2940,6 +2957,8 @@ function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir
     },
     readCorpusStories: () => readCorpusStoryDocs(storiesDir),
   };
+  if (baselineAdvancer !== undefined) uatDeps.advanceStoryBaseline = baselineAdvancer;
+  return uatDeps;
 }
 
 /** One story's RAW spec markdown, read pre-parse (the revision recompute repairs what will not parse). */
@@ -3541,13 +3560,24 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "story") {
     if (sub === undefined || help) return storyHelp();
+    if (sub === "baseline" && third === "backfill") {
+      const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+      const overrides = deps.storyBaselineBackfill;
+      return storyBaselineBackfillCommand(rest, {
+        store: deps.uatStore ?? null,
+        candidates: () => loadAllStoryBaselineCandidates(storiesDir),
+        gitState: overrides?.gitState ?? readGitState,
+        resolveSigner: overrides?.resolveSigner ?? resolveSignerFromEnv,
+        now: overrides?.now ?? (() => new Date()),
+      });
+    }
     // ADR-0097 Layer 2's adoption-plan report MOVED to `storytree adopt plan <story>` (the command-surface
     // reshape — adoption actions nest under `adopt`). `story` now drives only the build chain.
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run  (adoption-plan moved to: storytree adopt plan <story-id>)`,
-        next: ["storytree story build library --dry-run", "storytree adopt plan library"],
+        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run | storytree story baseline backfill --pg  (adoption-plan moved to: storytree adopt plan <story-id>)`,
+        next: ["storytree story build library --dry-run", "storytree story baseline backfill --pg", "storytree adopt plan library"],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);

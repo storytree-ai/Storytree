@@ -122,6 +122,7 @@
       "packages/cli/src/tree.ts": "tree-view",
       "packages/cli/src/tree-verdicts.ts": "verdict-glyphs",
       "packages/cli/src/work-log*.ts": "work-verdict-event-log",
+      "packages/cli/src/story-baseline*.ts": "work-verdict-event-log",
     "packages/cli/src/scope-reading*.ts": "phase-scoped-write-wall",
       "packages/cli/src/tree-attestations.ts": "attestation-surface",
       "packages/cli/src/attest.ts": "attestation-signals",
@@ -1008,6 +1009,13 @@
           "checkout"
         ],
         "because": "the CLI's tree/build/claim verbs address the units this checkout declares."
+      },
+      "packages/cli/src/story-baseline.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "story-baseline advancement and its bounded backfill bind signed health to the exact story declaration in the commit under test; the live verdict stream is proof evidence, not a live work-hierarchy projection."
       },
       "packages/cli/src/coverage-gate.ts": {
         "camp": "prove",
