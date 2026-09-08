@@ -96,6 +96,15 @@ for this bounded revision. Preserve the correct finite-list parser, production m
 and substantive existing contracts 1, 2, 5, 7 and 8. Incomplete or invalid assertions are not built
 proof to freeze.
 
+The complete witness is one authoring unit, not a source-case assertion followed by optional
+coverage. Its capture plan has a counted inventory before any optional-target red is claimed:
+three REAL authoring shapes (net-new, edit-existing, and refactor-for-testability) × uninstalled
+and installed dependencies × omitted and explicit Codex runtime × AUTHOR_TEST and IMPLEMENT is
+the **24-cell REAL matrix**. The one live-smoke shape × omitted and explicit Codex runtime × both
+phases is the **4-cell smoke matrix**. The shared helper records those keys and rejects a duplicate
+or missing cell; a passing subset, even one that reaches the optional-literal assertion, is not
+this witness.
+
 The pinned test performs this walkthrough, in order:
 
 1. **Build valid, distinctive inputs.** Revise `baseSpec`, `specWithReal` and `resolveRealFor`
@@ -111,10 +120,10 @@ The pinned test performs this walkthrough, in order:
    a separate hardcoded `buildCodexExecArgs` call cannot supply that observation. This injected
    runner observes composition only; it does not need to produce a successful real author result
    and never creates a signature.
-3. **Run one complete matrix and assertion.** The pinned body executes all three REAL arms ×
-   installed/uninstalled × omitted/explicit Codex × AUTHOR_TEST/IMPLEMENT: **24 REAL phase
-   captures**. The same helper also resolves both Codex selections in live-smoke and captures both
-   phases: **4 smoke captures**, preserving its synthetic pair and absence of real contract IDs.
+3. **Run one complete matrix and assertion.** Execute the counted 24-cell REAL inventory above.
+   The same helper also resolves the 4-cell smoke inventory, preserving its synthetic pair and
+   absence of real contract IDs. It must prove that it covered each distinct key, rather than
+   deriving the count from a loop or accepting one fixture twice.
    Each capture checks actual empty feedback tools, model/MCP launch selection, native authoring,
    spine-only observations/signing, exact allowed versus required targets, phase-appropriate
    test/source duties, dependency/typecheck restrictions and stopping behavior. AUTHOR_TEST stops
@@ -145,24 +154,25 @@ The pinned test performs this walkthrough, in order:
    writing. Those assertion failures are the regression; fixed broad wildcard prose, missing
    imports/files, invalid fixtures and broken controls are not reds.
 
-Route the existing default/explicit REAL, smoke and offline-rendered-role bodies through the same
-capture/assertion helpers where they repeat this behavior, replacing stale fixture assumptions and
-blanket exclusions. The existing CURRENT LIVE roles opt-in calls `renderLeafPhasePrompts()` with
-NO injected store and runs the **same 24 REAL + 4 smoke matrix and assertions**. Missing or
-contradictory live roles fail that check. Ordinary tests remain offline. This exact live reuse is
-part of the next witness, not a later two-string spot check.
+Route the offline neutral-role and CURRENT LIVE-role paths through that same inventory and
+capture/assertion helper, replacing stale fixture assumptions and blanket exclusions. The offline
+path renders neutral roles from its injected store. The opt-in current-live path calls
+`renderLeafPhasePrompts()` with NO injected store and runs the **same 24 REAL + 4 smoke cells and
+assertions**. Missing or contradictory live roles fail that check. Ordinary tests remain offline.
+This exact shared offline/live path is part of the next witness, not a later two-string spot check.
 
-**Whole-capability acceptance remains pending.** The walkthrough above bounds the next revision;
-it does not reduce any of the eleven full contract assertions below. Explicit Claude's wildcard
-scope and legacy three-argument helper must still match `PathWriteScope`. Its REAL/smoke feedback
-must still actually spawn the exact CONFIRM oracle through `realProofCommand`,
+**Whole-capability acceptance remains pending.** The walkthrough and every one of the eleven full
+contract assertions below are the completion bar for this same revision. Explicit Claude's
+wildcard scope and legacy three-argument helper must still match `PathWriteScope`. Its REAL/smoke
+feedback must still actually spawn the exact CONFIRM oracle through `realProofCommand`,
 `feedbackCommandsFor` and bounded `executeFeedback`, with typecheck armed/advertised only for
 its registered installed-node command. Complete the existing registry, walls, identity and
 declared-ID bodies: full Library registrations plus unknown refusal; named phase walls and the
 install/typecheck invariant; signer and node/run fields; both phases of assembly and all REAL
-arms, IDs independent of guidance, empty-contract parity and smoke absence. These existing
-acceptance debts may be completed normally in this AUTHOR_TEST; they are not made source-coupled
-by this walkthrough and none is frozen as complete.
+arms, IDs independent of guidance, empty-contract parity and smoke absence. Complete these
+existing acceptance debts normally in this AUTHOR_TEST: they remain distinct from the
+source-coupled optional-literal regression, but are not deferrable from this witness and none is
+frozen as complete.
 
 IMPLEMENT remains confined to the existing resolver. Preserve default Codex/model selection,
 native shell/`apply_patch` authoring, blind feedback, explicit Claude and legacy compatibility,
