@@ -295,6 +295,8 @@
       "packages/orchestrator/src/proof/story-baseline*.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/proof-status.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/usage-event.ts": "work-verdict-event-log",
+      "packages/orchestrator/src/proof/capability-continuity.ts": "capability-proof-continuity",
+      "packages/orchestrator/src/proof/capability-continuity.test.ts": "capability-proof-continuity",
       "packages/orchestrator/src/proof/anchor-compute.ts": "boundhash-on-verdict",
       "packages/orchestrator/src/proof/proved-span*.ts": "boundhash-on-verdict",
       "packages/orchestrator/src/proof/source-drift.ts": "source-drift",
