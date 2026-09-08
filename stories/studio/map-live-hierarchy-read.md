@@ -2,13 +2,13 @@
 id: "map-live-hierarchy-read"
 tier: capability
 story: studio
-arc: map-freshness-arc
-title: "The map reads the work hierarchy from the live store"
-outcome: "The forest map's question and its proof come from one clock, so a criterion re-worded since the app was built no longer reads as unproven."
+arc: story-green-monotonicity-arc
+title: "The map reads live hierarchy through the durable story-health fold"
+outcome: "The forest map reads the current hierarchy and shared durable story-health result from one clock: established green survives missing later proof, while story failure or an explicit health issue renders unhealthy without changing capability semantics."
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [445, 302, 253]
+decisions: [560, 445, 416, 443, 302, 253]
 # GREENFIELD, and deliberately NO `real:` arm — the same reason `store-connection-signal` and
 # `arc-orientation-lens` state next door: `readUnitSourceFiles` (packages/cli/src/check-boundaries.ts)
 # reads ONLY `real.sourceFile` + `real.scope.sourceGlobs`, so with no `real` arm this unit contributes
@@ -24,16 +24,21 @@ proof:
     testGlobs:
       - "apps/studio/server/hierarchySource.test.ts"
       - "apps/studio/server/hierarchyLiveRead.test.ts"
+      - "apps/studio/server/uatVerdict.test.ts"
+      - "apps/studio/src/lib/worldStatus.test.ts"
     sourceGlobs:
       - "apps/studio/server/hierarchySource.ts"
       - "apps/studio/server/apiRouter.ts"
       - "apps/studio/server/libraryBackend.ts"
+      - "apps/studio/src/lib/worldStatus.ts"
 ---
 
-# The map reads the work hierarchy from the live store
+# The map reads live hierarchy through the durable story-health fold
 
-**Outcome —** The forest map's question and its proof come from one clock, so a criterion re-worded
-since the app was built no longer reads as unproven.
+**Outcome —** The forest map's question, proof and durable baseline are read through one shared
+story-health fold. An established green cannot silently become proposed because later proof is
+missing; current story failure or an explicit unresolved health issue renders unhealthy. Capability
+fallback remains unchanged (ADR-0560 D1/D5).
 
 ## Why this is one capability
 
@@ -59,15 +64,19 @@ the NEW revision. An app built between those dates paints it yellow forever unti
 declared on `main` went 261 (08-05) → 113 (08-24), so a month-old app enforces ~148 obligations that
 no longer exist. **The staler the client, the yellower the map.**
 
-## What this does NOT close
+## The rule half now closes with the data half
 
-**The RULE half of the skew.** A stale app now reads CURRENT facts and still compiles them with its
-own build's `rollupStoryGreen`. ADR-0445's Consequences say so in as many words. Anyone reading this
-capability as "staleness is solved" is reading it too widely — it closes the DATA half only.
+The original increment closed only DATA skew: a stale app began reading current hierarchy facts but
+still compiled them with its own incomplete `rollupStoryGreen` rule. PR #1892 exposed the cost: an
+edited current criterion correctly lost exact-revision credit, and the reader deleted the story crown
+instead of consuming its durable baseline. ADR-0560 extends this same one-render capability to close
+that rule half. The live reader now consumes the shared story-health resolution rather than rebuilding
+the crown locally; presentation receives the resolved story status and hierarchy tier, while the
+server keeps the unresolved-issue input inside the shared resolver.
 
-It also does not touch the four capabilities whose green is overwritten by a later `building` work
-mark (`rollupStatus` = last event wins). That is a separate fault, owner-deferred on 2026-08-25 and
-governed by ADR-0416 D3/D4.
+This does not alter capability status. ADR-0296's capability-level under-claiming remains: absent or
+failed capability proof can still fall back to the authored proposed state. The tier split is
+deliberate and tested, so repairing story health cannot accidentally repaint capability parcels.
 
 ## Guidance
 
@@ -93,6 +102,15 @@ governed by ADR-0416 D3/D4.
   `uatWitness`. `effectiveUatWitness`, the would-be filter, `activeReliabilityGates` and
   `crownObligations` are RULES, and baking them into the loader would put the LOADER's rule version in
   the store and hand every reader a second, invisible staleness axis.
+- **Story health has one shared resolver.** The server passes the live story declaration, exact proof
+  events, durable baseline and explicit unresolved-health signal to the drive machinery's resolver.
+  Current failure/issue wins unhealthy; a baseline plus proof absence remains healthy with pending
+  obligations visible; no baseline/reset abstains. Studio does not delete, reconstruct or weaken that
+  result in `apiRouter.ts`.
+- **Presentation is tier-aware.** A story pass/baseline renders `healthy`; signed story failure or an
+  explicit unresolved story-health issue renders `unhealthy`; only a genuine pre-baseline/reset story
+  renders `proposed`. Capability presentation remains on its existing fold, so a capability fail does
+  not inherit the story-only unhealthy default.
 - **The two readers must agree field for field.** `readTree` and the live fold are two readers of one
   hierarchy; if they disagree, an island changes colour on which source happened to answer. That
   agreement is proven by driving ONE tree through both and comparing, never by asserting the fold
@@ -119,6 +137,12 @@ governed by ADR-0416 D3/D4.
    while the store still holds `null`; the would-be section contributes no marker-walk entry while
    the projection still carries its criterion; the retired gate leaves the coverage set; and a story
    whose spec does not parse contributes no obligations at all.
+6. Feed the shared resolver a proven baseline with a newly changed criterion and no candidate witness;
+   assert the story remains healthy and the criterion remains pending. Then add a current failure and
+   an explicit unresolved issue in separate cases and assert each resolves unhealthy.
+7. Present the story and capability cases side by side: pass/baseline, fail, issue and no-baseline.
+   Assert the story mapping is healthy/unhealthy/unhealthy/proposed while the capability mapping stays
+   on its pre-ADR-0560 semantics.
 
 ## Contracts
 
@@ -139,3 +163,14 @@ governed by ADR-0416 D3/D4.
    - **asserts —** the witness default, the would-be filter, the retired-gate drop and the
      no-obligations-for-an-unparseable-spec rule are applied by the READER, with the raw fact still
      present in the projection underneath each one.
+6. **`map-consumes-shared-durable-story-health`**
+   - **asserts —** the tree payload consumes the shared story-health resolver over live declaration,
+     exact proof, durable baseline and explicit issue state; an established baseline plus missing
+     candidate proof stays healthy with the pending obligation visible, while current fail or issue is
+     unhealthy and no-baseline/reset abstains.
+   - **covers —** `apps/studio/server/apiRouter.ts`.
+7. **`story-presentation-fails-unhealthy-without-changing-capabilities`**
+   - **asserts —** the presentation fold is split by tier: story pass/baseline → healthy, story
+     fail/explicit issue → unhealthy, genuine pre-baseline/reset → proposed; the same fixtures through
+     the capability fold retain ADR-0296's existing fallback rather than inheriting story semantics.
+   - **covers —** `apps/studio/src/lib/worldStatus.ts`.

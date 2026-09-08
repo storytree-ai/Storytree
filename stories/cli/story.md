@@ -5,6 +5,7 @@ title: "The CLI — one agent-facing command surface that wires every organism t
 outcome: "Every organism is reachable through one agent-facing CLI that hydrates credentials, dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition root that wires the system into one command."
 status: proposed
 proof_mode: UAT
+arc: story-green-monotonicity-arc
 # Per-leg witness (re-adjudicated 2026-07-25, ADR-0209 D8): ALL FOUR legs are machine-witnessed —
 # every success condition here compiles (envelope fields, exit codes, an env var, a refusal string).
 # The three offline legs bind to cli#gate-1. Leg 4 (live `--pg` hydration + pull) is machine but
@@ -45,7 +46,7 @@ proof_mode: UAT
 # to it. It arrives with `depends_on: []` — its old `[green-gate]` edge was dropped as FALSE under the
 # `cross-story-dependency` test, not converted into a cross-story edge, so `cli` stays a pure source
 # and `consumed_by` stays empty. Its sibling `green-gate` did NOT follow it and stays in `ci-cd`.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, work-hierarchy-camp-fence, guided-setup-repair, verification-decay-instruments, gate-ci-parity]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, work-hierarchy-camp-fence, guided-setup-repair, verification-decay-instruments, gate-ci-parity, uat-revision-continuity-gate]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store / arc) are declared PROVIDER-SIDE on each
 # spoke (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns
@@ -117,7 +118,7 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (7)
+## Capabilities (8)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
@@ -164,6 +165,7 @@ call has to weigh, from one alternative ground to two.
 | 5 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | proposed | — |
 | 6 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | proposed | — |
 | 7 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable two-way relationship — every step outside the shared floor belonging to a declared class, asserted both ways, plus HEAD vs merge-ref; a stale-behind-main branch is surfaced. | proposed | — |
+| 8 | [`uat-revision-continuity-gate`](uat-revision-continuity-gate.md) | A changed existing UAT criterion revision blocks until its candidate binding has an exact signed pass; a new criterion remains additive expansion. | proposed | — |
 
 *(Renumbered 1–5 on 2026-08-14 when three rows left. Safe, and different from the open modeling calls
 below, whose numbers are cited from OTHER files and are therefore never reused or shifted: nothing
@@ -177,6 +179,11 @@ added to this table** — it has been in the frontmatter `capabilities:` list an
 `storytree tree cli` all along, so the table, not the tree, was the thing that was wrong. That is the
 failure mode this heading's count invites: the frontmatter is what the tooling reads, the table is
 prose beside it, and only the frontmatter is checked. Read the tree, not this count.)*
+
+*(`uat-revision-continuity-gate` joined under ADR-0560 after PR #1892 changed an already-proven
+criterion revision without replacement proof and the Agent story silently rendered proposed. It is
+another CLI-resident pure judge, but not part of `gate-ci-parity`: one decides whether a candidate
+proof binding is admissible; the other decides whether the local and CI step sets correspond.)*
 
 **Three capabilities left this table on 2026-08-14, and where they went is the point
 (ADR-0369).**
