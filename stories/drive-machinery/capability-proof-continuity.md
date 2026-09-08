@@ -285,6 +285,7 @@ substantive test whose name begins with its contract ID.
      leaves no candidate, even though an older unchanged pass remains qualified history. Original
      failures remain in history even when their snapshot is absent. Unsorted input produces the
      same result without sorting the caller's array in place.
+   - **covers —** `packages/orchestrator/src/proof/capability-continuity.ts` (planned resolver).
    - **falsifiability —** choosing the newest eligible PASS first loses the later fail and must red.
      Reversing relevant sequence ties or duplicate signing IDs must still refuse rather than change
      the winner, including a valid/malformed signing collision. Reordering repeated-ID work marks
