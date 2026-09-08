@@ -106,6 +106,11 @@ export interface UatDeps {
   writeStoryBody: (storyId: string, body: string) => void;
   /** Every story document in the corpus, for `census`. */
   readCorpusStories: () => UatWitnessCensusStory[];
+  /** Shared post-sign transition: records a story baseline iff this append completed current green. */
+  advanceStoryBaseline?: (
+    storyId: string,
+    provenance: { commitSha: string; signer: string; runId: string; at: string },
+  ) => Promise<unknown>;
 }
 
 export interface UatOpts {
@@ -353,6 +358,14 @@ async function uatRun(
   };
   if (wanted !== undefined) args.onlyCriterionIds = wanted;
   const res = await signMachineCriteria(args);
+  if (res.signed > 0 && deps.advanceStoryBaseline !== undefined) {
+    await deps.advanceStoryBaseline(id, {
+      commitSha: git.commitSha,
+      signer: SPINE_PRINCIPAL,
+      runId,
+      at: deps.now().toISOString(),
+    });
+  }
 
   const lines = [
     `uat run "${id}": ${res.signed}/${wanted === undefined ? res.machineLegs : wanted.length} machine criterion verdict(s) signed.`,
@@ -767,6 +780,9 @@ async function uatAttest(
     doc: verdict,
     actor: signer,
   });
+  if (deps.advanceStoryBaseline !== undefined) {
+    await deps.advanceStoryBaseline(story, { commitSha: git.commitSha, signer, runId, at });
+  }
 
   // Re-read and report the story's UAT roll-up AFTER this attestation, so the operator sees whether
   // their signature greened the story (the AND over every declared per-test verdict, ADR-0082 d.3).

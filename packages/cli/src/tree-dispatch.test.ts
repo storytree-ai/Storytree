@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
+import {
+  SIGNING_EVENT_KIND,
+  storyBaselineScope,
+  type StoryBaselineScope,
+} from "@storytree/proof-protocol";
 
 import { run } from "./commands.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
@@ -71,25 +75,40 @@ after(() => {
 
 interface SigningEventResult { kind: string; seq: number; doc: unknown }
 
+interface SigningVerdictDoc {
+  unitId: string;
+  proofMode: string;
+  outcome: "pass" | "fail";
+  commitSha: string;
+  signer: string;
+  runId: string;
+  evidence: unknown[];
+  at: string;
+  storyBaseline?: StoryBaselineScope;
+}
+
 /** A full signed Verdict doc (the strict core shape) wrapped as a signing event. */
 function signingEvent(
   seq: number,
   unitId: string,
   outcome: "pass" | "fail",
+  baseline?: StoryBaselineScope,
 ): SigningEventResult {
+  const doc: SigningVerdictDoc = {
+    unitId,
+    proofMode: "capability",
+    outcome,
+    commitSha: "abc123",
+    signer: "test-signer",
+    runId: `run-${seq}`,
+    evidence: [],
+    at: "2026-06-13T00:00:00.000Z",
+  };
+  if (baseline !== undefined) doc.storyBaseline = baseline;
   return {
     kind: SIGNING_EVENT_KIND,
     seq,
-    doc: {
-      unitId,
-      proofMode: "capability",
-      outcome,
-      commitSha: "abc123",
-      signer: "test-signer",
-      runId: `run-${seq}`,
-      evidence: [],
-      at: "2026-06-13T00:00:00.000Z",
-    },
+    doc,
   };
 }
 
@@ -131,7 +150,9 @@ test("focused view through the dispatch weaves verdict glyphs from the injected 
 });
 
 test("the bare view carries the story's own glyph too", async () => {
-  const verdicts = fakeVerdictReader([signingEvent(1, "demo-story", "pass")]);
+  const verdicts = fakeVerdictReader([
+    signingEvent(1, "demo-story", "pass", storyBaselineScope(["cap-a", "cap-b", "cap-c"], [])),
+  ]);
   const env = await run(["tree"], { store: new InMemoryStore(), storiesDir, verdicts });
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /demo-story ✓/);

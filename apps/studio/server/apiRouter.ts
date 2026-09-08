@@ -1443,21 +1443,19 @@ export function applyUatCrowns(
   >,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
-  rollup: (
-    capabilities: readonly { id: string; status?: WorkStatus | undefined }[],
-    tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
-    events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
-    coverage?: readonly { id: string; covers?: readonly string[] }[],
-  ) => string | null,
+  resolve: (input: {
+    storyId: string;
+    declaration: {
+      capabilities: readonly { id: string; status?: WorkStatus | undefined }[];
+      obligations: readonly ({ criterionId: string; revisionId: string } | { id: string })[];
+    };
+    events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>;
+    coverage?: readonly { id: string; covers?: readonly string[] }[];
+    unresolvedHealthIssue?: boolean;
+  }) => { status: string | null },
 ): void {
   for (const story of stories) {
-    const tests = uatTestCriteriaByStory.get(story.id);
-    // ADR-0443 D2/D3: a story with NO obligations is still crowned — its green rests on its
-    // undertaken capabilities, and D3's vacuity floor inside `rollupStoryGreen` is what keeps that
-    // honest. Only a story with nothing at all to read (no obligations AND no capabilities) is
-    // skipped, so a legacy story's own-unit verdict is left standing rather than deleted below.
-    if (tests === undefined) continue;
-    if (tests.length === 0 && story.capabilities.length === 0) continue;
+    const tests = uatTestCriteriaByStory.get(story.id) ?? [];
     const capabilityIds = story.capabilities.map((c) => c.id);
     // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id. `status` is
     // still the authored value at this point in the pipeline — proof is folded into the hue
@@ -1468,7 +1466,13 @@ export function applyUatCrowns(
     }));
     // ADR-0097: a brownfield cap with no driven verdict greens via an adopted gate that `(covers:)` it.
     const coverage = coverageByStory.get(story.id) ?? [];
-    const rolled = rollup(capabilities, tests, events, coverage);
+    const rolled = resolve({
+      storyId: story.id,
+      declaration: { capabilities, obligations: tests },
+      events,
+      coverage,
+      unresolvedHealthIssue: story.error !== undefined,
+    }).status;
     if (rolled === 'healthy' || rolled === 'unhealthy') {
       // The crown's timestamp spans BOTH clauses — a cap-driven wither shows the capability's verdict
       // time, not just the UAT's (the union of the per-test ids and the capability ids).
@@ -1477,6 +1481,7 @@ export function applyUatCrowns(
         new Set([
           ...tests.map((t) => ('criterionId' in t ? t.criterionId : t.id)),
           ...capabilityIds,
+          story.id,
         ]),
       );
       story.verdict = { outcome: rolled === 'healthy' ? 'pass' : 'fail', at: at ?? '' };
@@ -2139,15 +2144,19 @@ export async function buildTreePayload(
   // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
   // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
   // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
-  // or no story declares per-test tests.
+  // and otherwise resolves every story, including the pre-baseline empty case, through one fold.
   if (verdictEvents) {
-    const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
+    const { resolveStoryHealth, rollupCapStatus } = await loadOrchestrator();
     // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
     // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
     // per-test UAT existing (a cap greens via its gate's coverage alone).
     applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
-    if (uatTestCriteriaByStory.size > 0) {
-      applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+    applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, resolveStoryHealth);
+  } else {
+    const unhealthyStories = payload.stories.filter((story) => story.error !== undefined);
+    if (unhealthyStories.length > 0) {
+      const { resolveStoryHealth } = await loadOrchestrator();
+      applyUatCrowns(unhealthyStories, uatTestCriteriaByStory, coverageByStory, [], resolveStoryHealth);
     }
   }
   if (builds && builds.length > 0) payload.builds = builds;

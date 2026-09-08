@@ -409,17 +409,23 @@ export function applyUatCrowns(
   >,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: readonly DTVerdictEvent[],
-  rollup: (
-    capabilities: readonly StoryCapabilityRef[],
-    tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
-    events: readonly DTVerdictEvent[],
-    coverage?: readonly { id: string; covers?: readonly string[] }[],
-  ) => string | null,
+  resolve: (input: {
+    storyId: string;
+    declaration: {
+      capabilities: readonly StoryCapabilityRef[];
+      obligations: readonly ({ criterionId: string; revisionId: string } | { id: string })[];
+    };
+    events: readonly DTVerdictEvent[];
+    coverage?: readonly { id: string; covers?: readonly string[] }[];
+    unresolvedHealthIssue?: boolean;
+  }) => { status: string | null },
 ): void {
   for (const story of stories) {
-    const tests = uatTestCriteriaByStory.get(story.id);
-    if (tests === undefined) continue;
-    if (tests.length === 0 && story.capabilities.length === 0) continue;
+    // An unreadable story declaration never reaches the obligation collector, so absence here is
+    // the error-path representation of "no obligations could be read", not a second health rule.
+    // Normalise only the declaration input; `unresolvedHealthIssue` below remains the shared
+    // resolver's reason to mark that node unhealthy. This mirrors the studio fold exactly.
+    const tests = uatTestCriteriaByStory.get(story.id) ?? [];
     const capabilityIds = story.capabilities.map((c) => c.id);
     // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id.
     const capabilities: StoryCapabilityRef[] = story.capabilities.map((c) => ({
@@ -427,13 +433,20 @@ export function applyUatCrowns(
       status: asCapabilityStatus(c.status),
     }));
     const coverage = coverageByStory.get(story.id) ?? [];
-    const rolled = rollup(capabilities, tests, events, coverage);
+    const rolled = resolve({
+      storyId: story.id,
+      declaration: { capabilities, obligations: tests },
+      events,
+      coverage,
+      unresolvedHealthIssue: story.error !== undefined,
+    }).status;
     if (rolled === "healthy" || rolled === "unhealthy") {
       const at = latestVerdictAt(
         events,
         new Set([
           ...tests.map((t) => ("criterionId" in t ? t.criterionId : t.id)),
           ...capabilityIds,
+          story.id,
         ]),
       );
       story.verdict = { outcome: rolled === "healthy" ? "pass" : "fail", at: at ?? "" };
@@ -497,12 +510,15 @@ export async function foldVerdicts(
   // backend / a down DB), so the tree renders the own-verdict layer alone rather than failing.
   const events = overlay.verdictEvents;
   if (events) {
-    const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
+    const { resolveStoryHealth, rollupCapStatus } = await loadOrchestrator();
 
     // ADR-0097: covered brownfield plants greens BEFORE the crown so plants and crown agree.
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
-    if (uatTestCriteriaByStory.size > 0) {
-      applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, rollupStoryGreen);
-    }
+    applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, resolveStoryHealth);
+  } else {
+    // The same resolver abstains for ordinary pre-baseline stories and resolves only explicit
+    // health issues unhealthy, so no pre-filter can drift into a second story-health rule.
+    const { resolveStoryHealth } = await loadOrchestrator();
+    applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, [], resolveStoryHealth);
   }
 }

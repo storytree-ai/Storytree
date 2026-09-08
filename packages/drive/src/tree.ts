@@ -25,16 +25,13 @@ import {
   loadNodeSpec,
   rollupCapStatus,
   rollupCriterionStatus,
+  resolveStoryHealth,
   rollupStatus,
-  rollupStoryGreen,
   rollupStoryUat,
-  storyBaselineOf,
 } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
 import {
-  deriveVerdictGlyphs,
-  glyphFor,
   readVerdictEvents,
   type VerdictReaderLike,
 } from "./tree-verdicts.js";
@@ -161,17 +158,10 @@ export async function treeCommand(
 ): Promise<Envelope> {
   const stories = discoverStories(deps.storiesDir);
 
-  // Verdict glyphs (verdict-glyphs capability): one signed-verdict glyph per node row —
-  // ✓ proven / ✗ last run failed / – never built. The raw events are read ONCE: `glyphs` is the
-  // per-unit latest-verdict map (null offline / on any read error → `mark` is the empty string, the
-  // column simply absent), and the same events feed the per-test UAT roll-up below (ADR-0082). A
-  // capability/legacy row's glyph is its own unit id; a story crown rolls its per-test UAT up.
+  // The raw verdict events are read ONCE. Per-unit marks consume the ordinary unit fold; story rows
+  // consume the shared durable story-health resolver, so CLI, Studio and Desktop cannot disagree.
+  // Null means offline/on read error and leaves the proof column absent.
   const verdictEvents = await readVerdictEvents(deps.verdicts ?? null);
-  const glyphs = verdictEvents === null ? null : deriveVerdictGlyphs(verdictEvents);
-  const mark = (unitId: string): string => {
-    const g = glyphFor(glyphs, unitId);
-    return g === "" ? "" : ` ${g}`;
-  };
   // The PROVEN glyph for one unit derived from the SIGNED verdicts (✓ pass / ✗ fail / – none) — the
   // gate verdict, distinct from the ADR-0044 attestation vouch marks. Offline (no events) → "".
   const provenMark = (unitId: string): string => {
@@ -192,17 +182,57 @@ export async function treeCommand(
       let title = "(unknown)";
       let status = "(unknown)";
       let capCount = 0;
+      let crown = "";
       try {
         const spec = loadNodeSpec(storyFile);
         title = spec.title;
         status = spec.status;
         capCount = spec.capabilities.length;
+        if (verdictEvents !== null) {
+          let unresolvedHealthIssue = false;
+          const statuses = new Map<string, StoryCapabilityRef["status"]>();
+          for (const capabilityId of spec.capabilities) {
+            const capabilityFile = path.join(dir, `${capabilityId}.md`);
+            if (!existsSync(capabilityFile)) {
+              unresolvedHealthIssue = true;
+              failures.push(specLoadFailure(capabilityFile, new Error("capability spec not found")));
+              continue;
+            }
+            try {
+              statuses.set(capabilityId, loadNodeSpec(capabilityFile).status);
+            } catch (err) {
+              unresolvedHealthIssue = true;
+              failures.push(specLoadFailure(capabilityFile, err));
+            }
+          }
+          const capabilities: StoryCapabilityRef[] = spec.capabilities.map((capabilityId) => ({
+            id: capabilityId,
+            status: statuses.get(capabilityId),
+          }));
+          const gates = activeReliabilityGates(spec.reliabilityGates);
+          const health = resolveStoryHealth({
+            storyId: id,
+            declaration: {
+              capabilities,
+              obligations: crownObligations(spec.uatTestCriteria, spec.reliabilityGates),
+            },
+            events: verdictEvents,
+            coverage: gates,
+            unresolvedHealthIssue,
+          });
+          if (health.status !== null) status = health.status;
+          crown = health.status === "healthy" ? " ✓" : health.status === "unhealthy" ? " ✗" : " –";
+        }
       } catch (err) {
         // Still list the story — the inventory is what was asked for — but SAY WHY its row is a
         // shell, in the block below.
         failures.push(specLoadFailure(storyFile, err));
+        status = "unhealthy";
+        if (verdictEvents !== null) {
+          crown = " ✗";
+        }
       }
-      lines.push(`  ${id}${mark(id)}  ${title}  status=${status}  caps=${capCount}`);
+      lines.push(`  ${id}${crown}  ${title}  status=${status}  caps=${capCount}`);
     }
 
     lines.push(...specFailureLines(failures));
@@ -288,6 +318,8 @@ export async function treeCommand(
         status = "(unreadable)";
         failures.push(specLoadFailure(capFile, err));
       }
+    } else {
+      failures.push(specLoadFailure(capFile, new Error("capability spec not found")));
     }
     capRows.push({
       id: capId,
@@ -301,11 +333,11 @@ export async function treeCommand(
 
   // The story crown's PROVEN state (ADR-0083 Fork A + ADR-0085): a story greens from the AND of TWO
   // necessary clauses — every capability proven healthy AND the story's OWN-PROOF obligations all
-  // proven (rollupStoryGreen) — never the story's own unit-id verdict. Own-proof obligations are the
+  // proven — combined with the durable baseline by the shared story-health resolver. Own-proof obligations are the
   // UNION of the per-test UAT test criteria (ADR-0082) AND the `## Reliability Gates` (ADR-0085, the
   // brownfield obligation set). Capabilities-green is necessary (the dependency rule), refining
   // ADR-0082's UAT-only crown. The UAT and gate clauses are each surfaced below as sub-signals. A
-  // legacy story with NEITHER keeps the own-unit glyph. Offline (no verdict events) there is no column.
+  // legacy story with NEITHER is pre-baseline/unproven. Offline (no verdict events) there is no column.
   // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but is no longer an obligation, so it is
   // filtered out of the union, the gates sub-signal AND the `(covers:)` coverage argument. The
   // DISPLAY list below stays the full parse — a burned ordinal must remain visible.
@@ -332,31 +364,33 @@ export async function treeCommand(
       : undefined;
   // ADR-0443 D2/D3: the crown is computed whenever the proof layer is readable, NOT only when the
   // story declares an obligation. A story whose every obligation is unsignable — or which declares
-  // none — now greens on its proven capabilities, and D3's vacuity floor inside `rollupStoryGreen` is
+  // none — now greens on its proven capabilities, and D3's vacuity floor inside the current fold is
   // what stops that being a free green. Gating on `ownObligations.length > 0` here would have
   // silently re-imposed the very abstain ADR-0443 D2 removes.
-  const storyGreen =
+  const storyHealth =
     verdictEvents !== null
       ? // ADR-0097: the reliability gates double as per-cap COVERAGE — a brownfield cap with no driven
         // verdict greens via an adopted gate that `(covers:)` it.
-        rollupStoryGreen(capRefs, ownObligations, verdictEvents, activeGates)
+        resolveStoryHealth({
+          storyId,
+          declaration: { capabilities: capRefs, obligations: ownObligations },
+          events: verdictEvents,
+          coverage: activeGates,
+          unresolvedHealthIssue: failures.length > 0,
+        })
       : undefined;
+  const storyGreen = storyHealth?.status;
   // ADR-0416 D2/D6: the second fact a durable green must carry — what has been declared since the
   // proven baseline and is not proven yet. Absent until a story-baseline verdict has been signed.
   const expansion =
     verdictEvents === null
       ? undefined
-      : expansionBeyondBaseline(storyBaselineOf(storyId, verdictEvents), {
+      : expansionBeyondBaseline(storyHealth!.baseline, {
           capabilities: capRefs,
           obligations: ownObligations,
         });
   const crownMark = (): string => {
     if (verdictEvents === null) return ""; // offline: no proof column
-    // A LEGACY story that declares no own-proof obligations AND no capabilities has nothing for the
-    // crown roll-up to read; its own UAT-node verdict is the only signal it ever had.
-    if (ownObligations.length === 0 && capRefs.length === 0 && storyGreen === null) {
-      return mark(storyId);
-    }
     const g = storyGreen === "healthy" ? "✓" : storyGreen === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
   };
@@ -364,7 +398,7 @@ export async function treeCommand(
   // brownfield cap with no own driven verdict wears the SAME ✓ as an own-driven cap when a healthy
   // reliability gate `(covers:)` it — so the crown and its plants tell ONE story (no ✓ crown over `–`
   // plants). The fold is the orchestrator's `rollupCapStatus`, the SAME compute the crown's capability
-  // clause uses (rollupStoryGreen), so they can never diverge. Coverage never masks a cap's own signed
+  // clause uses, so they can never diverge. Coverage never masks a cap's own signed
   // fail (rollupCapStatus → unhealthy → ✗). Mirrors `mark`'s contract: leading space, "" offline.
   const capMark = (capId: string): string => {
     if (verdictEvents === null) return "";
@@ -376,7 +410,7 @@ export async function treeCommand(
   const lines: string[] = [
     `Story: ${storyId}${crownMark()}`,
     `  title:   ${storyTitle}`,
-    `  status:  ${storyStatus}`,
+    `  status:  ${failures.length > 0 ? "unhealthy" : storyHealth?.status ?? storyStatus}`,
     `  outcome: ${storyOutcome}`,
   ];
   if (hardUatTestCriteria.length > 0 && verdictEvents !== null) {
@@ -428,7 +462,9 @@ export async function treeCommand(
           : "";
     const greenWord =
       storyGreen === "healthy"
-        ? "GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed"
+        ? storyHealth!.currentStatus === "healthy"
+          ? "GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed"
+          : "GREEN — delivered baseline stands; current proof is incomplete and remains visible below"
         : storyGreen === "unhealthy"
           ? "WITHERED — an undertaken capability or a proven obligation is a signed fail"
           : "unproven — an undertaken capability is not yet proven, or a signable obligation is not yet signed (under-claims)";
