@@ -39,7 +39,7 @@ proof:
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md), [`shell-test-observer`](shell-test-observer.md), [`prove-it-gate`](prove-it-gate.md), [`owned-loop-phase-author`](owned-loop-phase-author.md), [`real-build-worktree`](real-build-worktree.md)
 
-> **Proof status (honest) — `proposed`, with the LIVE-leaf arm still unsigned.** The
+> **Proof status (honest) — `proposed`, with live-leaf acceptance still incomplete.** The
 > resolver, the spec loader, the registry, the prompts, the feedback-tool arming, and BOTH offline
 > end-to-end walks (dry-run glue and the REAL-mode worktree walk with a scripted author) are
 > covered by a real, passing, offline suite (`packages/orchestrator/src/resolve-prove-spec.test.ts`,
@@ -50,13 +50,77 @@ proof:
 > tests verify construction and scope arming but never run the subscription leaf; the
 > genuinely-live legs are need-gated, not standing tests.
 
-**Runtime repair status — unproven.** Contracts 9 and 10 below are amended to repair the
-observed Codex prompt contradiction. The declared edit-existing proof must earn a fresh ordinary
-spine-observed regression red→green; the historical offline passes above do not prove this amendment.
+**Runtime repair status — unlanded candidate, acceptance incomplete.** Ordinary run
+`real-mtsxdpie` produced the existing source and CLI test at
+`a6e87916e14be2a47c02378b345adc4fdb584860`. Its mechanical pass and eleven named contracts do not
+discharge the missing assertions below. The candidate removes the original Codex unavailable-tool
+and no-shell contradiction, but still advertises wildcard write permission beyond Codex's finite
+promotion targets. The declared edit-existing proof must earn a fresh ordinary spine-observed
+regression red→green on that remaining behavior and complete the existing acceptance assertions.
 Capturing the final stdin with an injected process runner is an automated observation of prompt
 composition, never a real author run or a signed verdict.
 
 ## Guidance
+
+### Re-drive the existing candidate: finite Codex write targets
+
+The resolver source and CLI test now EXIST. Revise their current behavior and assertions; do not
+rebuild the test suite from an empty file. The source regression is one behavior: Codex's final
+instructions must grant exactly the write authority its existing finite promotion manifest grants.
+The current `testsNamed` describes wildcard matches as permitted; the edit-existing IMPLEMENT
+brief says every path under the source scope is writable. The unchanged `codexPromotionManifest`
+instead includes the required target and additional literal targets, never wildcard expansion.
+
+Pin that regression by rewriting the body of the existing test in
+`packages/cli/src/codex-leaf-prompt.test.ts` with this EXACT title and contract ID retained:
+
+`prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_TEST names the COMPLETE permitted test set, not just the spotlight testFile`
+
+Use an edit-existing fixture with a required test/source pair, one additional literal test/source
+pair, and wildcard entries in BOTH scopes. Include a concrete sibling matched only by each
+wildcard to distinguish the glob scope from the finite allowed set. Use the existing production
+`codexPromotionManifest` exported from `packages/orchestrator/src/resolve-prove-spec.ts` (available
+to the CLI test by relative import), not a test-local reimplementation or a new public export.
+Resolve the fixture with omitted runtime and explicit Codex, then use the existing injected runner
+to capture the actual final `CodexCommand.stdin` in both phases. Assert in this order:
+
+1. Each production manifest's allowed targets equal its required target plus the additional
+   literal target, its required outputs contain only the required target, and neither the wildcard
+   nor the sibling admitted only by that wildcard is an allowed target.
+2. The final adapter-composed allowed and required lists equal those production manifests. The
+   literal optional target remains optional; the brief preserves the phase's test/source duties.
+3. The phase instructions grant no write authority to wildcard matches or to every source-scope
+   path. Assert against the current affirmative permission claims even though the final adapter
+   appends a correct finite list. A wildcard may be mentioned as non-authorizing context; its mere
+   presence is not the defect. This instruction/manifest contradiction is the expected assertion
+   failure against the current source, not an import error, absent file or tool-name-erasure red.
+
+Keep already-correct source behavior: selected default Codex, truthful native shell/`apply_patch`
+authoring, blind proof feedback, legacy three-argument helper compatibility, explicit Claude
+selection, and unchanged proof commands, scope enforcement, manifests and spine authority.
+Correct the prompt's claims rather than widening promotion to make those claims true.
+
+The existing incomplete test bodies are NOT built proof to freeze. Their correction is part of
+this same AUTHOR_TEST phase under the unchanged file fence and all eleven obligations. Retain
+existing titles and contract IDs, preserve substantive passing assertions, and extend existing
+bodies/helpers instead of adding new test blocks wherever they can carry the required assertions:
+
+- Replace manually reconstructed capture manifests with the production finite manifests and
+  retain the actual captured launch arguments. Complete the final-input matrix below for both
+  phases, both default/explicit Codex choices, every REAL arm with/without installation, and smoke;
+  include actual default-model/MCP selection, exact targets and the unit/phase obligations.
+- Replace the shared historical role fixture with neutral roles in the test's own injected
+  Library store. The live opt-in must reuse the same complete final-input assertions through the
+  uninjected live renderer; its current two string exclusions are insufficient.
+- Replace blanket unavailable-tool-name exclusions with instruction assertions that allow a
+  prohibition or runtime comparison, but reject optional shell proof/test/typecheck/build feedback
+  grants even alongside a spine-signing disclaimer. Exercise those distinctions in the existing
+  assertion bodies; do not make correct prohibitions into the regression red.
+- Exercise Claude's actual bounded oracle spawning and registered-only typecheck for REAL and
+  smoke; a feedback-tool-name array alone does not prove the oracle contract.
+- Complete the preserved registration, write-wall, signer-propagation and contract-ID assertions
+  in their existing bodies. The complete declared obligations below remain the acceptance floor;
+  an eleven-name coverage report is not evidence that these missing assertions were supplied.
 
 ### Proof walkthrough (runtime amendment, written first)
 
@@ -152,13 +216,13 @@ in for truthful default-Codex instructions. This is a prompt-helper compatibilit
 change to which provider or model any build selects.
 
 **Authored source and proof ownership.** IMPLEMENT may edit only
-`packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST authors only
+`packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
 `packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
 test output. The existing `packages/orchestrator/src/resolve-prove-spec.test.ts` is read-only
 and remains in the explicit proof command as a regression floor. This single-file authoring
-scope makes the bootstrap's phase instruction and required output agree; the CLI file must
-actually exist with its behavioral assertions before the spine observes red. An absent CLI test,
-syntax error or broken test import is not the required runtime regression.
+scope and required output remain unchanged. The CLI file already exists; its revised behavioral
+assertions must be present before the spine observes red. An absent CLI test, syntax error or
+broken test import is not the required runtime regression.
 The CLI integration home already consumes Library, drive, orchestrator and agent dependencies,
 so it can use the production role renderer, resolver and existing injected Codex runner without
 adding a dependency cycle or changing the agent adapter. The live check uses the same integration
