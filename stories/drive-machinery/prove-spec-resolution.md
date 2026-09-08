@@ -134,10 +134,16 @@ The pinned test performs this walkthrough, in order:
    in each phase; and a net-new fixture with an optional literal source. Assert production and
    final adapter lists contain spotlight plus optional literal, require only spotlight and exclude
    a wildcard-only sibling. Then assert the final phase instructions preserve the optional
-   permission: inspect their instruction clauses as well as the adapter's appended correct list.
-   At current source, the one-literal branch omits the optional target and net-new IMPLEMENT
-   instructs spotlight-only writing. Those assertion failures are the regression; fixed broad
-   wildcard prose, missing imports/files, invalid fixtures and broken controls are not reds.
+   permission at the phase-action level, not merely by path occurrence: delimit the `Phase
+   IMPLEMENT` imperative that grants write authority from shared conventions, read-only path
+   descriptions and the adapter's appended target list. An optional literal occurring in
+   `sourcesNamed` or an allowed-target list does not make it writable if that later imperative says
+   `write ONLY <spotlight>`. The positive control accepts an IMPLEMENT action that grants the
+   optional literal write authority; negative controls reject both that contradictory spotlight-only
+   action and an explicit prohibition on writing the optional literal. At current source, the
+   one-literal branch omits the optional target and net-new IMPLEMENT instructs spotlight-only
+   writing. Those assertion failures are the regression; fixed broad wildcard prose, missing
+   imports/files, invalid fixtures and broken controls are not reds.
 
 Route the existing default/explicit REAL, smoke and offline-rendered-role bodies through the same
 capture/assertion helpers where they repeat this behavior, replacing stale fixture assumptions and
