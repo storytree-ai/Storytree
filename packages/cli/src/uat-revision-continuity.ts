@@ -3,7 +3,11 @@ import {
   WorkHierarchySnapshot,
   type ProjectedStory,
 } from "@storytree/library";
-import { CriterionVerdict, SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
+import {
+  CriterionVerdict,
+  SIGNING_EVENT_KIND,
+  Verdict,
+} from "@storytree/proof-protocol";
 import {
   rollupCriterionStatus,
   type RollupEvent,
@@ -190,7 +194,7 @@ function relevantEvents(rawEvents: readonly unknown[]): RelevantEvents {
     const event = rawEvent as Record<string, unknown>;
     if (event["kind"] !== SIGNING_EVENT_KIND) continue;
 
-    const parsed = CriterionVerdict.safeParse(event["doc"]);
+    const parsed = Verdict.safeParse(event["doc"]);
     const seq = event["seq"];
     if (!parsed.success || !Number.isSafeInteger(seq)) {
       return {
@@ -204,9 +208,12 @@ function relevantEvents(rawEvents: readonly unknown[]): RelevantEvents {
     (rawEvent): rawEvent is Record<string, unknown> =>
       (rawEvent as Record<string, unknown>)["kind"] === SIGNING_EVENT_KIND,
   );
+  const criterionEvents = signingEvents.filter(
+    (event) => Verdict.parse(event["doc"]).criterionId !== undefined,
+  );
   return {
     ok: true,
-    events: signingEvents.map((event) => ({
+    events: criterionEvents.map((event) => ({
       seq: event["seq"] as number,
       kind: SIGNING_EVENT_KIND,
       doc: CriterionVerdict.parse(event["doc"]),

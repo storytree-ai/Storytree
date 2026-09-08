@@ -91,6 +91,21 @@ function signedCriterion(
   return { seq, kind: SIGNING_EVENT_KIND, doc };
 }
 
+function signedStory(seq = 1) {
+  const doc: Verdict = {
+    unitId: "agent",
+    proofMode: "adopted",
+    outcome: "pass",
+    commitSha: "c".repeat(40),
+    signer: "ci@example.com",
+    runId: `story-run-${String(seq)}`,
+    outputVersion: "v1",
+    evidence: [],
+    at: "2026-09-09T00:00:00.000Z",
+  };
+  return { seq, kind: SIGNING_EVENT_KIND, doc };
+}
+
 function inputs(over: Partial<UatRevisionContinuityInputs> = {}): UatRevisionContinuityInputs {
   return {
     base: revisionSnapshot(OLD),
@@ -436,6 +451,27 @@ describe("signed verdict stream reads fail closed", () => {
           `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
         ],
       },
+    );
+  });
+
+  it("ignores a valid non-criterion Verdict while selecting the valid criterion row", () => {
+    exact(
+      judgeUatRevisionContinuity(
+        inputs({ events: [signedStory(7), signedCriterion(CURRENT, "pass", 8)] }),
+      ),
+      {
+        ok: true,
+        changes: [change(true)],
+        lines: [
+          "✓ 1 changed existing UAT criterion revision(s) each have a current signed pass.",
+          `  agent › ${CRITERION}: ${OLD} → ${CURRENT}`,
+        ],
+      },
+    );
+
+    exact(
+      judgeUatRevisionContinuity(inputs({ events: [signedStory()] })),
+      missingVerdict(),
     );
   });
 
