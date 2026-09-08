@@ -161,9 +161,9 @@ describe('WorldLegend (adaptive bar)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
     const treeCopy = screen.getByRole('region', { name: 'legend — story trees' }).textContent ?? '';
-    expect(treeCopy).toMatch(/amber[^.]*greenfield[^.]*current signed pass/i);
+    expect(treeCopy).toMatch(/amber[^.]*greenfield[^.]*never established[^.]*baseline/i);
     expect(treeCopy).toMatch(/authored [“"]healthy[”"][^.]*proposed/i);
-    expect(treeCopy).toMatch(/withered[^.]*unhealthy[^.]*UAT failed/i);
+    expect(treeCopy).toMatch(/withered[^.]*unhealthy[^.]*proof failed/i);
     expect(treeCopy).toMatch(/brown[^.]*inherited brownfield[^.]*adoption/i);
     expect(treeCopy).not.toMatch(/authored [“"]healthy[”"][^.]*(?:renders|waits)[^.]*brown/i);
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
@@ -178,9 +178,11 @@ describe('WorldLegend (adaptive bar)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'proof' }));
     const proofCopy = screen.getByRole('region', { name: 'legend — proof' }).textContent ?? '';
-    expect(proofCopy).toMatch(/signed pass[^.]*only[^.]*green/i);
-    expect(proofCopy).toMatch(/signed story[^.]*fail[^.]*withers/i);
-    expect(proofCopy).toMatch(/capability fail[^.]*node panel[^.]*authored rung/i);
+    expect(proofCopy).toMatch(/signed proof[^.]*establishes green/i);
+    expect(proofCopy).toMatch(/undertaken capability[^.]*own UAT[^.]*reliability obligations/i);
+    expect(proofCopy).toMatch(/baseline[^.]*stays green[^.]*later scope[^.]*incomplete/i);
+    expect(proofCopy).toMatch(/story failure[^.]*withers/i);
+    expect(proofCopy).toMatch(/capability[^.]*current signed pass[^.]*failure[^.]*node panel/i);
   });
 
   it('proof hues light their tiles without the retired witness vocabulary', () => {
@@ -192,7 +194,7 @@ describe('WorldLegend (adaptive bar)', () => {
     renderLegend(stories);
     fireEvent.click(screen.getByRole('button', { name: 'proof' }));
     expect(screen.getByRole('region', { name: 'legend — proof' }).textContent).toContain(
-      'different claims',
+      'combined story proof',
     );
     expect(screen.getByText('proven green').closest('.legend-tile')?.className).not.toContain(
       'is-absent',

@@ -8,10 +8,12 @@
 // - `building` wears `proposed` in the world (ADR-0038). Live work is already
 //   signalled by session wisps (ADR-0033), and the proposed state keeps its
 //   freedom to iterate — a separate hue bought nothing.
-// - GREEN derives from the signed verdict, never from authored paint (ADR-0040,
-//   completing ADR-0031's health-is-a-projection): a signed pass renders the
-//   unit healthy. A story's verdict is its OWN UAT node's, never a child roll-up
-//   (ADR-0033 d.4).
+// - GREEN derives from signed proof, never from authored paint (ADR-0040,
+//   completing ADR-0031's health-is-a-projection). A capability needs its current
+//   pass. A story verdict is the shared health resolver's combined answer over
+//   undertaken capabilities plus its own UAT/reliability obligations; once that
+//   scope is proven, its durable baseline survives merely incomplete later scope
+//   (ADR-0443/0560).
 // - BROWN exclusively means genuine inherited brownfield provenance (ADR-0395):
 //   only authored `mapped` can fall through to mapped without a current pass.
 //   On capabilities, defensive authored `healthy`/`unhealthy` and greenfield
@@ -36,7 +38,7 @@ export type DriftBadge = Exclude<DriftState, 'fresh'>;
 /**
  * The authored provenance fold alone (ADR-0395): `mapped` is the sole brown
  * source; greenfield and defensive proof-derived authored states read as
- * proposed until a current signed pass proves them green.
+ * proposed until signed proof establishes green.
  */
 export function worldStatus(status: WorkStatus | null): WorkStatus | null {
   if (status === 'building' || status === 'healthy' || status === 'unhealthy') {
@@ -64,14 +66,16 @@ export function provenStatus(
 }
 
 /**
- * The status a STORY crown wears once its own UAT proof is folded in.
+ * The status a STORY crown wears once the shared story-health verdict is folded in.
  *
  * Story health is deliberately stricter than capability presentation
- * (ADR-0560 D1/D5): a signed failure or an explicitly authored unresolved
- * unhealthy state renders unhealthy. A pass still wins and greens the crown;
- * otherwise the provenance fold preserves mapped brownfield and genuine
- * pre-baseline proposed greenfield. Capability presentation continues to use
- * {@link provenStatus}, retaining ADR-0296's withdrawn failure hue there.
+ * (ADR-0560 D1/D5): the server's verdict summarizes undertaken-capability health,
+ * the story's own UAT/reliability obligations, and its durable baseline. A current
+ * failure in that combined proof or an explicitly authored unresolved health issue
+ * renders unhealthy. A pass greens the crown; otherwise the provenance fold
+ * preserves mapped brownfield and genuine pre-baseline proposed greenfield.
+ * Capability presentation continues to use {@link provenStatus}, retaining
+ * ADR-0296's withdrawn failure hue there.
  */
 export function storyStatus(
   status: WorkStatus | null,

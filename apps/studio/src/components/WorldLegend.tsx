@@ -548,13 +548,13 @@ export function LegendDrawerBody({
         <p className="legend-cap">
           An island is a <strong>story</strong>; the big tree is the story itself — growth and
           colour carry the lifecycle. A young amber tree = <strong>proposed</strong> greenfield work
-          without a current signed pass (a defensive authored “healthy” value with no proof also
-          becomes proposed); a full brown tree = <strong>mapped</strong> inherited brownfield
+          that has never established a proven baseline (a defensive authored “healthy” value with
+          no proof also becomes proposed); a full brown tree = <strong>mapped</strong> inherited brownfield
           provenance, awaiting or completing adoption. A withered tree = <strong>unhealthy</strong>:
-          the story&apos;s UAT failed or its authored health issue remains unresolved. Deep green ={' '}
-          <strong>proven</strong>: a current signed pass on the story&apos;s own UAT is the only source
-          of green. Active work shows as session wisps, not a hue. Retired stories leave the
-          forest. Click a tile to fade that status across the forest.
+          the story&apos;s proof failed or its authored health issue remains unresolved. Deep green ={' '}
+          <strong>proven</strong>: signed proof established the story&apos;s delivered baseline, which
+          persists when later scope is merely incomplete. Active work shows as session wisps, not a
+          hue. Retired stories leave the forest. Click a tile to fade that status across the forest.
         </p>
       </>,
     );
@@ -595,11 +595,12 @@ export function LegendDrawerBody({
           />
         </div>
         <p className="legend-cap">
-          A current signed pass is the only source of green, and a story&apos;s crown answers only to
-          its <strong>own</strong> UAT (“all capabilities pass” and “the story passed UAT” are
-          different claims). A signed story <em>fail</em> withers its crown; a capability fail
-          remains visible on the node panel&apos;s verdict line while its plant falls back to the
-          honest authored rung. With the live store down, verdicts are absent and the world{' '}
+          Signed proof establishes green. A story&apos;s crown answers to the combined story proof:
+          every undertaken capability plus the story&apos;s own UAT and reliability obligations. Once
+          that delivered scope establishes a baseline, the crown stays green while later scope is
+          merely incomplete; a current story <em>failure</em> withers it. A capability still needs a
+          current signed pass; its failure remains visible on the node panel&apos;s verdict line while
+          the plant falls back to the honest authored rung. With the live store down, verdicts are absent and the world{' '}
           <strong>under-claims</strong>: proposed greenfield work is amber, inherited mapped
           brownfield provenance is brown, and an explicitly authored unresolved story-health
           issue remains unhealthy; the store banner is the signal.
