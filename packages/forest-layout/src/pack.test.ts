@@ -17,8 +17,11 @@ import assert from 'node:assert/strict';
 import {
   AXIAL_DIRS,
   HEX_R,
+  LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
   axialKey,
   estRadius,
+  groundFlattening,
   groundRadiusToScreenHalfHeight,
   hash,
   hexCenter,
@@ -384,6 +387,118 @@ test('label-baselines-are-twins: groundLabelY projects onto labelY at the declar
       t.groundLabelY > southmost + HEX_R,
       `${t.story.id}: the plate at ${t.groundLabelY.toFixed(2)} sits inside the island, whose ` +
         `southern ground edge is ${(southmost + HEX_R).toFixed(2)}`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE CAMERA IS AN OPTION — ADR-0527 D1 item 1
+//
+// ⚠ THE TWO HALVES ARE ASSERTED SEPARATELY BECAUSE THEY CAN FAIL SEPARATELY, and only one of them
+// is visible to a caller. A threading that moved nothing would pass every "byte-unchanged" check
+// ever written and deliver no second arm; a threading that moved the GROUND twins would deliver an
+// arm and quietly re-decide which capability owns which soil.
+// ---------------------------------------------------------------------------------------------
+
+/** A corpus with enough islands to put every emission site under load — per-territory centres, the
+ *  tree spot, the garden ring, the nameplate baseline and the scene bounds. */
+const cameraCorpus = (): LayoutStory[] => [
+  story('alpha', 5),
+  story('beta', 3, ['alpha']),
+  story('gamma', 7, ['alpha']),
+  story('delta', 2, ['beta']),
+];
+
+test('the DEFAULT camera is byte-identical to the bare call — every current caller is unmoved', () => {
+  const bare = packWorld(cameraCorpus());
+  const declared = packWorld(cameraCorpus(), { elevationDeg: LAND_CAMERA_ELEVATION_DEG });
+  // The WHOLE world, not a field of it: the option reaches five emission sites and a per-field
+  // check would pass while a sixth moved.
+  assert.deepEqual(declared, bare);
+});
+
+test('asking for PLAN VIEW un-flattens the SCREEN half — the second arm the registration work needs', () => {
+  const shipped = packWorld(cameraCorpus());
+  const plan = packWorld(cameraCorpus(), { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  const flat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  // Non-vacuity: the shipped camera really does foreshorten, so "un-flattened" is a difference and
+  // not a tautology. A test written against a camera that happened to be plan view would pass
+  // whatever the threading did.
+  assert.ok(flat < 0.9, `the shipped camera must foreshorten for this test to mean anything, got ${flat}`);
+
+  for (const [i, t] of plan.territories.entries()) {
+    const was = shipped.territories[i];
+    assert.ok(was !== undefined, 'the same territories in the same order');
+    // x is UNTOUCHED by either camera — the q axis runs across the screen — so a threading that
+    // scaled both axes, or the wrong one, is caught here rather than looking like success.
+    assert.equal(t.treeSpot.x, was.treeSpot.x);
+    // ⚠ AND y IS THE UN-PROJECTION EXACTLY, not merely "bigger": `hexCenter` projects by scaling y
+    // through `groundFlattening`, so the plan-view spot must be the shipped one divided by it.
+    assert.ok(Math.abs(t.treeSpot.y - was.treeSpot.y / flat) < 1e-9, `${t.treeSpot.y} vs ${was.treeSpot.y / flat}`);
+    // The screen tree spot at plan view IS the ground twin — the two spaces coincide when the
+    // camera is the plan view, which is what makes this option the right seam rather than a dial.
+    assert.ok(Math.abs(t.treeSpot.y - t.groundTreeSpot.y) < 1e-9, 'at plan view the two spaces meet');
+  }
+});
+
+test('the GROUND half does NOT move with the camera — the layout is re-projected, never re-decided', () => {
+  const shipped = packWorld(cameraCorpus());
+  const plan = packWorld(cameraCorpus(), { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  for (const [i, t] of plan.territories.entries()) {
+    const was = shipped.territories[i];
+    assert.ok(was !== undefined);
+    // Which tiles the story grew onto, and where they sit on the land.
+    assert.deepEqual(t.tiles, was.tiles);
+    assert.deepEqual(t.groundTreeSpot, was.groundTreeSpot);
+    assert.deepEqual(t.groundCentroid, was.groundCentroid);
+    assert.equal(t.groundRadius, was.groundRadius);
+    // And which capability owns which soil — the thing a camera must never decide.
+    assert.deepEqual(
+      t.caps.map((c) => [c.cap.id, c.groundSpot] as const),
+      was.caps.map((c) => [c.cap.id, c.groundSpot] as const),
+    );
+  }
+  // The coast leaves this packer in ground space (ADR-0527 D1), so it is camera-free by
+  // construction — asserted rather than assumed, since "by construction" is what the bare
+  // `hexCenter` sites also claimed to be.
+  assert.deepEqual(plan.empties, shipped.empties);
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE KEEP-IN WALK IS A CORRECTION, NOT A ROUTINE — it must not fire on a spot already on soil
+//
+// ⚠ WHY THIS IS ASSERTED AS A SPREAD RATHER THAN AS A STEP COUNT: `steps` is internal, and the
+// walk's own postcondition ("the spot ends up on owned soil") is satisfied by a walk that fired
+// four times as well as by one that never fired — so it cannot separate them. What CAN is the
+// walk's arithmetic: each step leaves the offset at 75% of itself (`p += (anchor - p) * 0.25`), so
+// a garden walked its full four steps sits at 0.75^4 = 31.6% of its ring radius, bunched around
+// the trunk. The bar below is derived from that factor, not chosen: measured on this corpus the
+// shipped gardens reach 48.4%-77.2% of their island's ground radius, and a fully-walked one would
+// reach 15.3%-24.4%. 40% sits between the two with margin on both sides.
+//
+// It is the assertion that holds the walk's CONDITION honest — both the ownership test and the
+// point handed to `pixelToHex`. Break either and every capability walks the full four steps.
+// ---------------------------------------------------------------------------------------------
+
+test('a garden REACHES OUT across its island — the keep-in walk corrects the few, never pulls in the many', () => {
+  const world = packWorld(cameraCorpus());
+  // ⚠ ONE STEP OF THE WALK, spelled out, so the bar below is arithmetic rather than a number
+  // somebody liked. Four of them is what a garden that walked every time would be left with.
+  const perStep = 0.75;
+  const fullyWalked = perStep ** 4;
+  assert.ok(fullyWalked < 0.32, `four steps must collapse the ring for this bar to separate, got ${fullyWalked}`);
+
+  for (const t of world.territories) {
+    const reaches = t.caps.map((c) =>
+      Math.hypot(c.groundSpot.x - t.groundTreeSpot.x, c.groundSpot.y - t.groundTreeSpot.y),
+    );
+    assert.ok(reaches.length > 0, `${t.story.id} must have capabilities for this to mean anything`);
+    const ratio = Math.max(...reaches) / t.groundRadius;
+    assert.ok(
+      ratio > 0.4,
+      `${t.story.id}: its garden reaches only ${(ratio * 100).toFixed(1)}% of the island's ground radius — ` +
+        `a garden walked all four steps would sit near ${(fullyWalked * 100).toFixed(1)}%, so the keep-in walk ` +
+        'is firing on spots that were already on owned soil',
     );
   }
 });

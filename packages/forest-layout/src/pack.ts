@@ -37,6 +37,7 @@ import {
   groundRadiusToScreenHalfHeight,
   unprojectGround,
   PLAN_VIEW_ELEVATION_DEG,
+  LAND_CAMERA_ELEVATION_DEG,
   groundPolarOffset,
   axialKey,
   AXIAL_DIRS,
@@ -111,6 +112,20 @@ export interface PackOptions {
    *  owns the other half of that rule: a story it does not want laid out at all is one it does not
    *  pass in. */
   carriedIcons?: ReadonlyMap<string, readonly string[]>;
+  /** WHICH CAMERA THE SCREEN HALF OF THIS LAYOUT IS PROJECTED AT (ADR-0527 D1 item 1); absent ⇒
+   *  the shipped {@link LAND_CAMERA_ELEVATION_DEG}, so every existing caller is byte-unchanged.
+   *
+   *  ⚠ IT MOVES THE SCREEN HALF ONLY, AND THAT ASYMMETRY IS THE POINT. Everything this packer
+   *  DECIDES — which tile a story grows onto, which capability owns which ground, where the coast
+   *  runs — is taken at {@link PLAN_VIEW_ELEVATION_DEG} and is camera-independent by construction,
+   *  so asking for another elevation re-projects the drawing without re-deciding the layout. A
+   *  ground twin (`groundCentroid`, `groundTreeSpot`, `groundSpot`, `groundLabelY`, the coast
+   *  loops) is unmoved by this option BY DESIGN; if one of them ever moves, the two spaces have
+   *  stopped being the same world seen twice.
+   *
+   *  It exists so `the-two-layers-share-one-elevation` can RENDER both arms for the owner. It does
+   *  not pick the shared elevation, which is his look to sign. */
+  elevationDeg?: number;
 }
 
 // ---------- the laid-out world ----------
@@ -280,6 +295,13 @@ export function packWorld<S extends LayoutStory>(
   opts?: PackOptions,
 ): HexWorld<S> {
   const plantsScatter = opts?.plantsScatter ?? false;
+  // THE ONE PLACE THE CAMERA IS RESOLVED, so no site below can quietly read a different one.
+  const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  // ⚠ A NAMED WRAPPER RATHER THAN `hexCenter` AT EACH SITE, and it is the fix for the trap the
+  // comments below document at length: `.map(hexCenter)` feeds each tile's ARRAY INDEX into the
+  // options slot. This closes over the resolved camera and takes exactly one argument, so a
+  // point-free `.map(screenCenter)` is now SAFE — the shape that used to be the bug.
+  const screenCenter = (h: Axial): Pt => hexCenter(h, { elevationDeg });
   // ADR-0521: every gap is a fraction of the islands it separates — `gapBetween` over the two
   // estimated radii — and a lone island's swing is the offset a same-row neighbour would have had.
   // The `legacy` triple is the pre-ADR-0521 map, for a comparison page's control arm only.
@@ -604,7 +626,7 @@ export function packWorld<S extends LayoutStory>(
     // largest driver of `land-camera-consumers-reconcile`'s measured content-extent collapse (a
     // territory's own `centroid`/`radius` were computed from tiles each seen through a DIFFERENT,
     // index-derived camera).
-    const centers = tiles.map((h) => hexCenter(h));
+    const centers = tiles.map(screenCenter);
     const centroid: Pt = {
       x: centers.reduce((s, p) => s + p.x, 0) / Math.max(centers.length, 1),
       y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
@@ -638,7 +660,7 @@ export function packWorld<S extends LayoutStory>(
     // in a ring around it — a CIRCLE on the land, which the camera projects to an ellipse (walked
     // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
     const centerTile = groundHeroTile(tiles) ?? seed;
-    const treeSpot = hexCenter(centerTile);
+    const treeSpot = screenCenter(centerTile);
     // The same tile before the camera (ADR-0527 D1) — the anchor `buildScene` is handed. Taken from
     // the tile, not from `treeSpot` by un-projection: `hexCenter` projects by scaling y, so these two
     // are the same point stated in two spaces, and the core projecting this one reproduces that one.
@@ -677,7 +699,7 @@ export function packWorld<S extends LayoutStory>(
       // asked for `rr` landed up to 93% further out in ground-y than in ground-x. Each of these is
       // its capability's parcel seed (`capToParcel`), so the ellipse was skewing the partition that
       // decides which ground each capability owns.
-      const off = groundPolarOffset(angle, rr);
+      const off = groundPolarOffset(angle, rr, elevationDeg);
       let x = treeSpot.x + off.x;
       let y = treeSpot.y + off.y;
       // The keep-IN walk stays in screen space, correctly: a 25% step toward `treeSpot` is an AFFINE
@@ -687,7 +709,9 @@ export function packWorld<S extends LayoutStory>(
       // EQUIVALENT — the keep-in walk is ended by its LAND TEST, not by its bound: every garden spot lands
       // on owned soil within a step or two, so 4 is a guard rather than a schedule.
       // Stryker disable next-line ConditionalExpression,EqualityOperator,UpdateOperator: EQUIVALENT — see the note above.
-      for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }))) !== i; k++) {
+      // ⚠ `pixelToHex` MUST read the camera these points were projected through, or the keep-in
+      // walk tests a screen point against the wrong tile and seats plants on a neighbour's ground.
+      for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }, { elevationDeg }))) !== i; k++) {
         x += (treeSpot.x - x) * 0.25;
         y += (treeSpot.y - y) * 0.25;
         steps += 1;
@@ -739,7 +763,7 @@ export function packWorld<S extends LayoutStory>(
     // is already projected (an upright extrusion, so cos θ) and stays as it is.
     const labelY =
       Math.max(...centers.map((p) => p.y), centroid.y) +
-      groundRadiusToScreenHalfHeight(HEX_R) +
+      groundRadiusToScreenHalfHeight(HEX_R, elevationDeg) +
       TILE_DEPTH +
       tileUnits(8);
     // The SAME baseline on the ground (ADR-0545), built the way every other ground twin here is
@@ -927,14 +951,14 @@ export function packWorld<S extends LayoutStory>(
   // This is what fed `allCenters`, and therefore `minY`/`maxY` below, values orders of magnitude
   // outside the map's true extent: the measured content-extent collapse's dominant cause, not the
   // vertical-squash story this increment's own trap warns against assuming.
-  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map((e) => hexCenter(e))];
+  const allCenters = [...drawTiles.map((t) => screenCenter(t.h)), ...empties.map(screenCenter)];
   const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
   const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
   // Same reconciliation as the nameplate baseline above (ADR-0367's second named cost): the vertical
   // bounds must use a cell's PROJECTED half-height, or an angled map is cropped at the top and given
   // a cell-radius of dead space at the bottom. The x bounds keep `HEX_W / 2` — the q axis runs across
   // the screen and does not foreshorten.
-  const hexHalfHeight = groundRadiusToScreenHalfHeight(HEX_R);
+  const hexHalfHeight = groundRadiusToScreenHalfHeight(HEX_R, elevationDeg);
   const minY =
     Math.min(
       ...allCenters.map((p) => p.y - hexHalfHeight),

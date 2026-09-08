@@ -432,6 +432,12 @@ export function buildWorld(
      *  jitter/relax/etc): absent ⇒ the shipped `ISLAND_SPACING_RATIO` (unchanged callers). `legacy`
      *  stands the three pre-ADR-0521 absolute gaps for an instrument's control arm. */
     spacing?: Partial<SpacingTuning>;
+    /** ADR-0527 D1 item 1 — WHICH CAMERA the screen half of the layout is projected at; absent ⇒
+     *  the shipped `LAND_CAMERA_ELEVATION_DEG`, so every current caller is byte-unchanged. It
+     *  re-projects the drawing and re-decides nothing: the packer takes every layout decision at
+     *  `PLAN_VIEW_ELEVATION_DEG` and those are camera-independent. It exists so the registration
+     *  work can RENDER a second camera's arm; it does not pick one, which is an owner look. */
+    elevationDeg?: number;
   },
 ): HexWorld {
   const buildings = opts?.buildings ?? false;
@@ -455,6 +461,10 @@ export function buildWorld(
   // on the difference.
   const packOpts: PackOptions = { plantsScatter: opts?.plantsScatter ?? false, carriedIcons };
   if (opts?.spacing) packOpts.spacing = opts.spacing;
+  // By statement for the reason `spacing` is: under `exactOptionalPropertyTypes` an absent key and
+  // one present-and-undefined are different inputs, and only the first leaves the packer on its own
+  // default — which is what "every current caller is byte-unchanged" rests on.
+  if (opts?.elevationDeg !== undefined) packOpts.elevationDeg = opts.elevationDeg;
   return packWorld(stories, packOpts);
 }
 
