@@ -128,6 +128,11 @@ export function registrationCamera(
 ): RegistrationResult {
   const map = Math.sin(cameras.mapElevationDeg * RAD);
   const canvas = Math.sin(cameras.canvasElevationDeg * RAD);
+  // ⚠ `Infinity` RATHER THAN THE `0 / 0` THIS WOULD OTHERWISE PRODUCE. Both layers edge-on is the
+  // one input where the plain division answers `NaN`, and `NaN` compares FALSE against everything
+  // including itself — so a caller writing `if (ratio > 1.01) warn()` is silently satisfied by the
+  // most broken input there is. A refusal's own number must fail every comparison a reader makes,
+  // not pass them all.
   const depthScaleRatio = map === 0 ? Infinity : canvas / map;
   if (!(map > 0) || !(canvas > 0)) {
     return {
@@ -138,7 +143,22 @@ export function registrationCamera(
         'ground plane to a line, so there is no depth scale to match',
     };
   }
-  if (Math.abs(depthScaleRatio - 1) > 1e-12) {
+  // ⚠ EXACT EQUALITY OF THE TWO SINES, deliberately, and NOT a tolerance. The condition is that both
+  // layers foreshorten depth by the same factor, and the only way a caller produces that is by
+  // handing over the same elevation — which yields the same factor by the SAME computation, so it
+  // agrees bit for bit and there is nothing for a tolerance to absorb.
+  //
+  // ⚠ A NEAR MISS IS REFUSED RATHER THAN ABSORBED, and that is the point rather than a rough edge.
+  // The requirement is registration TO THE PIXEL across a forest thousands of units deep, so a
+  // factor that is nearly 1 still walks the labels off their islands at the far end — and a
+  // tolerance would be untestable anyway, since no pair of angles lands `|ratio − 1|` exactly on
+  // its boundary. A caller that means "the same camera" passes the same number.
+  //
+  // ⚠ AND MATHEMATICALLY-EQUAL ANGLES ARE NOT NUMERICALLY EQUAL: `sin 20°` and `sin 160°` are the
+  // same real number and two different doubles, so this refuses the pair. That is the honest
+  // answer — a map drawn at 20° being told the canvas looks from 160° is a caller mistake, and
+  // saying so beats registering it by luck.
+  if (map !== canvas) {
     return {
       ok: false,
       depthScaleRatio,

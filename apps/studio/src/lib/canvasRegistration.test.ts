@@ -188,21 +188,90 @@ describe('the condition, and it is not met today', () => {
     expect(canvasSep.y / svgSep.y).toBeCloseTo(2.2398, 4);
   });
 
-  it('refuses an edge-on camera rather than dividing by a flattened ground', () => {
+  it('refuses an edge-on camera for the RIGHT reason — a flattened ground, not a mismatch', () => {
+    // ⚠ EVERY REFUSAL HERE ALSO REFUSES FOR THE OTHER REASON, so `ok === false` acquits all of them
+    // and proves nothing about which guard ran. `check:mutation-diff` scored eight survivors on
+    // exactly that: the edge-on guard could be deleted outright and every `.ok` assertion still
+    // passed, because the mismatch check refuses an infinite ratio too. What a caller ACTS on is the
+    // sentence, so the sentence is what is asserted.
     const svg: Camera = { tx: 0, ty: 0, scale: 1 };
     for (const cameras of [
-      { mapElevationDeg: 0, canvasElevationDeg: 0 },
-      { mapElevationDeg: 20, canvasElevationDeg: 0 },
+      // The MAP edge-on: its own depth scale is zero, so the ratio is reported as infinite rather
+      // than divided by. `0 / 0` (both flat) is the case that would otherwise answer `NaN`.
+      { mapElevationDeg: 0, canvasElevationDeg: 0, ratio: Infinity },
+      { mapElevationDeg: 0, canvasElevationDeg: 20, ratio: Infinity },
+      // The CANVAS edge-on: an ordinary division, and the answer is honestly zero.
+      { mapElevationDeg: 20, canvasElevationDeg: 0, ratio: 0 },
     ]) {
       const solved = registrationCamera(svg, FRAME, cameras);
       expect(solved.ok).toBe(false);
+      if (solved.ok) continue;
+      expect(solved.reason).toContain('flattens the ground plane to a line');
+      expect(solved.reason).toContain('no depth scale to match');
+      expect(solved.reason).toContain(`${cameras.mapElevationDeg}°`);
+      // …and NOT the mismatch sentence, which is the other branch and would be a different remedy.
+      expect(solved.reason).not.toContain('must share one elevation');
+      // ⚠ AND THE REPORTED RATIO IS INFINITE, NEVER `NaN`. With the map edge-on the plain division
+      // is `0 / 0` for a both-flat pair, and `NaN` compares false against everything — so a caller
+      // guarding on `ratio > 1.01` would be satisfied by the most broken input there is. A refusal's
+      // number has to fail every comparison a reader makes.
+      expect(solved.depthScaleRatio).toBe(cameras.ratio);
+      expect(Number.isNaN(solved.depthScaleRatio)).toBe(false);
     }
   });
 
-  it('refuses a camera or a frame with no size, rather than returning an infinity', () => {
+  it('names the MISMATCH in terms a reader can act on, including the ratio and both angles', () => {
+    const svg: Camera = { tx: -412.5, ty: 133.25, scale: 0.6528 };
+    const solved = registrationCamera(svg, FRAME, {
+      mapElevationDeg: LAND_CAMERA_ELEVATION_DEG,
+      canvasElevationDeg: SHIPPED_ELEVATION_DEG,
+    });
+    expect(solved.ok).toBe(false);
+    if (solved.ok) return;
+    expect(solved.reason).toContain(`${LAND_CAMERA_ELEVATION_DEG}°`);
+    expect(solved.reason).toContain(`${SHIPPED_ELEVATION_DEG}°`);
+    expect(solved.reason).toContain('2.2398x the depth');
+    expect(solved.reason).toContain('The x axis agrees exactly and the depth axis does not');
+    expect(solved.reason).toContain('cannot be removed by any uniform scale, pan or zoom');
+    expect(solved.reason).toContain('must share one elevation before they can share a screen');
+    expect(solved.reason).not.toContain('flattens the ground plane');
+  });
+
+  it('refuses a NEAR MISS instead of absorbing it in a tolerance', () => {
+    // ⚠ A factor of 1.0000000017 reads like agreement and is not: the requirement is registration to
+    // the pixel across a forest thousands of units deep, so a near-1 ratio still walks the labels off
+    // their islands at the far end. Asserting the near miss is also what makes the exactness a
+    // DECISION rather than an accident nobody would notice if a tolerance crept back in.
+    const svg: Camera = { tx: -412.5, ty: 133.25, scale: 0.6528 };
+    const solved = registrationCamera(svg, FRAME, {
+      mapElevationDeg: 20,
+      canvasElevationDeg: 20.0000001,
+    });
+    expect(solved.ok).toBe(false);
+    if (solved.ok) return;
+    expect(solved.depthScaleRatio).toBeCloseTo(1, 8);
+    expect(solved.depthScaleRatio).not.toBe(1);
+    expect(solved.reason).toContain('must share one elevation before they can share a screen');
+  });
+
+  it('registers the same elevation with itself, so the refusal above is about the MISS', () => {
+    const svg: Camera = { tx: -412.5, ty: 133.25, scale: 0.6528 };
+    const solved = registrationCamera(svg, FRAME, { mapElevationDeg: 20, canvasElevationDeg: 20 });
+    expect(solved.ok).toBe(true);
+  });
+
+  it('refuses a camera or a frame with no size, and says which', () => {
     const cameras = { mapElevationDeg: 20, canvasElevationDeg: 20 };
-    expect(registrationCamera({ tx: 0, ty: 0, scale: 0 }, FRAME, cameras).ok).toBe(false);
-    expect(registrationCamera({ tx: 0, ty: 0, scale: 1 }, { width: 0, height: 900 }, cameras).ok).toBe(false);
-    expect(registrationCamera({ tx: 0, ty: 0, scale: 1 }, { width: 1600, height: 0 }, cameras).ok).toBe(false);
+    for (const [svg, frame] of [
+      [{ tx: 0, ty: 0, scale: 0 }, FRAME],
+      [{ tx: 0, ty: 0, scale: 1 }, { width: 0, height: 900 }],
+      [{ tx: 0, ty: 0, scale: 1 }, { width: 1600, height: 0 }],
+    ] as const) {
+      const solved = registrationCamera(svg, frame, cameras);
+      expect(solved.ok).toBe(false);
+      if (solved.ok) continue;
+      expect(solved.reason).toContain('projects nothing to register against');
+      expect(solved.depthScaleRatio).toBeCloseTo(1, 12);
+    }
   });
 });
