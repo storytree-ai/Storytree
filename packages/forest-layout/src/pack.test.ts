@@ -17,8 +17,11 @@ import assert from 'node:assert/strict';
 import {
   AXIAL_DIRS,
   HEX_R,
+  LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
   axialKey,
   estRadius,
+  groundFlattening,
   groundRadiusToScreenHalfHeight,
   hash,
   hexCenter,
@@ -386,4 +389,77 @@ test('label-baselines-are-twins: groundLabelY projects onto labelY at the declar
         `southern ground edge is ${(southmost + HEX_R).toFixed(2)}`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE CAMERA IS AN OPTION — ADR-0527 D1 item 1
+//
+// ⚠ THE TWO HALVES ARE ASSERTED SEPARATELY BECAUSE THEY CAN FAIL SEPARATELY, and only one of them
+// is visible to a caller. A threading that moved nothing would pass every "byte-unchanged" check
+// ever written and deliver no second arm; a threading that moved the GROUND twins would deliver an
+// arm and quietly re-decide which capability owns which soil.
+// ---------------------------------------------------------------------------------------------
+
+/** A corpus with enough islands to put every emission site under load — per-territory centres, the
+ *  tree spot, the garden ring, the nameplate baseline and the scene bounds. */
+const cameraCorpus = (): LayoutStory[] => [
+  story('alpha', 5),
+  story('beta', 3, ['alpha']),
+  story('gamma', 7, ['alpha']),
+  story('delta', 2, ['beta']),
+];
+
+test('the DEFAULT camera is byte-identical to the bare call — every current caller is unmoved', () => {
+  const bare = packWorld(cameraCorpus());
+  const declared = packWorld(cameraCorpus(), { elevationDeg: LAND_CAMERA_ELEVATION_DEG });
+  // The WHOLE world, not a field of it: the option reaches five emission sites and a per-field
+  // check would pass while a sixth moved.
+  assert.deepEqual(declared, bare);
+});
+
+test('asking for PLAN VIEW un-flattens the SCREEN half — the second arm the registration work needs', () => {
+  const shipped = packWorld(cameraCorpus());
+  const plan = packWorld(cameraCorpus(), { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  const flat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  // Non-vacuity: the shipped camera really does foreshorten, so "un-flattened" is a difference and
+  // not a tautology. A test written against a camera that happened to be plan view would pass
+  // whatever the threading did.
+  assert.ok(flat < 0.9, `the shipped camera must foreshorten for this test to mean anything, got ${flat}`);
+
+  for (const [i, t] of plan.territories.entries()) {
+    const was = shipped.territories[i];
+    assert.ok(was !== undefined, 'the same territories in the same order');
+    // x is UNTOUCHED by either camera — the q axis runs across the screen — so a threading that
+    // scaled both axes, or the wrong one, is caught here rather than looking like success.
+    assert.equal(t.treeSpot.x, was.treeSpot.x);
+    // ⚠ AND y IS THE UN-PROJECTION EXACTLY, not merely "bigger": `hexCenter` projects by scaling y
+    // through `groundFlattening`, so the plan-view spot must be the shipped one divided by it.
+    assert.ok(Math.abs(t.treeSpot.y - was.treeSpot.y / flat) < 1e-9, `${t.treeSpot.y} vs ${was.treeSpot.y / flat}`);
+    // The screen tree spot at plan view IS the ground twin — the two spaces coincide when the
+    // camera is the plan view, which is what makes this option the right seam rather than a dial.
+    assert.ok(Math.abs(t.treeSpot.y - t.groundTreeSpot.y) < 1e-9, 'at plan view the two spaces meet');
+  }
+});
+
+test('the GROUND half does NOT move with the camera — the layout is re-projected, never re-decided', () => {
+  const shipped = packWorld(cameraCorpus());
+  const plan = packWorld(cameraCorpus(), { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
+  for (const [i, t] of plan.territories.entries()) {
+    const was = shipped.territories[i];
+    assert.ok(was !== undefined);
+    // Which tiles the story grew onto, and where they sit on the land.
+    assert.deepEqual(t.tiles, was.tiles);
+    assert.deepEqual(t.groundTreeSpot, was.groundTreeSpot);
+    assert.deepEqual(t.groundCentroid, was.groundCentroid);
+    assert.equal(t.groundRadius, was.groundRadius);
+    // And which capability owns which soil — the thing a camera must never decide.
+    assert.deepEqual(
+      t.caps.map((c) => [c.cap.id, c.groundSpot] as const),
+      was.caps.map((c) => [c.cap.id, c.groundSpot] as const),
+    );
+  }
+  // The coast leaves this packer in ground space (ADR-0527 D1), so it is camera-free by
+  // construction — asserted rather than assumed, since "by construction" is what the bare
+  // `hexCenter` sites also claimed to be.
+  assert.deepEqual(plan.empties, shipped.empties);
 });
