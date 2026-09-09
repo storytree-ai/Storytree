@@ -38,7 +38,7 @@ proof:
         - "--import"
         - "./scripts/tsx-cache-off.mjs"
         - "--import"
-        - "tsx"
+        - "./packages/orchestrator/node_modules/tsx/dist/loader.mjs"
         - "--test"
         - "packages/orchestrator/src/phase-machine.test.ts"
         - "packages/orchestrator/src/shell-test-executor.test.ts"
