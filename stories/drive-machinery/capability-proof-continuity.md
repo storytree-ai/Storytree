@@ -187,15 +187,25 @@ canonical acceptance at `stories/drive-machinery/capability-proof-continuity.md`
 `## Integration test` section and every assertion/falsifiability body under `## Contracts (7)`;
 the generated contract-ID briefing remains an index, not a replacement for that reading. Author
 substantive, independently asserted tests for all seven declared IDs, retaining each exact ID in
-its test name. Build admitted positive fixtures as the specified post-rename current hierarchy,
-with real `Verdict.safeParse`, `workEvent`, `RollupEvent`, and `rollupStatus` collaborators rather
-than substitutes. The required regression contains one initial and multiple same-run,
-phase-stamped `building` marks at distinct supplied sequences followed by a schema-valid same-ID
-signature; every supplied anchor has its own `boundHash`. Keep malformed signing, duplicate and
-ambiguous bindings/orderings, invalid mappings, and retirement/reset as the independently asserted
-negative controls the full acceptance specifies. A malformed signing document grants no credit;
-ordinary phase-less work records remain legitimate supplied history, but do not satisfy the
-required production-shaped repeated-phase regression.
+its test name. Build admitted positive fixtures as the specified post-rename current hierarchy.
+Their raw target, anchor and snapshot specifications are complete frontmatter-Markdown documents
+accepted by `loadNodeSpec` in `packages/orchestrator/src/node-spec.ts`, including both frontmatter
+delimiters and required frontmatter fields. Any chosen source/test input API faithfully represents
+the same facts for the selected target and its matching current-hierarchy row, including
+`proof_continuity` in target raw frontmatter where applicable; fixture construction does not relax
+the pure implementation's no-IO fence. With real
+`Verdict.safeParse`, `workEvent`, `RollupEvent`, and `rollupStatus` collaborators rather than
+substitutes, the required regression contains one initial and multiple same-run, phase-stamped
+`building` marks at distinct supplied sequences followed by a schema-valid same-ID signature; every
+supplied anchor has its own `boundHash`. Keep malformed raw specifications, duplicate and ambiguous
+bindings/orderings, invalid mappings, malformed signing documents, and retirement/reset as the
+independently asserted negative controls the full acceptance specifies. A malformed current-target
+or rename-anchor raw specification refuses admission. A malformed historical event snapshot yields
+unresolved history and no candidate from that event without undoing otherwise-valid admission. A
+malformed signing document grants that event no credit; it does not by itself add a rename-admission
+refusal beyond the existing rules. Locate signing history by signing kind/ID rather than a fixed
+array position amid legitimate work records. Ordinary phase-less work records remain legitimate
+supplied history, but do not satisfy the required production-shaped repeated-phase regression.
 
 ## Integration test
 
