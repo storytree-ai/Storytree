@@ -84,11 +84,12 @@ rename, four-way capability split, and safe downstream fan-out.
 
 Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
-and C11; existing parent CLI corroboration remains frozen. AUTHOR_TEST is additive in the named C9
-body: preserve every current assertion, especially the integrated net-new IMPLEMENT optional-source
-action regression, and add no `test()`/`it()` block. This revision does not complete C9.
-
-`prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition`
+and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
+shared fixture and assertion, especially the integrated net-new IMPLEMENT optional-source action
+regression. Add one narrowly named C9 test in this declared CLI file; its static literal title carries
+`prompts-brief-the-real-constraints` and names wildcard sole-literal authority. This is the
+appropriate current shape for this new behavior, not a general test-block rule. This revision does
+not complete C9.
 
 Production composition is rendered role, then `## Phase brief`, then adapter spine/target/output text.
 C9 helpers preserve existing callers and capture that production `CodexPhaseAuthor` launch, not a
@@ -206,7 +207,7 @@ artifact, manifest or dependency change.
 
 The gate-time coverage reader remains name-granular and reads the CLI spotlight. Its eleven names
 are not a claim that every semantic assertion lives there. The registered proof command executes
-the resolver baseline named above, and the C9 body supplies the new selected-Codex composition and
+the resolver baseline named above, and the C9 cases supply the new selected-Codex composition and
 launch evidence, including Codex's empty feedback tools, disabled MCP and spine-only feedback
 posture. Do not claim an unchanged contract merely because a matching title exists: its retained
 resolver or CLI case must remain substantive. This work does not change the coverage reader or
