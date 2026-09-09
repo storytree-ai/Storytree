@@ -428,22 +428,22 @@ test("original-shell-result-is-preserved-without-a-rerun: every spawned observat
     assert.deepEqual(green.originalProcessResult, {
       stdout: "green-stdout",
       stderr: "green-stderr",
-      code: 0,
+      exitCode: 0,
     });
     assert.deepEqual(red.originalProcessResult, {
       stdout: "red-stdout",
       stderr: "red-stderr",
-      code: 7,
+      exitCode: 7,
     });
     assert.deepEqual(terminated.originalProcessResult, {
       stdout: "signal-stdout",
       stderr: "signal-stderr",
-      code: null,
+      exitCode: null,
     });
     assert.deepEqual(downgraded.originalProcessResult, {
       stdout: "downgraded-stdout",
       stderr: "downgraded-stderr",
-      code: 0,
+      exitCode: 0,
     });
     assert.equal(downgraded.result, "red", "verifyGreen still downgrades the exit-0 observation");
 

@@ -218,7 +218,13 @@ export class ShellTestExecutor implements TestExecutor {
 
     const cmd = this.resolver.command(testId);
     const out = await this.spawn(cmd);
-    const originalProcessResult = { originalProcessResult: out };
+    const originalProcessResult = {
+      originalProcessResult: {
+        stdout: out.stdout,
+        stderr: out.stderr,
+        exitCode: out.code,
+      },
+    };
 
     if (out.code === 0) {
       // ADR-0211: a green is trusted only if the assert-oracle actually ran. The source-under-test

@@ -89,7 +89,7 @@ test("original-shell-result-is-preserved-without-a-rerun: process detail is iner
   };
   const withOriginalResult: TestObservation = {
     ...outputTextRed,
-    originalProcessResult: { stdout: "child stdout", stderr: "child stderr", code: 1 },
+    originalProcessResult: { stdout: "child stdout", stderr: "child stderr", exitCode: 1 },
   };
 
   // Output-text kinds are deliberately not a refusal oracle. Adding shell transport detail must not
@@ -107,8 +107,23 @@ test("original-shell-result-is-preserved-without-a-rerun: process detail is iner
     nextPhase("CONFIRM_GREEN", {
       result: "green",
       testId: "t1",
-      originalProcessResult: { stdout: "child stdout", stderr: "child stderr", code: 0 },
+      originalProcessResult: { stdout: "child stdout", stderr: "child stderr", exitCode: 0 },
     }),
+  );
+  const measuredWrongRed: TestObservation = {
+    result: "red",
+    kind: "compile",
+    kindBasis: "oracle-count",
+    testId: "t1",
+  };
+  const measuredWrongRedWithDetail: TestObservation = {
+    ...measuredWrongRed,
+    originalProcessResult: { stdout: "child stdout", stderr: "child stderr", exitCode: 1 },
+  };
+  assert.deepEqual(
+    nextPhase("CONFIRM_RED", measuredWrongRed, "assertion"),
+    nextPhase("CONFIRM_RED", measuredWrongRedWithDetail, "assertion"),
+    "transport detail cannot bypass the measured wrong-red refusal",
   );
   const nonShell = new RecordingTestExecutor([{ result: "red", testId: "recorded" }]);
   return nonShell.run("recorded").then((observation) => {

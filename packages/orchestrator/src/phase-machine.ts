@@ -40,7 +40,7 @@ export type TestObservation = {
   originalProcessResult?: {
     stdout: string;
     stderr: string;
-    code: number | null;
+    exitCode: number | null;
   };
   /**
    * ADR-0211 (optional): a forensic reason attached when the observation was DOWNGRADED — an exit-0
