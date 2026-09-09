@@ -110,33 +110,18 @@ arguments after `CodexPhaseAuthor.author`, using production `codexPromotionManif
 or signature. Any new C9 fixture/capture helper preserves the behavior and call signature of its
 existing callers, so the frozen CLI bodies need no rewrite.
 
-The C9 body owns its substantive assertions. Its shared fixture/capture route has declared expected
-keys that reject a duplicate, a missing named key, and a route that skips an assertion: net-new,
-edit-existing and refactor-for-testability × uninstalled and installed dependencies × omitted and
-explicit Codex runtime × AUTHOR_TEST and IMPLEMENT is the **24-cell REAL inventory**; one
-live-smoke shape × omitted and explicit Codex × both phases is the **4-cell smoke inventory**.
-Every case is checked with neutral roles rendered from this test's own injected Library store and
-with opt-in current-live roles from `renderLeafPhasePrompts()` with no injected store. The historical
-fixture corpus, a raw brief, a loop-derived count, or a two-string spot check is not an alternate
-route. Ordinary tests remain offline; smoke keeps its synthetic pair and deliberate absence of real
-contract IDs. The shared route prepares only this C9 capture boundary; it cannot be a common
-assertion that vouches for the other contracts.
+The C9 body owns its substantive assertions. Capture a representative omitted-runtime Codex REAL
+launch in both phases through the production adapter, observing actual stdin and argv: default
+model, disabled MCP, empty feedback tools, native authoring, spine-only observation, exact finite
+targets, phase duties, dependency/typecheck restrictions and stopping behavior. The representative
+input carries distinctive outcome, guidance and declared IDs. Observe that boundary once with
+neutral roles rendered from this test's injected Library store and once with opt-in current-live
+roles from `renderLeafPhasePrompts()` with no injected store; ordinary tests remain offline. Capture
+one Codex live-smoke representative so its synthetic pair and deliberate absence of real IDs remain
+distinct. Existing substantive tests retain the omitted/explicit runtime equivalence and the other
+REAL-arm baseline; do not duplicate them as a cartesian inventory.
 
-The 28 captures are Codex-only. In the same C9 body, separately resolve the bounded explicit-Claude
-wildcard/legacy case and observe its declared scope against `PathWriteScope`; also preserve the
-existing three-argument `realPrompts(spec, real, proofDisplay)` compatibility observation. This
-qualifies the explicit-Claude source regression without a Claude author, model execution, login,
-or C10 oracle assertion, and adds no test block.
-
-For every capture, assert actual empty Codex feedback tools; the captured default model and disabled
-MCP; native authoring; spine-only observation/signing; exact allowed and required finite targets;
-phase duties; dependency and typecheck restrictions; and stopping behavior. AUTHOR_TEST stops after
-its test; REAL IMPLEMENT preserves that test and stops/reports when it is wrong; smoke keeps its
-synthetic duties. REAL input preserves each distinctive outcome, guidance and declared ID. Compare
-literal target membership directly where sufficient; the witness does not prescribe a fragile text
-parser.
-
-Before any source-coupled assertion, apply two qualified predicates through that helper. The
+Before any source-coupled assertion, apply two qualified predicates in the C9 body. The
 full-composed-input truthfulness predicate reads rendered role, phase brief and adapter together:
 positive controls accept a qualified unavailable-tool prohibition/runtime comparison and
 nonauthorizing wildcard context; negative controls reject unavailable-tool instructions, obsolete
@@ -147,6 +132,17 @@ refactor-for-testability `BEHAVIOUR-PRESERVING REFACTOR` when they grant the opt
 negatives reject spotlight-only action and explicit optional-literal denial. Blanket token erasure
 is invalid: role text remains in the whole composed input, while a mention outside the action clause
 is not write authority.
+
+For the source regressions, use schema-valid representative fixtures and inspect the delimited
+phase action clause, not a path anywhere in the adapter manifest or conventions. Cover both phases
+of wildcard-admitted spotlight plus one additional literal, net-new IMPLEMENT with one optional
+literal, and refactor-for-testability's valid action form as a positive control. In the same C9
+body, separately resolve the bounded explicit-Claude wildcard/legacy case and observe its declared
+scope against `PathWriteScope`; preserve the existing three-argument
+`realPrompts(spec, real, proofDisplay)` compatibility observation. This qualifies the
+explicit-Claude source regression without a Claude author, model execution, login, or C10 oracle
+assertion, and adds no test block. C9 fixture/capture helpers prepare only this boundary and cannot
+be a common assertion that vouches for other contracts.
 
 Use schema-valid fixtures where a spotlight is admitted only via wildcard plus exactly one
 additional literal entry, and where net-new has an optional literal source. Production and final
