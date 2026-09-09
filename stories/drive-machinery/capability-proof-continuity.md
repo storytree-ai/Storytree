@@ -182,10 +182,54 @@ candidate conditional on BOTH checks, never that supplied bytes came from Git, t
 integration is subsequent work and must enforce both conditions before credit. No story or criterion
 identity, story baseline, claim identity or newly split rendering lane is mapped by this unit.
 
+**Leaf test acceptance (prompt-exposed).** Both AUTHOR_TEST and IMPLEMENT must read the full
+canonical acceptance at `stories/drive-machinery/capability-proof-continuity.md`, including the
+`## Integration test` section and every assertion/falsifiability body under `## Contracts (7)`;
+the generated contract-ID briefing remains an index, not a replacement for that reading. Author
+substantive, independently asserted tests for all seven declared IDs, retaining each exact ID in
+its test name. Build admitted positive fixtures as the specified post-rename current hierarchy.
+Their raw target, anchor and snapshot specifications are complete frontmatter-Markdown documents
+accepted by `loadNodeSpec` in `packages/orchestrator/src/node-spec.ts`, including both frontmatter
+delimiters and required frontmatter fields. Any chosen source/test input API faithfully represents
+the same facts for the selected target and its matching current-hierarchy row, including
+`proof_continuity` in target raw frontmatter where applicable; fixture construction does not relax
+the pure implementation's no-IO fence. With real
+`Verdict.safeParse`, `workEvent`, `RollupEvent`, and `rollupStatus` collaborators rather than
+substitutes, the required regression contains one initial and multiple same-run, phase-stamped
+`building` marks at distinct supplied sequences followed by a schema-valid same-ID signature; every
+supplied anchor has its own `boundHash`. Keep malformed raw specifications, duplicate and ambiguous
+bindings/orderings, invalid mappings, malformed signing documents, and retirement/reset as the
+independently asserted negative controls the full acceptance specifies. A malformed current-target
+or rename-anchor raw specification refuses admission. A malformed historical event snapshot yields
+unresolved history and no candidate from that event without undoing otherwise-valid admission. A
+malformed signing document grants that event no credit; it does not by itself add a rename-admission
+refusal beyond the existing rules. Locate signing history by signing kind/ID rather than a fixed
+array position amid legitimate work records. Ordinary phase-less work records remain legitimate
+supplied history, but do not satisfy the required production-shaped repeated-phase regression.
+
 ## Integration test
 
 **Goal —** Resolve a reviewed rename over the actual work/signing event vocabulary into immutable
 historical evidence plus honest current-obligation qualification.
+
+**Fixture acceptance —** Each admitted fixture models the selected **post-rename current** hierarchy:
+it contains the target capability and no live source capability. The old capability belongs only in the
+rename anchor and per-signing-event historical snapshots, never as a current hierarchy row admitted
+alongside its target. Raw old and target specifications keep the same actual source/test proof paths
+and the same declared contract IDs across the display/identity rename; a fixture must not derive either
+obligation-bearing path or contract ID from its display ID. The proof is about the explicit
+normalization locations, not a synthetic rename that also changes scopes or contracts.
+
+Positive, otherwise-valid pass/fail signing fixtures are accepted only after `Verdict.safeParse`
+succeeds on the actual document shape. Deliberately malformed signing fixtures remain required
+negative controls: assert their validation failure and zero credit, and assert duplicate-signing
+ambiguity where applicable.
+Where a fixture supplies anchors, every anchor carries its own required `boundHash`; a top-level
+`boundHash` does not make an otherwise invalid anchor valid. Construct the initial and phase activity
+marks with real `workEvent`: include one initial `building` mark and multiple same-run phase-stamped
+`building` marks at distinct sequences, then a schema-valid same-`runId:unitId` signing event. Each
+mandatory negative control is an independently asserted case, rather than a nested label around the
+admitted fixture or an incidental consequence of another refusal.
 
 The suite uses real `workEvent` construction, `RollupEvent` ordering and real `Verdict` validation.
 Its regression includes an initial building mark and multiple phase-stamped building marks in the
@@ -216,7 +260,9 @@ substantive test whose name begins with its contract ID.
      and current-target obligations admits exactly its source/target capability pair only after
      validating the raw anchor `id` against `fromId` and raw current `id` against the selected
      target, both at capability tier in the same story as the supplied hierarchy. These checks
-     precede identity normalization. Mismatches, missing review fields, unsupported version,
+     precede identity normalization. The selected current hierarchy contains the target and no live
+     source row; the source is historical input through the anchor and event snapshots. Mismatches,
+     missing review fields, unsupported version,
      self-mapping, duplicate source or target use, source reuse by a live capability, a continuation
      chain/cycle, a split, an absent target and a story or criterion endpoint each produce an
      explicit refusal and no conditional current-proof candidate.
@@ -229,6 +275,8 @@ substantive test whose name begins with its contract ID.
      prose inline-code `storytree coverage <self-id>` command pass; changing outcome, witness,
      proof mode, ordinary or real command, any test/source scope, integration acceptance, any
      contract assertion, or an otherwise unknown authored field/section refuses admission.
+     The fixture keeps its actual proof paths and declared contract IDs fixed across the allowed
+     display/identity change; it does not manufacture those obligations from the fixture ID.
      Replacing the old ID inside an assertion is not normalized merely because it spells the ID.
      A coverage command naming an unrelated ID remains material, as does any command rewrite beyond
      the exact recognized self-ID argument token; the `proof:` command remains fully compared.
@@ -326,6 +374,10 @@ substantive test whose name begins with its contract ID.
      subsequent production integrations as proven.
    - **falsifiability —** a hand-made success marker cannot substitute for `Verdict` validation,
      and a later `building` mark cannot be treated as a fresh signing result.
+     A verdict-shaped object with an anchor lacking that anchor's `boundHash` must fail schema
+     validation even when a top-level field has that name. A live old source row beside the selected
+     target, derived proof paths/contract IDs, or phase-less repeated work marks cannot satisfy the
+     admitted production-shaped fixture.
      Refusing or deduplicating real repeated-ID work marks plus their same-ID signature must red.
      An unchanged supplied snapshot must still return BOTH provenance and lifecycle unchecked and
      only a conditional candidate, never a verified-proof or current-status result. Controls must
