@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 
 import {
   DEFAULT_PROOF_TIMEOUT_MS,
@@ -389,6 +391,89 @@ test("a vetoed green is still a fail-closed RED carrying the veto reason (ADR-02
 
   assert.equal(obs.result, "red");
   assert.equal(obs.note, "0 assertions executed");
+});
+
+test("original-shell-result-is-preserved-without-a-rerun: every spawned observation retains its original process result", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "storytree-original-shell-result-"));
+  const marker = join(dir, "children.log");
+  const command = (name: string, exit: string) => ({
+    file: process.execPath,
+    args: [
+      "-e",
+      [
+        "const fs = require('node:fs')",
+        `fs.appendFileSync(${JSON.stringify(marker)}, ${JSON.stringify(`${name}\n`)})`,
+        `process.stdout.write(${JSON.stringify(`${name}-stdout`)})`,
+        `process.stderr.write(${JSON.stringify(`${name}-stderr`)})`,
+        exit,
+      ].join("; "),
+    ],
+    timeoutMs: 3_000,
+  });
+
+  try {
+    const green = await new ShellTestExecutor({ command: () => command("green", "process.exit(0)") }).run(
+      "green",
+    );
+    const red = await new ShellTestExecutor({ command: () => command("red", "process.exit(7)") }).run("red");
+    const terminated = await new ShellTestExecutor({
+      command: () =>
+        command("signal", "setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100)"),
+    }).run("signal");
+    const downgraded = await new ShellTestExecutor({
+      command: () => command("downgraded", "process.exit(0)"),
+      verifyGreen: () => ({ ok: false, reason: "oracle refused this otherwise-green run" }),
+    }).run("downgraded");
+
+    assert.deepEqual(green.originalProcessResult, {
+      stdout: "green-stdout",
+      stderr: "green-stderr",
+      exitCode: 0,
+    });
+    assert.deepEqual(red.originalProcessResult, {
+      stdout: "red-stdout",
+      stderr: "red-stderr",
+      exitCode: 7,
+    });
+    assert.deepEqual(terminated.originalProcessResult, {
+      stdout: "signal-stdout",
+      stderr: "signal-stderr",
+      exitCode: null,
+    });
+    assert.deepEqual(downgraded.originalProcessResult, {
+      stdout: "downgraded-stdout",
+      stderr: "downgraded-stderr",
+      exitCode: 0,
+    });
+    assert.equal(downgraded.result, "red", "verifyGreen still downgrades the exit-0 observation");
+
+    assert.deepEqual(
+      (await readFile(marker, "utf8")).trim().split("\n").sort(),
+      ["downgraded", "green", "red", "signal"],
+      "each assertion is backed by exactly one child-written marker, not resolver-call counts",
+    );
+
+    const vetoed = await new ShellTestExecutor({
+      command: () => command("before-run-should-not-spawn", "process.exit(0)"),
+      beforeRun: () => ({ ok: false, reason: "evidence cannot be prepared" }),
+    }).run("before-run");
+    assert.equal(vetoed.originalProcessResult, undefined, "a beforeRun veto has no spawned result");
+    assert.deepEqual(
+      (await readFile(marker, "utf8")).trim().split("\n").sort(),
+      ["downgraded", "green", "red", "signal"],
+      "beforeRun vetoes before a child can write a marker",
+    );
+    await assert.rejects(
+      () =>
+        new ShellTestExecutor({
+          command: () => ({ file: "definitely-not-a-real-binary-xyz", args: [] }),
+        }).run("enoent"),
+      /failed to spawn/,
+      "an ENOENT command supplies no observation from which to fabricate process detail",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 // ── shellObserveCommand: the OBSERVE path runs the AUTHORED command line (ADR-0421) ──

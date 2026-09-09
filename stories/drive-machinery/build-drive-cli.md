@@ -63,6 +63,14 @@ The operator surface over the whole machinery — two commands, one honest-envel
   synthetic PASS would plant a forged `healthy` in the shared event log (exactly what ADR-0020
   exists to prevent).
 
+- **Original refusal rendering** (`node-build.ts`): when the gate returns a final CONFIRM refusal
+  with its spine-owned original observation, the existing failure envelope renders a labeled
+  `original observation` section containing run id, unit id, phase, test id, exit code, stdout, and
+  stderr. Rendering consumes the result already returned by the gate: it runs no command and does
+  not alter the refusal, evidence, signing, promotion, cleanup, leaf feedback, or stored work
+  history. Passes and failures without an eligible command observation retain their current envelope;
+  the REAL typecheck/regression backstop is a separately shaped diagnostic path and is excluded.
+
 - **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
   `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry
   points, deliberately, because wiring two would leave the class open at the next one, which is the
@@ -105,7 +113,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (10)
+## Contracts (11)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -147,3 +155,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
     - **asserts —** a `node build` reports a named stage for the store leg AND the gate leg (a leg without a stage is a leg that can go silent again); the phases it reports ARE the phases the envelope's own `phase trail:` says were visited, in order — a liveness signal that disagreed with the trail would be a second, unverified account of the same run; a `story build` names each node as `node i/N: <id>` in the DRIVEN order, which is the chain-advancement signal a single "still running" cannot give; and the report is ADVISORY — a progress sink that THROWS on every phase still leaves a passing build with a signed verdict.
     - **covers —** `packages/drive/src/build-progress.ts`, `packages/drive/src/phase-activity.ts` (`withPhaseReport`)
     - **proven by —** `packages/cli/src/node-build.test.ts:1002`, `:1024`, `:1049` and `packages/cli/src/story-build.test.ts:42` (REAL, passing); the module's own cadence / elapsed / cancellation behaviour is `packages/drive/src/build-progress.test.ts` (12 tests, REAL, passing)
+11. **`confirm-refusal-envelope-renders-the-original-observation`** — the outer caller can read the spine's original failed CONFIRM observation in the ordinary node-build envelope
+    - **asserts —** for both a CONFIRM_RED refusal and a CONFIRM_GREEN refusal after an advancing red, the returned/rendered envelope labels the original observation and preserves run id, unit id, phase, test id, exit code, stdout, and stderr. The registered proof command executes only once for the CONFIRM_RED refusal and twice for the red-then-CONFIRM_GREEN refusal; rendering executes it zero additional times. Passing results and GATE/backstop/non-observation failures have no failed-observation section.
+    - **covers —** failed-result propagation and rendering in `packages/drive/src/node-build.ts`
+    - **proven by —** a new scoped `packages/drive/src/node-build-refusal-observation.test.ts` (pending the capability's normal red→green proof; existing CLI tests stay at `packages/cli/src/node-build.test.ts`)

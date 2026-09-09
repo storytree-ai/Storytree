@@ -353,6 +353,17 @@ the now-settled modeling call.
   re-running it. Authored `proposed`; its own `--real` verdict — leg 3's live proof — is a signed
   DRIVEN `contract` PASS (run `real-mrftf7c3`, commit `69590a6`, persisted to `events.verdict`),
   folded into the tree by promotion (PR #679).
+- [`original-shell-observation`](original-shell-observation.md) — contract grain, spec-borne,
+  edit-existing proof over the `TestObservation` seam and its `ShellTestExecutor` producer. It
+  preserves an already-spawned command result as transport detail and proves that detail cannot
+  alter the phase decision.
+- [`confirm-refusal-observation`](confirm-refusal-observation.md) — contract grain, spec-borne,
+  edit-existing proof over `proveUnit`. It transports only the original command observation of a
+  final CONFIRM refusal, with no signing, leaf feedback, or diagnostic rerun.
+- [`node-build-refusal-observation-envelope`](node-build-refusal-observation-envelope.md) —
+  contract grain, spec-borne, edit-existing proof over the drive envelope. It renders the returned
+  observation and its run/unit attribution without adding a command path or covering the separate
+  typecheck/regression backstop.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention

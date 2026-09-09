@@ -34,6 +34,15 @@ export type TestObservation = {
   kind?: "compile" | "runtime";
   testId: string;
   /**
+   * The original process result for a shell-backed observation. This is transport detail only:
+   * phase transitions continue to depend solely on the classified observation above.
+   */
+  originalProcessResult?: {
+    stdout: string;
+    stderr: string;
+    exitCode: number | null;
+  };
+  /**
    * ADR-0211 (optional): a forensic reason attached when the observation was DOWNGRADED — an exit-0
    * green the spine refused because the assert-oracle accounting showed the proof did not actually
    * exercise the oracle (neutralised or truncated). Carried through so the gate's fail-closed reason

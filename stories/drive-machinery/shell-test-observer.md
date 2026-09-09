@@ -80,6 +80,15 @@ The code edge for the `depends_on`: `shell-test-executor.ts:14` imports the `Tes
 `TestObservation` seam types from `./phase-machine.js` — this class IS the live implementation of
 the phase machine's observation seam.
 
+**Original-command refusal detail.** A `ShellTestExecutor` observation made from a spawned command
+sets `TestObservation.originalProcessResult` to that command's own `stdout`, `stderr`, and
+`exitCode` (including `null` for a signal-terminated child), alongside its red/green classification.
+It is the one result already obtained for this observation, never a diagnostic rerun. A `beforeRun`
+refusal is deliberately different: it prevents the spawn, so it has no original subprocess result to
+attach. This detail neither reaches the leaf nor changes the classification, `kind`, phase
+transition, signed evidence, event schema, or stored history; the gate may expose it only on the
+final refused CONFIRM result.
+
 ## Integration test
 
 **Goal —** The observer feeds the real gate: the e2e walk
@@ -87,7 +96,7 @@ the phase machine's observation seam.
 a real authored test file and the spine's CONFIRM_RED/CONFIRM_GREEN decisions ride its
 observations — a genuinely failing then genuinely passing child process, exit codes only.
 
-## Contracts (11)
+## Contracts (12)
 
 1. **`exit-code-is-the-verdict-channel`** — exit 0 observes green; exit 1 observes a runtime red; a compile-shaped message + exit 1 observes a compile red
    - **asserts —** the three observation shapes off real spawned scripts.
@@ -133,3 +142,7 @@ observations — a genuinely failing then genuinely passing child process, exit 
     - **asserts —** a green observed with no `verifyGreen` wired carries `UNVETTED_GREEN_NOTE`; a green whose `verifyGreen` returns `{ok:true, note}` carries that note instead and never reads as unvetted; a `{ok:false}` veto is still a fail-closed RED carrying the veto reason (ADR-0211 unchanged).
     - **covers —** the green branch of `ShellTestExecutor.run` + `UNVETTED_GREEN_NOTE` (`packages/orchestrator/src/shell-test-executor.ts`)
     - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts`, the three `oracle-veto-covers-custom-proof-commands` cases (REAL, passing)
+12. **`spawned-observation-keeps-its-original-process-result`** — a spawned observation can carry `originalProcessResult` from the exact process the spine already read, without another command
+    - **asserts —** ordinary child commands emitting distinct stdout and stderr preserve those exact strings and their exit status for both a green and a red observation, including `exitCode: null` on signal termination; each assertion observes exactly one child spawn. A `beforeRun` veto, ENOENT rejection, and any non-shell executor have no fabricated subprocess payload.
+    - **covers —** `ShellTestExecutor.run` and its `ShellRunResult` hand-off (`packages/orchestrator/src/shell-test-executor.ts`)
+    - **proven by —** scoped additions to `packages/orchestrator/src/shell-test-executor.test.ts` (ordinary real child processes; pending the capability's normal red→green proof)
