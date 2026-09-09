@@ -115,6 +115,9 @@ only this witness and cannot vouch for other contracts.
    claims, and shell proof/test/typecheck/build pseudo-feedback even beside a spine-signing
    disclaimer. The bounded action predicate accepts valid write/EDIT/refactor forms only when they
    grant an optional literal, and rejects spotlight-only permission and explicit denial.
+   The prior diagnostic reproduction found a TypeScript parse failure; this does not establish the
+   original run's red cause. Construct any template-literal RegExp that matches inline Markdown
+   code spans with parse-safe delimiters and do not double-escape backticks.
 4. Derive red from current `literalTestGlobs.length <= 1` and
    `literalSourceGlobs.length <= 1` behavior, then change only
    `packages/orchestrator/src/resolve-prove-spec.ts` so a wildcard-admitted spotlight retains its
