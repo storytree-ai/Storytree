@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import { MapToolExecutor, ScriptedModel } from "@storytree/agent";
 import type { AuthorResult, AuthoringPhase, ModelResponse, PhaseAuthor } from "@storytree/agent";
@@ -12,6 +15,15 @@ import { PathWriteScope, RecordingTestExecutor } from "./phase-machine.js";
 import type { TestObservation } from "./phase-machine.js";
 import type { WriteToolSpec } from "./write-scoped-executor.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
+import { ShellTestExecutor } from "./shell-test-executor.js";
+import type { ShellCommand } from "./shell-test-executor.js";
+import {
+  PROOF_REPORT_ENV,
+  allocateOracleReportPath,
+  assertOracleGuardUrl,
+  classifyRedByOracle,
+  resetOracleReport,
+} from "./proof/oracle-accounting.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
 import type { ProveSpec, TreeState } from "./prove-it-gate.js";
 
@@ -601,4 +613,200 @@ test("(p) the storyBaseline seam is NEVER consulted when the walk fails before G
   assert.equal(result.ok, false);
   assert.equal(consulted, 0, "the seam must not run on a walk that never reaches GATE");
   assert.equal((await store.readEvents()).some((e) => e.kind === "signing"), false);
+});
+
+// ── confirm-refusal-observation: only the final refused CONFIRM carries its original shell result ──
+
+type FailedObservation = {
+  phase: "CONFIRM_RED" | "CONFIRM_GREEN";
+  testId: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+};
+
+function refusedObservation(result: unknown): FailedObservation | undefined {
+  return (result as { failedObservation?: FailedObservation }).failedObservation;
+}
+
+function childCommand(marker: string, name: string, exit: string): ShellCommand {
+  return {
+    file: process.execPath,
+    args: [
+      "-e",
+      [
+        "const fs = require('node:fs')",
+        `fs.appendFileSync(${JSON.stringify(marker)}, ${JSON.stringify(`${name}\n`)})`,
+        `process.stdout.write(${JSON.stringify(`${name}-stdout`)})`,
+        `process.stderr.write(${JSON.stringify(`${name}-stderr`)})`,
+        exit,
+      ].join("; "),
+    ],
+  };
+}
+
+async function markerLines(marker: string): Promise<string[]> {
+  return (await fs.readFile(marker, "utf8")).trim().split("\n");
+}
+
+test("final-confirm-refusal-carries-one-original-observation: only refused shell CONFIRM phases return their immediate child payload", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-confirm-refusal-"));
+  try {
+    // An actual exit-0 CONFIRM_RED child must stop the walk and carry exactly its own process output.
+    {
+      const marker = path.join(dir, "unexpected-green.marker");
+      const { spec, store } = specWithAuthor({
+        author: new FakeAuthor({}),
+        observations: [],
+      });
+      spec.testExecutor = new ShellTestExecutor({
+        command: () => childCommand(marker, "unexpected-green", "process.exit(0)"),
+      });
+
+      const result = await proveUnit(spec);
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.failedAt, "CONFIRM_RED");
+      assert.deepEqual(refusedObservation(result), {
+        phase: "CONFIRM_RED",
+        testId: "T",
+        stdout: "unexpected-green-stdout",
+        stderr: "unexpected-green-stderr",
+        exitCode: 0,
+      });
+      assert.deepEqual(await markerLines(marker), ["unexpected-green"]);
+      assert.equal(await signingRows(store), 0);
+    }
+
+    // A measured zero-assertion red is a wrong-kind red for this regression node. The report is
+    // produced only by the real guard-loaded child; the fixture neither writes nor substitutes it.
+    {
+      const marker = path.join(dir, "wrong-kind.marker");
+      const reportPath = allocateOracleReportPath("confirm-refusal", "wrong-kind");
+      const { spec, store } = specWithAuthor({ author: new FakeAuthor({}), observations: [] });
+      spec.expectedRed = "assertion";
+      spec.testExecutor = new ShellTestExecutor({
+        command: () => ({
+          ...childCommand(marker, "wrong-kind", "process.exit(7)"),
+          args: [
+            "--import",
+            assertOracleGuardUrl(),
+            "-e",
+            [
+              "const fs = require('node:fs')",
+              `fs.appendFileSync(${JSON.stringify(marker)}, 'wrong-kind\\n')`,
+              "process.stdout.write('wrong-kind-stdout')",
+              "process.stderr.write('wrong-kind-stderr')",
+              "process.exit(7)",
+            ].join("; "),
+          ],
+          env: { [PROOF_REPORT_ENV]: reportPath },
+        }),
+        beforeRun: () => resetOracleReport(reportPath),
+        measureRedKind: () => classifyRedByOracle(reportPath),
+      });
+
+      const result = await proveUnit(spec);
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.failedAt, "CONFIRM_RED");
+      assert.deepEqual(refusedObservation(result), {
+        phase: "CONFIRM_RED",
+        testId: "T",
+        stdout: "wrong-kind-stdout",
+        stderr: "wrong-kind-stderr",
+        exitCode: 7,
+      });
+      assert.deepEqual(await markerLines(marker), ["wrong-kind"]);
+      assert.equal(await signingRows(store), 0);
+      resetOracleReport(reportPath);
+    }
+
+    // A normal red advances; only the later CONFIRM_GREEN child is retained when it remains red.
+    {
+      const marker = path.join(dir, "green-red.marker");
+      let run = 0;
+      const { spec, store } = specWithAuthor({ author: new FakeAuthor({}), observations: [] });
+      spec.testExecutor = new ShellTestExecutor({
+        command: () => childCommand(marker, run++ === 0 ? "red" : "green-red", "process.exit(7)"),
+      });
+
+      const result = await proveUnit(spec);
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.failedAt, "CONFIRM_GREEN");
+      assert.deepEqual(refusedObservation(result), {
+        phase: "CONFIRM_GREEN",
+        testId: "T",
+        stdout: "green-red-stdout",
+        stderr: "green-red-stderr",
+        exitCode: 7,
+      });
+      assert.deepEqual(await markerLines(marker), ["red", "green-red"]);
+      assert.equal(await signingRows(store), 0);
+    }
+
+    // Passes and every non-shell/other-phase refusal have no process payload to transport.
+    {
+      const passing = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+      const passResult = await proveUnit(passing.spec);
+      assert.equal(passResult.ok, true);
+      assert.equal(refusedObservation(passResult), undefined);
+      assert.equal(await signingRows(passing.store), 1);
+
+      const authoring = specWithAuthor({
+        author: new FakeAuthor({ AUTHOR_TEST: { ok: false, error: "author refused" } }),
+        observations: [],
+      });
+      const authoringResult = await proveUnit(authoring.spec);
+      assert.equal(authoringResult.ok, false);
+      assert.equal(refusedObservation(authoringResult), undefined);
+      assert.equal(await signingRows(authoring.store), 0);
+
+      const gate = freshSpec({ observations: [RED, GREEN], tree: DIRTY, signerInputs: SIGNER });
+      const gateResult = await proveUnit(gate.spec);
+      assert.equal(gateResult.ok, false);
+      assert.equal(refusedObservation(gateResult), undefined);
+      assert.equal(await signingRows(gate.store), 0);
+
+      const backstop = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+      backstop.spec.backstop = async () => ({ ok: false, reason: "backstop refused" });
+      const backstopResult = await proveUnit(backstop.spec);
+      assert.equal(backstopResult.ok, false);
+      assert.equal(refusedObservation(backstopResult), undefined);
+      assert.equal(await signingRows(backstop.store), 0);
+
+      const beforeRun = specWithAuthor({ author: new FakeAuthor({}), observations: [] });
+      beforeRun.spec.testExecutor = new ShellTestExecutor({
+        command: () => childCommand(path.join(dir, "must-not-exist.marker"), "before-run", "process.exit(0)"),
+        beforeRun: () => ({ ok: false, reason: "oracle evidence unavailable" }),
+      });
+      const beforeRunResult = await proveUnit(beforeRun.spec);
+      assert.equal(beforeRunResult.ok, false);
+      assert.equal(refusedObservation(beforeRunResult), undefined);
+      assert.equal(await signingRows(beforeRun.store), 0);
+
+      const nonShell = freshSpec({
+        observations: [{ result: "green", testId: "T" }],
+        tree: CLEAN,
+        signerInputs: SIGNER,
+      });
+      const nonShellResult = await proveUnit(nonShell.spec);
+      assert.equal(nonShellResult.ok, false);
+      assert.equal(refusedObservation(nonShellResult), undefined);
+      assert.equal(await signingRows(nonShell.store), 0);
+
+      const enoent = specWithAuthor({ author: new FakeAuthor({}), observations: [] });
+      enoent.spec.testExecutor = new ShellTestExecutor({
+        command: () => ({ file: "storytree-no-such-proof-binary", args: [] }),
+      });
+      await assert.rejects(() => proveUnit(enoent.spec), /failed to spawn/);
+      assert.equal(await signingRows(enoent.store), 0);
+    }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });

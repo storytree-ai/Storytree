@@ -184,7 +184,22 @@ export type BackstopOutcome = { ok: true } | { ok: false; reason: string };
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
 export type ProveResult =
   | { ok: true; verdict: Verdict; phasesVisited: Phase[] }
-  | { ok: false; failedAt: Phase; reason: string; phasesVisited: Phase[] };
+  | {
+    ok: false;
+    failedAt: Phase;
+    reason: string;
+    phasesVisited: Phase[];
+    failedObservation?: FailedConfirmObservation;
+  };
+
+/** The original shell payload retained only when its CONFIRM transition refused. */
+type FailedConfirmObservation = {
+  phase: "CONFIRM_RED" | "CONFIRM_GREEN";
+  testId: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+};
 
 /** The store `kind` for the signed promotion event. */
 const SIGNING_KIND = "signing";
@@ -238,6 +253,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "CONFIRM_RED",
       redGate.reason + redNote + exhaustionNote(authorExhaustion, "a red test"),
       visited,
+      redObs,
     );
   }
 
@@ -273,6 +289,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "CONFIRM_GREEN",
       greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green"),
       visited,
+      greenObs,
     );
   }
 
@@ -371,7 +388,32 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
 }
 
 /** Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path. */
-function fail(failedAt: Phase, reason: string, phasesVisited: Phase[]): ProveResult {
+function fail(
+  failedAt: Phase,
+  reason: string,
+  phasesVisited: Phase[],
+  observation?: TestObservation,
+): ProveResult {
+  const original = observation?.originalProcessResult;
+  if (
+    (failedAt === "CONFIRM_RED" || failedAt === "CONFIRM_GREEN") &&
+    observation !== undefined &&
+    original !== undefined
+  ) {
+    return {
+      ok: false,
+      failedAt,
+      reason,
+      phasesVisited,
+      failedObservation: {
+        phase: failedAt,
+        testId: observation.testId,
+        stdout: original.stdout,
+        stderr: original.stderr,
+        exitCode: original.exitCode,
+      },
+    };
+  }
   return { ok: false, failedAt, reason, phasesVisited };
 }
 
