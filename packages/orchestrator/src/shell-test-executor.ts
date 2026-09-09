@@ -218,6 +218,7 @@ export class ShellTestExecutor implements TestExecutor {
 
     const cmd = this.resolver.command(testId);
     const out = await this.spawn(cmd);
+    const originalProcessResult = { originalProcessResult: out };
 
     if (out.code === 0) {
       // ADR-0211: a green is trusted only if the assert-oracle actually ran. The source-under-test
@@ -226,7 +227,7 @@ export class ShellTestExecutor implements TestExecutor {
       // the green to a fail-closed red, so the spine never signs a forged pass. Absent ⇒ exit-code only.
       const veto = this.resolver.verifyGreen?.(out);
       if (veto !== undefined && !veto.ok) {
-        return { result: "red", kind: "runtime", testId, note: veto.reason };
+        return { result: "red", kind: "runtime", testId, note: veto.reason, ...originalProcessResult };
       }
       // `oracle-veto-covers-custom-proof-commands`: SAY which kind of green this is. ADR-0211's veto
       // is wired only for the default node:test command, so a custom-`proofCommand` node (package
@@ -237,7 +238,9 @@ export class ShellTestExecutor implements TestExecutor {
       // actually measured. This never changes red/green: it records how the green was reached.
       const note =
         veto === undefined ? (this.resolver.unvettedNote ?? UNVETTED_GREEN_NOTE) : veto.note;
-      return note === undefined ? { result: "green", testId } : { result: "green", testId, note };
+      return note === undefined
+        ? { result: "green", testId, ...originalProcessResult }
+        : { result: "green", testId, note, ...originalProcessResult };
     }
 
     // `gate-the-right-kind-red`: prefer a MEASURED kind (the assert-oracle count) over the text
@@ -245,14 +248,14 @@ export class ShellTestExecutor implements TestExecutor {
     // basis, so the basis is part of the observation, not a detail of how it was computed.
     const measured = this.resolver.measureRedKind?.(out);
     if (measured !== undefined) {
-      return { result: "red", kind: measured, testId, kindBasis: "oracle-count" };
+      return { result: "red", kind: measured, testId, kindBasis: "oracle-count", ...originalProcessResult };
     }
     const classify = this.resolver.classifyKind ?? defaultClassifyKind;
     const kind = classify(out);
     // exactOptionalPropertyTypes: only attach `kind` when it is defined.
     return kind === undefined
-      ? { result: "red", testId }
-      : { result: "red", kind, testId, kindBasis: "output-text" };
+      ? { result: "red", testId, ...originalProcessResult }
+      : { result: "red", kind, testId, kindBasis: "output-text", ...originalProcessResult };
   }
 
   /** Spawn via the shared {@link runShellCommand} (env-scrubbed, exit-code-as-data). */

@@ -80,6 +80,42 @@ test("right-kind-red: an UNMEASURED (text-inferred) kind never refuses — the h
   assert.deepEqual(nextPhase("CONFIRM_RED", textCompile, "assertion"), { ok: true, next: "IMPLEMENT" });
 });
 
+test("original-shell-result-is-preserved-without-a-rerun: process detail is inert to phase transitions", () => {
+  const outputTextRed: TestObservation = {
+    result: "red",
+    kind: "compile",
+    kindBasis: "output-text",
+    testId: "t1",
+  };
+  const withOriginalResult: TestObservation = {
+    ...outputTextRed,
+    originalProcessResult: { stdout: "child stdout", stderr: "child stderr", code: 1 },
+  };
+
+  // Output-text kinds are deliberately not a refusal oracle. Adding shell transport detail must not
+  // make this otherwise-identical wrong-red observation refuse either.
+  assert.deepEqual(nextPhase("CONFIRM_RED", outputTextRed, "assertion"), {
+    ok: true,
+    next: "IMPLEMENT",
+  });
+  assert.deepEqual(nextPhase("CONFIRM_RED", withOriginalResult, "assertion"), {
+    ok: true,
+    next: "IMPLEMENT",
+  });
+  assert.deepEqual(
+    nextPhase("CONFIRM_GREEN", { result: "green", testId: "t1" }),
+    nextPhase("CONFIRM_GREEN", {
+      result: "green",
+      testId: "t1",
+      originalProcessResult: { stdout: "child stdout", stderr: "child stderr", code: 0 },
+    }),
+  );
+  const nonShell = new RecordingTestExecutor([{ result: "red", testId: "recorded" }]);
+  return nonShell.run("recorded").then((observation) => {
+    assert.equal(observation.originalProcessResult, undefined, "non-shell observations invent no process detail");
+  });
+});
+
 test("right-kind-red: no declared expectation, or no kind at all, leaves the pre-existing behaviour exactly", () => {
   // The dry-run / live-smoke arms prove a SYNTHETIC pair and declare nothing — a gate with nothing
   // to check against must not invent an expectation.
