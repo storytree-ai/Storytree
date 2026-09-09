@@ -725,6 +725,29 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     assert.match(text, /spine will run all registered proof commands after you stop/);
     assert.match(text, /disposable replica/);
   }
+
+  // Source regressions: permission is an ACTION clause, not a path merely mentioned elsewhere in
+  // the full brief. A net-new REAL node may declare an additional literal source target; its
+  // IMPLEMENT instruction must explicitly grant writing that optional target rather than leaving
+  // the leaf with only the spotlight file despite the finite promotion manifest admitting both.
+  const netNewWithOptionalSource: RealProofConfig = {
+    ...NET_NEW_REAL,
+    scope: {
+      testGlobs: [NET_NEW_REAL.testFile],
+      sourceGlobs: [NET_NEW_REAL.sourceFile, "packages/widget/src/widget-helpers.ts"],
+    },
+  };
+  const optionalSource = resolveRealFor(netNewWithOptionalSource);
+  assert.equal(optionalSource.ok, true, optionalSource.ok ? "" : optionalSource.reason);
+  if (!optionalSource.ok) return;
+  const implementAction = optionalSource.spec.prompts.implement.slice(
+    optionalSource.spec.prompts.implement.indexOf("Phase IMPLEMENT"),
+  );
+  assert.match(
+    implementAction,
+    /write ONLY[\s\S]*`packages\/widget\/src\/widget-helpers\.ts`/,
+    "net-new IMPLEMENT must explicitly authorize every literal source target it may promote",
+  );
 });
 
 test("prompts-brief-the-real-constraints: an offline rendered role (renderLeafPhasePrompts over the Library fixture) composes truthfully for Codex", async () => {
