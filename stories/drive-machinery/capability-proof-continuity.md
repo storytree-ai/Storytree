@@ -182,6 +182,21 @@ candidate conditional on BOTH checks, never that supplied bytes came from Git, t
 integration is subsequent work and must enforce both conditions before credit. No story or criterion
 identity, story baseline, claim identity or newly split rendering lane is mapped by this unit.
 
+**Leaf test acceptance (prompt-exposed).** Both AUTHOR_TEST and IMPLEMENT must read the full
+canonical acceptance at `stories/drive-machinery/capability-proof-continuity.md`, including the
+`## Integration test` section and every assertion/falsifiability body under `## Contracts (7)`;
+the generated contract-ID briefing remains an index, not a replacement for that reading. Author
+substantive, independently asserted tests for all seven declared IDs, retaining each exact ID in
+its test name. Build admitted positive fixtures as the specified post-rename current hierarchy,
+with real `Verdict.safeParse`, `workEvent`, `RollupEvent`, and `rollupStatus` collaborators rather
+than substitutes. The required regression contains one initial and multiple same-run,
+phase-stamped `building` marks at distinct supplied sequences followed by a schema-valid same-ID
+signature; every supplied anchor has its own `boundHash`. Keep malformed signing, duplicate and
+ambiguous bindings/orderings, invalid mappings, and retirement/reset as the independently asserted
+negative controls the full acceptance specifies. A malformed signing document grants no credit;
+ordinary phase-less work records remain legitimate supplied history, but do not satisfy the
+required production-shaped repeated-phase regression.
+
 ## Integration test
 
 **Goal —** Resolve a reviewed rename over the actual work/signing event vocabulary into immutable
