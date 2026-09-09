@@ -49,6 +49,13 @@ pieces, one file (`packages/orchestrator/src/phase-machine.ts`):
   (`phase-machine.ts:336-370`) — the seam the spine observes red/green through; the double rejects
   on over-run rather than handing back a silent green.
 
+At the first-loss boundary, `TestObservation` exposes optional
+`originalProcessResult?: { stdout: string; stderr: string; exitCode: number | null }` when its live
+shell implementation actually spawned a command. `exitCode: null` preserves a signal-terminated
+child as observed data. The phase machine neither constructs, interprets, persists, nor requires
+that detail. Its transition is still determined only by `result`, the declared expected red, and the
+measured-kind rule; recording doubles and other executors remain valid without it.
+
 Enforcement lives elsewhere by design: [`phase-scoped-write-wall`](phase-scoped-write-wall.md)
 wires the predicate into the tool surface; [`shell-test-observer`](shell-test-observer.md) is the
 live `TestExecutor`; [`prove-it-gate`](prove-it-gate.md) drives the ladder.
@@ -61,7 +68,7 @@ with `advancePhase`/`nextPhase` deciding each transition off REAL observations f
 process, and the in-file composition test (`phase-machine.test.ts:63`) walks the full legal path
 `AUTHOR_TEST → … → GATE` through the same two functions.
 
-## Contracts (9)
+## Contracts (10)
 
 1. **`confirm-red-requires-observed-red`** — CONFIRM_RED advances only on an observed red; a green is a forged/early pass
    - **asserts —** red → `IMPLEMENT`; green → `{ ok:false }` with the forged-pass reason.
@@ -99,3 +106,7 @@ process, and the in-file composition test (`phase-machine.test.ts:63`) walks the
    - **asserts —** a measured `compile` red satisfies a net-new node and is refused for `editsExisting`, and the mirror for a measured `runtime` red; `kindBasis: "output-text"` advances whatever is declared; no declared `ExpectedRed`, or no `kind` at all, leaves the prior behaviour exactly; a GREEN at CONFIRM_RED is still the forged pass whatever is declared.
    - **covers —** `phase-machine.ts:127-131`, `:170-212`
    - **proven by —** `phase-machine.test.ts:42`, `:57`, `:68`, `:83`, `:93` (REAL, passing)
+10. **`optional-original-process-detail-never-changes-a-transition`** — `originalProcessResult` is transport metadata, never a second phase oracle
+    - **asserts —** the same red/green observation transitions identically with and without optional `originalProcessResult` stdout, stderr, and exit-code detail, including `exitCode: null`; `RecordingTestExecutor` and non-shell executors construct observations without it; a wrong-kind refusal still requires the existing MEASURED `oracle-count` basis rather than output text.
+    - **covers —** `TestObservation`'s optional detail at `packages/orchestrator/src/phase-machine.ts` and `nextPhase`
+    - **proven by —** scoped additions to `packages/orchestrator/src/phase-machine.test.ts`, coupled with the ordinary spawned-command integration cases in `shell-test-executor.test.ts` (pending the capability's normal red→green proof)

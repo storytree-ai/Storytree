@@ -59,6 +59,14 @@ dry-run / live-smoke walk and every builtins-only node carries no backstop.
 `@storytree/agent` (`prove-it-gate.ts:18`) and never constructs a leaf — the spine is
 author-agnostic by design. See the story's "The PhaseAuthor seam is consumed, not owned" section.
 
+**Refusal observation boundary.** When a CONFIRM_RED or CONFIRM_GREEN transition refuses, the failed
+`ProveResult` exposes `failedObservation?: { phase; testId; exitCode; stdout; stderr }`, copied only
+from the immediately preceding spine-owned `originalProcessResult`. `exitCode: null` remains a real
+signal-termination observation. CONFIRM_RED includes an unexpected green and a measured wrong-kind
+red; an ordinary non-zero red still advances. The gate does not rerun a command, change the transition
+decision, sign or promote a refusal, expose output to the author, or add it to evidence/history.
+Authoring, GATE, and backstop refusals have no such payload, as does every pass.
+
 ## Integration test
 
 **Goal —** The full honesty loop against real in-story collaborators, nothing stubbed in the
@@ -69,7 +77,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (8)
+## Contracts (9)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -103,3 +111,7 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
    - **asserts —** an observation carrying a `note` produces evidence reading `observed <result> [(kind)] — <note>`, on the returned verdict AND the persisted signing row; an observation with no note keeps the bare wording (back-compat).
    - **covers —** `toEvidence` (`packages/orchestrator/src/prove-it-gate.ts`)
    - **proven by —** `packages/orchestrator/src/prove-it-gate.test.ts` cases (s)–(t) (REAL, passing)
+9. **`confirm-refusal-returns-only-the-original-spine-observation`** — a final CONFIRM refusal returns its original command observation without weakening proof authority
+   - **asserts —** an unexpected CONFIRM_RED green returns that one observation; an explicit `expectedRed` rejects a measured wrong-kind red and returns that one red observation; after an advancing red, a CONFIRM_GREEN red returns the second observation. Each CONFIRM_RED refusal spawns once, the CONFIRM_GREEN path spawns twice total, and none performs a diagnostic rerun. Every case writes zero signing rows; a pass and authoring/GATE/backstop/non-shell failures expose no failed observation.
+   - **covers —** `packages/orchestrator/src/prove-it-gate.ts` failed-result construction at CONFIRM_RED and CONFIRM_GREEN
+   - **proven by —** scoped additions to `packages/orchestrator/src/prove-it-gate.test.ts` using ordinary `ShellTestExecutor` child commands (pending the capability's normal red→green proof)
