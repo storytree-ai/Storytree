@@ -65,7 +65,9 @@ file as well as emitting distinct stdout and stderr:
 3. make `beforeRun` refuse, use an ENOENT command, and use a non-shell executor; observe no
    fabricated process detail; and
 4. give `nextPhase` otherwise identical observations with and without the detail and observe the
-   same transition, including the existing measured-kind-only wrong-red rule.
+   same transition for a green, an output-text wrong red, and a measured (`kindBasis:
+   "oracle-count"`) wrong-kind red under this edit-existing contract's actual `ExpectedRed` of
+   `assertion`; the last pair must both retain the same refusal.
 
 The observable is the returned observation plus the child-observed marker count. Resolver command
 calls do not prove the count: production may resolve once and spawn twice. The signal child writes
@@ -93,9 +95,13 @@ as a fail-closed red; a signal-terminated child retains `exitCode: null`; a `bef
 before a spawn, so it has none. The phase machine treats the optional detail as inert data: result,
 expected-red declaration, and measured kind remain the whole transition oracle.
 
+Its public detail shape is exactly `originalProcessResult?: { stdout: string; stderr: string;
+exitCode: number | null }`. `exitCode` is the transported exit-status field, including `null` for a
+signal-terminated child; no `code` alias is part of this boundary.
+
 ## Contracts (1)
 
 1. **`original-shell-result-is-preserved-without-a-rerun`** — spawned command data survives classification as optional observation detail.
-   - **asserts —** real green, red, signal-terminated, and verifyGreen-downgraded child commands retain their exact stdout, stderr, and exit status (`null` for termination) in `originalProcessResult`; a marker written inside each ordinary child records exactly one invocation for each one-command path, rather than inferring that count from resolver calls. The signal child emits distinct original stdout/stderr before termination with a sufficient timeout margin, and the assertion names only `exitCode: null`. beforeRun vetoes, spawn errors, and non-shell observations expose no invented detail; adding the detail cannot change a phase transition or make output-text classification refuse a wrong red.
+   - **asserts —** real green, red, signal-terminated, and verifyGreen-downgraded child commands retain their exact stdout, stderr, and exit status (`null` for termination) in `originalProcessResult`; a marker written inside each ordinary child records exactly one invocation for each one-command path, rather than inferring that count from resolver calls. The signal child emits distinct original stdout/stderr before termination with a sufficient timeout margin, and the assertion names only `exitCode: null`. beforeRun vetoes, spawn errors, and non-shell observations expose no invented detail; adding the detail cannot change a phase transition: otherwise-identical green, output-text wrong-red, and measured oracle-count wrong-kind-red observations transition identically with and without it; the measured pair uses this edit-existing contract's actual `ExpectedRed` of `assertion` and both retain its existing refusal, while the output-text pair still advances.
    - **covers —** `packages/orchestrator/src/phase-machine.ts` and `packages/orchestrator/src/shell-test-executor.ts`.
    - **proven by —** authored additions to `phase-machine.test.ts` and `shell-test-executor.test.ts` through the declared focused REAL proof; the full orchestrator package suite and typecheck remain pre-signature backstops.
