@@ -577,7 +577,7 @@ export function resolveProveSpec(
       liveAuthor = new ClaudeAgentAuthor(claudeArgs);
     }
     author = liveAuthor;
-    prompts = liveSmokePrompts(spec);
+    prompts = liveSmokePrompts(spec, liveRuntime);
   }
 
   const proveSpec: ProveSpec = {
@@ -882,7 +882,7 @@ function resolveReal(
     signerInputs: opts.signerInputs,
     treeState,
     now: opts.now ?? ((): string => new Date().toISOString()),
-    prompts: realPrompts(spec, real, proofDisplay),
+    prompts: realPrompts(spec, real, proofDisplay, opts.runtime ?? "codex"),
     runId: opts.runId,
     // ADR-0127: the per-contract coverage axis seam, computed LAZILY at GATE so it reads the test the
     // leaf actually authored (in a real build the test file does not exist at resolve time). It reuses
@@ -1106,6 +1106,7 @@ export function realPrompts(
   spec: NodeSpec,
   real: RealProofConfig,
   proofDisplay: string,
+  runtime: LiveRuntime = "claude",
 ): PhasePrompts {
   const guidance =
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
@@ -1123,11 +1124,47 @@ export function realPrompts(
   // R2 (ADR-0098): refactor-for-testability — the source EXISTS and is CORRECT but untestable; the
   // red is STRUCTURAL (a seam that does not exist yet), the green is the whole-package suite.
   const refactorForTests = real.refactorForTests === true;
+  // ADR-0356/0555's runtime amendment (contracts 9/10): Codex authors natively with shell/apply_patch
+  // in a disposable replica and carries NO run_proof/run_typecheck/MCP feedback tool
+  // (`CodexPhaseAuthor.feedbackToolNames` is always `[]`) — so a brief written for Claude falsely
+  // promises a tool Codex lacks and falsely denies the shell authoring it genuinely has. Available
+  // shell authoring grants no substitute for the spine's registered proof/typecheck feedback either
+  // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
+  // Claude keeps its feedback/tool contract and legacy helper behavior; its scope wording names the complete declared scope.
+  const codexRuntime = runtime === "codex";
+  // Codex may name only finite promotion targets: a wildcard is a hook-wall pattern, never a Codex
+  // promotion target (`codexPromotionManifest` filters it the same way). Claude's write wall is the
+  // PathWriteScope itself, so its explicit and legacy prompts retain every declared wildcard.
+  // Singular case (one literal entry, the spotlight file) is byte-identical to the old literal for
+  // every migrated single-file node.
+  const namedSourceGlobs = codexRuntime
+    ? real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g))
+    : real.scope.sourceGlobs;
   const sourcesNamed =
-    real.scope.sourceGlobs.length === 1 && real.scope.sourceGlobs[0] === real.sourceFile
+    namedSourceGlobs.length === 0 ||
+    (namedSourceGlobs.length === 1 && namedSourceGlobs[0] === real.sourceFile)
       ? `\`${real.sourceFile}\``
       : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
-        `${real.scope.sourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
+        `${namedSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
+  // The COMPLETE permitted test set (never reduced to the spotlight testFile): AUTHOR_TEST's write
+  // wall is scoped to real.scope.testGlobs, not just real.testFile, so a multi-file fixture must name
+  // every allowed target — an unnamed sibling test file would read as unauthored territory when it is
+  // in fact allowed, and (for IMPLEMENT) readable. Codex omits wildcard patterns for its finite
+  // promotion boundary; Claude retains them because PathWriteScope authorizes their matches.
+  const namedTestGlobs = codexRuntime
+    ? real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g))
+    : real.scope.testGlobs;
+  const testsNamed =
+    namedTestGlobs.length === 0 ||
+    (namedTestGlobs.length === 1 && namedTestGlobs[0] === real.testFile)
+      ? `\`${real.testFile}\``
+      : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
+        `scope (matching ${namedTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
+        `read them but writes only its source targets`;
+  const typecheckClose = codexRuntime
+    ? `There is no automated feedback tool for the type check here — write type-legal code from ` +
+      `the start; promotion still refuses a type-illegal green.`
+    : `Use the \`run_typecheck\` feedback tool before stopping.`;
   const depsLine =
     real.install === true
       ? `- the worktree HAS its workspace dependencies installed (lockfile-only): you may import ` +
@@ -1137,7 +1174,7 @@ export function realPrompts(
         `- the proof command runs under tsx (types stripped), but promotion ALSO runs the package ` +
         `typecheck (\`tsc --noEmit\`, full strict flags incl. \`exactOptionalPropertyTypes\` and ` +
         `\`noUncheckedIndexedAccess\`) — type-illegal code that happens to be runtime-green will ` +
-        `not land. Use the \`run_typecheck\` feedback tool before stopping.`
+        `not land. ${typecheckClose}`
       : `- the worktree has NO node_modules: the test and the implementation may import ONLY ` +
         `\`node:\` builtins and relative files. \`import type { ... } from "./x.js"\` is fine ` +
         `(erased at runtime); a VALUE import of any package (zod etc.) will crash the proof run.`;
@@ -1148,21 +1185,57 @@ export function realPrompts(
     ? `- this node declares a CUSTOM proof command: author the test so that command goes ` +
       `red→green (it may run a package suite or another runner, not necessarily node:test on a ` +
       `single file).\n`
-    : `- the TEST file is \`${real.testFile}\` (node:test + node:assert/strict).\n`;
+    : `- the TEST file is ${testsNamed} (node:test + node:assert/strict).\n`;
+  // The tooling clause: Claude's genuine run_proof feedback tool + genuine no-shell constraint
+  // (unchanged, the legacy/default text), or Codex's genuine native shell/apply_patch authoring with
+  // no feedback tool and no shell-run substitute for the spine's registered observations.
+  const toolingLine = codexRuntime
+    ? `You are authoring with native shell/apply_patch access in a disposable replica of this repo ` +
+      `— no automated feedback tool exists here for the proof command or the type check, and no ` +
+      `MCP tools are available. Running either command yourself through your shell is NOT a ` +
+      `substitute for the spine's registered observations — do not treat it as feedback. The spine ` +
+      `alone observes the official red/green, promotes the exact allowed targets, and signs the ` +
+      `verdict, out of band after you stop.\n`
+    : `You can run that same command yourself at any time via ` +
+      `the \`run_proof\` feedback tool (bounded runs; its output is feedback, never the verdict). ` +
+      `You cannot run shell commands.\n`;
   const conventions =
     `This is a REAL build: you are in a fresh git worktree of the storytree repo (TypeScript, ` +
     `strict, ESM NodeNext — relative imports use the .js extension). The spine proves the unit ` +
     `by running\n` +
     `  ${proofDisplay}\n` +
-    `itself for the OFFICIAL red/green. You can run that same command yourself at any time via ` +
-    `the \`run_proof\` feedback tool (bounded runs; its output is feedback, never the verdict). ` +
-    `You cannot run shell commands.\n` +
+    `itself for the OFFICIAL red/green. ` +
+    toolingLine +
     proofLine +
     // C (ADR-0057 §3): name the SET (via sourcesNamed) so the conventions line never contradicts the
     // multi-file IMPLEMENT brief. For a single-file node (sourceGlobs === [sourceFile], all 7 migrated
     // nodes) this is byte-identical to the old `\`${real.sourceFile}\`` — parity-of-prose preserved.
     `- the IMPLEMENTATION file is ${sourcesNamed}.\n` +
     depsLine;
+  // The AUTHOR_TEST red-confirmation close: Claude checks with run_proof before stopping (unchanged);
+  // Codex has no feedback tool to reach for, so it is simply told to stop — the spine alone judges
+  // the kind of red it observes (`gate-the-right-kind-red`), never a shell re-run offered as a
+  // substitute.
+  const redClose = (reason: string): string =>
+    codexRuntime
+      ? `The spine observes the official red itself and requires ${reason}. When the test file is ` +
+        `written, stop.`
+      : `After writing it, use \`run_proof\` to confirm it fails for ${reason}. The spine observes ` +
+        `the official red itself. When the test file is written and checked, stop.`;
+  // The IMPLEMENT green-iteration close: Claude iterates against run_proof (unchanged); Codex has no
+  // feedback tool to iterate against, so it is told what must be green when it stops rather than an
+  // iterate-against-the-tool loop it cannot run.
+  const greenClose = (verb: string, subject: string): string => {
+    const typecheckSuffix =
+      real.install === true && real.typecheck !== undefined && !codexRuntime
+        ? " and `run_typecheck` is green"
+        : "";
+    return codexRuntime
+      ? `${subject} must be green${typecheckSuffix} before you stop; the spine observes the ` +
+        `official green itself.`
+      : `Iterate: ${verb}, \`run_proof\`, fix — until ${subject} is green${typecheckSuffix}, then ` +
+        `stop; the spine observes the official green itself.`;
+  };
   // C (ADR-0057 §3): the EDIT-EXISTING arm drops the net-new "must NOT exist yet" assumption and
   // steers the leaf to a regression red (a new failing assertion against existing behaviour, not a
   // missing symbol) then an EDIT of the existing source(s). Only the brief changes — the gate, the
@@ -1179,26 +1252,22 @@ export function realPrompts(
     return {
       authorTest:
         `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
-        `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD and are ` +
+        `within ${testsNamed}. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD and are ` +
         `CORRECT — this is a REFACTOR-FOR-TESTABILITY, not a behaviour change: do NOT recreate them, ` +
         `do NOT change what they do, and do NOT edit any source in this phase (source writes are ` +
         `refused here). Author a test that exercises a behaviour-preserving SEAM — a new export, ` +
         `function, or injectable parameter — that does NOT exist in the source yet, so the test ` +
         `FAILS with a STRUCTURAL error (a missing export / "module not found" / ` +
-        `"undefined is not a function"), NOT a behaviour assertion against existing code. After ` +
-        `writing it, use \`run_proof\` to confirm the suite fails for the RIGHT reason — your new ` +
-        `test's missing-seam/structural failure, not a syntax error and not a sibling regression. ` +
-        `The spine observes the official red itself. When the test file is written and checked, stop.`,
+        `"undefined is not a function"), NOT a behaviour assertion against existing code. ` +
+        `${redClose("the RIGHT reason — your new test's missing-seam/structural failure, not a syntax error and not a sibling regression")}`,
       implement:
-        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, then ` +
+        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, then ` +
         `perform a BEHAVIOUR-PRESERVING REFACTOR of the existing source file(s) ${sourcesNamed} that ` +
         `introduces the seam the test needs — extract a function, expose a parameter, split a module — ` +
         `WITHOUT changing what the code does (writes to the test file are refused in this phase). The ` +
         `green is the WHOLE PACKAGE SUITE: your new test must pass AND every existing test must still ` +
-        `pass — a regression reds the suite and the spine refuses the green. Iterate: edit, ` +
-        `\`run_proof\`, fix — until the suite is green` +
-        `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
-        `then stop; the spine observes the official green itself. If you conclude the test itself is ` +
+        `pass — a regression reds the suite and the spine refuses the green. ` +
+        `${greenClose("edit", "the suite")} If you conclude the test itself is ` +
         `wrong, stop and say so plainly instead of working around it.`,
     };
   }
@@ -1206,39 +1275,33 @@ export function realPrompts(
     return {
       authorTest:
         `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
-        `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
+        `within ${testsNamed}. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
         `regression/refactor, not a net-new file; do NOT recreate them, and do NOT edit any source ` +
         `in this phase (source writes are refused here). READ the existing source(s) first, then ` +
         `author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
         `assertion about what they SHOULD do, NOT a missing-symbol import (the symbols already ` +
-        `exist). After writing it, use \`run_proof\` to confirm it fails for the RIGHT reason — a ` +
-        `behaviour-assertion failure, not a syntax error and not a "module not found". The spine ` +
-        `observes the official red itself. When the test file is written and checked, stop.`,
+        `exist). ` +
+        `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}`,
       implement:
-        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
+        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
         `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
-        `more than one — every path under your source scope is writable; writes to the test file ` +
-        `are refused). Iterate: edit, \`run_proof\`, fix — until the proof is green` +
-        `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
-        `then stop; the spine observes the official green itself. If you conclude the test itself ` +
+        `more than one of the named source files; writes to the test file are refused). ` +
+        `${greenClose("edit", "the proof")} If you conclude the test itself ` +
         `is wrong, stop and say so plainly instead of working around it.`,
     };
   }
   return {
     authorTest:
       `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
-      `\`${real.testFile}\`. The implementation \`${real.sourceFile}\` must NOT exist yet — do ` +
+      `within ${testsNamed}. The implementation \`${real.sourceFile}\` must NOT exist yet — do ` +
       `not create it (writes outside the test file are refused in this phase). Author the test ` +
       `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
-      `meets the outcome. After writing it, use \`run_proof\` to confirm it fails for the RIGHT ` +
-      `reason (a missing-implementation/assertion failure, not a syntax error in the test). ` +
-      `The spine observes the official red itself. When the test file is written and checked, stop.`,
+      `meets the outcome. ` +
+      `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}`,
     implement:
-      `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
-      `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
-      `refused in this phase. Iterate: write, \`run_proof\`, fix — until the proof is green` +
-      `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
-      `then stop; the spine observes the official green itself. If you conclude the test itself ` +
+      `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
+      `then write ONLY ${sourcesNamed} so that test passes. Writes to the test file are ` +
+      `refused in this phase. ${greenClose("write", "the proof")} If you conclude the test itself ` +
       `is wrong, stop and say so plainly instead of working around it.`,
   };
 }
@@ -1248,8 +1311,18 @@ export function realPrompts(
  * a real model (unlike the scripted one) needs to know exactly which workspace files the smoke's
  * test runner and write walls are wired to.
  */
-export function liveSmokePrompts(spec: NodeSpec): PhasePrompts {
+export function liveSmokePrompts(spec: NodeSpec, runtime: LiveRuntime = "claude"): PhasePrompts {
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
+  // ADR-0356/0555's runtime amendment: Codex has no run_proof feedback tool here either (a live-smoke
+  // author is the SAME CodexPhaseAuthor as a real build), so the smoke's brief must not promise one.
+  const codexRuntime = runtime === "codex";
+  const feedbackLine = codexRuntime
+    ? `You are authoring with native shell/apply_patch access in this temp workspace — no automated ` +
+      `feedback tool exists here either. Do not run a shell proof, test, typecheck, or build command ` +
+      `as feedback: shell access is not a substitute for the spine's registered observations. The spine ` +
+      `alone observes the official red/green itself.`
+    : `The \`run_proof\` feedback tool runs that test command for you (bounded runs; its output is\n` +
+      `feedback, never the verdict — the spine observes the official red/green itself).`;
   const conventions =
     `This is a LIVE SMOKE of the prove-it gate in an empty temp workspace — the deliverable is a tiny\n` +
     `synthetic red→green pair, not the unit's real implementation:\n` +
@@ -1257,14 +1330,16 @@ export function liveSmokePrompts(spec: NodeSpec): PhasePrompts {
     `  no test framework): it must \`require("./impl.cjs")\` and assert with \`node:assert/strict\`\n` +
     `  that \`add(2, 3) === 5\`, then log ok;\n` +
     `- the IMPL file is \`${DRY_RUN_IMPL_REL}\`: \`module.exports = { add }\`.\n` +
-    `The \`run_proof\` feedback tool runs that test command for you (bounded runs; its output is\n` +
-    `feedback, never the verdict — the spine observes the official red/green itself).`;
+    feedbackLine;
+  const redCheck = codexRuntime
+    ? "The spine observes the official red itself. When the test file is written, stop."
+    : `After writing, you may \`run_proof\` to confirm it fails for the right reason. When the test ` +
+      `file is written, stop.`;
   return {
     authorTest:
       `${header}\n\n${conventions}\n\nPhase AUTHOR_TEST — write ONLY \`${DRY_RUN_TEST_REL}\`. ` +
       `\`${DRY_RUN_IMPL_REL}\` must NOT exist yet (the spine observes the red itself; do not create it, ` +
-      `and writes to it are refused in this phase). After writing, you may \`run_proof\` to confirm ` +
-      `it fails for the right reason. When the test file is written, stop.`,
+      `and writes to it are refused in this phase). ${redCheck}`,
     implement:
       `${header}\n\n${conventions}\n\nPhase IMPLEMENT — read \`${DRY_RUN_TEST_REL}\`, then write ONLY ` +
       `\`${DRY_RUN_IMPL_REL}\` so that test passes. Writes to the test file are refused in this phase. ` +

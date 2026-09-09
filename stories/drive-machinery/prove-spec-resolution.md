@@ -7,6 +7,30 @@ outcome: "Any registered node id resolves into a runnable ProveSpec for the chos
 status: proposed
 proof_mode: integration-test
 depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree]
+decisions: [232, 390, 555]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/orchestrator", "--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs:
+      - "packages/cli/src/codex-leaf-prompt.test.ts"
+    sourceGlobs: ["packages/orchestrator/src/resolve-prove-spec.ts"]
+  real:
+    testFile: "packages/cli/src/codex-leaf-prompt.test.ts"
+    sourceFile: "packages/orchestrator/src/resolve-prove-spec.ts"
+    scope:
+      testGlobs:
+        - "packages/cli/src/codex-leaf-prompt.test.ts"
+      sourceGlobs: ["packages/orchestrator/src/resolve-prove-spec.ts"]
+    install: true
+    editsExisting: true
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "exec", "node", "--import", "../../scripts/tsx-cache-off.mjs", "--import", "tsx", "--test", "../../packages/orchestrator/src/resolve-prove-spec.test.ts", "src/codex-leaf-prompt.test.ts"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/orchestrator", "--filter", "@storytree/cli", "typecheck"]
 ---
 
 # Node specs, the build registry, and ProveSpec resolution
@@ -15,7 +39,7 @@ depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md), [`shell-test-observer`](shell-test-observer.md), [`prove-it-gate`](prove-it-gate.md), [`owned-loop-phase-author`](owned-loop-phase-author.md), [`real-build-worktree`](real-build-worktree.md)
 
-> **Proof status (honest) — `proposed`, with the LIVE-leaf arm still unsigned.** The
+> **Proof status (honest) — `proposed`, with live-leaf acceptance still incomplete.** The
 > resolver, the spec loader, the registry, the prompts, the feedback-tool arming, and BOTH offline
 > end-to-end walks (dry-run glue and the REAL-mode worktree walk with a scripted author) are
 > covered by a real, passing, offline suite (`packages/orchestrator/src/resolve-prove-spec.test.ts`,
@@ -26,7 +50,83 @@ depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-
 > tests verify construction and scope arming but never run the subscription leaf; the
 > genuinely-live legs are need-gated, not standing tests.
 
+**Runtime repair status — cumulative candidate, acceptance incomplete.** Ordinary omitted-default
+Terra run `real-mtteizuv` signed `0bf3005d07d875f8099ed787e680eb6486c1b0ee`, repairing net-new
+IMPLEMENT permission for an optional literal source target. Its cumulative unlanded ancestry also
+contains `aaf966f34c54c029530228654e2635432ee04451` (wildcard-admitted sole-literal authority),
+`5ba4b5530e1d890f52ac0982d0c0afc27ef936e8` (wildcard-only zero-literal wording), and
+`fccb80dfb5b72fa0e288933d4610bb9d97ee1fc7` (explicit-Claude wildcard/legacy authority retaining
+`PathWriteScope`). These are signed source-backed partials, not interchangeable prose. The unchanged
+registered command has also exercised the opt-in current-live REAL-role observation (103 pass,
+0 fail, 0 skip); it is an unsigned construction observation at its asserted two-false-claims
+granularity.
+
+One source-backed C9/C10 defect remains. Codex live-smoke says that no automated feedback tool exists,
+but does not explicitly prohibit treating shell proof/test/typecheck/build commands as feedback. The
+common adapter's statement that the spine runs commands after stop and owns the verdict does not grant
+or deny that substitute. This violates the same selected-runtime feedback boundary that REAL already
+states. Earlier rejected results are evidence only, never a seed to restore. Capturing final stdin
+with an injected process runner observes prompt composition; it is not a real author run or a signed
+verdict.
+
+**Authoring prerequisite under the 2026-09-09 owner re-steer.** Continuity's implementation is a
+pure event resolver, but its ordinary REAL build is not: `nodeBuild` calls `buildNodeReal`, which
+calls `resolveProveSpec`/`resolveReal`; an omitted runtime constructs `CodexPhaseAuthor` and passes
+the Codex `realPrompts` result into its phases. Main's false default-Codex instructions therefore
+reach a default GPT-5.6 Terra continuity leaf before its own proof can begin. Repair the remaining
+shared default-REAL authoring path first. Land the remaining live-smoke consistency repair in that
+same minimum runtime PR because this unit owns C9/C10, not because continuity calls live-smoke. This
+is an execution prerequisite, not a new `depends_on` edge for
+[`capability-proof-continuity`](capability-proof-continuity.md).
+
+The next runtime revision has one source-backed behavior: Codex live-smoke explicitly withholds shell
+proof/test/typecheck/build feedback in both phases. It carries only the corresponding representative
+production-composed smoke observations; it retains, rather than duplicates, the signed REAL action
+repairs, the explicit-Claude scope result, and the current-live REAL observation. The registered
+proof command already executes substantive resolver cases for C1–8, the original Claude portion of
+C10, and C11; do not clone them into the CLI spotlight. A fresh anchored plan must drive this revision
+with the repository-default GPT-5.6 Terra leaf before continuity, then the renderer rename, four-way
+capability split, and safe downstream fan-out.
+
 ## Guidance
+
+### C9 final bounded revision — Codex live-smoke has no shell feedback substitute
+
+Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
+the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
+and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
+shared fixture and assertion, especially the signed `0bf`, `aaf966f`, `5ba4b553`, and `fccb80df`
+cases and helpers, **except** the existing C9 body
+`prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never claims run_proof or denies native shell authoring`.
+Amend that body only, preserving its current assertions while adding the Codex live-smoke
+shell-feedback boundary. This revision does not complete C9 until its retained baseline and all
+evidence below pass review.
+
+Production composition is rendered role, then `## Phase brief`, then adapter spine/target/output text.
+C9 helpers preserve existing callers and capture that production `CodexPhaseAuthor` launch, not a
+reconstructed command. For every captured phase, couple final stdin, actual exec args and that same
+author's `feedbackToolNames`; a static argument builder is not this observation. Helpers prepare
+only this witness and cannot vouch for other contracts.
+
+1. Build one synthetic live-smoke fixture through production resolution with omitted Codex runtime,
+   neutral test-owned rendered roles, and the existing injected Codex runner. Capture each phase's
+   final adapter-composed stdin, actual exec args, and that same author's `feedbackToolNames`.
+   Preserve the smoke's synthetic pair, its exact required targets, and its deliberate absence of
+   real contract IDs. Run the same assertion against opt-in current-live roles; this is a live-store
+   construction observation, not a paid model call or a signature.
+2. Bound the assertion to the composed phase input. Both phases must retain native authoring, empty
+   feedback tools, disabled MCP, the selected default model, spine-owned observation and stopping;
+   neither may instruct a shell proof, test, typecheck, or build command as feedback. A qualified
+   reference that assigns those commands to the spine is allowed. Do not build a generalized
+   sentence classifier or a Cartesian fixture matrix: this test distinguishes the actual prohibition
+   from its absence in the smoke brief and retains earlier representative REAL observations.
+3. Derive red from the missing live-smoke prohibition, then change only
+   `packages/orchestrator/src/resolve-prove-spec.ts` so both Codex live-smoke phases explicitly
+   withhold that shell substitute. Preserve native authoring, finite promotion, selected-runtime
+   defaults, exact required outputs, all Claude behavior, and spine signing. No other CLI or resolver
+   body is rewritten.
+
+## Runtime reference
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
@@ -61,6 +161,56 @@ Three files, one act — turn a unit id into everything `proveUnit` needs:
   REAL outcome + guidance into the phase briefs, including the
   no-node_modules / typecheck-wall constraints.
 
+**Runtime-accurate phase briefs (contracts 9 and 10).** The selected runtime is an input to
+the REAL and live-smoke briefs. Omitted runtime remains Codex; the existing Codex model default,
+explicit Claude selection, subscription authentication and no-fallback policy are unchanged.
+Codex authors with native shell/`apply_patch` in its disposable replica, with no MCP,
+`run_proof` or `run_typecheck` feedback tool. Its brief must not instruct those tools, promise
+their feedback or claim shell authoring is unavailable. Available shell authoring grants no
+shell-based substitute for registered proof/typecheck feedback (ADR-0232 D5). It reads and authors
+within the phase's exact declared targets, then stops for the deterministic spine to observe.
+The Codex write boundary is the existing complete-diff observation and exact-target promotion;
+no obsolete `PreToolUse` hook or OS containment is promised. Claude's briefs retain its actual
+file-tool/write-hook boundary and bounded feedback tools, with no arbitrary shell command tool.
+Both runtimes retain author-only duties, dependency restrictions, stop-if-test-wrong behavior and
+the spine's sole red/green/promotion/verdict authority. Preserve the synthetic smoke's distinct
+purpose and the dry-run's scripted behavior.
+
+**Existing helper-call compatibility.** The existing standalone three-argument
+`realPrompts(spec, real, proofDisplay)` call retains its legacy Claude-tool prose, as exercised by
+the unchanged resolver suite. The runtime-aware call accepts the selected runtime explicitly;
+production REAL and live-smoke resolution always supplies that selection, including Codex when
+the build caller omits `runtime`. The final-input regression exercises those production resolution
+boundaries for omitted and explicit runtime choices, so legacy helper compatibility cannot stand
+in for truthful default-Codex instructions. This is a prompt-helper compatibility rule, not a
+change to which provider or model any build selects.
+
+**Authored source and proof ownership.** IMPLEMENT may edit only
+`packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
+`packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
+test output. The existing `packages/orchestrator/src/resolve-prove-spec.test.ts` is read-only
+and remains in the explicit proof command as a regression floor. This single-file authoring
+scope and required output remain unchanged. The CLI file already exists; its revised behavioral
+assertions must be present before the spine observes red. An absent CLI test, syntax error or
+broken test import is not the required runtime regression.
+The CLI integration home already consumes Library, drive, orchestrator and agent dependencies,
+so it can use the production role renderer, resolver and existing injected Codex runner without
+adding a dependency cycle or changing the agent adapter. The live check uses the same integration
+assertions in an explicit opt-in mode; ordinary tests remain offline and need no database or model.
+The offline test supplies neutral role artifacts in its own injected Library store; the shared
+historical corpus fixture's Claude-specific role wording is not a current runtime specification
+and must not force an adapter sanitizer or a shared-fixture source edit.
+Live red/green role wording is supplied by the guidance curator. This leaf authors no Library
+artifact, manifest or dependency change.
+
+The gate-time coverage reader remains name-granular and reads the CLI spotlight. Its eleven names
+are not a claim that every semantic assertion lives there. The registered proof command executes
+the resolver baseline named above, and the C9 cases supply the new selected-Codex composition and
+launch evidence, including Codex's empty feedback tools, disabled MCP and spine-only feedback
+posture. Do not claim an unchanged contract merely because a matching title exists: its retained
+resolver or CLI case must remain substantive. This work does not change the coverage reader or
+promotion manifest.
+
 Code edges for the `depends_on`, all imports in `resolve-prove-spec.ts`: `PathWriteScope` (from
 `./phase-machine.js`), `OwnedLoopAuthor` (`./owned-loop-author.js`), `ShellTestExecutor` +
 `runShellCommand` (`./shell-test-executor.js`), `gitTreeState` (`./prove-it-gate.js`),
@@ -73,6 +223,29 @@ Whichever author is selected, its proof feedback remains untrusted: the determin
 the registered command out of band and remains the sole red/green/verdict authority (see the
 story's executor-seam section).
 
+### Required contract observations
+
+These retain the capability's total acceptance while Guidance selects the current revision. Each
+named contract requires its full assertion; a matching title alone is insufficient.
+
+The shell-feedback prohibition in contracts 9 and 10 also rejects optional suggestions to run
+proof, test, typecheck or build commands as substitute feedback. Final-stdin assertions must reject
+that grant even when the same text correctly reserves observations or signing to the spine.
+A prohibition or runtime comparison may name an unavailable tool; test the instruction's meaning
+rather than requiring the tool name's erasure.
+
+- **`spec-files-locate-and-load`** — `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
+- **`proof-mode-vocabulary-maps`** — integration-test→capability, UAT→story, contract-test→contract, operator-attested shared.
+- **`registry-is-explicit`** — the library story + capabilities are covered; unknown ids return null.
+- **`real-walls-really-wall`** — the verdict-line and notice-board entries' walls hold; every install-bearing entry registers a typecheck (the registry-wide invariant).
+- **`unregistered-is-not-buildable`** — both refusals carry guidance, never a guess.
+- **`prove-spec-fields-come-off-the-real-spec`** — the resolved ProveSpec mirrors the node's identity.
+- **`dry-run-glue-end-to-end`** — the whole chain over an InMemoryStore.
+- **`real-mode-walk-earns-its-tree`** — the verdict's commitSha is the spine's commit; `git status` is genuinely clean.
+- **`prompts-brief-the-real-constraints`** — BOTH phases in all three REAL arms preserve outcome, guidance, contract IDs, the exact declared test/source scope, dependency restrictions, required outputs and stop-if-test-wrong behavior. For multiple literal test targets, AUTHOR_TEST names the complete permitted set instead of claiming only the spotlight is writable; IMPLEMENT may read those tests but writes only its source targets. Additional allowed paths remain optional unless already required by the existing manifest, and wildcard scope never becomes Codex promotion authority. A machine capturing actual final Codex stdin after rendered-role and adapter composition sees available native shell/`apply_patch` authoring and exact observed promotion, no promised `PreToolUse`/OS containment, no instruction to use unavailable proof/typecheck tools, and an explicit prohibition on substituting shell proof/typecheck feedback. The spine alone observes and signs. The same runtime truthfulness holds for live-smoke while its synthetic pair and deliberate absence of real contract IDs remain unchanged. Explicit Claude retains its actual tool and enforcement instructions. The standalone three-argument `realPrompts` helper retains its legacy Claude prose, while production REAL/live-smoke resolution explicitly supplies the selected runtime; omitted build runtime therefore remains Codex. The existing Codex model default and all proof/scoping/promotion inputs are unchanged.
+- **`feedback-tools-spawn-the-same-oracle`** — explicit Claude's `run_proof` spawns the exact CONFIRM oracle in REAL and live-smoke, and `run_typecheck` is armed and advertised only with its registered installed-node command. Codex's actual `feedbackToolNames` remains empty, its launch keeps MCP disabled, and BOTH phases of every REAL arm and live-smoke tell it to stop for the spine's independent observations without demanding unavailable feedback or authorizing a shell substitute. Installed Codex nodes still receive the spine-owned typecheck requirement. Native authoring tool availability, default runtime/model, registered commands and spine observation/signing authority are unchanged.
+- **`briefs-name-the-declared-contract-ids`** — `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
+
 ## Integration test
 
 **Goal —** A REAL node spec resolves and drives through the REAL gate offline, twice over:
@@ -83,6 +256,13 @@ story's executor-seam section).
 a scripted author via the `authorOverride` test seam, the spine's commit, a signed pass on a
 genuinely clean tree (`resolve-prove-spec.test.ts`, the test named `REAL mode offline walk: fresh
 worktree + real proof command + spine commit → signed pass on a genuinely clean tree`).
+
+The runtime amendment adds the actual final-stdin walk above in
+`packages/cli/src/codex-leaf-prompt.test.ts`, alongside that file's substantive resolver regressions.
+The existing resolver suite stays unchanged and runs in the same declared proof command. Its scripted
+walks remain offline tests of machinery; they are not a substitute author or signed proof for this
+repair. The declared REAL proof runs both test files, and promotion retains both package suites
+and typechecks as the regression floor.
 
 ## Contracts (11)
 
@@ -118,14 +298,14 @@ worktree + real proof command + spine commit → signed pass on a genuinely clea
    - **asserts —** the verdict's commitSha is the spine's commit; `git status` is genuinely clean.
    - **covers —** `resolve-prove-spec.ts` — `resolveReal`, including its default `treeState` seam (`commitAuthored` then `gitTreeState`)
    - **proven by —** `resolve-prove-spec.test.ts` — the test `REAL mode offline walk: fresh worktree + real proof command + spine commit → signed pass on a genuinely clean tree` (REAL, passing — via the `authorOverride` seam; the live-leaf default is the `proposed` pocket)
-9. **`prompts-brief-the-real-constraints`** — the phase briefs name the real files, the real proof command, the dependency rules, and the feedback loop
-   - **asserts —** authorTest/implement briefs carry outcome+guidance; REAL briefs name testFile/sourceFile, no-node_modules or typecheck walls, run_proof discipline and stop-if-test-wrong.
-   - **covers —** `resolve-prove-spec.ts` — `assemblePrompts` and `realPrompts` (its `conventions` / `depsLine` / `proofLine` builders)
-   - **proven by —** `resolve-prove-spec.test.ts` — the tests `assemblePrompts builds authorTest/implement briefs from the node's outcome + guidance`, `realPrompts names the REAL files, the REAL proof command, and the no-node_modules constraint`, `realPrompts for an install-bearing node names the typecheck wall`, `realPrompts brief the feedback loop: run_proof in both phases, feedback ≠ verdict, stop-if-test-wrong`, and `realPrompts for an install-bearing node also brief run_typecheck` (REAL, passing)
-10. **`feedback-tools-spawn-the-same-oracle`** — `run_proof` always (the exact CONFIRM command), `run_typecheck` only when registered; armed per mode
-    - **asserts —** the commands really spawn; arming matches install/no-install/live-smoke modes.
-    - **covers —** `resolve-prove-spec.ts` — `feedbackCommandsFor` and its two arming sites: `resolveReal`'s `typecheckCmd` + `feedbackCommands` wiring onto `ClaudeAgentAuthor`, and the live-smoke arm's `feedbackCommands` in `resolveProveSpec`
-    - **proven by —** `resolve-prove-spec.test.ts` — the tests `feedbackCommandsFor: run_proof always (the SAME command, really spawnable); run_typecheck only when registered`, `real-mode resolution arms the live leaf with run_proof + run_typecheck (install node)`, `real-mode resolution for a no-install node arms run_proof only`, and `live-smoke resolution arms run_proof over the synthetic pair` (REAL, passing)
+9. **`prompts-brief-the-real-constraints`** — the final leaf instructions truthfully brief the selected runtime while preserving the unit and phase obligations
+   - **asserts —** BOTH phases in all three REAL arms preserve outcome, guidance, contract IDs, the exact declared test/source scope, dependency restrictions, required outputs and stop-if-test-wrong behavior. For multiple literal test targets, AUTHOR_TEST names the complete permitted set instead of claiming only the spotlight is writable; IMPLEMENT may read those tests but writes only its source targets. Additional allowed paths remain optional unless already required by the existing manifest, and wildcard scope never becomes Codex promotion authority. A machine capturing actual final Codex stdin after rendered-role and adapter composition sees available native shell/`apply_patch` authoring and exact observed promotion, no promised `PreToolUse`/OS containment, no instruction to use unavailable proof/typecheck tools, and an explicit prohibition on substituting shell proof/typecheck feedback. The spine alone observes and signs. The same runtime truthfulness holds for live-smoke while its synthetic pair and deliberate absence of real contract IDs remain unchanged. Explicit Claude retains its actual tool and enforcement instructions. The standalone three-argument `realPrompts` helper retains its legacy Claude prose, while production REAL/live-smoke resolution explicitly supplies the selected runtime; omitted build runtime therefore remains Codex. The existing Codex model default and all proof/scoping/promotion inputs are unchanged.
+   - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` — `assemblePrompts`, `realPrompts`, `liveSmokePrompts` and selected-runtime brief wiring in `resolveProveSpec` / `resolveReal`; the final composition assertion consumes the existing drive role renderer and Codex adapter without granting them implementation scope.
+   - **proven by —** `packages/cli/src/codex-leaf-prompt.test.ts` — substantive runtime/phase/mode, finite test-target and manifest assertions, including actual final stdin with an offline rendered Library fixture and the same assertions against explicitly loaded current live roles. The unchanged `packages/orchestrator/src/resolve-prove-spec.test.ts` remains a regression floor. Amended behavior is UNPROVEN until the ordinary real spine observes its regression red→green; the opt-in live-role observation records no signature.
+10. **`feedback-tools-spawn-the-same-oracle`** — advertised feedback matches the selected runtime's armed tools without adding Codex proof authority
+    - **asserts —** explicit Claude's `run_proof` spawns the exact CONFIRM oracle in REAL and live-smoke, and `run_typecheck` is armed and advertised only with its registered installed-node command. Codex's actual `feedbackToolNames` remains empty, its launch keeps MCP disabled, and BOTH phases of every REAL arm and live-smoke tell it to stop for the spine's independent observations without demanding unavailable feedback or authorizing a shell substitute. Installed Codex nodes still receive the spine-owned typecheck requirement. Native authoring tool availability, default runtime/model, registered commands and spine observation/signing authority are unchanged.
+    - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` — `feedbackCommandsFor`, the selected-runtime arming and brief wiring in `resolveProveSpec` / `resolveReal`, and REAL/live-smoke feedback wording.
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.test.ts` — `feedbackCommandsFor: run_proof always (the SAME command, really spawnable); run_typecheck only when registered` executes supplied proof/typecheck commands, while the explicit-Claude REAL installed/no-install and live-smoke resolution tests observe the selected armed tools. `resolveReal` supplies the same REAL proof command to the spine executor and feedback helper, so this is substantive collaborator-level evidence rather than a callback invocation through one resolved author. The amended C9 final-input witness in `packages/cli/src/codex-leaf-prompt.test.ts` separately observes Codex's actual empty feedback tools, disabled MCP launch and spine-only feedback posture after production composition; it does not replace the Claude baseline.
 11. **`briefs-name-the-declared-contract-ids`** — the phase briefs carry the unit's declared contract ids, independent of what `## Guidance` restates
     - **asserts —** `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
     - **covers —** `resolve-prove-spec.ts` — the `contractsBrief` helper and its splice sites in `assemblePrompts` and the three `realPrompts` arms
