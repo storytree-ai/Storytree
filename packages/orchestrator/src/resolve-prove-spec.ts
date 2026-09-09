@@ -1139,7 +1139,7 @@ export function realPrompts(
   // migrated single-file node.
   const literalSourceGlobs = real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
   const sourcesNamed =
-    literalSourceGlobs.length <= 1
+    literalSourceGlobs.length <= 1 && literalSourceGlobs[0] === real.sourceFile
       ? `\`${real.sourceFile}\``
       : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
         `${literalSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
@@ -1150,7 +1150,7 @@ export function realPrompts(
   // A wildcard entry is excluded from the named set for the same reason `sourcesNamed` excludes one.
   const literalTestGlobs = real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
   const testsNamed =
-    literalTestGlobs.length <= 1
+    literalTestGlobs.length <= 1 && literalTestGlobs[0] === real.testFile
       ? `\`${real.testFile}\``
       : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
         `scope (matching ${literalTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +

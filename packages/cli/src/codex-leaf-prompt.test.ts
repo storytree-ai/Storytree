@@ -700,6 +700,74 @@ test("prompts-brief-the-real-constraints: for a multi-file REAL fixture, AUTHOR_
   }
 });
 
+test("prompts-brief-the-real-constraints: wildcard sole-literal authority keeps the optional literal in each bounded phase action", async () => {
+  // The spotlight files are admitted by their respective wildcard write walls, while the sole
+  // literal in each scope is an additional exact target Codex may promote. This is schema-valid:
+  // the required spotlight remains the proof target, and a wildcard-only sibling remains outside
+  // Codex's finite manifest.
+  const spotlightTest = "packages/widget/src/generated/spotlight.test.ts";
+  const optionalTest = "packages/widget/src/widget-helpers.test.ts";
+  const wildcardTest = "packages/widget/src/generated/*.test.ts";
+  const wildcardOnlyTest = "packages/widget/src/generated/unlisted.test.ts";
+  const spotlightSource = "packages/widget/src/generated/spotlight.ts";
+  const optionalSource = "packages/widget/src/widget-helpers.ts";
+  const wildcardSource = "packages/widget/src/generated/*.ts";
+  const wildcardOnlySource = "packages/widget/src/generated/unlisted.ts";
+  const real: RealProofConfig = {
+    testFile: spotlightTest,
+    sourceFile: spotlightSource,
+    scope: {
+      testGlobs: [wildcardTest, optionalTest],
+      sourceGlobs: [wildcardSource, optionalSource],
+    },
+  };
+  const role: LeafPhasePrompts = {
+    AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
+    IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
+  };
+  const result = resolveRealFor(real, { phasePrompts: role });
+  assert.equal(result.ok, true, result.ok ? "" : result.reason);
+  if (!result.ok) return;
+
+  const finalStdin = await captureCodexFinalStdin(real, result.spec.prompts, role);
+  const authorTargets = extractCodexTargetLists(finalStdin.AUTHOR_TEST);
+  const implementTargets = extractCodexTargetLists(finalStdin.IMPLEMENT);
+  assert.deepEqual(new Set(authorTargets.allowed), new Set([spotlightTest, optionalTest]));
+  assert.deepEqual(authorTargets.required, [spotlightTest]);
+  assert.ok(!authorTargets.allowed.includes(wildcardTest));
+  assert.ok(!authorTargets.allowed.includes(wildcardOnlyTest));
+  assert.deepEqual(new Set(implementTargets.allowed), new Set([spotlightSource, optionalSource]));
+  assert.deepEqual(implementTargets.required, [spotlightSource]);
+  assert.ok(!implementTargets.allowed.includes(wildcardSource));
+  assert.ok(!implementTargets.allowed.includes(wildcardOnlySource));
+
+  // Authority is granted by the bounded phase ACTION, not by the adapter's target list or another
+  // convention elsewhere in stdin. Keep this slice before adapter text so a later mention cannot
+  // accidentally satisfy the assertion.
+  const phaseBrief = (stdin: string): string => {
+    const start = stdin.indexOf("## Phase brief\n");
+    const end = stdin.indexOf("\n\nThe spine will run all registered proof commands after you stop");
+    assert.ok(start >= 0 && end > start, "the captured stdin has a bounded phase brief");
+    return stdin.slice(start + "## Phase brief\n".length, end);
+  };
+  const authorAction = phaseBrief(finalStdin.AUTHOR_TEST).slice(
+    phaseBrief(finalStdin.AUTHOR_TEST).indexOf("Phase AUTHOR_TEST"),
+  );
+  const implementAction = phaseBrief(finalStdin.IMPLEMENT).slice(
+    phaseBrief(finalStdin.IMPLEMENT).indexOf("Phase IMPLEMENT"),
+  );
+  assert.match(authorAction, /write ONLY/);
+  assert.ok(
+    authorAction.includes(`\`${optionalTest}\``),
+    "AUTHOR_TEST must explicitly authorize its sole optional literal",
+  );
+  assert.match(implementAction, /then write ONLY/);
+  assert.ok(
+    implementAction.includes(`\`${optionalSource}\``),
+    "IMPLEMENT must explicitly authorize its sole optional literal",
+  );
+});
+
 test("prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition", async () => {
   const role: LeafPhasePrompts = {
     AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
