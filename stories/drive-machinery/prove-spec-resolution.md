@@ -54,10 +54,13 @@ proof:
 Terra run `real-mtteizuv` signed `0bf3005d07d875f8099ed787e680eb6486c1b0ee`, now integrated
 at this parent: its existing C9 assertion and resolver change repair net-new IMPLEMENT permission
 for an optional literal source target. That is valid partial progress, not C9 completion. The
-wildcard sole-literal and explicit-Claude scope regressions, plus the remaining final-input
-observations, are still owed. Earlier rejected or unintegrated signed results are evidence only,
-never a seed to restore. Capturing final stdin with an injected process runner observes prompt
-composition; it is not a real author run or a signed verdict.
+unlanded cumulative branch also contains `aaf966f34c54c029530228654e2635432ee04451`: ordinary
+Terra run `real-mtthfve6` validly proved wildcard-admitted sole-literal authority in both phase
+actions. Its new source predicate leaves a valid wildcard-only, zero-literal scope with malformed
+plural wording, so it is meaningful signed ancestry but not landable alone. The zero-literal and
+explicit-Claude scope regressions, plus the remaining final-input observations, are still owed.
+Earlier rejected results are evidence only, never a seed to restore. Capturing final stdin with an
+injected process runner observes prompt composition; it is not a real author run or a signed verdict.
 
 **Authoring prerequisite under the 2026-09-09 owner re-steer.** Continuity's implementation is a
 pure event resolver, but its ordinary REAL build is not: `nodeBuild` calls `buildNodeReal`, which
@@ -68,28 +71,27 @@ authoring path first. This is an execution prerequisite, not a new `depends_on` 
 [`capability-proof-continuity`](capability-proof-continuity.md).
 
 The remaining runtime repair proceeds as two source-backed C9 revisions in one cumulative
-runtime-only PR. The next proves wildcard-admitted sole-literal authority in both phase action
-clauses and captures the representative neutral-role final Codex boundary. The later revision
-proves explicit-Claude wildcard/legacy scope against `PathWriteScope` and captures the current-live
-and live-smoke boundaries. Each gets an ordinary red from its still-current resolver defect, so no
-final green-only witness is orphaned. The registered proof command already executes substantive
-resolver cases for C1–8, the original Claude portion of C10, and C11; cloning those assertions into
-the CLI spotlight would not strengthen their proof. Run each defined revision with the
-repository-default GPT-5.6 Terra leaf, then continue the owner-directed order: continuity, renderer
-rename, four-way capability split, and safe downstream fan-out.
+runtime-only PR. Revision 1 next proves wildcard-only zero-literal action wording and completes its
+representative neutral-role final Codex boundary. The later revision proves explicit-Claude
+wildcard/legacy scope against `PathWriteScope` and captures the current-live and live-smoke
+boundaries. Each gets an ordinary red from its still-current resolver defect, so no final green-only
+witness is orphaned. The registered proof command already executes substantive resolver cases for
+C1–8, the original Claude portion of C10, and C11; cloning those assertions into the CLI spotlight
+would not strengthen their proof. Run each defined revision with the repository-default GPT-5.6
+Terra leaf, then continue the owner-directed order: continuity, renderer rename, four-way capability
+split, and safe downstream fan-out.
 
 ## Guidance
 
-### C9 revision 1 — wildcard sole-literal authority
+### C9 revision 1 — wildcard-only zero-literal authority
 
 Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
 and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
 shared fixture and assertion, especially the integrated net-new IMPLEMENT optional-source action
-regression. Add one narrowly named C9 test in this declared CLI file; its static literal title carries
-`prompts-brief-the-real-constraints` and names wildcard sole-literal authority. This is the
-appropriate current shape for this new behavior, not a general test-block rule. This revision does
-not complete C9.
+regression and signed `aaf966f` sole-literal case. Add one distinct narrowly named C9 test in this
+declared CLI file; its static literal title carries `prompts-brief-the-real-constraints` and names
+wildcard-only zero-literal authority. This revision does not complete C9.
 
 Production composition is rendered role, then `## Phase brief`, then adapter spine/target/output text.
 C9 helpers preserve existing callers and capture that production `CodexPhaseAuthor` launch, not a
@@ -97,11 +99,10 @@ reconstructed command. For every captured phase, couple final stdin, actual exec
 author's `feedbackToolNames`; a static argument builder is not this observation. Helpers prepare
 only this witness and cannot vouch for other contracts.
 
-1. Build a schema-valid wildcard fixture where each phase admits spotlight plus exactly one literal,
-   requires only spotlight, and excludes a wildcard-only sibling. Parse and compare its adapter
-   allowed/required lists as adapter evidence. Separately isolate each bounded PHASE ACTION inside
-   the phase brief, ending before the adapter text begins: a path that appears only in the adapter
-   list, conventions or elsewhere in stdin cannot authorize the action.
+1. Build a schema-valid wildcard-only fixture where each phase admits its required spotlight through
+   the wildcard and has no literal scope entry. Its finite adapter allowed/required lists contain
+   only the spotlight. Separately isolate each bounded PHASE ACTION inside the phase brief, ending
+   before adapter text begins: a path elsewhere in stdin cannot authorize the action.
 2. Capture representative omitted-runtime Codex REAL input in both phases with roles rendered from
    neutral artifacts authored in this test's own injected Library store, never a historical fixture
    with text stripped. Actual stdin and args establish the default model and disabled MCP; the same
@@ -113,16 +114,17 @@ only this witness and cannot vouch for other contracts.
    nonauthorizing wildcard context, but a forbidden role instruction must fail; no blanket token
    erasure is valid. It rejects unavailable-tool instructions, obsolete containment/no-shell
    claims, and shell proof/test/typecheck/build pseudo-feedback even beside a spine-signing
-   disclaimer. The bounded action predicate accepts valid write/EDIT/refactor forms only when they
-   grant an optional literal, and rejects spotlight-only permission and explicit denial.
-   The prior diagnostic reproduction found a TypeScript parse failure; this does not establish the
-   original run's red cause. Construct any template-literal RegExp that matches inline Markdown
-   code spans with parse-safe delimiters and do not double-escape backticks.
-4. Derive red from current `literalTestGlobs.length <= 1` and
-   `literalSourceGlobs.length <= 1` behavior, then change only
-   `packages/orchestrator/src/resolve-prove-spec.ts` so a wildcard-admitted spotlight retains its
-   sole literal in both phase action clauses. Preserve defaults, authority and finite manifests.
-   No other CLI or resolver body is rewritten.
+   disclaimer. The bounded action predicate accepts valid write/EDIT/refactor forms only when each
+   grants the required spotlight and names no nonexistent additional target; it rejects missing or
+   denied spotlight permission and invented additional-target permission. The prior diagnostic
+   reproduction found a TypeScript parse failure; this does not establish the original run's red
+   cause. Construct any template-literal RegExp that matches inline Markdown code spans with
+   parse-safe delimiters and do not double-escape backticks.
+4. Derive red from the current zero-length `literalTestGlobs` and `literalSourceGlobs` path, which
+   selects plural wording after `aaf966f`, then change only
+   `packages/orchestrator/src/resolve-prove-spec.ts` so wildcard-only scope names the required
+   spotlight alone in both phase actions. Preserve defaults, authority and finite manifests. No
+   other CLI or resolver body is rewritten.
 
 Reserve revision 2 for the still-current explicit-Claude wildcard/legacy scope regression against
 `PathWriteScope`, coupled to opt-in current-live roles and final Codex live-smoke capture. Do not
