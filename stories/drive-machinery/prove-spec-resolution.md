@@ -84,32 +84,36 @@ rename, four-way capability split, and safe downstream fan-out.
 
 Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
-and C11; existing parent CLI corroboration remains frozen. Retain the integrated net-new optional
-source regression. This revision does not complete C9.
-
-AUTHOR_TEST changes only this existing C9 body, retaining its title and adding no `test()`/`it()`
-block:
+and C11; existing parent CLI corroboration remains frozen. AUTHOR_TEST is additive in the named C9
+body: preserve every current assertion, especially the integrated net-new IMPLEMENT optional-source
+action regression, and add no `test()`/`it()` block. This revision does not complete C9.
 
 `prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition`
 
-C9 helpers preserve existing callers and capture the production `CodexPhaseAuthor` launch, not a
-reconstructed command. They prepare only this witness and cannot vouch for other contracts.
+Production composition is rendered role, then `## Phase brief`, then adapter spine/target/output text.
+C9 helpers preserve existing callers and capture that production `CodexPhaseAuthor` launch, not a
+reconstructed command. For every captured phase, couple final stdin, actual exec args and that same
+author's `feedbackToolNames`; a static argument builder is not this observation. Helpers prepare
+only this witness and cannot vouch for other contracts.
 
 1. Build a schema-valid wildcard fixture where each phase admits spotlight plus exactly one literal,
-   requires only spotlight, and excludes a wildcard-only sibling. In the delimited AUTHOR_TEST and
-   IMPLEMENT action clauses, assert that the optional literal is authorized; a path elsewhere in
-   stdin, an adapter manifest or conventions is not permission.
-2. Capture representative omitted-runtime Codex REAL input in both phases with neutral roles from
-   this test's own injected Library store. Actual stdin and argv establish the default model and
-   disabled MCP; the same captured author's `feedbackToolNames` establishes empty tools. Keep
-   native authoring, spine-only observation, distinctive outcome/guidance/declared IDs, finite
-   membership, phase duties, dependency/typecheck restrictions and stopping behavior substantive.
-3. Before the source assertion, apply qualified controls: full composed role + phase brief + adapter
-   accepts qualified unavailable-tool/runtime wording and nonauthorizing wildcard context, but
-   rejects unavailable-tool instructions, obsolete containment/no-shell claims, and shell
-   proof/test/typecheck/build pseudo-feedback even beside a spine-signing disclaimer. No blanket
-   token erasure is valid. The action predicate accepts valid write/EDIT/refactor forms only when
-   they grant an optional literal, and rejects spotlight-only permission and explicit denial.
+   requires only spotlight, and excludes a wildcard-only sibling. Parse and compare its adapter
+   allowed/required lists as adapter evidence. Separately isolate each bounded PHASE ACTION inside
+   the phase brief, ending before the adapter text begins: a path that appears only in the adapter
+   list, conventions or elsewhere in stdin cannot authorize the action.
+2. Capture representative omitted-runtime Codex REAL input in both phases with roles rendered from
+   neutral artifacts authored in this test's own injected Library store, never a historical fixture
+   with text stripped. Actual stdin and args establish the default model and disabled MCP; the same
+   author establishes empty feedback tools. Keep native authoring, spine-only observation,
+   distinctive outcome/guidance/declared IDs, finite membership, phase duties,
+   dependency/typecheck restrictions and stopping behavior substantive.
+3. Before the source assertion, apply qualified controls. Full truthfulness always reads rendered
+   role + phase brief + adapter together: it accepts qualified unavailable-tool/runtime wording and
+   nonauthorizing wildcard context, but a forbidden role instruction must fail; no blanket token
+   erasure is valid. It rejects unavailable-tool instructions, obsolete containment/no-shell
+   claims, and shell proof/test/typecheck/build pseudo-feedback even beside a spine-signing
+   disclaimer. The bounded action predicate accepts valid write/EDIT/refactor forms only when they
+   grant an optional literal, and rejects spotlight-only permission and explicit denial.
 4. Derive red from current `literalTestGlobs.length <= 1` and
    `literalSourceGlobs.length <= 1` behavior, then change only
    `packages/orchestrator/src/resolve-prove-spec.ts` so a wildcard-admitted spotlight retains its
