@@ -187,6 +187,25 @@ identity, story baseline, claim identity or newly split rendering lane is mapped
 **Goal —** Resolve a reviewed rename over the actual work/signing event vocabulary into immutable
 historical evidence plus honest current-obligation qualification.
 
+**Fixture acceptance —** Each admitted fixture models the selected **post-rename current** hierarchy:
+it contains the target capability and no live source capability. The old capability belongs only in the
+rename anchor and per-signing-event historical snapshots, never as a current hierarchy row admitted
+alongside its target. Raw old and target specifications keep the same actual source/test proof paths
+and the same declared contract IDs across the display/identity rename; a fixture must not derive either
+obligation-bearing path or contract ID from its display ID. The proof is about the explicit
+normalization locations, not a synthetic rename that also changes scopes or contracts.
+
+Positive, otherwise-valid pass/fail signing fixtures are accepted only after `Verdict.safeParse`
+succeeds on the actual document shape. Deliberately malformed signing fixtures remain required
+negative controls: assert their validation failure and zero credit, and assert duplicate-signing
+ambiguity where applicable.
+Where a fixture supplies anchors, every anchor carries its own required `boundHash`; a top-level
+`boundHash` does not make an otherwise invalid anchor valid. Construct the initial and phase activity
+marks with real `workEvent`: include one initial `building` mark and multiple same-run phase-stamped
+`building` marks at distinct sequences, then a schema-valid same-`runId:unitId` signing event. Each
+mandatory negative control is an independently asserted case, rather than a nested label around the
+admitted fixture or an incidental consequence of another refusal.
+
 The suite uses real `workEvent` construction, `RollupEvent` ordering and real `Verdict` validation.
 Its regression includes an initial building mark and multiple phase-stamped building marks in the
 same run, constructed with real `workEvent` as `phaseActivityWriter` does, at distinct supplied
@@ -216,7 +235,9 @@ substantive test whose name begins with its contract ID.
      and current-target obligations admits exactly its source/target capability pair only after
      validating the raw anchor `id` against `fromId` and raw current `id` against the selected
      target, both at capability tier in the same story as the supplied hierarchy. These checks
-     precede identity normalization. Mismatches, missing review fields, unsupported version,
+     precede identity normalization. The selected current hierarchy contains the target and no live
+     source row; the source is historical input through the anchor and event snapshots. Mismatches,
+     missing review fields, unsupported version,
      self-mapping, duplicate source or target use, source reuse by a live capability, a continuation
      chain/cycle, a split, an absent target and a story or criterion endpoint each produce an
      explicit refusal and no conditional current-proof candidate.
@@ -229,6 +250,8 @@ substantive test whose name begins with its contract ID.
      prose inline-code `storytree coverage <self-id>` command pass; changing outcome, witness,
      proof mode, ordinary or real command, any test/source scope, integration acceptance, any
      contract assertion, or an otherwise unknown authored field/section refuses admission.
+     The fixture keeps its actual proof paths and declared contract IDs fixed across the allowed
+     display/identity change; it does not manufacture those obligations from the fixture ID.
      Replacing the old ID inside an assertion is not normalized merely because it spells the ID.
      A coverage command naming an unrelated ID remains material, as does any command rewrite beyond
      the exact recognized self-ID argument token; the `proof:` command remains fully compared.
@@ -326,6 +349,10 @@ substantive test whose name begins with its contract ID.
      subsequent production integrations as proven.
    - **falsifiability —** a hand-made success marker cannot substitute for `Verdict` validation,
      and a later `building` mark cannot be treated as a fresh signing result.
+     A verdict-shaped object with an anchor lacking that anchor's `boundHash` must fail schema
+     validation even when a top-level field has that name. A live old source row beside the selected
+     target, derived proof paths/contract IDs, or phase-less repeated work marks cannot satisfy the
+     admitted production-shaped fixture.
      Refusing or deduplicating real repeated-ID work marks plus their same-ID signature must red.
      An unchanged supplied snapshot must still return BOTH provenance and lifecycle unchecked and
      only a conditional candidate, never a verified-proof or current-status result. Controls must
