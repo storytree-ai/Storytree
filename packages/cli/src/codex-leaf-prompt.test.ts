@@ -171,6 +171,22 @@ const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
 };
 
 /**
+ * The spotlight is admitted by the wildcard while the sole literal is optional. This is the
+ * discriminating shape for the resolver regression: filtering to literals must retain that extra
+ * target rather than treating the spotlight as the only named path.
+ */
+const WILDCARD_ADMITTED_REAL: RealProofConfig = {
+  testFile: EDIT_TEST_FILE,
+  sourceFile: EDIT_SOURCE_FILE,
+  install: true,
+  typecheck: { file: "pnpm", args: ["--filter", "@storytree/widget", "typecheck"] },
+  scope: {
+    testGlobs: [EDIT_TEST_WILDCARD, EDIT_TEST_EXTRA],
+    sourceGlobs: [EDIT_SOURCE_WILDCARD, EDIT_SOURCE_EXTRA],
+  },
+};
+
+/**
  * Parse the ADAPTER's OWN rendered "allowed target set" / "Required outputs" sections out of a
  * captured final Codex stdin (see `captureCodexFinalStdin`'s composed `fullPrompt` in
  * `packages/agent/src/codex-author.ts`) — the section the adapter builds itself from the
@@ -251,6 +267,14 @@ function captureCodexRunner(): { runner: CodexRunner; commands: CodexCommand[] }
 interface CodexFinalStdin {
   AUTHOR_TEST: string;
   IMPLEMENT: string;
+}
+
+/** The delimited authoring action, excluding role/guidance/adapter manifest context. */
+function phaseActionClause(prompt: string, phase: "AUTHOR_TEST" | "IMPLEMENT"): string {
+  const marker = `Phase ${phase} — `;
+  const start = prompt.indexOf(marker);
+  assert.notEqual(start, -1, `${phase}: phase action clause is present`);
+  return prompt.slice(start + marker.length);
 }
 
 /**
@@ -705,14 +729,45 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
     IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
   };
-  const result = resolveRealFor(INSTALL_REAL, { phasePrompts: role });
+  const spec = specWithReal(WILDCARD_ADMITTED_REAL, {
+    outcome: "A distinctive wildcard-admitted widget outcome.",
+    guidance: "Distinctive C9 guidance survives the production final-input boundary.",
+    contracts: [{ id: "prompts-brief-the-real-constraints", title: "C9 prompt truthfulness" }],
+  });
+  const result = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: `r-codex-c9-${Math.random().toString(36).slice(2)}`,
+    signerInputs: TESTER,
+    phasePrompts: role,
+  });
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, role);
+  assert.ok(result.liveAuthor instanceof CodexPhaseAuthor, "the omitted runtime selects Codex");
+
+  // The action clause, rather than a path mentioned elsewhere in the brief or adapter manifest, is
+  // the authority claim. A wildcard may be context/a wall, but the sole literal optional target is
+  // a finite promoted target and must be granted in the relevant phase action.
+  assert.match(
+    phaseActionClause(result.spec.prompts.authorTest, "AUTHOR_TEST"),
+    new RegExp(EDIT_TEST_EXTRA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    "AUTHOR_TEST grants its literal optional test target when the spotlight is wildcard-admitted",
+  );
+  assert.match(
+    phaseActionClause(result.spec.prompts.implement, "IMPLEMENT"),
+    new RegExp(EDIT_SOURCE_EXTRA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    "IMPLEMENT grants its literal optional source target when the spotlight is wildcard-admitted",
+  );
+
+  const finalStdin = await captureCodexFinalStdin(WILDCARD_ADMITTED_REAL, result.spec.prompts, role);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
     const text = finalStdin[phase];
     assert.match(text, /red-builder|green-builder/, `${phase}: the rendered role survives composition`);
     assert.match(text, /Phase brief/, `${phase}: the phase-brief section header survives composition`);
+    assert.match(text, /distinctive wildcard-admitted widget outcome/i, `${phase}: outcome survives composition`);
+    assert.match(text, /Distinctive C9 guidance/, `${phase}: guidance survives composition`);
+    assert.match(text, /prompts-brief-the-real-constraints/, `${phase}: declared contract id survives composition`);
     assert.doesNotMatch(text, /run_proof/, `${phase}: Codex's final stdin must not promise run_proof`);
     assert.doesNotMatch(text, /run_typecheck/, `${phase}: Codex's final stdin must not promise run_typecheck`);
     assert.doesNotMatch(
@@ -724,6 +779,44 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     // must stay intact regardless of the (buggy) task-brief prose above.
     assert.match(text, /spine will run all registered proof commands after you stop/);
     assert.match(text, /disposable replica/);
+  }
+
+  // Production's finite manifest and the hook wall agree on the extra literal while refusing a
+  // wildcard-only sibling; the adapter observes those exact finite targets after composition.
+  const scope = new PathWriteScope(WILDCARD_ADMITTED_REAL.scope);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", EDIT_TEST_EXTRA), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", EDIT_SOURCE_EXTRA), true);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", EDIT_TEST_WILDCARD_SIBLING), true);
+  assert.ok(!extractCodexTargetLists(finalStdin.AUTHOR_TEST).allowed.includes(EDIT_TEST_WILDCARD_SIBLING));
+
+  // The other valid action form remains a positive control: refactor-for-testability keeps both
+  // the explicit refactor authority and the optional literal source target.
+  const refactor = resolveRealFor({
+    ...WILDCARD_ADMITTED_REAL,
+    refactorForTests: true,
+    proofCommand: { file: "pnpm", args: ["--filter", "@storytree/widget", "test"] },
+  });
+  assert.equal(refactor.ok, true);
+  if (refactor.ok) {
+    const action = phaseActionClause(refactor.spec.prompts.implement, "IMPLEMENT");
+    assert.match(action, /BEHAVIOUR-PRESERVING REFACTOR/);
+    assert.match(action, /widget-helpers\.ts/);
+  }
+
+  // Explicit Claude is bounded by the same declared scope even though its legacy helper prose and
+  // runtime boundary differ; this is a prompt observation only, not a Claude author invocation.
+  const explicitClaude = resolveRealFor({ ...WILDCARD_ADMITTED_REAL, editsExisting: true }, { runtime: "claude" });
+  assert.equal(explicitClaude.ok, true);
+  if (explicitClaude.ok) {
+    assert.ok(explicitClaude.liveAuthor instanceof ClaudeAgentAuthor);
+    assert.match(
+      phaseActionClause(explicitClaude.spec.prompts.authorTest, "AUTHOR_TEST"),
+      /widget-helpers\.test\.ts/,
+    );
+    assert.match(
+      phaseActionClause(explicitClaude.spec.prompts.implement, "IMPLEMENT"),
+      /widget-helpers\.ts/,
+    );
   }
 });
 
