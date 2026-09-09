@@ -1318,7 +1318,9 @@ export function liveSmokePrompts(spec: NodeSpec, runtime: LiveRuntime = "claude"
   const codexRuntime = runtime === "codex";
   const feedbackLine = codexRuntime
     ? `You are authoring with native shell/apply_patch access in this temp workspace — no automated ` +
-      `feedback tool exists here either; the spine alone observes the official red/green itself.`
+      `feedback tool exists here either. Do not run a shell proof, test, typecheck, or build command ` +
+      `as feedback: shell access is not a substitute for the spine's registered observations. The spine ` +
+      `alone observes the official red/green itself.`
     : `The \`run_proof\` feedback tool runs that test command for you (bounded runs; its output is\n` +
       `feedback, never the verdict — the spine observes the official red/green itself).`;
   const conventions =

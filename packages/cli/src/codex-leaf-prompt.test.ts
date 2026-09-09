@@ -637,7 +637,7 @@ test("prompts-brief-the-real-constraints: default and explicit Codex REAL builds
   }
 });
 
-test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never claims run_proof or denies native shell authoring", () => {
+test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never claims run_proof or denies native shell authoring", async () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
   for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
     const result = resolveProveSpec(spec, {
@@ -654,6 +654,61 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
     for (const text of [result.spec.prompts.authorTest, result.spec.prompts.implement]) {
       assert.doesNotMatch(text, /run_proof/);
       assert.doesNotMatch(text, /cannot run shell commands/i);
+    }
+  }
+
+  // Capture the final adapter-composed input for the synthetic live-smoke pair, not merely the
+  // resolver's intermediate prompt. The selected default runtime must retain native authoring,
+  // no feedback/MCP authority, and the spine-owned observation/stopping boundary in BOTH phases.
+  const smokeReal: RealProofConfig = {
+    testFile: "unit.test.cjs",
+    sourceFile: "impl.cjs",
+    scope: { testGlobs: ["*.test.cjs"], sourceGlobs: ["impl.cjs"] },
+  };
+  const neutralRole: LeafPhasePrompts = {
+    AUTHOR_TEST: "Neutral AUTHOR_TEST role: author the synthetic failing test, then stop.",
+    IMPLEMENT: "Neutral IMPLEMENT role: author the synthetic implementation, then stop.",
+  };
+  const smoke = resolveProveSpec(spec, {
+    mode: "live-smoke",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: `r-smoke-codex-final-${Math.random().toString(36).slice(2)}`,
+    signerInputs: TESTER,
+    phasePrompts: neutralRole,
+  });
+  assert.equal(smoke.ok, true, smoke.ok ? "" : smoke.reason);
+  if (!smoke.ok) return;
+  assert.ok(smoke.liveAuthor instanceof CodexPhaseAuthor, "omitted live-smoke runtime selects Codex");
+
+  const assertShellFeedbackBoundary = (
+    launches: { AUTHOR_TEST: CodexFinalLaunch; IMPLEMENT: CodexFinalLaunch },
+  ): void => {
+    for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
+      const launch = launches[phase];
+      assert.ok(launch.args.includes("gpt-5.6-terra"), `${phase}: the selected default model launches`);
+      assert.ok(launch.args.includes("mcp_servers={}"), `${phase}: MCP remains disabled`);
+      assert.deepEqual(launch.feedbackToolNames, [], `${phase}: no feedback tools are advertised`);
+      assert.match(launch.stdin, /native shell\/apply_patch access/);
+      assert.match(launch.stdin, /spine alone observes the official (?:red|green)/i);
+      assert.match(launch.stdin, /stop/i);
+      assert.match(
+        launch.stdin,
+        /do not run (?:a )?shell (?:proof, test, typecheck, or build|command) .*feedback/i,
+        `${phase}: shell access must not become a proof-feedback substitute`,
+      );
+    }
+  };
+
+  assertShellFeedbackBoundary(await captureCodexFinalLaunches(smokeReal, smoke.spec.prompts, neutralRole));
+
+  // Opt-in only: the current live-store roles must carry the same bounded prohibition when a
+  // reachable store is deliberately supplied, without making this offline contract test depend on it.
+  if (process.env.STORYTREE_LEAF_PROMPTS_LIVE === "1") {
+    const current = await renderLeafPhasePrompts();
+    assert.equal(current.ok, true, current.ok ? "" : current.refusal.body);
+    if (current.ok) {
+      assertShellFeedbackBoundary(await captureCodexFinalLaunches(smokeReal, smoke.spec.prompts, current.prompts));
     }
   }
 });
