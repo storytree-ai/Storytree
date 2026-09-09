@@ -81,88 +81,58 @@ actually consumes.
 
 ## Guidance
 
-### Selected-runtime final-input witness
+### C9 completion witness
 
-Retain all eleven contracts, their assertions and IDs, every existing CLI title, the existing
-resolver cases, and the declared commands and fences. The resolver suite is read-only but runs in
-the registered proof command: its substantive cases remain the execution baseline for contracts
-1–8, the original Claude oracle/typecheck assertion in contract 10, and contract 11. Its contract
-10 evidence is deliberately compositional — `feedbackCommandsFor` executes the supplied
-proof/typecheck commands, resolution supplies the same REAL command to the spine and feedback
-helper, and explicit-Claude REAL/no-install/live-smoke cases observe the armed tools — rather than
-a callback invocation through one resolved author. That is disclosed test granularity, not an
-absent assertion. Existing CLI spot checks for those contracts remain meaningful corroboration and
-are frozen.
+Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
+the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
+and C11; existing parent CLI corroboration remains frozen. The unintegrated signed partial is not a
+seed: author the three C9 source regressions from current parent behavior. This witness is incomplete
+until the observations below exist.
 
-AUTHOR_TEST changes only this existing C9 body, retaining its title and adding no
-`test()`/`it()` block:
+AUTHOR_TEST changes only this existing C9 body, retaining its title and adding no `test()`/`it()`
+block:
 
 `prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition`
 
-Build valid, distinctive fixtures through `baseSpec`, `specWithReal` and `resolveRealFor`; each
-must pass the existing proof-config schema and carry distinctive outcome, guidance and declared
-contract IDs. Broad edit-existing scope retains its explicit suite proof command. Keep the
-production finite-list parser and manifest assertions. C9 may add fixture and capture helpers only
-for this same production final-input boundary. They capture actual `CodexCommand.stdin` and launch
-arguments after `CodexPhaseAuthor.author`, using production `codexPromotionManifest` and
-`PathWriteScope`; model and MCP observations come from that captured launch, never from a separate
-`buildCodexExecArgs` call. This is an automated composition observation, never a real author run
-or signature. Any new C9 fixture/capture helper preserves the behavior and call signature of its
-existing callers, so the frozen CLI bodies need no rewrite.
+C9 helpers are compatible with existing callers and capture the production `CodexPhaseAuthor`
+launch, not a reconstructed command. They may prepare only this witness and cannot vouch for other
+contracts.
 
-The C9 body owns its substantive assertions. Capture a representative omitted-runtime Codex REAL
-launch in both phases through the production adapter, observing actual stdin and argv: default
-model, disabled MCP, empty feedback tools, native authoring, spine-only observation, exact finite
-targets, phase duties, dependency/typecheck restrictions and stopping behavior. The representative
-input carries distinctive outcome, guidance and declared IDs. Observe that boundary once with
-neutral roles rendered from this test's injected Library store and once with opt-in current-live
-roles from `renderLeafPhasePrompts()` with no injected store; ordinary tests remain offline. Capture
-one Codex live-smoke representative so its synthetic pair and deliberate absence of real IDs remain
-distinct. Existing substantive tests retain the omitted/explicit runtime equivalence and the other
-REAL-arm baseline; do not duplicate them as a cartesian inventory.
+1. Capture representative omitted-runtime Codex REAL input in both phases: actual stdin and argv
+   establish the default model and disabled MCP; the same captured author's `feedbackToolNames`
+   establishes empty feedback tools. Assert native authoring, spine-only observation, distinctive
+   outcome/guidance/declared IDs, finite allowed/required targets, phase duties,
+   dependency/typecheck restrictions and stopping behavior. For the wildcard fixture, the adapter
+   list must admit spotlight plus optional literal, require only the spotlight, and exclude a
+   wildcard-only sibling.
+2. Observe that REAL boundary once with neutral roles from this test's own injected Library store
+   and once with opt-in current-live roles from `renderLeafPhasePrompts()`; ordinary tests stay
+   offline. Capture one Codex live-smoke final input, preserving its synthetic pair and absence of
+   real IDs. Existing substantive tests retain omitted/explicit-runtime equivalence and the other
+   REAL-arm baseline.
+3. Before source-regression checks, apply the qualified full-input and delimited-action predicates.
+   Full input reads rendered role, phase brief and adapter together: it accepts qualified
+   unavailable-tool/runtime wording and nonauthorizing wildcard context, while rejecting
+   unavailable-tool instructions, obsolete containment/no-shell claims and shell
+   proof/test/typecheck/build pseudo-feedback even beside a spine-signing disclaimer. No blanket
+   token erasure is valid. Action clauses accept net-new `write`, edit-existing `EDIT` and refactor
+   `BEHAVIOUR-PRESERVING REFACTOR` only when each grants the optional literal; they reject
+   spotlight-only permission and explicit optional-literal denial. A path elsewhere in stdin, an
+   adapter manifest or conventions is not action permission.
+4. Use schema-valid fixtures to prove the current source regressions: wildcard-admitted spotlight
+   plus one literal in both phases; net-new IMPLEMENT with one optional literal; and explicit
+   Claude wildcard/legacy scope compared with `PathWriteScope`. Preserve the standalone
+   three-argument `realPrompts(spec, real, proofDisplay)` compatibility observation, without a
+   Claude author, model execution, login or duplicate C10 oracle work. The resolver must grant the
+   net-new literal, retain a sole literal beside a wildcard-admitted spotlight, and retain explicit
+   Claude's declared scope.
 
-Before any source-coupled assertion, apply two qualified predicates in the C9 body. The
-full-composed-input truthfulness predicate reads rendered role, phase brief and adapter together:
-positive controls accept a qualified unavailable-tool prohibition/runtime comparison and
-nonauthorizing wildcard context; negative controls reject unavailable-tool instructions, obsolete
-no-shell/containment claims, and shell proof/test/typecheck/build pseudo-feedback, including beside
-a spine-signing disclaimer. The separate delimited phase-action permission predicate reads only the
-action clause: positives accept net-new `write`, edit-existing `EDIT`, and
-refactor-for-testability `BEHAVIOUR-PRESERVING REFACTOR` when they grant the optional literal;
-negatives reject spotlight-only action and explicit optional-literal denial. Blanket token erasure
-is invalid: role text remains in the whole composed input, while a mention outside the action clause
-is not write authority.
+IMPLEMENT edits only `packages/orchestrator/src/resolve-prove-spec.ts`; no other CLI or resolver
+body is rewritten. Derive red from current behavior after controls pass. Preserve runtime defaults,
+authority, finite manifests and spine signing. A signed pass is incomplete until this C9 witness
+and the retained substantive baseline both pass review.
 
-For the source regressions, use schema-valid representative fixtures and inspect the delimited
-phase action clause, not a path anywhere in the adapter manifest or conventions. Cover both phases
-of wildcard-admitted spotlight plus one additional literal, net-new IMPLEMENT with one optional
-literal, and refactor-for-testability's valid action form as a positive control. In the same C9
-body, separately resolve the bounded explicit-Claude wildcard/legacy case and observe its declared
-scope against `PathWriteScope`; preserve the existing three-argument
-`realPrompts(spec, real, proofDisplay)` compatibility observation. This qualifies the
-explicit-Claude source regression without a Claude author, model execution, login, or C10 oracle
-assertion, and adds no test block. C9 fixture/capture helpers prepare only this boundary and cannot
-be a common assertion that vouches for other contracts.
-
-Use schema-valid fixtures where a spotlight is admitted only via wildcard plus exactly one
-additional literal entry, and where net-new has an optional literal source. Production and final
-adapter manifests must admit spotlight plus optional literal, require only spotlight, and exclude a
-wildcard-only sibling. Apply the action predicate to every REAL source arm. Author the minimum
-resolver changes warranted by current behavior: net-new must grant its optional literal;
-`literalSourceGlobs.length <= 1` and `literalTestGlobs.length <= 1` must not drop the sole
-additional literal when the spotlight is admitted only by wildcard; and the unconditional literal
-filter must not narrow explicit-Claude legacy scope. Derive each red from then-current behavior
-after the controls pass; do not preserve a defect, use a rejected diagnostic predicate, invent a
-later red, or change runtime defaults or authority to make the unit pass.
-
-IMPLEMENT may edit only `packages/orchestrator/src/resolve-prove-spec.ts`; AUTHOR_TEST may edit only
-the named existing C9 CLI body and its C9-only fixture/capture helpers. No other CLI body is
-rewritten. The existing
-`packages/orchestrator/src/resolve-prove-spec.test.ts` stays read-only in the proof command as the
-regression floor. Preserve default Codex/model selection, native shell/`apply_patch` authoring,
-blind feedback, explicit Claude and legacy compatibility, commands, scopes, finite manifests and
-spine authority. A signed partial revision or eleven matching names cannot close the runtime repair:
-the C9 final-input witness and each retained substantive baseline assertion remain required.
+## Runtime reference
 
 Three files, one act — turn a unit id into everything `proveUnit` needs:
 
