@@ -45,6 +45,7 @@ import type {
   PathWriteScopeConfig,
   PhasePrompts,
   LeafPhasePrompts,
+  RealResolveOptions,
   ResolveResult,
 } from "@storytree/orchestrator";
 // `codexPromotionManifest` is deliberately NOT re-exported from `@storytree/orchestrator`'s public
@@ -177,7 +178,12 @@ const EDIT_EXISTING_WILDCARD_REAL: RealProofConfig = {
  * `CodexPromotionManifest`, independent of whatever the (possibly buggy) phase-brief prose above it
  * claims.
  */
-function extractCodexTargetLists(stdin: string): { allowed: string[]; required: string[] } {
+interface CodexTargetLists {
+  allowed: string[];
+  required: string[];
+}
+
+function extractCodexTargetLists(stdin: string): CodexTargetLists {
   const match =
     /allowed target set for this phase is:\n([\s\S]*?)\n\nRequired outputs:\n([\s\S]*?)\n\nAfter you stop/.exec(
       stdin,
@@ -201,15 +207,16 @@ function resolveRealFor(
   opts: { runtime?: "codex" | "claude"; phasePrompts?: LeafPhasePrompts } = {},
 ): ResolveResult {
   const spec = specWithReal(real);
-  return resolveProveSpec(spec, {
+  const resolveOptions: RealResolveOptions = {
     mode: "real",
     workspace: os.tmpdir(),
     store: new InMemoryStore(),
     runId: `r-codex-leaf-prompt-${Math.random().toString(36).slice(2)}`,
     signerInputs: TESTER,
-    ...(opts.runtime !== undefined ? { runtime: opts.runtime } : {}),
-    ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-  });
+  };
+  if (opts.runtime !== undefined) resolveOptions.runtime = opts.runtime;
+  if (opts.phasePrompts !== undefined) resolveOptions.phasePrompts = opts.phasePrompts;
+  return resolveProveSpec(spec, resolveOptions);
 }
 
 // ── Codex final-stdin capture: a CodexPhaseAuthor built from the SAME inputs `resolveReal`'s codex
@@ -236,7 +243,12 @@ function codexTurnOk(): CodexCommandResult {
   return { code: 0, stdout: `${lines.map((e) => JSON.stringify(e)).join("\n")}\n`, stderr: "" };
 }
 
-function captureCodexRunner(): { runner: CodexRunner; commands: CodexCommand[] } {
+interface CapturedCodexRunner {
+  runner: CodexRunner;
+  commands: CodexCommand[];
+}
+
+function captureCodexRunner(): CapturedCodexRunner {
   const commands: CodexCommand[] = [];
   const queue: CodexCommandResult[] = [codexAuthOk(), codexTurnOk()];
   return {
@@ -259,6 +271,11 @@ interface CodexFinalLaunch {
   feedbackToolNames: readonly string[];
 }
 
+interface CodexPhasePromotionManifests {
+  AUTHOR_TEST: CodexPromotionManifest;
+  IMPLEMENT: CodexPromotionManifest;
+}
+
 /**
  * Build a CodexPhaseAuthor mirroring `resolveReal`'s codex construction (write globs + exact
  * promotion manifest + the write wall + the rendered role), inject a runner, and read the actual
@@ -274,7 +291,7 @@ async function captureCodexFinalLaunches(
   // The PRODUCTION finite manifest builder (never a manually reconstructed stand-in): this is what
   // `resolveReal` itself hands `CodexPhaseAuthor` — it filters any wildcard/glob-magic scope entry
   // out of `allowedTargets`, which a naive `[...new Set(scope.testGlobs)]` reconstruction would not.
-  const manifests: { AUTHOR_TEST: CodexPromotionManifest; IMPLEMENT: CodexPromotionManifest } = {
+  const manifests: CodexPhasePromotionManifests = {
     AUTHOR_TEST: codexPromotionManifest(real.testFile, real.scope.testGlobs),
     IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
   };
@@ -1027,28 +1044,31 @@ test("prompts-brief-the-real-constraints: an offline rendered role (renderLeafPh
   }
 });
 
-test(
-  "prompts-brief-the-real-constraints: the CURRENT LIVE roles (renderLeafPhasePrompts, no injected store) compose truthfully for Codex (opt-in, needs a reachable live store)",
-  {
-    skip:
-      process.env.STORYTREE_LEAF_PROMPTS_LIVE !== "1"
-        ? "opt-in only: set STORYTREE_LEAF_PROMPTS_LIVE=1 against a reachable live store to run this"
-        : false,
-  },
-  async () => {
-    const rendered = await renderLeafPhasePrompts();
-    assert.equal(rendered.ok, true, rendered.ok ? "" : rendered.refusal.body);
-    if (!rendered.ok) return;
-    const result = resolveRealFor(INSTALL_REAL, { phasePrompts: rendered.prompts });
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
-    for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
-      assert.doesNotMatch(finalStdin[phase], /run_proof/);
-      assert.doesNotMatch(finalStdin[phase], /cannot run shell commands/i);
-    }
-  },
-);
+async function currentLiveRolesComposeTruthfullyForCodex(): Promise<void> {
+  const rendered = await renderLeafPhasePrompts();
+  assert.equal(rendered.ok, true, rendered.ok ? "" : rendered.refusal.body);
+  if (!rendered.ok) return;
+  const result = resolveRealFor(INSTALL_REAL, { phasePrompts: rendered.prompts });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
+  for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
+    assert.doesNotMatch(finalStdin[phase], /run_proof/);
+    assert.doesNotMatch(finalStdin[phase], /cannot run shell commands/i);
+  }
+}
+
+if (process.env.STORYTREE_LEAF_PROMPTS_LIVE === "1") {
+  test(
+    "prompts-brief-the-real-constraints: the CURRENT LIVE roles (renderLeafPhasePrompts, no injected store) compose truthfully for Codex (opt-in, needs a reachable live store)",
+    currentLiveRolesComposeTruthfullyForCodex,
+  );
+} else {
+  test.skip(
+    "prompts-brief-the-real-constraints: the CURRENT LIVE roles (renderLeafPhasePrompts, no injected store) compose truthfully for Codex (opt-in, needs a reachable live store)",
+    currentLiveRolesComposeTruthfullyForCodex,
+  );
+}
 
 test("prompts-brief-the-real-constraints: explicit Claude REAL/live-smoke briefs are UNCHANGED — still correctly claim run_proof and no shell authoring", () => {
   for (const real of [NET_NEW_REAL, INSTALL_REAL]) {

@@ -1130,7 +1130,7 @@ export function realPrompts(
   // promises a tool Codex lacks and falsely denies the shell authoring it genuinely has. Available
   // shell authoring grants no substitute for the spine's registered proof/typecheck feedback either
   // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
-  // The Claude branch (the DEFAULT here, for helper-call compatibility) is untouched, byte-for-byte.
+  // Claude keeps its feedback/tool contract and legacy helper behavior; its scope wording names the complete declared scope.
   const codexRuntime = runtime === "codex";
   // Codex may name only finite promotion targets: a wildcard is a hook-wall pattern, never a Codex
   // promotion target (`codexPromotionManifest` filters it the same way). Claude's write wall is the
