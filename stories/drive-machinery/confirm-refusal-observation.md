@@ -76,6 +76,20 @@ child-written markers rather than resolver-call counts; an unexpectedly green CO
 measured `oracle-count` wrong-kind red under `expectedRed: "assertion"`; the advancing expected-red
 then CONFIRM_GREEN-red path; and the pass, authoring, GATE, backstop, and non-shell no-payload paths.
 
+**Measured wrong-kind construction.** The wrong-kind child uses the production-shaped oracle path,
+not a hand-made observation or report: allocate one unique report path with
+`allocateOracleReportPath` (`packages/orchestrator/src/proof/oracle-accounting.ts`) and close it over
+the observation sequence; preload the spine's authoritative `assertOracleGuardUrl()` and pass that
+same path as `PROOF_REPORT_ENV`; then wire the real `ShellTestExecutor` with
+`beforeRun: () => resetOracleReport(reportPath)` before **every** observation and
+`measureRedKind: () => classifyRedByOracle(reportPath)`. The guard lives in
+`packages/orchestrator/src/proof/assert-oracle-guard.mjs`; report allocation/reset and the red-kind
+reader live in `packages/orchestrator/src/proof/oracle-accounting.ts`; the resolver's production composition is
+`packages/orchestrator/src/resolve-prove-spec.ts`. The fixture may clean up its temporary report files
+only after its observations and assertions have read them; it never writes or substitutes report
+content. A missing, unreadable, or malformed report is unmeasured (`undefined`), never a
+manufactured zero/`compile` result, so it cannot arm the expected-red refusal.
+
 `proveUnit` transports `TestObservation.originalProcessResult` as `ProveResult.failedObservation`
 only after `nextPhase` has already refused the final CONFIRM phase. It neither re-observes nor
 modifies that decision. The payload is in memory and failure-only: it is not verdict evidence,
