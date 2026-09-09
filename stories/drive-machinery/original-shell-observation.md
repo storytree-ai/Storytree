@@ -70,6 +70,14 @@ integration path.
 
 ## Guidance
 
+**Leaf test acceptance (prompt-exposed).** Both AUTHOR_TEST and IMPLEMENT must read the full
+canonical acceptance at `stories/drive-machinery/original-shell-observation.md`: `## Proof
+walkthrough` and the complete assertion body under `## Contracts (1)`. The generated contract-ID
+briefing is an index only, never a replacement for that reading. Preserve every stated case:
+child-written marker counts rather than resolver-call counts, green/red/signal-terminated/
+verifyGreen-downgraded observations, `beforeRun`/ENOENT/non-shell no-payload paths, phase-transition
+inertness, and the signal child's distinct stdout/stderr before termination.
+
 This contract changes exactly the exported `TestObservation.originalProcessResult` transport seam and
 `ShellTestExecutor`'s mapping from the already completed `ShellRunResult`. It adds no command path
 and no feedback path. A spawned exit-0 result remains available even when `verifyGreen` classifies it
