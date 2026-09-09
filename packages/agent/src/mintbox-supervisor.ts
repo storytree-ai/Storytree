@@ -81,12 +81,20 @@ export interface MintboxCoordinatorDigest {
     readonly summary?: string;
   };
   readonly coordinatorHealth: MintboxHandleHealth | "none";
-  readonly workers: readonly Pick<MintboxDetachedHandle, "id" | "health" | "model" | "effort" | "lane">[];
+  readonly workers: readonly MintboxWorkerSummary[];
   readonly renderer: { readonly id: string | null; readonly health: MintboxHandleHealth | "unknown"; readonly blocker: string | null };
   readonly ready3dLanes: readonly string[];
   readonly blocked3dLanes: readonly string[];
   readonly parallelSessionCount: number;
   readonly lastOutcome: string | null;
+}
+
+export interface MintboxWorkerSummary {
+  readonly id: string;
+  readonly health: MintboxHandleHealth;
+  readonly model: string;
+  readonly effort: string;
+  readonly lane?: string;
 }
 
 export interface MintboxWakeRequest {
@@ -115,7 +123,7 @@ export type MintboxEventDecision =
 export interface MintboxProgressReport {
   readonly at: string;
   readonly coordinatorHealth: MintboxHandleHealth | "none";
-  readonly workerHealth: readonly { readonly id: string; readonly health: MintboxHandleHealth; readonly model: string; readonly effort: string; readonly lane?: string }[];
+  readonly workerHealth: readonly MintboxWorkerSummary[];
   readonly lanes: { readonly ready3d: readonly string[]; readonly blocked3d: readonly string[] };
   readonly lastOutcome: string | null;
   readonly rendererBlocker: string | null;
@@ -157,7 +165,7 @@ export function recordMintboxDetachedHandle(
       model: handle.model,
       effort,
     };
-    if (handle.architecture !== undefined) policyInput.architecture = handle.architecture;
+    policyInput.architecture = handle.architecture === true;
     verifyMintboxCoordinatorPolicy(policyInput);
   }
   if (state.handles.some((existing) => existing.id === handle.id)) return state;
@@ -177,11 +185,11 @@ export function decideMintboxSupervisorEvent(
   validateEvent(event);
   const dedupeKey = mintboxEventDedupeKey(event);
   if (state.wakeKeys.includes(dedupeKey)) return { state, wake: null };
-  const policy = verifyMintboxCoordinatorPolicy(
-    event.architecture === true
-      ? { architecture: true, effort: "xhigh" }
-      : { effort: "high" },
-  );
+  const architecture = event.architecture === true;
+  const policy = verifyMintboxCoordinatorPolicy({
+    architecture,
+    effort: architecture ? "xhigh" : "high",
+  });
   const next = { ...state, wakeKeys: [...state.wakeKeys, dedupeKey] };
   return {
     state: next,
@@ -189,7 +197,7 @@ export function decideMintboxSupervisorEvent(
       id: `mintbox-coordinator:${dedupeKey}`,
       dedupeKey,
       ...policy,
-      architecture: event.architecture === true,
+      architecture,
       digest: buildMintboxCoordinatorDigest(next, event),
     },
   };
@@ -202,10 +210,7 @@ export function mintboxEventDedupeKey(event: Pick<MintboxSupervisorEvent, "kind"
 /** A bounded, transcript-free handoff for the compact coordinator. */
 export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, event: MintboxSupervisorEvent): MintboxCoordinatorDigest {
   const coordinator = latestHandle(state.handles, "coordinator");
-  const workers = state.handles
-    .filter((handle) => handle.role === "worker")
-    .slice(-DIGEST_LIST_LIMIT)
-    .map(({ id, health, model, effort, lane }) => lane === undefined ? { id, health, model, effort } : { id, health, model, effort, lane });
+  const workers = mintboxWorkerSummaries(state.handles);
   const digestEvent: MutableDigestEvent = {
     kind: event.kind,
     subject: bounded(event.subject),
@@ -241,7 +246,7 @@ export function recordMintboxProgressReport(
   assertDate(input.at, "report at");
   assertPercent(input.weeklyUsagePercent);
   if (input.action.trim() === "") throw new Error("Mintbox progress report needs an action");
-  const workers = state.handles.filter((handle) => handle.role === "worker").slice(-DIGEST_LIST_LIMIT).map(({ id, health, model, effort, lane }) => lane === undefined ? { id, health, model, effort } : { id, health, model, effort, lane });
+  const workers = mintboxWorkerSummaries(state.handles);
   const report: MintboxProgressReport = {
     at: input.at,
     coordinatorHealth: latestHandle(state.handles, "coordinator")?.health ?? "none",
@@ -276,6 +281,15 @@ function boundedHandle(handle: MintboxDetachedHandle): MintboxDetachedHandle {
   if (handle.lane !== undefined) extras.lane = bounded(handle.lane);
   if (handle.outcome !== undefined) extras.outcome = bounded(handle.outcome);
   return { ...handle, ...extras };
+}
+function mintboxWorkerSummaries(handles: readonly MintboxDetachedHandle[]): readonly MintboxWorkerSummary[] {
+  const workers: MintboxWorkerSummary[] = [];
+  for (const handle of handles) {
+    if (handle.role !== "worker") continue;
+    const { id, health, model, effort, lane } = handle;
+    workers.push(lane === undefined ? { id, health, model, effort } : { id, health, model, effort, lane });
+  }
+  return workers.slice(-DIGEST_LIST_LIMIT);
 }
 interface MintboxCoordinatorPolicyInput { model?: string; effort?: CoordinatorEffort; architecture?: boolean }
 interface MutableDigestEvent { kind: MintboxEventKind; subject: string; occurredAt: string; summary?: string }
