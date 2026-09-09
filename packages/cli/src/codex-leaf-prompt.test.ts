@@ -253,17 +253,23 @@ interface CodexFinalStdin {
   IMPLEMENT: string;
 }
 
+interface CodexFinalLaunch {
+  stdin: string;
+  args: string[];
+  feedbackToolNames: readonly string[];
+}
+
 /**
  * Build a CodexPhaseAuthor mirroring `resolveReal`'s codex construction (write globs + exact
  * promotion manifest + the write wall + the rendered role), inject a runner, and read the actual
  * final `stdin` the adapter sends for each phase — after it appends the "## Phase brief" section
  * and its own exact-target/spine-observes-and-signs language.
  */
-async function captureCodexFinalStdin(
+async function captureCodexFinalLaunches(
   real: RealProofConfig,
   briefs: PhasePrompts,
   role: LeafPhasePrompts,
-): Promise<CodexFinalStdin> {
+): Promise<{ AUTHOR_TEST: CodexFinalLaunch; IMPLEMENT: CodexFinalLaunch }> {
   const scope = new PathWriteScope(real.scope);
   // The PRODUCTION finite manifest builder (never a manually reconstructed stand-in): this is what
   // `resolveReal` itself hands `CodexPhaseAuthor` — it filters any wildcard/glob-magic scope entry
@@ -272,7 +278,10 @@ async function captureCodexFinalStdin(
     AUTHOR_TEST: codexPromotionManifest(real.testFile, real.scope.testGlobs),
     IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
   };
-  const captureFor = async (phase: "AUTHOR_TEST" | "IMPLEMENT", brief: string): Promise<string> => {
+  const captureFor = async (
+    phase: "AUTHOR_TEST" | "IMPLEMENT",
+    brief: string,
+  ): Promise<CodexFinalLaunch> => {
     const cap = captureCodexRunner();
     const author = new CodexPhaseAuthor({
       cwd: CODEX_TEST_CWD,
@@ -285,11 +294,30 @@ async function captureCodexFinalStdin(
     await author.author(phase, brief);
     const exec = cap.commands[1];
     assert.ok(exec, `codex exec command was captured for ${phase}`);
-    return exec.stdin ?? "";
+    return {
+      stdin: exec.stdin ?? "",
+      args: exec.args,
+      feedbackToolNames: author.feedbackToolNames,
+    };
   };
+  const authorTest = await captureFor("AUTHOR_TEST", briefs.authorTest);
+  const implement = await captureFor("IMPLEMENT", briefs.implement);
   return {
-    AUTHOR_TEST: await captureFor("AUTHOR_TEST", briefs.authorTest),
-    IMPLEMENT: await captureFor("IMPLEMENT", briefs.implement),
+    AUTHOR_TEST: authorTest,
+    IMPLEMENT: implement,
+  };
+}
+
+/** Preserve the focused stdin-only helper used by the pre-existing prompt assertions. */
+async function captureCodexFinalStdin(
+  real: RealProofConfig,
+  briefs: PhasePrompts,
+  role: LeafPhasePrompts,
+): Promise<CodexFinalStdin> {
+  const launches = await captureCodexFinalLaunches(real, briefs, role);
+  return {
+    AUTHOR_TEST: launches.AUTHOR_TEST.stdin,
+    IMPLEMENT: launches.IMPLEMENT.stdin,
   };
 }
 
@@ -766,6 +794,108 @@ test("prompts-brief-the-real-constraints: wildcard sole-literal authority keeps 
     implementAction.includes(`\`${optionalSource}\``),
     "IMPLEMENT must explicitly authorize its sole optional literal",
   );
+});
+
+test("prompts-brief-the-real-constraints: wildcard-only zero-literal authority names each required spotlight alone", async () => {
+  // Both proof targets are admitted solely by their write-wall wildcard. There are deliberately no
+  // literal scope entries: the finite adapter manifests must still contain each spotlight, while
+  // the phase action must not describe an empty plural scope as additional authority.
+  const spotlightTest = "packages/widget/src/generated/zero-literal-spotlight.test.ts";
+  const spotlightSource = "packages/widget/src/generated/zero-literal-spotlight.ts";
+  const real: RealProofConfig = {
+    testFile: spotlightTest,
+    sourceFile: spotlightSource,
+    editsExisting: true,
+    scope: {
+      testGlobs: ["packages/widget/src/generated/*.test.ts"],
+      sourceGlobs: ["packages/widget/src/generated/*.ts"],
+    },
+  };
+
+  // These neutral, test-authored agents keep the captured runtime composition independent of the
+  // historical fixture corpus. They contain no authority-bearing wording; the phase brief and
+  // adapter below must establish the actual selected-runtime constraints.
+  const promptStore = new InMemoryStore();
+  for (const [id, role, workflow] of [
+    ["red-builder", "Neutral AUTHOR_TEST role.", "Read the phase brief and stop."],
+    ["green-builder", "Neutral IMPLEMENT role.", "Read the phase brief and stop."],
+  ] as const) {
+    await promptStore.upsertDoc({
+      id,
+      kind: "agent",
+      actor: "wildcard-only-zero-literal-test",
+      doc: {
+        id,
+        kind: "agent",
+        title: id,
+        description: `Neutral ${id} test role.`,
+        oneLine: `Neutral ${id} test role.`,
+        role,
+        outcome: "The phase brief supplies the task-specific authority.",
+        context: [],
+        tools: "No tools are granted by this neutral role.",
+        workflow,
+        rules: [],
+        antiPatterns: [],
+        escalation: "Stop when the phase brief is incoherent.",
+        schemaVersion: 9,
+        createdAt: "2026-09-09T00:00:00.000Z",
+        updatedAt: "2026-09-09T00:00:00.000Z",
+      },
+    });
+  }
+  const rendered = await renderLeafPhasePrompts(promptStore);
+  assert.equal(rendered.ok, true, rendered.ok ? "" : rendered.refusal.body);
+  if (!rendered.ok) return;
+
+  const declared = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "prove-spec-resolution.md"));
+  const spec = specWithReal(real, {
+    id: declared.id,
+    title: "Zero-literal wildcard prompt witness",
+    outcome: "A wildcard-only scope grants only its required spotlight in each bounded phase action.",
+    guidance: "Keep this witness distinct from optional-literal and legacy Claude scope cases.",
+    contracts: declared.contracts,
+  });
+  const result = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-wildcard-only-zero-literal",
+    signerInputs: TESTER,
+    phasePrompts: rendered.prompts,
+  });
+  assert.equal(result.ok, true, result.ok ? "" : result.reason);
+  if (!result.ok) return;
+  assert.ok(result.liveAuthor instanceof CodexPhaseAuthor, "omitted runtime selects Codex");
+  assert.deepEqual(result.liveAuthor.feedbackToolNames, [], "Codex advertises no proof feedback tools");
+
+  const launches = await captureCodexFinalLaunches(real, result.spec.prompts, rendered.prompts);
+  for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
+    const launch = launches[phase];
+    assert.ok(launch.args.includes("gpt-5.6-terra"), `${phase}: the default Codex model is launched`);
+    assert.ok(launch.args.includes("mcp_servers={}"), `${phase}: MCP remains disabled`);
+    assert.deepEqual(launch.feedbackToolNames, [], `${phase}: no pseudo-feedback is advertised`);
+    assert.match(launch.stdin, /Neutral AUTHOR_TEST role|Neutral IMPLEMENT role/);
+    assert.match(launch.stdin, /wildcard-only scope grants only its required spotlight/);
+    assert.match(launch.stdin, /prompts-brief-the-real-constraints/);
+    assert.doesNotMatch(launch.stdin, /run_proof|run_typecheck|cannot run shell commands/i);
+  }
+
+  const phaseAction = (stdin: string, phase: "AUTHOR_TEST" | "IMPLEMENT"): string => {
+    const start = stdin.indexOf(`Phase ${phase}`);
+    const end = stdin.indexOf("\n\nThe spine will run all registered proof commands after you stop");
+    assert.ok(start >= 0 && end > start, `${phase}: phase action ends before adapter text begins`);
+    return stdin.slice(start, end);
+  };
+  const authorAction = phaseAction(launches.AUTHOR_TEST.stdin, "AUTHOR_TEST");
+  const implementAction = phaseAction(launches.IMPLEMENT.stdin, "IMPLEMENT");
+
+  // Fixed-text assertions deliberately bind the bounded ACTION, rather than a later target list or
+  // an interpolated Markdown-span regexp. The current zero-literal plural branch fails these.
+  assert.ok(authorAction.includes(`write ONLY within \`${spotlightTest}\`.`));
+  assert.ok(!authorAction.includes("other test files in your permitted scope"));
+  assert.ok(implementAction.includes(`source file(s) \`${spotlightSource}\` so that test passes`));
+  assert.ok(!implementAction.includes("other source files in your scope"));
 });
 
 test("prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition", async () => {
