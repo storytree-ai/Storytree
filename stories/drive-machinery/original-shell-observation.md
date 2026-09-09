@@ -47,10 +47,12 @@ and exit status as in-memory transport detail.
 
 ## Proof walkthrough
 
-Given ordinary `ShellTestExecutor` commands that emit distinct stdout and stderr:
+Given ordinary `ShellTestExecutor` commands that each append one marker to a temporary child-owned
+file as well as emitting distinct stdout and stderr:
 
 1. observe one green child, one red child, and one signal-terminated child, and read each original
-   output and exit status (`null` for the terminated child) from its resulting observation;
+   output and exit status (`null` for the terminated child) from its resulting observation and
+   exactly one marker per observation;
 2. make `verifyGreen` downgrade an exit-0 child and read the same spawned result from the resulting
    red observation;
 3. make `beforeRun` refuse, use an ENOENT command, and use a non-shell executor; observe no
@@ -58,9 +60,13 @@ Given ordinary `ShellTestExecutor` commands that emit distinct stdout and stderr
 4. give `nextPhase` otherwise identical observations with and without the detail and observe the
    same transition, including the existing measured-kind-only wrong-red rule.
 
-The observable is the returned observation plus the exact child-spawn counter. The package suite is
-the proof command because this edit-existing contract changes the observation seam and its live shell
-implementation together; the ordinary child commands are the discriminating integration path.
+The observable is the returned observation plus the child-observed marker count. Resolver command
+calls do not prove the count: production may resolve once and spawn twice. The signal child writes
+its distinct original stdout and stderr before termination and runs under a timeout margin sufficient
+for both writes; the proof requires only the observed `exitCode: null`, never a platform signal name.
+The package suite is the proof command because this edit-existing contract changes the observation
+seam and its live shell implementation together; the ordinary child commands are the discriminating
+integration path.
 
 ## Guidance
 
@@ -74,6 +80,6 @@ expected-red declaration, and measured kind remain the whole transition oracle.
 ## Contracts (1)
 
 1. **`original-shell-result-is-preserved-without-a-rerun`** — spawned command data survives classification as optional observation detail.
-   - **asserts —** real green, red, signal-terminated, and verifyGreen-downgraded child commands retain their exact stdout, stderr, and exit status (`null` for termination) in `originalProcessResult` while each runs once; beforeRun vetoes, spawn errors, and non-shell observations expose no invented detail; adding the detail cannot change a phase transition or make output-text classification refuse a wrong red.
+   - **asserts —** real green, red, signal-terminated, and verifyGreen-downgraded child commands retain their exact stdout, stderr, and exit status (`null` for termination) in `originalProcessResult`; a marker written inside each ordinary child records exactly one invocation for each one-command path, rather than inferring that count from resolver calls. The signal child emits distinct original stdout/stderr before termination with a sufficient timeout margin, and the assertion names only `exitCode: null`. beforeRun vetoes, spawn errors, and non-shell observations expose no invented detail; adding the detail cannot change a phase transition or make output-text classification refuse a wrong red.
    - **covers —** `packages/orchestrator/src/phase-machine.ts` and `packages/orchestrator/src/shell-test-executor.ts`.
    - **proven by —** authored additions to `phase-machine.test.ts` and `shell-test-executor.test.ts` through the declared ordinary package-suite REAL proof.
