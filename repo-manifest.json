@@ -329,6 +329,7 @@
       "packages/agent/src/headless-orchestrator.ts": "headless-session-runner",
       "packages/agent/src/orientation-tools.ts": "orientation-tool-surface",
       "packages/agent/src/sdk-curator.ts": "agent",
+      "packages/agent/src/mintbox-supervisor*.ts": "mintbox-supervisor-events",
       "packages/agent/src/index.ts": "agent",
 
       "$section_library": "packages/library — the knowledge tier. `src/store` is the seam (seed entry); the root barrel splits by competence between the library story's own capabilities and the UAT/proof-binding stories that host their pure computes here.",

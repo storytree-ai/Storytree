@@ -11,6 +11,35 @@ export type {
 } from "./model.js";
 export { ScriptedModel, AnthropicModel, usageFromApi } from "./model.js";
 
+export type {
+  CoordinatorEffort,
+  MintboxCoordinatorDigest,
+  MintboxDetachedHandle,
+  MintboxEventDecision,
+  MintboxEventKind,
+  MintboxHandleHealth,
+  MintboxHandleRole,
+  MintboxProgressReport,
+  MintboxProgrammeFacts,
+  MintboxSupervisorEvent,
+  MintboxSupervisorState,
+  MintboxWakeRequest,
+} from "./mintbox-supervisor.js";
+export {
+  MINTBOX_COORDINATOR_DEFAULT_EFFORT,
+  MINTBOX_COORDINATOR_MODEL,
+  MINTBOX_PROGRESS_INTERVAL_MS,
+  buildMintboxCoordinatorDigest,
+  createMintboxSupervisorState,
+  decideMintboxSupervisorEvent,
+  isMintboxProgressReportDue,
+  mintboxEventDedupeKey,
+  recordMintboxDetachedHandle,
+  recordMintboxProgressReport,
+  updateMintboxProgrammeFacts,
+  verifyMintboxCoordinatorPolicy,
+} from "./mintbox-supervisor.js";
+
 export type { ToolExecutor, ToolHandler } from "./tool-executor.js";
 export { MapToolExecutor } from "./tool-executor.js";
 
