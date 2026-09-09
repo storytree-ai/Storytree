@@ -93,6 +93,18 @@ check duplicate identity use and continuation chains. The record contains raw sp
 snapshots, never copied verdicts. Missing or malformed review/provenance fields refuse admission;
 the resolver cannot infer a reviewer or ratification from the fact that a rename was requested.
 
+The authored SOURCE ledger is the rename anchor and the `evidenceSnapshots` for signing events
+whose original `verdict.unitId` is `fromId`. Its decoded `specSource` text is lossless raw text:
+every byte, including whether a terminal newline is present, survives frontmatter decoding. A
+separately supplied SOURCE fixture/API snapshot represents that same event-keyed ledger fact only
+when its SHA, path and raw bytes agree exactly; disagreement refuses, while missing reviewed SOURCE
+history remains unresolved. A DIRECT-TARGET signing event — whose original `verdict.unitId` exactly
+equals the selected target — is different: its separately supplied derived fact is not a
+SOURCE-ledger entry and is never written back into the capability document. If an authored target
+binding and a derived target fact coexist, they must
+agree or refuse. This distinguishes fact provenance without prescribing an input API or production
+projection transport.
+
 **Two checks, with different subjects.** First compare the source specification at the reviewed
 rename anchor to the current target specification: this decides whether the rename itself changes
 an obligation. Then compare EACH original signing event's specification snapshot to the current
@@ -193,7 +205,13 @@ accepted by `loadNodeSpec` in `packages/orchestrator/src/node-spec.ts`, includin
 delimiters and required frontmatter fields. Any chosen source/test input API faithfully represents
 the same facts for the selected target and its matching current-hierarchy row, including
 `proof_continuity` in target raw frontmatter where applicable; fixture construction does not relax
-the pure implementation's no-IO fence. With real
+the pure implementation's no-IO fence. Decoding the authored SOURCE anchor and ledger preserves
+their complete raw text, including terminal-newline presence. A separately supplied SOURCE snapshot
+must agree exactly with its event-keyed authored ledger entry's SHA, path and raw bytes; disagreement
+refuses, while missing reviewed SOURCE history remains unresolved. Separately supplied DIRECT-TARGET
+facts whose original `verdict.unitId` exactly equals the selected target remain distinct derived
+facts, neither requiring nor implying a SOURCE-ledger entry and never written back into the capability
+document; an authored target binding that conflicts with one refuses. With real
 `Verdict.safeParse`, `workEvent`, `RollupEvent`, and `rollupStatus` collaborators rather than
 substitutes, the required regression contains one initial and multiple same-run, phase-stamped
 `building` marks at distinct supplied sequences followed by a schema-valid same-ID signature; every
@@ -294,6 +312,13 @@ substantive test whose name begins with its contract ID.
      with reasons, retaining history without candidate eligibility. Duplicate or conflicting
      snapshot bindings refuse the resolution, including exact duplicates or repeated `eventId`
      entries with differing SHA/path/bytes; no `.find` or input-order winner selects one.
+     An authored SOURCE ledger snapshot retains its decoded raw bytes, including terminal-newline
+     presence, and any separately supplied SOURCE snapshot for that signing event agrees exactly on
+     SHA, path and raw bytes or refuses. Missing reviewed SOURCE history remains unresolved.
+     Separately supplied DIRECT-TARGET facts whose original `verdict.unitId` exactly equals the
+     selected target stay distinct derived facts: they neither require nor imply a SOURCE-ledger
+     entry and are never written back into the capability document, while a conflicting authored
+     target binding refuses.
      `unchanged` describes supplied-data equivalence with provenance and lifecycle unchecked,
      independently of whether the event is the conditional current-proof candidate; it establishes
      no current lifecycle status. Equality between today's
@@ -303,6 +328,9 @@ substantive test whose name begins with its contract ID.
      A snapshot with another event's unit ID cannot qualify after ID stripping; reversing duplicate
      bindings must still refuse, never choose the convenient matching snapshot. A same-ID work mark
      cannot consume a signing snapshot or make its binding ambiguous.
+     Stripping a terminal newline from an authored SOURCE snapshot, or supplying a SOURCE snapshot
+     that disagrees with its ledger entry, must not qualify; a derived DIRECT-TARGET fact must not
+     be rejected merely because no SOURCE-ledger entry exists.
 
 4. **`continuation-keeps-every-original-evidence-field-immutable`**
    - **asserts —** resolving frozen input events neither mutates nor clones a replacement signed
