@@ -1132,30 +1132,34 @@ export function realPrompts(
   // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
   // The Claude branch (the DEFAULT here, for helper-call compatibility) is untouched, byte-for-byte.
   const codexRuntime = runtime === "codex";
-  // Only LITERAL scope entries are ever named as writable/readable — a wildcard/glob-magic entry is
-  // a hook-wall pattern, never a Codex promotion target (`codexPromotionManifest` filters it the same
-  // way), so naming it here would claim write authority Codex structurally does not have. Singular
-  // case (one literal entry, the spotlight file) is byte-identical to the old literal for every
-  // migrated single-file node.
-  const literalSourceGlobs = real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  // Codex may name only finite promotion targets: a wildcard is a hook-wall pattern, never a Codex
+  // promotion target (`codexPromotionManifest` filters it the same way). Claude's write wall is the
+  // PathWriteScope itself, so its explicit and legacy prompts retain every declared wildcard.
+  // Singular case (one literal entry, the spotlight file) is byte-identical to the old literal for
+  // every migrated single-file node.
+  const namedSourceGlobs = codexRuntime
+    ? real.scope.sourceGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g))
+    : real.scope.sourceGlobs;
   const sourcesNamed =
-    literalSourceGlobs.length === 0 ||
-    (literalSourceGlobs.length === 1 && literalSourceGlobs[0] === real.sourceFile)
+    namedSourceGlobs.length === 0 ||
+    (namedSourceGlobs.length === 1 && namedSourceGlobs[0] === real.sourceFile)
       ? `\`${real.sourceFile}\``
       : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
-        `${literalSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
+        `${namedSourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
   // The COMPLETE permitted test set (never reduced to the spotlight testFile): AUTHOR_TEST's write
   // wall is scoped to real.scope.testGlobs, not just real.testFile, so a multi-file fixture must name
   // every allowed target — an unnamed sibling test file would read as unauthored territory when it is
-  // in fact allowed, and (for IMPLEMENT) readable. Singular case is byte-identical to the old literal.
-  // A wildcard entry is excluded from the named set for the same reason `sourcesNamed` excludes one.
-  const literalTestGlobs = real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g));
+  // in fact allowed, and (for IMPLEMENT) readable. Codex omits wildcard patterns for its finite
+  // promotion boundary; Claude retains them because PathWriteScope authorizes their matches.
+  const namedTestGlobs = codexRuntime
+    ? real.scope.testGlobs.filter((g) => !CODEX_GLOB_MAGIC.test(g))
+    : real.scope.testGlobs;
   const testsNamed =
-    literalTestGlobs.length === 0 ||
-    (literalTestGlobs.length === 1 && literalTestGlobs[0] === real.testFile)
+    namedTestGlobs.length === 0 ||
+    (namedTestGlobs.length === 1 && namedTestGlobs[0] === real.testFile)
       ? `\`${real.testFile}\``
       : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
-        `scope (matching ${literalTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
+        `scope (matching ${namedTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
         `read them but writes only its source targets`;
   const typecheckClose = codexRuntime
     ? `There is no automated feedback tool for the type check here — write type-legal code from ` +

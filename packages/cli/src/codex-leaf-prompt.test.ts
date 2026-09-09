@@ -1008,6 +1008,47 @@ test("prompts-brief-the-real-constraints: explicit Claude REAL/live-smoke briefs
   }
 });
 
+test("prompts-brief-the-real-constraints: explicit-Claude wildcard/legacy authority retains every PathWriteScope target", () => {
+  const scope = new PathWriteScope(EDIT_EXISTING_WILDCARD_REAL.scope);
+  assert.equal(
+    scope.isWriteAllowed("AUTHOR_TEST", EDIT_TEST_WILDCARD_SIBLING),
+    true,
+    "Claude's declared test wildcard authorizes its matching sibling",
+  );
+  assert.equal(
+    scope.isWriteAllowed("IMPLEMENT", EDIT_SOURCE_WILDCARD_SIBLING),
+    true,
+    "Claude's declared source wildcard authorizes its matching sibling",
+  );
+
+  const explicitClaude = resolveRealFor(EDIT_EXISTING_WILDCARD_REAL, { runtime: "claude" });
+  assert.equal(explicitClaude.ok, true, explicitClaude.ok ? "" : explicitClaude.reason);
+  if (!explicitClaude.ok) return;
+  assert.ok(explicitClaude.liveAuthor instanceof ClaudeAgentAuthor);
+  assert.ok(
+    explicitClaude.spec.prompts.authorTest.includes(`\`${EDIT_TEST_WILDCARD}\``),
+    "the explicit-Claude AUTHOR_TEST brief retains its declared wildcard authority",
+  );
+  assert.ok(
+    explicitClaude.spec.prompts.implement.includes(`\`${EDIT_SOURCE_WILDCARD}\``),
+    "the explicit-Claude IMPLEMENT brief retains its declared wildcard authority",
+  );
+
+  const legacy = realPrompts(
+    specWithReal(EDIT_EXISTING_WILDCARD_REAL),
+    EDIT_EXISTING_WILDCARD_REAL,
+    "node --test fixture.test.ts",
+  );
+  assert.ok(
+    legacy.authorTest.includes(`\`${EDIT_TEST_WILDCARD}\``),
+    "the standalone three-argument Claude-compatible helper retains test wildcard authority",
+  );
+  assert.ok(
+    legacy.implement.includes(`\`${EDIT_SOURCE_WILDCARD}\``),
+    "the standalone three-argument Claude-compatible helper retains source wildcard authority",
+  );
+});
+
 test("prompts-brief-the-real-constraints: the standalone 3-arg realPrompts helper keeps its legacy Claude-tool prose (compatibility contract)", () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
   const real = lookupNodeBuildConfig("verdict-line")?.real;
