@@ -116,10 +116,10 @@ only this witness and cannot vouch for other contracts.
    claims, and shell proof/test/typecheck/build pseudo-feedback even beside a spine-signing
    disclaimer. The bounded action predicate accepts valid write/EDIT/refactor forms only when each
    grants the required spotlight and names no nonexistent additional target; it rejects missing or
-   denied spotlight permission and invented additional-target permission. The prior diagnostic
-   reproduction found a TypeScript parse failure; this does not establish the original run's red
-   cause. Construct any template-literal RegExp that matches inline Markdown code spans with
-   parse-safe delimiters and do not double-escape backticks.
+   denied spotlight permission and invented additional-target permission. The diagnostic
+   reproductions found TypeScript parse failures; they do not establish either original run's red
+   cause. For this finite fixture, establish bounded action authority with exact fixed-text
+   presence/absence observations, rather than a dynamically interpolated Markdown-span RegExp.
 4. Derive red from the current zero-length `literalTestGlobs` and `literalSourceGlobs` path, which
    selects plural wording after `aaf966f`, then change only
    `packages/orchestrator/src/resolve-prove-spec.ts` so wildcard-only scope names the required
