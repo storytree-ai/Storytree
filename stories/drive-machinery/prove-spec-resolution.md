@@ -51,44 +51,56 @@ proof:
 > genuinely-live legs are need-gated, not standing tests.
 
 **Runtime repair status — cumulative candidate, acceptance incomplete.** Ordinary omitted-default
-Terra run `real-mtteizuv` signed `0bf3005d07d875f8099ed787e680eb6486c1b0ee`, now integrated
-at this parent: its existing C9 assertion and resolver change repair net-new IMPLEMENT permission
-for an optional literal source target. That is valid partial progress, not C9 completion. The
-unlanded cumulative branch also contains `aaf966f34c54c029530228654e2635432ee04451`, which proved
-wildcard-admitted sole-literal authority, and `5ba4b5530e1d890f52ac0982d0c0afc27ef936e8`, which
-proved wildcard-only zero-literal wording. Both are valid partial ancestry. The final explicit-Claude
-scope regression and the named final-input observations remain owed. Earlier rejected results are
-evidence only, never a seed to restore. Capturing final stdin with an injected process runner
-observes prompt composition; it is not a real author run or a signed verdict.
+Terra run `real-mtteizuv` signed `0bf3005d07d875f8099ed787e680eb6486c1b0ee`, repairing net-new
+IMPLEMENT permission for an optional literal source target. Its cumulative unlanded ancestry also
+contains `aaf966f34c54c029530228654e2635432ee04451` (wildcard-admitted sole-literal authority),
+`5ba4b5530e1d890f52ac0982d0c0afc27ef936e8` (wildcard-only zero-literal wording), and
+`fccb80dfb5b72fa0e288933d4610bb9d97ee1fc7` (explicit-Claude wildcard/legacy authority retaining
+`PathWriteScope`). These are signed source-backed partials, not interchangeable prose. The unchanged
+registered command has also exercised the opt-in current-live REAL-role observation (103 pass,
+0 fail, 0 skip); it is an unsigned construction observation at its asserted two-false-claims
+granularity.
+
+One source-backed C9/C10 defect remains. Codex live-smoke says that no automated feedback tool exists,
+but does not explicitly prohibit treating shell proof/test/typecheck/build commands as feedback. The
+common adapter's statement that the spine runs commands after stop and owns the verdict does not grant
+or deny that substitute. This violates the same selected-runtime feedback boundary that REAL already
+states. Earlier rejected results are evidence only, never a seed to restore. Capturing final stdin
+with an injected process runner observes prompt composition; it is not a real author run or a signed
+verdict.
 
 **Authoring prerequisite under the 2026-09-09 owner re-steer.** Continuity's implementation is a
 pure event resolver, but its ordinary REAL build is not: `nodeBuild` calls `buildNodeReal`, which
 calls `resolveProveSpec`/`resolveReal`; an omitted runtime constructs `CodexPhaseAuthor` and passes
 the Codex `realPrompts` result into its phases. Main's false default-Codex instructions therefore
-reach a default GPT-5.6 Terra continuity leaf before its own proof can begin. Repair that shared
-authoring path first. This is an execution prerequisite, not a new `depends_on` edge for
+reach a default GPT-5.6 Terra continuity leaf before its own proof can begin. Repair the remaining
+shared default-REAL authoring path first. Land the remaining live-smoke consistency repair in that
+same minimum runtime PR because this unit owns C9/C10, not because continuity calls live-smoke. This
+is an execution prerequisite, not a new `depends_on` edge for
 [`capability-proof-continuity`](capability-proof-continuity.md).
 
-The final runtime revision has one source-backed behavior: explicit-Claude wildcard/legacy scope
-agrees with `PathWriteScope`. It also carries the remaining shared final-input evidence from the
-partial revisions, plus current-live and Codex live-smoke observations; these are evidence, not new
-source behaviors. The registered proof command already executes substantive resolver cases for
-C1–8, the original Claude portion of C10, and C11; do not clone them into the CLI spotlight. Run
-this revision with the repository-default GPT-5.6 Terra leaf, then continue the owner-directed
-order: continuity, renderer rename, four-way capability split, and safe downstream fan-out.
+The next runtime revision has one source-backed behavior: Codex live-smoke explicitly withholds shell
+proof/test/typecheck/build feedback in both phases. It carries only the corresponding representative
+production-composed smoke observations; it retains, rather than duplicates, the signed REAL action
+repairs, the explicit-Claude scope result, and the current-live REAL observation. The registered
+proof command already executes substantive resolver cases for C1–8, the original Claude portion of
+C10, and C11; do not clone them into the CLI spotlight. A fresh anchored plan must drive this revision
+with the repository-default GPT-5.6 Terra leaf before continuity, then the renderer rename, four-way
+capability split, and safe downstream fan-out.
 
 ## Guidance
 
-### C9 final revision — explicit-Claude wildcard/legacy authority
+### C9 final bounded revision — Codex live-smoke has no shell feedback substitute
 
 Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
 and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
-shared fixture and assertion, especially the integrated net-new IMPLEMENT optional-source action
-regression and signed `aaf966f` and `5ba4b553` cases and helpers. Add one distinct static C9 test
-in this declared CLI file; its title carries `prompts-brief-the-real-constraints` and names
-explicit-Claude wildcard/legacy authority. This revision does not complete C9 until its retained
-baseline and all evidence below pass review.
+shared fixture and assertion, especially the signed `0bf`, `aaf966f`, `5ba4b553`, and `fccb80df`
+cases and helpers, **except** the existing C9 body
+`prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never claims run_proof or denies native shell authoring`.
+Amend that body only, preserving its current assertions while adding the Codex live-smoke
+shell-feedback boundary. This revision does not complete C9 until its retained baseline and all
+evidence below pass review.
 
 Production composition is rendered role, then `## Phase brief`, then adapter spine/target/output text.
 C9 helpers preserve existing callers and capture that production `CodexPhaseAuthor` launch, not a
@@ -96,26 +108,23 @@ reconstructed command. For every captured phase, couple final stdin, actual exec
 author's `feedbackToolNames`; a static argument builder is not this observation. Helpers prepare
 only this witness and cannot vouch for other contracts.
 
-1. Prove the explicit-Claude wildcard/legacy scope against `PathWriteScope`, retaining Claude's
-   declared wildcard authority; Codex's finite promotion manifest does not constrain that authority.
-   The standalone three-argument `realPrompts(spec, real, proofDisplay)` compatibility remains.
-2. Carry the partial revisions' outstanding evidence through one meaningful full-input route: neutral
-   test-owned roles and opt-in current-live roles, actual Codex REAL and live-smoke stdin/args and
-   the same author's tools. Parse finite allowed/required manifests and bound each phase action
-   before adapter text. Preserve distinctive outcome, guidance and declared IDs; keep the smoke
-   synthetic and deliberately without real contract IDs.
-3. Before the source assertion, read rendered role, phase brief and adapter together. Accept
-   qualified unavailable-tool/runtime and nonauthorizing wildcard context; reject a forbidden role
-   instruction, an unavailable-feedback instruction, obsolete containment/no-shell claims, and
-   shell proof/test/typecheck/build pseudo-feedback even beside a spine disclaimer. The bounded
-   action accepts valid write/EDIT/refactor forms granting the required spotlight and any declared
-   optional permission, and rejects missing, denied or invented targets. Assert the required phase
-   duties, dependency/typecheck restrictions and stopping behavior. For finite action checks use
-   fixed text presence/absence, not interpolated Markdown-span patterns.
-4. Derive red only from the current explicit-Claude wildcard/legacy discrepancy, then change only
-   `packages/orchestrator/src/resolve-prove-spec.ts` to preserve the declared Claude scope. Preserve
-   defaults, authority, finite Codex manifests and spine signing. No other CLI or resolver body is
-   rewritten.
+1. Build one synthetic live-smoke fixture through production resolution with omitted Codex runtime,
+   neutral test-owned rendered roles, and the existing injected Codex runner. Capture each phase's
+   final adapter-composed stdin, actual exec args, and that same author's `feedbackToolNames`.
+   Preserve the smoke's synthetic pair, its exact required targets, and its deliberate absence of
+   real contract IDs. Run the same assertion against opt-in current-live roles; this is a live-store
+   construction observation, not a paid model call or a signature.
+2. Bound the assertion to the composed phase input. Both phases must retain native authoring, empty
+   feedback tools, disabled MCP, the selected default model, spine-owned observation and stopping;
+   neither may instruct a shell proof, test, typecheck, or build command as feedback. A qualified
+   reference that assigns those commands to the spine is allowed. Do not build a generalized
+   sentence classifier or a Cartesian fixture matrix: this test distinguishes the actual prohibition
+   from its absence in the smoke brief and retains earlier representative REAL observations.
+3. Derive red from the missing live-smoke prohibition, then change only
+   `packages/orchestrator/src/resolve-prove-spec.ts` so both Codex live-smoke phases explicitly
+   withhold that shell substitute. Preserve native authoring, finite promotion, selected-runtime
+   defaults, exact required outputs, all Claude behavior, and spine signing. No other CLI or resolver
+   body is rewritten.
 
 ## Runtime reference
 
