@@ -33,8 +33,15 @@ proof:
     install: true
     editsExisting: true
     proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "test"]
+      file: node
+      args:
+        - "--import"
+        - "./scripts/tsx-cache-off.mjs"
+        - "--import"
+        - "tsx"
+        - "--test"
+        - "packages/orchestrator/src/phase-machine.test.ts"
+        - "packages/orchestrator/src/shell-test-executor.test.ts"
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/orchestrator", "typecheck"]
@@ -64,9 +71,10 @@ The observable is the returned observation plus the child-observed marker count.
 calls do not prove the count: production may resolve once and spawn twice. The signal child writes
 its distinct original stdout and stderr before termination and runs under a timeout margin sufficient
 for both writes; the proof requires only the observed `exitCode: null`, never a platform signal name.
-The package suite is the proof command because this edit-existing contract changes the observation
-seam and its live shell implementation together; the ordinary child commands are the discriminating
-integration path.
+The focused CONFIRM command executes both acceptance suites: phase-machine transition inertness and
+the live shell observer's ordinary child commands. The full orchestrator package suite and typecheck
+remain mandatory pre-signature backstops in `buildNodeReal` (`packages/drive/src/node-build.ts`,
+lines 1165–1220); the ordinary child commands are the discriminating integration path.
 
 ## Guidance
 
@@ -90,4 +98,4 @@ expected-red declaration, and measured kind remain the whole transition oracle.
 1. **`original-shell-result-is-preserved-without-a-rerun`** — spawned command data survives classification as optional observation detail.
    - **asserts —** real green, red, signal-terminated, and verifyGreen-downgraded child commands retain their exact stdout, stderr, and exit status (`null` for termination) in `originalProcessResult`; a marker written inside each ordinary child records exactly one invocation for each one-command path, rather than inferring that count from resolver calls. The signal child emits distinct original stdout/stderr before termination with a sufficient timeout margin, and the assertion names only `exitCode: null`. beforeRun vetoes, spawn errors, and non-shell observations expose no invented detail; adding the detail cannot change a phase transition or make output-text classification refuse a wrong red.
    - **covers —** `packages/orchestrator/src/phase-machine.ts` and `packages/orchestrator/src/shell-test-executor.ts`.
-   - **proven by —** authored additions to `phase-machine.test.ts` and `shell-test-executor.test.ts` through the declared ordinary package-suite REAL proof.
+   - **proven by —** authored additions to `phase-machine.test.ts` and `shell-test-executor.test.ts` through the declared focused REAL proof; the full orchestrator package suite and typecheck remain pre-signature backstops.
