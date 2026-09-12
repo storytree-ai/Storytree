@@ -1,8 +1,8 @@
 ---
-id: "r3f-world-spike"
+id: "forest-rendering-engine"
 tier: capability
 story: website-experience
-title: "The R3F spike — the real forest world rendered in 3D under map controls"
+title: "The forest rendering engine — the real forest world drawn in 3D under map controls"
 outcome: "packages/forest-world-r3f exists as the ADR-0123 third mapper: a pure, deterministic world-to-3D mapping turns a real @storytree/forest-world World + scene-graph into typed 3D instance descriptors (kind family → mesh, position → transform, folded status → material variant, unknown kind → an explicit skip, never a throw), and a minimal R3F canvas with drei MapControls renders a real World in 3D in the package's dev harness."
 status: proposed
 proof_mode: integration-test
@@ -42,7 +42,12 @@ proof:
       args: ["--filter", "@storytree/forest-world-r3f", "typecheck"]
 ---
 
-# The R3F spike — the real forest world rendered in 3D under map controls
+# The forest rendering engine — the real forest world drawn in 3D under map controls
+
+**Named `r3f-world-spike` until 2026-09-12 —** renamed here (ADR-0562); its July 2026 signed verdict
+(`events.verdict` seq 106, run `real-mr2pftl5`, commit
+`a4993f979696baf3165fd4e91b28df9c650832b2`) is recorded against the original id and stays
+discoverable there.
 
 **Outcome —** `packages/forest-world-r3f` exists as the
 ADR-0123
@@ -57,7 +62,7 @@ third mapper: a pure, deterministic **world-to-3D mapping** turns a real `@story
 > SDK leaf authored `world-to-3d.test.ts` red → `world-to-3d.ts` green through the real
 > prove-it-gate (run `real-mr2pftl5`, signed PASS @ `a4993f9` 2026-07-02, persisted to
 > `events.verdict`; package typecheck + suite observed green in the installed worktree), the three
-> contracts are cited at real `file:line` below (`storytree coverage r3f-world-spike` → 3/3), and
+> contracts are cited at real `file:line` below (`storytree coverage forest-rendering-engine` → 3/3), and
 > the R3F canvas + drei `MapControls` dev harness (`pnpm --filter @storytree/forest-world-r3f dev`)
 > draws a real `buildScene` world in 3D — the eyes-witnessed half. 3D risk is retired before any
 > experience work stands on it; `healthy` stays earned, never authored (ADR-0020) — the crown
@@ -146,7 +151,7 @@ input maps deterministically to typed 3D descriptors that carry the semantic lay
 ## Contracts (3)
 
 Each one isolated automated test (`node:test`, the package suite), cited at real `file:line`. Per
-ADR-0122 each contract id leads a distinctly-named test; `storytree coverage r3f-world-spike`
+ADR-0122 each contract id leads a distinctly-named test; `storytree coverage forest-rendering-engine`
 reports 3/3.
 
 1. **`r3f-mapping-is-deterministic`** — same World in, same descriptors out

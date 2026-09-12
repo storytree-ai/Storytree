@@ -641,10 +641,10 @@ describe('GET /api/traversal/sessions — the arc each session recorded', () => 
   it('keeps WORKED ON NO ARC distinct from ARC NOT RECORDED on the wire', async () => {
     // ⚠ ADR-0541 D4, end to end. Both rows carry an empty `arcs`; only `units` separates them, and
     // collapsing them would report 20% of the September population's real work as unknown.
-    writeUnitFixture(arcDir, 'sess-no-arc', 'r3f-world-spike');
+    writeUnitFixture(arcDir, 'sess-no-arc', 'forest-rendering-engine');
     writeUnitFixture(arcDir, 'sess-unrecorded', null);
     const found = await sessions();
-    expect(found['sess-no-arc']).toEqual({ units: ['r3f-world-spike'], arcs: [] });
+    expect(found['sess-no-arc']).toEqual({ units: ['forest-rendering-engine'], arcs: [] });
     expect(found['sess-unrecorded']).toEqual({ units: [], arcs: [] });
   });
 

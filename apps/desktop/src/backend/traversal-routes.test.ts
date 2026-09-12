@@ -581,14 +581,14 @@ test("traversal-routes: WORKED ON NO ARC stays distinct from ARC NOT RECORDED", 
   const store = arcCorpus(MAP_ARC_CORPUS);
   const h = await harness({ docStore: async () => store });
   try {
-    writeUnitTrace(h.traceDir, "session-no-arc", "r3f-world-spike");
+    writeUnitTrace(h.traceDir, "session-no-arc", "forest-rendering-engine");
     writeUnitTrace(h.traceDir, "session-unrecorded", null);
     const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
       sessions: { sessionId: string; units: string[]; arcs: string[] }[];
     };
     const noArc = body.sessions.find((s) => s.sessionId === "session-no-arc");
     const unrecorded = body.sessions.find((s) => s.sessionId === "session-unrecorded");
-    assert.deepEqual(noArc?.units, ["r3f-world-spike"]);
+    assert.deepEqual(noArc?.units, ["forest-rendering-engine"]);
     assert.deepEqual(noArc?.arcs, []);
     assert.deepEqual(unrecorded?.units, []);
     assert.deepEqual(unrecorded?.arcs, []);

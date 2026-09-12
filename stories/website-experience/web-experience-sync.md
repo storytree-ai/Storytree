@@ -6,7 +6,7 @@ title: "The R3F mapper rides the sync — one artifact mechanism, two parent pac
 outcome: "The forest-world → website sync + drift-gate mechanism generalises to carry a SECOND parent package: sync:web-engine copies @storytree/forest-world-r3f's browser-safe sources (.tsx included) into web/src/lib/forest-world-r3f/ with @generated banners and with its @storytree/forest-world imports rewritten to the synced sibling core dir, and check:web-engine fails on drift, staleness, or leftovers in EITHER synced dir — so the 3D look flows parent → site exactly like the 2D look, never hand-ported."
 status: proposed
 proof_mode: integration-test
-depends_on: [r3f-world-spike]
+depends_on: [forest-rendering-engine]
 decisions: [93, 123]
 # Node-borne proof config (ADR-0057 keystone). EDITS-EXISTING: the pure sync core ALREADY exists
 # (packages/cli/src/web-engine-sync.ts — single-package, .ts-only, relative-import rewriting only)
@@ -51,7 +51,7 @@ proof:
 imports rewritten to the synced sibling core dir; `check:web-engine` fails on drift, staleness, or
 leftovers in EITHER synced dir.
 
-**Depends on —** [`r3f-world-spike`](r3f-world-spike.md) — you cannot sync a package that does not
+**Depends on —** [`forest-rendering-engine`](forest-rendering-engine.md) — you cannot sync a package that does not
 exist.
 
 > **Proof status (honest) — BUILT, leaf-proven; the authored status stays `proposed`.** The gated
