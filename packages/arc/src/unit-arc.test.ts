@@ -95,11 +95,11 @@ test("WORKED ON NO ARC and ARC NOT RECORDED are different answers — the units 
   // a session that claimed real unhomed work from a session that recorded nothing at all. A reader
   // that looked only at `arcs` would report the first as the second, inflating September's apparent
   // unknown share from 13% to 33%.
-  const noArc = resolveUnitArcs(["forest-rendering-engine"], INDEX);
+  const noArc = resolveUnitArcs(["forest-scene-model"], INDEX);
   const notRecorded = resolveUnitArcs([], INDEX);
   assert.deepEqual(noArc.arcs, []);
   assert.deepEqual(notRecorded.arcs, []);
-  assert.deepEqual(noArc.units, ["forest-rendering-engine"]);
+  assert.deepEqual(noArc.units, ["forest-scene-model"]);
   assert.deepEqual(notRecorded.units, []);
   assert.notDeepEqual(noArc, notRecorded);
 });

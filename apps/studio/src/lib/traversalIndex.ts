@@ -179,9 +179,9 @@ function humaniseSpan(ms: number): string {
  *
  * ⚠ `no-arc` AND `unrecorded` MUST NEVER COLLAPSE (ADR-0541 D4). Both have an empty arc list. The
  * first is a session that claimed real work belonging to no arc — 20% of the measured September
- * population, `r3f-world-spike` (renamed `forest-rendering-engine` on 2026-09-12, ADR-0562 — the
- * September trace rows still carry the original id, so this recorded measurement keeps it) and 26
- * other unhomed units — which is a RECORDED FACT about the
+ * population, `r3f-world-spike` (renamed `forest-rendering-engine` and then split into four lanes on
+ * 2026-09-12, ADR-0562 — the September trace rows still carry the ORIGINAL id, so this recorded
+ * measurement keeps it) and 26 other unhomed units — which is a RECORDED FACT about the
  * work. The second is a session that recorded nothing at all. Rendering the first as the second
  * reports known work as unknown and inflates September's apparent unknown share from 13% to 33%.
  * The units list is the only thing that separates them, which is why it rides the wire even when it
