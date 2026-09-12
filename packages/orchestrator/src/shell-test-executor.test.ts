@@ -438,7 +438,14 @@ test("original-shell-result-is-preserved-without-a-rerun: every spawned observat
     assert.deepEqual(terminated.originalProcessResult, {
       stdout: "signal-stdout",
       stderr: "signal-stderr",
-      exitCode: null,
+      // What this contract asserts is that the ORIGINAL result is PRESERVED without a rerun — not
+      // which exit code a signalled child produces, which is the PLATFORM's call and differs.
+      // POSIX delivers the signal, so the child reports `exitCode: null` (with `signal: SIGTERM`).
+      // Windows has no signal delivery: Node emulates `process.kill(self, 'SIGTERM')` by terminating
+      // the process, which surfaces as `exitCode: 1` and no signal. Hardcoding the POSIX value made
+      // this the one test that could never pass on a Windows checkout — it red every Windows
+      // session's gate on a file that session had not touched, while CI stayed green on Linux.
+      exitCode: process.platform === "win32" ? 1 : null,
     });
     assert.deepEqual(downgraded.originalProcessResult, {
       stdout: "downgraded-stdout",
