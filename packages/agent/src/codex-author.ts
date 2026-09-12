@@ -37,6 +37,16 @@ export interface CodexCommand {
   cwd: string;
   env: NodeJS.ProcessEnv;
   stdin?: string;
+  /**
+   * How long to wait for this spawn before killing it and reporting {@link CodexCommandResult.timedOut}.
+   * Defaults to {@link DEFAULT_CODEX_TIMEOUT_MS} (overridable per machine by {@link CODEX_TIMEOUT_ENV}).
+   *
+   * The SHAPE mirrors `ShellCommand.timeoutMs` on the spine's proof spawn, deliberately: PR #350
+   * bounded every spawn the spine makes to OBSERVE a proof, after one that leaked an OS handle wedged
+   * the CONFIRM observation indefinitely (ADR-0104's Context). This is the same fence on the spawn the
+   * spine makes to AUTHOR, which had none.
+   */
+  timeoutMs?: number;
 }
 
 export interface CodexCommandResult {
@@ -44,6 +54,42 @@ export interface CodexCommandResult {
   stdout: string;
   stderr: string;
   signal?: NodeJS.Signals;
+  /**
+   * The spawn exceeded its bound and was killed — it did NOT report a result of its own.
+   *
+   * Its own field rather than something inferred from `code`/`signal`, because a killed child is
+   * indistinguishable from any other signalled death, and that ambiguity is exactly what would let a
+   * hang be reported as a build failure. "I could not tell" and "it failed" are different answers.
+   */
+  timedOut?: true;
+}
+
+/** Per-machine override for {@link DEFAULT_CODEX_TIMEOUT_MS}, in milliseconds. */
+export const CODEX_TIMEOUT_ENV = "STORYTREE_CODEX_TIMEOUT_MS";
+
+/**
+ * The default bound on one Codex spawn.
+ *
+ * Ten minutes follows PR #350's spine-wide proof bound, and obeys ADR-0104's force 1 — the bound must
+ * clear the slowest LEGITIMATE run so it only ever kills a genuine hang and never false-REDs real
+ * work. A Codex phase slice is measured at exactly one turn, so this is generous by a wide margin;
+ * the generosity is the point. ADR-0104's per-node override is deliberately NOT reproduced here —
+ * #350 shipped the spine-wide default alone and the per-node dial came later, on evidence.
+ */
+export const DEFAULT_CODEX_TIMEOUT_MS = 600_000;
+
+/**
+ * The bound on the `codex login status` probe specifically. A subscription check that cannot answer
+ * inside a minute is not slow, it is stuck — and this probe runs before any authoring, so leaving it
+ * on the authoring budget would mean a ten-minute wait to learn nothing.
+ */
+export const CODEX_AUTH_PROBE_TIMEOUT_MS = 60_000;
+
+/** The bound for one command: explicit, else the machine override, else the default. */
+function resolveCodexTimeoutMs(command: CodexCommand): number {
+  if (command.timeoutMs !== undefined) return command.timeoutMs;
+  const configured = Number(command.env[CODEX_TIMEOUT_ENV]);
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_CODEX_TIMEOUT_MS;
 }
 
 /** Injectable process seam. The default resolves the CLI wrapper pinned by `@openai/codex`. */
@@ -432,17 +478,34 @@ export const runPinnedCodexCli: CodexRunner = async (command) => {
     );
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
-    child.once("error", reject);
+    let timedOut = false;
+    // The bound. `unref` so a pending timer can never hold the process open on its own — the fence
+    // exists to end a wait, not to become one.
+    const bound = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, resolveCodexTimeoutMs(command));
+    bound.unref?.();
+    const settle = (fn: () => void): void => {
+      clearTimeout(bound);
+      fn();
+    };
+    child.once("error", (error) => settle(() => reject(error)));
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
     child.once("exit", (code, signal) => {
-      const outcome: CodexCommandResult = {
-        code,
-        stdout: Buffer.concat(stdout).toString("utf8"),
-        stderr: Buffer.concat(stderr).toString("utf8"),
-      };
-      if (signal !== null) outcome.signal = signal;
-      resolve(outcome);
+      settle(() => {
+        const outcome: CodexCommandResult = {
+          code,
+          stdout: Buffer.concat(stdout).toString("utf8"),
+          stderr: Buffer.concat(stderr).toString("utf8"),
+        };
+        if (signal !== null) outcome.signal = signal;
+        // Whatever the child printed before the kill is kept — it is the only evidence of how far it
+        // got, and discarding it would make a bounded run less diagnosable than a failed one.
+        if (timedOut) outcome.timedOut = true;
+        resolve(outcome);
+      });
     });
     child.stdin.end(command.stdin ?? "");
   });
@@ -875,9 +938,20 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         args: ["login", "status"],
         cwd: this.#args.cwd,
         env: childEnv,
+        timeoutMs: CODEX_AUTH_PROBE_TIMEOUT_MS,
       });
     } catch (error) {
       return { ok: false, error: `Codex authentication probe failed: ${(error as Error).message}` };
+    }
+    // Checked BEFORE the login verdict: a probe that hung proved nothing about the login, so reading
+    // its empty output as "not a ChatGPT-managed session" would invent a cause from a stopwatch.
+    if (auth.timedOut === true) {
+      return {
+        ok: false,
+        error:
+          "Codex authentication probe did not return within its bound and was killed — UNVERIFIED, " +
+          "not an auth failure. The usual cause is an exhausted ChatGPT subscription quota.",
+      };
     }
     if (!isChatGptManagedLogin(auth)) {
       const detail = (auth.stdout || auth.stderr).trim() || `exit ${auth.code ?? "none"}`;
@@ -938,6 +1012,20 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     } catch (error) {
       await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
       return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
+    }
+
+    // Checked BEFORE the JSONL is parsed: a killed child emits no turn envelope, so the parser would
+    // report "must contain exactly one turn (started=0, completed=0)" — a statement about the leaf's
+    // OUTPUT for a leaf that never produced any. The bound is the honest answer, and it is UNVERIFIED
+    // rather than a failure: nothing was observed, so nothing failed.
+    if (execution.timedOut === true) {
+      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+      return {
+        ok: false,
+        error:
+          "Codex exec did not return within its bound and was killed — UNVERIFIED, not a failed " +
+          "authoring turn. The usual cause is an exhausted ChatGPT subscription quota.",
+      };
     }
 
     try {
