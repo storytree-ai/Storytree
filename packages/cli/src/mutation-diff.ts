@@ -26,6 +26,14 @@
 //      so a config that quietly loses them cannot read as a pass.
 //   4. An empty `killedBy` on a `Killed` mutant means NOT IDENTIFIABLE — never a pass, and never a
 //      survivor either. It is {@link MutantOutcome} `"unproven"`, which reds, and says why.
+//
+// ⚠ AND `Survived` IS NOT SELF-EVIDENTLY A FINDING EITHER — the half of constraint 4 that was
+// missing. It was written as though Stryker's own survivor verdict were beyond doubt while only the
+// attribution layer could fail; measured 2026-09-12, a runner whose coverage map is built from a
+// truncated pairing reports `Survived` for mutants a test demonstrably kills. `Survived` and
+// `NoCoverage` are both READINGS OF THE COVERAGE MAP, so both are withdrawn to `"unproven"` when
+// {@link unattributedTestFiles} shows the map cannot be read. See that function for the mechanism,
+// the discriminator, and why the obvious one is wrong.
 
 /** One inclusive 1-based line span on the NEW side of a diff. */
 export interface LineRange {
@@ -1142,6 +1150,57 @@ function packagesWithTestsInRun(report: MutationReport): ReadonlySet<string> | n
 }
 
 /**
+ * The report's "test files" that are not test files — the fingerprint of a runner that could not say
+ * which file a test it ran belongs to, and therefore of a per-test coverage map that cannot be read.
+ *
+ * WHY A SURVIVOR CAN BE FALSE, WHICH THIS RUNG ONCE HELD TO BE IMPOSSIBLE. Measured 2026-09-12 and
+ * reproduced end to end. `@hughescr/stryker-bun-runner` attributes coverage POSITIONALLY: its
+ * preload numbers each test file's tests in execution order (`<file>@@test-N`) and its mapper
+ * resolves bucket N to the Nth inspector test OF THAT FILE, after dropping tests the inspector
+ * marked `skip`. A test that skips at RUNTIME — `node:test`'s `t.skip()`, this repo's ordinary way
+ * to write a host-conditional test, and live in four test files — has ALREADY had its `beforeEach`
+ * run, so it owns a bucket while being dropped from the test side. Buckets then outnumber tests,
+ * the pairing silently truncates, and EVERY bucket after the skipped test is attributed to the next
+ * test along. Under `coverageAnalysis: "perTest"` Stryker runs, for each mutant, exactly the tests
+ * that mis-attributed map names — so the test that actually kills it is never run, and Stryker
+ * honestly records `Survived`. On a 34-test file one runtime skip took a suite from 33 genuine
+ * survivors to 134.
+ *
+ * ⚠ A FALSE SURVIVOR IS AN UNSATISFIABLE DEMAND. ADR-0447 made this rung the mechanical instrument
+ * for test strength and ADR-0563 D1 routes every test-quality suspicion to it, so a session handed
+ * one cannot decline it and cannot satisfy it — you cannot kill a mutant whose covering test was
+ * never run. That is the unbounded loop ADR-0563 exists to end, arriving through the instrument
+ * that replaced the opinion veto it removed.
+ *
+ * THE DISCRIMINATOR IS THE PSEUDO-FILE, NOT ZERO COVERAGE, and the obvious alternative is wrong.
+ * "A test that covers no mutants means the map is broken" was the first candidate and it does not
+ * hold: this rung narrows mutants to the branch's CHANGED lines, so most of a suite legitimately
+ * covers none of them, and that signal would fire on nearly every branch and downgrade every
+ * genuine survivor — trading a false blocker for a false green, the exact trade ADR-0447 refused.
+ * What is NOT normal is a test attributed to something that is not a test file at all. The unpaired
+ * test loses its project file, so Stryker falls back to the raw url the inspector gave it, which for
+ * a `node:test`-registered suite under bun is the literal string `"node:test"`. Stryker prints its
+ * own `not found in input files … This shouldn't happen` warning about it, one layer up.
+ *
+ * DERIVED FROM THE REPORT, NEVER FROM THE CONFIG, on the same reasoning as `packagesWithTestsInRun`
+ * above: it cannot drift from the run it describes. The rung builds its test set with
+ * {@link isTestFile} in the first place, so "not a test file by this repo's convention" and "not a
+ * file this run asked for" are the same set, and the report-only form needs no plumbing to stay true.
+ *
+ * ⚠ SUFFICIENT, NOT NECESSARY — the honest limit. This catches a mis-attributed test only when the
+ * runner names a non-file. A runner that mis-attributed a test to some OTHER real test file would
+ * corrupt the map just as thoroughly and leave no trace here. The primary remedy is therefore the
+ * runner itself (`patches/@hughescr__stryker-bun-runner@1.3.8.patch`, third hunk, which pairs
+ * against the population the bucket count actually matches); this is the backstop that keeps the
+ * rung from ASSERTING a survivor it did not establish.
+ */
+export function unattributedTestFiles(report: MutationReport): readonly string[] {
+  return Object.keys(report.testFiles ?? {})
+    .filter((rawPath) => !isTestFile(normalise(rawPath)))
+    .sort();
+}
+
+/**
  * Adjudicate the report against this branch's own changed tests.
  *
  * A VACUOUS RUN IS ITS OWN VERDICT, distinct from a pass. If the selection said there was source to
@@ -1156,6 +1215,11 @@ export function adjudicateMutants(
 ): MutationVerdict {
   const { idToFile, changedReportPaths } = resolveTestFiles(report, changedTestFiles);
   const ranPackages = packagesWithTestsInRun(report);
+  // Asked ONCE for the whole run, because it is a property of the run and not of any one mutant:
+  // the positional pairing that produced these pseudo-files shifts attribution for every bucket
+  // after the first unpaired test, so no mutant in this report has a coverage set worth reading.
+  const pseudoTestFiles = unattributedTestFiles(report);
+  const coverageTrusted = pseudoTestFiles.length === 0;
   const mutants: AdjudicatedMutant[] = [];
   const unwitnessablePackages = new Set<string>();
 
@@ -1187,7 +1251,9 @@ export function adjudicateMutants(
         mutator: mutant.mutatorName ?? "unknown",
         status,
         replacement: mutant.replacement ?? null,
-        outcome: witnessable ? classify(status, killedByFiles, changedReportPaths) : "unwitnessable",
+        outcome: witnessable
+          ? classify(status, killedByFiles, changedReportPaths, coverageTrusted)
+          : "unwitnessable",
         killedByFiles: killedByFiles.sort(),
       });
     }
@@ -1235,7 +1301,11 @@ export function adjudicateMutants(
   // beside `isTimeout` would be a clause no input can make load-bearing (the rung reported exactly
   // that survivor on this line's first run, and the answer is to delete the clause, not to test it).
   const timedOut = counted.filter(isTimeout).length;
-  const unattributed = tally("unproven") - timedOut;
+  // The third UNPROVEN condition, subtracted for the same reason the second one is: its remedy is
+  // neither a better test nor a faster one, but a repair to the runner — so it must not be printed
+  // in a sentence that tells the author to write tests.
+  const untrusted = counted.filter(isUntrustedCoverage).length;
+  const unattributed = tally("unproven") - timedOut - untrusted;
 
   if (survived > 0) reasons.push(`${survived} mutant(s) SURVIVED — no test noticed the change`);
   if (noCoverage > 0) reasons.push(`${noCoverage} mutant(s) had NO COVERAGE — no test reaches this line`);
@@ -1252,6 +1322,16 @@ export function adjudicateMutants(
   if (timedOut > 0) {
     reasons.push(
       `${timedOut} mutant(s) are UNPROVEN — TIMED OUT: the covering tests ran past Stryker's per-mutant budget, so either the mutant makes the suite hang or those tests are too slow for the budget on this machine; no test could be named (constraint 4: never a pass, never a survivor)`,
+    );
+  }
+  if (untrusted > 0) {
+    // ONE template literal rather than seven concatenated lines, and that is a mutation-rung
+    // consequence rather than a formatting preference: Stryker mutates each string literal
+    // separately, so a sentence built from seven pieces is seven mutants and a test asserting one
+    // phrase leaves six survivors no assertion can reach without quoting the whole paragraph back.
+    // Its siblings above are written the same way for the same reason.
+    reasons.push(
+      `${untrusted} mutant(s) are UNPROVEN — BROKEN COVERAGE MAP: the runner attributed a test to ${pseudoTestFiles.map((f) => `"${f}"`).join(", ")}, which is not a test file, so it could not say which file that test ran in. Its per-test coverage map is therefore built from a truncated pairing that shifts every bucket after the unpaired test, and the SURVIVED / NO COVERAGE verdicts that rest on it are not findings — the covering test may never have been run. Nothing in this branch's tests can clear this; the fix is in the runner (constraint 4: never a pass, never a survivor)`,
     );
   }
 
@@ -1298,17 +1378,46 @@ export function isTimeout(mutant: Pick<AdjudicatedMutant, "status">): boolean {
   return mutant.status === "Timeout";
 }
 
+/**
+ * Was this mutant downgraded to UNPROVEN because the run's coverage map could not be read?
+ *
+ * The sibling of {@link isTimeout}, and read the same way: off the RAW status, because `classify`
+ * folds every un-scoreable state into `unproven` on purpose and only the status still says which
+ * one. `Survived` and `NoCoverage` are the two verdicts derived from the coverage map, so an
+ * `unproven` mutant still carrying one of them was downgraded by {@link unattributedTestFiles} —
+ * that pairing exists nowhere else, which is why no extra field has to be carried to detect it.
+ */
+export function isUntrustedCoverage(
+  mutant: Pick<AdjudicatedMutant, "status" | "outcome">,
+): boolean {
+  return (
+    mutant.outcome === "unproven" && (mutant.status === "Survived" || mutant.status === "NoCoverage")
+  );
+}
+
 /** The per-mutant rule. Kept separate so the table of statuses is readable in one screen. */
 function classify(
   status: string,
   killedByFiles: readonly string[],
   changedReportPaths: ReadonlySet<string>,
+  coverageTrusted: boolean,
 ): MutantOutcome {
   switch (status) {
+    // THE TWO VERDICTS THAT READ THE COVERAGE MAP. `Survived` means every test the map named ran
+    // and none noticed; `NoCoverage` means the map named none at all. Both are statements ABOUT the
+    // map, so when `unattributedTestFiles` shows the map was built from a truncated pairing, neither
+    // is a finding — the covering test may simply never have been run. `unproven` is already the
+    // verdict for "the instrument could not tell": never a pass, never a survivor. No new outcome is
+    // needed and none is added.
+    //
+    // `Killed` is deliberately NOT downgraded. Its `killedBy` is resolved from the test that
+    // actually failed in the mutant run and matched back by NAME, not through the positional
+    // coverage map — a real kill by a real named test survives a broken map, and calling it unproven
+    // would throw away the one thing the run did establish.
     case "Survived":
-      return "survived";
+      return coverageTrusted ? "survived" : "unproven";
     case "NoCoverage":
-      return "no-coverage";
+      return coverageTrusted ? "no-coverage" : "unproven";
     case "Killed": {
       // Constraint 4. An unresolvable `killedBy` is NOT IDENTIFIABLE, and the two failure shapes it
       // can hide point opposite ways — so it is neither a pass nor a survivor.
@@ -1439,7 +1548,13 @@ export function formatMutationVerdict(
       mutant.killedByFiles.length === 0
         ? isTimeout(mutant)
           ? "timed out — no test could be named"
-          : "no test named"
+          : // Same reasoning as the timeout line above, one condition further: "no test named" is
+            // true of a map-downgraded mutant too and is the WRONG cue, because it reads as a gap in
+            // THIS branch's tests when the gap is in the runner. It also has to say what Stryker
+            // originally recorded, or the reader cannot tell which verdict was withdrawn.
+            isUntrustedCoverage(mutant)
+            ? `recorded ${mutant.status}, withdrawn — the run's coverage map is not readable`
+            : "no test named"
         : `killed by ${mutant.killedByFiles.join(", ")}`;
     lines.push(`${tag}   ${mutant.outcome.toUpperCase()} ${describeMutant(mutant, sources)} — ${credit}`);
   }

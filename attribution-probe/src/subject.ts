@@ -23,3 +23,19 @@ export function gamma(n: number): string {
   }
   return "small";
 }
+
+// ── the runtime-skip arm (ADR-0566) ──────────────────────────────────────────
+// These two belong to `runtime-skip.test.ts`, not to `subject.test.ts`. They are a PAIR on purpose:
+// the defect they guard shifts each coverage bucket onto the next test along, so detecting it needs
+// two tests after the skip with DISJOINT subjects — `epsilon`'s coverage then lands on ZETA, nothing
+// covers `epsilon`, and its mutant comes back Survived. Nothing above this line may call them.
+
+/** Killed only by PROBE_EPSILON, which runs AFTER a test that skips at runtime. */
+export function epsilon(n: number): number {
+  return n / 2;
+}
+
+/** Killed only by PROBE_ZETA, the test after PROBE_EPSILON. */
+export function zeta(n: number): number {
+  return -n;
+}
