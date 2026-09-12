@@ -3202,6 +3202,10 @@ export const CLI_OPTIONS = {
   doing: { type: "string" },
   redirect: { type: "string" },
   "self-report": { type: "string" },
+  // SHARED with `storytree arc increment close --disposition landed|failed|withdrawn` (ADR-0564 D1),
+  // which records what a close MEANT. The option table is flat and global, so one declaration serves
+  // both verbs — as `--note`, `--date` and `--reason` already do — and each verb validates its OWN
+  // vocabulary and refuses a value from the other's.
   disposition: { type: "string" },
   by: { type: "string" },
   mode: { type: "string" },
@@ -4337,6 +4341,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           if (values.pr !== undefined) incCloseOpts.pr = values.pr;
           if (values.date !== undefined) incCloseOpts.date = values.date;
           if (resolved.note !== undefined) incCloseOpts.note = resolved.note;
+          if (values.disposition !== undefined) incCloseOpts.disposition = values.disposition;
           return arcIncrementClose(writeDeps, fourth, incCloseOpts);
         }
         // The lifecycle's MIDDLE two states, which had no write path before this. `ready` reads as a

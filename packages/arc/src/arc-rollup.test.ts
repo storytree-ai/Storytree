@@ -16,6 +16,7 @@ import {
   isCuratedLifecycle,
   loadArcRollup,
   loadArcRollups,
+  incrementDisposition,
   loadArcRollupSummaries,
   reconcileArcLifecycles,
   storyArcStamps,
@@ -397,9 +398,77 @@ test("loadArcRollups returns every arc id-sorted, closed ones included (filterin
  * Every key a lane row may carry. Pinned here so the two tests below read the same list and a
  * widening costs a deliberate edit — the payload got to 1.36 MB one convenient field at a time.
  */
-const SUMMARY_INCREMENT_KEYS = ["cites", "id", "landedOn", "parked", "status", "title"];
+const SUMMARY_INCREMENT_KEYS = ["cites", "closedOn", "disposition", "id", "parked", "status", "title"];
 
-test("the lane row's key set is EXACTLY those six — over an increment carrying every field", () => {
+// ---------- ADR-0564: what a close MEANT, and what it must never be taken to mean ----------
+
+test("incrementDisposition (ADR-0564 D1): a RECORDED call wins, a PR derives `landed`, and nothing else is invented", () => {
+  // A recorded call is the whole point of D1 — it beats every derivation, including one that would
+  // have disagreed. An increment whose PR landed and whose work was then judged a failure says so.
+  assert.equal(incrementDisposition("closed", { date: "d", pr: "#1", disposition: "failed" }), "failed");
+  assert.equal(incrementDisposition("closed", { date: "d", note: "n", disposition: "landed" }), "landed");
+  assert.equal(incrementDisposition("closed", { date: "d", note: "n", disposition: "withdrawn" }), "withdrawn");
+
+  // THE DEFAULT (D1, "derived-from-PR"): a merged PR is a landing, with nothing recorded.
+  assert.equal(incrementDisposition("closed", { date: "d", pr: "#1400" }), "landed");
+
+  // ...AND ITS FLOOR, which is the half ADR-0564's own context section forces. A close with no PR
+  // and no recorded call is UNRECORDED — not `failed`. D3 gives red a precondition in its own
+  // words ("on the orchestrator's recorded call"), and the context names two real increments whose
+  // output was a decision rather than a merge and which "a PR-derived rule would paint red". So the
+  // absence answers "nobody said", never "it failed".
+  assert.equal(incrementDisposition("closed", { date: "d", note: "decided against" }), undefined);
+  assert.equal(incrementDisposition("closed", { date: "d" }), undefined);
+  assert.equal(incrementDisposition("closed", undefined), undefined);
+
+  // An OPEN increment has no disposition at all — a reading of a terminal state is not a reading of
+  // work still in flight, however the row happens to be furnished.
+  for (const status of ["proposal", "ready", "active", "?"]) {
+    assert.equal(incrementDisposition(status, { date: "d", pr: "#1" }), undefined, status);
+    assert.equal(incrementDisposition(status, { date: "d", disposition: "landed" }), undefined, status);
+  }
+
+  // An empty `pr` is not a PR. The schema forbids it, but the derivation is a pure function other
+  // callers may hand untyped rows, and `""` deriving `landed` would be a false green.
+  assert.equal(incrementDisposition("closed", { date: "d", pr: "" }), undefined);
+});
+
+test("ADR-0564 D2/D3: NOTHING ALREADY CLOSED FLIPS — the derivation is a pure read of what is stored", () => {
+  // THE LOAD-BEARING ACCEPTANCE PROPERTY. ADR-0564 measured `rendering-engine-structure-arc` at 77
+  // closed increments, 6 carrying a PR, and the board painted all 77 green. This fences the shape of
+  // that population: with the new field ABSENT everywhere — which is every row closed before it
+  // existed — each row's reading is a FUNCTION OF WHAT IS ALREADY STORED and of nothing else.
+  const closedRows: { date: string; pr?: string; note?: string }[] = [
+    ...Array.from({ length: 6 }, (_, i) => ({ date: "2026-08-01", pr: `#${1400 + i}` })),
+    ...Array.from({ length: 71 }, (_, i) => ({ date: "2026-08-01", note: `closed without a landing ${i}` })),
+  ];
+  const readings = closedRows.map((outcome) => incrementDisposition("closed", outcome));
+
+  // The 6 that landed still read `landed` — exactly as they read before ADR-0564. A row that
+  // genuinely landed can never be flipped by this change, which is the half of "nothing flips" that
+  // protects real work from being accused.
+  assert.equal(readings.filter((d) => d === "landed").length, 6);
+  for (const [i, outcome] of closedRows.entries()) {
+    if (outcome.pr !== undefined) assert.equal(readings[i], "landed", `row ${i} carries ${outcome.pr}`);
+  }
+
+  // The other 71 read UNRECORDED. They stop being GREEN, which is the whole decision (D2: "never
+  // green merely because the increment closed") — and they are not called `failed` either, because
+  // nobody recorded that call. Two of them, on the measured arc, landed a decision and would have
+  // been libelled by a red-by-default rule.
+  assert.equal(readings.filter((d) => d === undefined).length, 71);
+  assert.equal(readings.filter((d) => d === "failed").length, 0);
+  assert.equal(readings.filter((d) => d === "withdrawn").length, 0);
+
+  // IDEMPOTENT: re-deriving the same stored rows yields the same readings. The field is recorded,
+  // never accumulated, so a row cannot drift by being read twice.
+  assert.deepEqual(
+    closedRows.map((outcome) => incrementDisposition("closed", outcome)),
+    readings,
+  );
+});
+
+test("the lane row's key set is EXACTLY those seven — over an increment carrying every field", () => {
   // Driven through `deriveArcRollup` rather than the loader so the source increment populates every
   // optional field at once, including the four the projection must DROP (`objective`,
   // `frictionRefs`, `anchorSha`, `danglingCites`) and the whole `outcome`. Against the seeded
@@ -455,7 +524,11 @@ test("the lane row's key set is EXACTLY those six — over an increment carrying
     status: "closed",
     parked: "2026-08-01",
     cites: ["story:some-story", "capability:some-capability"],
-    landedOn: "2026-08-19",
+    closedOn: "2026-08-19",
+    // DERIVED HERE, not on the lane (ADR-0564 D4). The projection drops `outcome`, so `pr` never
+    // reaches the studio and the studio could not derive this for itself even if it wanted to —
+    // which is exactly why the resolved reading has to ride the wire instead of the raw field.
+    disposition: "landed",
   });
 });
 
@@ -544,7 +617,7 @@ test("NO prose VALUE survives anywhere in the projection — asserted by walking
   }
 });
 
-test("the landing DATE rides as `landedOn`; the rest of `outcome` does not, and a dateless row omits it", async () => {
+test("the close DATE rides as `closedOn`; the rest of `outcome` does not, and a dateless row omits it", async () => {
   const fx = diskFixture();
   try {
     const rollup = await loadArcRollup(depsFor(await seededStore(), fx), "map-arc");
@@ -558,9 +631,36 @@ test("the landing DATE rides as `landedOn`; the rest of `outcome` does not, and 
       ["map-arc-parked", "map-arc-plan-1", "map-arc-inc-01", "map-arc-inc-02"],
     );
     assert.deepEqual(
-      summary.increments.map((i) => i.landedOn),
+      summary.increments.map((i) => i.closedOn),
       [undefined, undefined, "2026-07-01", "2026-07-05"],
     );
+    // ADR-0564 D5: the field was named `landedOn` and was written on EVERY close, landing or not —
+    // the proximate cause of the misreading. The name is gone, not aliased: a reader cannot reach
+    // the old spelling and get today's answer.
+    for (const inc of summary.increments) {
+      assert.equal(Object.hasOwn(inc, "landedOn"), false);
+    }
+    // ...and `disposition` is ABSENT, not `undefined`, on a row that derives none. Under
+    // `exactOptionalPropertyTypes` those are different facts, and the absent key is what makes a
+    // reader's `?? 'unrecorded'` fall through. An explicit `undefined` also SHIPS — `JSON.stringify`
+    // drops it, but the one branch that would write it is the one this pins.
+    const nothingRecorded = summary.increments.filter((i) => i.disposition === undefined);
+    assert.ok(nothingRecorded.length > 0, "the fixture must contain a row that derives no disposition");
+    for (const inc of nothingRecorded) {
+      assert.equal(Object.hasOwn(inc, "disposition"), false, `${inc.id} must omit the key, not carry undefined`);
+    }
+    // The fixture's TWO closed rows split exactly the way the real corpus does — one carries a PR
+    // and reads `landed`, one closed with a note alone and reads nothing — so the assertion above is
+    // about a real fork rather than a projection that never writes the field at all. Both rows date
+    // identically-shaped `closedOn` values, which is the whole reason the old name misled.
+    assert.deepEqual(
+      summary.increments.map((i) => i.disposition),
+      [undefined, undefined, "landed", undefined],
+    );
+    const closedRows = summary.increments.filter((i) => i.status === "closed");
+    assert.equal(closedRows.length, 2);
+    assert.equal(closedRows.filter((i) => i.closedOn !== undefined).length, 2, "both are dated");
+    assert.equal(closedRows.filter((i) => i.disposition === "landed").length, 1, "only ONE landed");
     // A RENAME, not a truncation. `outcome: { date }` would let a reader take the absent `pr` for a
     // landing that had none; a differently-named field cannot be mistaken for a shortened `outcome`.
     for (const inc of summary.increments) {

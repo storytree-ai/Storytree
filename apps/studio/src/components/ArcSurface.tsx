@@ -67,6 +67,7 @@ import {
   claimChipTitle,
   defaultLaneId,
   findLane,
+  laneCountsLabel,
   parseOptionCards,
   queueRun,
   questionFields,
@@ -367,7 +368,7 @@ function ArcLaneRow({
               {name}
             </span>
           </span>
-          <span className="arc-lane-track" aria-label={`${counts.landed} landed, ${counts.queued} queued`}>
+          <span className="arc-lane-track" aria-label={laneCountsLabel(counts).replace(/ · /g, ', ')}>
             {bars.map((bar) => (
               <span
                 key={bar.id}
@@ -381,9 +382,7 @@ function ArcLaneRow({
                 got SHORTER when they moved under the title, and they kept their gaps — a flat
                 continuous strip beneath a title reads as a percentage, which is the one thing D2
                 forbids this row to imply. Flattening is a size change, never a merge into one bar. */}
-            <span className="arc-lane-counts muted small">
-              {counts.landed} landed · {counts.queued} queued
-            </span>
+            <span className="arc-lane-counts muted small">{laneCountsLabel(counts)}</span>
           </span>
         </button>
       </div>
@@ -422,7 +421,7 @@ function ArcLaneRow({
                   data-other-gates={chip.otherGates}
                   aria-pressed={chip.id === selectedId}
                   aria-label={`${chip.title} — queued behind ${behind}${chip.gates > 0 ? `, and holds up ${chip.gates} more` : ''}${chip.otherGates > 0 ? `, and waiting on ${chip.otherGates} other arc${chip.otherGates === 1 ? '' : 's'} too` : ''}`}
-                  title={`${chip.title} — ${chip.counts.landed} landed, ${chip.counts.queued} queued`}
+                  title={`${chip.title} — ${laneCountsLabel(chip.counts)}`}
                   onClick={() => onSelect(chip.id)}
                 >
                   {chip.label}

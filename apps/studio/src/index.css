@@ -5963,6 +5963,13 @@ button.legend-tile:hover {
   --lp-sprout: #6fa35c;
   --lp-clay: #c0693b;
   --lp-sun: #e3a93e;
+  /* ADR-0564 D3 — the palette had no RED, because until this decision nothing on these surfaces was
+     allowed to report a failure: `--lp-sprout` was the only outcome colour and every terminal state
+     took it. Declared here as a token rather than inlined at the one rule that needs it, so it obeys
+     the same role discipline as its neighbours and a second reader of "failed" cannot drift from it.
+     Deliberately deeper and less saturated than `--lp-clay` beside it: clay is the ONE primary
+     ACTION per surface and must keep reading as something to click, where this reports a fact. */
+  --lp-rust: #a8412a;
   position: absolute;
   top: 0;
   left: 0;
@@ -6468,6 +6475,26 @@ button.legend-tile:hover {
    tone, never a re-purposed one). */
 .arc-bar-gated {
   background: color-mix(in srgb, var(--lp-clay) 35%, var(--lp-border) 65%);
+}
+/* ADR-0564 D3: RED is a first-class terminal reading. Before this, every closed increment took
+   `.arc-bar-landed` — 77 green bars on an arc that had landed 6 — so the strip reported a failing
+   31.5-hour run as steady delivery. */
+.arc-bar-failed {
+  background: var(--lp-rust);
+}
+/* WITHDRAWN IS NOT A SHADE OF FAILED (D3: it "must not be reported as one"). A duplicate or a
+   superseded plan is work that STOPPED, not work that lost, so it takes the clay family — the same
+   "this went nowhere" language as `.arc-bar-gated`, at full strength because it is terminal — and
+   never a tint of the red beside it, which would read as a milder failure. */
+.arc-bar-withdrawn {
+  background: color-mix(in srgb, var(--lp-clay) 70%, var(--lp-ink-soft) 30%);
+}
+/* Closed, with nothing recorded and no PR to derive from — every increment closed before ADR-0564
+   existed. Deliberately the GREY family and deliberately not `.arc-bar-queued`'s exact grey: it is
+   over (so not queued), it did not demonstrably land (so not green), and nobody said it failed (so
+   not red). Darker than queued, because it is history rather than a pending intention. */
+.arc-bar-unrecorded {
+  background: color-mix(in srgb, var(--lp-ink-soft) 45%, var(--lp-border) 55%);
 }
 .arc-lane-counts {
   margin-left: 8px;
