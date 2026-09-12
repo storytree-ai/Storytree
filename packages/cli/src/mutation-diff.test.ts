@@ -21,6 +21,7 @@ import {
   formatMutationVerdict,
   isTestFile,
   isTimeout,
+  unattributedTestFiles,
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
@@ -390,6 +391,105 @@ test("mutation-diff: a Timeout names no test, so it is unproven rather than cred
   const verdict = adjudicateMutants(reportWith({ status: "Timeout" }), ["packages/cli/src/a.test.ts"]);
   assert.equal(verdict.mutants[0]?.outcome, "unproven");
   assert.equal(verdict.verdict, "fail");
+});
+
+// ── a coverage map that cannot be read ───────────────────────────────────────
+//
+// Measured 2026-09-12 and reproduced end to end: `@hughescr/stryker-bun-runner` pairs coverage
+// buckets to tests POSITIONALLY and drops runtime-skipped tests from the test side only, so one
+// `t.skip()` shifts every bucket after it and Stryker reports `Survived` for mutants a test kills.
+// A false survivor is an unsatisfiable demand — ADR-0563 D1 forbids declining it and no test can
+// satisfy it — so the rung must withdraw the verdict rather than assert it.
+
+/** A `node:test`-shaped report: one real test file plus the pseudo-file an unpaired test lands in. */
+function reportWithPseudoTestFile(status: string): MutationReport {
+  return reportWith({ status, testFiles: { "packages/cli/src/a.test.ts": ["t1"], "node:test": ["t2"] } });
+}
+
+test("mutation-diff: a pseudo test file is the tell that the coverage map cannot be read", () => {
+  assert.deepEqual(unattributedTestFiles(reportWithPseudoTestFile("Survived")), ["node:test"]);
+});
+
+test("mutation-diff: a report whose test files are all real test files is trusted", () => {
+  const healthy = reportWith({
+    status: "Survived",
+    testFiles: { "packages/cli/src/a.test.ts": ["t1"], "packages/cli/src/b.test.tsx": ["t2"] },
+  });
+  assert.deepEqual(unattributedTestFiles(healthy), []);
+});
+
+test("mutation-diff: a Windows-separated sandbox path is a real test file, not a pseudo one", () => {
+  const sandboxed = reportWith({
+    status: "Survived",
+    // Stryker keys `testFiles` by the SANDBOX's own path, and on Windows that arrives with
+    // backslashes. Reading it raw would call every test file on this machine a pseudo-file and red
+    // every branch — the false-green's mirror image, and just as wrong.
+    testFiles: { "C:\\repo\\.stryker-tmp\\sandbox-8471\\packages\\cli\\src\\a.test.ts": ["t1"] },
+  });
+  assert.deepEqual(unattributedTestFiles(sandboxed), []);
+});
+
+test("mutation-diff: SURVIVED is withdrawn to unproven when the coverage map cannot be read", () => {
+  const verdict = adjudicateMutants(reportWithPseudoTestFile("Survived"), ["packages/cli/src/a.test.ts"]);
+  assert.equal(verdict.verdict, "fail");
+  assert.equal(verdict.mutants[0]?.outcome, "unproven");
+  // It still BLOCKS — the alternative is a rung that sends sessions to kill mutants it never tested.
+  assert.match(verdict.reasons.join("\n"), /UNPROVEN — BROKEN COVERAGE MAP/);
+  // The pseudo-file is named, because "the coverage map is broken" is unactionable without it.
+  assert.match(verdict.reasons.join("\n"), /"node:test"/);
+  // And it must NOT read as this branch's fault: the remedy is the runner, not another test.
+  assert.match(verdict.reasons.join("\n"), /Nothing in this branch's tests can clear this/);
+});
+
+test("mutation-diff: NO COVERAGE is withdrawn too — it is the same reading of the same map", () => {
+  const verdict = adjudicateMutants(reportWithPseudoTestFile("NoCoverage"), ["packages/cli/src/a.test.ts"]);
+  assert.equal(verdict.mutants[0]?.outcome, "unproven");
+  assert.match(verdict.reasons.join("\n"), /BROKEN COVERAGE MAP/);
+});
+
+test("mutation-diff: a broken map does NOT withdraw a kill — killedBy is matched by name, not by the map", () => {
+  const verdict = adjudicateMutants(
+    reportWith({
+      status: "Killed",
+      killedBy: ["t1"],
+      testFiles: { "packages/cli/src/a.test.ts": ["t1"], "node:test": ["t2"] },
+    }),
+    ["packages/cli/src/a.test.ts"],
+  );
+  assert.equal(verdict.verdict, "pass");
+  assert.equal(verdict.mutants[0]?.outcome, "proven");
+});
+
+test("mutation-diff: a withdrawn survivor is tallied apart from an unattributable kill", () => {
+  const report: MutationReport = {
+    files: {
+      "packages/cli/src/a.ts": {
+        mutants: [
+          { id: "m1", status: "Survived", location: { start: { line: 1 } } },
+          { id: "m2", status: "Killed", killedBy: [], location: { start: { line: 2 } } },
+        ],
+      },
+    },
+    testFiles: {
+      "packages/cli/src/a.test.ts": { tests: [{ id: "t1", name: "a > one" }] },
+      "node:test": { tests: [{ id: "t2", name: "node:test > two" }] },
+    },
+  };
+  const verdict = adjudicateMutants(report, ["packages/cli/src/a.test.ts"]);
+  const reasons = verdict.reasons.join("\n");
+  // Both are unproven and both block, but they want OPPOSITE remedies — one is the runner, the
+  // other is attribution — so a single sentence counting 2 would send the reader the wrong way.
+  assert.match(reasons, /1 mutant\(s\) are UNPROVEN — BROKEN COVERAGE MAP/);
+  assert.match(reasons, /1 mutant\(s\) are UNPROVEN — killed, but the report named no test/);
+});
+
+test("mutation-diff: the render says which verdict was withdrawn, not 'no test named'", () => {
+  const verdict = adjudicateMutants(reportWithPseudoTestFile("Survived"), ["packages/cli/src/a.test.ts"]);
+  const body = formatMutationVerdict("[t]", verdict, [
+    { project: "cli", dir: "packages/cli", mutateGlobs: ["packages/cli/src/a.ts:12-12"], sourceFiles: ["packages/cli/src/a.ts"] },
+  ]);
+  assert.match(body, /UNPROVEN .*recorded Survived, withdrawn/);
+  assert.doesNotMatch(body, /— no test named/);
 });
 
 test("mutation-diff: a CompileError is excluded from the count, not scored either way", () => {

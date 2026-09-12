@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index f6e45fcc5f722d30f23fa9486700e44a60787bca..08adf627140a7fe1c34dc25d41af3c2e854dee6c 100644
+index f6e45fcc5f722d30f23fa9486700e44a60787bca..fc91476546db1443f0f563b0b7dbb26377dd167e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5531,7 +5531,7 @@ async function generatePreloadScript(options) {
@@ -11,7 +11,42 @@ index f6e45fcc5f722d30f23fa9486700e44a60787bca..08adf627140a7fe1c34dc25d41af3c2e
    await writeFile(preloadPath, content, "utf8");
    return preloadPath;
  }
-@@ -6373,6 +6373,7 @@ function buildTestNamePattern(testFilter, testNameIndex) {
+@@ -5733,16 +5733,29 @@ function pairKeysWithInspectorIds(globallyOrderedPerTestKeys, executionOrder, te
+     const status = testHierarchy.get(id)?.status;
+     return status !== "skip" && status !== "todo";
+   });
+-  if (globallyOrderedPerTestKeys.length < nonSkipped.length) {
+-    logger?.warn("Coverage/execution count mismatch: %s coverage entries vs %s non-skipped executed tests. " + "Performing partial mapping for %s tests.", globallyOrderedPerTestKeys.length, nonSkipped.length, Math.min(globallyOrderedPerTestKeys.length, nonSkipped.length));
+-  }
+-  const pairCount = Math.min(globallyOrderedPerTestKeys.length, nonSkipped.length);
++  // storytree patch: the preload allocates ONE coverage bucket per test whose beforeEach RAN, and
++  // that includes a test which skips at RUNTIME (node:test's `t.skip()`) — its hooks fire before it
++  // decides to skip, so it has a bucket, yet the inspector reports it status "skip" and the filter
++  // above drops it. The two populations then differ by exactly the runtime skips, pairCount
++  // truncates to the shorter, and EVERY bucket after the skipped test is attributed to the next test
++  // along (the last one clamped onto the final test by resolveCounterKeys). Under
++  // coverageAnalysis: "perTest" Stryker then runs the wrong tests per mutant and honestly reports
++  // Survived for mutants a test kills. Measured: one runtime skip in a 34-test file took a suite
++  // from 33 genuine survivors to 134. Pair against whichever population the bucket count matches.
++  const population = globallyOrderedPerTestKeys.length === nonSkipped.length ? nonSkipped : globallyOrderedPerTestKeys.length === executionOrder.length ? executionOrder : nonSkipped;
++  if (population !== nonSkipped) {
++    logger?.debug("Coverage/execution count reconciled against the FULL execution order (%s) rather than the non-skipped subset (%s): the preload allocates a bucket for every test whose beforeEach ran, which includes a test that skipped at RUNTIME.", executionOrder.length, nonSkipped.length);
++  }
++  if (globallyOrderedPerTestKeys.length !== population.length) {
++    logger?.warn("Coverage/execution count mismatch: %s coverage entries vs %s executed tests. " + "Performing partial mapping for %s tests; per-test coverage attribution after the first unpaired test is NOT reliable.", globallyOrderedPerTestKeys.length, population.length, Math.min(globallyOrderedPerTestKeys.length, population.length));
++  }
++  const pairCount = Math.min(globallyOrderedPerTestKeys.length, population.length);
+   const pairs = [];
+   for (let i = 0;i < pairCount; i++) {
+     const key = globallyOrderedPerTestKeys[i];
+     const sepIdx = key.indexOf("@@");
+     const filePrefix = sepIdx === -1 ? key : key.slice(0, sepIdx);
+-    pairs.push({ filePrefix, inspectorId: nonSkipped[i] });
++    pairs.push({ filePrefix, inspectorId: population[i] });
+   }
+   return pairs;
+ }
+@@ -6373,6 +6386,7 @@ function buildTestNamePattern(testFilter, testNameIndex) {
  
  // src/parsers/console-parser.ts
  var fileHeaderRe = new RegExp(String.raw`^(?:::group::)?([^:]+\.${TEST_FILE_EXT_PATTERN}):$`);
@@ -19,7 +54,7 @@ index f6e45fcc5f722d30f23fa9486700e44a60787bca..08adf627140a7fe1c34dc25d41af3c2e
  var workflowCommandRe = /^::(?:group|endgroup|error|warning|notice|debug|add-mask|add-matcher|remove-matcher)(?:::|\s|$)/;
  function parseFilePath(line) {
    const fileMatch = fileHeaderRe.exec(line);
-@@ -9026,6 +9027,44 @@ ${lines.join(`
+@@ -9026,6 +9040,44 @@ ${lines.join(`
          }
          continue;
        }
