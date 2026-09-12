@@ -1,0 +1,13 @@
+{
+  "scene-model": ["true-footprint","land-per-capability","world-to-3d","parcel-cells","coast-clip",
+    "land-relief","cell-ground-geometry","stepped-skirt","camera-framing","map-texels",
+    "texture-convention","true-ground","kit-vocabulary","shade-ladder","detail-normal"],
+  "land-surface": ["land-grain","land-grass","land-wheat","land-blight","land-rock","land-sand",
+    "land-wear","banded-ground-material","exact-colour","light-calibration","land-shadow",
+    "shadow-atlas","shadow-rung","contact-shade","ground-casters","shore-grid","shore-fall",
+    "shore-atlas","shore-ring","trail-wear","wear-atlas","detail-normal-texture"],
+  "dressing": ["kit-asset","kit-mesh","leaf-tint","prop-lighting","cover-dressing","dressing-ground",
+    "map-dressing","island-path"],
+  "delivery": ["ForestWorldCanvas"],
+  "_not-the-engine's": ["index","act2-director"]
+}

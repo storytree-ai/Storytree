@@ -196,7 +196,7 @@ describe('traceArcState — the four honest answers, and the two that must never
   it('WORKED ON NO ARC and ARC NOT RECORDED never collapse — different states, different words', () => {
     // ⚠ The load-bearing case (ADR-0541 D4). Both have an empty arc list. Collapsing them reports
     // known work as unknown and inflates September's apparent unknown share from 13% to 33%.
-    const noArc = row(['forest-rendering-engine'], []);
+    const noArc = row(['forest-scene-model'], []);
     const unrecorded = row([], []);
 
     expect(traceArcState(noArc, true).state).toBe('no-arc');
@@ -204,7 +204,7 @@ describe('traceArcState — the four honest answers, and the two that must never
 
     expect(traceArcLabel(noArc, true)).toMatch(/no arc/);
     // And it NAMES the unit, so the claim is checkable rather than merely asserted.
-    expect(traceArcLabel(noArc, true)).toContain('forest-rendering-engine');
+    expect(traceArcLabel(noArc, true)).toContain('forest-scene-model');
     expect(traceArcLabel(unrecorded, true)).toBe('arc not recorded');
     expect(traceArcLabel(noArc, true)).not.toBe(traceArcLabel(unrecorded, true));
 
@@ -300,10 +300,10 @@ describe('traceArcLabel / traceArcTitle — the exact words, because the words A
   });
 
   it('NO ARC: the label says so AND names the units, so the claim is checkable', () => {
-    const r = row(['forest-rendering-engine', 'terminal-capture-activation'], []);
-    expect(traceArcLabel(r, true)).toBe('no arc · forest-rendering-engine · terminal-capture-activation');
+    const r = row(['forest-scene-model', 'terminal-capture-activation'], []);
+    expect(traceArcLabel(r, true)).toBe('no arc · forest-scene-model · terminal-capture-activation');
     expect(traceArcTitle(r, true)).toBe(
-      'Claimed real work belonging to NO arc: forest-rendering-engine, terminal-capture-activation. ' +
+      'Claimed real work belonging to NO arc: forest-scene-model, terminal-capture-activation. ' +
         'That is a recorded fact about the work, not missing data.',
     );
   });

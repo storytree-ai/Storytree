@@ -6,7 +6,7 @@ title: "The R3F mapper rides the sync — one artifact mechanism, two parent pac
 outcome: "The forest-world → website sync + drift-gate mechanism generalises to carry a SECOND parent package: sync:web-engine copies @storytree/forest-world-r3f's browser-safe sources (.tsx included) into web/src/lib/forest-world-r3f/ with @generated banners and with its @storytree/forest-world imports rewritten to the synced sibling core dir, and check:web-engine fails on drift, staleness, or leftovers in EITHER synced dir — so the 3D look flows parent → site exactly like the 2D look, never hand-ported."
 status: proposed
 proof_mode: integration-test
-depends_on: [forest-rendering-engine]
+depends_on: [forest-scene-model]
 decisions: [93, 123]
 # Node-borne proof config (ADR-0057 keystone). EDITS-EXISTING: the pure sync core ALREADY exists
 # (packages/cli/src/web-engine-sync.ts — single-package, .ts-only, relative-import rewriting only)
@@ -51,8 +51,14 @@ proof:
 imports rewritten to the synced sibling core dir; `check:web-engine` fails on drift, staleness, or
 leftovers in EITHER synced dir.
 
-**Depends on —** [`forest-rendering-engine`](forest-rendering-engine.md) — you cannot sync a package that does not
-exist.
+**Depends on —** [`forest-scene-model`](forest-scene-model.md) — you cannot sync a package that does
+not exist, and the scene-model lane is the one that brings
+`packages/forest-world-r3f` into being. **Repointed 2026-09-12** from `forest-rendering-engine`,
+which was split into four lanes that day. The edge stays SINGLE on purpose: this capability syncs
+the package as a whole, so the three later lanes—[`forest-land-surface`](forest-land-surface.md),
+[`forest-land-dressing`](forest-land-dressing.md) and
+[`forest-canvas-delivery`](forest-canvas-delivery.md)—ride the same mechanism without needing it
+to exist first, and declaring edges onto them would assert a prerequisite the sync does not have.
 
 > **Proof status (honest) — BUILT, leaf-proven; the authored status stays `proposed`.** The gated
 > SDK leaf generalised the pure core EDITS-EXISTING through the real prove-it-gate: the new

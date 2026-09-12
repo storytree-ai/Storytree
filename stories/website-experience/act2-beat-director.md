@@ -6,7 +6,7 @@ title: "The Act 2 beat director — the ONE continuous teaching script (website 
 outcome: "A pure, deterministic, visitor-paced director in @storytree/forest-world-r3f: beats are typed data (scene delta + camera target + narration key), advance() moves exactly one beat per call and parks on the final CTA state, the world holds MULTIPLE stories each with a dependsOn edge set and a tri-state status (proven/building/broken → green/sapling/withered) so the pull-back legend is HONEST, a new add-upstream-story delta raises a backend + database UPSTREAM of the website on real dependsOn edges pointing FROM the dependent TO its prerequisite — in the BaaS shape the owner confirmed at the H#2 gate (ADR-0157): the frontend reads the database directly, so the delta must let one prerequisite be depended on by MORE THAN ONE story, giving website.dependsOn=[backend, database], backend.dependsOn=[database], database.dependsOn=[] (a diamond; ADR-0058 / cross-story-dependency), a limb may turn green ONLY when its delta carries a signed-proof marker — and the exported default script IS the ONE continuous arc: the website walk then the upstream dependency-layer reveal, walking end-to-end. The wrong-way UI→DB road is RETIRED as the teach (no longer a beat in the default script); the layer-violation road model may remain as a latent capability but is not what the shipped script teaches."
 status: proposed
 proof_mode: integration-test
-depends_on: [forest-rendering-engine]
+depends_on: [forest-scene-model]
 decisions: [213, 215]
 # Node-borne proof config (ADR-0057 keystone). NET-NEW in the spike-born package (original build) —
 # RE-SPECCED by ADR-0150 (owner-directed at the G attestation gate 2026-07-04): the
@@ -76,8 +76,12 @@ continuous arc**: the website walk
 then the upstream dependency-layer reveal, walking end-to-end. The wrong-way UI→DB road is **RETIRED
 as the teach** (no longer a beat in the default script).
 
-**Depends on —** [`forest-rendering-engine`](forest-rendering-engine.md) — the director lives in the mapper's
-package and emits the World / scene inputs the mapper draws.
+**Depends on —** [`forest-scene-model`](forest-scene-model.md) — the director lives in the mapper's
+package and emits the World / scene inputs the mapper draws. **Repointed 2026-09-12** from
+`forest-rendering-engine`, which was split into four lanes that day: the thing this director needs
+is the semantic-layer → descriptor mapping and the scene roots under it, which is exactly the
+scene-model lane. It needs nothing from the surface, the dressing or the canvas — it emits scene
+INPUTS and never touches how they are painted or mounted.
 
 > **Proof status (honest) — BUILT + LEAF-PROVEN at the BaaS-diamond vocabulary (ADR-0157)
 > (`--real` PASS, run `real-mr6ycu73`, `--store pg`; verdict commit `f9ae9b8`;

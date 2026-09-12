@@ -23,7 +23,13 @@ proof_mode: UAT
 # each Story-UAT leg below marks its own witness (the split table is in "UAT Test Criteria").
 # ADR-0294 D2/D4 pass 2026-08-20: none of the eight is deleted — no lower-tier node proves any of them
 # — and all eight are declared UNBOUND and fail closed. See the dated block in "UAT Test Criteria".
-capabilities: [forest-rendering-engine, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
+capabilities: [forest-scene-model, forest-land-surface, forest-land-dressing, forest-canvas-delivery, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
+# ⚠ TWELVE, not nine, since 2026-09-12: the single rendering capability (`r3f-world-spike`, renamed
+# `forest-rendering-engine` earlier the same day — ADR-0562) was SPLIT into four one-way lanes on a
+# measured import graph — scene model → land surface → dressing → canvas delivery. The split is
+# BOUNDARIES ONLY: no behaviour changed, no file moved between packages, no art was retuned. Its
+# reason is claim parallelism — a capability claim permits one session at a time, so one owner over
+# 51 ownership entries made every 3D subject the same serial lane (`rendering-engine-structure-arc`).
 # Consumer-side outbound edges (the ADR-0058 delivered-outcome test, run both ways):
 #  - forest-world: the R3F mapper (`packages/forest-world-r3f`, this story's parent-side package —
 #    see "Structural calls" below) IMPORTS `@storytree/forest-world` and consumes its semantic layer
@@ -262,8 +268,9 @@ framework IS naming it for its role. On landing, `repo-manifest.json packageOwne
 gains `forest-world-r3f → website-experience` and `check:boundaries` starts scanning its one edge.
 
 **3 — The provability firewall decides every proof mode.** Parent-side = machine-provable, armed
-`--real`; web-repo-side = operator-attested (ADR-0070), never force-fitted. Four capabilities are
-parent-side LEAFs (the world→3D mapping, the sync extension, the beat director, the rollout check);
+`--real`; web-repo-side = operator-attested (ADR-0070), never force-fitted. Seven capabilities are
+parent-side LEAFs (the four rendering-engine lanes — scene model, land surface, dressing, canvas
+delivery — plus the sync extension, the beat director and the rollout check);
 four are web-side (the storm, the inflection, the Act 2 walkthrough, the page triage) whose honest
 proof is a human witnessing the live/preview site. The split follows the routing filter ("does this
 piece have an isolatable red→green test?"), not package boundaries: everything with a deterministic
@@ -272,24 +279,30 @@ felt surface a machine cannot judge. Structure/choreography is parent-side and p
 fictional demo data stay site-side (the Cohoot precedent — the boundary keeps the site's content in
 the site's repo).
 
-## Capabilities (9)
+## Capabilities (12)
 
-Listed roots-first. **Class** — LEAF (parent-side isolatable red→green, armed `--real` so the
-orchestrator drives it through `node build <id> --real --store pg`), LOOK (web-repo build whose
+Listed roots-first. **Class** — LEAF (parent-side isolatable red→green; the `--real` column says
+whether it is ARMED, i.e. carries a `real:` proof block the orchestrator can drive through
+`node build <id> --real --store pg`. Three of the four rendering lanes are LEAF-class and not yet
+armed, which is honest rather than provisional: the 2026-09-12 split drew boundaries and armed no
+new red→green), LOOK (web-repo build whose
 appearance + feel are operator-attested per ADR-0070; the `frontend-builder` role drives it, the
 owner witnesses it), or CONTENT (owner-attested editorial judgement).
 
 | # | capability | class | outcome (short) | `--real` | depends on |
 |---|---|---|---|---|---|
-| 1 | [`forest-rendering-engine`](forest-rendering-engine.md) | LEAF | `packages/forest-world-r3f` is born: a real forest-world `World` + scene-graph maps to typed 3D instance descriptors, rendered in an R3F canvas with drei `MapControls` in a dev harness. | yes | — |
-| 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | A parent-side judge (check:web-grounding pattern) reds when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. **Its `check:web-experience` rung was retired by ADR-0311 D2; ADR-0336 re-wired the static-closure third as `check:web-experience-closure`, and ADR-0454 re-wired the two marker-presence assertions as `check:web-experience-markers` — all three properties are gate-enforced again, split across two rungs (open call 9, closed to that scope).** | yes | — |
-| 3 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `forest-rendering-engine` |
-| 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `forest-rendering-engine` |
-| 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
-| 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, the diegetic finale terminal's transform option (web `281b1e6`); one click transforms — silence, collapse into soil — resolving into the 2.5D calm land (ADR-0148: the R3F landing island retires). | (look) | `act1-terminal-storm`, `web-experience-sync` |
-| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The scripted, visitor-paced walk through a FICTIONAL three-story shopping forest, narrated by a re-creation of our own session orchestrator, was redirected away from by the owner on 2026-08-22 and superseded by ADR-0453 (the forest was made up · the narrator was "a Next button in a costume" · it opened on a fitted view). Chapter 2's opening now belongs to `website-refresh-arc` and is delivered as GROW + TELL + PACE over the REAL corpus. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
-| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The same walk continuing upstream into a PROPOSED backend + database on a fictional BaaS diamond fell with its upstream half (ADR-0453). **The TEACH survives and moved:** the dependency layers ARE the advantage, and a visitor now meets them as REAL trails on the REAL corpus via `website-refresh-arc`'s ROAM (landed 2026-08-28) — a clicked trail names its dependencies in the direction the arrow points. The one genuinely undelivered piece is the ARC DRAWER, parked as `website-refresh-arc-arc-drawer`. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `act2-guided-walkthrough` |
-| 9 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough`, `act2-guided-forest` |
+| 1 | [`forest-scene-model`](forest-scene-model.md) | LEAF | A real forest-world `World` + scene-graph becomes typed 3D scene geometry: the descriptor mapping (`world-to-3d`) plus the cells, coast clip, relief, ground geometry, stepped skirt, camera frame, texel convention and shade ladder every later lane consumes. **15 modules.** | yes | — |
+| 2 | [`forest-land-surface`](forest-land-surface.md) | LEAF | The ground gets a surface a visitor can read: the banded material and its grain/grass/wheat/blight/rock/sand/wear layers, the shore, and the light + shadow that make an island's proof status legible — light and shadow kept WITH the ground because that is the renderer's strongest measured interaction. **22 modules.** | not yet | `forest-scene-model` |
+| 3 | [`forest-land-dressing`](forest-land-dressing.md) | LEAF | What stands ON the land: kit assets and meshes, leaf tint and prop lighting, ground cover and map dressing, the island path — every placement derived from the scene model's cells, never hand-placed. **8 modules.** | not yet | `forest-scene-model`, `forest-land-surface` |
+| 4 | [`forest-canvas-delivery`](forest-canvas-delivery.md) | LEAF | The canvas mounts the dressed scene in a real host surface at a cost the frame can pay: `ForestWorldCanvas` plus the Studio's `LandView*` / `landView*` / `canvasRegistration*` mount. Where rendering COST lands, deliberately apart from art. **1 module + the Studio mount.** | not yet | all three lanes above |
+| 5 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | A parent-side judge (check:web-grounding pattern) reds when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. **Its `check:web-experience` rung was retired by ADR-0311 D2; ADR-0336 re-wired the static-closure third as `check:web-experience-closure`, and ADR-0454 re-wired the two marker-presence assertions as `check:web-experience-markers` — all three properties are gate-enforced again, split across two rungs (open call 9, closed to that scope).** | yes | — |
+| 6 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `forest-scene-model` |
+| 7 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `forest-scene-model` |
+| 8 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
+| 9 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, the diegetic finale terminal's transform option (web `281b1e6`); one click transforms — silence, collapse into soil — resolving into the 2.5D calm land (ADR-0148: the R3F landing island retires). | (look) | `act1-terminal-storm`, `web-experience-sync` |
+| 10 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The scripted, visitor-paced walk through a FICTIONAL three-story shopping forest, narrated by a re-creation of our own session orchestrator, was redirected away from by the owner on 2026-08-22 and superseded by ADR-0453 (the forest was made up · the narrator was "a Next button in a costume" · it opened on a fitted view). Chapter 2's opening now belongs to `website-refresh-arc` and is delivered as GROW + TELL + PACE over the REAL corpus. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
+| 11 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The same walk continuing upstream into a PROPOSED backend + database on a fictional BaaS diamond fell with its upstream half (ADR-0453). **The TEACH survives and moved:** the dependency layers ARE the advantage, and a visitor now meets them as REAL trails on the REAL corpus via `website-refresh-arc`'s ROAM (landed 2026-08-28) — a clicked trail names its dependencies in the direction the arrow points. The one genuinely undelivered piece is the ARC DRAWER, parked as `website-refresh-arc-arc-drawer`. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `act2-guided-walkthrough` |
+| 12 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough`, `act2-guided-forest` |
 
 ## Dependency graph and the incremental rollout plan
 
@@ -297,8 +310,13 @@ The `depends_on` ordering IS the build order (topological), and it is deliberate
 LIVE-COHERENCE plan — the site publishes on every merge, so each increment must leave a real visitor
 whole (owner decision 6):
 
-- **Increment A — `forest-rendering-engine`** (parent-only; the live site is untouched). The natural first
-  provable unit: real `World` data in 3D under `MapControls`, spine-proven.
+- **Increment A — the rendering engine** (parent-only; the live site is untouched). The natural
+  first provable unit: real `World` data in 3D under `MapControls`, spine-proven. **Since
+  2026-09-12 this increment is FOUR capabilities rather than one** — `forest-scene-model`,
+  `forest-land-surface`, `forest-land-dressing`, `forest-canvas-delivery` — split on a measured
+  import graph so the 3D subjects stop sharing one claim. The increment ORDER is unchanged (the
+  engine still lands before B), and the four lanes land in their own dependency order: scene model
+  first, then surface, then dressing, then delivery.
 - **Increment B — `experience-rollout-guardrails`** (parent gate + inert site markers; the check
   SKIPs until an experience entry exists, then fails closed). Lands BEFORE any visitor-facing
   experience so the storm can never ship as a toll booth.
@@ -431,9 +449,21 @@ whole (owner decision 6):
   (open call 4 CLOSED); see [`info-pages-triage`](info-pages-triage.md)'s proof status + As-built for
   the record.
 
-Within-story edges, with the reason each exists: `web-experience-sync → forest-rendering-engine` (you cannot
-sync a package that does not exist); `act2-beat-director → forest-rendering-engine` (the director lives in
-and drives the mapper's package); `act1-terminal-storm → experience-rollout-guardrails` (the storm
+Within-story edges, with the reason each exists. **The four rendering lanes form a one-way chain**,
+and the chain is measured rather than asserted — against the partition, the intra-package import
+graph carries ZERO value backedges and ZERO type backedges, with 74 cross-lane value edges and 19
+cross-lane type edges all pointing forward: `forest-land-surface → forest-scene-model` (there is no
+surface to paint until the scene model has said where the ground is); `forest-land-dressing →
+forest-scene-model` (every placement is derived from the scene model's cells) and `→
+forest-land-surface` (a prop lit differently from the ground it stands on reads as a sticker, so
+dressing cannot be tuned against an unlit ground); `forest-canvas-delivery →` all three (the canvas
+is the one place that composes them, and it is the sink — nothing upstream imports it). Then:
+`web-experience-sync → forest-scene-model` (you cannot
+sync a package that does not exist, and the scene-model lane is the one that brings
+`packages/forest-world-r3f` into being; the later lanes ride the same sync mechanism and add no
+edge); `act2-beat-director → forest-scene-model` (the director lives in
+and drives the mapper's package, and what it needs is the semantic-layer → descriptor mapping, not
+the paint or the mount); `act1-terminal-storm → experience-rollout-guardrails` (the storm
 may only face visitors with the exits machine-guarded); `storm-to-forest-inflection →
 act1-terminal-storm` (there is no peak to transform without the storm), `→ web-experience-sync` (the
 R3F island it lazy-loads must be on the site); `act2-guided-walkthrough →` all three of the
@@ -829,11 +859,15 @@ eligible to BE proven, and the prior owner attestations recorded against the OLD
 true history (copy-on-write) while discharging none of the thirteen legs above. So the story stays
 `proposed` because of that unstamped leg set plus the LOOK surfaces the ADR-0165 redesign re-opened —
 NOT because an increment is unbuilt (increment I is EXECUTED and owner-attested; see its record above).
-The four LEAF caps are armed with `--real` proof config so the orchestrator
+FOUR of the seven parent-side LEAF caps are armed with `--real` proof config so the orchestrator
 drives each through `node build <id> --real --store pg` in dependency order — with the one documented
-pre-step that `forest-rendering-engine`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
+pre-step that `forest-scene-model`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
 ownership) is orchestrator-supplemented GLUE before its leaf runs (a leaf can never touch package.json,
-ADR-0031 §2). The five web-side caps (the storm, the inflection, the two Act 2 increments G + H, and the
+ADR-0031 §2). **The other three — `forest-land-surface`, `forest-land-dressing` and
+`forest-canvas-delivery` — are LEAF-class and NOT armed**, and that is a true statement about them
+rather than a gap left by the 2026-09-12 split: the split drew boundaries and armed no new red→green,
+so each lane's first unit adds its own `real:` arm with the test/source pair it actually authors.
+None of the three inherited any proof from the capability they were split out of (ADR-0559 D5). The five web-side caps (the storm, the inflection, the two Act 2 increments G + H, and the
 page triage) are built in the `storytree-web` repo (branching off ITS `origin/main`, its own CD) by the
 `frontend-builder` role. Their FELT legs (3, 5, 7, 9, 11) were witnessed by the owner as explicit HALT
 points for the driving session until ADR-0348 D6 DELETED all five on 2026-08-11 — the intents survive as
