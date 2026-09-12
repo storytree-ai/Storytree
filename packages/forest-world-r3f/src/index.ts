@@ -1,5 +1,5 @@
 // @storytree/forest-world-r3f — the ADR-0123 THIRD forest-world mapper: R3F/three.
-// The provability firewall (the r3f-world-spike capability): this root barrel is
+// The provability firewall (the forest-rendering-engine capability): this root barrel is
 // the PURE half — the world-to-3D descriptor mapping, no React/three imports,
 // importable under bare node:test. The browser half (<ForestWorldCanvas> + drei
 // MapControls) lives behind the `./canvas` subpath and is never re-exported here —

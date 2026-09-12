@@ -13,7 +13,9 @@
  *
  * ⚠ "NOTHING" IS AN ANSWER, AND IT IS NOT THE SAME ANSWER AS "NOT RECORDED" (ADR-0541 D4). A unit
  * that resolves to no arc is a session that claimed real work belonging to no arc — 20% of the
- * measured September population, `r3f-world-spike` and 26 other unhomed units. Collapsing that into
+ * measured September population, `r3f-world-spike` (renamed `forest-rendering-engine` on 2026-09-12,
+ * ADR-0562 — the September trace rows still carry the original id, so this recorded measurement keeps
+ * it) and 26 other unhomed units. Collapsing that into
  * "we don't know" reports known work as unknown and inflates the apparent unknown share from 13% to
  * 33%. This module therefore returns the units it was GIVEN alongside the arcs it resolved, so a
  * caller can tell an empty arc list over a non-empty unit list (worked on no arc) from an empty one

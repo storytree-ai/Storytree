@@ -73,7 +73,7 @@ const THREE = answer([
     sessionId: 'bravo-2',
     eventCount: 386,
     lastObservedAt: '2026-08-12T09:55:00.000Z',
-    units: ['r3f-world-spike'],
+    units: ['forest-rendering-engine'],
     arcs: [],
   },
   { sessionId: 'charlie-3', eventCount: 4, lastObservedAt: '2026-08-11T10:00:00.000Z' },
@@ -144,7 +144,7 @@ describe('TraversalTab — the whole local index, newest first (ttl-lists-the-wh
     // led as the third line when it shipped, and that is the thing being corrected.
     expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
       'map-arc' + '12' + 'alpha-1' + 'newest',
-      'no arc · r3f-world-spike' + '386' + 'bravo-2' + '5m earlier',
+      'no arc · forest-rendering-engine' + '386' + 'bravo-2' + '5m earlier',
       'arc not recorded' + '4' + 'charlie-3' + '1d earlier',
     ]);
   });
