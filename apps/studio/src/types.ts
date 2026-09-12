@@ -1410,8 +1410,15 @@ export interface ArcRollupIncrement {
    * too, or a citation reads as evidence the unit exists.
    */
   danglingCites?: string[];
-  /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
-  outcome?: { date?: string; pr?: string; note?: string };
+  /**
+   * Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5).
+   *
+   * `disposition` (ADR-0564 D1) is what the orchestrator RECORDED the close to mean. Absent on every
+   * row closed before that decision, and absent whenever nobody recorded one — which is why reading
+   * it is `dispositionOf` in `lib/arcSurface.ts` rather than a bare field read: the derive-from-PR
+   * default lives there.
+   */
+  outcome?: { date?: string; pr?: string; note?: string; disposition?: 'landed' | 'failed' | 'withdrawn' };
 }
 
 /**
@@ -1497,21 +1504,37 @@ export interface ArcRollup {
  * One increment as the LANE LIST sees it — the wire mirror of `ArcRollupSummaryIncrement`.
  *
  * The narrowed row `GET /api/arcs` ships. It is a SUBSET of {@link ArcRollupIncrement} by
- * intention, not by accident, and the one field that changed NAME says so: the landing date arrives
- * as {@link ArcRollupSummaryIncrement.landedOn}, never as a one-key `outcome`, so nothing here can
+ * intention, not by accident, and the one field that changed NAME says so: the close date arrives
+ * as {@link ArcRollupSummaryIncrement.closedOn}, never as a one-key `outcome`, so nothing here can
  * be read as an increment that landed without a PR.
  */
 export interface ArcRollupSummaryIncrement {
   id: string;
   title: string;
-  /** `proposal` | `ready` | `active` | `closed`, or `"?"` — the bar's tone and its tooltip. */
+  /** `proposal` | `ready` | `active` | `closed`, or `"?"` — the bar's tooltip. */
   status: string;
-  /** When it was parked (ISO), on a not-yet-landed entry. */
+  /**
+   * WHAT THE CLOSE MEANT (ADR-0564 D4) — the bar's TONE. Absent on an open increment, and absent on
+   * a close that recorded nothing and derives nothing.
+   *
+   * ⚠ THE SERVER RESOLVES THIS AND THIS SURFACE CANNOT. `outcome` — and with it `pr` — is dropped
+   * from this row, so the derive-from-PR default runs in `incrementDisposition`
+   * (`packages/arc/src/arc-rollup.ts`) and arrives already decided. Never re-derive it here from
+   * `status`: reading `status === 'closed'` as landed is the exact defect ADR-0564 was written for.
+   */
+  disposition?: 'landed' | 'failed' | 'withdrawn';
+  /** When it was parked (ISO), on a not-yet-closed entry. */
   parked?: string;
   /** The typed work-hierarchy pointers (ADR-0306 D2) — the `claimed` lane state's join. */
   cites?: string[];
-  /** `outcome.date` alone. The `pr` and the outcome prose live on `GET /api/arcs/<id>`. */
-  landedOn?: string;
+  /**
+   * `outcome.date` alone — the CLOSE date, on any closed increment. The `pr` and the outcome prose
+   * live on `GET /api/arcs/<id>`.
+   *
+   * Named `landedOn` until ADR-0564 D5: it is written on every close, landing or not, so the old
+   * name asserted a landing on rows that had landed nothing. Read `disposition` for that.
+   */
+  closedOn?: string;
 }
 
 /**

@@ -6,6 +6,7 @@ import type { Store, StoreEvent, StoredDoc } from "@storytree/storage-protocol";
 import {
   ASSET_REF_PREFIX,
   explainDocValidationError,
+  IncrementDisposition,
   kebabSlug,
   parseCiteRef,
   upcastAndValidate,
@@ -2047,8 +2048,9 @@ export async function arcIncrementPromote(
 }
 
 /**
- * `storytree arc increment close <id> [--pr <ref>] [--date <YYYY-MM-DD>] [--note <text|@file>] --pg`
- * — mark one increment TERMINAL (ADR-0305 D2/D5), for any reason.
+ * `storytree arc increment close <id> [--pr <ref>] [--date <YYYY-MM-DD>] [--note <text|@file>]
+ * [--disposition landed|failed|withdrawn] --pg` — mark one increment TERMINAL (ADR-0305 D2/D5), for
+ * any reason.
  *
  * The successor to `arc proposal realize`, and it is deliberately wider. `realize` meant LANDED and
  * nothing else, so an entry that turned out to be wrong, duplicated, or discharged by a deletion
@@ -2065,7 +2067,12 @@ export async function arcIncrementPromote(
 export async function arcIncrementClose(
   deps: ArcWriteDeps,
   id: string | undefined,
-  opts: { pr?: string | undefined; date?: string | undefined; note?: string | undefined },
+  opts: {
+    pr?: string | undefined;
+    date?: string | undefined;
+    note?: string | undefined;
+    disposition?: string | undefined;
+  },
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment close");
   if (id === undefined || id.trim() === "") {
@@ -2100,6 +2107,31 @@ export async function arcIncrementClose(
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
   const note = opts.note?.trim();
+
+  // ADR-0564 D1 — the orchestrator's own call about what this close MEANT. Refused rather than
+  // dropped when it is not one of the three: an unrecognised value silently becoming an ABSENCE is
+  // the worst outcome available here, because an absence reads downstream as "nobody said" and would
+  // quietly discard the judgement the caller took the trouble to make.
+  const dispositionRaw = opts.disposition?.trim();
+  let disposition: IncrementDisposition | undefined;
+  if (dispositionRaw !== undefined && dispositionRaw !== "") {
+    const parsed = IncrementDisposition.safeParse(dispositionRaw);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        body: [
+          `--disposition takes "landed", "failed" or "withdrawn" (got "${dispositionRaw}").`,
+          "ADR-0564 D1: it records what the close MEANT, which the board paints as the bar's tone.",
+          "`withdrawn` is NOT a softer `failed` (D3) — it is a duplicate, a superseded plan, or a",
+          "unit that should never have been parked: work that stopped rather than work that lost.",
+          "Omit it and the reading is derived from --pr, which is what every historical row does.",
+        ].join("\n"),
+        next: [`storytree library artifact ${id} --pg`],
+      };
+    }
+    disposition = parsed.data;
+  }
+
   if ((pr === undefined || pr === "") && (note === undefined || note === "")) {
     return {
       ok: false,
@@ -2122,6 +2154,10 @@ export async function arcIncrementClose(
   const outcome: IncrementOutcome = { date };
   if (pr !== undefined && pr !== "") outcome.pr = pr;
   if (note !== undefined && note !== "") outcome.note = note;
+  // Written ONLY when asked. Defaulting it here would stamp a judgement on every close a caller
+  // that predates the flag makes, and the migration's whole guarantee is that the derivation stays
+  // downstream (`incrementDisposition`) and the row stays as its author left it.
+  if (disposition !== undefined) outcome.disposition = disposition;
   const fields = {
     status: "closed",
     outcome,
@@ -2828,7 +2864,8 @@ export function arcHelp(): Envelope {
       "        had to reconstruct it. `ready` = consumable, and it is what carries the arc's freshness-",
       "        check offer; `start` = execution began, which engages ADR-0183 D2's execute-once lock.",
       "        FORWARD-ONLY: a demotion is refused — correct a wrong status in place instead.",
-      "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>] --pg",
+      "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>]",
+      "        [--disposition landed|failed|withdrawn: what the BOARD paints, ADR-0564] --pg",
       "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` is REQUIRED",
       "        when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",
       "        difference was a REASON not a state, so a closure that is not a landing has to say why.",

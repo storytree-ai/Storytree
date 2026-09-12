@@ -505,6 +505,52 @@ test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail cl
   }
 });
 
+test("increment kind (ADR-0564 D1): the outcome records WHAT THE CLOSE MEANT, and it stays optional", () => {
+  // D1 — one optional recorded field naming the close's meaning. NOT a reinstatement of the statuses
+  // ADR-0305 D2 deleted: `status` is untouched and stays `closed` in every arm below.
+  for (const disposition of ["landed", "failed", "withdrawn"] as const) {
+    const doc = validateLibraryDoc({
+      ...minimalDoc("increment"),
+      status: "closed",
+      outcome: { date: "2026-09-12", pr: "#1900", disposition },
+    }) as { status?: string; outcome?: Record<string, unknown> };
+    assert.equal(doc.outcome?.["disposition"], disposition);
+    assert.equal(doc.status, "closed", "the lifecycle is untouched — this is a field, not a state");
+  }
+
+  // The enum is CLOSED. `succeeded`, `superseded`, `retired` — the vocabulary a reader might reach
+  // for — are all refused, so a stored value can only ever be one the board knows how to paint.
+  for (const bad of ["succeeded", "superseded", "retired", "green", "red", ""]) {
+    assert.throws(
+      () =>
+        validateLibraryDoc({
+          ...minimalDoc("increment"),
+          status: "closed",
+          outcome: { date: "2026-09-12", pr: "#1", disposition: bad },
+        }),
+      `disposition "${bad}" must be refused`,
+    );
+  }
+
+  // THE ADDITIVE PROPERTY, at the schema boundary: every closure shape that validated before this
+  // field existed still validates with the field ABSENT. This is what "no existing row changes
+  // meaning" rests on — a stored row is never rewritten, and none is required to carry the field.
+  for (const outcome of [
+    { date: "2026-08-05", pr: "#1153" },
+    { date: "2026-08-05", note: "discharged by deletion" },
+    { date: "2026-08-05", pr: "#1153", note: "landed" },
+  ]) {
+    const doc = validateLibraryDoc({ ...minimalDoc("increment"), status: "closed", outcome }) as {
+      outcome?: Record<string, unknown>;
+    };
+    assert.equal(
+      Object.hasOwn(doc.outcome ?? {}, "disposition"),
+      false,
+      "validation must not INVENT a disposition on a row that never recorded one",
+    );
+  }
+});
+
 test("increment kind (ADR-0322): `parked` is what decides whether a closure owes its own prose", () => {
   // The rule used to be unconditional, and that is what forced `arc increment add` to COPY its
   // `--outcome` text into `outcome.note` as well as `body` — the duplication that made an ADR-0139

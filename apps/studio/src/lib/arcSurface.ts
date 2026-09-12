@@ -34,8 +34,42 @@ import { claimBand, formatLastHeard, type ClaimBand } from './claimBands';
 
 // ---------- D2: bars are units, not time ----------
 
-/** The one increment status that counts as LANDED (ADR-0305 D2 / ADR-0314 D2). */
-export const LANDED_STATUS = 'closed';
+/**
+ * The one TERMINAL increment status (ADR-0305 D2).
+ *
+ * ⚠ NAMED `LANDED_STATUS` UNTIL ADR-0564, AND THE NAME WAS THE BUG. A closed increment is finished,
+ * NOT necessarily landed: on `rendering-engine-structure-arc`, 77 were closed and 6 had landed
+ * anything, and this constant's name is what licensed every reader here to paint all 77 green.
+ * Whether a close was a LANDING is {@link ArcRollupSummaryIncrement.disposition} / the outcome's own
+ * disposition — never this. Use it to ask "is this over?", never "did this work?".
+ */
+export const CLOSED_STATUS = 'closed';
+
+/**
+ * WHAT A CLOSE MEANT, read off a FULL rollup increment (ADR-0564 D1).
+ *
+ * The lane strip does not need this — `GET /api/arcs` resolves the reading server-side and ships it
+ * as `disposition`, because `outcome` does not ride that wire. The BRIEFING panel does: it takes the
+ * whole `ArcRollup`, whose increments carry `outcome` verbatim, so the same rule has to be readable
+ * from here too.
+ *
+ * It is a TRANSCRIPTION of `incrementDisposition` in `packages/arc/src/arc-rollup.ts`, which is
+ * where the rule lives and is fenced; this surface does not own it. Kept as a copy rather than an
+ * import for the reason the whole `types.ts` mirror exists — this app reads the server's SHAPE, not
+ * its source.
+ */
+export function dispositionOf(inc: ArcRollupIncrement): 'landed' | 'failed' | 'withdrawn' | undefined {
+  if (inc.status !== CLOSED_STATUS) return undefined;
+  if (inc.outcome?.disposition !== undefined) return inc.outcome.disposition;
+  if (inc.outcome?.pr !== undefined && inc.outcome.pr !== '') return 'landed';
+  // NOT `failed`. A close nobody recorded and no PR derives is UNRECORDED — see `laneBars`.
+  return undefined;
+}
+
+/** Did this increment LAND something? The question `status === 'closed'` was answering wrongly. */
+export function hasLanded(inc: ArcRollupIncrement): boolean {
+  return dispositionOf(inc) === 'landed';
+}
 
 /**
  * The one increment status that is WAITING ON THE OWNER (ADR-0359 D2/D3).
@@ -48,11 +82,26 @@ export const LANDED_STATUS = 'closed';
 export const PROPOSAL_STATUS = 'proposal';
 
 /**
- * A bar's tone — ADR-0314 D2's model, plus `gated` (ADR-0523 / inc-05). Green for landed, grey for
- * not yet, and — ONE extra tone on the same idiom, never a second one — a distinct treatment for
- * not-yet-landed work sitting behind a shut gate: grey means not done, gated means not STARTABLE.
+ * A bar's tone — ADR-0314 D2's model, plus `gated` (ADR-0523 / inc-05) and ADR-0564's three
+ * terminal readings.
+ *
+ * Two FAMILIES, and the split is what the reader is actually asking:
+ *   - **TERMINAL** — `landed` (green: something landed), `failed` (red: the orchestrator recorded a
+ *     failure), `withdrawn` (stopped rather than lost — a duplicate, a superseded plan), and
+ *     `unrecorded` (closed, with no recorded call and no PR to derive one from).
+ *   - **NOT YET** — `queued` (grey: not done), `gated` (not STARTABLE — ADR-0523's one extra tone).
+ *
+ * ⚠ `unrecorded` IS THE ONE THAT LOOKS REDUNDANT AND IS NOT. Every increment closed before ADR-0564
+ * existed is in it: 71 of the 77 on the arc that exposed this. It cannot be `landed` (D2: never
+ * green merely because it closed), it cannot be `failed` (D3 requires "the orchestrator's recorded
+ * call", and ADR-0564's context names two such rows that landed a decision and would be libelled),
+ * and it cannot be `queued` — the work is OVER. Folding it into any neighbour re-introduces one of
+ * the two errors this decision exists to separate.
+ *
+ * ⚠ `withdrawn` IS NOT A SHADE OF `failed` (D3, in terms): it "must not be reported as one". They
+ * are separate values so that collapsing them costs a deliberate edit and reds a test.
  */
-export type LaneBarTone = 'landed' | 'queued' | 'gated';
+export type LaneBarTone = 'landed' | 'failed' | 'withdrawn' | 'unrecorded' | 'queued' | 'gated';
 
 /** One bar of one lane: an increment, drawn as a unit rather than as a point in time. */
 export interface LaneBar {
@@ -74,19 +123,33 @@ export interface LaneBar {
  * at the head of the grey/gated run, and that is the entry a reader most needs to see.
  *
  * `gated` names whether THIS ARC (not any one increment) currently has a shut gate — pass
- * {@link isGated}'s reading of the same rollup. A landed increment is never re-painted `gated`: work
- * that already happened is not waiting on anything, whatever the arc's own gate says today.
+ * {@link isGated}'s reading of the same rollup. A TERMINAL increment is never re-painted `gated`:
+ * work that already happened is not waiting on anything, whatever the arc's own gate says today —
+ * and that is true of a failure as much as of a landing.
+ *
+ * ⚠ THE TONE COMES FROM `disposition`, NEVER FROM `status` (ADR-0564 D2). `status === 'closed'`
+ * answers "is this over?"; it was being read as "did this work?", and on the arc that exposed it the
+ * two answers differed on 71 of 77 rows. The split below is still HISTORY vs FUTURE — so every
+ * terminal reading, failures included, stays in the first run: a reader who saw a failure among the
+ * queued bars would take finished work for work still to come.
  */
 export function laneBars(rollup: ArcRollupSummary, gated = false): LaneBar[] {
   const bar = (inc: ArcRollupSummaryIncrement): LaneBar => ({
     id: inc.id,
     title: inc.title,
     status: inc.status,
-    tone: inc.status === LANDED_STATUS ? 'landed' : gated ? 'gated' : 'queued',
+    tone:
+      inc.status === CLOSED_STATUS
+        ? // An absent `disposition` on a closed row is the server saying NOBODY RECORDED ONE and no
+          // PR derived one — not that it failed. See `LaneBarTone` for why that needs its own value.
+          (inc.disposition ?? 'unrecorded')
+        : gated
+          ? 'gated'
+          : 'queued',
   });
-  const landed = rollup.increments.filter((i) => i.status === LANDED_STATUS).map(bar);
-  const queued = rollup.increments.filter((i) => i.status !== LANDED_STATUS).map(bar);
-  return [...landed, ...queued];
+  const terminal = rollup.increments.filter((i) => i.status === CLOSED_STATUS).map(bar);
+  const open = rollup.increments.filter((i) => i.status !== CLOSED_STATUS).map(bar);
+  return [...terminal, ...open];
 }
 
 /**
@@ -100,17 +163,49 @@ export function laneBars(rollup: ArcRollupSummary, gated = false): LaneBar[] {
  */
 export interface LaneCounts {
   landed: number;
+  /** Closed on a RECORDED failure (ADR-0564 D3). */
+  failed: number;
+  /** Closed as WITHDRAWN — stopped, not lost. Counted apart from `failed`, which D3 requires. */
+  withdrawn: number;
+  /** Closed with no recorded call and no PR to derive one from — every pre-ADR-0564 non-merge row. */
+  unrecorded: number;
+  /** Not yet terminal — `proposal` / `ready` / `active`, and any unrecognised status. */
   queued: number;
 }
 
+/**
+ * ⚠ SPLIT BY TONE, NOT BY `status` (ADR-0564). This counted `status === 'closed'` as LANDED, so the
+ * headline number beside the strip repeated the bars' lie in words — "77 landed" where 6 had landed.
+ * The four terminal buckets are separate for the same reason the tones are: folding any of them into
+ * `landed` restores the false green, and folding `unrecorded` into `queued` makes finished work read
+ * as outstanding.
+ */
 export function laneCounts(rollup: ArcRollupSummary): LaneCounts {
-  let landed = 0;
-  let queued = 0;
+  const counts: LaneCounts = { landed: 0, failed: 0, withdrawn: 0, unrecorded: 0, queued: 0 };
   for (const inc of rollup.increments) {
-    if (inc.status === LANDED_STATUS) landed += 1;
-    else queued += 1;
+    if (inc.status !== CLOSED_STATUS) counts.queued += 1;
+    else counts[inc.disposition ?? 'unrecorded'] += 1;
   }
-  return { landed, queued };
+  return counts;
+}
+
+/** The order the label reads in: history first, then what is still to come. */
+const COUNT_ORDER: readonly (keyof LaneCounts)[] = ['landed', 'failed', 'withdrawn', 'unrecorded', 'queued'];
+
+/**
+ * {@link LaneCounts} as the one line the row prints and the aria-label speaks.
+ *
+ * ZERO BUCKETS ARE OMITTED, which is what keeps the widened split from costing the density ADR-0314
+ * D2 bought: the overwhelmingly common arc reads exactly as it did before — `3 landed · 2 queued` —
+ * and the extra words appear only on an arc that actually has failures to report. An arc with
+ * nothing in it at all says `0 landed` rather than nothing, so an empty lane is never a blank.
+ *
+ * STILL A COUNT AND NEVER A RATIO. The ADR-0314 D2 denominator fence is untouched by the split: more
+ * buckets is more honesty about what the known units WERE, not a claim about how many there are.
+ */
+export function laneCountsLabel(counts: LaneCounts): string {
+  const parts = COUNT_ORDER.filter((key) => counts[key] > 0).map((key) => `${counts[key]} ${key}`);
+  return parts.length === 0 ? '0 landed' : parts.join(' · ');
 }
 
 // ---------- D4: the states, and the one this surface refuses to invent ----------
@@ -357,7 +452,10 @@ export function lastActivityAt(rollup: ArcRollupSummary): number | null {
     if (latest === null || at > latest) latest = at;
   };
   for (const inc of rollup.increments) {
-    consider(inc.landedOn);
+    // EVERY close counts as activity, landing or not (ADR-0564 D5 renamed the field it reads, and
+    // changed nothing here): a failure is a session's work too, and an arc that spent a week failing
+    // is not a quiet arc.
+    consider(inc.closedOn);
     consider(inc.parked);
   }
   return latest;
@@ -870,7 +968,10 @@ export interface ArcBriefing {
  * alone, and one with no PR prints the date alone, rather than rendering an empty separator.
  */
 export function landedSummary(rollup: ArcRollup): string {
-  const landed = rollup.increments.filter((i) => i.status === LANDED_STATUS);
+  // LANDINGS, not closures (ADR-0564 D2). Filtering on `status === 'closed'` made this line say
+  // "77 landed" about an arc that had landed 6 — the same lie as the bars, in words, in the one
+  // place a reader goes for the number.
+  const landed = rollup.increments.filter(hasLanded);
   if (landed.length === 0) return 'Nothing has landed yet';
 
   let newest: ArcRollupIncrement | null = null;
@@ -917,16 +1018,22 @@ export function briefingLead(text: string): string {
 }
 
 export function arcBriefing(rollup: ArcRollup): ArcBriefing {
-  const landed = rollup.increments.filter((i) => i.status === LANDED_STATUS).slice().reverse();
+  // "Where is it up to" is a HISTORY question, so every terminal increment belongs here — a failure
+  // is part of where an arc got to, and dropping it would hide the very rows ADR-0564 exists to
+  // surface. The panel renders each one's own reading (`dispositionOf`); what this must NOT do is
+  // keep calling the whole run `landed` without saying which of them landed.
+  // No defensive `.slice()` before the reverse: `filter` already returns a fresh array, so copying
+  // it again protects nothing and no test can tell the difference.
+  const closed = rollup.increments.filter((i) => i.status === CLOSED_STATUS).reverse();
   return {
     arc: rollup,
     waiting: rollup.questions.filter((q) => q.lifecycle === 'open'),
     settled: rollup.questions.filter((q) => q.lifecycle === 'settled'),
     proposals: rollup.increments.filter((i) => i.status === PROPOSAL_STATUS),
     next: rollup.increments.filter(
-      (i) => i.status !== LANDED_STATUS && i.status !== PROPOSAL_STATUS,
+      (i) => i.status !== CLOSED_STATUS && i.status !== PROPOSAL_STATUS,
     ),
-    landed,
+    landed: closed,
   };
 }
 

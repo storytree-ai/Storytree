@@ -25,7 +25,10 @@ import {
   findLane,
   isGated,
   laneBars,
+  dispositionOf,
+  hasLanded,
   laneCounts,
+  laneCountsLabel,
   landedSummary,
   lastActivityAt,
   parseOptionCards,
@@ -88,8 +91,49 @@ function increment(over: Partial<ArcRollupIncrement> & { id: string }): ArcRollu
   return { title: `title of ${over.id}`, objective: '', status: 'proposal', ...over };
 }
 
-function landed(id: string, date: string, pr?: string): ArcRollupIncrement {
-  return increment({ id, status: 'closed', outcome: pr === undefined ? { date } : { date, pr } });
+/**
+ * An increment that GENUINELY LANDED — closed AND carrying the merge that landed it.
+ *
+ * ⚠ The `pr` used to be optional here and most call sites omitted it, so a helper named `landed`
+ * minted rows that had landed NOTHING and the suite still called them landed. That is the defect in
+ * miniature (ADR-0564's context: 77 closed, 6 with a PR, 77 green bars), so the ref is mandatory in
+ * spirit and defaulted in fact. For a close that is NOT a landing use {@link closedUnrecorded},
+ * {@link failedInc} or {@link withdrawnInc}.
+ */
+function landed(id: string, date: string, pr = `#pr-${id}`): ArcRollupIncrement {
+  return increment({ id, status: 'closed', outcome: { date, pr } });
+}
+
+/** A landing with no merge behind it — a decision, an arc edit, knowledge artifacts (ADR-0564 D2). */
+function landedWithoutPr(id: string, date: string): ArcRollupIncrement {
+  return increment({
+    id,
+    status: 'closed',
+    outcome: { date, note: 'landed a decision', disposition: 'landed' },
+  });
+}
+
+/** Closed, with NO recorded call and no PR to derive one from — every pre-ADR-0564 non-merge row. */
+function closedUnrecorded(id: string, date: string): ArcRollupIncrement {
+  return increment({ id, status: 'closed', outcome: { date, note: 'closed without a landing' } });
+}
+
+/** Closed on a RECORDED failure (ADR-0564 D3) — the reading that was unreachable before. */
+function failedInc(id: string, date: string): ArcRollupIncrement {
+  return increment({
+    id,
+    status: 'closed',
+    outcome: { date, note: 'the approach did not work', disposition: 'failed' },
+  });
+}
+
+/** Closed as WITHDRAWN (ADR-0564 D3) — stopped, never lost, and never reportable as `failed`. */
+function withdrawnInc(id: string, date: string): ArcRollupIncrement {
+  return increment({
+    id,
+    status: 'closed',
+    outcome: { date, note: 'duplicated by a sibling', disposition: 'withdrawn' },
+  });
 }
 
 function parked(id: string, at: string, status = 'proposal'): ArcRollupIncrement {
@@ -159,7 +203,16 @@ function lane(
       };
       if (inc.parked !== undefined) row.parked = inc.parked;
       if (inc.cites !== undefined) row.cites = inc.cites;
-      if (typeof inc.outcome?.date === 'string') row.landedOn = inc.outcome.date;
+      if (typeof inc.outcome?.date === 'string') row.closedOn = inc.outcome.date;
+      // Mirrors `incrementDisposition` in `packages/arc/src/arc-rollup.ts`, which is where the rule
+      // LIVES: this surface never re-derives it, because `pr` does not ride this wire (ADR-0564 D4).
+      // Kept a literal transcription rather than an import — the point of a wire fixture is to state
+      // what the server sends, and sharing the function would hide a divergence instead of showing
+      // it. `packages/arc`'s own suite is what fences the rule.
+      if (inc.status === 'closed') {
+        const d = inc.outcome?.disposition ?? (inc.outcome?.pr ? 'landed' : undefined);
+        if (d !== undefined) row.disposition = d;
+      }
       return row;
     }),
   };
@@ -231,13 +284,136 @@ describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)'
   });
 });
 
+describe('dispositionOf — the briefing panel’s own reading of a close (ADR-0564 D1)', () => {
+  // Tested DIRECTLY rather than only through its callers: it is a transcription of
+  // `incrementDisposition` in `packages/arc`, and a transcription that drifts is exactly the failure
+  // the mirror discipline exists to catch. Every branch is named here so a drift reds on the branch
+  // that caused it.
+  it('prefers the RECORDED call over the PR derivation, both directions', () => {
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', pr: '#1', disposition: 'failed' } }))).toBe('failed');
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', note: 'n', disposition: 'landed' } }))).toBe('landed');
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', note: 'n', disposition: 'withdrawn' } }))).toBe('withdrawn');
+  });
+
+  it('derives `landed` from a PR, and refuses to derive it from an EMPTY one', () => {
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', pr: '#1400' } }))).toBe('landed');
+    // `''` is not a PR. An empty string deriving `landed` would be the false green in miniature.
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', pr: '' } }))).toBeUndefined();
+  });
+
+  it('answers UNDEFINED for a close with nothing recorded, and for a missing outcome entirely', () => {
+    expect(dispositionOf(increment({ id: 'a', status: 'closed', outcome: { date: 'd', note: 'n' } }))).toBeUndefined();
+    expect(dispositionOf(increment({ id: 'a', status: 'closed' }))).toBeUndefined();
+  });
+
+  it('answers UNDEFINED for every OPEN status, however the row is furnished', () => {
+    // The status guard is load-bearing: without it a `ready` row carrying a stale outcome would
+    // report a terminal reading, and the lane would draw finished work that has not started.
+    for (const status of ['proposal', 'ready', 'active', '?']) {
+      expect(dispositionOf(increment({ id: 'a', status, outcome: { date: 'd', pr: '#1' } }))).toBeUndefined();
+      expect(dispositionOf(increment({ id: 'a', status, outcome: { date: 'd', disposition: 'landed' } }))).toBeUndefined();
+    }
+  });
+
+  it('`hasLanded` is true for a landing ALONE — not for any other terminal reading', () => {
+    expect(hasLanded(landed('a', '2026-08-01'))).toBe(true);
+    expect(hasLanded(landedWithoutPr('a', '2026-08-01'))).toBe(true);
+    expect(hasLanded(failedInc('a', '2026-08-01'))).toBe(false);
+    expect(hasLanded(withdrawnInc('a', '2026-08-01'))).toBe(false);
+    expect(hasLanded(closedUnrecorded('a', '2026-08-01'))).toBe(false);
+    expect(hasLanded(parked('a', '2026-08-01'))).toBe(false);
+  });
+});
+
+describe('laneBars — green requires a LANDING, and red is terminal (ADR-0564 D2/D3)', () => {
+  it('does NOT paint a closed increment green just because it closed — the measured defect', () => {
+    // THE BUG, as data. ADR-0564 measured `rendering-engine-structure-arc` at 77 closed increments,
+    // 6 of which carried a PR, and this surface painted 77 green bars: the owner read a failing
+    // 31.5-hour run as steady delivery, because that was the only inference the instrument allowed.
+    const rollup = lane({
+      id: 'a',
+      increments: [
+        ...Array.from({ length: 6 }, (_, i) => landed(`m${i}`, '2026-08-01', `#${1400 + i}`)),
+        ...Array.from({ length: 71 }, (_, i) => closedUnrecorded(`u${i}`, '2026-08-01')),
+      ],
+    });
+    const bars = laneBars(rollup);
+    expect(bars).toHaveLength(77);
+    expect(bars.filter((b) => b.tone === 'landed')).toHaveLength(6);
+    // ...and the other 71 are NOT green. That is D2 exactly: "never green merely because the
+    // increment closed".
+    expect(bars.filter((b) => b.tone === 'landed').map((b) => b.id)).not.toContain('u0');
+  });
+
+  it('reads a closed increment with no recorded call and no PR as UNRECORDED — not as failed', () => {
+    // The other half, and the one a red-by-default rule gets wrong. ADR-0564's context carries the
+    // owner's own correction — "Landings are not only merges" — and names two increments on the
+    // measured arc whose output was a decision and which "a PR-derived rule would paint red". D3
+    // gives red its precondition in the same breath: work reads red "on the orchestrator's RECORDED
+    // call". So silence answers "nobody said", never "it failed".
+    const rollup = lane({ id: 'a', increments: [closedUnrecorded('c1', '2026-08-01')] });
+    const [bar] = laneBars(rollup);
+    expect(bar?.tone).toBe('unrecorded');
+    expect(bar?.tone).not.toBe('failed');
+    expect(bar?.tone).not.toBe('landed');
+    // It is TERMINAL, so it is not queued either — the work is over, it just did not report.
+    expect(bar?.tone).not.toBe('queued');
+  });
+
+  it('paints a RECORDED failure red', () => {
+    const rollup = lane({ id: 'a', increments: [failedInc('f1', '2026-08-01')] });
+    expect(laneBars(rollup).map((b) => b.tone)).toEqual(['failed']);
+  });
+
+  it('keeps WITHDRAWN distinct from FAILED — D3 forbids reporting one as the other', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: [failedInc('f1', '2026-08-01'), withdrawnInc('w1', '2026-08-02')],
+    });
+    const tones = laneBars(rollup).map((b) => b.tone);
+    expect(tones).toEqual(['failed', 'withdrawn']);
+    // Asserted as an inequality too, so a future refactor that collapses the pair into one value
+    // reds HERE rather than quietly reporting abandoned work as work that was tried and lost.
+    expect(tones[0]).not.toBe(tones[1]);
+  });
+
+  it('honours a landing that carries NO PR — a decision or knowledge artifacts still land', () => {
+    const rollup = lane({ id: 'a', increments: [landedWithoutPr('d1', '2026-08-01')] });
+    expect(laneBars(rollup).map((b) => b.tone)).toEqual(['landed']);
+  });
+
+  it('keeps the landed run first, with every terminal reading in it (ADR-0305 D7)', () => {
+    // The split is HISTORY vs FUTURE, not green vs everything: a failure is something that happened
+    // and belongs with the history, or a reader takes finished work for work still to come.
+    const rollup = lane({
+      id: 'a',
+      increments: [
+        parked('p1', '2026-09-01'),
+        landed('c1', '2026-07-01'),
+        failedInc('f1', '2026-07-02'),
+        withdrawnInc('w1', '2026-07-03'),
+        closedUnrecorded('u1', '2026-07-04'),
+      ],
+    });
+    expect(laneBars(rollup).map((b) => b.id)).toEqual(['c1', 'f1', 'w1', 'u1', 'p1']);
+  });
+
+  it('never re-paints a TERMINAL bar `gated` — finished work is not waiting on a gate', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: [failedInc('f1', '2026-08-01'), closedUnrecorded('u1', '2026-08-02'), parked('p1', '2026-09-01')],
+    });
+    expect(laneBars(rollup, true).map((b) => b.tone)).toEqual(['failed', 'unrecorded', 'gated']);
+  });
+});
+
 describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
   it('reports landed and queued as counts', () => {
     const rollup = lane({
       id: 'a',
       increments: [landed('c1', '2026-07-01'), landed('c2', '2026-07-02'), parked('p1', '2026-08-01')],
     });
-    expect(laneCounts(rollup)).toEqual({ landed: 2, queued: 1 });
+    expect(laneCounts(rollup)).toEqual({ landed: 2, failed: 0, withdrawn: 0, unrecorded: 0, queued: 1 });
   });
 
   it('exposes NO percentage / ratio / denominator field — an arc has none', () => {
@@ -248,10 +424,81 @@ describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
       increments: [landed('c1', '2026-07-01'), landed('c2', '2026-07-02'), parked('p1', '2026-08-01')],
     });
     const counts = laneCounts(rollup);
-    expect(Object.keys(counts).sort()).toEqual(['landed', 'queued']);
+    expect(Object.keys(counts).sort()).toEqual(['failed', 'landed', 'queued', 'unrecorded', 'withdrawn']);
     for (const value of Object.values(counts)) {
       expect(Number.isInteger(value)).toBe(true);
     }
+  });
+
+  it('counts each terminal reading in its OWN bucket — a failure is not a landing (ADR-0564)', () => {
+    // `laneCounts` split on `status === 'closed'`, so every closed row — failed, withdrawn or
+    // silent — was counted as LANDED. The count was the headline number beside the strip, so it
+    // repeated the bars' lie in words.
+    const rollup = lane({
+      id: 'a',
+      increments: [
+        landed('c1', '2026-07-01'),
+        landedWithoutPr('d1', '2026-07-02'),
+        failedInc('f1', '2026-07-03'),
+        withdrawnInc('w1', '2026-07-04'),
+        closedUnrecorded('u1', '2026-07-05'),
+        parked('p1', '2026-08-01'),
+      ],
+    });
+    expect(laneCounts(rollup)).toEqual({
+      landed: 2,
+      failed: 1,
+      withdrawn: 1,
+      unrecorded: 1,
+      queued: 1,
+    });
+  });
+
+  it('labels only the buckets that have something in them — the density ADR-0314 D2 bought', () => {
+    // The split widened from two buckets to five, and the ordinary arc must not pay for it. A lane
+    // with no failures reads EXACTLY as it did before ADR-0564; the extra words appear only where
+    // there is something to report.
+    const ordinary = lane({
+      id: 'a',
+      increments: [landed('c1', '2026-07-01'), landed('c2', '2026-07-02'), parked('p1', '2026-08-01')],
+    });
+    expect(laneCountsLabel(laneCounts(ordinary))).toBe('2 landed · 1 queued');
+
+    const mixed = lane({
+      id: 'b',
+      increments: [landed('c1', '2026-07-01'), failedInc('f1', '2026-07-02'), closedUnrecorded('u1', '2026-07-03')],
+    });
+    expect(laneCountsLabel(laneCounts(mixed))).toBe('1 landed · 1 failed · 1 unrecorded');
+
+    // EVERY bucket appears, in this order — history first, then what is still to come. Asserted
+    // whole so that dropping one from the order (or renaming it) reds here rather than silently
+    // omitting a population from the only number beside the strip.
+    const everything = lane({
+      id: 'd',
+      increments: [
+        landed('c1', '2026-07-01'),
+        failedInc('f1', '2026-07-02'),
+        withdrawnInc('w1', '2026-07-03'),
+        closedUnrecorded('u1', '2026-07-04'),
+        parked('p1', '2026-08-01'),
+      ],
+    });
+    expect(laneCountsLabel(laneCounts(everything))).toBe(
+      '1 landed · 1 failed · 1 withdrawn · 1 unrecorded · 1 queued',
+    );
+
+    // An arc with no increments says `0 landed` rather than rendering an empty label.
+    expect(laneCountsLabel(laneCounts(lane({ id: 'c', increments: [] })))).toBe('0 landed');
+
+    // Still no denominator — the ADR-0314 D2 fence survives the widening intact.
+    expect(laneCountsLabel(laneCounts(mixed))).not.toMatch(/%|\bof \d|\d\s*\/\s*\d/);
+  });
+
+  it('puts an unrecorded close in its own bucket, never silently into `queued`', () => {
+    // Folding it into `queued` would be the mirror error: work that is OVER would read as work
+    // still to come, and the arc would look busier than it is.
+    const rollup = lane({ id: 'a', increments: [closedUnrecorded('u1', '2026-07-01')] });
+    expect(laneCounts(rollup)).toEqual({ landed: 0, failed: 0, withdrawn: 0, unrecorded: 1, queued: 0 });
   });
 });
 
@@ -455,7 +702,7 @@ describe('arcState — waiting / blocked / claimed / quiet (ADR-0314 D4, ADR-037
       increments: [parked('p1', '2026-08-04T00:00:00Z'), parked('p2', '2026-08-05T00:00:00Z')],
     });
     expect(arcState(rollup, NOW)).toBe('parked');
-    expect(laneCounts(rollup)).toEqual({ landed: 0, queued: 2 });
+    expect(laneCounts(rollup)).toEqual({ landed: 0, failed: 0, withdrawn: 0, unrecorded: 0, queued: 2 });
   });
 });
 
@@ -688,7 +935,7 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
   it('carries each lane its bars, counts and state', () => {
     const lanes = arcLanes([lane({ id: 'a', increments: [landed('c', '2026-08-05'), parked('p', '2026-08-01')] })], NOW);
     expect(lanes[0]?.bars.map((b) => b.tone)).toEqual(['landed', 'queued']);
-    expect(lanes[0]?.counts).toEqual({ landed: 1, queued: 1 });
+    expect(lanes[0]?.counts).toEqual({ landed: 1, failed: 0, withdrawn: 0, unrecorded: 0, queued: 1 });
     expect(lanes[0]?.state).toBe('quiet');
   });
 
@@ -1115,7 +1362,13 @@ describe('queueRun — the row’s chip run, and what its connector is allowed t
       ],
       NOW,
     );
-    expect(queueRun(lanes[0]!).chips[0]?.counts).toEqual({ landed: 1, queued: 1 });
+    expect(queueRun(lanes[0]!).chips[0]?.counts).toEqual({
+      landed: 1,
+      failed: 0,
+      withdrawn: 0,
+      unrecorded: 0,
+      queued: 1,
+    });
   });
 
   it('falls back to the id when an arc carries no title at all', () => {
@@ -1352,12 +1605,39 @@ describe('landedSummary — the log collapses to one line (ADR-0359 D1)', () => 
   });
 
   it('omits what it does not know rather than inventing it', () => {
-    expect(landedSummary(arc({ id: 'a', increments: [landed('c1', '2026-07-01')] }))).toBe(
+    // A landing with no PR (a decision, an arc edit, knowledge artifacts) prints the date alone.
+    expect(landedSummary(arc({ id: 'a', increments: [landedWithoutPr('c1', '2026-07-01')] }))).toBe(
       '1 landed · last 2026-07-01',
     );
+    // ...and a landing with no DATE prints the count alone.
     expect(
-      landedSummary(arc({ id: 'a', increments: [increment({ id: 'c1', status: 'closed' })] })),
+      landedSummary(
+        arc({ id: 'a', increments: [increment({ id: 'c1', status: 'closed', outcome: { pr: '#9' } })] }),
+      ),
     ).toBe('1 landed');
+  });
+
+  it('counts LANDINGS, not closures (ADR-0564 D2) — the line said "77 landed" on 6', () => {
+    const rollup = arc({
+      id: 'a',
+      increments: [
+        landed('c1', '2026-07-01', '#900'),
+        failedInc('f1', '2026-07-02'),
+        withdrawnInc('w1', '2026-07-03'),
+        closedUnrecorded('u1', '2026-07-04'),
+      ],
+    });
+    // The most recent LANDING, not the most recent close: `u1` is newer and landed nothing, so
+    // reporting its date would date the arc's delivery by an event that delivered nothing.
+    expect(landedSummary(rollup)).toBe('1 landed · last 2026-07-01 #900');
+  });
+
+  it('says nothing has landed when every closure was a failure — not "3 landed"', () => {
+    const rollup = arc({
+      id: 'a',
+      increments: [failedInc('f1', '2026-07-01'), withdrawnInc('w1', '2026-07-02'), closedUnrecorded('u1', '2026-07-03')],
+    });
+    expect(landedSummary(rollup)).toBe('Nothing has landed yet');
   });
 
   it('says nothing has landed rather than "0 landed"', () => {

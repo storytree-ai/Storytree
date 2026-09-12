@@ -187,7 +187,13 @@ function arc(
       };
       if (inc.parked !== undefined) row.parked = inc.parked;
       if (inc.cites !== undefined) row.cites = inc.cites;
-      if (typeof inc.outcome?.date === 'string') row.landedOn = inc.outcome.date;
+      if (typeof inc.outcome?.date === 'string') row.closedOn = inc.outcome.date;
+      // ADR-0564 D4 — the server resolves the reading and ships it; this surface never derives
+      // it from `status`, because `outcome` (and with it `pr`) does not ride this wire.
+      if (inc.status === 'closed') {
+        const d = inc.outcome?.disposition ?? (inc.outcome?.pr ? 'landed' : undefined);
+        if (d !== undefined) row.disposition = d;
+      }
       return row;
     }),
   };
@@ -981,7 +987,9 @@ describe('ArcSurface — the queue behind an arc lives behind a caret (2026-09-0
     await settle();
     await expandQueue('blocker');
     expect(screen.getByTestId('arc-queue-chip:part-done-arc').getAttribute('title')).toContain(
-      '1 landed, 1 queued',
+      // ADR-0564: the chip prints the same `laneCountsLabel` the lane row does, so the two can
+      // never disagree about what an arc's units came to — separator included.
+      '1 landed · 1 queued',
     );
   });
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { STORY_REF_PREFIX } from "@storytree/library";
+import { STORY_REF_PREFIX, type IncrementDisposition } from "@storytree/library";
 
 // Use the narrow subpaths instead of the `@storytree/drive` barrel: this module needs only ADR metadata
 // and claim-universe helpers, not the drive package's build/orchestrate runtime.
@@ -74,8 +74,8 @@ export interface ArcRollupIncrement {
    * ref naming a story that exists only on another branch is legal and this is how it says so.
    */
   danglingCites?: string[];
-  /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5). */
-  outcome?: { date?: string; pr?: string; note?: string };
+  /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5 / ADR-0564 D1). */
+  outcome?: { date?: string; pr?: string; note?: string; disposition?: IncrementDisposition };
 }
 
 /**
@@ -257,8 +257,19 @@ export interface ArcRollupSummaryIncrement {
   id: string;
   /** The lane bar's tooltip, and the increment's name in the briefing lists. */
   title: string;
-  /** `proposal` | `ready` | `active` | `closed`; `"?"` when a doc omits it — the bar's tone. */
+  /** `proposal` | `ready` | `active` | `closed`; `"?"` when a doc omits it. */
   status: string;
+  /**
+   * WHAT THE CLOSE MEANT (ADR-0564 D4) — the bar's tone, and the field `status` was doing this job
+   * badly for. Absent on an open increment, and absent on a close nobody recorded and no PR
+   * derives.
+   *
+   * RESOLVED HERE rather than shipped raw, and that is forced rather than chosen: this projection
+   * drops the whole `outcome`, so `pr` never reaches a lane and a downstream reader COULD NOT run
+   * {@link incrementDisposition} for itself. The byte-saving intent of ADR-0314's drop is kept —
+   * this is one short enum, not the object.
+   */
+  disposition?: IncrementDisposition;
   /** When it was parked — half of the lane's most-recent-activity sort. */
   parked?: string;
   /**
@@ -267,11 +278,61 @@ export interface ArcRollupSummaryIncrement {
    */
   cites?: string[];
   /**
-   * `outcome.date` ALONE — the other half of the activity sort, and what dates a landed bar.
+   * `outcome.date` ALONE — the other half of the activity sort, and what dates a closed bar.
    * The `pr` and the `note` prose stay on the per-id route; `outcome` alone is 39% of the bytes
    * the full list used to ship.
+   *
+   * ⚠ NAMED `landedOn` UNTIL ADR-0564 D5, AND THE RENAME IS THE DECISION. It holds the CLOSE date
+   * and always did — it is written on every close, landing or not — so the old name asserted a
+   * landing on every closed row in the store: 1,403 of them, 313 recording no landing at all
+   * (measured against the live store on the landing that implemented this; ADR-0564's Context
+   * carried a 77/6 count that does not reproduce and was corrected in place at the same time).
+   * D5 corrects the name rather than documenting it; {@link ArcRollupSummaryIncrement.disposition}
+   * beside it is what now says whether a close was a landing.
    */
-  landedOn?: string;
+  closedOn?: string;
+}
+
+/**
+ * WHAT A CLOSE MEANT, DERIVED (ADR-0564 D1) — the ONE reading of a terminal increment, and the only
+ * place the rule lives.
+ *
+ * Three answers, in this precedence:
+ *   1. **A RECORDED call wins.** D1 makes the disposition something the orchestrator RECORDS at
+ *      close, "not inferred" — so a recorded value beats a derivation that would disagree with it.
+ *   2. **A PR derives `landed`.** D1's stated default. This is what keeps the change additive: every
+ *      historical row that merged something still reads exactly as it read before, with nothing
+ *      backfilled onto it.
+ *   3. **Otherwise UNRECORDED** — `undefined`, which is neither green nor red.
+ *
+ * ⚠ THE THIRD ANSWER IS NOT `failed`, AND ADR-0564'S OWN CONTEXT IS WHY. Its Consequences sketch the
+ * measured arc as "6 green and 71 red", but its Context refutes a red-by-default rule in the owner's
+ * own correction: *"Landings are not only merges: an increment whose output was a decision, an arc
+ * edit or knowledge artifacts landed something real and carries no PR"*, and it NAMES two increments
+ * on that very arc that *"a PR-derived rule would paint red"*. D3 then gives red a precondition in
+ * its own words — work reads red *"on the orchestrator's recorded call"*. Defaulting a silent close
+ * to `failed` would assert a call nobody made, about rows the ADR says would be wrong. So the
+ * absence answers **"nobody said"**, and D2 is satisfied the way D2 actually states it: the bar
+ * stops being GREEN, which is the lie that was being fixed.
+ *
+ * Pure, total and side-effect-free over what is already stored, so re-reading a row can never change
+ * its reading.
+ */
+export function incrementDisposition(
+  status: string,
+  // The WHOLE outcome, not the two fields this happens to read today. A caller holds a row, not a
+  // projection of one, and narrowing the parameter would make every call site restate which fields
+  // the rule consults — which is exactly the knowledge that has to stay in here.
+  outcome: ArcRollupIncrement["outcome"],
+): IncrementDisposition | undefined {
+  // A reading of a TERMINAL state is not a reading of work still in flight — whatever the row
+  // happens to carry, an open increment has no disposition.
+  if (status !== "closed") return undefined;
+  if (outcome?.disposition !== undefined) return outcome.disposition;
+  // `""` is not a PR. The schema forbids an empty one, but this is a pure function other callers
+  // hand untyped rows, and an empty string deriving `landed` would be exactly the false green.
+  if (outcome?.pr !== undefined && outcome.pr !== "") return "landed";
+  return undefined;
 }
 
 /**
@@ -387,7 +448,12 @@ export function summariseArcRollup(rollup: ArcRollup): ArcRollupSummary {
       // Written only when a date is actually there: `outcome.date` is optional even on a closed
       // increment, and under `exactOptionalPropertyTypes` an explicit `undefined` is not the same
       // as an absent key.
-      if (typeof inc.outcome?.date === "string") row.landedOn = inc.outcome.date;
+      if (typeof inc.outcome?.date === "string") row.closedOn = inc.outcome.date;
+      // ADR-0564 D4 — resolved here because `outcome` does not ride this wire (see the field's own
+      // doc). Absent when the close recorded nothing and no PR derives one: an absent key is the
+      // honest "nobody said", and is deliberately not spelled as a value.
+      const disposition = incrementDisposition(inc.status, inc.outcome);
+      if (disposition !== undefined) row.disposition = disposition;
       return row;
     }),
   };

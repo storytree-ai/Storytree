@@ -246,8 +246,14 @@ describe('/api/arcs', () => {
         title: 'the rollup landed',
         status: 'closed',
         // `outcome.date` alone, re-spelled so it cannot read as a truncated `outcome`: the `pr` and
-        // the outcome note stay on the per-id read.
-        landedOn: '2026-07-30',
+        // the outcome note stay on the per-id read. Named `closedOn` since ADR-0564 D5 — it holds
+        // the CLOSE date on every closed row, landing or not, so `landedOn` asserted a landing the
+        // field could not know about.
+        closedOn: '2026-07-30',
+        // ADR-0564 D4 — the RESOLVED reading, derived server-side from the `pr` above because
+        // `outcome` does not cross this wire. This is what makes the bar green, in place of the
+        // `status: 'closed'` the strip used to read as a landing.
+        disposition: 'landed',
       },
     ]);
   });

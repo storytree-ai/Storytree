@@ -1179,6 +1179,18 @@ export type FrictionReinforcement = z.infer<typeof FrictionReinforcement>;
  * wrong or duplicate increment be closed with its reason stated rather than marked realized: a false
  * landing on the very tier that exists to prevent them.
  */
+/**
+ * WHAT A CLOSE MEANT (ADR-0564 D1) — the three readings a terminal increment can carry.
+ *
+ * `landed` and `failed` are the green and the red. `withdrawn` is the third and is NOT a softer
+ * `failed` (D3): a duplicate, a superseded plan, a unit that should never have been parked — work
+ * that stopped without ever being attempted and lost. Reporting one as the other is the specific
+ * misreading D3 forbids, so they are separate values rather than one `!landed`.
+ */
+export const INCREMENT_DISPOSITIONS = ["landed", "failed", "withdrawn"] as const;
+export const IncrementDisposition = z.enum(INCREMENT_DISPOSITIONS);
+export type IncrementDisposition = z.infer<typeof IncrementDisposition>;
+
 export const IncrementOutcome = z
   .object({
     /** When it closed (ISO date). */
@@ -1187,6 +1199,22 @@ export const IncrementOutcome = z
     pr: z.string().min(1).optional(),
     /** WHY it closed — required by {@link assertIncrementInvariants} when there is no `pr`. */
     note: z.string().min(1).optional(),
+    /**
+     * WHAT THE CLOSE MEANT (ADR-0564 D1) — RECORDED by the orchestrator at close, never inferred
+     * here.
+     *
+     * OPTIONAL, AND THE OPTIONALITY IS THE MIGRATION. Every row closed before this field existed
+     * carries nothing, and nothing backfills them: the reading is derived downstream from what IS
+     * stored (`incrementDisposition` in `@storytree/arc`), so no historical row is rewritten and no
+     * historical row is required to change. ADR-0305 D2's collapse is NOT undone — `status` still
+     * has exactly the four values `proposal → ready → active → closed`, and this rides on the
+     * OUTCOME beside the `note` whose judgement it makes machine-readable.
+     *
+     * ⚠ ABSENT IS NOT `failed`. A close with no `pr` and no recorded disposition reads as
+     * UNRECORDED, not as a failure — see `incrementDisposition`'s own doc for why ADR-0564's
+     * context section makes that the only honest default.
+     */
+    disposition: IncrementDisposition.optional(),
   })
   .strict();
 export type IncrementOutcome = z.infer<typeof IncrementOutcome>;

@@ -23,6 +23,7 @@ import {
   arcIdFromTitle,
   arcIncrementAdd,
   arcNew,
+  arcHelp,
   arcIncrementClose,
   arcIncrementNew,
   arcIncrementPromote,
@@ -1587,6 +1588,120 @@ test("arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's
     "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
   );
   assert.equal((doc["outcome"] as Record<string, unknown>)["pr"], undefined);
+});
+
+test("arc increment close RECORDS what the close meant (ADR-0564 D1), and records nothing when unasked", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  const outcomeOf = async (id: string): Promise<Record<string, unknown>> =>
+    ((await store.getDoc(id))?.doc as Record<string, unknown>)["outcome"] as Record<string, unknown>;
+
+  // The orchestrator's own call, recorded on the row. `failed` and `withdrawn` are what the verb
+  // could not express before: a closure with a reason read identically to a landing downstream,
+  // because the lane projection drops the reason.
+  for (const disposition of ["landed", "failed", "withdrawn"] as const) {
+    const id = `called-${disposition}`;
+    await arcIncrementNew(deps, "map-arc", { id, title: `t ${disposition}`, ...BODY });
+    const res = await arcIncrementClose(deps, id, { note: "a reason", disposition });
+    assert.equal(res.ok, true);
+    assert.equal((await outcomeOf(id))["disposition"], disposition);
+    // The lifecycle is UNTOUCHED — ADR-0564 D1 is a field on the outcome, not a fourth terminal
+    // status. ADR-0305 D2's collapse stands.
+    assert.equal(((await store.getDoc(id))?.doc as Record<string, unknown>)["status"], "closed");
+  }
+
+  // A recorded call BEATS the PR derivation, both ways round: work can merge and still be judged a
+  // failure, and work with no merge can be a landing (a decision, an arc edit, knowledge artifacts —
+  // ADR-0564's context names exactly this shape).
+  await arcIncrementNew(deps, "map-arc", { id: "merged-but-failed", title: "t", ...BODY });
+  await arcIncrementClose(deps, "merged-but-failed", { pr: "#1500", disposition: "failed" });
+  assert.equal((await outcomeOf("merged-but-failed"))["disposition"], "failed");
+
+  await arcIncrementNew(deps, "map-arc", { id: "landed-a-decision", title: "t", ...BODY });
+  await arcIncrementClose(deps, "landed-a-decision", {
+    note: "landed ADR-0564 and the arc edit behind it",
+    disposition: "landed",
+  });
+  assert.equal((await outcomeOf("landed-a-decision"))["disposition"], "landed");
+  assert.equal((await outcomeOf("landed-a-decision"))["pr"], undefined);
+
+  // UNASKED, THE VERB RECORDS NOTHING. The field is absent rather than defaulted, which is what
+  // keeps every historical closure — and every closure by a caller that never learned the flag —
+  // reading exactly as it read before: derived downstream from the PR, never asserted here.
+  await arcIncrementNew(deps, "map-arc", { id: "plain-close", title: "t", ...BODY });
+  await arcIncrementClose(deps, "plain-close", { pr: "#1501" });
+  assert.equal(Object.hasOwn(await outcomeOf("plain-close"), "disposition"), false);
+
+  // WHITESPACE IS TRIMMED, not stored and not refused — a value pasted out of a brief or a shell
+  // heredoc arrives padded, and storing `" landed "` would make the row unreadable to every
+  // consumer of the enum while looking correct in the success line.
+  await arcIncrementNew(deps, "map-arc", { id: "padded-close", title: "t", ...BODY });
+  assert.equal((await arcIncrementClose(deps, "padded-close", { pr: "#1", disposition: "  landed  " })).ok, true);
+  assert.equal((await outcomeOf("padded-close"))["disposition"], "landed");
+
+  // An EMPTY (or whitespace-only) value is the same as not passing the flag: recorded nothing, close
+  // succeeds. A shell that expands `--disposition "$VAR"` with `VAR` unset must not be refused, and
+  // must not store `""` either — the schema's enum would reject it on the next write of the row.
+  for (const [id, value] of [
+    ["empty-close", ""],
+    ["blank-close", "   "],
+  ] as const) {
+    await arcIncrementNew(deps, "map-arc", { id, title: "t", ...BODY });
+    const res = await arcIncrementClose(deps, id, { pr: "#1", disposition: value });
+    assert.equal(res.ok, true, `"${value}" must close, not refuse`);
+    assert.equal(Object.hasOwn(await outcomeOf(id), "disposition"), false, `"${value}" must record nothing`);
+  }
+
+  // An unknown call is REFUSED, and it names the three — a typo must not land as a silent absence,
+  // because an absence reads as "nobody said" and would quietly lose the orchestrator's judgement.
+  await arcIncrementNew(deps, "map-arc", { id: "typo-close", title: "t", ...BODY });
+  const bad = await arcIncrementClose(deps, "typo-close", { pr: "#1", disposition: "succeeded" });
+  assert.equal(bad.ok, false);
+  assert.match(bad.body, /landed.*failed.*withdrawn/s);
+  // The refusal ECHOES what it got, so a caller can see which of several flags it fumbled...
+  assert.match(bad.body, /got "succeeded"/);
+  // ...cites the decision, so the vocabulary is traceable rather than folklore...
+  assert.match(bad.body, /ADR-0564 D1/);
+  // ...draws the distinction the value set exists FOR, which is the half a bare enum list loses:
+  // `withdrawn` is work that STOPPED, not a milder failure (D3).
+  assert.match(bad.body, /`withdrawn` is NOT a softer `failed`/);
+  assert.match(bad.body, /work that stopped rather than work that lost/);
+  // ...and says the flag is optional, so nobody reads the refusal as "you must classify every close".
+  assert.match(bad.body, /Omit it and the reading is derived from --pr/);
+  // ...and it arrives as five SEPARATE LINES in a terminal, not as one run-on paragraph. Asserted
+  // because the body is a `join`, and a joiner that loses its newline still satisfies every
+  // substring match above while rendering an unreadable wall — which is the one thing a refusal
+  // cannot afford, since it is read in a hurry by someone who just typed the wrong flag.
+  const lines = bad.body.split("\n");
+  assert.equal(lines.length, 5);
+  assert.ok(
+    lines.every((l) => l.trim() !== "" && l.length < 100),
+    "each line stands alone and fits a terminal",
+  );
+  assert.match(lines[0]!, /^--disposition takes/);
+  // A refusal is still a NEXT step, not a dead end.
+  assert.deepEqual(bad.next, ["storytree library artifact typo-close --pg"]);
+  assert.equal(((await store.getDoc("typo-close"))?.doc as Record<string, unknown>)["status"], "proposal");
+});
+
+test("arc help documents --disposition, so the flag is discoverable without reading ADR-0564", () => {
+  // The help text IS the surface — a recorded disposition that nobody knows to record leaves the
+  // board exactly as wrong as it was, and `--disposition` is the one flag here whose ABSENCE is
+  // silently benign, so it is the one most easily never learned.
+  const body = arcHelp().body;
+  // The flag, its three values, what it drives, and where the argument lives — all on the USAGE
+  // line, carrying no explanatory prose of its own.
+  assert.match(body, /\[--disposition landed\|failed\|withdrawn: what the BOARD paints, ADR-0564\]/);
+
+  // ⚠ THE ABSENCE IS DELIBERATE AND IT IS NOT A SHORTCUT. Five lines of ADR-0564 rationale lived
+  // here first; every one is a string literal the mutation rung must attribute, and on CI that
+  // attribution is NON-DETERMINISTIC for this function — the same commit reported different lines
+  // UNPROVEN ("killed, but the report named no test") across runs, so a test CAN kill these mutants
+  // and cannot be named as having done so. Prose here is therefore charged at a flaky gate rung and
+  // paid for in reader attention; the decision record carries the argument for free. If you are
+  // about to add an explanatory line to this help, put it in `adr-0564` instead.
+  assert.doesNotMatch(body, /a duplicate, a superseded plan/);
+  assert.doesNotMatch(body, /derives from `--pr`/);
 });
 
 test("arc increment close refuses a missing id, a SECOND closure, a wrong kind, and offline", async () => {
