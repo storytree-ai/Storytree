@@ -1690,13 +1690,17 @@ test("arc help documents --disposition, so the flag is discoverable without read
   // silently benign, so it is the one most easily never learned.
   const body = arcHelp().body;
   assert.match(body, /\[--disposition landed\|failed\|withdrawn\]/);
-  assert.match(body, /records what the close MEANT/);
-  assert.match(body, /green for `landed`, red for `failed`/);
-  // The two traps a reader would otherwise have to hit: withdrawn is not a failure...
-  assert.match(body, /NOT a softer `failed`/);
-  // ...and a landing need not be a merge, which is the case a PR-derived habit gets wrong.
-  assert.match(body, /record `landed` when the landing was a DECISION/);
-  assert.match(body, /a real landing that carries no PR/);
+  assert.match(body, /what the BOARD paints/);
+  // The two traps a reader would otherwise have to hit, and they are the whole reason the flag is
+  // documented here rather than left to the ADR: a landing need not be a merge (the case a
+  // PR-derived habit gets wrong), and `withdrawn` is not a gentler way to say `failed`.
+  assert.match(body, /derives from `--pr`/);
+  assert.match(body, /`landed` for a PR-less real landing/);
+  assert.match(body, /`withdrawn` is not a softer `failed`/);
+  // The RATIONALE deliberately does NOT live here — five lines of it did, and every prose line in
+  // this help is another string-literal mutant the rung must attribute. Two lines carry what costs
+  // a caller something; the argument behind them is one `library artifact adr-0564` away.
+  assert.doesNotMatch(body, /a duplicate, a superseded plan/);
 });
 
 test("arc increment close refuses a missing id, a SECOND closure, a wrong kind, and offline", async () => {
