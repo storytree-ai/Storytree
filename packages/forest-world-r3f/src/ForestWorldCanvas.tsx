@@ -1,5 +1,5 @@
 // ForestWorldCanvas.tsx — the thin R3F shell over the pure descriptor mapping
-// (the forest-rendering-engine capability's visible half). Browser-only by design: this
+// (the r3f-world-spike capability's visible half). Browser-only by design: this
 // file imports React / three / @react-three/fiber / @react-three/drei and is
 // exported via the `./canvas` subpath, NEVER from the pure root barrel — the
 // provability firewall (world-to-3d.ts stays importable under bare node:test).
