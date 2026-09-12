@@ -333,3 +333,27 @@ export {
 } from "./proof/decision-sweep.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";
+// ADR-0563: THE INNER LOOP'S EXIT — the deterministic ruler for the two halves of "may I stop?".
+// The veto rule (an opinion may not refuse a signed verdict; a named rule violation may) and the
+// attempt policy (three consecutive failures is a recorded decision point, above a ceiling it is the
+// owner's call, and a retry reuses its increment). Pure by injection, exactly as `decision-sweep.ts`:
+// the orchestrator supplies the judgement, this supplies the rule that says whether it is admissible.
+export type {
+  AdjudicateLandingSpec,
+  AttemptDecision,
+  AttemptDifferenceKind,
+  AttemptDisposition,
+  AttemptGrant,
+  AttemptPolicySpec,
+  AttemptRecord,
+  LandingAdjudication,
+  LandingDisposition,
+  LandingObjection,
+  ObjectionKind,
+} from "./proof/inner-loop-exit.js";
+export {
+  ATTEMPT_CEILING,
+  ATTEMPT_DECISION_POINT,
+  adjudicateLanding,
+  decideAttempt,
+} from "./proof/inner-loop-exit.js";

@@ -310,6 +310,7 @@
       "packages/orchestrator/src/proof/oracle-accounting.ts": "live-author-accounting-override",
       "packages/orchestrator/src/proof/uat-proof.ts": "uat-machine-gate-resolution",
       "packages/orchestrator/src/proof/contract-coverage.ts": "drive-machinery",
+      "packages/orchestrator/src/proof/inner-loop-exit*.ts": "drive-machinery",
       "packages/orchestrator/src/store/pg-change-store.ts": "change-store-pg",
       "packages/orchestrator/src/store/pg-work-store.ts": "work-verdict-event-log",
       "packages/orchestrator/src/store/attestation-store.ts": "attestation-signals",
