@@ -284,7 +284,9 @@ export interface ArcRollupSummaryIncrement {
    *
    * ⚠ NAMED `landedOn` UNTIL ADR-0564 D5, AND THE RENAME IS THE DECISION. It holds the CLOSE date
    * and always did — it is written on every close, landing or not — so the old name asserted a
-   * landing on all 77 closed rows of the arc that exposed this, 71 of which had landed nothing.
+   * landing on every closed row in the store: 1,403 of them, 313 recording no landing at all
+   * (measured against the live store on the landing that implemented this; ADR-0564's Context
+   * carried a 77/6 count that does not reproduce and was corrected in place at the same time).
    * D5 corrects the name rather than documenting it; {@link ArcRollupSummaryIncrement.disposition}
    * beside it is what now says whether a close was a landing.
    */
