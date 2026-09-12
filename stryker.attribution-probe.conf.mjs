@@ -17,7 +17,12 @@ export default {
   plugins: ["@hughescr/stryker-bun-runner"],
   coverageAnalysis: "perTest",
   mutate: ["attribution-probe/src/**/*.ts", "!attribution-probe/src/**/*.test.ts"],
-  bun: { testFiles: ["attribution-probe/src/subject.test.ts"] },
+  // TWO test files, and the second is not a convenience. `runtime-skip.test.ts` is registered with
+  // `node:test` so it can call `t.skip()` mid-test — the shape that exposed ADR-0566's coverage-map
+  // shift, which `bun:test` cannot express. Its tests must stay AFTER `subject.test.ts` in this list.
+  bun: {
+    testFiles: ["attribution-probe/src/subject.test.ts", "attribution-probe/src/runtime-skip.test.ts"],
+  },
   // disableBail is REQUIRED for a COMPLETE killing set. With bail on (Stryker's default) the
   // plugin stops at the first failing test, so killedBy holds only whichever covering test ran
   // first -- which for a diff-scoped rung could omit the branch's own new test entirely.

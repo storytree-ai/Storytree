@@ -410,6 +410,34 @@ test("mutation-diff: a pseudo test file is the tell that the coverage map cannot
   assert.deepEqual(unattributedTestFiles(reportWithPseudoTestFile("Survived")), ["node:test"]);
 });
 
+test("mutation-diff: several pseudo files come back SORTED, not in report order", () => {
+  // Three, inserted in an order no sort preserves, so neither "already sorted" nor a two-element
+  // reversal can satisfy this — the report key order is the instrument's only other candidate and
+  // it is not what the reason line should print.
+  const report = reportWith({
+    status: "Survived",
+    testFiles: {
+      "node:test": ["t1"],
+      "packages/cli/src/a.test.ts": ["t2"],
+      "bun:test": ["t3"],
+      "file:///ghost": ["t4"],
+    },
+  });
+  assert.deepEqual(unattributedTestFiles(report), ["bun:test", "file:///ghost", "node:test"]);
+});
+
+test("mutation-diff: the reason NAMES every pseudo file, quoted and comma-separated", () => {
+  const verdict = adjudicateMutants(
+    reportWith({
+      status: "Survived",
+      testFiles: { "node:test": ["t1"], "packages/cli/src/a.test.ts": ["t2"], "bun:test": ["t3"] },
+    }),
+    ["packages/cli/src/a.test.ts"],
+  );
+  // Two of them, so the separator is load-bearing: without it the line reads `"bun:test""node:test"`.
+  assert.match(verdict.reasons.join("\n"), /attributed a test to "bun:test", "node:test", which is not a test file/);
+});
+
 test("mutation-diff: a report whose test files are all real test files is trusted", () => {
   const healthy = reportWith({
     status: "Survived",

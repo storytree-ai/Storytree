@@ -1325,14 +1325,13 @@ export function adjudicateMutants(
     );
   }
   if (untrusted > 0) {
+    // ONE template literal rather than seven concatenated lines, and that is a mutation-rung
+    // consequence rather than a formatting preference: Stryker mutates each string literal
+    // separately, so a sentence built from seven pieces is seven mutants and a test asserting one
+    // phrase leaves six survivors no assertion can reach without quoting the whole paragraph back.
+    // Its siblings above are written the same way for the same reason.
     reasons.push(
-      `${untrusted} mutant(s) are UNPROVEN — BROKEN COVERAGE MAP: the runner attributed a test to ` +
-        `${pseudoTestFiles.map((f) => `"${f}"`).join(", ")}, which is not a test file, so it could not ` +
-        `say which file that test ran in. Its per-test coverage map is therefore built from a ` +
-        `truncated pairing that shifts every bucket after the unpaired test, and the SURVIVED / NO ` +
-        `COVERAGE verdicts that rest on it are not findings — the covering test may never have been ` +
-        `run. Nothing in this branch's tests can clear this; the fix is in the runner (constraint 4: ` +
-        `never a pass, never a survivor)`,
+      `${untrusted} mutant(s) are UNPROVEN — BROKEN COVERAGE MAP: the runner attributed a test to ${pseudoTestFiles.map((f) => `"${f}"`).join(", ")}, which is not a test file, so it could not say which file that test ran in. Its per-test coverage map is therefore built from a truncated pairing that shifts every bucket after the unpaired test, and the SURVIVED / NO COVERAGE verdicts that rest on it are not findings — the covering test may never have been run. Nothing in this branch's tests can clear this; the fix is in the runner (constraint 4: never a pass, never a survivor)`,
     );
   }
 

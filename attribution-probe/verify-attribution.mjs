@@ -28,6 +28,8 @@ const BETA = "PROBE_BETA uppercases";
 const BLIND = "PROBE_DELTA_BLIND covers delta but discriminates nothing";
 const SHARP = "PROBE_DELTA_SHARP doubles three";
 const GAMMA = "PROBE_GAMMA returns small for a small input";
+const EPSILON = "PROBE_EPSILON halves";
+const ZETA = "PROBE_ZETA negates";
 
 /**
  * Hand-derived from attribution-probe/src/subject.ts. Each entry is keyed by the mutant's
@@ -84,7 +86,45 @@ const EXPECTED = [
     status: "Survived",
     killedBy: [],
   },
+  {
+    // ── THE RUNTIME-SKIP ARM (ADR-0566) ──
+    // THIS IS THE ONE THAT FAILS IF THE FOURTH PATCH HUNK IS LOST, and it fails as a SURVIVOR
+    // rather than as a mis-named killer. `runtime-skip.test.ts` opens with a test that calls
+    // `t.skip()` mid-test; the plugin's preload has already allocated that test a coverage bucket,
+    // while the inspector reports it `skip` and the mapper drops it from the test side. Buckets then
+    // outnumber tests, the positional pairing truncates, and PROBE_EPSILON's bucket is attributed to
+    // PROBE_ZETA — so nothing covers `epsilon`, Stryker runs ZETA against this mutant, ZETA never
+    // calls epsilon, and the report says `Survived`. One runtime skip in a 34-test file took a real
+    // run from 33 survivors to 134.
+    line: 35,
+    replacement: "n * 2",
+    why: "epsilon(8) is 4 under `/` and 16 under `*`; only PROBE_EPSILON calls epsilon, and it runs AFTER a test that skips at runtime.",
+    status: "Killed",
+    killedBy: [EPSILON],
+  },
+  {
+    // The second half of the pair. Under the defect this one still passes — the clamp merges the
+    // shifted tail onto the LAST test, which is ZETA — which is exactly why one test after the skip
+    // would not be enough and there are two.
+    line: 40,
+    replacement: "+n",
+    why: "zeta(3) is -3 under `-n` and 3 under `+n`; only PROBE_ZETA calls zeta.",
+    status: "Killed",
+    killedBy: [ZETA],
+  },
 ];
+
+/**
+ * A report test-file that is not a test file means the runner could not say which file a test it ran
+ * belongs to — the INDEPENDENT tell for the same defect the two expectations above catch, and the one
+ * `packages/cli/src/mutation-diff.ts` fails closed on (`unattributedTestFiles`). An unpaired test
+ * loses its project file, so Stryker records it under the raw inspector url; for a `node:test` suite
+ * under bun that is the literal string `node:test`, and Stryker itself warns
+ * `not found in input files … This shouldn't happen`.
+ */
+function pseudoTestFiles(report) {
+  return Object.keys(report.testFiles ?? {}).filter((p) => !/\.test\.tsx?$/.test(p.replace(/\\/g, "/")));
+}
 
 const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
 
@@ -92,7 +132,9 @@ const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
 const testNames = new Map();
 for (const file of Object.values(report.testFiles ?? {})) {
   for (const test of file.tests ?? []) {
-    testNames.set(test.id, String(test.name).replace(/^.*?subject\.test\.ts > /, ""));
+    // Any of the probe's test files, not just `subject.test.ts` — greedy on purpose so a name
+    // carrying the sandbox path AND a file segment still reduces to the bare test title.
+    testNames.set(test.id, String(test.name).replace(/^.*\.test\.ts > /, ""));
   }
 }
 
@@ -147,7 +189,21 @@ for (const expectation of EXPECTED) {
   }
 }
 
-console.log(`Attribution probe: ${EXPECTED.length} hand-written expectations against ${reportPath}\n`);
+const pseudo = pseudoTestFiles(report);
+if (pseudo.length > 0) {
+  failures.push(
+    `the report attributes tests to ${pseudo.map((p) => `"${p}"`).join(", ")}, which is not a test file — ` +
+      `the runner could not say which file those tests ran in, so its per-test coverage map is built ` +
+      `from a truncated pairing (ADR-0566)`,
+  );
+  lines.push(`  FAIL  pseudo test file(s): ${pseudo.join(", ")}`);
+} else {
+  lines.push(`  ok    every reported test file is a real test file`);
+}
+
+console.log(
+  `Attribution probe: ${EXPECTED.length} hand-written expectations + 1 structural check against ${reportPath}\n`,
+);
 console.log(lines.join("\n"));
 
 if (failures.length > 0) {
