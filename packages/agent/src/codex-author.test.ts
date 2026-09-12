@@ -17,6 +17,7 @@ import {
   isChatGptManagedLogin,
   parseCodexJsonl,
   prepareCodexDisposableReplica,
+  resolveCodexTimeoutMs,
   runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
@@ -787,12 +788,15 @@ test("injected predicate catches an unexpected reported write as defense in dept
 // diagnostic, and none of this arc's other exits reachable, because every one of them assumes the
 // build eventually RETURNS something.
 
-const sleeper = (seconds: number, timeoutMs?: number): CodexCommand => ({
-  args: ["-e", `setTimeout(() => {}, ${seconds * 1000})`],
-  cwd: process.cwd(),
-  env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
-  ...(timeoutMs === undefined ? {} : { timeoutMs }),
-});
+function sleeper(seconds: number, timeoutMs?: number): CodexCommand {
+  const command: CodexCommand = {
+    args: ["-e", `setTimeout(() => {}, ${seconds * 1000})`],
+    cwd: process.cwd(),
+    env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
+  };
+  if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+  return command;
+}
 
 test("a leaf spawn that never returns is KILLED at the bound and reports timedOut", async () => {
   const started = Date.now();
@@ -833,6 +837,33 @@ test("the bound applies even when the caller names none — the default IS the f
     },
   });
   assert.equal(result.timedOut, true);
+});
+
+test("the bound RESOLVER prefers an explicit value, then the machine override, then the default", () => {
+  const at = (env: Record<string, string>, timeoutMs?: number): number => {
+    const command: CodexCommand = { args: [], cwd: ".", env };
+    if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+    return resolveCodexTimeoutMs(command);
+  };
+
+  assert.equal(at({}), DEFAULT_CODEX_TIMEOUT_MS, "nothing named — the default is the fence");
+  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }), 250, "the machine override is honoured");
+  assert.equal(at({}, 90), 90, "an explicit value is honoured");
+  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }, 90), 90, "explicit BEATS the machine override");
+});
+
+test("a nonsense bound falls back to the default — a typo must not be able to disable authoring", () => {
+  const at = (raw: string): number =>
+    resolveCodexTimeoutMs({ args: [], cwd: ".", env: { [CODEX_TIMEOUT_ENV]: raw } });
+
+  // `0` is the one that matters most, and it is why the guard is `> 0` rather than `>= 0` and why
+  // the two conditions are ANDed: a bound of zero is finite, so a looser check would accept it and
+  // then kill every spawn the instant it started — authoring disabled by an environment variable.
+  assert.equal(at("0"), DEFAULT_CODEX_TIMEOUT_MS, "zero is not a bound, it is an off switch");
+  assert.equal(at("-5"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at("abc"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at(""), DEFAULT_CODEX_TIMEOUT_MS, "an empty string coerces to 0, not to NaN");
+  assert.equal(at("Infinity"), DEFAULT_CODEX_TIMEOUT_MS, "an unbounded bound is not a bound");
 });
 
 test("the shipped default is generous, so the fence only ever kills a genuine hang", () => {

@@ -85,8 +85,16 @@ export const DEFAULT_CODEX_TIMEOUT_MS = 600_000;
  */
 export const CODEX_AUTH_PROBE_TIMEOUT_MS = 60_000;
 
-/** The bound for one command: explicit, else the machine override, else the default. */
-function resolveCodexTimeoutMs(command: CodexCommand): number {
+/**
+ * The bound for one command: explicit, else the machine override, else the default.
+ *
+ * Exported because it is the only PURE decision in this fence and it earns a direct test: everything
+ * else here needs a real child process, and a rule that decides how long to wait should not be
+ * reachable only by waiting. A non-numeric, zero or negative override falls back to the default
+ * rather than being honoured — a bound of zero would kill every spawn instantly, so a typo in an
+ * environment variable must not be able to disable authoring.
+ */
+export function resolveCodexTimeoutMs(command: CodexCommand): number {
   if (command.timeoutMs !== undefined) return command.timeoutMs;
   const configured = Number(command.env[CODEX_TIMEOUT_ENV]);
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_CODEX_TIMEOUT_MS;
