@@ -6,18 +6,23 @@ import { test } from "node:test";
 
 import {
   buildCodexExecArgs,
+  CODEX_AUTH_PROBE_TIMEOUT_MS,
   CODEX_EXECUTABLE_ENV,
+  CODEX_TIMEOUT_ENV,
   CodexPhaseAuthor,
+  DEFAULT_CODEX_TIMEOUT_MS,
   codexProductionReplicaRoot,
   DEFAULT_CODEX_MODEL,
   genericPhasePrompt,
   isChatGptManagedLogin,
   parseCodexJsonl,
   prepareCodexDisposableReplica,
+  resolveCodexTimeoutMs,
   runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
 import type {
+  CodexBoundClock,
   CodexCommand,
   CodexCommandResult,
   CodexRunner,
@@ -103,27 +108,46 @@ function completedJsonl(reportedPaths: string[] = []): string {
   );
 }
 
+/**
+ * Await a runner call under the test's OWN bound. A test of a bounded wait that itself waits without
+ * one is the same defect one level up — and under a mutant that stops the runner's promise settling,
+ * an unbounded await is scored as a hang (UNPROVEN) where it should simply fail.
+ */
+async function within<T>(pending: Promise<T>, ms = 10_000): Promise<T> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => reject(new Error(`did not settle within ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
 test("the production generic phase prompt preserves spine-owned proof authority", () => {
   assert.match(genericPhasePrompt("AUTHOR_TEST"), /Do not run tests or claim a verdict/);
   assert.match(genericPhasePrompt("IMPLEMENT"), /IMPLEMENT phase leaf/);
 });
 
 test("the production pinned Codex runner reaches the repository-pinned executable", async () => {
-  const result = await runPinnedCodexCli({
+  const result = await within(runPinnedCodexCli({
     args: ["--version"],
     cwd: process.cwd(),
     env: { ...process.env },
-  });
+  }));
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^codex-cli \d+\.\d+\.\d+/);
 });
 
 test("the production runner can select one absolute administrator-managed executable", async () => {
-  const result = await runPinnedCodexCli({
+  const result = await within(runPinnedCodexCli({
     args: ["--version"],
     cwd: process.cwd(),
     env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
-  });
+  }));
   assert.equal(result.code, 0, result.stderr);
   // `process.execPath` stands in for "some absolute executable an administrator pinned", so the
   // assertion's job is to prove THAT executable ran rather than the repo-pinned codex binary the
@@ -775,4 +799,190 @@ test("injected predicate catches an unexpected reported write as defense in dept
   assert.match(result.ok ? "" : result.error, /promotion refused in full/);
   assert.equal(author.violations[0]?.tool, "file_change");
   assert.equal(author.runs[0]?.subtype, "error");
+});
+
+// ── ADR-0563 / inner-loop-exit-arc inc-05: the authoring spawn is BOUNDED ───────────────────────
+// PR #350 bounded every spawn the spine makes to OBSERVE a proof, after one that leaked an OS handle
+// wedged the CONFIRM observation indefinitely (ADR-0104's Context). The spawn the spine makes to
+// AUTHOR was never bounded, so an exhausted ChatGPT quota hangs the build forever — no verdict, no
+// diagnostic, and none of this arc's other exits reachable, because every one of them assumes the
+// build eventually RETURNS something.
+
+function sleeper(seconds: number, timeoutMs?: number): CodexCommand {
+  const command: CodexCommand = {
+    args: ["-e", `setTimeout(() => {}, ${seconds * 1000})`],
+    cwd: process.cwd(),
+    env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
+  };
+  if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+  return command;
+}
+
+/** A clock that keeps the real timers and records what the bound did with them. */
+function recordingClock() {
+  const log: string[] = [];
+  const clock = {
+    setTimeout: (callback, ms) => {
+      log.push(`set ${ms}`);
+      return setTimeout(callback, ms);
+    },
+    clearTimeout: (handle) => {
+      log.push("clear");
+      clearTimeout(handle);
+    },
+  } satisfies CodexBoundClock;
+  return { clock, log };
+}
+
+test("a leaf spawn that never returns is KILLED at the bound and reports timedOut", async () => {
+  const started = Date.now();
+  const result = await within(runPinnedCodexCli(sleeper(30, 250)));
+  const elapsed = Date.now() - started;
+
+  assert.equal(result.timedOut, true, "the bound fired and said so");
+  assert.ok(elapsed < 10_000, `must not wait the child out (waited ${elapsed}ms)`);
+  // `timedOut` is its OWN field and deliberately not inferable from the exit shape: a killed child
+  // looks like any other signalled death, and that ambiguity is what would let a hang be
+  // misreported as a build failure. The death itself is still reported as it happened — a signal,
+  // and no exit code of its own.
+  assert.equal(result.code, null);
+  assert.equal(result.signal, "SIGTERM");
+});
+
+test("a spawn that finishes inside the bound is untouched, and RELEASES the bound as it settles", async () => {
+  const { clock, log } = recordingClock();
+  const result = await within(
+    runPinnedCodexCli(
+      {
+        args: ["-e", "process.stdout.write('done'); process.stderr.write('noted')"],
+        cwd: process.cwd(),
+        env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
+        timeoutMs: 30_000,
+      },
+      clock,
+    ),
+  );
+  assert.equal(result.timedOut, undefined, "a completed run carries no timeout marker");
+  assert.equal(result.signal, undefined, "a child that exited on its own names no signal");
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, "done");
+  assert.equal(result.stderr, "noted");
+  // A bound left armed changes nothing the child returns, so no assertion above can tell a released
+  // bound from a forgotten one. This log is the only witness that can.
+  assert.deepEqual(log, ["set 30000", "clear"]);
+});
+
+test("a leaf executable that cannot be spawned REJECTS, and releases its bound too", async () => {
+  const { clock, log } = recordingClock();
+  const missing = path.join(os.tmpdir(), `storytree-no-such-codex-${process.pid}`);
+  await assert.rejects(
+    within(
+      runPinnedCodexCli(
+        {
+          args: ["--version"],
+          cwd: process.cwd(),
+          env: { ...process.env, [CODEX_EXECUTABLE_ENV]: missing },
+          timeoutMs: 30_000,
+        },
+        clock,
+      ),
+    ),
+    { code: "ENOENT" },
+  );
+  assert.deepEqual(log, ["set 30000", "clear"]);
+});
+
+test("the bound applies even when the caller names none — the default IS the fence", async () => {
+  // Exercised through the machine override rather than the shipped default, which is ten minutes by
+  // design (ADR-0104 force 1: the bound must clear the slowest LEGITIMATE run). The branch under test
+  // is the one that fires when a caller passes no `timeoutMs` at all.
+  const result = await within(runPinnedCodexCli({
+    args: ["-e", "setTimeout(() => {}, 30000)"],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      [CODEX_EXECUTABLE_ENV]: process.execPath,
+      [CODEX_TIMEOUT_ENV]: "250",
+    },
+  }));
+  assert.equal(result.timedOut, true);
+});
+
+test("the bound RESOLVER prefers an explicit value, then the machine override, then the default", () => {
+  const at = (env: Record<string, string>, timeoutMs?: number): number => {
+    const command: CodexCommand = { args: [], cwd: ".", env };
+    if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+    return resolveCodexTimeoutMs(command);
+  };
+
+  assert.equal(at({}), DEFAULT_CODEX_TIMEOUT_MS, "nothing named — the default is the fence");
+  // Keyed by the LITERAL name, not the exported constant: the name is what an operator sets on a
+  // machine, and a test that reads it back through the constant passes whatever the constant says.
+  // (On Windows an empty variable name happens to break the spawn tests, which hid this; Linux
+  // accepts one, so only an assertion on the name itself holds on both.)
+  assert.equal(at({ STORYTREE_CODEX_TIMEOUT_MS: "250" }), 250, "the machine override is honoured");
+  assert.equal(at({}, 90), 90, "an explicit value is honoured");
+  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }, 90), 90, "explicit BEATS the machine override");
+});
+
+test("a nonsense bound falls back to the default — a typo must not be able to disable authoring", () => {
+  const at = (raw: string): number =>
+    resolveCodexTimeoutMs({ args: [], cwd: ".", env: { [CODEX_TIMEOUT_ENV]: raw } });
+
+  // `0` is the one that matters most, and it is why the guard is `> 0` rather than `>= 0` and why
+  // the two conditions are ANDed: a bound of zero is finite, so a looser check would accept it and
+  // then kill every spawn the instant it started — authoring disabled by an environment variable.
+  assert.equal(at("0"), DEFAULT_CODEX_TIMEOUT_MS, "zero is not a bound, it is an off switch");
+  assert.equal(at("-5"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at("abc"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at(""), DEFAULT_CODEX_TIMEOUT_MS, "an empty string coerces to 0, not to NaN");
+  assert.equal(at("Infinity"), DEFAULT_CODEX_TIMEOUT_MS, "an unbounded bound is not a bound");
+});
+
+test("the shipped default is generous, so the fence only ever kills a genuine hang", () => {
+  // ADR-0104 force 1 is the whole reason this number is large: a bound tight enough to feel
+  // responsive would false-RED honest work, which is worse than the hang it prevents.
+  assert.equal(DEFAULT_CODEX_TIMEOUT_MS, 600_000);
+  assert.ok(CODEX_AUTH_PROBE_TIMEOUT_MS < DEFAULT_CODEX_TIMEOUT_MS, "a login check is not a slow run");
+});
+
+test("a timed-out AUTH PROBE reports a timeout, never an auth failure", async () => {
+  const cap = captureRunner([{ code: null, stdout: "", stderr: "", timedOut: true }]);
+  const author = new CodexPhaseAuthor({
+    cwd: CWD,
+    writeGlobs: WRITE_GLOBS,
+    isWriteAllowed: () => true,
+    runner: cap.runner,
+  });
+  const result = await author.author("AUTHOR_TEST", "Write the red test.");
+  assert.equal(result.ok, false);
+  const error = result.ok ? "" : result.error;
+  assert.match(error, /did not return/i);
+  // The verdict class is the load-bearing part of the message: "I could not tell" and "it failed"
+  // are different answers, and this one must say which it is.
+  assert.match(error, /UNVERIFIED, not an auth failure/);
+  // The misattribution this exists to prevent: a probe that HUNG has proved nothing at all about
+  // the login, so reporting it as "subscription auth required" invents a cause from a stopwatch.
+  assert.doesNotMatch(error, /subscription auth required/);
+});
+
+test("a timed-out EXEC reports a timeout, never a malformed-turn parse failure", async () => {
+  const cap = captureRunner([chatGpt(), { code: null, stdout: "", stderr: "", timedOut: true }]);
+  const author = new CodexPhaseAuthor({
+    cwd: CWD,
+    writeGlobs: WRITE_GLOBS,
+    promotionManifests: PROMOTION_MANIFESTS,
+    isWriteAllowed: () => true,
+    runner: cap.runner,
+  });
+  const result = await author.author("AUTHOR_TEST", "Write the red test.");
+  assert.equal(result.ok, false);
+  const error = result.ok ? "" : result.error;
+  assert.match(error, /did not return/i);
+  assert.match(error, /UNVERIFIED, not a failed authoring turn/);
+  assert.doesNotMatch(error, /exactly one turn/);
+  // Whatever a killed leaf left in its disposable replica goes with it, exactly as on every other exit.
+  const replica = cap.commands[1]?.cwd;
+  assert.ok(replica, "the exec ran in a replica");
+  await assert.rejects(fs.stat(replica), "the replica is discarded");
 });
