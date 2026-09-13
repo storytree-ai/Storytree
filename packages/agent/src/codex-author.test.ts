@@ -916,7 +916,11 @@ test("the bound RESOLVER prefers an explicit value, then the machine override, t
   };
 
   assert.equal(at({}), DEFAULT_CODEX_TIMEOUT_MS, "nothing named — the default is the fence");
-  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }), 250, "the machine override is honoured");
+  // Keyed by the LITERAL name, not the exported constant: the name is what an operator sets on a
+  // machine, and a test that reads it back through the constant passes whatever the constant says.
+  // (On Windows an empty variable name happens to break the spawn tests, which hid this; Linux
+  // accepts one, so only an assertion on the name itself holds on both.)
+  assert.equal(at({ STORYTREE_CODEX_TIMEOUT_MS: "250" }), 250, "the machine override is honoured");
   assert.equal(at({}, 90), 90, "an explicit value is honoured");
   assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }, 90), 90, "explicit BEATS the machine override");
 });
