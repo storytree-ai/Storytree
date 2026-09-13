@@ -993,6 +993,29 @@ export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
   ];
 }
 
+/**
+ * The shared same-file renderer for the `node-build-renders-only-returned-confirm-observation`
+ * contract: label and render the ELIGIBLE CONFIRM observation `proveUnit` actually RETURNED on
+ * `ProveResult.failedObservation` — with the run and unit it belongs to — and never invent one. An
+ * ABSENT observation (any non-CONFIRM refusal — AUTHOR_TEST/IMPLEMENT/GATE) renders nothing: this
+ * consumes data `proveUnit` already computed and never spawns a command of its own to manufacture one.
+ */
+export function renderFailedConfirmObservation(
+  unitId: string,
+  runId: string,
+  observation: Extract<ProveResult, { ok: false }>["failedObservation"],
+): string[] {
+  if (observation === undefined) return [];
+  return [
+    `observation: unit ${unitId}, run ${runId} (the original CONFIRM run that caused the refusal)`,
+    `  exit code: ${observation.exitCode ?? "(none)"}`,
+    "  stdout:",
+    ...observation.stdout.split("\n").map((line) => `    ${line}`),
+    "  stderr:",
+    ...observation.stderr.split("\n").map((line) => `    ${line}`),
+  ];
+}
+
 // ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
 
 /**
@@ -1832,6 +1855,7 @@ export async function nodeBuild(
           // typecheck/suite is now WHY there is no verdict, so the lines belong on this path as well.
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
+          ...renderFailedConfirmObservation(spec.id, runId, result.failedObservation),
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
           framing,
