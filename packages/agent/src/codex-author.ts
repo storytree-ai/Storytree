@@ -104,6 +104,21 @@ export function resolveCodexTimeoutMs(command: CodexCommand): number {
 export type CodexRunner = (command: CodexCommand) => Promise<CodexCommandResult>;
 
 /**
+ * The clock a leaf spawn's bound runs on.
+ *
+ * Injectable for one reason: RELEASING the bound once the child settles is invisible in anything the
+ * child returns. A bound left armed changes no result — it keeps the finished child and its output
+ * reachable until it fires, then signals a process that is already gone — so the only witness that
+ * can hold the release to account is one holding the clock.
+ */
+export interface CodexBoundClock {
+  setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout>;
+  clearTimeout(handle: ReturnType<typeof setTimeout>): void;
+}
+
+const SYSTEM_CLOCK: CodexBoundClock = { setTimeout, clearTimeout };
+
+/**
  * Why one refusal fired — the same LABEL vocabulary `SdkRefusalKind` carries, minus `no-path`.
  *
  * That absence is a fact about this mechanism, not an omission: Codex never inspects a tool INPUT.
@@ -466,8 +481,15 @@ function resolvePinnedCodexEntrypoint(): string {
   return path.join(path.dirname(packageJson), "bin", "codex.js");
 }
 
-/** Production runner for the pinned official CLI wrapper. */
-export const runPinnedCodexCli: CodexRunner = async (command) => {
+/**
+ * Production runner for the pinned official CLI wrapper.
+ *
+ * `clock` exists for tests (see {@link CodexBoundClock}); every production caller takes the default.
+ */
+export async function runPinnedCodexCli(
+  command: CodexCommand,
+  clock: CodexBoundClock = SYSTEM_CLOCK,
+): Promise<CodexCommandResult> {
   const configuredExecutable = command.env[CODEX_EXECUTABLE_ENV]?.trim();
   if (configuredExecutable !== undefined && !path.isAbsolute(configuredExecutable)) {
     throw new Error(`${CODEX_EXECUTABLE_ENV} must name an absolute executable`);
@@ -487,15 +509,14 @@ export const runPinnedCodexCli: CodexRunner = async (command) => {
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let timedOut = false;
-    // The bound. `unref` so a pending timer can never hold the process open on its own — the fence
-    // exists to end a wait, not to become one.
-    const bound = setTimeout(() => {
+    // The bound. Released in `settle`, on `exit` or on `error`, so it never outlives the child it
+    // bounds and needs no `unref`.
+    const bound = clock.setTimeout(() => {
       timedOut = true;
       child.kill();
     }, resolveCodexTimeoutMs(command));
-    bound.unref?.();
     const settle = (fn: () => void): void => {
-      clearTimeout(bound);
+      clock.clearTimeout(bound);
       fn();
     };
     child.once("error", (error) => settle(() => reject(error)));
@@ -517,7 +538,7 @@ export const runPinnedCodexCli: CodexRunner = async (command) => {
     });
     child.stdin.end(command.stdin ?? "");
   });
-};
+}
 
 export function genericPhasePrompt(phase: AuthoringPhase): string {
   return (
@@ -958,7 +979,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         ok: false,
         error:
           "Codex authentication probe did not return within its bound and was killed — UNVERIFIED, " +
-          "not an auth failure. The usual cause is an exhausted ChatGPT subscription quota.",
+          "not an auth failure. One known cause is an exhausted ChatGPT subscription quota; a timeout alone cannot confirm it.",
       };
     }
     if (!isChatGptManagedLogin(auth)) {
@@ -1022,21 +1043,20 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
     }
 
-    // Checked BEFORE the JSONL is parsed: a killed child emits no turn envelope, so the parser would
-    // report "must contain exactly one turn (started=0, completed=0)" — a statement about the leaf's
-    // OUTPUT for a leaf that never produced any. The bound is the honest answer, and it is UNVERIFIED
-    // rather than a failure: nothing was observed, so nothing failed.
-    if (execution.timedOut === true) {
-      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
-      return {
-        ok: false,
-        error:
-          "Codex exec did not return within its bound and was killed — UNVERIFIED, not a failed " +
-          "authoring turn. The usual cause is an exhausted ChatGPT subscription quota.",
-      };
-    }
-
     try {
+      // Checked BEFORE the JSONL is parsed: a killed child emits no turn envelope, so the parser would
+      // report "must contain exactly one turn (started=0, completed=0)" — a statement about the leaf's
+      // OUTPUT for a leaf that never produced any. The bound is the honest answer, and it is UNVERIFIED
+      // rather than a failure: nothing was observed, so nothing failed. It sits inside this `try` so the
+      // replica is discarded by the same `finally` as every other exit, not by a copy of it.
+      if (execution.timedOut === true) {
+        return {
+          ok: false,
+          error:
+            "Codex exec did not return within its bound and was killed — UNVERIFIED, not a failed " +
+            "authoring turn. One known cause is an exhausted ChatGPT subscription quota; a timeout alone cannot confirm it.",
+        };
+      }
       const violationStart = this.violations.length;
       const parsed = parseCodexJsonl(execution.stdout);
       let afterSnapshot: Map<string, ReplicaPathState> | undefined;
