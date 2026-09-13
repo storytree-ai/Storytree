@@ -121,3 +121,34 @@ test("node-build-renders-only-returned-confirm-observation: an ABSENT observatio
     "no returned observation is eligible to render — the renderer must not invent or fetch one",
   );
 });
+
+// The two tests above prove WHAT reaches the section; these pin HOW it reads. The labels and the exit
+// code line are the part an operator scans first, and a regex over the markers alone let every one
+// of them vanish unnoticed (check:mutation-diff, 2026-09-14). Pure calls on a literal observation.
+test("node-build-renders-only-returned-confirm-observation: the section reads exit code, then labelled stdout and stderr, one indented line per output line", () => {
+  assert.deepEqual(
+    renderFailedConfirmObservation(UNIT_ID, RUN_ID, {
+      stdout: "first out\nsecond out",
+      stderr: "only err",
+      exitCode: 1,
+    }),
+    [
+      `observation: unit ${UNIT_ID}, run ${RUN_ID} (the original CONFIRM run that caused the refusal)`,
+      "  exit code: 1",
+      "  stdout:",
+      "    first out",
+      "    second out",
+      "  stderr:",
+      "    only err",
+    ],
+  );
+});
+
+test("node-build-renders-only-returned-confirm-observation: a signalled run with no exit code says so instead of printing a blank", () => {
+  const rendered = renderFailedConfirmObservation(UNIT_ID, RUN_ID, {
+    stdout: "partial",
+    stderr: "terminated",
+    exitCode: null,
+  });
+  assert.equal(rendered[1], "  exit code: (none)");
+});
