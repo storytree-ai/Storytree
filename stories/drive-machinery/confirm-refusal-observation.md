@@ -25,8 +25,14 @@ proof:
     install: true
     editsExisting: true
     proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "test"]
+      file: node
+      args:
+        - "--import"
+        - "./scripts/tsx-cache-off.mjs"
+        - "--import"
+        - "./packages/orchestrator/node_modules/tsx/dist/loader.mjs"
+        - "--test"
+        - "packages/orchestrator/src/prove-it-gate.test.ts"
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/orchestrator", "typecheck"]
