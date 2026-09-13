@@ -3,7 +3,7 @@ id: "node-build-refusal-observation-envelope"
 tier: contract
 story: drive-machinery
 capability: build-drive-cli
-arc: rendering-engine-structure-arc
+arc: inner-loop-exit-arc
 title: "Render a refused CONFIRM observation in the node-build envelope"
 outcome: "The node-build failure envelope renders an eligible original CONFIRM observation with its run and unit attribution."
 status: proposed

@@ -3,7 +3,7 @@ id: "confirm-refusal-observation"
 tier: contract
 story: drive-machinery
 capability: prove-it-gate
-arc: rendering-engine-structure-arc
+arc: inner-loop-exit-arc
 title: "Return an original observation only from a refused CONFIRM phase"
 outcome: "A refused CONFIRM phase returns its immediately preceding original shell observation to the outer caller."
 status: proposed
