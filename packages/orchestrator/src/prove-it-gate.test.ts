@@ -602,3 +602,84 @@ test("(p) the storyBaseline seam is NEVER consulted when the walk fails before G
   assert.equal(consulted, 0, "the seam must not run on a walk that never reaches GATE");
   assert.equal((await store.readEvents()).some((e) => e.kind === "signing"), false);
 });
+
+// ── CONTRACT: final-confirm-refusal-carries-one-original-observation ────────────────────────────
+// `proveUnit` must transport `TestObservation.originalProcessResult` as `ProveResult.failedObservation`
+// ONLY after `nextPhase` has already refused a CONFIRM phase (CONFIRM_RED or CONFIRM_GREEN) — the
+// exact observation that caused that refusal, verbatim. It is not stamped on any other refusal
+// (AUTHOR_TEST / IMPLEMENT / GATE), even when a later observation happened to carry a process result.
+
+const SHELL_REPORT_A = { stdout: "unexpected pass\n", stderr: "", exitCode: 0 };
+const SHELL_REPORT_B = { stdout: "", stderr: "AssertionError: expected 1 to equal 2\n", exitCode: 1 };
+
+const GREEN_WITH_REPORT: TestObservation = {
+  result: "green",
+  testId: "T",
+  originalProcessResult: SHELL_REPORT_A,
+};
+const RED_WITH_REPORT: TestObservation = {
+  result: "red",
+  kind: "runtime",
+  testId: "T",
+  originalProcessResult: SHELL_REPORT_B,
+};
+
+test("final-confirm-refusal-carries-one-original-observation: a refused CONFIRM_RED returns that observation's original process result", async () => {
+  const { spec } = freshSpec({
+    observations: [GREEN_WITH_REPORT, GREEN],
+    tree: CLEAN,
+    signerInputs: SIGNER,
+  });
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.failedAt, "CONFIRM_RED");
+  assert.deepEqual(
+    (result as { failedObservation?: unknown }).failedObservation,
+    SHELL_REPORT_A,
+    "a refused CONFIRM_RED must return the exact observation that caused the refusal",
+  );
+});
+
+test("final-confirm-refusal-carries-one-original-observation: a refused CONFIRM_GREEN returns that observation's original process result", async () => {
+  const { spec } = freshSpec({
+    observations: [RED, RED_WITH_REPORT],
+    tree: CLEAN,
+    signerInputs: SIGNER,
+  });
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.failedAt, "CONFIRM_GREEN");
+  assert.deepEqual(
+    (result as { failedObservation?: unknown }).failedObservation,
+    SHELL_REPORT_B,
+    "a refused CONFIRM_GREEN must return the exact observation that caused the refusal",
+  );
+});
+
+test("final-confirm-refusal-carries-one-original-observation: a GATE refusal after a passed CONFIRM_GREEN carries no failedObservation", async () => {
+  // No CONFIRM phase was REFUSED on this walk — CONFIRM_GREEN passed on GREEN_WITH_REPORT, and the
+  // walk died later at GATE on a dirty tree. failedObservation must stay absent even though a
+  // process-result-bearing observation was taken along the way.
+  const { spec } = freshSpec({
+    observations: [RED, GREEN_WITH_REPORT],
+    tree: DIRTY,
+    signerInputs: SIGNER,
+  });
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.failedAt, "GATE");
+  assert.equal(
+    (result as { failedObservation?: unknown }).failedObservation,
+    undefined,
+    "a GATE refusal never refused a CONFIRM phase, so it must carry no failedObservation",
+  );
+});

@@ -3,12 +3,39 @@ id: "node-build-refusal-observation-envelope"
 tier: contract
 story: drive-machinery
 capability: build-drive-cli
-arc: rendering-engine-structure-arc
+arc: inner-loop-exit-arc
 title: "Render a refused CONFIRM observation in the node-build envelope"
 outcome: "The node-build failure envelope renders an eligible original CONFIRM observation with its run and unit attribution."
 status: proposed
 proof_mode: contract-test
 depends_on: [confirm-refusal-observation]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/drive", "test"]
+  scope:
+    testGlobs: ["packages/drive/src/node-build-refusal-observation.test.ts"]
+    sourceGlobs: ["packages/drive/src/node-build.ts"]
+  real:
+    testFile: "packages/drive/src/node-build-refusal-observation.test.ts"
+    sourceFile: "packages/drive/src/node-build.ts"
+    scope:
+      testGlobs: ["packages/drive/src/node-build-refusal-observation.test.ts"]
+      sourceGlobs: ["packages/drive/src/node-build.ts"]
+    install: true
+    editsExisting: true
+    proofCommand:
+      file: bun
+      args:
+        - "test"
+        - "--preload"
+        - "./scripts/tsx-cache-off.mjs"
+        - "--timeout"
+        - "300000"
+        - "./packages/drive/src/node-build-refusal-observation.test.ts"
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
 # Render a refused CONFIRM observation in the node-build envelope
@@ -18,15 +45,20 @@ its run and unit attribution.
 
 ## Authoring timing
 
-This downstream proposed contract intentionally has no executable `proof:` registration yet: its
-required new test file does not exist in the first runtime-unit landing. At its fresh unit anchor,
-before node build begins, its story author registers
+This downstream proposed contract intentionally carried no executable `proof:` registration in its
+first runtime-unit landing, because its required new test file had not been authored. At its fresh
+unit anchor, ahead of its node build, its story author registered
 `packages/drive/src/node-build-refusal-observation.test.ts` and `packages/drive/src/node-build.ts`
-as its node-borne REAL scope with the `@storytree/drive` package regression command, install, and
-typecheck backstops. The normal AUTHOR_TEST phase then creates that file and IMPLEMENT lands it with
-the production change in the same signed build. Deferring this registration does not retire, narrow,
-or satisfy any acceptance below; it prevents an absent test from being represented as a current
-real-build surface.
+as its node-borne REAL scope with install, the `@storytree/drive` typecheck backstop, and a real
+proof command FOCUSED on that one test file rather than the package suite — the shape
+`confirm-refusal-observation` and `original-shell-observation` use, because a whole-suite proof run
+inside a `--real` build worktree fails on nested-proof tests no leaf may touch (measured for
+`@storytree/orchestrator` on 2026-09-14; `@storytree/drive` carries tests of the same kind). The
+frontmatter `proof:` block sets `editsExisting: true` because the source file already exists at HEAD
+and its behaviour changes (the flag reads the source, not the new test file). The normal AUTHOR_TEST phase then creates that test file and IMPLEMENT lands it with the
+production change in the same signed build. Neither the deferral nor the registration retires,
+narrows, or satisfies any acceptance below; the deferral only kept an unauthored test from being
+represented as a real-build surface before its build was due.
 
 ## Proof walkthrough
 

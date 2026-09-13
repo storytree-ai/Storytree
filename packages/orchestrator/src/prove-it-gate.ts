@@ -184,7 +184,21 @@ export type BackstopOutcome = { ok: true } | { ok: false; reason: string };
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
 export type ProveResult =
   | { ok: true; verdict: Verdict; phasesVisited: Phase[] }
-  | { ok: false; failedAt: Phase; reason: string; phasesVisited: Phase[] };
+  | {
+      ok: false;
+      failedAt: Phase;
+      reason: string;
+      phasesVisited: Phase[];
+      /**
+       * `final-confirm-refusal-carries-one-original-observation`: the exact shell-backed
+       * {@link TestObservation.originalProcessResult} that caused THIS refusal, present ONLY when
+       * `nextPhase` refused a CONFIRM phase (CONFIRM_RED or CONFIRM_GREEN). It is transported
+       * verbatim from the observation the spine just took — never re-observed, never modified, and
+       * never stamped on any other refusal (AUTHOR_TEST / IMPLEMENT / GATE) even when a later
+       * observation happened to carry a process result.
+       */
+      failedObservation?: TestObservation["originalProcessResult"];
+    };
 
 /** The store `kind` for the signed promotion event. */
 const SIGNING_KIND = "signing";
@@ -238,6 +252,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "CONFIRM_RED",
       redGate.reason + redNote + exhaustionNote(authorExhaustion, "a red test"),
       visited,
+      redObs.originalProcessResult,
     );
   }
 
@@ -273,6 +288,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "CONFIRM_GREEN",
       greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green"),
       visited,
+      greenObs.originalProcessResult,
     );
   }
 
@@ -370,9 +386,21 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   return { ok: true, verdict, phasesVisited: visited };
 }
 
-/** Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path. */
-function fail(failedAt: Phase, reason: string, phasesVisited: Phase[]): ProveResult {
-  return { ok: false, failedAt, reason, phasesVisited };
+/**
+ * Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path.
+ * `failedObservation` is supplied ONLY by the two CONFIRM-phase refusals above (the exact
+ * `TestObservation.originalProcessResult` that caused THAT refusal) — every other call site omits
+ * it, so `exactOptionalPropertyTypes` keeps the key entirely off the object rather than `undefined`.
+ */
+function fail(
+  failedAt: Phase,
+  reason: string,
+  phasesVisited: Phase[],
+  failedObservation?: TestObservation["originalProcessResult"],
+): ProveResult {
+  return failedObservation === undefined
+    ? { ok: false, failedAt, reason, phasesVisited }
+    : { ok: false, failedAt, reason, phasesVisited, failedObservation };
 }
 
 /**
