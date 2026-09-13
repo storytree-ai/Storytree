@@ -6,14 +6,18 @@ import { test } from "node:test";
 
 import {
   buildCodexExecArgs,
+  CODEX_AUTH_PROBE_TIMEOUT_MS,
   CODEX_EXECUTABLE_ENV,
+  CODEX_TIMEOUT_ENV,
   CodexPhaseAuthor,
+  DEFAULT_CODEX_TIMEOUT_MS,
   codexProductionReplicaRoot,
   DEFAULT_CODEX_MODEL,
   genericPhasePrompt,
   isChatGptManagedLogin,
   parseCodexJsonl,
   prepareCodexDisposableReplica,
+  resolveCodexTimeoutMs,
   runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
@@ -775,4 +779,129 @@ test("injected predicate catches an unexpected reported write as defense in dept
   assert.match(result.ok ? "" : result.error, /promotion refused in full/);
   assert.equal(author.violations[0]?.tool, "file_change");
   assert.equal(author.runs[0]?.subtype, "error");
+});
+
+// ── ADR-0563 / inner-loop-exit-arc inc-05: the authoring spawn is BOUNDED ───────────────────────
+// PR #350 bounded every spawn the spine makes to OBSERVE a proof, after one that leaked an OS handle
+// wedged the CONFIRM observation indefinitely (ADR-0104's Context). The spawn the spine makes to
+// AUTHOR was never bounded, so an exhausted ChatGPT quota hangs the build forever — no verdict, no
+// diagnostic, and none of this arc's other exits reachable, because every one of them assumes the
+// build eventually RETURNS something.
+
+function sleeper(seconds: number, timeoutMs?: number): CodexCommand {
+  const command: CodexCommand = {
+    args: ["-e", `setTimeout(() => {}, ${seconds * 1000})`],
+    cwd: process.cwd(),
+    env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
+  };
+  if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+  return command;
+}
+
+test("a leaf spawn that never returns is KILLED at the bound and reports timedOut", async () => {
+  const started = Date.now();
+  const result = await runPinnedCodexCli(sleeper(30, 250));
+  const elapsed = Date.now() - started;
+
+  assert.equal(result.timedOut, true, "the bound fired and said so");
+  assert.ok(elapsed < 10_000, `must not wait the child out (waited ${elapsed}ms)`);
+  // `timedOut` is its OWN field and deliberately not inferable from the exit shape: a killed child
+  // looks like any other signalled death, and that ambiguity is what would let a hang be
+  // misreported as a build failure.
+  assert.notEqual(result.code, 0);
+});
+
+test("a spawn that finishes inside the bound is untouched — the bound never false-fails honest work", async () => {
+  const result = await runPinnedCodexCli({
+    args: ["-e", "process.stdout.write('done')"],
+    cwd: process.cwd(),
+    env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
+    timeoutMs: 30_000,
+  });
+  assert.equal(result.timedOut, undefined, "a completed run carries no timeout marker");
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, "done");
+});
+
+test("the bound applies even when the caller names none — the default IS the fence", async () => {
+  // Exercised through the machine override rather than the shipped default, which is ten minutes by
+  // design (ADR-0104 force 1: the bound must clear the slowest LEGITIMATE run). The branch under test
+  // is the one that fires when a caller passes no `timeoutMs` at all.
+  const result = await runPinnedCodexCli({
+    args: ["-e", "setTimeout(() => {}, 30000)"],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      [CODEX_EXECUTABLE_ENV]: process.execPath,
+      [CODEX_TIMEOUT_ENV]: "250",
+    },
+  });
+  assert.equal(result.timedOut, true);
+});
+
+test("the bound RESOLVER prefers an explicit value, then the machine override, then the default", () => {
+  const at = (env: Record<string, string>, timeoutMs?: number): number => {
+    const command: CodexCommand = { args: [], cwd: ".", env };
+    if (timeoutMs !== undefined) command.timeoutMs = timeoutMs;
+    return resolveCodexTimeoutMs(command);
+  };
+
+  assert.equal(at({}), DEFAULT_CODEX_TIMEOUT_MS, "nothing named — the default is the fence");
+  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }), 250, "the machine override is honoured");
+  assert.equal(at({}, 90), 90, "an explicit value is honoured");
+  assert.equal(at({ [CODEX_TIMEOUT_ENV]: "250" }, 90), 90, "explicit BEATS the machine override");
+});
+
+test("a nonsense bound falls back to the default — a typo must not be able to disable authoring", () => {
+  const at = (raw: string): number =>
+    resolveCodexTimeoutMs({ args: [], cwd: ".", env: { [CODEX_TIMEOUT_ENV]: raw } });
+
+  // `0` is the one that matters most, and it is why the guard is `> 0` rather than `>= 0` and why
+  // the two conditions are ANDed: a bound of zero is finite, so a looser check would accept it and
+  // then kill every spawn the instant it started — authoring disabled by an environment variable.
+  assert.equal(at("0"), DEFAULT_CODEX_TIMEOUT_MS, "zero is not a bound, it is an off switch");
+  assert.equal(at("-5"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at("abc"), DEFAULT_CODEX_TIMEOUT_MS);
+  assert.equal(at(""), DEFAULT_CODEX_TIMEOUT_MS, "an empty string coerces to 0, not to NaN");
+  assert.equal(at("Infinity"), DEFAULT_CODEX_TIMEOUT_MS, "an unbounded bound is not a bound");
+});
+
+test("the shipped default is generous, so the fence only ever kills a genuine hang", () => {
+  // ADR-0104 force 1 is the whole reason this number is large: a bound tight enough to feel
+  // responsive would false-RED honest work, which is worse than the hang it prevents.
+  assert.equal(DEFAULT_CODEX_TIMEOUT_MS, 600_000);
+  assert.ok(CODEX_AUTH_PROBE_TIMEOUT_MS < DEFAULT_CODEX_TIMEOUT_MS, "a login check is not a slow run");
+});
+
+test("a timed-out AUTH PROBE reports a timeout, never an auth failure", async () => {
+  const cap = captureRunner([{ code: null, stdout: "", stderr: "", timedOut: true }]);
+  const author = new CodexPhaseAuthor({
+    cwd: CWD,
+    writeGlobs: WRITE_GLOBS,
+    isWriteAllowed: () => true,
+    runner: cap.runner,
+  });
+  const result = await author.author("AUTHOR_TEST", "Write the red test.");
+  assert.equal(result.ok, false);
+  const error = result.ok ? "" : result.error;
+  assert.match(error, /did not return/i);
+  // The misattribution this exists to prevent: a probe that HUNG has proved nothing at all about
+  // the login, so reporting it as "subscription auth required" invents a cause from a stopwatch.
+  assert.doesNotMatch(error, /subscription auth required/);
+});
+
+test("a timed-out EXEC reports a timeout, never a malformed-turn parse failure", async () => {
+  const cap = captureRunner([chatGpt(), { code: null, stdout: "", stderr: "", timedOut: true }]);
+  const author = new CodexPhaseAuthor({
+    cwd: CWD,
+    writeGlobs: WRITE_GLOBS,
+    promotionManifests: PROMOTION_MANIFESTS,
+    isWriteAllowed: () => true,
+    runner: cap.runner,
+  });
+  const result = await author.author("AUTHOR_TEST", "Write the red test.");
+  assert.equal(result.ok, false);
+  const error = result.ok ? "" : result.error;
+  assert.match(error, /did not return/i);
+  assert.doesNotMatch(error, /exactly one turn/);
 });
