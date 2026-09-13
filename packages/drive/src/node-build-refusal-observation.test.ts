@@ -6,6 +6,8 @@ import { nodeEvalExecutor, proveUnit } from "@storytree/orchestrator";
 import type { ProveResult, ProveSpec } from "@storytree/orchestrator";
 import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
 
+import { renderFailedConfirmObservation } from "./node-build.js";
+
 /**
  * `node-build-renders-only-returned-confirm-observation`: `packages/drive/src/node-build.ts`'s
  * failure envelope must LABEL and RENDER the ELIGIBLE CONFIRM observation `proveUnit` actually
@@ -14,15 +16,12 @@ import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
  * nothing). "Renders ONLY the RETURNED observation" is the whole contract: the renderer consumes
  * data `proveUnit` already computed, it never spawns a command of its own to manufacture one.
  *
- * At HEAD, `nodeBuild`'s failure envelope prints only `result.failedAt`/`result.reason` — the
- * transported `failedObservation` (stdout/stderr/exit code of the actual failing run,
- * `final-confirm-refusal-carries-one-original-observation`) is silently dropped. This test drives
+ * Before this contract, `nodeBuild`'s failure envelope printed only `result.failedAt`/`result.reason`
+ * — the transported `failedObservation` (stdout/stderr/exit code of the actual failing run,
+ * `final-confirm-refusal-carries-one-original-observation`) was silently dropped. This test drives
  * a REAL `proveUnit` walk (a no-op scripted author + a real `ShellTestExecutor`-backed ordinary
  * child command, via the orchestrator's own `nodeEvalExecutor` test helper) to obtain the ACTUAL
- * returned failure, then hands it to the shared same-file renderer `node-build.ts` is expected to
- * expose — probed by NAME on the dynamically-imported module namespace, never destructured at the
- * import statement, so an absent-today export surfaces as a plain "is not a function" once called,
- * not as a module-resolution failure (the whole-module import always succeeds).
+ * returned failure, then hands it to the shared same-file renderer `node-build.ts` exports.
  */
 
 const UNIT_ID = "node-build-refusal-observation-unit-fixture";
@@ -38,24 +37,6 @@ const noopAuthor: PhaseAuthor = {
 };
 
 type ConfirmObservation = { stdout: string; stderr: string; exitCode: number | null };
-
-/** The shape of the not-yet-existing shared renderer `node-build.ts` is expected to export. */
-type FailedConfirmObservationRenderer = (
-  unitId: string,
-  runId: string,
-  observation: ConfirmObservation | undefined,
-) => string[];
-
-/**
- * Probe `node-build.ts`'s namespace for the shared renderer BY NAME, never by a destructuring
- * import — a whole-module dynamic import always succeeds regardless of what the module exports,
- * so the missing-today case surfaces only once the (undefined) value is actually CALLED, as a
- * plain runtime "is not a function", not as an import/module-resolution failure.
- */
-async function loadFailedConfirmObservationRenderer(): Promise<FailedConfirmObservationRenderer> {
-  const nodeBuildModule = (await import("./node-build.js")) as unknown as Record<string, unknown>;
-  return nodeBuildModule["renderFailedConfirmObservation"] as FailedConfirmObservationRenderer;
-}
 
 /**
  * Drive a genuine CONFIRM_GREEN refusal through the real `proveUnit` gate: a command fixed at
@@ -106,7 +87,6 @@ test("node-build-renders-only-returned-confirm-observation: labels the returned 
   assert.match(observation.stderr, new RegExp(STDERR_MARKER));
 
   // Act: hand the RETURNED observation to the production renderer.
-  const renderFailedConfirmObservation = await loadFailedConfirmObservationRenderer();
   const rendered = renderFailedConfirmObservation(UNIT_ID, RUN_ID, observation).join("\n");
 
   assert.match(
@@ -132,7 +112,6 @@ test("node-build-renders-only-returned-confirm-observation: labels the returned 
 });
 
 test("node-build-renders-only-returned-confirm-observation: an ABSENT observation (a non-CONFIRM refusal) renders nothing — the renderer never manufactures one", async () => {
-  const renderFailedConfirmObservation = await loadFailedConfirmObservationRenderer();
 
   const rendered = renderFailedConfirmObservation(UNIT_ID, RUN_ID, undefined);
 
