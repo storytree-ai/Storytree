@@ -48,7 +48,7 @@ function without(manifest: ManifestObject, subtrees: readonly string[]): Manifes
   return { ...manifest, sourceOwnership: { ...section, subtrees: kept } };
 }
 
-function composedLive(): { readonly committed: string; readonly composed: string } {
+function composedLive() {
   const whole: ManifestObject = JSON.parse(readFileSync(path.join(REPO_ROOT, "repo-manifest.json"), "utf8"));
   const first = composeManifest(splitManifest(whole));
   const covered = first.ok ? [] : first.faults.flatMap((f) => (f.kind === "overlapping-declaration" ? [f.specific.subtree] : []));

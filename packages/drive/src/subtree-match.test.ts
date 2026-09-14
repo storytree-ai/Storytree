@@ -48,6 +48,7 @@ test("glob inside glob: every well-formed path the specific one matches, the bro
   assert.equal(subtreeCovers("a/*", "a/*/b"), false);
   assert.equal(subtreeCovers("a/*.ts", "a/*"), false);
   assert.equal(subtreeCovers("a/*.ts", "a/**/b.ts"), false, "`a/x/b.ts` — the specific glob's own directories count");
+  assert.equal(subtreeCovers("a/*/b", "a/*/**/b"), false, "`a/x/y/b` — a directory closed after a named one, with no room for it in the broad glob");
   assert.equal(subtreeCovers("a/*/b.ts", "a/**/b.ts"), false, "`a/b.ts` has no directory for the one-name star");
   assert.equal(subtreeCovers("a/**/b", "a/*b"), false, "a directory name must reach its `/` before `b` can follow");
   assert.equal(subtreeCovers("a/*a*", "a/*"), false, "a name built from a character neither pattern names escapes");

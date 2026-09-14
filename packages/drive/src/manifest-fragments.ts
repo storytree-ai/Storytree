@@ -116,12 +116,15 @@ const DOMAIN_OF = new Map(
   MANIFEST_DOMAINS.flatMap((domain) => domain.sections.map((section): [string, string] => [section, domain.dir])),
 );
 
-/** What the manifest holds at one path. */
+/**
+ * What the manifest holds at one path. `optional` marks the one kind of section a manifest may lack —
+ * only the ownership baseline, today.
+ */
 type SectionSpec =
   /** An object whose keys the contract names. */
-  | { readonly shape: "section"; readonly children: Readonly<Record<string, SectionSpec>> }
+  | { readonly shape: "section"; readonly children: Readonly<Record<string, SectionSpec>>; readonly optional?: true }
   /** An object whose keys are data — a path, a package, a story — each mapped to a value. */
-  | { readonly shape: "map"; readonly entries: "text" | "object" }
+  | { readonly shape: "map"; readonly entries: "text" | "object"; readonly optional?: true }
   /** One value, supplied whole. */
   | { readonly shape: "value"; readonly holds: "text-list" | "object"; readonly optional?: true };
 
@@ -197,7 +200,6 @@ export type ManifestComposition =
 /** A value one fragment puts at one path: a note, one entry of a map, or a whole value. */
 interface Contribution {
   readonly fragment: string;
-  readonly kind: "note" | "entry" | "value";
   /** The section or map the value sits in. */
   readonly within: readonly string[];
   readonly key: string;
@@ -207,7 +209,10 @@ interface Contribution {
 /** What one fragment says, before it is held against the rest of the set. */
 interface FragmentReading {
   readonly contributions: readonly Contribution[];
-  /** The sections and maps it supplies — supplied EMPTY is still supplied: a statement, not an absence. */
+  /**
+   * The sections, maps and whole values it supplies — what makes a required one present. Supplied
+   * EMPTY is still supplied: a statement, not an absence.
+   */
   readonly supplies: readonly (readonly string[])[];
   readonly faults: readonly ManifestCompositionFault[];
 }
@@ -222,12 +227,11 @@ export function composeManifest(sources: readonly ManifestFragmentSource[]): Man
   const readings = sources.map(readFragment);
   const supplies = readings.flatMap((reading) => reading.supplies);
   const contributions = readings.flatMap((reading) => reading.contributions);
-  const supplied = [...supplies, ...contributions.filter((c) => c.kind === "value").map(pathOf)];
   const faults = [
     ...repeatedFragments(sources),
     ...readings.flatMap((reading) => reading.faults),
     ...collisions(contributions),
-    ...missingSections(new Set(supplied.map(pathKey))),
+    ...missingSections(new Set(supplies.map(pathKey))),
     ...overlaps(contributions),
   ];
   if (faults.length > 0) return { ok: false, faults: inOrder(faults) };
@@ -242,8 +246,8 @@ function readFragment(source: ManifestFragmentSource): FragmentReading {
   const refuse = (kind: PlainFaultKind, path: readonly string[], why: string): void => {
     faults.push(fault(kind, [source.path], path, `${source.path}: ${why}`));
   };
-  const contribute = (kind: Contribution["kind"], within: readonly string[], key: string, value: ManifestJson): void => {
-    contributions.push({ fragment: source.path, kind, within, key, value });
+  const contribute = (within: readonly string[], key: string, value: ManifestJson): void => {
+    contributions.push({ fragment: source.path, within, key, value });
   };
 
   const address = fragmentAddress(source.path);
@@ -271,12 +275,12 @@ function readFragment(source: ManifestFragmentSource): FragmentReading {
   }
 
   const note = (within: readonly string[], key: string, value: ManifestJson): void => {
-    if (typeof value === "string") contribute("note", within, key, value);
+    if (typeof value === "string") contribute(within, key, value);
     else refuse("malformed-fragment", [...within, key], `${label([...within, key])} is a note (its key begins with $), so it must be a string`);
   };
   const entry = (entries: "text" | "object", within: readonly string[], key: string, value: ManifestJson): void => {
     const valid = entries === "text" ? typeof value === "string" && value !== "" : isObject(value);
-    if (key !== "" && valid) contribute("entry", within, key, value);
+    if (key !== "" && valid) contribute(within, key, value);
     else {
       refuse(
         "malformed-fragment",
@@ -299,8 +303,10 @@ function readFragment(source: ManifestFragmentSource): FragmentReading {
   const walk = (spec: SectionSpec, within: readonly string[], key: string, value: ManifestJson): void => {
     const path = [...within, key];
     if (spec.shape === "value") {
-      if (holds(spec.holds, value)) contribute("value", within, key, value);
-      else refuse("malformed-fragment", path, `${label(path)} must be ${HOLDS[spec.holds]}`);
+      if (holds(spec.holds, value)) {
+        supplies.push(path);
+        contribute(within, key, value);
+      } else refuse("malformed-fragment", path, `${label(path)} must be ${HOLDS[spec.holds]}`);
       return;
     }
     if (!isObject(value)) {
@@ -374,17 +380,19 @@ function holdToOwnerShard(
 
 const SUBTREES = pathKey(["sourceOwnership", "subtrees"]);
 
+/** A declaration is an entry of the subtree map; a `$` key beside one is that map's prose. */
 function isDeclaration(c: Contribution): boolean {
-  return c.kind === "entry" && pathKey(c.within) === SUBTREES;
+  return pathKey(c.within) === SUBTREES && !c.key.startsWith("$");
 }
 
-const FRAGMENT_PATH = /^[a-z]+(?:-[a-z]+)*\/(?:_domain|[a-z0-9]+(?:-[a-z0-9]+)*)\.json$/;
+/** A shard's file name: `_domain`, or a kebab-case id, then `.json`. The directory is held to the domains. */
+const SHARD_FILE = /^(?:_domain|[a-z0-9]+(?:-[a-z0-9]+)*)\.json$/;
 
 function fragmentAddress(path: string): { readonly dir: string; readonly shard: string } | undefined {
-  if (!FRAGMENT_PATH.test(path)) return undefined;
   const slash = path.indexOf("/");
   const dir = path.slice(0, slash);
-  return DOMAIN_DIRS.has(dir) ? { dir, shard: path.slice(slash + 1, -".json".length) } : undefined;
+  const file = path.slice(slash + 1);
+  return DOMAIN_DIRS.has(dir) && SHARD_FILE.test(file) ? { dir, shard: file.slice(0, -".json".length) } : undefined;
 }
 
 function parseObject(text: string): ManifestObject | string {
@@ -435,7 +443,7 @@ function missingSections(supplied: ReadonlySet<string>): ManifestCompositionFaul
     Object.entries(spec.children).flatMap(([key, child]) => {
       const path = [...within, key];
       if (supplied.has(pathKey(path))) return child.shape === "section" ? absent(child, path) : [];
-      if (child.shape === "value" && child.optional === true) return [];
+      if (child.optional === true) return [];
       return [
         fault(
           "missing-section",
@@ -586,13 +594,16 @@ export function splitManifest(manifest: ManifestObject): ManifestFragmentSource[
 // Reading JSON text
 // ---------------------------------------------------------------------------
 
-/** A frame of the scan below: the object or array it is inside, and where that sits. */
+/** A frame of the scan below: the object or array it is inside, and the path that container sits at. */
 type ScanFrame =
-  | { readonly kind: "object"; readonly path: readonly string[]; readonly keys: Set<string>; awaitingKey: boolean; lastKey: string }
+  | { readonly kind: "object"; readonly path: readonly string[]; readonly keys: Set<string>; awaitingKey: boolean }
   | { readonly kind: "array"; readonly path: readonly string[]; index: number };
 
-/** A string, a punctuation mark, or a bare run (a number, `true`, `false`, `null`); whitespace is skipped. */
-const JSON_TOKEN = /"(?:[^"\\]|\\.)*"|[{}[\]:,]|[^\s{}[\]:,"]+/g;
+/**
+ * A string, or a punctuation mark. Nothing else in JSON — a number, `true`, `false`, `null`, whitespace
+ * — can open a container or name a key, so the scan skips it.
+ */
+const JSON_TOKEN = /"(?:[^"\\]|\\.)*"|[{}[\]:,]/g;
 
 /**
  * Every path at which `text` declares one object key more than once. `JSON.parse` keeps the LAST of
@@ -604,20 +615,30 @@ const JSON_TOKEN = /"(?:[^"\\]|\\.)*"|[{}[\]:,]|[^\s{}[\]:,"]+/g;
 export function duplicateKeyPaths(text: string): string[][] {
   const frames: ScanFrame[] = [];
   const repeated: string[][] = [];
+  // The path of the value about to be read — where the next container to open will sit.
+  let slot: readonly string[] = [];
   for (const [token] of text.matchAll(JSON_TOKEN)) {
     const top = frames.at(-1);
-    const here = top === undefined ? [] : [...top.path, top.kind === "object" ? top.lastKey : String(top.index)];
-    if (token === "{") frames.push({ kind: "object", path: here, keys: new Set(), awaitingKey: true, lastKey: "" });
-    else if (token === "[") frames.push({ kind: "array", path: here, index: 0 });
-    else if (token === "}" || token === "]") frames.pop();
-    else if (top?.kind === "array") top.index += token === "," ? 1 : 0;
-    else if (top?.kind === "object" && token === ",") top.awaitingKey = true;
-    else if (top?.kind === "object" && top.awaitingKey && token.startsWith('"')) {
-      const key: string = JSON.parse(token);
-      if (top.keys.has(key)) repeated.push([...top.path, key]);
-      top.keys.add(key);
-      top.lastKey = key;
-      top.awaitingKey = false;
+    if (token === "{") frames.push({ kind: "object", path: slot, keys: new Set(), awaitingKey: true });
+    else if (token === "[") {
+      frames.push({ kind: "array", path: slot, index: 0 });
+      slot = [...slot, "0"];
+    } else if (token === "}" || token === "]") frames.pop();
+    else if (top?.kind === "array") {
+      if (token === ",") {
+        top.index += 1;
+        slot = [...top.path, String(top.index)];
+      }
+    } else if (top !== undefined) {
+      if (token === ",") top.awaitingKey = true;
+      else if (top.awaitingKey) {
+        // Awaiting a key, the only token valid JSON can hold is the key's own string.
+        const key: string = JSON.parse(token);
+        if (top.keys.has(key)) repeated.push([...top.path, key]);
+        top.keys.add(key);
+        slot = [...top.path, key];
+        top.awaitingKey = false;
+      }
     }
   }
   return repeated;

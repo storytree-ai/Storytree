@@ -150,17 +150,34 @@ function tokenise(pattern: string): PatternStep[] {
 }
 
 /*
- * A POSITION in a pattern is one number: step index × 2, plus 1 only inside a `dirs` step whose
- * current directory name has begun but not yet reached its `/`. The position one past the last step
- * is the accepting one.
+ * A POSITION in a pattern is one number. At step `index` with no directory name open it is
+ * `position(index)`; inside a `dirs` step whose directory name has begun but not yet reached its `/`,
+ * it is `namePosition(index)`. The position one past the last step is the accepting one. Both sides of
+ * the search below read and write positions only through these four functions, so neither side can
+ * mean by a position something the other does not.
  */
+
+function position(index: number): number {
+  return index * 2;
+}
+
+function namePosition(index: number): number {
+  return index * 2 + 1;
+}
+
+function stepAt(at: number): number {
+  return Math.floor(at / 2);
+}
+
+function nameOpen(at: number): boolean {
+  return at % 2 === 1;
+}
 
 /** Add `at`, and every position reachable from it without reading: a star or a `dirs` may match nothing. */
 function reach(steps: readonly PatternStep[], at: number, into: Set<number>): void {
   into.add(at);
-  const index = Math.floor(at / 2);
-  const step = steps[index];
-  if (step !== undefined && step.kind !== "char" && at % 2 === 0) reach(steps, (index + 1) * 2, into);
+  const step = steps[stepAt(at)];
+  if (step !== undefined && step.kind !== "char" && !nameOpen(at)) reach(steps, position(stepAt(at) + 1), into);
 }
 
 function closure(steps: readonly PatternStep[], at: number): Set<number> {
@@ -171,42 +188,49 @@ function closure(steps: readonly PatternStep[], at: number): Set<number> {
 
 /**
  * Where the positions `from` go on reading `char` — the BROAD pattern's side of the search, which
- * follows every position at once. `null` stands for every ordinary character neither pattern names:
- * they all behave alike, so one representative is exact, not a sample.
+ * follows every position at once. `null` is a name character no pattern spells (see {@link moves}).
  */
 function advance(steps: readonly PatternStep[], from: ReadonlySet<number>, char: string | null): Set<number> {
   const to = new Set<number>();
   for (const at of from) {
-    const index = Math.floor(at / 2);
+    const index = stepAt(at);
     const step = steps[index];
     // The accepting position reads nothing further.
     if (step === undefined) continue;
     if (step.kind === "char") {
-      if (step.char === char) reach(steps, (index + 1) * 2, to);
+      if (step.char === char) reach(steps, position(index + 1), to);
     } else if (step.kind === "any") reach(steps, at, to);
-    else if (char !== "/") reach(steps, step.kind === "dirs" ? index * 2 + 1 : at, to);
+    else if (char !== "/") reach(steps, step.kind === "dirs" ? namePosition(index) : at, to);
     // A `/` closes a directory name a `dirs` step has begun, and is refused by a one-name star.
-    else if (at % 2 === 1) reach(steps, index * 2, to);
+    else if (nameOpen(at)) reach(steps, position(index), to);
   }
   return to;
 }
 
 /**
- * What the SPECIFIC pattern may read at position `at`, and where each character takes it — the other
- * side of the search, which follows one position at a time so it never wanders down a path `specific`
- * could not have produced.
+ * What the SPECIFIC pattern may read at `at`, and where each character takes it — the other side of the
+ * search, which follows one position at a time so it never wanders down a path `specific` could not
+ * have produced.
+ *
+ * Its wildcards produce exactly one name character, `null`, which no pattern spells — and that is exact
+ * rather than a sample. A path `broad` misses stays missed when every character a wildcard of `specific`
+ * produced is swapped for one no pattern spells: only a wildcard of `broad` could have read the original
+ * character, and a wildcard reads the swap just as well.
  */
-function moves(step: PatternStep, at: number, names: readonly (string | null)[]): (readonly [string | null, number])[] {
-  const index = Math.floor(at / 2);
-  const stay = (char: string | null): readonly [string | null, number] => [char, at];
-  if (step.kind === "char") return [[step.char, (index + 1) * 2]];
-  if (step.kind === "any") return [...names, "/"].map(stay);
-  if (step.kind === "name") return names.map(stay);
+function moves(step: PatternStep, at: number): (readonly [string | null, number])[] {
+  const index = stepAt(at);
+  if (step.kind === "char") return [[step.char, position(index + 1)]];
+  if (step.kind === "name") return [[null, at]];
+  if (step.kind === "any") return [[null, at], ["/", at]];
   // `dirs`: a name character opens a directory name or continues one, and only an open name takes a `/`.
-  return at % 2 === 1
-    ? [...names.map(stay), ["/", index * 2]]
-    : names.map((char): readonly [string | null, number] => [char, at + 1]);
+  return nameOpen(at) ? [[null, at], ["/", position(index)]] : [[null, namePosition(index)]];
 }
+
+/**
+ * Whether the path read so far ends inside a name. It does not at the start, and it does not straight
+ * after a `/` — one value for both, so the start and the separator cannot drift apart.
+ */
+const AFTER_SEPARATOR = false;
 
 /**
  * Is every well-formed path `specific` matches also matched by `broad`? Both are globs.
@@ -218,15 +242,12 @@ function moves(step: PatternStep, at: number, names: readonly (string | null)[])
  * purpose: a search that stopped remembering recurses without end at once, instead of widening until
  * it runs out of memory.
  *
- * Walking `specific`'s own moves rather than trying every character on both patterns is what keeps it
- * cheap: most characters take `specific` nowhere, and a search that tried them anyway would chase
- * `broad` down paths `specific` can never produce. Measured over the live manifest's 620 glob pairs
- * that could cover each other, that version took 3.5 s.
+ * Walking `specific`'s own moves, and giving its wildcards one character to produce, is what keeps it
+ * cheap. Measured over the live manifest's 620 glob pairs that could cover each other, a version that
+ * tried every character on both patterns took 3.5 s.
  */
 function coversEveryPath(broad: readonly PatternStep[], specific: readonly PatternStep[]): boolean {
-  // Every character that is not `/` behaves alike unless a pattern names it, so these stand for all.
-  const names = [null, ...new Set([...broad, ...specific].flatMap((s) => (s.kind === "char" && s.char !== "/" ? [s.char] : [])))];
-  const accepting = specific.length * 2;
+  const accepting = position(specific.length);
   const searched = new Set<string>();
   const visit = (at: number, from: ReadonlySet<number>, inName: boolean): boolean => {
     // The sort only canonicalises the memo key of a SET: an unsorted key revisits a reading already
@@ -236,13 +257,14 @@ function coversEveryPath(broad: readonly PatternStep[], specific: readonly Patte
     if (searched.has(key)) return true;
     searched.add(key);
     // A path ends inside a name: `specific` ending on a `/` has produced no path for `broad` to miss.
-    if (at === accepting) return !inName || from.has(broad.length * 2);
-    return moves(specific[Math.floor(at / 2)] ?? ANY, at, names).every(([char, next]) => {
+    if (at === accepting) return !inName || from.has(position(broad.length));
+    return moves(specific[stepAt(at)] ?? ANY, at).every(([char, next]) => {
       // A `/` where no name is open is an empty segment or a leading slash — never a path.
       if (char === "/" && !inName) return true;
       const after = advance(broad, from, char);
-      return [...closure(specific, next)].every((to) => visit(to, after, char !== "/"));
+      const named = char === "/" ? AFTER_SEPARATOR : !AFTER_SEPARATOR;
+      return [...closure(specific, next)].every((to) => visit(to, after, named));
     });
   };
-  return [...closure(specific, 0)].every((at) => visit(at, closure(broad, 0), false));
+  return [...closure(specific, position(0))].every((at) => visit(at, closure(broad, position(0)), AFTER_SEPARATOR));
 }

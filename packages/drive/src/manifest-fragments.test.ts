@@ -27,7 +27,7 @@ import { composeManifestTree, readManifestFragmentTree } from "./manifest-fragme
  * Three halves:
  *  1. The contract over a small aggregate built here: split, compose, and every fault the composer
  *     refuses — each against the unbroken set, which composes, so no refusal can pass because the
- *     whole set was broken.
+ *     whole set was broken. Each refusal's wording is pinned once, because the wording is the repair.
  *  2. The pieces it rests on: the covering search's candidate bound, the duplicate-key scan, the
  *     canonical form, and the disk reader.
  *  3. THE LIVE MANIFEST. `repo-manifest.json` is split at the claim grain and composed back, and must
@@ -136,7 +136,7 @@ function faultsOf(result: ManifestComposition): readonly ManifestCompositionFaul
   return result.faults;
 }
 
-/** What each refusal is ABOUT — kind, manifest path, fragments — leaving the prose to the tests that pin it. */
+/** What each refusal is ABOUT — kind, manifest path, fragments. Its wording is pinned on its own. */
 function about(faults: readonly ManifestCompositionFault[]) {
   return faults.map((f) => [f.kind, f.at, f.fragments]);
 }
@@ -193,6 +193,14 @@ test("an aggregate splits into one fragment per domain, and one more per source 
     docs: whole["docs"] ?? null,
   });
   assert.deepEqual(body("package-ownership/_domain.json"), { packageOwnership: whole["packageOwnership"] ?? null });
+});
+
+test("only source ownership is split by owner — any other section stays whole in its domain shard, whatever its parts are called", () => {
+  const parsed = (manifest: ManifestObject) => splitManifest(manifest).map((f) => [f.path, JSON.parse(f.text)]);
+  assert.deepEqual(parsed({ hostedStories: { subtrees: { "packages/x": "someone" } } }), [
+    ["hosted-stories/_domain.json", { hostedStories: { subtrees: { "packages/x": "someone" } } }],
+  ]);
+  assert.deepEqual(parsed({ sourceOwnership: "not a section" }), [["source-ownership/_domain.json", { sourceOwnership: "not a section" }]]);
 });
 
 test("a fragment is written as the house writes JSON: keys sorted, two-space indent, newline-terminated, prose unescaped", () => {
@@ -378,7 +386,6 @@ test("a value of the wrong shape is refused where it sits", () => {
 test("a section the contract does not define is refused — at the top, and inside a section it does define", () => {
   const inner = faultsOf(composeManifest(fragments(fragment("package-ownership/more.json", { packageOwnership: { orgnisms: {} } }))));
   assert.deepEqual(about(inner), [["malformed-fragment", "packageOwnership.orgnisms", ["package-ownership/more.json"]]]);
-  assert.match(inner[0]?.message ?? "", /not a section the manifest defines/);
   const top = faultsOf(composeManifest(fragments(fragment("repo-surface/more.json", { surfaceOwnership: {} }))));
   assert.deepEqual(about(top), [["malformed-fragment", "surfaceOwnership", ["repo-surface/more.json"]]]);
 });
@@ -386,10 +393,8 @@ test("a section the contract does not define is refused — at the top, and insi
 test("a section supplied from another domain's directory is refused, naming the directory it belongs in", () => {
   const section = faultsOf(composeManifest(fragments(fragment("repo-surface/more.json", { hostedStories: { register: { x: "y" } } }))));
   assert.deepEqual(about(section), [["misplaced-declaration", "hostedStories", ["repo-surface/more.json"]]]);
-  assert.match(section[0]?.message ?? "", /under hosted-stories\//);
   const note = faultsOf(composeManifest(fragments(fragment("hosted-stories/more.json", { $note: "x" }))));
   assert.deepEqual(about(note), [["misplaced-declaration", "$note", ["hosted-stories/more.json"]]]);
-  assert.match(note[0]?.message ?? "", /live in repo-surface fragments/);
 });
 
 test("a key repeated inside ONE fragment is refused — JSON.parse would keep the last and silently drop the rest", () => {
@@ -409,7 +414,6 @@ test("one key from two fragments is refused: a DUPLICATE when they agree, CONTES
     composeManifest(fragments(fragment("repo-surface/more.json", { root: { files: { "README.md": "the front door" } } }))),
   );
   assert.deepEqual(about(disagree), [["contested-key", 'root.files["README.md"]', ["repo-surface/_domain.json", "repo-surface/more.json"]]]);
-  assert.match(disagree[0]?.message ?? "", /repo-surface\/_domain\.json says "front door"; repo-surface\/more\.json says "the front door"/);
 
   // The contest fragments exist to surface: two owners, one subtree.
   const owners = faultsOf(
@@ -441,13 +445,15 @@ test("source ownership is sharded by owner: a declaration in the wrong shard is 
     composeManifest(fragments(fragment(OBT, { sourceOwnership: { subtrees: { ...OBT_DECLARATIONS, "packages/cli/src/tree.ts": "tree-view" } } }))),
   );
   assert.deepEqual(about(foreign), [["misplaced-declaration", 'sourceOwnership.subtrees["packages/cli/src/tree.ts"]', [OBT]]]);
-  assert.match(foreign[0]?.message ?? "", /move it to source-ownership\/tree-view\.json/);
 
   const domain: ManifestObject = JSON.parse(splitManifest(aggregate()).find((f) => f.path === "source-ownership/_domain.json")?.text ?? "{}");
   const declaring = edited(domain, ["sourceOwnership", "subtrees", "packages/cli/src/tree.ts"], "tree-view");
   const inDomain = faultsOf(composeManifest(fragments(fragment("source-ownership/_domain.json", declaring))));
   assert.deepEqual(about(inDomain), [["misplaced-declaration", 'sourceOwnership.subtrees["packages/cli/src/tree.ts"]', ["source-ownership/_domain.json"]]]);
-  assert.match(inDomain[0]?.message ?? "", /never a declaration — move sourceOwnership\.subtrees\["packages\/cli\/src\/tree\.ts"\] to source-ownership\/tree-view\.json/);
+  assert.equal(
+    inDomain[0]?.message,
+    'source-ownership/_domain.json: _domain.json holds the section\'s notes and baseline, never a declaration — move sourceOwnership.subtrees["packages/cli/src/tree.ts"] to source-ownership/tree-view.json',
+  );
 
   const stray = faultsOf(composeManifest(fragments(fragment(OBT, { sourceOwnership: { $note: "mine", subtrees: OBT_DECLARATIONS } }))));
   assert.deepEqual(about(stray), [["misplaced-declaration", "sourceOwnership.$note", [OBT]]]);
@@ -468,26 +474,67 @@ test("an owner fragment that declares nothing is refused — a file named for an
 test("a declaration COVERED by another is refused with both named — whichever owners, whichever shards", () => {
   const overlapping = (subtree: string, owner: string) =>
     faultsOf(composeManifest(splitManifest(edited(aggregate(), ["sourceOwnership", "subtrees", subtree], owner)))).map((f) =>
-      f.kind === "overlapping-declaration" ? [f.broad.subtree, f.broad.owner, f.specific.subtree, f.specific.owner, f.fragments] : [f.kind],
+      f.kind === "overlapping-declaration"
+        ? [f.at, f.broad.subtree, f.broad.owner, f.specific.subtree, f.specific.owner, f.fragments]
+        : [f.kind],
     );
 
-  assert.deepEqual(overlapping("packages/drive/src", "drive-machinery"), [
-    ["packages/drive/src", "drive-machinery", "packages/drive/src/source-ownership-map.ts", "organism-boundary-tooling", ["source-ownership/drive-machinery.json", OBT]],
-    ["packages/drive/src", "drive-machinery", "packages/drive/src/subtree-match.ts", "organism-boundary-tooling", ["source-ownership/drive-machinery.json", OBT]],
+  // The broad owner's fragment sorts AFTER the covered one's, so the pair is named in sorted order, not the order found.
+  assert.deepEqual(overlapping("packages/drive/src", "workspace-drivers"), [
+    [
+      'sourceOwnership.subtrees["packages/drive/src/source-ownership-map.ts"]',
+      "packages/drive/src",
+      "workspace-drivers",
+      "packages/drive/src/source-ownership-map.ts",
+      "organism-boundary-tooling",
+      [OBT, "source-ownership/workspace-drivers.json"],
+    ],
+    [
+      'sourceOwnership.subtrees["packages/drive/src/subtree-match.ts"]',
+      "packages/drive/src",
+      "workspace-drivers",
+      "packages/drive/src/subtree-match.ts",
+      "organism-boundary-tooling",
+      [OBT, "source-ownership/workspace-drivers.json"],
+    ],
   ]);
   assert.deepEqual(overlapping("packages/cli/src/*.ts", "cli"), [
-    ["packages/cli/src/*.ts", "cli", "packages/cli/src/*boundaries*.ts", "organism-boundary-tooling", ["source-ownership/cli.json", OBT]],
-    ["packages/cli/src/*.ts", "cli", "packages/cli/src/gate*.ts", "gate-ci-parity", ["source-ownership/cli.json", "source-ownership/gate-ci-parity.json"]],
+    [
+      'sourceOwnership.subtrees["packages/cli/src/*boundaries*.ts"]',
+      "packages/cli/src/*.ts",
+      "cli",
+      "packages/cli/src/*boundaries*.ts",
+      "organism-boundary-tooling",
+      ["source-ownership/cli.json", OBT],
+    ],
+    [
+      'sourceOwnership.subtrees["packages/cli/src/gate*.ts"]',
+      "packages/cli/src/*.ts",
+      "cli",
+      "packages/cli/src/gate*.ts",
+      "gate-ci-parity",
+      ["source-ownership/cli.json", "source-ownership/gate-ci-parity.json"],
+    ],
   ]);
   // Authoring rule (2) does not ask whose declarations they are: an owner covering itself is refused too.
   assert.deepEqual(overlapping("packages/drive/src/*.ts", "organism-boundary-tooling"), [
-    ["packages/drive/src/*.ts", "organism-boundary-tooling", "packages/drive/src/source-ownership-map.ts", "organism-boundary-tooling", [OBT]],
-    ["packages/drive/src/*.ts", "organism-boundary-tooling", "packages/drive/src/subtree-match.ts", "organism-boundary-tooling", [OBT]],
+    [
+      'sourceOwnership.subtrees["packages/drive/src/source-ownership-map.ts"]',
+      "packages/drive/src/*.ts",
+      "organism-boundary-tooling",
+      "packages/drive/src/source-ownership-map.ts",
+      "organism-boundary-tooling",
+      [OBT],
+    ],
+    [
+      'sourceOwnership.subtrees["packages/drive/src/subtree-match.ts"]',
+      "packages/drive/src/*.ts",
+      "organism-boundary-tooling",
+      "packages/drive/src/subtree-match.ts",
+      "organism-boundary-tooling",
+      [OBT],
+    ],
   ]);
-
-  const [first] = faultsOf(composeManifest(splitManifest(edited(aggregate(), ["sourceOwnership", "subtrees", "packages/drive/src"], "drive-machinery"))));
-  assert.match(first?.message ?? "", /covered by "packages\/drive\/src" \(drive-machinery, in source-ownership\/drive-machinery\.json\)/);
-  assert.match(first?.message ?? "", /authoring rule \(2\)/);
 });
 
 test("the same fragment path supplied twice is refused as such", () => {
@@ -496,7 +543,6 @@ test("the same fragment path supplied twice is refused as such", () => {
   if (hosted === undefined) assert.fail("the fixture has a hosted-stories fragment");
   const repeated = faultsOf(composeManifest([...split, hosted])).filter((f) => f.kind === "duplicate-fragment");
   assert.deepEqual(about(repeated), [["duplicate-fragment", "", ["hosted-stories/_domain.json"]]]);
-  assert.match(repeated[0]?.message ?? "", /supplied 2 times/);
 });
 
 test("faults come back in one stable order, whatever order the set arrived in", () => {
@@ -509,6 +555,90 @@ test("faults come back in one stable order, whatever order the set arrived in", 
   for (const order of [broken, [...broken].reverse()]) {
     assert.deepEqual(faultsOf(composeManifest(order)).map((f) => f.kind), ["contested-key", "empty-fragment", "malformed-fragment"]);
   }
+});
+
+test("every refusal is worded as its own repair — the wording is what a reader acts on, so it is pinned", () => {
+  const first = (sources: readonly ManifestFragmentSource[]): string => faultsOf(composeManifest(sources))[0]?.message ?? "";
+  const domains = "repo-surface, package-ownership, source-ownership, hierarchy-camps, hosted-stories";
+
+  assert.equal(
+    first([...fragments(), { path: "cli.json", text: "{}" }]),
+    `cli.json: not a fragment path — a fragment is <domain>/<shard>.json, where <domain> is one of ${domains} and <shard> is _domain or a kebab-case id`,
+  );
+  assert.equal(
+    first(fragments({ path: "source-ownership/tree-view.json", text: '{"sourceOwnership": {"subtrees": {"a/b.ts": "tree-view", "a/b.ts": "tree-view"}}}' })),
+    'source-ownership/tree-view.json: sourceOwnership.subtrees["a/b.ts"] appears more than once in this one file — JSON keeps only the last, so the others would vanish without a word; keep exactly one',
+  );
+  assert.equal(
+    first(fragments(fragment("repo-surface/more.json", { $comment_more: 5 }))),
+    "repo-surface/more.json: $comment_more is a note (its key begins with $), so it must be a string",
+  );
+  assert.equal(
+    first(fragments(fragment("repo-surface/more.json", { root: { files: { "x.md": "" } } }))),
+    'repo-surface/more.json: root.files["x.md"] must map a non-empty key to a non-empty string',
+  );
+  assert.equal(
+    first(fragments(fragment("hierarchy-camps/more.json", { hierarchyCamps: { readers: { "a.ts": "prove" } } }))),
+    'hierarchy-camps/more.json: hierarchyCamps.readers["a.ts"] must map a non-empty key to an object',
+  );
+  assert.equal(
+    first(fragments(fragment("package-ownership/more.json", { packageOwnership: { orgnisms: {} } }))),
+    "package-ownership/more.json: packageOwnership.orgnisms is not a section the manifest defines — a new section needs the fragment contract extended first (MANIFEST in packages/drive/src/manifest-fragments.ts)",
+  );
+  assert.equal(
+    first(fragments(fragment("package-ownership/more.json", { packageOwnership: { foundational: "@storytree/x" } }))),
+    "package-ownership/more.json: packageOwnership.foundational must be a list of strings",
+  );
+  assert.equal(
+    first(splitManifest(edited(aggregate(), ["sourceOwnership", "baseline"], "yesterday"))),
+    "source-ownership/_domain.json: sourceOwnership.baseline must be an object",
+  );
+  assert.equal(first(fragments(fragment("repo-surface/more.json", { root: { dirs: [] } }))), "repo-surface/more.json: root.dirs must be an object");
+  assert.equal(
+    first(fragments(fragment("hosted-stories/more.json", { $note: "x" }))),
+    "hosted-stories/more.json: the manifest's own top-level notes live in repo-surface fragments — move $note there",
+  );
+  assert.equal(
+    first(fragments(fragment("repo-surface/more.json", { hostedStories: { register: { x: "y" } } }))),
+    "repo-surface/more.json: hostedStories belongs to the hosted-stories domain — move it to a fragment under hosted-stories/",
+  );
+  assert.equal(
+    first(fragments(fragment(OBT, { sourceOwnership: { $note: "mine", subtrees: OBT_DECLARATIONS } }))),
+    `${OBT}: an owner fragment declares subtrees and nothing else — move sourceOwnership.$note to source-ownership/_domain.json`,
+  );
+  assert.equal(
+    first(fragments(fragment(OBT, { sourceOwnership: { subtrees: { ...OBT_DECLARATIONS, "a/b.ts": "tree-view" } } }))),
+    `${OBT}: this is organism-boundary-tooling's fragment, but sourceOwnership.subtrees["a/b.ts"] is declared for tree-view — move it to source-ownership/tree-view.json`,
+  );
+  assert.equal(
+    first(fragments(fragment("source-ownership/tree-view.json", {}))),
+    "source-ownership/tree-view.json: declares nothing for tree-view — add the declarations it exists for, or delete it",
+  );
+  assert.equal(
+    first(fragments(fragment("repo-surface/more.json", { root: { files: { "README.md": "front door" } } }))),
+    'root.files["README.md"] is declared 2 times, identically (repo-surface/_domain.json says "front door"; repo-surface/more.json says "front door") — keep exactly one',
+  );
+  // The disagreeing fragment ARRIVES first; the two are still named in sorted order.
+  assert.equal(
+    first([fragment("repo-surface/more.json", { root: { files: { "README.md": "the front door" } } }), ...fragments()]),
+    'root.files["README.md"] is declared 2 times with different values (repo-surface/_domain.json says "front door"; repo-surface/more.json says "the front door") — decide which is true and keep only that one',
+  );
+  assert.equal(
+    first(splitManifest(edited(aggregate(), ["hostedStories"], undefined))),
+    "no fragment supplies hostedStories — every check that reads the manifest reads it, and a missing section is a blind read rather than an empty one; supply it (an explicitly empty value is a legal statement)",
+  );
+  const hosted = splitManifest(aggregate()).find((f) => f.path === "hosted-stories/_domain.json");
+  if (hosted === undefined) assert.fail("the fixture has a hosted-stories fragment");
+  assert.equal(
+    faultsOf(composeManifest([...splitManifest(aggregate()), hosted])).find((f) => f.kind === "duplicate-fragment")?.message,
+    "hosted-stories/_domain.json was supplied 2 times — one path names one file, so there is no telling which is meant",
+  );
+  assert.equal(
+    first(splitManifest(edited(aggregate(), ["sourceOwnership", "subtrees", "packages/drive/src"], "workspace-drivers"))),
+    'sourceOwnership.subtrees["packages/drive/src/source-ownership-map.ts"] (organism-boundary-tooling) is covered by "packages/drive/src" (workspace-drivers, in source-ownership/workspace-drivers.json): ' +
+      "every file it names is claimed by the broader declaration too, so which owner a file is credited to would be decided by declaration order — and fragments have no order. " +
+      "Narrow the broader subtree until it stops covering this one, or drop this one (the manifest's authoring rule (2): declarations are disjoint).",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -538,8 +668,11 @@ test("duplicateKeyPaths finds a key repeated at any depth, and is not fooled by 
   const text = String.raw`{"a": {"b": 1, "b": 2}, "list": [{"d": 1}, {"d": 1, "d": 2}], "e\"f": 1, "e\"f": 2, "g/h": 1, "g\/h": 2, "s": "{\"x\": 1, \"x\": 2}", "n": null}`;
   assert.deepEqual(duplicateKeyPaths(text), [["a", "b"], ["list", "1", "d"], ['e"f'], ["g/h"]]);
   assert.deepEqual(duplicateKeyPaths('[{"a": 1, "a": 2}]'), [["0", "a"]]);
+  // An element that is a string still takes a place in the list: only a `,` moves to the next one.
+  assert.deepEqual(duplicateKeyPaths('[1, "x", {"a": 1, "a": 2}]'), [["2", "a"]]);
   assert.deepEqual(duplicateKeyPaths('{"a": "a", "b": [1, 2, {"a": 3}], "c": {"a": 4}}'), []);
   assert.deepEqual(duplicateKeyPaths("42"), []);
+  assert.deepEqual(duplicateKeyPaths('"just a string"'), []);
 });
 
 test("canonicalJson sorts an object's keys at every depth — inside a list too — and keeps each list's own order", () => {
