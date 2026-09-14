@@ -73,7 +73,8 @@ no SDK and starts no session:
 4. read `leafSystemPrompt(false)`, `leafSystemPrompt(true)`, `composeLeafSystemPrompt(body, false)`
    and `composeLeafSystemPrompt(body, true)`: each names `mcp__spine__escalate`, says AUTHOR_TEST may
    escalate a contract that cannot be tested as specified and IMPLEMENT a test that cannot be
-   satisfied as written, quoting the assertion, and says an escalation never moves the verdict; each
+   satisfied as written, and says an escalation never moves the verdict (as built, the closing does not
+   ask for the assertion to be quoted; the tool's input shape and the validator require it); each
    still carries the phrases its existing tests assert; and
 5. revise the existing test "author WITHOUT feedback commands stays the blind leaf (no MCP server,
    original prompt)" in `sdk-author.test.ts` in place, during AUTHOR_TEST, to "no FEEDBACK tool;
@@ -117,8 +118,9 @@ This contract changes `ClaudeAgentAuthor` in `packages/agent/src/sdk-author.ts` 
 - **The test seam.** `ClaudeAgentAuthorArgs` gains `mcpServerFactory?: typeof createSdkMcpServer`,
   defaulting to the SDK's `createSdkMcpServer`. A scripted `queryFn` reaches the registered handler
   only through the definitions that factory is handed, never through `McpServer` private fields. The
-  test imports no SDK. A deliberately malformed argument reaches the handler through a cast, because
-  the package typecheck — a pre-signature backstop — covers test files.
+  test imports no SDK. A malformed argument reaches the handler without a cast: the declared input
+  already makes `assertion` optional, so the refusal is the validator's at run time (the package
+  typecheck — a pre-signature backstop — covers test files, and the house lint forbids assertion chains).
 
 Only this leaf gets a channel (ADR-0569 D6): `codex-author.ts`, the owned loop and `pi-author.ts` are
 untouched, and the phase briefs `resolve-prove-spec.ts` renders are not part of this contract.

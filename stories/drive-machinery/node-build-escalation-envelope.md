@@ -68,7 +68,9 @@ same-file production renderer `renderEscalation(unitId, runId, result)`:
 The observable is the renderer's returned lines and the child-written marker count. The test file is
 NEW: `packages/drive/src/node-build-escalation-envelope.test.ts`. The existing
 `packages/drive/src/node-build-refusal-observation.test.ts` and `packages/cli/src/node-build.test.ts`
-are not in this contract's write scope.
+are not in this contract's write scope. After the signed build (run `real-mu1ms77f`), the mutation rung's
+survivors were killed partly by two pure-renderer cases over constructed results — a null exit code and
+a record with no observation — which sit beside the real walks and do not replace them as the proof.
 
 ## Guidance
 
