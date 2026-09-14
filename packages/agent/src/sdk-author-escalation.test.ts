@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as path from "node:path";
 
+import { parseAuthoringEscalation } from "./phase-author.js";
 import { ClaudeAgentAuthor, composeLeafSystemPrompt, leafSystemPrompt } from "./sdk-author.js";
 import type { ClaudeAgentAuthorArgs, FeedbackCommand, SdkQueryFn } from "./sdk-author.js";
 
@@ -42,48 +43,57 @@ function scripted(messages: unknown[]): SdkQueryFn {
   };
 }
 
+/** A phrase check whose failure prints the phrase and the text it was missing from. */
+function assertIncludes(text: string, phrase: string, message: string): void {
+  assert.ok(
+    text.includes(phrase),
+    `${message}\n  expected to find: ${JSON.stringify(phrase)}\n  in: ${JSON.stringify(text)}`,
+  );
+}
+
 // ── The injected MCP-server-factory seam: captures the tool definitions handed to it ────────────
 
-/** The escalate tool's declared shape, as this file expects it to be registered. */
-interface CapturedEscalateArgs {
+/**
+ * The escalate tool's declared input shape, as this file expects it to be registered. A type alias
+ * rather than an interface: the SDK types a handler's arguments as a string-indexed record, which an
+ * object-literal alias satisfies and an interface (having no implicit index signature) does not.
+ */
+type CapturedEscalateArgs = {
   statement: string;
   assertion?: string;
-}
-
-/** One captured spine tool definition, shaped structurally like the SDK's `SdkMcpToolDefinition`. */
-interface CapturedSpineTool {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-  handler: (
-    args: CapturedEscalateArgs,
-    extra: unknown,
-  ) => Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }>;
-}
-
-/** What `createSdkMcpServer` is called with, captured instead of built for real. */
-interface CapturedMcpServerArgs {
-  name: string;
-  version?: string;
-  tools?: CapturedSpineTool[];
-}
+};
 
 type McpServerFactory = NonNullable<ClaudeAgentAuthorArgs["mcpServerFactory"]>;
 
-/**
- * An injected double for the `mcpServerFactory` seam: records exactly what `author()` handed it
- * (never touching `McpServer` private fields — the definitions ARE what is captured) and returns an
- * inert placeholder, since nothing in these tests ever starts a real transport.
- */
-function capturingMcpServerFactory(): {
+/** What `author()` hands the factory: the SDK's own `createSdkMcpServer` options, captured as-is. */
+type CapturedMcpServerArgs = Parameters<McpServerFactory>[0];
+
+/** One captured spine tool definition, exactly as the SDK's `tool()` built it. */
+type CapturedSpineTool = NonNullable<CapturedMcpServerArgs["tools"]>[number];
+
+/** The server config a factory returns — which the real one backs with a live `McpServer`. */
+type ServerConfig = ReturnType<McpServerFactory>;
+
+/** The capturing double's two handles: the factory to inject, and what that factory was last handed. */
+interface CapturingMcpServerFactory {
   factory: McpServerFactory;
   last: () => CapturedMcpServerArgs | undefined;
-} {
+}
+
+/**
+ * An injected double for the `mcpServerFactory` seam: records exactly what `author()` handed it
+ * (never touching `McpServer` private fields — the definitions ARE what is captured) and returns a
+ * stand-in server config. The stand-in has no live `McpServer`: building one needs the MCP SDK, which
+ * this file does not import, and nothing here ever starts a transport. So it takes the one assertion
+ * the house standard admits for an external contract a unit test cannot construct, and `satisfies`
+ * checks every member it does define against the real config type.
+ */
+function capturingMcpServerFactory(): CapturingMcpServerFactory {
   let captured: CapturedMcpServerArgs | undefined;
-  const factory = ((opts: CapturedMcpServerArgs) => {
+  const factory: McpServerFactory = (opts) => {
     captured = opts;
-    return {} as unknown as ReturnType<McpServerFactory>;
-  }) as unknown as McpServerFactory;
+    return { type: "sdk", name: opts.name } satisfies Partial<ServerConfig> as ServerConfig;
+  };
   return { factory, last: () => captured };
 }
 
@@ -94,7 +104,21 @@ function mustFindEscalate(captured: CapturedMcpServerArgs | undefined): Captured
     tool !== undefined,
     "the spine MCP server must register an 'escalate' tool on every slice (ADR-0569 D6)",
   );
-  return tool as CapturedSpineTool;
+  return tool;
+}
+
+/** A zod schema, as far as this file needs one: narrowed at the boundary, never cast. */
+interface SafeParser {
+  safeParse: (input: unknown) => { success: boolean };
+}
+
+function isSafeParser(value: unknown): value is SafeParser {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "safeParse" in value &&
+    typeof value.safeParse === "function"
+  );
 }
 
 // ── The channel: armed on every slice, feedback commands or not ─────────────────────────────────
@@ -142,6 +166,63 @@ test("escalate-tool-is-armed-on-every-slice-and-recorded-once: the spine server 
   assert.deepEqual(names, ["escalate", "run_proof"]);
 });
 
+test("escalate-tool-is-armed-on-every-slice-and-recorded-once: escalate is declared on a versioned spine server, with its authority described and a { statement, assertion? } input shape", async () => {
+  const mcp = capturingMcpServerFactory();
+  const author = new ClaudeAgentAuthor({
+    cwd: CWD,
+    isWriteAllowed: () => true,
+    mcpServerFactory: mcp.factory,
+    queryFn: scripted([
+      { type: "result", subtype: "success", is_error: false, num_turns: 1, total_cost_usd: 0 },
+    ]),
+  });
+  await author.author("AUTHOR_TEST", "p");
+
+  const server = mcp.last();
+  assert.equal(server?.name, "spine", "the server name is what makes the tool mcp__spine__escalate");
+  assert.equal(server?.version, "1.0.0", "the in-process server declares its version for the MCP handshake");
+
+  // The description is all the model reads about the tool before calling it: when to reach for it,
+  // what it does to the slice and to the verdict, what each phase admits, and the once-per-slice rule.
+  const escalate = mustFindEscalate(server);
+  assertIncludes(
+    escalate.description,
+    "Raise a validated, phase-scoped escalation instead of continuing this authoring slice or " +
+      "working around a frozen input you believe is wrong.",
+    "the description must say when to escalate",
+  );
+  assertIncludes(
+    escalate.description,
+    "Ends the slice without a verdict — it never moves the verdict; the spine alone observes " +
+      "red/green out-of-band.",
+    "the description must say an escalation ends the slice and never moves the verdict",
+  );
+  assertIncludes(
+    escalate.description,
+    "Admits arguments only through the phase's own validator: AUTHOR_TEST takes { statement }, " +
+      "IMPLEMENT takes { statement, assertion }.",
+    "the description must say what each phase admits",
+  );
+  assertIncludes(
+    escalate.description,
+    "Exactly the first valid call in a slice is recorded; every later call is refused.",
+    "the description must state the once-per-slice rule",
+  );
+
+  // The declared input shape: `statement` a required string and `assertion` an optional one, in
+  // BOTH phases. IMPLEMENT's need for an assertion is the validator's refusal, never the schema's.
+  const shape = escalate.inputSchema;
+  assert.deepEqual(Object.keys(shape).sort(), ["assertion", "statement"], "exactly statement and assertion are declared");
+  const { statement, assertion } = shape;
+  assert.ok(isSafeParser(statement), "statement is declared as a zod schema");
+  assert.ok(isSafeParser(assertion), "assertion is declared as a zod schema");
+  assert.equal(statement.safeParse("why").success, true, "statement admits a string");
+  assert.equal(statement.safeParse(undefined).success, false, "statement is required");
+  assert.equal(assertion.safeParse(undefined).success, true, "assertion is optional");
+  assert.equal(assertion.safeParse("assert.equal(x, 1)").success, true, "assertion admits a string");
+  assert.equal(assertion.safeParse(9).success, false, "assertion admits only a string");
+});
+
 test("escalate-tool-is-armed-on-every-slice-and-recorded-once: uses the SDK's default createSdkMcpServer when no factory is injected", async () => {
   // No mcpServerFactory injected at all — this must fall through to the real SDK export without
   // throwing, exactly as the existing feedback-command tests already rely on.
@@ -175,29 +256,52 @@ test("escalate-tool-is-armed-on-every-slice-and-recorded-once: a malformed call 
   await author.author("IMPLEMENT", "p");
   const escalate = mustFindEscalate(mcp.last());
 
-  // IMPLEMENT requires a non-blank assertion (parseAuthoringEscalation) — omitting it is a
-  // validator refusal, deliberately reaching the handler through a cast (a well-typed caller could
-  // never construct this shape).
-  const malformed = await escalate.handler(
-    { statement: "no assertion here" } as unknown as CapturedEscalateArgs,
-    undefined,
+  // IMPLEMENT requires a non-blank assertion (parseAuthoringEscalation). The declared input shape
+  // makes `assertion` optional in both phases, so this call is well-typed: the refusal under test is
+  // the validator's, at run time — and the reply must carry the validator's own reason verbatim.
+  const missingAssertion = { statement: "no assertion here" };
+  const refusal = parseAuthoringEscalation("IMPLEMENT", missingAssertion);
+  assert.equal(refusal.ok, false, "ground truth: the validator refuses an IMPLEMENT call with no assertion");
+  if (refusal.ok) return;
+  const malformed = await escalate.handler(missingAssertion, undefined);
+  assert.deepEqual(
+    malformed,
+    { content: [{ type: "text", text: refusal.reason }], isError: true },
+    "an invalid call is answered isError, with the validator's reason as its one text block",
   );
-  assert.equal(malformed.isError, true);
 
   // The refused call must not have taken the slice's one recording slot — a genuinely valid call
-  // right after it must still succeed.
+  // right after it must still succeed, and tell the leaf the escalation is recorded and to stop.
   const valid = await escalate.handler(
     { statement: "the fixture rounds to 3dp, the test wants 5", assertion: "assert.equal(x, 1.23456)" },
     undefined,
   );
-  assert.notEqual(valid.isError, true);
+  assert.deepEqual(
+    valid,
+    { content: [{ type: "text", text: "escalation recorded; this slice is ending — stop now." }] },
+    "a recorded call is answered WITHOUT isError, telling the leaf the slice is ending",
+  );
 
   // …and NOW the slot really is taken: a second valid call in the same slice is refused.
   const secondValid = await escalate.handler(
     { statement: "a different statement", assertion: "assert.equal(y, 2)" },
     undefined,
   );
-  assert.equal(secondValid.isError, true);
+  assert.deepEqual(
+    secondValid,
+    {
+      content: [
+        {
+          type: "text",
+          text:
+            "an escalation was already recorded for this slice; this call is refused " +
+            "(exactly one escalation may be recorded per slice).",
+        },
+      ],
+      isError: true,
+    },
+    "a call after a recorded one is answered isError, naming the once-per-slice rule",
+  );
 });
 
 test("escalate-tool-is-armed-on-every-slice-and-recorded-once: escalate calls never touch feedback-run accounting or the feedback budget", async () => {
@@ -478,6 +582,32 @@ test("escalate-tool-is-armed-on-every-slice-and-recorded-once: with NO escalatio
 
 // ── The closings: both name mcp__spine__escalate and what each phase may escalate ───────────────
 
+/** The escalation closing's four claims, each asserted as a phrase of the prompt it closes. */
+function assertEscalateClosing(prompt: string): void {
+  assertIncludes(
+    prompt,
+    "If a frozen input is itself wrong and the phase is genuinely impossible, raise it through " +
+      "mcp__spine__escalate instead of guessing or working around it",
+    "the closing must say when to escalate, and through which tool",
+  );
+  assertIncludes(
+    prompt,
+    "in AUTHOR_TEST you may report the contract itself is untestable",
+    "the closing must say what AUTHOR_TEST may escalate",
+  );
+  assertIncludes(
+    prompt,
+    "in IMPLEMENT you may report that no correct implementation can satisfy the authored test as written.",
+    "the closing must say what IMPLEMENT may escalate",
+  );
+  assertIncludes(
+    prompt,
+    "Raising an escalation ends this slice without a verdict — it never moves the verdict; the spine " +
+      "alone observes red and green, out-of-band, just as it always does.",
+    "the closing must say an escalation ends the slice and never moves the verdict",
+  );
+}
+
 test("escalate-tool-is-armed-on-every-slice-and-recorded-once: both the blind and feedback closings name mcp__spine__escalate and that it never moves the verdict", () => {
   const blind = leafSystemPrompt(false);
   const withFeedback = leafSystemPrompt(true);
@@ -487,6 +617,7 @@ test("escalate-tool-is-armed-on-every-slice-and-recorded-once: both the blind an
     assert.match(prompt, /AUTHOR_TEST/);
     assert.match(prompt, /IMPLEMENT/);
     assert.match(prompt, /never moves the verdict|spine alone observes/i);
+    assertEscalateClosing(prompt);
   }
 
   // The pre-existing phrases other tests already assert must all still be present.
@@ -502,6 +633,8 @@ test("escalate-tool-is-armed-on-every-slice-and-recorded-once: composeLeafSystem
 
   assert.match(composedBlind, /^RED-BUILDER AGENT BODY/);
   assert.match(composedBlind, /mcp__spine__escalate/);
+  assertEscalateClosing(composedBlind);
   assert.match(composedFeedback, /^RED-BUILDER AGENT BODY/);
   assert.match(composedFeedback, /mcp__spine__escalate/);
+  assertEscalateClosing(composedFeedback);
 });

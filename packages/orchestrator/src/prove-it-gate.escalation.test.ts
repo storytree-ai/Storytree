@@ -22,6 +22,9 @@ import type { ProveSpec, TreeState } from "./prove-it-gate.js";
  *    record of either kind (D1);
  *  - and in every case, the escalation never becomes and never enters a signed `Verdict` — only the
  *    two spine-observed CONFIRM_RED/CONFIRM_GREEN observations ever do.
+ *
+ * The `escalation` / `overruledEscalation` keys are read through `ProveResult`'s own declared types,
+ * so a misspelled key is a compile error rather than a vacuous `undefined` that passes.
  */
 
 // ── Offline fixtures (mirrors prove-it-gate.test.ts) ────────────────────────
@@ -94,11 +97,6 @@ async function signingRows(store: InMemoryStore): Promise<number> {
   return events.filter((e) => e.kind === "signing").length;
 }
 
-/** Reads a not-yet-typed field off a `ProveResult` without asserting its exact shape at compile time. */
-function readField<T>(value: unknown, key: string): T | undefined {
-  return (value as unknown as Record<string, T | undefined>)[key];
-}
-
 describe(
   "escalation-ends-the-walk-or-is-overruled-by-observation: an authoring escalation ends a walk " +
     "without a verdict, or is overruled by the spine's own green observation, and never becomes or " +
@@ -147,13 +145,13 @@ describe(
         "the escalation ends the walk on its own terms, never through nextPhase's CONFIRM_RED gate",
       );
 
-      const record = readField<{ raised: unknown; testId: string; observation?: unknown }>(result, "escalation");
+      const record = result.escalation;
       assert.ok(record !== undefined, "the AUTHOR_TEST failure carries an escalation record");
       assert.deepEqual(record.raised, AUTHOR_ESCALATION);
       assert.equal(record.testId, observedTestId, "testId is stamped from spec.testId, never invented");
       assert.deepEqual(record.observation, soleObservation.originalProcessResult);
 
-      assert.equal(readField(result, "overruledEscalation"), undefined, "AUTHOR_TEST never overrules — it ends the walk");
+      assert.equal(result.overruledEscalation, undefined, "AUTHOR_TEST never overrules — it ends the walk");
       assert.equal(await signingRows(store), 0, "an escalation never signs");
     });
 
@@ -168,7 +166,7 @@ describe(
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      const record = readField<Record<string, unknown>>(result, "escalation");
+      const record = result.escalation;
       assert.ok(record !== undefined);
       assert.equal("observation" in record, false, "the key is OMITTED, not set to undefined");
     });
@@ -197,17 +195,17 @@ describe(
       assert.deepEqual(result.phasesVisited, ["AUTHOR_TEST", "CONFIRM_RED", "IMPLEMENT", "CONFIRM_GREEN"]);
       assert.deepEqual(executor.observed, ["T", "T"]);
 
-      const record = readField<{ raised: unknown; testId: string }>(result, "escalation");
+      const record = result.escalation;
       assert.ok(record !== undefined, "the escalation rides beside the ordinary refusal");
       assert.deepEqual(record.raised, IMPLEMENT_ESCALATION);
       assert.equal(record.testId, "T");
       assert.equal(
-        "observation" in (record as unknown as Record<string, unknown>),
+        "observation" in record,
         false,
         "the CONFIRM_GREEN failure output is not copied onto the record",
       );
 
-      assert.equal(readField(result, "overruledEscalation"), undefined, "a RED observation is not an overrule");
+      assert.equal(result.overruledEscalation, undefined, "a RED observation is not an overrule");
       assert.equal(await signingRows(store), 0, "still-red work never signs");
     });
 
@@ -235,14 +233,13 @@ describe(
         "GATE",
       ]);
 
-      const record = readField<{ raised: unknown; testId: string }>(result, "overruledEscalation");
+      const record = result.overruledEscalation;
       assert.ok(record !== undefined, "the pass carries the overruled escalation");
       assert.deepEqual(record.raised, IMPLEMENT_ESCALATION);
       assert.equal(record.testId, "T");
 
-      const verdictAsRecord = result.verdict as unknown as Record<string, unknown>;
-      assert.equal("escalation" in verdictAsRecord, false, "the escalation never becomes or enters the signed verdict");
-      assert.equal("overruledEscalation" in verdictAsRecord, false, "the escalation never becomes or enters the signed verdict");
+      assert.equal("escalation" in result.verdict, false, "the escalation never becomes or enters the signed verdict");
+      assert.equal("overruledEscalation" in result.verdict, false, "the escalation never becomes or enters the signed verdict");
       assert.equal(result.verdict.evidence.length, 2, "the verdict's evidence stays exactly the two CONFIRM observations");
 
       assert.equal(await signingRows(store), 1);
@@ -266,11 +263,11 @@ describe(
       assert.equal(result.failedAt, "GATE");
       assert.match(result.reason, /not clean/);
 
-      const record = readField<{ raised: unknown; testId: string }>(result, "overruledEscalation");
+      const record = result.overruledEscalation;
       assert.ok(record !== undefined, "the overrule survives past CONFIRM_GREEN into a later GATE refusal");
       assert.deepEqual(record.raised, IMPLEMENT_ESCALATION);
 
-      assert.equal(readField(result, "escalation"), undefined, "an overruled walk never also carries the plain `escalation` key");
+      assert.equal(result.escalation, undefined, "an overruled walk never also carries the plain `escalation` key");
       assert.equal(await signingRows(store), 0, "a dirty tree never signs, overruled or not");
     });
 
@@ -294,8 +291,8 @@ describe(
         "AUTHOR_TEST",
         "fails closed at the phase of the slice that returned it, not escalation.phase",
       );
-      assert.equal(readField(result, "escalation"), undefined, "no record of either kind");
-      assert.equal(readField(result, "overruledEscalation"), undefined, "no record of either kind");
+      assert.equal(result.escalation, undefined, "no record of either kind");
+      assert.equal(result.overruledEscalation, undefined, "no record of either kind");
       assert.deepEqual(executor.observed, [], "a malformed escalation never reaches the spine's observation");
 
       assert.equal(await signingRows(store), 0);

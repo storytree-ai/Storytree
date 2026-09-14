@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { ShellTestExecutor, proveUnit } from "@storytree/orchestrator";
-import type { ProveResult, ProveSpec, TreeState } from "@storytree/orchestrator";
+import type { EscalationRecord, ProveResult, ProveSpec, TreeState } from "@storytree/orchestrator";
 import type {
   AuthoringEscalation,
   AuthoringPhase,
@@ -31,10 +31,11 @@ import * as NodeBuildModule from "./node-build.js";
  * line, and — for an overrule — exactly one labelled line — and `[]` for a result carrying neither
  * key. Rendering must never spawn a command.
  *
- * Every `ProveResult` fed to the renderer below is PRODUCTION output: a real `proveUnit` walk over a
- * real `ShellTestExecutor` whose spawned child commands each append one marker byte to a temp file
- * (so a spawn is independently observable) — never a hand-built `ProveResult` literal and never a
- * recording/offline double.
+ * Every `ProveResult` the contract's walkthrough feeds the renderer is PRODUCTION output: a real
+ * `proveUnit` walk over a real `ShellTestExecutor` whose spawned child commands each append one
+ * marker byte to a temp file (so a spawn is independently observable) — never a hand-built
+ * `ProveResult` literal and never a recording/offline double. The one exception is the last
+ * `describe`, which pins exact lines over constructed records and says why in its own comment.
  */
 
 const UNIT_ID = "node-build-escalation-envelope-unit-fixture";
@@ -44,6 +45,19 @@ const AUTHOR_TEST_STATEMENT =
 const IMPLEMENT_STATEMENT =
   "no correct implementation of the escalation envelope can satisfy the authored test as written";
 const IMPLEMENT_ASSERTION = "assert.deepEqual(rendered, expectedEscalationLines)";
+
+/** The line every returned escalation block closes with, byte for byte: ADR-0563 D4's two moves. */
+const OPTIONS_LINE =
+  "  options: the orchestrator may re-delegate a test revision (one ADR-0563 D4 attempt, kind " +
+  "`revised-test`), or escalate to the owner.";
+
+/** The label an AUTHOR_TEST record's own observation renders under — never a CONFIRM label. */
+const OBSERVATION_LABEL = "  the spine's single observation for the escalation (never a CONFIRM run):";
+
+/** The one line the fixtures' overruled IMPLEMENT escalation renders as. */
+const OVERRULED_LINE =
+  "overruled: IMPLEMENT escalated (unsatisfiable-test) but the spine's later observation came back " +
+  `GREEN, so the escalation was OVERRULED — ${IMPLEMENT_STATEMENT}`;
 
 const DEFAULT_TREE: TreeState = {
   commitSha: "node-build-escalation-envelope-fixture-tree",
@@ -370,6 +384,25 @@ describe("node-build-renders-the-returned-escalation-with-its-test-id: renders t
     );
     assert.match(joined, /escalate/i, "the options line must name escalating to the owner");
     assert.match(joined, /owner/i, "the options line must name escalating to the owner");
+
+    // Exact lines as well as matches: a regex over the joined block cannot tell a missing label
+    // from a present one wherever the fixture's own prose or markers carry the same words.
+    assert.equal(
+      rendered[0],
+      `escalation: AUTHOR_TEST claims this contract cannot be tested as specified (unit ${UNIT_ID}, run ${s.runId}, test ${s.testId})`,
+      "the header line, exactly",
+    );
+    assert.equal(rendered[1], `  statement: ${AUTHOR_TEST_STATEMENT}`, "the statement line, exactly");
+    assert.equal(rendered[2], OBSERVATION_LABEL, "the observation's own label, exactly");
+    assert.equal(rendered[3], "    exit code: 0", "the observed exit code, exactly");
+    assert.ok(rendered.includes("    stdout:"), "stdout renders under its own label");
+    assert.ok(rendered.includes("    stderr:"), "stderr renders under its own label");
+    assert.equal(
+      rendered.some((line) => line.startsWith("  assertion:")),
+      false,
+      "an AUTHOR_TEST block carries no assertion line",
+    );
+    assert.equal(rendered[rendered.length - 1], OPTIONS_LINE, "the block closes with the options line, exactly");
   });
 
   test("renders an IMPLEMENT escalation with its claim, statement and assertion verbatim, and the options line — carrying no observation of its own", () => {
@@ -412,6 +445,17 @@ describe("node-build-renders-the-returned-escalation-with-its-test-id: renders t
       /IMPLEMENT_RED_STDOUT_MARKER|IMPLEMENT_RED_STDERR_MARKER/,
       "an IMPLEMENT escalation carries no observation of its own — the failedObservation section is separate and is not repeated here",
     );
+
+    assert.deepEqual(
+      rendered,
+      [
+        `escalation: IMPLEMENT claims this test cannot be satisfied as written (unit ${UNIT_ID}, run ${s.runId}, test ${s.testId})`,
+        `  statement: ${IMPLEMENT_STATEMENT}`,
+        `  assertion: ${IMPLEMENT_ASSERTION}`,
+        OPTIONS_LINE,
+      ],
+      "exactly the header, statement, assertion and options lines — no observation section at all",
+    );
   });
 
   test("renders an overruled escalation as exactly one labelled line — implementer escalated, spine observed green, overruled, with the statement — on a PASS", () => {
@@ -433,6 +477,9 @@ describe("node-build-renders-the-returned-escalation-with-its-test-id: renders t
       new RegExp(escapeRegExp(IMPLEMENT_STATEMENT)),
       "carries the statement verbatim",
     );
+    // The statement itself says "implementation", so the matches above cannot prove the label is
+    // there: pin the whole line.
+    assert.deepEqual(rendered, [OVERRULED_LINE], "exactly the one overruled line");
   });
 
   test("renders the same overruled escalation as exactly one labelled line on the GATE refusal that follows the overrule", () => {
@@ -456,6 +503,7 @@ describe("node-build-renders-the-returned-escalation-with-its-test-id: renders t
       new RegExp(escapeRegExp(IMPLEMENT_STATEMENT)),
       "carries the statement verbatim",
     );
+    assert.deepEqual(rendered, [OVERRULED_LINE], "exactly the one overruled line");
   });
 
   test("renders nothing for a PASS carrying neither escalation nor overruledEscalation", () => {
@@ -502,5 +550,73 @@ describe("node-build-renders-the-returned-escalation-with-its-test-id: renders t
 
     const after = await Promise.all(scenarios.map((s) => s.readMarkerCount()));
     assert.deepEqual(after, before, "rendering must never spawn a command");
+  });
+});
+
+// ── Exact lines over constructed records ─────────────────────────────────────────────────────────
+
+/**
+ * The walks above prove the renderer reads PRODUCTION results. These cases pin its exact lines for
+ * AUTHOR_TEST record shapes the walks above do not reach: an observation with a NULL exit code,
+ * which the executor records only for a child a signal ended (its own timeout SIGKILL, or an
+ * external kill), so a real walk would have to race a kill timer to produce one; streams spanning
+ * several lines; and a record with no observation at all, which `proveUnit` writes when the
+ * executor supplied no process result. Each `ProveResult` is a failure-variant literal the type
+ * checks in full; nothing here runs `proveUnit` or spawns anything.
+ */
+describe("node-build-renders-the-returned-escalation-with-its-test-id: exact AUTHOR_TEST lines over constructed records", () => {
+  const raised: AuthoringEscalation = {
+    phase: "AUTHOR_TEST",
+    kind: "untestable-contract",
+    statement: "no oracle observes it",
+  };
+  const header =
+    "escalation: AUTHOR_TEST claims this contract cannot be tested as specified " +
+    "(unit unit-constructed, run run-constructed, test test-constructed)";
+
+  /** An AUTHOR_TEST refusal carrying `escalation`, shaped as `proveUnit` shapes one. */
+  function authorTestRefusal(escalation: EscalationRecord): ProveResult {
+    return {
+      ok: false,
+      failedAt: "AUTHOR_TEST",
+      reason: "leaf declares the contract untestable",
+      phasesVisited: ["AUTHOR_TEST"],
+      escalation,
+    };
+  }
+
+  test("a null exit code renders as `(none)`, and every stream line renders indented under its own label", () => {
+    const rendered = mustGetRenderEscalation()(
+      "unit-constructed",
+      "run-constructed",
+      authorTestRefusal({
+        raised,
+        testId: "test-constructed",
+        observation: { exitCode: null, stdout: "out one\nout two", stderr: "err one" },
+      }),
+    );
+
+    assert.deepEqual(rendered, [
+      header,
+      "  statement: no oracle observes it",
+      OBSERVATION_LABEL,
+      "    exit code: (none)",
+      "    stdout:",
+      "      out one",
+      "      out two",
+      "    stderr:",
+      "      err one",
+      OPTIONS_LINE,
+    ]);
+  });
+
+  test("a record with no observation renders no observation section, and never an assertion line", () => {
+    const rendered = mustGetRenderEscalation()(
+      "unit-constructed",
+      "run-constructed",
+      authorTestRefusal({ raised, testId: "test-constructed" }),
+    );
+
+    assert.deepEqual(rendered, [header, "  statement: no oracle observes it", OPTIONS_LINE]);
   });
 });

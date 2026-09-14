@@ -122,6 +122,67 @@ describe("escalation-is-admitted-only-through-the-phase-bound-validator", () => 
     assert.equal(blankAssertion.ok, false);
   });
 
+  it("names the offending field — or the non-object input — in every refusal's reason", () => {
+    const parse = mustParse();
+    const phases: AuthoringPhase[] = ["AUTHOR_TEST", "IMPLEMENT"];
+
+    /** Returns a refusal's reason, failing loud if the input was admitted instead. */
+    const reasonFor = (phase: AuthoringPhase, input: unknown): string => {
+      const result = parse(phase, input);
+      assert.equal(result.ok, false, `${phase} must refuse ${JSON.stringify(input)}`);
+      return result.ok ? "" : result.reason;
+    };
+
+    // A missing, blank or non-string `statement`, in either phase. A well-formed assertion rides
+    // along, so `statement` is the ONLY offending field and the reason must blame it alone.
+    for (const phase of phases) {
+      for (const input of [
+        { assertion: "assert.equal(x, 1)" },
+        { statement: "   ", assertion: "assert.equal(x, 1)" },
+        { statement: 7, assertion: "assert.equal(x, 1)" },
+      ]) {
+        const reason = reasonFor(phase, input);
+        const label = `${phase} ${JSON.stringify(input)}`;
+        assert.match(reason, /statement/, `${label}: the reason must name statement`);
+        assert.doesNotMatch(reason, /assertion/, `${label}: the assertion is well-formed and must not be blamed`);
+      }
+    }
+
+    // A missing, blank or non-string `assertion` on IMPLEMENT, beside a well-formed statement.
+    for (const input of [
+      { statement: "why" },
+      { statement: "why", assertion: "   " },
+      { statement: "why", assertion: 9 },
+    ]) {
+      const reason = reasonFor("IMPLEMENT", input);
+      const label = `IMPLEMENT ${JSON.stringify(input)}`;
+      assert.match(reason, /assertion/, `${label}: the reason must name assertion`);
+      assert.doesNotMatch(reason, /statement/, `${label}: the statement is well-formed and must not be blamed`);
+    }
+
+    // A PRESENT but malformed assertion is refused on AUTHOR_TEST too, and named there as well.
+    for (const input of [
+      { statement: "why", assertion: "   " },
+      { statement: "why", assertion: 9 },
+    ]) {
+      const reason = reasonFor("AUTHOR_TEST", input);
+      const label = `AUTHOR_TEST ${JSON.stringify(input)}`;
+      assert.match(reason, /assertion/, `${label}: the reason must name assertion`);
+      assert.doesNotMatch(reason, /statement/, `${label}: the statement is well-formed and must not be blamed`);
+    }
+
+    // A whole input that is not an object at all: the reason names THAT problem, in either phase.
+    for (const phase of phases) {
+      for (const input of [null, undefined, "a bare string", 42]) {
+        assert.match(
+          reasonFor(phase, input),
+          /must be an object/,
+          `${phase} ${String(input)}: the reason must say the input is not an object`,
+        );
+      }
+    }
+  });
+
   it("never throws for any input shape — it fails closed with a reason instead", () => {
     const parse = mustParse();
     const garbageInputs: unknown[] = [
