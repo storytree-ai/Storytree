@@ -117,6 +117,20 @@ test("resteer-successful-taste-capture-body-is-pinned", async () => {
   assert.deepEqual(res.next, ["storytree resteer list --pg","storytree library artifact resteer-he-redirected-the-adr-to-correct-in-place --pg"]);
 });
 
+test("resteer-unattributable-capture-body-is-pinned — the marker stamp and its warning", async () => {
+  // A capture from a checkout that identifies no session (ADR-0568). The row still lands — every
+  // intervention is a datum — but the envelope says so AT CAPTURE, where the session can still see it,
+  // rather than leaving the first sign to a `resteer list` nobody filing it will read.
+  const res = await run(FULL(), {
+    store: new InMemoryStore(),
+    writable: true,
+    friction: { branch: "(primary checkout)", now: NOW, inboxDir: "", docsDir: "" },
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.body, "recorded re-steer resteer-he-redirected-the-adr-to-correct-in-place on \"(primary checkout)\" (2026-09-05) — taste (called by: owner).\nMarked TASTE: excluded from every error figure by construction (ADR-0513 D4).\n⚠ UNATTRIBUTABLE: stamped \"(primary checkout)\", which names no session, so this row is counted in\n  NEITHER side of the intervention rate (ADR-0548 D6). The capture never guesses a branch in its\n  place (ADR-0568).");
+  assert.deepEqual(res.next, ["storytree resteer list --pg","storytree library artifact resteer-he-redirected-the-adr-to-correct-in-place --pg"]);
+});
+
 test("resteer-empty-list-body-is-pinned", async () => {
   // The empty read is its own contract: it must say "free outcome", NOT "nothing recorded", or an
   // untouched tier reads as a skipped retro.
