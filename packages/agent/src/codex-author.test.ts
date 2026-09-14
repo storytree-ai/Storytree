@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
@@ -906,6 +908,127 @@ test("the bound applies even when the caller names none — the default IS the f
     },
   }));
   assert.equal(result.timedOut, true);
+});
+
+// ── inner-loop-exit-arc inc-07: on POSIX the bound reaches the native binary, not only its wrapper ──
+// The bound signals the pinned WRAPPER (`@openai/codex/bin/codex.js`), while the process that stops
+// answering is the native binary the wrapper spawns. On POSIX that is enough because of what the
+// wrapper does: it forwards SIGTERM to its native child and exits only once that child has. The other
+// half — that the native binary DIES on the SIGTERM it is forwarded — needs the real binary
+// mid-request, so it is a recorded measurement rather than a test (see the bound in
+// `runPinnedCodexCli`). This pins the wrapper's half on the pinned file itself, so a Codex upgrade
+// that stops forwarding or stops waiting fails here instead of quietly orphaning the native binary on
+// every timeout.
+
+/** A clock whose bound never fires on its own: the test runs the armed callback when it chooses. */
+function heldClock() {
+  const armed: Array<() => void> = [];
+  const clock = {
+    setTimeout: (callback) => {
+      armed.push(callback);
+      return setTimeout(() => {}, 0);
+    },
+    clearTimeout: () => {},
+  } satisfies CodexBoundClock;
+  return { clock, armed };
+}
+
+/** The pid a spawned process wrote to `file` (by rename, so never half-written), polled until it appears. */
+async function pidWrittenTo(file: string, ms = 10_000): Promise<number> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    try {
+      return Number(await fs.readFile(file, "utf8"));
+    } catch (error) {
+      if (Date.now() > deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+}
+
+test("on POSIX the bound's SIGTERM reaches the native binary through the pinned wrapper, which waits for it", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("no signal is forwarded on Windows: kill() is TerminateProcess on the wrapper itself");
+    return;
+  }
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-reach-"));
+  const pidFile = path.join(root, "native.pid");
+  const { clock, armed } = heldClock();
+  let pending: Promise<CodexCommandResult> | undefined;
+  let nativePid: number | undefined;
+  try {
+    // The pinned wrapper, byte for byte, in the package layout it resolves its native binary from —
+    // with a fake native binary where the real one would be, so no Codex runs at all.
+    const pkg = path.join(root, "pkg");
+    const wrapper = path.join(pkg, "bin", "codex.js");
+    const pinned = path.dirname(createRequire(import.meta.url).resolve("@openai/codex/package.json"));
+    await fs.mkdir(path.dirname(wrapper), { recursive: true });
+    await fs.copyFile(path.join(pinned, "bin", "codex.js"), wrapper);
+    await fs.writeFile(path.join(pkg, "package.json"), '{"type":"module"}\n');
+    // Production runs the wrapper under node, the CLI's own runtime, so the test does too, whichever
+    // runtime is running the suite.
+    const node = execFileSync("sh", ["-c", "command -v node"], { encoding: "utf8" }).trim();
+    for (const triple of [
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-musl",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+    ]) {
+      await fs.mkdir(path.join(pkg, "vendor", triple, "bin"), { recursive: true });
+      await fs.symlink(node, path.join(pkg, "vendor", triple, "bin", "codex"));
+    }
+    // The fake announces its pid once its SIGTERM handler is in place. On SIGTERM it says so, then
+    // exits 7 only after a delay — so a wrapper that did not WAIT would be seen returning while this
+    // process is still alive, and without its exit code.
+    const native = path.join(root, "native.cjs");
+    await fs.writeFile(
+      native,
+      [
+        'const fs = require("node:fs");',
+        'process.on("SIGTERM", () => {',
+        '  process.stdout.write("native received SIGTERM");',
+        "  setTimeout(() => process.exit(7), 300);",
+        "});",
+        `fs.writeFileSync(${JSON.stringify(`${pidFile}.tmp`)}, String(process.pid));`,
+        `fs.renameSync(${JSON.stringify(`${pidFile}.tmp`)}, ${JSON.stringify(pidFile)});`,
+        "setInterval(() => {}, 1000);",
+      ].join("\n"),
+    );
+    const env: NodeJS.ProcessEnv = { ...process.env, [CODEX_EXECUTABLE_ENV]: node };
+    // A NODE_PATH could let the copied wrapper resolve a REAL platform package before the fake one.
+    delete env["NODE_PATH"];
+    pending = runPinnedCodexCli({ args: [wrapper, native], cwd: root, env }, clock);
+    const pid = await pidWrittenTo(pidFile);
+    nativePid = pid;
+    assert.equal(armed.length, 1, "the runner armed its bound");
+    armed[0]?.();
+    const result = await within(pending);
+    pending = undefined;
+
+    assert.equal(result.timedOut, true);
+    // FORWARDED: the runner signals the wrapper's pid alone, so the only SIGTERM this process can have
+    // received is the one the wrapper passed on.
+    assert.equal(result.stdout, "native received SIGTERM");
+    // WAITED: the wrapper exits with the native binary's own code, which exists only once it has
+    // exited — so nothing is orphaned, and the native binary is already gone when the runner returns.
+    assert.equal(result.code, 7);
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+  } finally {
+    // A red run must not leave processes behind: end the wrapper through its own bound, then the
+    // fake native binary directly.
+    if (pending !== undefined) {
+      armed[0]?.();
+      await within(pending).catch(() => undefined);
+    }
+    if (nativePid !== undefined) {
+      try {
+        process.kill(nativePid, "SIGKILL");
+      } catch {
+        // Already gone — the passing case.
+      }
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 test("the bound RESOLVER prefers an explicit value, then the machine override, then the default", () => {

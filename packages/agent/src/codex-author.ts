@@ -59,7 +59,10 @@ export interface CodexCommandResult {
    *
    * Its own field rather than something inferred from `code`/`signal`, because a killed child is
    * indistinguishable from any other signalled death, and that ambiguity is exactly what would let a
-   * hang be reported as a build failure. "I could not tell" and "it failed" are different answers.
+   * hang be reported as a build failure. Through the pinned wrapper on POSIX it is not even a
+   * signalled death: the wrapper re-raises its native child's SIGTERM on itself while its own SIGTERM
+   * listener is still installed, so it exits 0 with no signal (measured, inner-loop-exit-arc inc-07).
+   * "I could not tell" and "it failed" are different answers.
    */
   timedOut?: true;
 }
@@ -511,6 +514,15 @@ export async function runPinnedCodexCli(
     let timedOut = false;
     // The bound. Released in `settle`, on `exit` or on `error`, so it never outlives the child it
     // bounds and needs no `unref`.
+    //
+    // It signals the WRAPPER, not the native binary that stopped answering, and still reaches that
+    // binary on both platforms (measured on codex-cli 0.145.0, inner-loop-exit-arc inc-07). On POSIX
+    // the wrapper forwards SIGTERM and exits only once its native child has — pinned by the "reaches
+    // the native binary" test — and the native binary installs no SIGTERM handler: held mid-request on
+    // an endpoint that never answered, it was gone within about 20 ms of this signal. On Windows
+    // this is TerminateProcess on the wrapper alone, but the wrapper's own libuv holds its child
+    // in a kill-on-close job object, so the native binary ends with it. SIGKILL alone would
+    // ORPHAN the native binary on POSIX, because a SIGKILL cannot be forwarded.
     const bound = clock.setTimeout(() => {
       timedOut = true;
       child.kill();
