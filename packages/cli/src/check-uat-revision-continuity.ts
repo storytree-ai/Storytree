@@ -18,18 +18,22 @@ import { closePool, createPool } from "@storytree/library/store";
 
 import { commitShaOf, git, storiesTreeSha } from "./hierarchy-git.js";
 import {
+  chooseContinuityBase,
   judgeUatRevisionContinuity,
+  readContinuityBaseEvidence,
   readUatRevisionVerdictEvents,
 } from "./uat-revision-continuity.js";
 
 /**
  * `pnpm check:uat-revision-continuity` — the I/O shell for ADR-0560 D3/D4's merge wall.
  *
- * The BASE is exactly `merge-base(origin/main, HEAD)`, never the live hierarchy mirror and never a
- * hand-waved `origin/main`: the question is what THIS candidate changed. The candidate remains the
- * working tree, so a local pre-commit gate observes the edit it is about to permit. The live store
- * supplies only signed verdict history. Every rule over those readings lives in the pure judge next
- * door; this file only gathers, reports and chooses exit status.
+ * The BASE is this branch's MERGE BASE, never the live hierarchy mirror and never a hand-waved
+ * `origin/main`: the question is what THIS candidate changed. CI's shallow checkout cannot always
+ * compute that merge base with `git merge-base` — it goes unreadable whenever `main` moves mid-run — so
+ * `chooseContinuityBase` computes it the way a full clone would, and anything it still cannot read is
+ * red. The candidate remains the working tree, so a local pre-commit gate observes the edit it is about
+ * to permit. The live store supplies only signed verdict history. Every rule over those readings lives
+ * in the pure judge next door; this file only gathers, reports and chooses exit status.
  */
 
 const EXIT_FAIL = 1;
@@ -101,11 +105,10 @@ function projectCandidate(root: string): WorkHierarchySnapshot | null {
 
 async function main(): Promise<number> {
   const root = repoRoot();
-  const mergeBase = git(root, ["merge-base", "origin/main", "HEAD"]);
-  const base =
-    mergeBase === null || mergeBase.length === 0
-      ? null
-      : projectHierarchyAtRef(root, mergeBase);
+  const choice = chooseContinuityBase(
+    readContinuityBaseEvidence((args) => git(root, args), process.env),
+  );
+  const base = choice === null ? null : projectHierarchyAtRef(root, choice.ref);
   const candidate = projectCandidate(root);
 
   let events: readonly unknown[] | null = null;
@@ -121,9 +124,9 @@ async function main(): Promise<number> {
   }
 
   const baseRef =
-    mergeBase === null || mergeBase.length === 0
-      ? "unreadable merge-base(origin/main, HEAD)"
-      : `merge-base(origin/main, HEAD) ${mergeBase.slice(0, 9)}`;
+    choice === null
+      ? "an unreadable merge base (merge-base(origin/main, HEAD) did not resolve, and this is neither a CI pull_request merge ref nor a CI run of main)"
+      : choice.label;
   process.stdout.write(`${TAG} comparing against ${baseRef}\n`);
   const verdict = judgeUatRevisionContinuity({ base, candidate, events, baseRef });
   for (const line of verdict.lines) process.stdout.write(`${line}\n`);

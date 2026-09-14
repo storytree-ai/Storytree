@@ -9,19 +9,93 @@ import {
   type RollupEvent,
 } from "@storytree/orchestrator";
 
+import { chooseBaseRef, type BaseRefChoice, type BaseRefEvidence } from "./ownership-totality.js";
+
 /**
  * The pure decision behind `check:uat-revision-continuity` (ADR-0560 D3/D4).
  *
  * The shell supplies three readings: the disk hierarchy at this branch's merge base, the candidate
  * hierarchy in the working tree, and the authenticated signed-verdict stream. This module reaches
  * none of them itself. Keeping that boundary explicit makes the PR #1892 production escape a small
- * literal test instead of a database fixture.
+ * literal test instead of a database fixture. Which revision counts as that merge base is decided here
+ * too ({@link chooseContinuityBase}), from evidence the shell gathers through an injected reader.
  *
  * This is deliberately a REPLACEMENT-proof wall, not a general story-expansion wall. A criterion id
  * present on both sides whose exact revision changed needs a current signed pass for the candidate
  * revision. A newly added id remains additive expansion under ADR-0416 and is reported by the story
  * health fold rather than blocked here merely for existing.
  */
+
+/** The ref a CI run carries when it is a run of `main` itself — the only trigger of the trunk rule. */
+const TRUNK_REF = "refs/heads/main";
+
+/** Where the shell is running: the shared anchor's evidence, plus the ref the CI run was started for. */
+export interface ContinuityBaseEvidence extends BaseRefEvidence {
+  /** `GITHUB_REF`, or `undefined` outside CI. */
+  readonly githubRef: string | undefined;
+}
+
+/** The revision this wall compares against, and the words its report prints for it. */
+export interface ContinuityBase {
+  readonly ref: string;
+  readonly label: string;
+}
+
+/**
+ * Gather {@link ContinuityBaseEvidence} through an injected git reader (`null` when git could not
+ * answer) and an environment. The two git reads are the ones `check:contract-grammar` makes for the same
+ * shared anchor, so the evidence cannot mean something different to the two checks.
+ */
+export function readContinuityBaseEvidence(
+  read: (args: readonly string[]) => string | null,
+  env: Readonly<Record<string, string | undefined>>,
+): ContinuityBaseEvidence {
+  return {
+    eventName: env["GITHUB_EVENT_NAME"],
+    githubRef: env["GITHUB_REF"],
+    hasSecondParent: read(["rev-parse", "--verify", "--quiet", "HEAD^2"]) !== null,
+    mergeBase: read(["merge-base", "origin/main", "HEAD"]),
+  };
+}
+
+/**
+ * The base ADR-0560 D4 compares against: the MERGE BASE, computed the way a full clone would compute
+ * it, because CI's checkout is not one.
+ *
+ * WHY `merge-base(origin/main, HEAD)` ALONE WENT RED IN CI. `verify` checks out the merge ref at
+ * `fetch-depth: 2` and fetches `origin/main` at depth 1 minutes later. If `main` moves in between, the
+ * fetched tip is a shallow commit whose parents are hidden, git cannot connect it to `HEAD`, and the
+ * merge base "does not exist" on a run that changed nothing. Measured twice on 2026-09-14 — PR #1914's
+ * first run, and `main`'s own dispatched run at 11:28Z — each within a minute of another landing.
+ *
+ * THREE RULES, in order, each giving the answer a full clone would give:
+ *   1. a CI pull_request merge ref → `HEAD^1`, the base tip it was cut against. This is the shared
+ *      {@link chooseBaseRef} (ADR-0195's anchor), and both of its conditions stay load-bearing;
+ *   2. `merge-base(origin/main, HEAD)` wherever it resolves — a laptop, or CI while `main` held still;
+ *   3. a CI run of `main` itself → `HEAD`: that commit is already on `main`, so its merge base with any
+ *      later `main` is itself.
+ * Anything else returns `null`, which the judge reports as an unreadable base — still RED.
+ */
+export function chooseContinuityBase(evidence: ContinuityBaseEvidence): ContinuityBase | null {
+  const shared = sharedAnchor(evidence);
+  if (shared === null) {
+    return evidence.githubRef === TRUNK_REF
+      ? { ref: "HEAD", label: "HEAD (a CI run of main itself — its merge base with any later main is HEAD)" }
+      : null;
+  }
+  return shared.ref === "HEAD^1"
+    ? { ref: "HEAD^1", label: "HEAD^1 (the base tip this pull request's merge ref was cut against)" }
+    : { ref: shared.ref, label: `merge-base(origin/main, HEAD) ${shared.ref.slice(0, 9)}` };
+}
+
+/** {@link chooseBaseRef}, with its "neither rule applies" throw read as `null` — the case rule 3 answers. */
+function sharedAnchor(evidence: BaseRefEvidence): BaseRefChoice | null {
+  try {
+    return chooseBaseRef(evidence);
+  } catch {
+    return null;
+  }
+}
 
 export interface UatRevisionContinuityInputs {
   /** The merge-base hierarchy, or null when the shell could not read/project it. */
