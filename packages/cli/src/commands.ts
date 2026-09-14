@@ -197,6 +197,7 @@ import {
   type NewResteerOpts,
   type ResteerContext,
 } from "./resteer.js";
+import { resteerCaptureBranch } from "./resteer-capture-branch.js";
 // ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
 import { factoryHealth, factoryHelp, type FactoryHealthOpts } from "./factory.js";
 import type { DecisionDiscoveryOutcome } from "./decision-discovery-gather.js";
@@ -4855,14 +4856,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "resteer") {
     // The re-steer capture surface (ADR-0515). Filed by the SAME retro step as `friction` and sharing
-    // its provenance stamp, branch/clock seams and evidence floor — but with no cap-3 (the count is
-    // the datum) and no offline inbox (see `resteer.ts`'s header). `list` is a read.
+    // its provenance stamp, injected branch/clock seams and evidence floor — but with no cap-3 (the
+    // count is the datum) and no offline inbox (see `resteer.ts`'s header). `list` is a read.
     if (sub === undefined || help) return resteerHelp();
-    const ctx: ResteerContext = {
-      branch: deps.friction?.branch ?? currentBranch(),
-      now: deps.friction?.now ?? new Date().toISOString(),
-    };
     if (sub === "new") {
+      // The branch DEFAULT is the capture's own, NOT friction's `currentBranch()` (ADR-0568). That one
+      // stored the literal `HEAD` from a detached checkout, and whatever branch the shared primary
+      // checkout happened to be on, which says nothing about which session ran the command. Built
+      // inside `new` so `list` and `agreement` pay for no git reads they never use.
+      const ctx: ResteerContext = {
+        branch: deps.friction?.branch ?? resteerCaptureBranch(),
+        now: deps.friction?.now ?? new Date().toISOString(),
+      };
       // The prose flags arrive already `@path`-expanded from the boundary at the top of `run`, which
       // is what lets a quoted multi-line owner message survive the pnpm forwarder intact.
       const newOpts: NewResteerOpts = {
