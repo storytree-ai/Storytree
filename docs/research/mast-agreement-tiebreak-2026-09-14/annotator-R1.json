@@ -1,0 +1,202 @@
+[
+  {
+    "id": "friction-studio-kind-blind",
+    "mode": "data-model-gap",
+    "reason": "The studio's ASSET_CATEGORIES allowlist and type surfaces could not express or see the `friction` kind at all, so valid writes were rejected."
+  },
+  {
+    "id": "coverage-tool-parses-tsx-as-scriptkind-ts",
+    "mode": "tool-defect",
+    "reason": "A shipped coverage command parses .tsx as ScriptKind.TS and returns the same understated count to every caller."
+  },
+  {
+    "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+    "mode": "tool-defect",
+    "reason": "An unresolved placeholder convention (ADR-NNNN doubling as a generic pattern token) made a repo-wide substitution write incorrectly into untouched specs."
+  },
+  {
+    "id": "friction-real-build-marks-interactive-session-done",
+    "mode": "tool-defect",
+    "reason": "The shipped build verb adopts and then terminates the launching session's presence declaration, an incorrect write every --real build performs."
+  },
+  {
+    "id": "friction-builder-agents-stall-awaiting-background-gate",
+    "mode": "premature-termination",
+    "reason": "Spawned builders ended their turn awaiting a notification instead of polling, stopping before the lane's objective was complete."
+  },
+  {
+    "id": "studio-dev-server-needs-tsx-loader-bare-vite-500s",
+    "mode": "tool-defect",
+    "reason": "The launch path without the package.json tsx loader 500s every API route and emits a misleading error naming a workspace package rather than the missing loader."
+  },
+  {
+    "id": "new-package-proof-command-passes-vacuously-so-confirm-red-halts",
+    "mode": "tool-defect",
+    "reason": "The shipped proof command exits 0 with no projects matched, so the CONFIRM_RED gate returns the same vacuous-green halt to any new-package story."
+  },
+  {
+    "id": "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly",
+    "mode": "data-model-gap",
+    "reason": "A .strict() wire schema cannot carry an additive producer field, so the record type could not express the data and it was dropped."
+  },
+  {
+    "id": "task-brief-negative-existence-claim-went-stale",
+    "mode": "no-mast-home",
+    "reason": "A handoff brief's correct-when-written negative existence premise expired via a concurrent sibling, which none of the eighteen modes describes."
+  },
+  {
+    "id": "check-coverage-counts-a-test-name-not-a-contracts-clauses",
+    "mode": "tool-defect",
+    "reason": "check:coverage is shipped tooling that maps contract ids to test titles, so every caller gets the same N/N verdict over unasserted clauses."
+  },
+  {
+    "id": "claim-absence-surfaces-only-after-the-gates-expensive-legs",
+    "mode": "tool-defect",
+    "reason": "The gate's ordering places check:declared after typecheck and all tests, a shipped sequencing choice that makes a ten-second fix cost a full re-run."
+  },
+  {
+    "id": "friction-unfenced-cross-surface-mirrors",
+    "mode": "tool-defect",
+    "reason": "The shipped check:mirror-conformance registers only one mirror, so it silently passes over every other re-composed route's drift."
+  },
+  {
+    "id": "friction-queue-has-no-claim-so-adjudicator-seats-race",
+    "mode": "missing-capability",
+    "reason": "No claim or mutex exists for the friction queue at all, so concurrent adjudicator drains cannot be refused or even warned."
+  },
+  {
+    "id": "corpus-content-gate-red-on-sibling-mid-stream-live-edit",
+    "mode": "tool-defect",
+    "reason": "The shipped check scores per-repo rather than per-author drift, reddening the running session's gate for a sibling's edits."
+  },
+  {
+    "id": "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict",
+    "mode": "tool-defect",
+    "reason": "An existing verb fails to resolve the house @path convention and performs a wholesale destructive record replacement."
+  },
+  {
+    "id": "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch",
+    "mode": "tool-defect",
+    "reason": "The install verb registers an enforcement hook by absolute path without verifying the host script exists or is post-flip, reporting a wall that enforces nothing."
+  },
+  {
+    "id": "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages",
+    "mode": "environment-defect",
+    "reason": "Node/pnpm resolution keys off the script's own directory, so a scratchpad-resident script cannot resolve module format or workspace specifiers."
+  },
+  {
+    "id": "comparison-sheet-carries-no-code-state",
+    "mode": "data-model-gap",
+    "reason": "The sheet and delivered PNG dir carry no per-cell record of the code state, so the artifact cannot express which variable each cell varied."
+  },
+  {
+    "id": "arc-parked-work-renders-behind-the-whole-history",
+    "mode": "tool-defect",
+    "reason": "renderArcRollup fixes parked work last behind the entire increment log, so the shipped render hides the actionable section from every reader on a mature arc."
+  },
+  {
+    "id": "friction-real-build-author-test-turn-ceiling-tiny-unit",
+    "mode": "tool-defect",
+    "reason": "The AUTHOR_TEST phase's 16-turn budget is a shipped default that exhausts on a trivially isolatable two-file unit."
+  },
+  {
+    "id": "camera-probe-non-accretion-proxy-conflated-stable-picture",
+    "mode": "incorrect-verification",
+    "reason": "The probe the session used ran and measured a partial activity counter as a proxy for an unchanged picture, validating against the wrong thing."
+  },
+  {
+    "id": "a-parked-entrys-comparative-steers-target-choice",
+    "mode": "no-or-incomplete-verification",
+    "reason": "The authoring session published a steering comparative without checking either half against two artifacts already in the store."
+  },
+  {
+    "id": "chip-carried-increment-is-invisible-to-arc-lifecycle",
+    "mode": "data-model-gap",
+    "reason": "The lifecycle rule reads only the increment log, so chip-carried work is a shape the arc's record type cannot see."
+  },
+  {
+    "id": "check-agents-stale-masks-an-unfixable-budget-red",
+    "mode": "tool-defect",
+    "reason": "The shipped check reports only staleness while already holding the budget fact, giving every caller a routine-looking red whose documented remedy is wrong."
+  },
+  {
+    "id": "adr-prescribed-build-address-outlived-by-later-infrastructure-adr",
+    "mode": "missing-capability",
+    "reason": "No edge, tag or rung exists that can detect one ADR's build address being semantically falsified by a later infrastructure ADR."
+  },
+  {
+    "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+    "mode": "tool-defect",
+    "reason": "gate:bg's detach is not a true detach — it holds stdout open under a pipe, so the launcher's own design kills the run silently."
+  },
+  {
+    "id": "branch-diff-fence-tests-the-branch-not-the-promise",
+    "mode": "incorrect-verification",
+    "reason": "The pass's own verify.py check ran but asked about the branch diff rather than the promise it meant to fence, so it was wrong only as this author wrote it."
+  },
+  {
+    "id": "no-cross-kind-corpus-text-search-so-absence-is-unprovable",
+    "mode": "missing-capability",
+    "reason": "No kind-agnostic text search over the corpus exists, so the sweep needed to prove absence cannot be performed at all."
+  },
+  {
+    "id": "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing",
+    "mode": "tool-defect",
+    "reason": "The shared harness's non-vacuity guard counts opaque pixels, returning the same false clean verdict to every caller whose prop stopped drawing."
+  },
+  {
+    "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+    "mode": "environment-defect",
+    "reason": "A Linux-CI-only rmdir race in temp-fixture teardown reds branches that touch nothing near it and cannot reproduce on the dev platform."
+  },
+  {
+    "id": "capture-goto-budget-assumes-a-warm-vite",
+    "mode": "tool-defect",
+    "reason": "capture.mjs hardcodes a steady-state 30s goto budget with no override, a bad default that refuses on every fresh worktree's cold transform."
+  },
+  {
+    "id": "bun-off-path-reds-the-gate-on-a-green-package",
+    "mode": "environment-defect",
+    "reason": "Bun is installed but absent from the dev box's PATH, so the machine rather than the repository's code takes the gate red."
+  },
+  {
+    "id": "uat-run-re-observes-the-same-command-once-per-leg",
+    "mode": "tool-defect",
+    "reason": "The shipped uat run path passes its observe runner unmemoized, re-running the identical deterministic command once per leg for every caller."
+  },
+  {
+    "id": "doctor-claude-login-fails-a-correctly-provisioned-vault-box",
+    "mode": "tool-defect",
+    "reason": "A shipped probe observes a retired credential location and prints a fix hint prescribing a forbidden action, failing every correctly provisioned box."
+  },
+  {
+    "id": "rerun-failed-flake-label-is-blind-to-live-store-writes",
+    "mode": "tool-defect",
+    "reason": "The shipped rerun comparison asserts 'nothing was fixed' from git alone, returning a confidently wrong flake verdict for every store-reading rung."
+  },
+  {
+    "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+    "mode": "incorrect-verification",
+    "reason": "The session's own measurement instrument ran with mis-ordered arguments and published plausible numbers, a wrong check specific to how this agent wrote it."
+  },
+  {
+    "id": "mutation-remedy-omits-deleting-the-unobservable-branch",
+    "mode": "tool-defect",
+    "reason": "The rung's shipped closing message names only two remedies and omits the correct third, steering every session it reds toward the wrong fixes."
+  },
+  {
+    "id": "kit-island-reproduce-command-names-an-uncommitted-asset",
+    "mode": "tool-defect",
+    "reason": "The driver's COMMITTED_RUNG default builds a URL for an asset that is not in the repo, so the documented reproduce command 404s for every fresh checkout."
+  },
+  {
+    "id": "check-land-art-cannot-pass-on-a-fresh-worktree",
+    "mode": "tool-defect",
+    "reason": "The rung fails to take its skip branch on a fresh worktree, reddening the gate identically for any branch regardless of content."
+  },
+  {
+    "id": "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed",
+    "mode": "tool-defect",
+    "reason": "A flag interaction re-arms the parked-entry fence and breaks the documented --discharged-by exemption, with a refusal prescribing a wrong remedy."
+  }
+]
