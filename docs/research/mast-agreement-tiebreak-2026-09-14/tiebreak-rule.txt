@@ -1,0 +1,5 @@
+TIE-BREAK — incorrect-verification versus tool-defect
+A check that RAN and validated the wrong thing fits both of those definitions. When a record is that case, decide by WHOSE check was wrong:
+- incorrect-verification — the wrong check is the agent's OWN: a test, assertion, probe or measurement the agent wrote, or a check it chose, for the task in hand.
+- tool-defect — the wrong check is SHIPPED tooling: an existing verb, command, gate rung, check or script that returns the same wrong verdict to every caller who runs it.
+The deciding question: would anyone who ran that check get the same wrong verdict? Yes → tool-defect. No, it is wrong only as this agent wrote or used it → incorrect-verification. This rule only breaks that one tie; it does not change any other definition.
