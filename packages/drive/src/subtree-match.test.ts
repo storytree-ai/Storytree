@@ -44,6 +44,10 @@ test("glob inside glob: every well-formed path the specific one matches, the bro
   assert.equal(subtreeCovers("a/**", "a/**/b.ts"), true);
   assert.equal(subtreeCovers("a/**/*.ts", "a/*.ts"), true, "a many-directory glob matches the flat case too");
   assert.equal(subtreeCovers("a/**/b.ts", "a/x/*/b.ts"), true, "the broad glob closes each directory name it opens");
+  // The commonest covering in a real map: a broad `**` taking directory names the specific glob SPELLS,
+  // at their full length — the specific side only ever produces one-character names of its own.
+  assert.equal(subtreeCovers("a/**/c", "a/bb/**/c"), true, "`bb` is one directory name to the broad glob");
+  assert.equal(subtreeCovers("a/**/*.ts", "a/src/x*.ts"), true, "`src` is one directory name to the broad glob");
   assert.equal(subtreeCovers("a/*", "a/**"), false, "`a/x/y` steps outside a one-name star");
   assert.equal(subtreeCovers("a/*", "a/*/b"), false);
   assert.equal(subtreeCovers("a/*.ts", "a/*"), false);
