@@ -251,10 +251,10 @@ test("ADR-0064 ENV FORCE: cmd.env injects a var the parent never set", async () 
 
 // ── an-inherited-oracle-guard-never-reaches-the-child: NODE_OPTIONS strips a foreign guard ──
 // When the SPINE itself runs under a `--real` proof, its own assert-oracle guard reaches child
-// processes through NODE_OPTIONS. A nested spawned observation that inherits it loads a SECOND copy
-// of the guard, which either double-counts or (since the first copy already froze `node:assert`)
-// counts nothing and overwrites the report with zero — or a spawn deliberately left unguarded
-// inherits a guard it never asked for. Only the GUARD IMPORT must be stripped; every other byte of
+// processes through NODE_OPTIONS. A nested spawned observation that inherits it loads a SECOND,
+// different copy of the guard, which counts nothing (the first copy already froze `node:assert`)
+// and overwrites the report with zero — or a spawn deliberately left unguarded inherits a guard
+// it never asked for. Only the GUARD IMPORT must be stripped; every other byte of
 // NODE_OPTIONS, and the command's own `cmd.env`, still reach the child (asserted elsewhere).
 
 test("an-inherited-oracle-guard-never-reaches-the-child: a spawned command strips a foreign guard import from NODE_OPTIONS while preserving everything else", async () => {

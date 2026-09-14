@@ -286,10 +286,10 @@ export class ShellTestExecutor implements TestExecutor {
  * of an inherited `NODE_OPTIONS`, because that key must otherwise still pass through untouched
  * (`isScrubbedEnvKey` deliberately does not gain a `NODE_OPTIONS` case). When the spine itself runs
  * a `--real` proof under its own oracle guard, `NODE_OPTIONS` carries the guard's `--import` and
- * every process THIS spine spawns inherits it. A nested spawned observation that loads a second copy
- * either double-counts or — since the first copy already froze `node:assert` — counts nothing and
- * overwrites that process's own report with zero, and a spawn deliberately left unguarded picks up
- * an oracle it never asked for. The spine's OWN chosen instrument for the command being spawned
+ * every process THIS spine spawns inherits it. A nested spawned observation that loads a second,
+ * different copy counts nothing — the first copy has already frozen `node:assert`, so the second
+ * cannot install its counter — and its exit hook then overwrites that process's own report with
+ * zero; a spawn deliberately left unguarded picks up an oracle it never asked for. The spine's OWN chosen instrument for the command being spawned
  * still reaches the child normally: it travels through `cmd.env`, which is merged over
  * {@link scrubbedChildEnv}'s output in {@link runShellCommand}, so this strip only ever removes an
  * import the CURRENT process inherited, never one the spine is deliberately wiring onto this spawn.
