@@ -9,6 +9,17 @@ names its own trap: batch the authoring and "red" can become "the suite is red",
 genuine failure beside ten hollow tests (ADR-0020's non-forgeability). This probe measures what the
 runners can actually tell the spine before any design is chosen. It builds nothing.
 
+**The prior decision it measures.** ADR-0265 (proposed 2026-07-29, filed on `verification-integrity-arc`,
+which has since closed) already recorded that CONFIRM_RED observes one red per file, and escalated two
+forks to the owner: WHAT to observe — (a) give the assert-oracle report per-test identity, (b) parse
+per-test results from runner output, (c) declare falsifiability in the spec — and WHAT TO DO with a
+contract that is green on arrival: refuse, warn, or record. No edge joined it to this arc;
+`library related batched-test-authoring-arc --unlinked` surfaced it. This probe prices fork 3 — route (b)
+works on all three runners within the limits in §4, and route (a)'s channel also runs under bun (§7) —
+and runs straight into fork 4 (§5.5). ADR-0265 D5 also scopes §6: per-test red is the WEAKER bar. It
+catches a test that is green against nothing, never one that is green against a plausible wrong
+implementation; that stays the mutation rung's (ADR-0447).
+
 ## Outcome
 
 1. **Attribution survives batching wherever the cluster's test file LOADS, on all three proof
@@ -35,9 +46,14 @@ runners can actually tell the spine before any design is chosen. It builds nothi
    with the production observer over the probe clusters, `nextPhase` advanced a cluster with four hollow
    tests passing beside three real reds, and signed a green forged by one dummy assertion followed by
    `process.exit(0)` — ADR-0211's own stated limit, reproduced (§3). Per-test completeness refuses both.
-5. **A bulk review point between red and green is mechanically feasible, with no model judgement.**
-   Seven checks, each measured against the hollow shapes it catches (§6). Red-time attribution and
-   ADR-0126's static substance check catch DIFFERENT hollow shapes; neither alone is enough.
+5. **A bulk review point between red and green is mechanically feasible — with one fork no mechanism
+   settles.** Seven checks, each measured against the hollow shapes it catches (§6), and none asks a model
+   anything; red-time attribution and ADR-0126's static substance check catch DIFFERENT hollow shapes, so
+   neither alone is enough. But the check that makes batching safe — every test fails before any code
+   exists — also REFUSES a legitimate guard-rail contract that an empty implementation already satisfies
+   (G1, measured on both runners), and at red time nothing distinguishes it from a hollow test (§5.5).
+   That is ADR-0265's fork 4, recorded as the owner's on 2026-07-29 and never answered; it is now put to
+   him as `oq-batched-red-test-passes-before-code-exists`.
 
 ## 1. What the observer does today — read from the code
 
@@ -89,7 +105,7 @@ Subject shapes: **S1** a non-throwing skeleton (every symbol exists and returns 
 throwing skeleton (`throw new Error("not implemented")`); **S3** the subject module absent; **S4** one of
 the three symbols exported; **S5** the subject absent, with every test importing it dynamically; **S6**
 implemented. Positive controls **P1/P2**: the three real tests alone, against S1 and S6. Evasion shapes
-**E1–E6** in §5.4. Sources and commands are in Appendix A.
+**E1–E6** in §5.4, and a legitimate guard-rail **G1** in §5.5. Sources and commands are in Appendix A.
 
 ⚠ **Without `"type": "module"` the probe measures the wrong thing.** tsx then loads `.ts` as CommonJS,
 and a missing named export becomes `undefined` instead of a link error — S4 silently became a loadable
@@ -149,7 +165,7 @@ Four traps any consumer has to handle:
 read (`analyzeObservedTests`), and the runner's per-test report. It classifies each declared test and
 decides the cluster: ADVANCE only if the report exists, every declared test appears exactly once, no
 undeclared row was reported, and every test is individually red with an assertion — or, at green,
-individually green. Its output matched a hand-derived expectation on all 28 runs below, and it is not a
+individually green. Its output matched a hand-derived expectation on all 32 runs in §5.2–§5.5, and it is not a
 blanket refusal: the positive controls ADVANCED on both runners, at red and at green.
 
 ### 5.2 The cluster under each subject shape
@@ -210,6 +226,27 @@ attribution (S1, both runners), where today's gate advances it (§3).
 | E5 `process.exit(0)` at green | synthetic file PASS row | no junit, exit 0 | REFUSE — declared tests not reported (the oracle vetoes it too) |
 | E6 a dummy assertion, then `process.exit(0)`, at green | synthetic file PASS row | no junit, exit 0 | REFUSE — where today's oracle signs it (§3) |
 
+### 5.5 A legitimate guard-rail reads exactly like a hollow test at red
+
+G1 (Appendix A.1) puts the two real contract tests `add-sums` and `parse-port-refuses-garbage` beside one
+legitimate guard-rail, `parse-port-accepts-a-valid-port: a well-formed port never throws` — a property the
+finished code must keep.
+
+| Test | ADR-0126 static | Against S1, at red | Against S6, at green |
+|---|---|---|---|
+| `add-sums` | vouches | red — assertion | green |
+| `parse-port-refuses-garbage` | vouches | red — assertion | green |
+| G1 `parse-port-accepts-a-valid-port` | vouches | **passed at red** | green |
+| **Checker** | | **REFUSE**, on both runners | ADVANCE, on both runners |
+
+At red, G1's row is H3's row: substantive to the static read, passing against a subject that implements
+nothing. What separates them is what the assertion MEANS, and no mechanical check reads meaning
+(ADR-0563 D1). So C4 cannot be both strict against hollow tests and silent on guard-rails. The ways out
+are ADR-0265's fork 4 — refuse every early pass, let the contract declare a guard-rail, or record without
+refusing — and they are put to the owner as `oq-batched-red-test-passes-before-code-exists`. The cost is
+not hypothetical: `map-server-memo` carried four contracts green against its null implementation, and
+proving them took three hand-built wrong implementations (ADR-0265, Context).
+
 ## 6. What a bulk review point between red and green can check mechanically (Q3)
 
 Each check is a refusal reason, never a score, and none asks a model anything (ADR-0447 D2, ADR-0563 D1).
@@ -219,7 +256,7 @@ Each check is a refusal reason, never a score, and none asks a model anything (A
 | C1 report present | the per-test report exists | S3, S4, E4–E6 on bun | node, bun, vitest |
 | C2 complete and unambiguous | every declared test reported exactly once; no undeclared row; unique title paths | S3/S4 collapse, E1, E4–E6 | node, bun, vitest |
 | C3 ran | no declared test skipped or todo | E2, all four forms | node, bun |
-| C4 individually red | every declared test failed | H1–H4 against a non-throwing subject; E3 | node, bun, vitest |
+| C4 individually red | every declared test failed | H1–H4 against a non-throwing subject; E3 — and it FALSE-REFUSES G1, a legitimate guard-rail (§5.5) | node, bun, vitest |
 | C5 right kind, per test | each red is the declared kind (`ERR_ASSERTION` / `AssertionError` for an assertion red) | W1; H4 under a throwing skeleton | node (code), bun (type), vitest (text) |
 | C6 static substance (ADR-0126) | each test holds a substantive assertion | H1, H2, H4 — even when they are red | any runner (static) |
 | C7 contract naming (ADR-0122) | each of the cluster's contracts is named by a vouching test | a dropped contract | any runner (static) |
@@ -237,7 +274,13 @@ Which single check refuses which shape:
 | E1 duplicate title | ✓ | | | | |
 | E2 options-form skip | | ✓ | | | |
 | E6 dummy assertion + `exit(0)` | ✓ | | | | |
+| G1 legitimate guard-rail | | | refuses it — WRONGLY | | |
 
+- **Per-test red is the weaker bar (ADR-0265 D5).** C4 catches a test that is green against NOTHING. A
+  test green against a plausible WRONG implementation passes every check in this section; that stronger
+  bar is the mutation rung's.
+- **What C4 does with a test that passes before code exists is not mechanical** — see §5.5 and
+  `oq-batched-red-test-passes-before-code-exists`.
 - **Not mechanical, and not attempted:** whether an assertion is RELEVANT to its contract. ADR-0447
   routes test strength to mutation testing after green — reachable for the bun and vitest packages, not
   `packages/orchestrator` (ADR-0563 D3).
@@ -291,7 +334,9 @@ Parked on the arc in the same landing:
    exit code for a cluster: C1–C3 as preconditions, C4 and C5 as the red, C6 and C7 as the static half,
    completeness plus every test individually green as the green. Settle the net-new red — keep
    one-at-a-time, a spine-generated non-throwing skeleton, or per-test dynamic import — against §5.2, and
-   name each runner's report channel. Nothing blocks it.
+   name each runner's report channel. It waits on the owner's answer to
+   `oq-batched-red-test-passes-before-code-exists` — what C4 does with a test that passes before code
+   exists — and should supersede ADR-0265 rather than leave its forks open.
 2. **Observe a cluster per test in the spine, with the review point between red and green.** A per-test
    seam on the observer, the node reporter and bun junit wiring (including a single-file bun route the
    classifier describes truthfully), and the end-state-5 test: a hollow test beside a real red does not
@@ -446,6 +491,29 @@ test("add-sums: a wrong expectation that would fail if it ran", () => { assert.e
 test("dummy: one real assertion so the count floor reads at least one", () => { assert.equal(1, 1); });
 test("exits-zero: calls process.exit(0) before the rest run", () => { process.exit(0); });
 test("add-sums: a wrong expectation that would fail if it ran", () => { assert.equal(add(2, 3), 6); });
+```
+
+G1 `guardrail.test.ts`, beside S1 at red and S6 at green:
+
+```ts
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+
+import { add, parsePort } from "./subject.js";
+
+describe("probe-cluster", () => {
+  test("add-sums: add returns the sum of its operands", () => {
+    assert.equal(add(2, 3), 5);
+  });
+
+  test("parse-port-refuses-garbage: parsePort throws on a non-numeric port", () => {
+    assert.throws(() => parsePort("abc"), /not a port/);
+  });
+
+  test("parse-port-accepts-a-valid-port: a well-formed port never throws", () => {
+    assert.doesNotThrow(() => parsePort("8080"));
+  });
+});
 ```
 
 ### A.2 Runs
