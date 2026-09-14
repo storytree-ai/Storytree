@@ -68,8 +68,8 @@ pre-registration was edited afterwards.
 reading's committed prompt: id, title, statement, evidence and impact, with `route`, `routeReason` and
 `provenance` stripped. Re-drawn from the live store on the day (friction tier, 735 rows, `createdAt`
 ascending, stride 15, first 40), the draw reproduces all 40 ids in order. ⚠ A trap for the next
-re-draw: 9 rows carry a date-only `createdAt` (`2026-07-17`, no time), which sorts ahead of that day's
-timestamps. This session's first re-draw used a parser that dropped them and read 36 of the 40 items
+re-draw: 9 rows carry a date-only `createdAt` (seven distinct dates between `2026-07-17` and `2026-08-12`,
+with no time part), and each sorts ahead of that day's timestamps. This session's first re-draw used a parser that dropped them and read 36 of the 40 items
 as different. The sample had not moved; the parser had.
 
 **Two arms, same day, one difference.** CONTROL ran the second reading's prompt unchanged (sha256
