@@ -26,7 +26,13 @@ export interface NodeModulesEntry {
  */
 export type ReadNodeModulesEntries = (dir: string) => Promise<NodeModulesEntry[]>;
 
-const readNodeModulesEntries: ReadNodeModulesEntries = (dir) =>
+/**
+ * The reader {@link linkReplicaDependencies} falls through to when no `readEntries` is injected:
+ * `fs.readdir` with file types, so each entry answers the three predicates from the filesystem itself.
+ * Exported so a test drives this production default against a real directory, instead of every test of
+ * the seam being evidence about a fake.
+ */
+export const readNodeModulesEntries: ReadNodeModulesEntries = (dir) =>
   fs.readdir(dir, { withFileTypes: true });
 
 async function pathExists(candidate: string): Promise<boolean> {

@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 
 import { prepareCodexDisposableReplica } from "./codex-author.js";
-import { linkReplicaDependencies } from "./codex-replica-links.js";
+import { linkReplicaDependencies, readNodeModulesEntries } from "./codex-replica-links.js";
 import type { NodeModulesEntry, ReadNodeModulesEntries } from "./codex-replica-links.js";
 
 /**
@@ -379,5 +379,44 @@ test("workspace-package-links-resolve-into-the-replica: an entry that is none of
   } finally {
     await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
     await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("workspace-package-links-resolve-into-the-replica: the production reader lists a real node_modules directory, and each entry answers its own link, directory and file predicates", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-reader-"));
+  try {
+    const nodeModules = path.join(dir, "node_modules");
+    const target = path.join(dir, "left-pad-store");
+    await fs.mkdir(target);
+    await fs.mkdir(path.join(nodeModules, ".bin"), { recursive: true });
+    await writeText(path.join(nodeModules, ".modules.yaml"), "hoistPattern: []\n");
+    await link(target, path.join(nodeModules, "left-pad"));
+
+    const entries = await readNodeModulesEntries(nodeModules);
+    const byName = new Map(entries.map((entry) => [entry.name, entry]));
+
+    assert.deepEqual(
+      [...byName.keys()].sort((a, b) => a.localeCompare(b)),
+      [".bin", ".modules.yaml", "left-pad"],
+      "every entry of the real directory is listed by its own name",
+    );
+    const bin = byName.get(".bin");
+    const file = byName.get(".modules.yaml");
+    const linked = byName.get("left-pad");
+    assert.ok(bin !== undefined && file !== undefined && linked !== undefined);
+    assert.deepEqual(
+      [bin.isSymbolicLink(), bin.isDirectory(), bin.isFile()],
+      [false, true, false],
+      "a real directory reads as a directory and nothing else",
+    );
+    assert.deepEqual(
+      [file.isSymbolicLink(), file.isDirectory(), file.isFile()],
+      [false, false, true],
+      "a regular file reads as a file and nothing else",
+    );
+    assert.equal(linked.isSymbolicLink(), true, "a directory link reads as a link");
+    assert.equal(linked.isFile(), false, "a directory link never reads as a regular file");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
