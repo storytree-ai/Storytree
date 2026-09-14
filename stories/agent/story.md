@@ -21,10 +21,12 @@ depends_on: []
 # The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
 # story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
 # which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
-# listed. `phase-author-seam` (a pure type module — no standalone red→green) and `live-sdk-leaf` (an
+# listed. `phase-author-seam` (no capability-level red→green) and `live-sdk-leaf` (an
 # operator-attested live leg, and it depends_on the unwired phase-author-seam) carry NO `real:` arm, so
 # they are deliberately UNLISTED — listing either would make `isStoryBuildable` return false for the
-# whole story. The 3 form a closed set: model-runtime-seam (depends_on []), leaf-tool-surface
+# whole story. Each does carry a CONTRACT with its own `real:` arm since ADR-0569
+# (`authoring-escalation-shape`, `sdk-leaf-escalate-tool`); a contract is built one grain down and
+# leaves this capability-level answer unchanged. The 3 form a closed set: model-runtime-seam (depends_on []), leaf-tool-surface
 # (depends_on [model-runtime-seam]), owned-turn-loop (depends_on [model-runtime-seam, leaf-tool-surface]).
 capabilities: [model-runtime-seam, leaf-tool-surface, owned-turn-loop]
 # Provider-side inbound edges (ADR-0074 §4 / ADR-0058 §3): the orchestrator (drive-machinery) and the

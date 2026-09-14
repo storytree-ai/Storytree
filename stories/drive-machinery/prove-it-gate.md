@@ -60,12 +60,28 @@ dry-run / live-smoke walk and every builtins-only node carries no backstop.
 author-agnostic by design. See the story's "The PhaseAuthor seam is consumed, not owned" section.
 
 **Refusal observation boundary.** When a CONFIRM_RED or CONFIRM_GREEN transition refuses, the failed
-`ProveResult` exposes `failedObservation?: { phase; testId; exitCode; stdout; stderr }`, copied only
-from the immediately preceding spine-owned `originalProcessResult`. `exitCode: null` remains a real
+`ProveResult` exposes `failedObservation?: { stdout; stderr; exitCode }`: the immediately preceding
+spine-owned `originalProcessResult`, copied verbatim. The phase is the result's own `failedAt`, and
+the payload carries no test id. `exitCode: null` remains a real
 signal-termination observation. CONFIRM_RED includes an unexpected green and a measured wrong-kind
 red; an ordinary non-zero red still advances. The gate does not rerun a command, change the transition
 decision, sign or promote a refusal, expose output to the author, or add it to evidence/history.
 Authoring, GATE, and backstop refusals have no such payload, as does every pass.
+
+**Escalation boundary (proposed — contract [`gate-routes-authoring-escalation`](gate-routes-authoring-escalation.md), ADR-0569).**
+Not built at HEAD, where `proveUnit` reads no escalation. An authoring slice's failure may carry a
+typed `escalation`: the `PhaseAuthor` seam's `AuthoringEscalation`, from contract
+`authoring-escalation-shape` in the `agent` story. Its authority is fail-closed and nothing more: it
+can end a walk without a verdict, and it never advances a phase, produces a verdict, enters
+`verdict.evidence`, or withholds a signature the observations earn (D2). An IMPLEMENT escalation
+cannot veto an observation (D3): CONFIRM_GREEN still runs, a red refuses with the escalation record
+beside `failedObservation`, and a green overrules it — the walk signs exactly as it would have without
+it, and the result records `overruledEscalation`. An AUTHOR_TEST escalation ends the walk at
+AUTHOR_TEST after the spine runs the declared test once (D4). That run is not CONFIRM_RED: no phase
+observer fires, no visited phase is recorded, and nothing advances. Its output rides on the returned
+`escalation` record, never as `failedObservation`, so the refusal observation boundary above stays
+exact. An escalation returned from the other phase's slice fails closed as malformed (D1). The test id
+on either record is stamped by the spine, never read from the leaf.
 
 ## Integration test
 
@@ -77,7 +93,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (9)
+## Contracts (10)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -114,4 +130,8 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
 9. **`confirm-refusal-returns-only-the-original-spine-observation`** — a final CONFIRM refusal returns its original command observation without weakening proof authority
    - **asserts —** an unexpected CONFIRM_RED green returns that one observation; an explicit `expectedRed` rejects a measured wrong-kind red and returns that one red observation; after an advancing red, a CONFIRM_GREEN red returns the second observation. Each CONFIRM_RED refusal spawns once, the CONFIRM_GREEN path spawns twice total, and none performs a diagnostic rerun. Every case writes zero signing rows; a pass and authoring/GATE/backstop/non-shell failures expose no failed observation.
    - **covers —** `packages/orchestrator/src/prove-it-gate.ts` failed-result construction at CONFIRM_RED and CONFIRM_GREEN
-   - **proven by —** scoped additions to `packages/orchestrator/src/prove-it-gate.test.ts` using ordinary `ShellTestExecutor` child commands (pending the capability's normal red→green proof)
+   - **proven by —** additions to `packages/orchestrator/src/prove-it-gate.test.ts` through contract [`confirm-refusal-observation`](confirm-refusal-observation.md), signed PASS (run `real-mu0aic0k`, per `inner-loop-exit-arc`'s increment log). Declared gap at landing (PR #1910): those tests drive `proveUnit` with hand-built observations rather than `ShellTestExecutor` child commands, so the spawn-count and measured wrong-kind clauses are not exercised by that proof; `packages/drive/src/node-build-refusal-observation.test.ts` exercises the CONFIRM_GREEN transport over a real child.
+10. **`escalation-ends-the-walk-or-is-overruled-by-observation`** — an authoring escalation ends a walk without a verdict or is overruled by the spine's green observation, and never becomes a verdict
+    - **asserts —** an AUTHOR_TEST escalation spawns the declared test once, never requests IMPLEMENT, calls `onPhase` for AUTHOR_TEST only, writes no signing row, and returns `failedAt: "AUTHOR_TEST"` with the record (`raised`, `testId`, that run's exact output) and no `failedObservation`, whether that run is red or green; an IMPLEMENT escalation still visits CONFIRM_GREEN — still red, it refuses with `failedObservation` and the record without `observation`; turned green, it signs a verdict deep-equal to the unescalated walk's and records `overruledEscalation`, which a later GATE refusal also carries; an escalation returned from the other phase's slice fails closed at that slice with no record; `exhausted: true` with an escalation routes as the escalation; a plain authoring error and plain exhaustion are unchanged.
+    - **covers —** `proveUnit`'s escalation routing, `ProveResult`'s `escalation` / `overruledEscalation`, and `EscalationRecord` (`packages/orchestrator/src/prove-it-gate.ts`, exported through `packages/orchestrator/src/index.ts`)
+    - **proven by —** contract [`gate-routes-authoring-escalation`](gate-routes-authoring-escalation.md): a new `packages/orchestrator/src/prove-it-gate.escalation.test.ts` over ordinary `ShellTestExecutor` child commands (proposed; not yet built)

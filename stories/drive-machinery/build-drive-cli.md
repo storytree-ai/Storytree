@@ -64,12 +64,26 @@ The operator surface over the whole machinery — two commands, one honest-envel
   exists to prevent).
 
 - **Original refusal rendering** (`node-build.ts`): when the gate returns a final CONFIRM refusal
-  with its spine-owned original observation, the existing failure envelope renders a labeled
-  `original observation` section containing run id, unit id, phase, test id, exit code, stdout, and
-  stderr. Rendering consumes the result already returned by the gate: it runs no command and does
+  with its spine-owned original observation, the failure envelope renders an `observation:` section
+  (`renderFailedConfirmObservation`) directly under the `verdict: NONE — failed closed at <phase>`
+  line, which names the phase. The section carries the unit id, run id, exit code, stdout, and stderr;
+  it names no test id, a declared gap of its signed build (PR #1910). Rendering consumes the result
+  already returned by the gate: it runs no command and does
   not alter the refusal, evidence, signing, promotion, cleanup, leaf feedback, or stored work
   history. Passes and failures without an eligible command observation retain their current envelope;
   the REAL typecheck/regression backstop is a separately shaped diagnostic path and is excluded.
+
+- **Escalation rendering** (proposed — contract
+  [`node-build-escalation-envelope`](node-build-escalation-envelope.md), ADR-0569 D5; not built at
+  HEAD): when the gate returns an authoring escalation (contract `gate-routes-authoring-escalation`),
+  `nodeBuild` renders it through a same-file renderer directly under the `verdict:` line, ahead of the
+  observation section. The block names the raising phase and what it claims, with the unit, run and
+  test id; the statement, and IMPLEMENT's assertion, verbatim; for an AUTHOR_TEST escalation, the
+  single observation the spine took for it, labelled as not a CONFIRM run; and the orchestrator's two
+  options under ADR-0563: re-delegate a test revision (one D4 attempt, a `revised-test` difference) or
+  escalate to the owner. An overruled escalation renders one line on the envelope it rode through, and
+  a result with no escalation renders nothing. Rendering runs no command. Only `node build` renders
+  the block: `story build` and the gate build driver print the refusal reason alone.
 
 - **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
   `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry
@@ -113,7 +127,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (11)
+## Contracts (12)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -158,4 +172,8 @@ event log (`packages/cli/src/story-build.test.ts:17`).
 11. **`confirm-refusal-envelope-renders-the-original-observation`** — the outer caller can read the spine's original failed CONFIRM observation in the ordinary node-build envelope
     - **asserts —** for both a CONFIRM_RED refusal and a CONFIRM_GREEN refusal after an advancing red, the returned/rendered envelope labels the original observation and preserves run id, unit id, phase, test id, exit code, stdout, and stderr. The registered proof command executes only once for the CONFIRM_RED refusal and twice for the red-then-CONFIRM_GREEN refusal; rendering executes it zero additional times. Passing results and GATE/backstop/non-observation failures have no failed-observation section.
     - **covers —** failed-result propagation and rendering in `packages/drive/src/node-build.ts`
-    - **proven by —** a new scoped `packages/drive/src/node-build-refusal-observation.test.ts` (pending the capability's normal red→green proof; existing CLI tests stay at `packages/cli/src/node-build.test.ts`)
+    - **proven by —** a new `packages/drive/src/node-build-refusal-observation.test.ts` through contract [`node-build-refusal-observation-envelope`](node-build-refusal-observation-envelope.md), signed PASS (run `real-mu0ascrz`, per `inner-loop-exit-arc`'s increment log); existing CLI tests stay at `packages/cli/src/node-build.test.ts`. Declared gap at landing (PR #1910): the test calls the renderer directly, covers no CONFIRM_RED refusal and no spawn counts, and the rendered section names no test id; the phase appears only on the `verdict:` line above it.
+12. **`node-build-renders-the-returned-escalation-with-its-test-id`** — node build renders the escalation the gate returned, with its unit, run and test id, and names an overruled one, without executing a command
+    - **asserts —** a same-file renderer called by `nodeBuild` directly under the `verdict:` line (ahead of the observation section on a failure) renders an AUTHOR_TEST escalation as a labelled header with phase, claim, unit, run and test id, the statement verbatim, the spine's single observation labelled as not a CONFIRM run, and one options line (re-delegate a test revision as one ADR-0563 D4 `revised-test` attempt, or escalate to the owner); an IMPLEMENT escalation as the same header with its claim, statement and assertion, and the options line; an overruled escalation, on a pass or on a GATE refusal after the overrule, as exactly one labelled line with the statement; and a result with neither key as nothing. Rendering adds no spawn to the one (AUTHOR_TEST) or two (CONFIRM_GREEN reached) the walks made.
+    - **covers —** `renderEscalation` and its failure- and pass-envelope call sites in `nodeBuild` (`packages/drive/src/node-build.ts`)
+    - **proven by —** contract [`node-build-escalation-envelope`](node-build-escalation-envelope.md): a new `packages/drive/src/node-build-escalation-envelope.test.ts` (proposed; not yet built)

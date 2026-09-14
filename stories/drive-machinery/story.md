@@ -368,6 +368,13 @@ the now-settled modeling call.
   edit-existing proof over `scrubbedChildEnv`, through the whole orchestrator package suite. It keeps
   an assert-oracle guard inherited through `NODE_OPTIONS` out of every spawned child, while every
   other inherited option and the command's own `cmd.env` still reach it.
+- [`gate-routes-authoring-escalation`](gate-routes-authoring-escalation.md) — contract grain,
+  spec-borne, edit-existing proof over `proveUnit`, proposed (ADR-0569). An authoring escalation ends
+  a walk without a verdict, or is overruled by a green CONFIRM observation; it never enters or becomes
+  a verdict. It builds after `authoring-escalation-shape` in the `agent` story.
+- [`node-build-escalation-envelope`](node-build-escalation-envelope.md) — contract grain, spec-borne,
+  edit-existing proof over the drive envelope, proposed (ADR-0569). It renders a returned escalation
+  with its unit, run and test id, and names an overruled one, without adding a command path.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
