@@ -52,10 +52,10 @@ line (`packages/cli/src/gate-build-driver.ts`). ADR-0569 D5 renders the whole es
 `node build`'s envelope (contract [`node-build-escalation-envelope`](node-build-escalation-envelope.md)),
 and its Consequences say the other two print a reason "which names the escalation".
 
-At HEAD that reason does not name it. Contract
+Before this contract, that reason did not name it. Contract
 [`gate-routes-authoring-escalation`](gate-routes-authoring-escalation.md) (signed PASS, run
-`real-mu1lv3wm`) refuses a standing IMPLEMENT escalation with the plain CONFIRM_GREEN refusal, plus
-any oracle or exhaustion note. It refuses an AUTHOR_TEST escalation with its kind and the slice's
+`real-mu1lv3wm`) refused a standing IMPLEMENT escalation with the plain CONFIRM_GREEN refusal, plus
+any oracle or exhaustion note, and refused an AUTHOR_TEST escalation with its kind and the slice's
 `error`, but not its `statement`. On those two surfaces an implementer that escalated and was not
 overruled reads exactly like an implementation that failed: the undifferentiated failure ADR-0569
 exists to end.

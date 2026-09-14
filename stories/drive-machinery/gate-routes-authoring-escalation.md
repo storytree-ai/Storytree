@@ -112,8 +112,9 @@ children. It therefore reads a call record rather than child-written markers, an
 step 5, an AUTHOR_TEST escalation returned from the IMPLEMENT slice, step 3's verdict deep-equality,
 or step 6. The routing those clauses describe was confirmed present in the landed `prove-it-gate.ts`
 by reading the code — a check that the behaviour exists, not a judgement of the test. Contract
-`confirm-green-refusal-names-standing-escalation` exercises several of those paths over real children
-once it is signed.
+`confirm-green-refusal-names-standing-escalation` (signed PASS, run `real-mu1njft0`) drives the
+standing-IMPLEMENT and AUTHOR_TEST escalation walks over real `ShellTestExecutor` children, which
+covers part of that gap.
 
 The observable is the discriminated `ProveResult`, the child-written marker count, the `onPhase`
 record and the signing store. Resolver command calls do not prove a spawn count: production may

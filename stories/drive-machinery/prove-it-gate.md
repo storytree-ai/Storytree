@@ -81,13 +81,14 @@ AUTHOR_TEST after the spine runs the declared test once (D4). That run is not CO
 observer fires, no visited phase is recorded, and nothing advances. Its output rides on the returned
 `escalation` record, never as `failedObservation`, so the refusal observation boundary above stays
 exact. An escalation returned from the other phase's slice fails closed as malformed (D1). The test id
-on either record is stamped by the spine, never read from the leaf. The refusal `reason` does not yet
-name a standing escalation: an IMPLEMENT escalation that stays red refuses with the CONFIRM_GREEN
-refusal and its notes alone, an AUTHOR_TEST reason carries the kind and the slice's `error` but not
-the escalation's `statement`, and a mismatch reason already names both phases. Contract
-[`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md)
-(proposed) adds the kind and the statement after the unchanged text, because `story build`'s chain
-summary and the gate build driver print the reason alone.
+on either record is stamped by the spine, never read from the leaf. The refusal `reason` names the
+escalation it carries: a standing IMPLEMENT escalation's CONFIRM_GREEN refusal and an AUTHOR_TEST
+escalation's reason each end with ` — escalation (<kind>): "<statement>"`, appended after every
+existing suffix, so the reason a walk without the escalation gives is unchanged byte for byte; a
+mismatch reason names both phases (contract
+[`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md),
+signed PASS run `real-mu1njft0`). It matters because `story build`'s chain summary and the gate build
+driver print the reason alone.
 
 ## Integration test
 
@@ -144,4 +145,4 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
 11. **`standing-escalation-is-named-in-its-refusal-reason`** — a refusal names the authoring escalation it carries or rejects in its reason, after the reason it gives without one
     - **asserts —** a standing IMPLEMENT escalation refuses at CONFIRM_GREEN with a reason that begins byte for byte with the same walk's reason without it — the CONFIRM_GREEN refusal, then any oracle or raise-the-ceiling note — and continues with the kind and the statement verbatim, while `failedAt`, `failedObservation`, the record and the zero signing rows stay as contract 10 specifies them; an AUTHOR_TEST escalation's reason carries the kind and the statement; each phase-mismatch reason names both phases; a walk with no escalation refuses with exactly today's CONFIRM_GREEN text, and the GATE refusal after an overrule gives exactly the reason the same walk gives without the escalation.
     - **covers —** the refusal reasons on `proveUnit`'s escalation paths (`packages/orchestrator/src/prove-it-gate.ts`)
-    - **proven by —** contract [`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md): a new `packages/orchestrator/src/prove-it-gate.escalation-reason.test.ts` over ordinary `ShellTestExecutor` child commands (proposed; not yet built)
+    - **proven by —** `packages/orchestrator/src/prove-it-gate.escalation-reason.test.ts` over ordinary `ShellTestExecutor` child commands, through contract [`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md), signed PASS (run `real-mu1njft0`)
