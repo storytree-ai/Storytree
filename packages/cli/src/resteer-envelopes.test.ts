@@ -117,6 +117,19 @@ test("resteer-successful-taste-capture-body-is-pinned", async () => {
   assert.deepEqual(res.next, ["storytree resteer list --pg","storytree library artifact resteer-he-redirected-the-adr-to-correct-in-place --pg"]);
 });
 
+test("resteer-successful-defect-capture-body-is-pinned — the mode, and neither the TASTE line nor a warning", async () => {
+  // The defect path takes the OTHER arm of the taste line, and a capture on a session branch the other
+  // arm of the unattributable warning — so this is the one body in which both of those tails must be
+  // empty, and any text appended to either is visible here and nowhere else.
+  const res = await run(
+    FULL({ "--disposition": "defect", "--mode": "incorrect-verification" }),
+    deps(new InMemoryStore(), true),
+  );
+  assert.equal(res.ok, true);
+  assert.equal(res.body, "recorded re-steer resteer-he-redirected-the-adr-to-correct-in-place on \"claude/test-resteer\" (2026-09-05) — defect, incorrect-verification (called by: owner).");
+  assert.deepEqual(res.next, ["storytree resteer list --pg","storytree library artifact resteer-he-redirected-the-adr-to-correct-in-place --pg"]);
+});
+
 test("resteer-unattributable-capture-body-is-pinned — the marker stamp and its warning", async () => {
   // A capture from a checkout that identifies no session (ADR-0568). The row still lands — every
   // intervention is a datum — but the envelope says so AT CAPTURE, where the session can still see it,

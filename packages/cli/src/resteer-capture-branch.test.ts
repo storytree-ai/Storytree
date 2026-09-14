@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { UNATTRIBUTABLE_CAPTURE_STAMP } from "@storytree/library";
+import { InMemoryStore } from "@storytree/storage-protocol";
+import { Resteer, UNATTRIBUTABLE_CAPTURE_STAMP } from "@storytree/library";
 
+import { run } from "./commands.js";
 import { resteerCaptureBranch } from "./resteer-capture-branch.js";
 
 /**
@@ -167,4 +169,36 @@ test("resteer-capture-branch: against REAL git, every checkout shape stamps what
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("resteer new: with no branch or clock injected, the dispatcher stamps what the capture rule reads here", async () => {
+  // The composition root's OWN defaults — the one path every other capture test bypasses by injecting
+  // `friction.branch` and `friction.now`. The stamp is compared with the rule run against the SAME
+  // checkout at the same moment, never with a particular value, so this asserts the WIRING and means
+  // the same thing in a linked worktree on a laptop as in CI's detached primary checkout.
+  const store = new InMemoryStore();
+  const before = new Date().toISOString().slice(0, 10);
+  const res = await run(
+    [
+      "resteer", "new",
+      "--title", "Wired without injection",
+      "--doing", "d",
+      "--redirect", "r",
+      "--evidence", "\"quoted words here\"",
+      "--disposition", "taste",
+      "--by", "owner",
+      "--pg",
+    ],
+    { store, writable: true },
+  );
+  const after = new Date().toISOString().slice(0, 10);
+  assert.equal(res.ok, true, res.body);
+
+  const doc = Resteer.parse((await store.getDoc("resteer-wired-without-injection"))?.doc);
+  assert.equal(doc.provenance?.branch, resteerCaptureBranch());
+  // The clock default, bracketed by two reads so a run that straddles midnight UTC still passes.
+  assert.ok(
+    doc.provenance?.date === before || doc.provenance?.date === after,
+    `stamped ${String(doc.provenance?.date)}, clock read ${before}..${after}`,
+  );
 });
