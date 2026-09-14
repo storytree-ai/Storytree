@@ -317,9 +317,10 @@ function isOracleGuardSpecifier(specifier: string): boolean {
 
 /**
  * Strip every `--import`/`--import=` of `assert-oracle-guard.mjs` out of an inherited
- * `NODE_OPTIONS` value, leaving every other byte untouched (no whitespace normalisation, no
- * re-quoting). Returns `undefined` when nothing but whitespace remains, so the caller can drop the
- * variable entirely rather than leave behind an empty/whitespace `NODE_OPTIONS`.
+ * `NODE_OPTIONS` value. Each removed import takes the whitespace just before it along (see
+ * {@link NODE_OPTIONS_IMPORT_RE}); every other option is left as it was — no whitespace
+ * normalisation, no re-quoting. Returns `undefined` when nothing but whitespace remains, so the
+ * caller can drop the variable entirely rather than leave behind an empty/whitespace `NODE_OPTIONS`.
  */
 function stripInheritedOracleGuard(nodeOptions: string): string | undefined {
   const stripped = nodeOptions.replace(

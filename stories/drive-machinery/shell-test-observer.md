@@ -60,16 +60,24 @@ exercised the oracle to a fail-closed red; `measureRedKind` reads the same clear
 for the kind. The third depends on the first for exactly the reason the second does — an uncleared
 report's count is not attributable to this observation.
 
-**The forged-green fix (PR #29) lives here**: `scrubbedChildEnv`
-(`shell-test-executor.ts:203-237`) strips two env families from every spawned child —
+**The child-env scrubs live here, the forged-green fix (PR #29) among them**: `scrubbedChildEnv`
+and its key predicate `isScrubbedEnvKey` (`shell-test-executor.ts:273-352`) apply THREE scrubs to
+every spawned child — two KEY families and one VALUE strip:
 
-- `NODE_TEST*`: when the spine itself runs under `node --test`, the runner exports
-  `NODE_TEST_CONTEXT` to children; a spawned `node --test <file>` inheriting it behaves as a
+- `NODE_TEST*` (the forged-green fix): when the spine itself runs under `node --test`, the runner
+  exports `NODE_TEST_CONTEXT` to children; a spawned `node --test <file>` inheriting it behaves as a
   coordinated test-runner child and can exit 0 WITHOUT running the file — observed as a FORGED
   GREEN at CONFIRM_RED;
 - secret-shaped names (TOKEN/SECRET/PASSWORD/CREDENTIAL/API_KEY/ACCESS_KEY): the leaf authors the
   test file this command executes, and with the ADR-0035 feedback tool its OUTPUT flows back to
-  the model — a test that prints `process.env` must find no credentials there.
+  the model — a test that prints `process.env` must find no credentials there;
+- an inherited assert-oracle guard (the VALUE strip): every inherited `--import` / `--import=` of
+  `assert-oracle-guard.mjs` is removed from `NODE_OPTIONS`, while the rest of that variable still
+  passes through (it is dropped only when nothing else is left). A spine running under its own
+  oracle guard would otherwise hand that guard to every process it spawns. The spine's own chosen
+  instrument is unaffected: it arrives through `cmd.env`, which `runShellCommand` merges after this
+  scrub (contract [`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md), signed run
+  `real-mu0zz0sc`).
 
 `runShellCommand` (`shell-test-executor.ts:257-312`) is exported as the SHARED runner: the gate's
 CONFIRM observations spawn through it, and the leaf's bounded `run_proof`/`run_typecheck` feedback
@@ -104,11 +112,11 @@ observations — a genuinely failing then genuinely passing child process, exit 
    - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:16`, `:22`, `:30` (REAL, passing)
 2. **`node-test-env-never-inherited`** — THE FORGED-GREEN FIX: the spawned observer never inherits `NODE_TEST*`
    - **asserts —** a child that would forge a green via `NODE_TEST_CONTEXT` is observed honestly.
-   - **covers —** `shell-test-executor.ts:203-237`
+   - **covers —** `shell-test-executor.ts:273-352`
    - **proven by —** `shell-test-executor.test.ts:39` (REAL, passing)
 3. **`secrets-never-reach-the-child`** — secret-shaped env names are scrubbed (the leaf sees the output)
    - **asserts —** TOKEN/SECRET/… vars are absent in the child; benign names survive; the scrub predicate's name list is exact.
-   - **covers —** `shell-test-executor.ts:203-237`
+   - **covers —** `shell-test-executor.ts:273-352`
    - **proven by —** `shell-test-executor.test.ts:196` and `:243` (REAL, passing)
 4. **`red-is-data-not-an-error`** — a non-zero exit resolves normally with the observation
    - **asserts —** `run` resolves on a red; never throws.
