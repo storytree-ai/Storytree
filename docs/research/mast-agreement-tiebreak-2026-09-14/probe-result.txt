@@ -1,0 +1,28 @@
+CONFIGURATION PROBE — run 2026-09-14 under the identical annotator invocation, prompt: probe-prompt.txt
+
+init event (mechanical record):
+{
+  "cwd": "C:\\Users\\mickh\\AppData\\Local\\Temp\\claude\\C--code-storytree--claude-worktrees-determined-liskov-bffb62\\dd121608-160e-46ac-8936-b550ebf0e895\\scratchpad\\annot\\probe",
+  "model": "claude-opus-5",
+  "tools": [],
+  "mcp_servers": [],
+  "claude_code_version": "2.1.212",
+  "apiKeySource": "none"
+}
+tool_use events in the stream: 0
+result: success, is_error false, turns 1
+
+the probe's own answer, verbatim:
+
+**1.** NONE. No CLAUDE.md, repository files, project documentation, memory files, or prior annotation results are present in my context. My system prompt references a memory directory path, but no memory contents (including `MEMORY.md`) have been loaded into this context.
+
+**2.**
+- **"grow tell roam ask"** — UNKNOWN
+- **"prove-it-gate"** — UNKNOWN
+- **"merge base"** — In Git, the best common ancestor commit of two branches, used as the reference point for three-way merges and for diffing a branch against its origin.
+- **"Cohen's kappa"** — A statistic measuring inter-rater agreement between two annotators on categorical labels, correcting for the agreement expected by chance (1 = perfect, 0 = chance-level).
+
+**3.** Working directory as reported in my context:
+`C:\Users\mickh\AppData\Local\Temp\claude\C--code-storytree--claude-worktrees-determined-liskov-bffb62\dd121608-160e-46ac-8936-b550ebf0e895\scratchpad\annot\probe`
+
+Tools available: Bash, BashOutput, KillShell, Read, Write, Edit, NotebookEdit, Glob, Grep, Task, TodoWrite, WebFetch, WebSearch, SlashCommand, ExitPlanMode.
