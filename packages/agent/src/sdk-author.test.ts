@@ -436,7 +436,7 @@ test("author wires feedback commands as an in-process MCP server + allowlisted t
   assert.match(String(captured.systemPrompt), /FEEDBACK ONLY/);
 });
 
-test("author WITHOUT feedback commands stays the blind leaf (no MCP server, original prompt)", async () => {
+test("author WITHOUT feedback commands stays the blind leaf, but the escalate channel is still armed (ADR-0569 D6)", async () => {
   let captured: { mcpServers?: Record<string, unknown>; allowedTools?: string[]; systemPrompt?: unknown } | undefined;
   const author = new ClaudeAgentAuthor({
     cwd: CWD,
@@ -448,12 +448,22 @@ test("author WITHOUT feedback commands stays the blind leaf (no MCP server, orig
       ])(args);
     },
   });
-  assert.deepEqual(author.feedbackToolNames, []);
+  assert.deepEqual(author.feedbackToolNames, [], "feedbackToolNames stays scoped to feedback commands only");
 
   await author.author("AUTHOR_TEST", "author the failing test");
   assert.ok(captured !== undefined);
-  assert.equal(captured.mcpServers, undefined);
-  assert.equal(captured.allowedTools?.some((t) => t.startsWith("mcp__")), false);
+  // The spine MCP server now exists on EVERY slice (the escalate channel), even with zero feedback
+  // commands wired — this is the one thing that changed about the blind leaf's wiring.
+  assert.ok(
+    captured.mcpServers !== undefined && "spine" in captured.mcpServers,
+    "the spine MCP server is created even with no feedback commands, to carry the escalate tool",
+  );
+  assert.ok(captured.allowedTools?.includes("mcp__spine__escalate"));
+  assert.equal(
+    captured.allowedTools?.some((t) => t.startsWith("mcp__spine__run_")),
+    false,
+    "no feedback tool is allow-listed when none were wired",
+  );
   assert.match(String(captured.systemPrompt), /cannot run tests or shell commands/);
 });
 

@@ -19,6 +19,8 @@
 
 import * as path from "node:path";
 
+import { z } from "zod";
+
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 
@@ -53,7 +55,8 @@ import type { ModelUsage } from "@anthropic-ai/claude-agent-sdk";
  */
 const CONTEXT_WINDOW_KEY: keyof ModelUsage = "contextWindow";
 
-import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
+import { parseAuthoringEscalation } from "./phase-author.js";
+import type { AuthoringEscalation, AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 import type { TokenUsage } from "./model-events.js";
 
 /** The injectable query seam: the real SDK `query()` or an offline scripted double. */
@@ -193,6 +196,13 @@ export interface ClaudeAgentAuthorArgs {
   phasePrompts?: { AUTHOR_TEST: string; IMPLEMENT: string };
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
+  /**
+   * Injectable for offline tests (ADR-0569 D6): intercepts what {@link createSdkMcpServer} would be
+   * called with, so a test can capture the registered tool definitions (`escalate` + any feedback
+   * commands) without building a real MCP server or touching `McpServer` private fields. Defaults to
+   * the SDK's own `createSdkMcpServer`.
+   */
+  mcpServerFactory?: typeof createSdkMcpServer;
 }
 
 /** The tool surface the leaf gets: read/search + scoped writes. NO Bash — see module doc. */
@@ -203,6 +213,13 @@ const WRITE_TOOL_MATCHER = "Write|Edit";
 
 /** The in-process MCP server name the feedback tools live under (`mcp__spine__<tool>`). */
 const FEEDBACK_SERVER = "spine";
+
+/**
+ * The spawn-free escalation tool's name (`mcp__spine__escalate`, ADR-0569 D6). Armed on the spine
+ * server on EVERY slice, whether or not feedback commands are wired — unlike a feedback command it
+ * spawns nothing, is never a feedback run, and never draws on {@link ClaudeAgentAuthorArgs.maxFeedbackRuns}.
+ */
+const ESCALATE_TOOL_NAME = "escalate";
 
 /**
  * SDK result subtypes that mean the leaf hit a COST CEILING (turn limit / USD budget), not a
@@ -241,9 +258,23 @@ const SYSTEM_PROMPT_WITH_FEEDBACK =
   "input is itself wrong (e.g. the test you must satisfy but may not edit), stop and say so " +
   "plainly instead of working around it. When the brief's deliverable is written and checked, stop.";
 
+/**
+ * The escalation closing (ADR-0569 D2/D6), appended after the feedback/blind closing in BOTH modes:
+ * names the channel, what each authoring phase may escalate, and that raising one never moves the
+ * verdict — the spine alone observes red and green, out-of-band, exactly as it always has.
+ */
+const ESCALATE_CLOSING =
+  `If a frozen input is itself wrong and the phase is genuinely impossible, raise it through ` +
+  `mcp__${FEEDBACK_SERVER}__${ESCALATE_TOOL_NAME} instead of guessing or working around it: in ` +
+  "AUTHOR_TEST you may report the contract itself is untestable; in IMPLEMENT you may report that " +
+  "no correct implementation can satisfy the authored test as written. Raising an escalation ends " +
+  "this slice without a verdict — it never moves the verdict; the spine alone observes red and " +
+  "green, out-of-band, just as it always does.";
+
 /** The runtime closing the leaf always gets (red/green is the spine's, feedback ≠ verdict). */
 function leafClosing(hasFeedback: boolean): string {
-  return hasFeedback ? SYSTEM_PROMPT_WITH_FEEDBACK : SYSTEM_PROMPT_NO_FEEDBACK;
+  const base = hasFeedback ? SYSTEM_PROMPT_WITH_FEEDBACK : SYSTEM_PROMPT_NO_FEEDBACK;
+  return `${base} ${ESCALATE_CLOSING}`;
 }
 
 /** The GENERIC per-slice system prompt (no library agent injected — the scripted/test fallback). */
@@ -452,6 +483,14 @@ export function usageFromSdkResult(result: {
   return out;
 }
 
+/**
+ * The `AuthorResult.error` string for a recorded escalation — names the phase and kind (the two
+ * fields tests and callers match against), so `error` alone is enough to see why the slice ended.
+ */
+function escalationError(escalation: AuthoringEscalation): string {
+  return `${escalation.phase} escalated (${escalation.kind}): ${escalation.statement}`;
+}
+
 /** Narrow an SDK stream message to the result message. */
 function isResult(message: unknown): message is ResultLike {
   return (
@@ -472,6 +511,8 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
   readonly #queryFn: SdkQueryFn;
   /** True when no `queryFn` was injected — i.e. this leaf runs the REAL Agent SDK (live/real). */
   readonly #usesRealSdk: boolean;
+  /** The spine MCP server constructor — the real SDK export, or an injected test double. */
+  readonly #mcpServerFactory: typeof createSdkMcpServer;
 
   /** Every fail-closed refusal the scope hook made, in order (the wall held). */
   readonly violations: SdkWriteViolation[] = [];
@@ -486,6 +527,7 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     this.#args = args;
     this.#usesRealSdk = args.queryFn === undefined;
     this.#queryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
+    this.#mcpServerFactory = args.mcpServerFactory ?? createSdkMcpServer;
   }
 
   /**
@@ -530,6 +572,10 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     const maxFeedbackRuns = this.#args.maxFeedbackRuns ?? DEFAULT_MAX_FEEDBACK_RUNS;
     // The per-SLICE feedback budget: a fresh counter per author() call, shared across commands.
     let feedbackUsed = 0;
+    // The per-SLICE escalation slot (ADR-0569 D1/D6): a fresh, unset closure variable per author()
+    // call, exactly like feedbackUsed above — a new slice starts with nothing recorded, and exactly
+    // the first VALID call in THIS slice may ever set it.
+    let escalation: AuthoringEscalation | undefined;
 
     // The system prompt: the injected library agent for this phase + the runtime closing. Resolved
     // BEFORE the SDK loop so a live leaf with no injected prompt fails closed without any spend.
@@ -543,7 +589,11 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       model: this.#args.model ?? "claude-sonnet-5",
       maxTurns: this.#args.maxTurns ?? 16,
       tools: LEAF_TOOLS,
-      allowedTools: [...LEAF_TOOLS, ...this.feedbackToolNames],
+      allowedTools: [
+        ...LEAF_TOOLS,
+        `mcp__${FEEDBACK_SERVER}__${ESCALATE_TOOL_NAME}`,
+        ...this.feedbackToolNames,
+      ],
       permissionMode: "bypassPermissions",
       systemPrompt: composeLeafSystemPrompt(base.base, feedback.length > 0),
       hooks: {
@@ -589,12 +639,56 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     // dollar cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when an
     // operator explicitly opted into a cap (`--budget`); absent, the SDK runs with no budget wall.
     if (this.#args.maxBudgetUsd !== undefined) options.maxBudgetUsd = this.#args.maxBudgetUsd;
-    if (feedback.length > 0) {
-      options.mcpServers = {
-        [FEEDBACK_SERVER]: createSdkMcpServer({
-          name: FEEDBACK_SERVER,
-          version: "1.0.0",
-          tools: feedback.map((command) =>
+    // The spine MCP server is built on EVERY slice (ADR-0569 D6), whether or not feedback commands
+    // are wired: it always carries the spawn-free `escalate` tool, plus one tool per feedback
+    // command when any exist. `escalate` never spawns and never touches the feedback budget/records.
+    options.mcpServers = {
+      [FEEDBACK_SERVER]: this.#mcpServerFactory({
+        name: FEEDBACK_SERVER,
+        version: "1.0.0",
+        tools: [
+          tool(
+            ESCALATE_TOOL_NAME,
+            "Raise a validated, phase-scoped escalation instead of continuing this authoring " +
+              "slice or working around a frozen input you believe is wrong. Ends the slice " +
+              "without a verdict — it never moves the verdict; the spine alone observes red/green " +
+              "out-of-band. Admits arguments only through the phase's own validator: AUTHOR_TEST " +
+              "takes { statement }, IMPLEMENT takes { statement, assertion }. Exactly the first " +
+              "valid call in a slice is recorded; every later call is refused.",
+            { statement: z.string(), assertion: z.string().optional() },
+            async (args) => {
+              if (escalation !== undefined) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text:
+                        "an escalation was already recorded for this slice; this call is refused " +
+                        "(exactly one escalation may be recorded per slice).",
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+              const parsed = parseAuthoringEscalation(phase, args);
+              if (!parsed.ok) {
+                return {
+                  content: [{ type: "text" as const, text: parsed.reason }],
+                  isError: true,
+                };
+              }
+              escalation = parsed.escalation;
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: "escalation recorded; this slice is ending — stop now.",
+                  },
+                ],
+              };
+            },
+          ),
+          ...feedback.map((command) =>
             tool(command.name, command.description, {}, async () => {
               const r = await executeFeedback({
                 phase,
@@ -611,9 +705,9 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
                 : { content: [{ type: "text" as const, text: r.text }] };
             }),
           ),
-        }),
-      };
-    }
+        ],
+      }),
+    };
 
     let result: ResultLike | undefined;
     try {
@@ -623,10 +717,18 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
         }
       }
     } catch (e) {
+      // A recorded escalation wins over EVERY ending, including a thrown query (ADR-0569 D2): the
+      // model raised it mid-flight, before whatever happened next — success, a crash, or nothing.
+      if (escalation !== undefined) {
+        return { ok: false, error: escalationError(escalation), escalation };
+      }
       return { ok: false, error: `SDK session failed: ${(e as Error).message}` };
     }
 
     if (result === undefined) {
+      if (escalation !== undefined) {
+        return { ok: false, error: escalationError(escalation), escalation };
+      }
       return { ok: false, error: "SDK session ended without a result message (fail-closed)" };
     }
     this.runs.push({
@@ -638,6 +740,12 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       // The slice's token breakdown (additive accounting — absent when the result carries none).
       ...usageFromSdkResult(result),
     });
+    // Per-slice run accounting above is unchanged either way; the RETURNED outcome is overridden the
+    // moment an escalation was recorded — success, an exhaustion subtype (the escalation wins and
+    // `exhausted` is never set), and a genuine error subtype all fold into this one check.
+    if (escalation !== undefined) {
+      return { ok: false, error: escalationError(escalation), escalation };
+    }
     if (result.subtype !== "success" || result.is_error) {
       const detail = result.errors !== undefined && result.errors.length > 0
         ? `: ${result.errors.join("; ")}`

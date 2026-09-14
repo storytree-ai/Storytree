@@ -21,12 +21,14 @@ depends_on: []
 # The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
 # story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
 # which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
-# listed. `phase-author-seam` (a pure type module — no standalone red→green), `live-sdk-leaf` and
-# `live-codex-leaf` (operator-attested live legs, each depending on the unwired phase-author-seam) carry
-# NO `real:` arm, so they are deliberately UNLISTED — listing any of them would make `isStoryBuildable`
-# return false for the whole story. The 3 form a closed set: model-runtime-seam (depends_on []),
-# leaf-tool-surface (depends_on [model-runtime-seam]), owned-turn-loop (depends_on
-# [model-runtime-seam, leaf-tool-surface]).
+# listed. `phase-author-seam` (no capability-level red→green), `live-sdk-leaf` and `live-codex-leaf`
+# (operator-attested live legs, each depending on the unwired phase-author-seam) carry NO `real:` arm,
+# so they are deliberately UNLISTED — listing any of them would make `isStoryBuildable` return false for
+# the whole story. `phase-author-seam` and `live-sdk-leaf` each do carry a CONTRACT with its own `real:`
+# arm since ADR-0569 (`authoring-escalation-shape`, `sdk-leaf-escalate-tool`); a contract is built one
+# grain down and leaves this capability-level answer unchanged. The 3 form a closed set:
+# model-runtime-seam (depends_on []), leaf-tool-surface (depends_on [model-runtime-seam]),
+# owned-turn-loop (depends_on [model-runtime-seam, leaf-tool-surface]).
 capabilities: [model-runtime-seam, leaf-tool-surface, owned-turn-loop]
 # Provider-side inbound edges (ADR-0074 §4 / ADR-0058 §3): the orchestrator (drive-machinery) and the
 # cli HUB both import @storytree/agent as a RUNTIME dependency. The drive-machinery → agent edge is
@@ -177,7 +179,7 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
 | 2 | [`phase-author-seam`](phase-author-seam.md) | The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict. | proposed | no (pure type module) | — |
 | 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | proposed | **yes** (proof-wired) | `model-runtime-seam` |
 | 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | proposed | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
-| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam` |
+| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam` |
 | 6 | [`live-codex-leaf`](live-codex-leaf.md) | The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam` |
 
 **Why the two live leaves are separate capabilities (split 2026-09-15).** Until that date
@@ -195,13 +197,14 @@ the split crosses no code edge.
 
 **Why three capabilities stay unwired (honest gaps, not omissions).**
 
-- **`phase-author-seam` is a pure type module.** `phase-author.ts` declares `AuthoringPhase`,
-  `AuthorResult`, and the `PhaseAuthor` interface — no runtime, no test of its own to count (its own
-  proof prose says exactly this). A pure type module has NO isolatable red→green: it is proven only
-  THROUGH its three implementations (`ClaudeAgentAuthor`, `CodexPhaseAuthor`, and `OwnedLoopAuthor`
-  in drive-machinery) and
-  by the gate type-checking against it. There is no additive runtime assertion to fail-then-pass, so a
-  `real:` arm would be a fake. It stays `proposed`, unwired.
+- **`phase-author-seam` has no capability-level red→green.** `phase-author.ts` declares
+  `AuthoringPhase`, `AuthorResult`, and the `PhaseAuthor` interface, proven THROUGH its four
+  implementations (`ClaudeAgentAuthor`, `CodexPhaseAuthor`, `PiPhaseAuthor`, and `OwnedLoopAuthor` in
+  drive-machinery) and by the gate type-checking against it. Types offer no additive runtime assertion
+  to fail-then-pass, so a capability-level `real:` arm would be a fake. Its one runtime value, the
+  ADR-0569 `parseAuthoringEscalation` validator, is proven one grain down by contract
+  `authoring-escalation-shape` (signed PASS, run `real-mu1lbfen`), which leaves the capability itself
+  `proposed` and unwired.
 - **`live-sdk-leaf` has an operator-attested live leg, and an unwired dependency.** Its DECISION
   functions are offline-proven (`decideWrite`, the prompt composition, the feedback doorbell), but its
   defining behaviour — a real subscription `query()` authoring a slice — is **operator-attested** from
@@ -249,6 +252,9 @@ contract shape IS the coupling) and marked.
   - `sdk-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
+- `live-sdk-leaf` → `model-runtime-seam`
+  - `sdk-author.ts` imports `TokenUsage` (type) from `./model-events.js` — its run record reports the
+    SDK result's token usage in the model-event vocabulary's own shape.
 - `live-codex-leaf` → `phase-author-seam`
   - `codex-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `CodexPhaseAuthor` IS the second live implementation of the seam, and the one

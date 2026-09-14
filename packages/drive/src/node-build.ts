@@ -37,6 +37,7 @@ import type {
   BackstopOutcome,
   BuildWorktree,
   CreateBuildWorktreeOptions,
+  EscalationRecord,
   LiveSmokeResolveOptions,
   NodeBuildConfig,
   NodeSpec,
@@ -1016,6 +1017,81 @@ export function renderFailedConfirmObservation(
   ];
 }
 
+/**
+ * The ADR-0563 D4 options line closing an escalation block: the orchestrator's two admitted moves
+ * on a returned escalation — re-delegate a test revision (consuming one attempt as a `revised-test`
+ * difference), or escalate to the owner.
+ */
+const ESCALATION_OPTIONS_LINE =
+  "  options: the orchestrator may re-delegate a test revision (one ADR-0563 D4 attempt, kind " +
+  "`revised-test`), or escalate to the owner.";
+
+/**
+ * The AUTHOR_TEST-only observation inside an escalation block (ADR-0569 D4): the spine's SINGLE
+ * observation before ending the walk, labelled explicitly as that and never as a CONFIRM run (there
+ * is no CONFIRM_RED/CONFIRM_GREEN behind an escalation). Absent for an IMPLEMENT record, which
+ * carries no observation of its own (`EscalationRecord.observation` is AUTHOR_TEST-only).
+ */
+function renderEscalationObservation(observation: EscalationRecord["observation"]): string[] {
+  if (observation === undefined) return [];
+  return [
+    "  the spine's single observation for the escalation (never a CONFIRM run):",
+    `    exit code: ${observation.exitCode ?? "(none)"}`,
+    "    stdout:",
+    ...observation.stdout.split("\n").map((line) => `      ${line}`),
+    "    stderr:",
+    ...observation.stderr.split("\n").map((line) => `      ${line}`),
+  ];
+}
+
+/**
+ * A returned (never overruled) escalation: the block header names the raising phase and what that
+ * phase claims, the statement follows verbatim (IMPLEMENT's assertion too), then — AUTHOR_TEST
+ * only — the spine's single observation, and the block closes with the options line.
+ */
+function renderEscalationBlock(unitId: string, runId: string, record: EscalationRecord): string[] {
+  const raised = record.raised;
+  const header =
+    raised.phase === "AUTHOR_TEST"
+      ? `escalation: AUTHOR_TEST claims this contract cannot be tested as specified (unit ${unitId}, run ${runId}, test ${record.testId})`
+      : `escalation: IMPLEMENT claims this test cannot be satisfied as written (unit ${unitId}, run ${runId}, test ${record.testId})`;
+  return [
+    header,
+    `  statement: ${raised.statement}`,
+    ...(raised.phase === "IMPLEMENT" ? [`  assertion: ${raised.assertion}`] : []),
+    ...renderEscalationObservation(record.observation),
+    ESCALATION_OPTIONS_LINE,
+  ];
+}
+
+/**
+ * An OVERRULED escalation (ADR-0569 D3): the implementer escalated, but the spine's later
+ * observation came back green, so the escalation never ended the walk. Renders as exactly ONE
+ * labelled line naming the phase, the overrule, and the statement verbatim — never the block above.
+ */
+function renderOverruledLine(record: EscalationRecord): string[] {
+  const raised = record.raised;
+  return [
+    `overruled: IMPLEMENT escalated (${raised.kind}) but the spine's later observation came back ` +
+      `GREEN, so the escalation was OVERRULED — ${raised.statement}`,
+  ];
+}
+
+/**
+ * `node-build-renders-the-returned-escalation-with-its-test-id` (ADR-0569 D5): render a
+ * `ProveResult`'s returned `escalation`/`overruledEscalation` record, or `[]` when it carries
+ * neither key. Purely a reader of data `proveUnit` already computed — it runs no command and
+ * changes nothing about the result, the evidence, signing, promotion, cleanup, leaf feedback or
+ * stored work history.
+ */
+export function renderEscalation(unitId: string, runId: string, result: ProveResult): string[] {
+  if (!result.ok && result.escalation !== undefined) {
+    return renderEscalationBlock(unitId, runId, result.escalation);
+  }
+  const overruled = result.overruledEscalation;
+  return overruled === undefined ? [] : renderOverruledLine(overruled);
+}
+
 // ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
 
 /**
@@ -1855,6 +1931,7 @@ export async function nodeBuild(
           // typecheck/suite is now WHY there is no verdict, so the lines belong on this path as well.
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
+          ...renderEscalation(spec.id, runId, result),
           ...renderFailedConfirmObservation(spec.id, runId, result.failedObservation),
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
@@ -1869,6 +1946,7 @@ export async function nodeBuild(
       body: [
         ...header,
         `verdict:     ${verdictLine(result.verdict)}`,
+        ...renderEscalation(spec.id, runId, result),
         `evidence:    ${result.verdict.evidence.map((e) => e.kind).join(", ")}`,
         ...promotionLines,
         `rollup:      ${derived} (derived from the event log: building → signed pass; authored status in the spec stays ${spec.status})`,

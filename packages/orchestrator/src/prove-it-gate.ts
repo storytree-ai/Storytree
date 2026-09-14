@@ -15,7 +15,7 @@
 
 import { execFile } from "node:child_process";
 
-import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
+import type { AuthorResult, AuthoringEscalation, PhaseAuthor } from "@storytree/agent";
 import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
   Anchor,
@@ -181,9 +181,34 @@ export interface ProveSpec {
  */
 export type BackstopOutcome = { ok: true } | { ok: false; reason: string };
 
+/**
+ * A leaf's authoring escalation (ADR-0569), carried by a {@link ProveResult} rather than becoming
+ * one. `raised` is the leaf's typed {@link AuthoringEscalation} verbatim; `testId` is stamped from
+ * {@link ProveSpec.testId} — never read from the leaf. `observation` is the AUTHOR_TEST-only capture
+ * of the one observation the spine takes before ending the walk (ADR-0569 D4) — omitted entirely
+ * (never `undefined`) when the executor supplied no process result, and never present on an
+ * IMPLEMENT-phase record (D3's CONFIRM_GREEN refusal output is never copied onto it).
+ */
+export type EscalationRecord = {
+  raised: AuthoringEscalation;
+  testId: string;
+  observation?: TestObservation["originalProcessResult"];
+};
+
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
 export type ProveResult =
-  | { ok: true; verdict: Verdict; phasesVisited: Phase[] }
+  | {
+      ok: true;
+      verdict: Verdict;
+      phasesVisited: Phase[];
+      /**
+       * ADR-0569 D3: present when an IMPLEMENT escalation was OVERRULED by a green CONFIRM_GREEN
+       * observation — the walk signed exactly as it would have without the escalation. The escalation
+       * never becomes and never enters the signed {@link Verdict}; this is the ONLY place it survives
+       * a pass.
+       */
+      overruledEscalation?: EscalationRecord;
+    }
   | {
       ok: false;
       failedAt: Phase;
@@ -198,6 +223,19 @@ export type ProveResult =
        * observation happened to carry a process result.
        */
       failedObservation?: TestObservation["originalProcessResult"];
+      /**
+       * ADR-0569 D1/D4: present when this refusal IS the escalation — an AUTHOR_TEST escalation
+       * ending the walk on its own terms, or an IMPLEMENT escalation confirmed (never overruled) by a
+       * red CONFIRM_GREEN observation. A malformed escalation (raised from a phase other than the one
+       * it names) carries no record of either kind.
+       */
+      escalation?: EscalationRecord;
+      /**
+       * ADR-0569 D3: present when an IMPLEMENT escalation was overruled by a green CONFIRM_GREEN
+       * observation but the walk then failed LATER, at GATE (e.g. a dirty tree) — the overrule
+       * survives past CONFIRM_GREEN into that later refusal. Mutually exclusive with `escalation`.
+       */
+      overruledEscalation?: EscalationRecord;
     };
 
 /** The store `kind` for the signed promotion event. */
@@ -221,6 +259,27 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   visited.push("AUTHOR_TEST");
   await spec.onPhase?.("AUTHOR_TEST");
   const authored = await spec.author.author("AUTHOR_TEST", spec.prompts.authorTest);
+  // ADR-0569 D1/D4: an escalation can end the walk without a verdict, but it never advances a phase
+  // and never gates anything. A phase mismatch is malformed and fails closed with no record at all
+  // (D1); a matched escalation still takes exactly ONE spine observation before ending the walk, but
+  // that observation is not CONFIRM_RED — it gates nothing (D4).
+  if (!authored.ok && authored.escalation !== undefined) {
+    const escalation = authored.escalation;
+    if (escalation.phase !== "AUTHOR_TEST") {
+      return fail(
+        "AUTHOR_TEST",
+        `malformed escalation: raised from AUTHOR_TEST but declares phase "${escalation.phase}"`,
+        visited,
+      );
+    }
+    const obs = await spec.testExecutor.run(spec.testId);
+    return fail(
+      "AUTHOR_TEST",
+      `leaf escalated at AUTHOR_TEST (${escalation.kind}): ${authored.error}` + describeEscalation(escalation),
+      visited,
+      { escalation: buildEscalationRecord(escalation, spec.testId, obs.originalProcessResult) },
+    );
+  }
   // Turn/budget exhaustion is a COST guard, not a proof signal (ADR-0020): the leaf hit its ceiling,
   // but a usable (red) test may already be on disk. Fall through to CONFIRM_RED — the spine's own
   // observation is the sole arbiter — rather than discard the PAID slice (the turn-ceiling cost-leak).
@@ -252,7 +311,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "CONFIRM_RED",
       redGate.reason + redNote + exhaustionNote(authorExhaustion, "a red test"),
       visited,
-      redObs.originalProcessResult,
+      { failedObservation: redObs.originalProcessResult },
     );
   }
 
@@ -261,11 +320,27 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   visited.push("IMPLEMENT");
   await spec.onPhase?.("IMPLEMENT");
   const implemented = await spec.author.author("IMPLEMENT", spec.prompts.implement);
-  // Same fall-through as AUTHOR_TEST: an exhausted IMPLEMENT slice may have left GREEN code on disk,
-  // so let CONFIRM_GREEN observe it rather than discard the paid work (the discarded-green leak). The
-  // ceiling never gates the verdict — only the spine's observation does.
+  // ADR-0569 D2/D3: an IMPLEMENT escalation can NEVER veto an observation. A phase mismatch is
+  // malformed and fails closed with no record (D1); a matched escalation is carried forward rather
+  // than failing closed here — the spine still visits CONFIRM_GREEN and observes exactly as it would
+  // without it, and whether the escalation ends the walk (a red) or is overruled (a green) is decided
+  // once that observation lands.
   const implementExhaustion = exhaustionReason(implemented);
-  if (!implemented.ok && implementExhaustion === null) {
+  let implementEscalation: EscalationRecord | undefined;
+  if (!implemented.ok && implemented.escalation !== undefined) {
+    const escalation = implemented.escalation;
+    if (escalation.phase !== "IMPLEMENT") {
+      return fail(
+        "IMPLEMENT",
+        `malformed escalation: raised from IMPLEMENT but declares phase "${escalation.phase}"`,
+        visited,
+      );
+    }
+    implementEscalation = buildEscalationRecord(escalation, spec.testId);
+  } else if (!implemented.ok && implementExhaustion === null) {
+    // Same fall-through as AUTHOR_TEST: an exhausted IMPLEMENT slice may have left GREEN code on
+    // disk, so let CONFIRM_GREEN observe it rather than discard the paid work (the discarded-green
+    // leak). The ceiling never gates the verdict — only the spine's observation does.
     return fail("IMPLEMENT", `implementing against the test failed (${implemented.error})`, visited);
   }
   const toGreen = advancePhase("IMPLEMENT");
@@ -284,13 +359,22 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     // WHY (the proof exited 0 but did not exercise the oracle) — surface it so the refusal is forensic,
     // not just "not green".
     const noteSuffix = greenObs.note !== undefined ? ` — ${greenObs.note}` : "";
+    // ADR-0569 D3: a STANDING (confirmed) IMPLEMENT escalation names itself AFTER every existing
+    // suffix above — the ordinary refusal a leaf-free twin would give is unchanged byte for byte;
+    // only text naming the escalation's kind and quoting its statement verbatim is appended.
+    const escalationSuffix = implementEscalation !== undefined ? describeEscalation(implementEscalation.raised) : "";
     return fail(
       "CONFIRM_GREEN",
-      greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green"),
+      greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green") + escalationSuffix,
       visited,
-      greenObs.originalProcessResult,
+      { failedObservation: greenObs.originalProcessResult, escalation: implementEscalation },
     );
   }
+  // ADR-0569 D3: a GREEN CONFIRM_GREEN observation OVERRULES a pending IMPLEMENT escalation — the
+  // walk proceeds to GATE and signs exactly as it would have. `implementEscalation` (if any) rides
+  // forward as `overruledEscalation` on whatever this walk ultimately returns, pass or a later GATE
+  // refusal, and never as the plain `escalation` key.
+  const overruledEscalation = implementEscalation;
 
   // ── Phase 5: GATE (ADR-0020 §4 — the forensic floor) ────────────────────
   // Observe-only. Sign the verdict against a clean committed tree + a resolved signer, then append
@@ -304,12 +388,13 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       "GATE",
       `tree is not clean (commit ${tree.commitSha}); a Pass without a clean committed tree is forgeable`,
       visited,
+      { overruledEscalation },
     );
   }
 
   const signer = resolveSigner(spec.signerInputs);
   if (!signer.ok) {
-    return fail("GATE", `no signer resolved: ${signer.error}`, visited);
+    return fail("GATE", `no signer resolved: ${signer.error}`, visited, { overruledEscalation });
   }
 
   // `sign-after-typecheck`: the verdict must never out-run its backstop. Placed AFTER the two cheap
@@ -324,6 +409,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       `backstop RED: ${backstop.reason}; a Pass signed ahead of its backstop attests code the ` +
         `repo's own checks reject`,
       visited,
+      { overruledEscalation },
     );
   }
 
@@ -383,24 +469,52 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     await spec.changeStore.appendChangeEvent(change);
   }
 
-  return { ok: true, verdict, phasesVisited: visited };
+  return overruledEscalation === undefined
+    ? { ok: true, verdict, phasesVisited: visited }
+    : { ok: true, verdict, phasesVisited: visited, overruledEscalation };
 }
 
 /**
- * Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path.
- * `failedObservation` is supplied ONLY by the two CONFIRM-phase refusals above (the exact
- * `TestObservation.originalProcessResult` that caused THAT refusal) — every other call site omits
- * it, so `exactOptionalPropertyTypes` keeps the key entirely off the object rather than `undefined`.
+ * Build an {@link EscalationRecord} from a leaf's typed {@link AuthoringEscalation}. `testId` is
+ * always stamped from {@link ProveSpec.testId} (never read from the leaf); `observation` is supplied
+ * ONLY by the AUTHOR_TEST branch (ADR-0569 D4) and omitted entirely (never `undefined`) when absent.
+ */
+function buildEscalationRecord(
+  raised: AuthoringEscalation,
+  testId: string,
+  observation?: TestObservation["originalProcessResult"],
+): EscalationRecord {
+  return observation === undefined ? { raised, testId } : { raised, testId, observation };
+}
+
+/**
+ * The optional fields a {@link fail} call may carry, each supplied ONLY where the caller established
+ * it — a plain `T | undefined` here (not the stricter `exactOptionalPropertyTypes` form {@link
+ * ProveResult} itself uses) so a call site may pass a possibly-absent value straight through; `fail`
+ * is what turns "possibly absent" into "genuinely omitted" on the returned {@link ProveResult}.
+ */
+interface FailExtras {
+  failedObservation?: TestObservation["originalProcessResult"] | undefined;
+  escalation?: EscalationRecord | undefined;
+  overruledEscalation?: EscalationRecord | undefined;
+}
+
+/**
+ * Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path. Each of
+ * `extras`' fields is stamped onto the result ONLY when defined, so `exactOptionalPropertyTypes`
+ * keeps an inapplicable key entirely off the object rather than set to `undefined`.
  */
 function fail(
   failedAt: Phase,
   reason: string,
   phasesVisited: Phase[],
-  failedObservation?: TestObservation["originalProcessResult"],
+  extras: FailExtras = {},
 ): ProveResult {
-  return failedObservation === undefined
-    ? { ok: false, failedAt, reason, phasesVisited }
-    : { ok: false, failedAt, reason, phasesVisited, failedObservation };
+  const result: Extract<ProveResult, { ok: false }> = { ok: false, failedAt, reason, phasesVisited };
+  if (extras.failedObservation !== undefined) result.failedObservation = extras.failedObservation;
+  if (extras.escalation !== undefined) result.escalation = extras.escalation;
+  if (extras.overruledEscalation !== undefined) result.overruledEscalation = extras.overruledEscalation;
+  return result;
 }
 
 /**
@@ -423,6 +537,15 @@ function exhaustionNote(reason: string | null, target: string): string {
     ? ""
     : ` — the leaf exhausted its turn/budget ceiling before reaching ${target} ` +
         `(${reason}); raise --max-turns/--budget and retry`;
+}
+
+/**
+ * ADR-0569 D3/D4: the text a refusal appends to name the authoring escalation it carries — the
+ * escalation's `kind` and its `statement` quoted verbatim. Appended AFTER every existing suffix a
+ * leaf-free twin's reason would already carry, never in place of it.
+ */
+function describeEscalation(escalation: AuthoringEscalation): string {
+  return ` — escalation (${escalation.kind}): "${escalation.statement}"`;
 }
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */
