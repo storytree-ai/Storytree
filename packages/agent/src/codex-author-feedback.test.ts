@@ -46,6 +46,7 @@ import type {
   CodexRunner,
 } from "./codex-author.js";
 import type { CodexFeedbackCommand } from "./codex-feedback-endpoint.js";
+import type { AuthorResult } from "./phase-author.js";
 
 const WRITE_GLOBS = {
   AUTHOR_TEST: ["packages/widget/src/**/*.test.ts"],
@@ -117,34 +118,63 @@ function argsWithFeedback(
   return { ...args, feedbackCommands };
 }
 
+/**
+ * Await under the test's OWN bound, as `within` does in `codex-author.test.ts`, so a change that makes
+ * the endpoint or the author hang fails the test instead of hanging it.
+ */
+async function within<T>(pending: Promise<T>, ms = 10_000): Promise<T> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => reject(new Error(`did not settle within ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
 /** One real HTTP round trip a Codex `exec` process would make against the loopback endpoint. */
 async function invokeRunProofOverHttp(url: string, token: string): Promise<void> {
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-  await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-  });
-  await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: { name: "run_proof", arguments: {} },
+  await within(
+    fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     }),
-  });
+    5_000,
+  );
+  await within(
+    fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "run_proof", arguments: {} },
+      }),
+    }),
+    5_000,
+  );
 }
 
-/** True once a POST to `url` can no longer connect (the endpoint has been closed). */
+/**
+ * True once a POST to `url` can no longer connect (the endpoint has been closed), false if it is
+ * answered. An endpoint that takes the connection and never answers fails the bound instead of
+ * passing as closed.
+ */
 async function cannotConnect(url: string): Promise<boolean> {
-  try {
-    await fetch(url, { method: "POST" });
-    return false;
-  } catch {
-    return true;
-  }
+  return await within(
+    fetch(url, { method: "POST" }).then(
+      () => false,
+      () => true,
+    ),
+    5_000,
+  );
 }
 
 test(
@@ -217,7 +247,7 @@ test(
         "feedbackToolNames lists mcp__spine__<name> per registered feedback command",
       );
 
-      const result = await author.author("IMPLEMENT", "Implement the widget.");
+      const result = await within(author.author("IMPLEMENT", "Implement the widget."));
       assert.deepEqual(result, { ok: true }, "the phase authors and promotes successfully");
 
       assert.equal(runObservations.length, 1, "the feedback command's run was invoked exactly once");
@@ -327,7 +357,7 @@ test(
         ),
       );
 
-      const result = await author.author("IMPLEMENT", "Attempt an unlisted extra file.");
+      const result = await within(author.author("IMPLEMENT", "Attempt an unlisted extra file."));
       assert.equal(result.ok, false, "an observed unlisted path refuses the whole phase");
 
       assert.notEqual(capturedUrl, undefined, "the exec call carried a feedback endpoint url");
@@ -372,7 +402,7 @@ test(
         ),
       );
 
-      const result = await author.author("IMPLEMENT", "Trigger a thrown exec.");
+      const result = await within(author.author("IMPLEMENT", "Trigger a thrown exec."));
       assert.equal(result.ok, false, "a thrown exec runner fails the phase");
 
       assert.notEqual(capturedUrl, undefined, "the exec call carried a feedback endpoint url before it threw");
@@ -420,7 +450,7 @@ test(
         "no feedback commands were supplied, so no mcp__spine__ tools are exposed",
       );
 
-      const result = await author.author("IMPLEMENT", "Implement the widget.");
+      const result = await within(author.author("IMPLEMENT", "Implement the widget."));
       assert.deepEqual(result, { ok: true });
 
       const exec = execCalls[0];
@@ -429,6 +459,11 @@ test(
         exec?.args.includes("mcp_servers={}"),
         true,
         "the exec arguments carry mcp_servers={} exactly as today",
+      );
+      assert.equal(
+        exec?.bound,
+        undefined,
+        "the exec command carries no bound control, exactly as today",
       );
       assert.equal(
         (exec?.args ?? []).some((arg) => arg.startsWith("mcp_servers.spine.")),
@@ -446,6 +481,170 @@ test(
         "the replica holds no node_modules when the runner runs, with no feedback commands",
       );
       assert.deepEqual(author.feedbackRuns, [], "feedbackRuns stays empty with no feedback commands");
+    });
+  },
+);
+
+// ── A runner owes the bound control nothing, and the replica is discarded on every exit ──
+
+/** What one {@link authorOnce} phase returned, and the replica directory its runner was handed. */
+interface ReplicaRun {
+  result: AuthorResult;
+  replicaDir: string | undefined;
+}
+
+/**
+ * Author one IMPLEMENT phase over `root` with a single `run_proof` feedback command, answering `exec`
+ * with `onExec` and capturing the replica directory the runner was handed.
+ */
+async function authorOnce(
+  root: string,
+  onExec: (command: CodexCommand) => Promise<CodexCommandResult>,
+): Promise<ReplicaRun> {
+  let replicaDir: string | undefined;
+  const runner: CodexRunner = async (command) => {
+    if (command.args[0] === "login") return loginSuccess();
+    replicaDir = command.cwd;
+    return await onExec(command);
+  };
+  const author = new CodexPhaseAuthor(
+    argsWithFeedback(
+      {
+        cwd: root,
+        writeGlobs: WRITE_GLOBS,
+        promotionManifests: PROMOTION_MANIFESTS,
+        isWriteAllowed: () => true,
+        runner,
+      },
+      [
+        {
+          name: "run_proof",
+          description: "Run the spine's package proof against the replica.",
+          run: async () => ({ code: 0, stdout: "proof ok", stderr: "" }),
+        },
+      ],
+    ),
+  );
+  const result = await within(author.author("IMPLEMENT", "Implement the widget."));
+  return { result, replicaDir };
+}
+
+/**
+ * Asserts that the replica `author()` handed its runner is gone once `author()` has returned, and that
+ * removing it deleted nothing through its `node_modules` link into the workspace.
+ */
+async function assertReplicaRemoved(
+  root: string,
+  replicaDir: string | undefined,
+  when: string,
+): Promise<void> {
+  assert.ok(replicaDir !== undefined, `the runner was handed a replica ${when}`);
+  try {
+    assert.equal(
+      await fs.lstat(replicaDir).then(
+        () => "still there",
+        () => "gone",
+      ),
+      "gone",
+      `the replica is gone once author() returns ${when}`,
+    );
+    assert.equal(
+      await fs.readFile(path.join(root, "node_modules", "marker.txt"), "utf8"),
+      "installed dependency\n",
+      `removing the replica deleted nothing through its node_modules link ${when}`,
+    );
+  } finally {
+    // Only a replica author() failed to remove is still here for this to clean up.
+    await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+test(
+  "feedback-runs-in-the-replica-and-closes-with-the-phase: a runner that wires no suspend or resume " +
+    "control still has its feedback run executed and recorded with the command's own exit code",
+  async () => {
+    await withFeedbackWorkspace(async (root) => {
+      const ranIn: string[] = [];
+      const feedbackCommand: CodexFeedbackCommand = {
+        name: "run_proof",
+        description: "Run the spine's package proof against the replica.",
+        run: async (replicaRoot) => {
+          ranIn.push(replicaRoot);
+          return { code: 0, stdout: "proof ok", stderr: "" };
+        },
+      };
+
+      // Unlike the pinned CLI runner, this runner never populates `command.bound`, so the bound control
+      // the author hands it stays empty for the whole phase.
+      const runner: CodexRunner = async (command) => {
+        if (command.args[0] === "login") return loginSuccess();
+        const url = configValue(command.args, "mcp_servers.spine.url");
+        const tokenEnvVar = configValue(command.args, "mcp_servers.spine.bearer_token_env_var");
+        const token = tokenEnvVar === undefined ? undefined : command.env[tokenEnvVar];
+        if (url !== undefined && token !== undefined) await invokeRunProofOverHttp(url, token);
+        await fs.writeFile(path.join(command.cwd, "packages/widget/src/widget.ts"), "widget after\n");
+        return { code: 0, stdout: successJsonl(), stderr: "" };
+      };
+
+      const author = new CodexPhaseAuthor(
+        argsWithFeedback(
+          {
+            cwd: root,
+            writeGlobs: WRITE_GLOBS,
+            promotionManifests: PROMOTION_MANIFESTS,
+            isWriteAllowed: () => true,
+            runner,
+          },
+          [feedbackCommand],
+        ),
+      );
+
+      const result = await within(author.author("IMPLEMENT", "Implement the widget."));
+      assert.deepEqual(result, { ok: true }, "the phase authors and promotes successfully");
+      assert.equal(ranIn.length, 1, "the feedback command ran once with no bound control wired");
+      assert.deepEqual(
+        author.feedbackRuns,
+        [{ phase: "IMPLEMENT", tool: "run_proof", code: 0 }],
+        "the run is recorded with the command's own exit code, not as a command that failed to run",
+      );
+    });
+  },
+);
+
+test(
+  "feedback-runs-in-the-replica-and-closes-with-the-phase: once author() returns the replica is gone — " +
+    "after a completed phase, a refused promotion and a thrown runner — and removing it deletes nothing " +
+    "through its dependency links",
+  async () => {
+    await withFeedbackWorkspace(async (root) => {
+      const { result, replicaDir } = await authorOnce(root, async (command) => {
+        await fs.writeFile(path.join(command.cwd, "packages/widget/src/widget.ts"), "widget after\n");
+        return { code: 0, stdout: successJsonl(), stderr: "" };
+      });
+      assert.deepEqual(result, { ok: true }, "the phase authors and promotes successfully");
+      await assertReplicaRemoved(root, replicaDir, "after a completed phase");
+    });
+
+    await withFeedbackWorkspace(async (root) => {
+      const { result, replicaDir } = await authorOnce(root, async (command) => {
+        await fs.writeFile(path.join(command.cwd, "packages/widget/src/widget.ts"), "widget after\n");
+        await fs.writeFile(path.join(command.cwd, "packages/widget/src/unlisted.ts"), "escape\n");
+        return { code: 0, stdout: successJsonl(), stderr: "" };
+      });
+      assert.equal(result.ok, false, "an observed unlisted path refuses the whole phase");
+      await assertReplicaRemoved(root, replicaDir, "after a refused promotion");
+    });
+
+    await withFeedbackWorkspace(async (root) => {
+      const { result, replicaDir } = await authorOnce(root, async () => {
+        throw new Error("injected exec crash");
+      });
+      assert.deepEqual(
+        result,
+        { ok: false, error: "Codex exec failed to start: injected exec crash" },
+        "a thrown runner fails the phase, naming what it threw",
+      );
+      await assertReplicaRemoved(root, replicaDir, "after a thrown runner");
     });
   },
 );

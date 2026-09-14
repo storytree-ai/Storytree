@@ -1,17 +1,36 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-const DIRECTORY_LINK_TYPE: "junction" | "dir" = process.platform === "win32" ? "junction" : "dir";
+/**
+ * The type every directory link is made with. Windows honours it — a junction needs an absolute target
+ * and no privilege — and every other platform ignores the type and makes an ordinary directory symlink,
+ * so one value serves every platform.
+ */
+const DIRECTORY_LINK_TYPE = "junction";
 
 const WORKSPACE_GROUPS = ["packages", "apps"] as const;
 
+/** One entry of a `node_modules` directory, narrowed to what rebuilding it reads; a `fs.Dirent` is one. */
+export interface NodeModulesEntry {
+  name: string;
+  isSymbolicLink(): boolean;
+  isDirectory(): boolean;
+  isFile(): boolean;
+}
+
+/**
+ * Lists the entries of one `node_modules` directory (or of an `@scope` directory inside one). Production
+ * callers take the default. A test passes its own to present an entry that is none of a link, a
+ * directory or a regular file — a FIFO or a socket, which a Windows filesystem cannot hold — so the rule
+ * that such an entry is left out stays provable on every platform.
+ */
+export type ReadNodeModulesEntries = (dir: string) => Promise<NodeModulesEntry[]>;
+
+const readNodeModulesEntries: ReadNodeModulesEntries = (dir) =>
+  fs.readdir(dir, { withFileTypes: true });
+
 async function pathExists(candidate: string): Promise<boolean> {
-  try {
-    await fs.lstat(candidate);
-    return true;
-  } catch {
-    return false;
-  }
+  return (await fs.lstat(candidate).catch(() => undefined)) !== undefined;
 }
 
 async function linkDirectory(target: string, linkPath: string): Promise<void> {
@@ -45,8 +64,8 @@ async function resolveReplicaLinkTarget(
 /**
  * Rebuilds one `node_modules` directory (or one `@scope` directory one level inside it) as a real
  * directory in the replica: a link becomes a (possibly retargeted) link, an `@scope` directory is
- * expanded one further level, any other real directory is linked whole, and a regular file is
- * copied byte-for-byte.
+ * expanded one further level, any other real directory is linked whole, a regular file is copied
+ * byte-for-byte, and any other entry (a FIFO, a socket) is left out.
  */
 async function rebuildNodeModulesTree(
   sourceDir: string,
@@ -54,9 +73,10 @@ async function rebuildNodeModulesTree(
   resolvedWorkspaceRoot: string,
   replicaRoot: string,
   expandScopes: boolean,
+  readEntries: ReadNodeModulesEntries,
 ): Promise<void> {
   await fs.mkdir(destDir, { recursive: true });
-  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+  const entries = await readEntries(sourceDir);
   for (const entry of entries) {
     const sourcePath = path.join(sourceDir, entry.name);
     const destPath = path.join(destDir, entry.name);
@@ -71,6 +91,7 @@ async function rebuildNodeModulesTree(
           resolvedWorkspaceRoot,
           replicaRoot,
           false,
+          readEntries,
         );
       } else {
         await linkDirectory(sourcePath, destPath);
@@ -88,11 +109,13 @@ async function rebuildNodeModulesTree(
  * replica's own copy of that package while every other link still resolves to the workspace's
  * shared store. This runs no package manager and touches no network; removing the replica with
  * `fs.rm(replica, { recursive: true, force: true })` removes only these links, never deleting
- * through them into the workspace.
+ * through them into the workspace. `readEntries` lists each `node_modules` directory rebuilt; see
+ * {@link ReadNodeModulesEntries}.
  */
 export async function linkReplicaDependencies(
   workspaceRoot: string,
   replicaRoot: string,
+  readEntries: ReadNodeModulesEntries = readNodeModulesEntries,
 ): Promise<void> {
   const resolvedWorkspaceRoot = await fs.realpath(workspaceRoot);
 
@@ -121,6 +144,7 @@ export async function linkReplicaDependencies(
         resolvedWorkspaceRoot,
         replicaRoot,
         true,
+        readEntries,
       );
     }
   }

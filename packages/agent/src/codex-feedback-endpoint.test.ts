@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -370,8 +371,8 @@ test(
     } finally {
       // Step 8 (part 1): close every endpoint before asserting anything further, so a failed
       // assertion above never leaves a listener holding the test process open.
-      await handle.close();
-      await secondHandle.close();
+      await within(handle.close());
+      await within(secondHandle.close());
     }
 
     // Step 8 (part 2): after close(), a further request to either url cannot connect.
@@ -393,5 +394,394 @@ test(
         }),
       ),
     );
+  },
+);
+
+// ── The details a Codex client meets beyond the walkthrough: envelopes, refusals, path, bind, close ──
+
+const FIXTURE_REPLICA_ROOT = path.join(os.tmpdir(), "storytree-codex-feedback-endpoint-fixture");
+
+/** Status, content type and body text of one raw HTTP answer. */
+interface RawReply {
+  status: number;
+  contentType: string | null;
+  text: string;
+}
+
+/** A JSON-RPC 2.0 error envelope as it comes off the wire, whatever JSON type its id has. */
+interface JsonRpcErrorReply {
+  jsonrpc: string;
+  id: number | string | boolean | null;
+  error: { code: number; message: string };
+}
+
+/** A command whose `run` logs the root it was given and passes. */
+function recordingCommand(name: string, log: string[]): CodexFeedbackCommand {
+  return {
+    name,
+    description: `Run ${name}.`,
+    run: async (root) => {
+      log.push(root);
+      return { code: 0, stdout: `${name} ok`, stderr: "" };
+    },
+  };
+}
+
+/** One POST of raw `bodyText` to `url`, carrying `Authorization: Bearer <token>`. */
+async function postText(url: string, token: string, bodyText: string): Promise<RawReply> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: bodyText,
+  });
+  return { status: res.status, contentType: res.headers.get("content-type"), text: await res.text() };
+}
+
+/**
+ * Whether a TCP connection to `host:port` is accepted. A refusal, an address this machine does not
+ * have, and five seconds of silence all count as not accepted.
+ */
+async function acceptsConnection(host: string, port: number): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = net.connect({ host, port });
+    const settle = (accepted: boolean): void => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(accepted);
+    };
+    const timer = setTimeout(() => settle(false), 5_000);
+    socket.once("connect", () => settle(true));
+    socket.once("error", () => settle(false));
+  });
+}
+
+/** A gate a test opens by hand: `opened` settles once `open()` has been called. */
+interface Latch {
+  readonly opened: Promise<void>;
+  open(): void;
+}
+
+function latch(): Latch {
+  let release = (): void => undefined;
+  const opened = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  return { opened, open: () => release() };
+}
+
+test(
+  "token-gated-loopback-mcp-runs-only-registered-commands: every answer is an application/json JSON-RPC " +
+    "2.0 envelope echoing the request's id, and initialize echoes a string protocol version or else " +
+    "offers 2025-06-18",
+  async () => {
+    const ran: string[] = [];
+    const handle = await within(
+      openCodexFeedbackEndpoint({
+        phase: "IMPLEMENT",
+        replicaRoot: FIXTURE_REPLICA_ROOT,
+        commands: [recordingCommand("run_proof", ran)],
+        maxRuns: 2,
+        record: () => undefined,
+      }),
+      5_000,
+    );
+    try {
+      const send = (body: Record<string, unknown>): Promise<RawReply> =>
+        within(postText(handle.url, handle.token, JSON.stringify(body)), 5_000);
+
+      const echoed = await send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2024-11-05" },
+      });
+      assert.equal(echoed.status, 200);
+      assert.equal(echoed.contentType, "application/json");
+      const echoedBody = parseJson<JsonRpcSuccess>(echoed.text);
+      assert.equal(echoedBody.jsonrpc, "2.0");
+      assert.equal(echoedBody.id, 1);
+      assert.equal((echoedBody.result as InitializeResult).protocolVersion, "2024-11-05");
+
+      const noParams = await send({ jsonrpc: "2.0", id: 2, method: "initialize" });
+      assert.equal(noParams.status, 200);
+      assert.equal(
+        (parseJson<JsonRpcSuccess>(noParams.text).result as InitializeResult).protocolVersion,
+        "2025-06-18",
+        "an initialize carrying no params is offered 2025-06-18",
+      );
+
+      const notAString = await send({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "initialize",
+        params: { protocolVersion: 20250618 },
+      });
+      assert.equal(notAString.status, 200);
+      assert.equal(
+        (parseJson<JsonRpcSuccess>(notAString.text).result as InitializeResult).protocolVersion,
+        "2025-06-18",
+        "a protocol version that is not a string is not echoed",
+      );
+
+      const list = await send({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} });
+      assert.equal(list.status, 200);
+      assert.equal(list.contentType, "application/json");
+      const listBody = parseJson<JsonRpcSuccess>(list.text);
+      assert.equal(listBody.jsonrpc, "2.0");
+      assert.equal(listBody.id, 4);
+
+      const call = await send({
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: { name: "run_proof", arguments: {} },
+      });
+      assert.equal(call.status, 200);
+      assert.equal(call.contentType, "application/json");
+      const callBody = parseJson<JsonRpcSuccess>(call.text);
+      assert.equal(callBody.jsonrpc, "2.0");
+      assert.equal(callBody.id, 5);
+      assert.deepEqual(ran, [FIXTURE_REPLICA_ROOT], "the one tools/call ran its command once");
+    } finally {
+      await within(handle.close(), 5_000);
+    }
+  },
+);
+
+test(
+  "token-gated-loopback-mcp-runs-only-registered-commands: a refusal is a JSON-RPC 2.0 error naming its " +
+    "code and message, echoing a number or string id and answering any other id as null, and runs " +
+    "nothing — an unknown or unnamed tool, an unknown or missing method, a body that is not JSON — while " +
+    "an empty body is acknowledged like a notification",
+  async () => {
+    const ran: string[] = [];
+    const handle = await within(
+      openCodexFeedbackEndpoint({
+        phase: "IMPLEMENT",
+        replicaRoot: FIXTURE_REPLICA_ROOT,
+        commands: [recordingCommand("run_proof", ran)],
+        maxRuns: 2,
+        record: () => undefined,
+      }),
+      5_000,
+    );
+    try {
+      const sendText = (bodyText: string): Promise<RawReply> =>
+        within(postText(handle.url, handle.token, bodyText), 5_000);
+      const refusalFor = async (body: Record<string, unknown>): Promise<JsonRpcErrorReply> => {
+        const reply = await sendText(JSON.stringify(body));
+        assert.equal(reply.status, 200);
+        assert.equal(reply.contentType, "application/json");
+        return parseJson<JsonRpcErrorReply>(reply.text);
+      };
+
+      assert.deepEqual(
+        await refusalFor({
+          jsonrpc: "2.0",
+          id: 6,
+          method: "tools/call",
+          params: { name: "not_a_registered_tool", arguments: {} },
+        }),
+        {
+          jsonrpc: "2.0",
+          id: 6,
+          error: { code: -32602, message: "unknown tool: not_a_registered_tool" },
+        },
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: 7, method: "tools/call" }),
+        { jsonrpc: "2.0", id: 7, error: { code: -32602, message: "unknown tool: " } },
+        "a tools/call carrying no params names no tool",
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: 42 } }),
+        { jsonrpc: "2.0", id: 8, error: { code: -32602, message: "unknown tool: " } },
+        "a tool name that is not a string names no tool",
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: "call-9", method: "not/a/served/method", params: {} }),
+        {
+          jsonrpc: "2.0",
+          id: "call-9",
+          error: { code: -32601, message: "method not found: not/a/served/method" },
+        },
+        "a string id is echoed",
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: true, method: "not/a/served/method", params: {} }),
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32601, message: "method not found: not/a/served/method" },
+        },
+        "an id that is neither a number nor a string is answered as null",
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: null, method: "not/a/served/method", params: {} }),
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32601, message: "method not found: not/a/served/method" },
+        },
+        "a null id is answered as null",
+      );
+      assert.deepEqual(
+        await refusalFor({ jsonrpc: "2.0", id: 10 }),
+        { jsonrpc: "2.0", id: 10, error: { code: -32601, message: "method not found: " } },
+        "a request carrying no method names no method",
+      );
+
+      const notJson = await sendText("this is not json");
+      assert.equal(notJson.status, 200);
+      assert.equal(notJson.contentType, "application/json");
+      assert.deepEqual(parseJson<JsonRpcErrorReply>(notJson.text), {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "parse error" },
+      });
+
+      const empty = await sendText("");
+      assert.equal(
+        empty.status,
+        202,
+        "an empty body carries no id, so it is acknowledged like a notification",
+      );
+
+      assert.deepEqual(ran, [], "no refusal ran a command");
+    } finally {
+      await within(handle.close(), 5_000);
+    }
+  },
+);
+
+test(
+  "token-gated-loopback-mcp-runs-only-registered-commands: only /mcp is served — a POST to any other " +
+    "path on the same port is answered 404 and runs nothing, even carrying the right token",
+  async () => {
+    const ran: string[] = [];
+    const handle = await within(
+      openCodexFeedbackEndpoint({
+        phase: "IMPLEMENT",
+        replicaRoot: FIXTURE_REPLICA_ROOT,
+        commands: [recordingCommand("run_proof", ran)],
+        maxRuns: 2,
+        record: () => undefined,
+      }),
+      5_000,
+    );
+    try {
+      const otherPath = handle.url.replace(/\/mcp$/, "/not-mcp");
+      assert.notEqual(otherPath, handle.url, "the probe addresses a different path on the same port");
+      const reply = await within(
+        postText(
+          otherPath,
+          handle.token,
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name: "run_proof", arguments: {} },
+          }),
+        ),
+        5_000,
+      );
+      assert.equal(reply.status, 404);
+      assert.deepEqual(ran, [], "nothing ran for a request to another path");
+    } finally {
+      await within(handle.close(), 5_000);
+    }
+  },
+);
+
+test(
+  "token-gated-loopback-mcp-runs-only-registered-commands: the endpoint listens on 127.0.0.1 alone — its " +
+    "port accepts a connection there and none on ::1 or 127.0.0.2",
+  async () => {
+    const handle = await within(
+      openCodexFeedbackEndpoint({
+        phase: "IMPLEMENT",
+        replicaRoot: FIXTURE_REPLICA_ROOT,
+        commands: [recordingCommand("run_proof", [])],
+        maxRuns: 1,
+        record: () => undefined,
+      }),
+      5_000,
+    );
+    try {
+      const port = Number(new URL(handle.url).port);
+      assert.equal(
+        await acceptsConnection("127.0.0.1", port),
+        true,
+        "the probe reaches the endpoint where it listens",
+      );
+      assert.equal(
+        await acceptsConnection("::1", port),
+        false,
+        "the IPv6 loopback reaches nothing on that port",
+      );
+      assert.equal(
+        await acceptsConnection("127.0.0.2", port),
+        false,
+        "another loopback address reaches nothing on that port",
+      );
+    } finally {
+      await within(handle.close(), 5_000);
+    }
+  },
+);
+
+test(
+  "token-gated-loopback-mcp-runs-only-registered-commands: close() does not wait for a run still in " +
+    "flight — it resolves while tools/call is running and cuts that request off unanswered",
+  async () => {
+    const started = latch();
+    const finish = latch();
+    const handle = await within(
+      openCodexFeedbackEndpoint({
+        phase: "IMPLEMENT",
+        replicaRoot: FIXTURE_REPLICA_ROOT,
+        commands: [
+          {
+            name: "run_proof",
+            description: "Run the package proof suite.",
+            run: async () => {
+              started.open();
+              await finish.opened;
+              return { code: 0, stdout: "finished after close", stderr: "" };
+            },
+          },
+        ],
+        maxRuns: 1,
+        record: () => undefined,
+      }),
+      5_000,
+    );
+    let closed = false;
+    try {
+      const inFlight = postText(
+        handle.url,
+        handle.token,
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "run_proof", arguments: {} },
+        }),
+      ).then(
+        () => "answered",
+        () => "cut off",
+      );
+      await within(started.opened, 5_000);
+      await within(handle.close(), 5_000);
+      closed = true;
+      assert.equal(
+        await within(inFlight, 5_000),
+        "cut off",
+        "the request whose run was still in flight got no answer",
+      );
+    } finally {
+      finish.open();
+      if (!closed) await within(handle.close(), 5_000).catch(() => undefined);
+    }
   },
 );

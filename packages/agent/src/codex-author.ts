@@ -1243,7 +1243,9 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       try {
         execution = await this.#runner(execCommand);
       } catch (error) {
-        await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+        // `force` is left off here and in the `finally` below: all it does is turn a replica that is
+        // already gone into a success, and the `.catch` absorbs that failure anyway.
+        await fs.rm(replicaDir, { recursive: true }).catch(() => undefined);
         return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
       }
 
@@ -1393,7 +1395,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       }
       return { ok: true };
       } finally {
-        await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+        await fs.rm(replicaDir, { recursive: true }).catch(() => undefined);
       }
     } finally {
       await feedbackHandle?.close();

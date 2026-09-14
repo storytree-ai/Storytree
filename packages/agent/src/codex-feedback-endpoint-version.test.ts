@@ -120,7 +120,7 @@ test(
       assert.equal(typeof initResult.serverInfo.version, "string");
       assert.ok((initResult.serverInfo.version ?? "").length > 0);
     } finally {
-      await handle.close();
+      await within(handle.close());
     }
   },
 );

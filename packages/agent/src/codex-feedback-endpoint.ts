@@ -104,7 +104,8 @@ interface McpToolCallResult {
 }
 
 function rpcError(id: unknown, code: number, message: string): JsonRpcErrorResponse {
-  const rpcId = typeof id === "number" || typeof id === "string" || id === null ? id : null;
+  // Any other id — `null` included — is answered as `null`.
+  const rpcId = typeof id === "number" || typeof id === "string" ? id : null;
   return { jsonrpc: "2.0", id: rpcId, error: { code, message } };
 }
 
@@ -162,7 +163,9 @@ export async function openCodexFeedbackEndpoint(
   }
 
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    // A request an http.Server hands its listener always carries `url`; the type is optional only
+    // because `IncomingMessage` also models a client's response.
+    const url = new URL(req.url!, "http://127.0.0.1");
     if (url.pathname !== MCP_PATH) {
       res.writeHead(404);
       res.end();
@@ -180,17 +183,14 @@ export async function openCodexFeedbackEndpoint(
       return;
     }
 
-    let raw: string;
-    try {
-      raw = await readBody(req);
-    } catch {
-      res.writeHead(400);
-      res.end();
-      return;
-    }
-
+    // One exit for a body that cannot be read and a body that is not JSON. Reading only fails once
+    // the client's connection is already destroyed (measured on Node 24.15 and Bun 1.4 for a
+    // half-close, a reset and a malformed chunk), so no answer written for that case reaches anyone;
+    // what this exit guarantees is that the request ends here instead of escaping as an unhandled
+    // rejection.
     let payload: JsonRpcRequestBody;
     try {
+      const raw = await readBody(req);
       payload = raw.length > 0 ? (JSON.parse(raw) as JsonRpcRequestBody) : {};
     } catch {
       sendJson(res, 200, rpcError(null, -32700, "parse error"));

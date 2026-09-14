@@ -250,3 +250,28 @@ test(
     assert.deepEqual(log, ["set 30000", "clear"]);
   },
 );
+
+test(
+  "suspended-bound-counts-only-leaf-time: the leaf time already spent is measured from the moment the " +
+    "bound was armed, not from the clock's zero",
+  async () => {
+    const { clock, log, advance } = suspendableClock();
+    // The bound is armed at a clock reading far from zero, as a real clock's always is.
+    advance(1_000_000);
+    const control: BoundHandle = {};
+    const pending = runPinnedCodexCli(withBound(leafCommand(300, 30_000), control), clock);
+    try {
+      advance(10_000);
+      control.suspend!();
+      advance(40_000);
+      control.resume!();
+      assert.deepEqual(
+        log,
+        ["set 30000", "clear", "set 20000"],
+        "resume() re-armed the 30 000 ms bound minus the 10 000 ms spent since it was armed",
+      );
+    } finally {
+      await within(pending).catch(() => undefined);
+    }
+  },
+);

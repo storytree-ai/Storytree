@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { prepareCodexDisposableReplica } from "./codex-author.js";
 import { linkReplicaDependencies } from "./codex-replica-links.js";
+import type { NodeModulesEntry, ReadNodeModulesEntries } from "./codex-replica-links.js";
 
 /**
  * Creates a directory (junction on Windows, plain symlink elsewhere) so the fixture matches what
@@ -230,6 +231,153 @@ test("workspace-package-links-resolve-into-the-replica: links a Codex replica to
     if (replicaDir !== undefined) {
       await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
     }
+    await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("workspace-package-links-resolve-into-the-replica: a link into apps/ resolves into the replica too, a link to any other directory inside or outside the workspace keeps its target, an @-directory inside a scope is linked whole, and a workspace with no root node_modules gives the replica none", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-workspace-"));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-outside-"));
+  let replicaDir: string | undefined;
+  try {
+    // `apps/viewer`, a workspace package under the second workspace root.
+    const viewerDir = path.join(workspace, "apps", "viewer");
+    await writeText(
+      path.join(viewerDir, "package.json"),
+      JSON.stringify({ name: "@fixture/viewer", main: "index.js" }),
+    );
+    await writeText(path.join(viewerDir, "index.js"), 'module.exports = "viewer-original";\n');
+    // `tools/helper`, a workspace directory that is not a workspace package.
+    const helperDir = path.join(workspace, "tools", "helper");
+    await writeText(path.join(helperDir, "index.js"), 'module.exports = "helper";\n');
+    // A directory outside the workspace altogether.
+    await writeText(path.join(outside, "index.js"), 'module.exports = "outside";\n');
+
+    // `packages/consumer`, whose node_modules links to all three and holds an `@`-named real directory
+    // inside its `@fixture` scope. There is no root node_modules.
+    const consumerDir = path.join(workspace, "packages", "consumer");
+    await writeText(
+      path.join(consumerDir, "package.json"),
+      JSON.stringify({ name: "@fixture/consumer", main: "index.js" }),
+    );
+    const consumerNodeModules = path.join(consumerDir, "node_modules");
+    await fs.mkdir(path.join(consumerNodeModules, "@fixture"), { recursive: true });
+    await link(viewerDir, path.join(consumerNodeModules, "@fixture", "viewer"));
+    await link(helperDir, path.join(consumerNodeModules, "helper"));
+    await link(outside, path.join(consumerNodeModules, "outside"));
+    const nestedDir = path.join(consumerNodeModules, "@fixture", "@nested");
+    await writeText(path.join(nestedDir, "index.js"), 'module.exports = "nested";\n');
+
+    const replica = await prepareCodexDisposableReplica(workspace, true);
+    replicaDir = replica.dir;
+    await linkReplicaDependencies(workspace, replicaDir);
+
+    const replicaConsumerNodeModules = path.join(replicaDir, "packages", "consumer", "node_modules");
+    assert.equal(
+      await fs.realpath(path.join(replicaConsumerNodeModules, "@fixture", "viewer")),
+      await fs.realpath(path.join(replicaDir, "apps", "viewer")),
+      "a link to a package under apps/ points at the replica's own copy",
+    );
+    assert.equal(
+      await fs.realpath(path.join(replicaConsumerNodeModules, "helper")),
+      await fs.realpath(helperDir),
+      "a link to a workspace directory that is not a package keeps its target",
+    );
+    assert.equal(
+      await fs.realpath(path.join(replicaConsumerNodeModules, "outside")),
+      await fs.realpath(outside),
+      "a link to a directory outside the workspace keeps its target",
+    );
+    const replicaNested = path.join(replicaConsumerNodeModules, "@fixture", "@nested");
+    assert.equal(
+      (await fs.lstat(replicaNested)).isSymbolicLink(),
+      true,
+      "an @-directory inside a scope is linked whole, not expanded a second level",
+    );
+    assert.equal(await fs.realpath(replicaNested), await fs.realpath(nestedDir));
+    await assert.rejects(
+      fs.lstat(path.join(replicaDir, "node_modules")),
+      "a workspace with no root node_modules gives the replica none",
+    );
+  } finally {
+    if (replicaDir !== undefined) {
+      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+    await fs.rm(outside, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("workspace-package-links-resolve-into-the-replica: a replica holding none of the workspace's project directories still gets each project's node_modules rebuilt, and a link sitting in packages/ is not taken for a project", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-workspace-"));
+  const replicaDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-empty-replica-"));
+  try {
+    const soloDir = path.join(workspace, "packages", "solo");
+    await writeText(path.join(soloDir, "package.json"), JSON.stringify({ name: "@fixture/solo" }));
+    await writeText(path.join(soloDir, "node_modules", ".modules.yaml"), "hoistPattern: []\n");
+    // A directory holding a node_modules, reachable from packages/ only through a link.
+    const elsewhere = path.join(workspace, "elsewhere", "project");
+    await writeText(path.join(elsewhere, "node_modules", "marker.txt"), "not a workspace project\n");
+    await link(elsewhere, path.join(workspace, "packages", "linked"));
+
+    await linkReplicaDependencies(workspace, replicaDir);
+
+    const replicaSoloNodeModules = path.join(replicaDir, "packages", "solo", "node_modules");
+    const soloStat = await fs.lstat(replicaSoloNodeModules);
+    assert.equal(soloStat.isSymbolicLink(), false);
+    assert.equal(
+      soloStat.isDirectory(),
+      true,
+      "the project's node_modules is rebuilt although the replica held no packages/solo",
+    );
+    assert.equal(
+      await fs.readFile(path.join(replicaSoloNodeModules, ".modules.yaml"), "utf8"),
+      "hoistPattern: []\n",
+    );
+    await assert.rejects(
+      fs.lstat(path.join(replicaDir, "packages", "linked")),
+      "a link in packages/ gets no rebuilt node_modules",
+    );
+  } finally {
+    await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+    await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("workspace-package-links-resolve-into-the-replica: an entry that is none of a link, a directory or a regular file — a FIFO or a socket, which a Windows filesystem cannot hold — is left out of the rebuilt node_modules", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-workspace-"));
+  const replicaDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-empty-replica-"));
+  try {
+    const soloDir = path.join(workspace, "packages", "solo");
+    await writeText(path.join(soloDir, "package.json"), JSON.stringify({ name: "@fixture/solo" }));
+    await writeText(path.join(soloDir, "node_modules", ".modules.yaml"), "hoistPattern: []\n");
+
+    // The listing a real node_modules holding a socket would give, presented through the reader seam.
+    const socketEntry: NodeModulesEntry = {
+      name: "ipc.sock",
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => false,
+    };
+    const readEntries: ReadNodeModulesEntries = async (dir) => {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      return path.basename(dir) === "node_modules" ? [...entries, socketEntry] : entries;
+    };
+
+    await linkReplicaDependencies(workspace, replicaDir, readEntries);
+
+    const replicaSoloNodeModules = path.join(replicaDir, "packages", "solo", "node_modules");
+    assert.equal(
+      await fs.readFile(path.join(replicaSoloNodeModules, ".modules.yaml"), "utf8"),
+      "hoistPattern: []\n",
+      "the regular file beside it is still copied",
+    );
+    await assert.rejects(
+      fs.lstat(path.join(replicaSoloNodeModules, "ipc.sock")),
+      "the entry that is neither link, directory nor file is left out",
+    );
+  } finally {
+    await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
     await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
   }
 });

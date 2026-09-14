@@ -195,3 +195,48 @@ test("feedback-swaps-empty-mcp-servers-for-a-loopback-spine: the builder accepts
     false,
   );
 });
+
+test("feedback-swaps-empty-mcp-servers-for-a-loopback-spine: an unparseable feedback url throws, naming the url it could not parse", () => {
+  assert.throws(
+    () =>
+      buildCodexExecArgs({
+        model: DEFAULT_CODEX_MODEL,
+        cwd: CWD,
+        feedback: { url: "not a url", tokenEnvVar: "STORYTREE_SPINE_MCP_TOKEN", toolTimeoutSec: 660 },
+      }),
+    { message: "Codex feedback url must be a valid URL: not a url" },
+  );
+});
+
+test("feedback-swaps-empty-mcp-servers-for-a-loopback-spine: a refused endpoint or tool timeout throws, naming the rule and the value that broke it", () => {
+  for (const url of [
+    "https://127.0.0.1:43123/mcp",
+    "http://localhost:43123/mcp",
+    "http://0.0.0.0:43123/mcp",
+  ]) {
+    assert.throws(
+      () =>
+        buildCodexExecArgs({
+          model: DEFAULT_CODEX_MODEL,
+          cwd: CWD,
+          feedback: { url, tokenEnvVar: "STORYTREE_SPINE_MCP_TOKEN", toolTimeoutSec: 660 },
+        }),
+      { message: `Codex feedback url must be an http://127.0.0.1 loopback endpoint: ${url}` },
+    );
+  }
+  for (const toolTimeoutSec of [0, -1, 1.5]) {
+    assert.throws(
+      () =>
+        buildCodexExecArgs({
+          model: DEFAULT_CODEX_MODEL,
+          cwd: CWD,
+          feedback: {
+            url: "http://127.0.0.1:43123/mcp",
+            tokenEnvVar: "STORYTREE_SPINE_MCP_TOKEN",
+            toolTimeoutSec,
+          },
+        }),
+      { message: `Codex feedback tool timeout must be a positive integer: ${toolTimeoutSec}` },
+    );
+  }
+});
