@@ -327,10 +327,53 @@ function validatePromotionManifest(manifest: CodexPromotionManifest | undefined)
   return { ok: true, allowed, required };
 }
 
+/**
+ * The optional loopback spine MCP server a feedback phase arms. `url` and `tokenEnvVar` are written
+ * literally into the TOML config strings; `toolTimeoutSec` is written as a bare integer and reused for
+ * both the tool and startup timeouts. The token VALUE never crosses into argv (ADR-0570 D2) — only the
+ * environment variable's name does.
+ */
+export interface CodexExecFeedbackConfig {
+  url: string;
+  tokenEnvVar: string;
+  toolTimeoutSec: number;
+}
+
+function buildFeedbackMcpServersConfigArgs(feedback: CodexExecFeedbackConfig): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(feedback.url);
+  } catch {
+    throw new Error(`Codex feedback url must be a valid URL: ${feedback.url}`);
+  }
+  if (parsed.protocol !== "http:" || parsed.hostname !== "127.0.0.1") {
+    throw new Error(
+      `Codex feedback url must be an http://127.0.0.1 loopback endpoint: ${feedback.url}`,
+    );
+  }
+  if (!Number.isInteger(feedback.toolTimeoutSec) || feedback.toolTimeoutSec <= 0) {
+    throw new Error(
+      `Codex feedback tool timeout must be a positive integer: ${feedback.toolTimeoutSec}`,
+    );
+  }
+  return [
+    "--config",
+    `mcp_servers.spine.url="${feedback.url}"`,
+    "--config",
+    `mcp_servers.spine.bearer_token_env_var="${feedback.tokenEnvVar}"`,
+    "--config",
+    `mcp_servers.spine.tool_timeout_sec=${feedback.toolTimeoutSec}`,
+    "--config",
+    `mcp_servers.spine.startup_timeout_sec=${feedback.toolTimeoutSec}`,
+  ];
+}
+
 /** Pure command construction exported so offline tests pin every security-relevant flag. */
 export function buildCodexExecArgs(args: {
   model: string;
   cwd: string;
+  /** Arms a loopback spine MCP server for a feedback phase; omitted, the command is unchanged. */
+  feedback?: CodexExecFeedbackConfig;
 }): string[] {
   return [
     "exec",
@@ -354,8 +397,9 @@ export function buildCodexExecArgs(args: {
     'forced_login_method="chatgpt"',
     "--config",
     'model_provider="openai"',
-    "--config",
-    "mcp_servers={}",
+    ...(args.feedback === undefined
+      ? ["--config", "mcp_servers={}"]
+      : buildFeedbackMcpServersConfigArgs(args.feedback)),
     "--config",
     "agents.enabled=false",
     "--config",
