@@ -9,7 +9,10 @@ proof_mode: integration-test
 # Code-derived (ADR-0010 §3): codex-author.ts imports AuthoringPhase/AuthorResult/PhaseAuthor (type)
 # from ./phase-author.js (phase-author-seam) and TokenUsage (type) from ./model-events.js
 # (model-runtime-seam). Type-only imports count, per the agent story's dependency-graph rule.
-depends_on: [phase-author-seam, model-runtime-seam]
+# live-sdk-leaf added 2026-09-15: codex-feedback-endpoint.ts (contract codex-feedback-endpoint,
+# ADR-0570) imports executeFeedback (value) and FeedbackCommand/FeedbackRunOutput/SdkFeedbackRun
+# (type) from ./sdk-author.js. It also imports AuthoringPhase (type) from ./phase-author.js.
+depends_on: [phase-author-seam, model-runtime-seam, live-sdk-leaf]
 decisions: [232, 356, 390, 555]
 ---
 
@@ -38,9 +41,12 @@ the official Codex CLI wrapper pinned by `@openai/codex` (or one absolute execut
 `STORYTREE_CODEX_EXECUTABLE`), on `gpt-5.6-terra` unless a Codex model is named explicitly. It depends
 by code on `phase-author-seam` — `codex-author.ts` imports `AuthoringPhase` / `AuthorResult` /
 `PhaseAuthor`, and `CodexPhaseAuthor` IS a seam implementation — and on `model-runtime-seam`, whose
-model-event vocabulary supplies the `TokenUsage` shape its run record reports (both type-only). The
-spine authors each phase's write globs and exact promotion manifest before either phase starts, so what
-may be promoted is never the model's to decide.
+model-event vocabulary supplies the `TokenUsage` shape its run record reports (both type-only). Since
+2026-09-15 it also depends by code on [`live-sdk-leaf`](live-sdk-leaf.md), and not type-only:
+`codex-feedback-endpoint.ts` runs every feedback call through that leaf's `executeFeedback` and imports
+its `FeedbackCommand` / `FeedbackRunOutput` / `SdkFeedbackRun` types, so both leaves share one budget
+decision and one output framing (ADR-0570 D5). The spine authors each phase's write globs and exact
+promotion manifest before either phase starts, so what may be promoted is never the model's to decide.
 
 The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
 

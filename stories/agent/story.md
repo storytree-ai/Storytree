@@ -178,7 +178,7 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
 | 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | proposed | **yes** (proof-wired) | `model-runtime-seam` |
 | 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | proposed | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
 | 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam` |
-| 6 | [`live-codex-leaf`](live-codex-leaf.md) | The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam` |
+| 6 | [`live-codex-leaf`](live-codex-leaf.md) | The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam`, `live-sdk-leaf` |
 
 **Why the two live leaves are separate capabilities (split 2026-09-15).** Until that date
 `repo-manifest.json` homed `codex-*.ts` under `live-sdk-leaf`, whose outcome names only the Claude
@@ -190,8 +190,12 @@ triggers of the `splitting-rule` fire. Folded, the outcome is a conjunction of t
 different walls: the SDK leaf's PreToolUse hook refuses a write before it lands, while the Codex leaf's
 replica diff is judged only after its turn. And the proofs share neither precondition nor observable:
 one runs over an injected `queryFn` and observes hook decisions, the other over an injected
-`CodexRunner` and observes a replica diff and its promotion. Neither source file imports the other, so
-the split crosses no code edge.
+`CodexRunner` and observes a replica diff and its promotion. When the split was drawn neither source
+file imported the other, so it crossed no code edge. *(Corrected in place 2026-09-15: contract
+`codex-feedback-endpoint` (ADR-0570) then added `codex-feedback-endpoint.ts`, which imports
+`executeFeedback` and three types from `./sdk-author.js`, so `live-codex-leaf` now depends on
+`live-sdk-leaf` by code. The edge runs one way, `codex-author.ts` and `sdk-author.ts` still import
+nothing from each other, and neither splitting trigger above rests on the absence of an edge.)*
 
 **Why three capabilities stay unwired (honest gaps, not omissions).**
 
@@ -256,6 +260,12 @@ contract shape IS the coupling) and marked.
 - `live-codex-leaf` → `model-runtime-seam`
   - `codex-author.ts` imports `TokenUsage` (type) from `./model-events.js` — its run record reports the
     CLI's token usage in the model-event vocabulary's own shape.
+- `live-codex-leaf` → `live-sdk-leaf` *(added 2026-09-15)*
+  - `codex-feedback-endpoint.ts` imports `executeFeedback` (value) and
+    `FeedbackCommand`/`FeedbackRunOutput`/`SdkFeedbackRun` (type) from `./sdk-author.js` — the Codex
+    feedback endpoint (ADR-0570, contract `codex-feedback-endpoint`) runs each call through the Claude
+    leaf's bounded-run decision, so both leaves share one budget and one output framing. It also
+    imports `AuthoringPhase` (type) from `./phase-author.js`, an edge `codex-author.ts` already carries.
 
 **Cross-story:** **none outbound** — `depends_on: []`. No source file in this package imports another
 storytree organism, in value or in type; the one edge this story used to carry went with the
