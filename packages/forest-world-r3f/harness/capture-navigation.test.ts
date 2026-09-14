@@ -160,6 +160,20 @@ test('a cold refusal names what is outstanding, how long, and what the operator 
   assert.ok(refusal.message.includes('raise ST_NAVIGATION_ALLOWANCE_MS (now 120000)'), refusal.message);
 });
 
+test('the oldest outstanding request is found by its age, not by where it sits in the snapshot', () => {
+  // `watchNavigation` records requests in the order they started, so its own snapshots are already
+  // in age order — but a snapshot is a plain value, and the refusal must not lean on that accident.
+  // (Found by seeding the fault: with the sort removed, every other test here still passed.)
+  const listedNewestFirst: NavigationSnapshot = {
+    at: 7_000,
+    requests: [record('/late-module.ts', { startedAt: 5_000 }), record('/early-module.ts', { startedAt: 100 })],
+  };
+  assert.match(
+    explainNavigationFailure(failure({ snapshot: listedNewestFirst })).message,
+    /the oldest \/early-module\.ts for 6\.9 s/,
+  );
+});
+
 // --- the rules the property rests on ---------------------------------------------------------------
 
 interface BrokenCase {
