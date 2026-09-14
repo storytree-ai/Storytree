@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/apply": "pinned-runtime-apply",
+      "apps/studio/src/lib/desktopApply.ts": "pinned-runtime-apply"
+    }
+  }
+}

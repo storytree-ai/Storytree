@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/machine-leg-binding-audit.ts": "machine-leg-binding-audit"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/proof-protocol/src": "proof-protocol"
+    }
+  }
+}

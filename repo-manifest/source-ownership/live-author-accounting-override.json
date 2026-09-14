@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/orchestrator/src/proof/oracle-accounting.ts": "live-author-accounting-override"
+    }
+  }
+}

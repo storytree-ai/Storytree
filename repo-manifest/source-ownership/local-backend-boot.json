@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/attestations-route.ts": "local-backend-boot",
+      "apps/desktop/src/backend/local-backend.ts": "local-backend-boot",
+      "apps/desktop/src/backend/loopback-guard.ts": "local-backend-boot"
+    }
+  }
+}

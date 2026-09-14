@@ -1,0 +1,11 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/claimed-units-trace.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/origin-declaration.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/session-identity.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/session-origin.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/terminal-capture.ts": "terminal-capture-activation"
+    }
+  }
+}

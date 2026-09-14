@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/SuggestionView.tsx": "collapsed-suggestion-view"
+    }
+  }
+}

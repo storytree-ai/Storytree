@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-telemetry/src/index.ts": "context-traversal-telemetry"
+    }
+  }
+}

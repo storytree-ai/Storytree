@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/procedural-architecture/scripts": "art-pipeline",
+      "packages/procedural-architecture/src/*.ts": "art-pipeline"
+    }
+  }
+}

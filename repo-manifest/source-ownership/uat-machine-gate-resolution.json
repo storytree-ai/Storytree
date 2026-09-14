@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/crown-obligations*.ts": "uat-machine-gate-resolution",
+      "packages/library/src/witness-resolution.ts": "uat-machine-gate-resolution",
+      "packages/orchestrator/src/proof/uat-proof.ts": "uat-machine-gate-resolution"
+    }
+  }
+}

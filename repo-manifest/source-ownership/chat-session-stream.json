@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/chat-stream.ts": "chat-session-stream"
+    }
+  }
+}

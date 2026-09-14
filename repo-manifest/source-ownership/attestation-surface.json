@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/tree-attestations.ts": "attestation-surface",
+      "packages/drive/src/tree-attestations.ts": "attestation-surface"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/RepoPicker.tsx": "repo-picker-panel"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-transcript/src/codex-context-window.ts": "codex-own-window-reading"
+    }
+  }
+}

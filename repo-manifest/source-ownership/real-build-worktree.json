@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/promotion-ancestry*.ts": "real-build-worktree",
+      "packages/orchestrator/src/build-worktree.ts": "real-build-worktree"
+    }
+  }
+}

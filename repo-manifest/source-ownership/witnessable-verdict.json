@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/witnessable-verdict*.ts": "witnessable-verdict"
+    }
+  }
+}

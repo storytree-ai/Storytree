@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/uat-criterion/src/detail-hash.ts": "criterion-detail-hash-anchor"
+    }
+  }
+}

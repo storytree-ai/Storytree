@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/local-uat-attest.ts": "brokered-local-uat-signing",
+      "apps/desktop/src/backend/uat-attest-route.ts": "brokered-local-uat-signing"
+    }
+  }
+}

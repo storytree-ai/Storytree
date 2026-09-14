@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/orchestrator/src/proof/verdict-line.ts": "verdict-line"
+    }
+  }
+}

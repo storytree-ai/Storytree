@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/scope-reading*.ts": "phase-scoped-write-wall",
+      "packages/drive/src/scope-walls*.ts": "phase-scoped-write-wall",
+      "packages/orchestrator/src/proof/scope-event.ts": "phase-scoped-write-wall",
+      "packages/orchestrator/src/write-scoped-executor.ts": "phase-scoped-write-wall"
+    }
+  }
+}

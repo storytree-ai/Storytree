@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/writeBroker.ts": "write-broker"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/ReviewEditor.tsx": "library-review",
+      "apps/studio/src/lib/blocks.ts": "library-review",
+      "apps/studio/src/lib/criticmarkup.ts": "library-review"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/db-control.ts": "live-build-db-preflight"
+    }
+  }
+}

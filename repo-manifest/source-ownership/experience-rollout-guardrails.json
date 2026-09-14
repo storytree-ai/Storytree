@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-web-experience-*.ts": "experience-rollout-guardrails",
+      "packages/cli/src/web-experience-check.ts": "experience-rollout-guardrails"
+    }
+  }
+}

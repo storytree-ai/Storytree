@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/orientation-tools.ts": "orientation-tool-surface",
+      "packages/drive/src/orientation-reads.ts": "orientation-tool-surface"
+    }
+  }
+}

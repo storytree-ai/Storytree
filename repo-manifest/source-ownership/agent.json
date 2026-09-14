@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/index.ts": "agent",
+      "packages/agent/src/sdk-curator.ts": "agent"
+    }
+  }
+}

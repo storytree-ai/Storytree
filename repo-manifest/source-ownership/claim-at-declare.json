@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-declared.ts": "claim-at-declare",
+      "packages/drive/src/claim-namespace.ts": "claim-at-declare",
+      "packages/drive/src/claim-universe.ts": "claim-at-declare",
+      "packages/notice-board/src/claim*.ts": "claim-at-declare"
+    }
+  }
+}

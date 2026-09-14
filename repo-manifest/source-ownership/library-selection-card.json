@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/LibrarySelectionCard.tsx": "library-selection-card",
+      "apps/studio/src/lib/selectionDetail.ts": "library-selection-card"
+    }
+  }
+}

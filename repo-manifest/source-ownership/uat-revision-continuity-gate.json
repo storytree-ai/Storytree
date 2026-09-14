@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-uat-revision-continuity.ts": "uat-revision-continuity-gate",
+      "packages/cli/src/uat-revision-continuity.ts": "uat-revision-continuity-gate"
+    }
+  }
+}

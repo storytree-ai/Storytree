@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/forest-readiness.ts": "shared-forest-connection"
+    }
+  }
+}

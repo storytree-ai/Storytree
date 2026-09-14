@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/adopt.ts": "uat-bound-command-adoption"
+    }
+  }
+}

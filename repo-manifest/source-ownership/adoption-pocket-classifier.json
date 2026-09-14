@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/orchestrator/src/proof/adoption-proposal.ts": "adoption-pocket-classifier",
+      "packages/orchestrator/src/proof/decision-sweep.ts": "adoption-pocket-classifier"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/apiRouter.ts": "serve-mode",
+      "apps/studio/server/httpUtil.ts": "serve-mode",
+      "apps/studio/server/serve.ts": "serve-mode"
+    }
+  }
+}

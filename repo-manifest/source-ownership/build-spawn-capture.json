@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-spawn/src/build-capture.ts": "build-spawn-capture"
+    }
+  }
+}

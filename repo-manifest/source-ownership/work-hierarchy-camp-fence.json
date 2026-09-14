@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-hierarchy-camps.ts": "work-hierarchy-camp-fence",
+      "packages/cli/src/hierarchy-camps.ts": "work-hierarchy-camp-fence"
+    }
+  }
+}
