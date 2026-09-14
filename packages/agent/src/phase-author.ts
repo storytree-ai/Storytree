@@ -3,7 +3,7 @@
  * through. The spine owns every phase transition; a {@link PhaseAuthor} only ever AUTHORS inside
  * the two authoring phases — it never observes red/green and never reports a verdict (ADR-0020).
  *
- * Three implementations exist by design:
+ * Four implementations exist by design (pi is the fourth, listed last):
  *  - the owned loop (`OwnedLoopAuthor` in @storytree/orchestrator): ScriptedModel/AnthropicModel +
  *    ToolExecutor + write-scoped decorator — the offline/deterministic test harness and the
  *    pivot-out fallback;
@@ -11,7 +11,9 @@
  *    live runtime (ADR-0030/0555), subscription-funded, write-scope enforced via PreToolUse hooks;
  *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the default ChatGPT-subscription
  *    live runtime (ADR-0232/0356/0555), authoring in a disposable replica whose observed, explicitly
- *    manifested changes only the spine can promote.
+ *    manifested changes only the spine can promote;
+ *  - pi ({@link PiPhaseAuthor} in ./pi-author.js): a trial harness admitted for the `--live` smoke and
+ *    refused for `--real` (ADR-0449).
  */
 
 /** The two phases a leaf authors in (ADR-0020 §1). All other phases are spine-only — no leaf runs. */
@@ -44,7 +46,12 @@ export type LiveRuntime = "claude" | "codex" | "pi";
  */
 export type AuthorResult =
   | { ok: true }
-  | { ok: false; error: string; exhausted?: boolean };
+  | {
+      ok: false;
+      error: string;
+      exhausted?: boolean;
+      escalation?: AuthoringEscalation;
+    };
 
 /**
  * One leaf runtime behind the gate. `author` runs ONE authoring slice: the runtime works the
@@ -53,4 +60,77 @@ export type AuthorResult =
  */
 export interface PhaseAuthor {
   author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult>;
+}
+
+/**
+ * A leaf's typed escalation out of an authoring phase (ADR-0569 D1/D2). `phase` and `kind` are
+ * bound together and come ONLY from the phase that raised the escalation — never from caller
+ * input — which is why the only admitted route onto this type is {@link parseAuthoringEscalation}.
+ *
+ * Authority (ADR-0569 D2): an escalation can end a walk without a verdict. It can NEVER advance a
+ * phase, produce a verdict, or enter a verdict's evidence — it is a fail-closed stop, not a signal
+ * the spine's proof machinery consumes.
+ */
+export type AuthoringEscalation =
+  | { phase: "AUTHOR_TEST"; kind: "untestable-contract"; statement: string }
+  | {
+      phase: "IMPLEMENT";
+      kind: "unsatisfiable-test";
+      statement: string;
+      assertion: string;
+    };
+
+/** Trims a value to a non-blank string, or returns `undefined` for anything else. */
+function trimmedNonBlankString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * The one admitted, pure route onto {@link AuthoringEscalation} (ADR-0569 D1). `phase` (the
+ * function's own argument, never the input's `phase` field) determines `kind`; the input supplies
+ * only `statement` (and, for IMPLEMENT, `assertion`). Never throws — any input shape it cannot
+ * admit is refused with a reason instead.
+ */
+export function parseAuthoringEscalation(
+  phase: AuthoringPhase,
+  input: unknown,
+): { ok: true; escalation: AuthoringEscalation } | { ok: false; reason: string } {
+  if (typeof input !== "object" || input === null) {
+    return { ok: false, reason: "escalation input must be an object" };
+  }
+  const record = input as Record<string, unknown>;
+  const statement = trimmedNonBlankString(record.statement);
+  if (statement === undefined) {
+    return { ok: false, reason: "escalation requires a non-blank statement" };
+  }
+
+  // A present `assertion` is validated regardless of phase — a malformed value is a malformed
+  // input, not merely an ignored field, even where the current phase would otherwise discard it.
+  let assertion: string | undefined;
+  if (record.assertion !== undefined) {
+    assertion = trimmedNonBlankString(record.assertion);
+    if (assertion === undefined) {
+      return { ok: false, reason: "assertion, when present, must be a non-blank string" };
+    }
+  }
+
+  if (phase === "AUTHOR_TEST") {
+    return {
+      ok: true,
+      escalation: { phase: "AUTHOR_TEST", kind: "untestable-contract", statement },
+    };
+  }
+
+  if (assertion === undefined) {
+    return {
+      ok: false,
+      reason: "an IMPLEMENT escalation requires a non-blank assertion",
+    };
+  }
+  return {
+    ok: true,
+    escalation: { phase: "IMPLEMENT", kind: "unsatisfiable-test", statement, assertion },
+  };
 }

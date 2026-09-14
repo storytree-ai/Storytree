@@ -52,6 +52,7 @@ export type {
   PhasePrompts,
   ProveSpec,
   ProveResult,
+  EscalationRecord,
 } from "./prove-it-gate.js";
 export { proveUnit, gitTreeState } from "./prove-it-gate.js";
 
