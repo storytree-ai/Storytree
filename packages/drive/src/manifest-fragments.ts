@@ -613,6 +613,10 @@ const JSON_TOKEN = /"(?:[^"\\]|\\.)*"|[{}[\]:,]/g;
  * Meaningful only for text `JSON.parse` accepts; the composer asks it about nothing else.
  */
 export function duplicateKeyPaths(text: string): string[][] {
+  // A JSON text holds one value, so this stack is empty only before its first container opens and after
+  // its last one closes: an element seeded beneath it would be consulted only by a top-level scalar,
+  // which has no key to repeat.
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — see the note above.
   const frames: ScanFrame[] = [];
   const repeated: string[][] = [];
   // The path of the value about to be read — where the next container to open will sit.
@@ -629,7 +633,7 @@ export function duplicateKeyPaths(text: string): string[][] {
         top.index += 1;
         slot = [...top.path, String(top.index)];
       }
-    } else if (top !== undefined) {
+    } else if (top?.kind === "object") {
       if (token === ",") top.awaitingKey = true;
       else if (top.awaitingKey) {
         // Awaiting a key, the only token valid JSON can hold is the key's own string.

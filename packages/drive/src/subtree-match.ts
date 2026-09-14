@@ -212,18 +212,21 @@ function advance(steps: readonly PatternStep[], from: ReadonlySet<number>, char:
  * search, which follows one position at a time so it never wanders down a path `specific` could not
  * have produced.
  *
- * Its wildcards produce exactly one name character, `null`, which no pattern spells — and that is exact
- * rather than a sample. A path `broad` misses stays missed when every character a wildcard of `specific`
- * produced is swapped for one no pattern spells: only a wildcard of `broad` could have read the original
- * character, and a wildcard reads the swap just as well.
+ * It does not produce every path `specific` matches — only enough of them to be exact. Its wildcards
+ * produce one name character, `null`, which no pattern spells, and at most one of it per name. A path
+ * `broad` misses stays missed when every character a wildcard of `specific` produced is swapped for one
+ * no pattern spells — only a wildcard of `broad` could have read the original, and a wildcard reads the
+ * swap just as well — and it stays missed when each run of swapped characters is cut to one, because a
+ * wildcard of `broad` reads such a run the same at every length from one up. A `*` may still produce
+ * nothing, which is a different path. A `**` keeps its loop: it has to cross `/`, and those it cannot cut.
  */
 function moves(step: PatternStep, at: number): (readonly [string | null, number])[] {
   const index = stepAt(at);
   if (step.kind === "char") return [[step.char, position(index + 1)]];
-  if (step.kind === "name") return [[null, at]];
+  if (step.kind === "name") return [[null, position(index + 1)]];
   if (step.kind === "any") return [[null, at], ["/", at]];
-  // `dirs`: a name character opens a directory name or continues one, and only an open name takes a `/`.
-  return nameOpen(at) ? [[null, at], ["/", position(index)]] : [[null, namePosition(index)]];
+  // `dirs`: a directory name of one character, then the `/` that closes it.
+  return nameOpen(at) ? [["/", position(index)]] : [[null, namePosition(index)]];
 }
 
 /**
