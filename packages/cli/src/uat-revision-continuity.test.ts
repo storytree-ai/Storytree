@@ -4,9 +4,12 @@ import { describe, it } from "node:test";
 import { SIGNING_EVENT_KIND, type Verdict } from "@storytree/proof-protocol";
 
 import {
+  chooseContinuityBase,
   judgeUatRevisionContinuity,
+  readContinuityBaseEvidence,
   readUatRevisionVerdictEvents,
   type ChangedCriterionRevision,
+  type ContinuityBaseEvidence,
   type UatRevisionContinuityInputs,
   type UatRevisionContinuityVerdict,
 } from "./uat-revision-continuity.js";
@@ -559,6 +562,87 @@ describe("the continuity store seam reads only the signed-verdict table", () => 
       ok: false,
       changes: [],
       lines: ["✗ malformed signed witness has unreadable identity, revision, or sequence."],
+    });
+  });
+});
+
+describe("the continuity base is the merge base a full clone would find, even on CI's shallow checkout", () => {
+  // CI checks out the merge ref at `fetch-depth: 2` and fetches `origin/main` at depth 1 minutes
+  // later. When `main` moves in between, `git merge-base origin/main HEAD` cannot resolve — measured
+  // twice on 2026-09-14, on PR #1914's first run and on main's own dispatched run — so the cases below
+  // hand the chooser exactly that evidence: `mergeBase: null`.
+  const SHA = "0cdc1f153aa4b0a7c3e1f0000000000000000ab1";
+  const evidence = (over: Partial<ContinuityBaseEvidence> = {}): ContinuityBaseEvidence => ({
+    eventName: undefined,
+    githubRef: undefined,
+    hasSecondParent: false,
+    mergeBase: SHA,
+    ...over,
+  });
+
+  it("a pull request's merge ref compares against HEAD^1 even when merge-base cannot resolve", () => {
+    assert.deepEqual(
+      chooseContinuityBase(
+        evidence({ eventName: "pull_request", githubRef: "refs/pull/1914/merge", hasSecondParent: true, mergeBase: null }),
+      ),
+      { ref: "HEAD^1", label: "HEAD^1 (the base tip this pull request's merge ref was cut against)" },
+    );
+  });
+
+  it("outside a pull request a resolving merge-base wins, including on a local branch that merged main", () => {
+    // A local merge commit ALSO has a second parent, and its HEAD^1 is the branch's own previous
+    // commit: anchoring there would excuse everything the branch changed before its last sync.
+    assert.deepEqual(chooseContinuityBase(evidence({ hasSecondParent: true })), {
+      ref: SHA,
+      label: "merge-base(origin/main, HEAD) 0cdc1f153",
+    });
+  });
+
+  it("a CI run of main itself falls back to HEAD, and only when merge-base cannot resolve", () => {
+    assert.deepEqual(
+      chooseContinuityBase(
+        evidence({ eventName: "workflow_dispatch", githubRef: "refs/heads/main", hasSecondParent: true, mergeBase: null }),
+      ),
+      { ref: "HEAD", label: "HEAD (a CI run of main itself — its merge base with any later main is HEAD)" },
+    );
+    // When main held still the ordinary merge base is used: the fallback only ever replaces a race.
+    assert.equal(
+      chooseContinuityBase(evidence({ eventName: "push", githubRef: "refs/heads/main" }))?.ref,
+      SHA,
+    );
+  });
+
+  it("anything else that cannot be read stays unreadable, which the judge reports as red", () => {
+    // A laptop with no origin/main; a CI run of some other branch; a pull_request run whose HEAD is
+    // not a merge commit. None of them may borrow the pull-request or main fallback.
+    assert.equal(chooseContinuityBase(evidence({ mergeBase: null })), null);
+    assert.equal(
+      chooseContinuityBase(evidence({ eventName: "push", githubRef: "refs/heads/some-branch", mergeBase: null })),
+      null,
+    );
+    assert.equal(
+      chooseContinuityBase(evidence({ eventName: "pull_request", githubRef: "refs/pull/7/merge", mergeBase: null })),
+      null,
+    );
+  });
+
+  it("the evidence is the shared anchor's two git reads, plus the CI event and ref", () => {
+    const reads: string[] = [];
+    const read = (args: readonly string[]): string | null => {
+      reads.push(args.join(" "));
+      return args[0] === "merge-base" ? SHA : null;
+    };
+    assert.deepEqual(
+      readContinuityBaseEvidence(read, { GITHUB_EVENT_NAME: "pull_request", GITHUB_REF: "refs/pull/1914/merge" }),
+      { eventName: "pull_request", githubRef: "refs/pull/1914/merge", hasSecondParent: false, mergeBase: SHA },
+    );
+    assert.deepEqual(reads.sort(), ["merge-base origin/main HEAD", "rev-parse --verify --quiet HEAD^2"]);
+    // A resolving HEAD^2 is a second parent whatever it names; an unset environment reads as no CI.
+    assert.deepEqual(readContinuityBaseEvidence(() => "a1b2c3", {}), {
+      eventName: undefined,
+      githubRef: undefined,
+      hasSecondParent: true,
+      mergeBase: "a1b2c3",
     });
   });
 });
