@@ -364,6 +364,10 @@ the now-settled modeling call.
   contract grain, spec-borne, edit-existing proof over the drive envelope. It renders the returned
   observation and its run/unit attribution without adding a command path or covering the separate
   typecheck/regression backstop.
+- [`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md) — contract grain, spec-borne,
+  edit-existing proof over `scrubbedChildEnv`, through the whole orchestrator package suite. It keeps
+  an assert-oracle guard inherited through `NODE_OPTIONS` out of every spawned child, while every
+  other inherited option and the command's own `cmd.env` still reach it.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
