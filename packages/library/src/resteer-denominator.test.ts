@@ -8,6 +8,8 @@ import {
   RESTEER_CAPTURE_START,
   RESTEER_NOT_COMPUTABLE,
   RESTEER_NOT_COMPUTABLE_WITH_DENOMINATOR,
+  UNATTRIBUTABLE_BRANCHES,
+  UNATTRIBUTABLE_CAPTURE_STAMP,
   type SessionPopulation,
 } from "./resteer-report.js";
 
@@ -71,6 +73,36 @@ test("resteer-denominator: an unattributable stamp is counted in NEITHER side", 
   assert.equal(reading.rate, 0.5);
   assert.equal(reading.unattributableRows, 2);
   assert.deepEqual(reading.outsidePopulation, []);
+});
+
+test("resteer-denominator: every stamp the CAPTURE writes in place of a branch is counted in NEITHER side", () => {
+  // The capture (`packages/cli/src/resteer-capture-branch.ts`, ADR-0568) writes these when the
+  // checkout it ran in cannot identify a session. They must land exactly where the legacy `HEAD` did —
+  // reported on their own, never read as a filing branch that happens to lie outside the population.
+  const stamps = Object.values(UNATTRIBUTABLE_CAPTURE_STAMP);
+  const rows = [row("a", "claude/one"), ...stamps.map((stamp, i) => row(`m${i}`, stamp))];
+  const reading = interventionRate(rows, population(["claude/one", "claude/two"]));
+
+  assert.equal(reading.interveneSessions, 1);
+  assert.equal(reading.totalSessions, 2);
+  assert.equal(reading.unattributableRows, stamps.length);
+  assert.deepEqual(reading.outsidePopulation, []);
+  // Capture and report agree BY CONSTRUCTION — one set, never two lists kept in step by hand.
+  for (const stamp of stamps) assert.ok(UNATTRIBUTABLE_BRANCHES.has(stamp), `${stamp} must be unattributable`);
+});
+
+test("resteer-denominator: the capture's stamps are STORED vocabulary, pinned as written", () => {
+  // These strings live on rows in the store. Renaming one would orphan every row written under the old
+  // spelling: it would drop out of UNATTRIBUTABLE_BRANCHES and start reading as a filing branch that
+  // never landed. So a rename is a NEW stamp added beside the old one, never an edit — and this
+  // literal is what turns an edit red.
+  assert.deepEqual(UNATTRIBUTABLE_CAPTURE_STAMP, {
+    primaryCheckout: "(primary checkout)",
+    detachedHead: "(detached HEAD)",
+    gitCouldNotAnswer: "(git could not answer)",
+  });
+  // The legacy literal stays recognised: rows written before ADR-0568 carry it, kept as recorded.
+  assert.ok(UNATTRIBUTABLE_BRANCHES.has("HEAD"));
 });
 
 test("resteer-denominator: a filing branch outside the population is reported, never folded into the numerator", () => {

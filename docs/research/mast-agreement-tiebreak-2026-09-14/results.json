@@ -1,0 +1,1339 @@
+{
+  "sample_size": 40,
+  "annotators": [
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "R1",
+    "R2",
+    "R3",
+    "R4"
+  ],
+  "criteria": {
+    "A_mode": {
+      "rule": 0.9083333333333333,
+      "control": 0.8541666666666666,
+      "floor": 0.8291666666666667,
+      "holds": true
+    },
+    "A_category": {
+      "rule": 0.9875,
+      "control": 0.9125,
+      "floor": 0.8875,
+      "holds": true
+    },
+    "B_seam": {
+      "rule": 0,
+      "control": 3,
+      "vacuous": false,
+      "holds": true
+    },
+    "verdict": "ADOPT"
+  },
+  "paired_difference": {
+    "mode": {
+      "mean": 0.05416666666666666,
+      "sd": 0.32111695200673673,
+      "low": -0.045348507769295325,
+      "high": 0.15368184110262864,
+      "items_changed": 14
+    },
+    "category": {
+      "mean": 0.075,
+      "sd": 0.1847073607542729,
+      "low": 0.01775859586297391,
+      "high": 0.1322414041370261,
+      "items_changed": 6
+    }
+  },
+  "reading_2": {
+    "mode": {
+      "n": 40,
+      "agreed": 35,
+      "observed": 0.875,
+      "expected": 0.255,
+      "kappa": 0.8322147651006712,
+      "labels_in_play": 8
+    },
+    "category": {
+      "n": 40,
+      "agreed": 39,
+      "observed": 0.975,
+      "expected": 0.6268750000000001,
+      "kappa": 0.9329983249581238,
+      "labels_in_play": 3
+    },
+    "seam_splits": [
+      "rerun-failed-flake-label-is-blind-to-live-store-writes"
+    ],
+    "fc3_internal_splits": [
+      "bun-test-runs-a-mis-parameterised-instrument-to-completion"
+    ],
+    "label_totals": {
+      "tool-defect": 36,
+      "incorrect-verification": 10,
+      "data-model-gap": 9,
+      "missing-capability": 8,
+      "environment-defect": 8,
+      "no-or-incomplete-verification": 5,
+      "premature-termination": 2,
+      "no-mast-home": 2
+    }
+  },
+  "cross_day_control_vs_reading_2_mode": {
+    "pairs": 8,
+    "mean_observed": 0.81875,
+    "mean_kappa": 0.7575994267314682
+  },
+  "modal_label_changes": [
+    {
+      "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+      "control": "tool-defect",
+      "rule": "data-model-gap",
+      "control_labels": {
+        "tool-defect": 3,
+        "data-model-gap": 1
+      },
+      "rule_labels": {
+        "tool-defect": 1,
+        "data-model-gap": 3
+      }
+    },
+    {
+      "id": "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly",
+      "control": "tool-defect",
+      "rule": "data-model-gap",
+      "control_labels": {
+        "tool-defect": 4
+      },
+      "rule_labels": {
+        "data-model-gap": 3,
+        "tool-defect": 1
+      }
+    },
+    {
+      "id": "task-brief-negative-existence-claim-went-stale",
+      "control": "no-or-incomplete-verification",
+      "rule": "missing-capability",
+      "control_labels": {
+        "no-or-incomplete-verification": 2,
+        "missing-capability": 1,
+        "no-mast-home": 1
+      },
+      "rule_labels": {
+        "no-mast-home": 1,
+        "missing-capability": 3
+      }
+    },
+    {
+      "id": "check-coverage-counts-a-test-name-not-a-contracts-clauses",
+      "control": "incorrect-verification",
+      "rule": "tool-defect",
+      "control_labels": {
+        "incorrect-verification": 4
+      },
+      "rule_labels": {
+        "tool-defect": 4
+      }
+    },
+    {
+      "id": "friction-unfenced-cross-surface-mirrors",
+      "control": "no-or-incomplete-verification",
+      "rule": "tool-defect",
+      "control_labels": {
+        "no-or-incomplete-verification": 4
+      },
+      "rule_labels": {
+        "tool-defect": 3,
+        "missing-capability": 1
+      }
+    },
+    {
+      "id": "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch",
+      "control": "environment-defect",
+      "rule": "tool-defect",
+      "control_labels": {
+        "environment-defect": 4
+      },
+      "rule_labels": {
+        "tool-defect": 3,
+        "environment-defect": 1
+      }
+    },
+    {
+      "id": "check-agents-stale-masks-an-unfixable-budget-red",
+      "control": "tie(information-withholding|tool-defect)",
+      "rule": "tool-defect",
+      "control_labels": {
+        "information-withholding": 2,
+        "tool-defect": 2
+      },
+      "rule_labels": {
+        "tool-defect": 4
+      }
+    },
+    {
+      "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+      "control": "tie(environment-defect|tool-defect)",
+      "rule": "tool-defect",
+      "control_labels": {
+        "tool-defect": 2,
+        "environment-defect": 2
+      },
+      "rule_labels": {
+        "tool-defect": 4
+      }
+    },
+    {
+      "id": "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing",
+      "control": "incorrect-verification",
+      "rule": "tool-defect",
+      "control_labels": {
+        "incorrect-verification": 4
+      },
+      "rule_labels": {
+        "tool-defect": 4
+      }
+    },
+    {
+      "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+      "control": "environment-defect",
+      "rule": "tie(environment-defect|tool-defect)",
+      "control_labels": {
+        "environment-defect": 4
+      },
+      "rule_labels": {
+        "environment-defect": 2,
+        "tool-defect": 2
+      }
+    },
+    {
+      "id": "rerun-failed-flake-label-is-blind-to-live-store-writes",
+      "control": "incorrect-verification",
+      "rule": "tool-defect",
+      "control_labels": {
+        "incorrect-verification": 3,
+        "tool-defect": 1
+      },
+      "rule_labels": {
+        "tool-defect": 4
+      }
+    },
+    {
+      "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+      "control": "tie(incorrect-verification|no-or-incomplete-verification)",
+      "rule": "incorrect-verification",
+      "control_labels": {
+        "incorrect-verification": 2,
+        "no-or-incomplete-verification": 2
+      },
+      "rule_labels": {
+        "incorrect-verification": 4
+      }
+    }
+  ],
+  "per_annotator_labels": {
+    "C1": {
+      "tool-defect": 19,
+      "incorrect-verification": 6,
+      "environment-defect": 4,
+      "data-model-gap": 3,
+      "no-or-incomplete-verification": 3,
+      "missing-capability": 3,
+      "premature-termination": 1,
+      "information-withholding": 1
+    },
+    "C2": {
+      "tool-defect": 15,
+      "environment-defect": 6,
+      "no-or-incomplete-verification": 5,
+      "incorrect-verification": 5,
+      "data-model-gap": 3,
+      "missing-capability": 3,
+      "information-withholding": 2,
+      "unaware-of-termination-conditions": 1
+    },
+    "C3": {
+      "tool-defect": 20,
+      "data-model-gap": 4,
+      "missing-capability": 4,
+      "incorrect-verification": 4,
+      "environment-defect": 4,
+      "no-or-incomplete-verification": 3,
+      "premature-termination": 1
+    },
+    "C4": {
+      "tool-defect": 19,
+      "incorrect-verification": 6,
+      "environment-defect": 5,
+      "data-model-gap": 3,
+      "missing-capability": 3,
+      "no-or-incomplete-verification": 2,
+      "premature-termination": 1,
+      "no-mast-home": 1
+    },
+    "R1": {
+      "tool-defect": 24,
+      "data-model-gap": 4,
+      "missing-capability": 3,
+      "environment-defect": 3,
+      "incorrect-verification": 3,
+      "premature-termination": 1,
+      "no-mast-home": 1,
+      "no-or-incomplete-verification": 1
+    },
+    "R2": {
+      "tool-defect": 24,
+      "data-model-gap": 5,
+      "missing-capability": 4,
+      "incorrect-verification": 3,
+      "environment-defect": 2,
+      "premature-termination": 1,
+      "no-or-incomplete-verification": 1
+    },
+    "R3": {
+      "tool-defect": 22,
+      "data-model-gap": 5,
+      "missing-capability": 4,
+      "environment-defect": 4,
+      "incorrect-verification": 3,
+      "premature-termination": 1,
+      "no-or-incomplete-verification": 1
+    },
+    "R4": {
+      "tool-defect": 25,
+      "missing-capability": 5,
+      "data-model-gap": 3,
+      "incorrect-verification": 3,
+      "environment-defect": 2,
+      "premature-termination": 1,
+      "no-or-incomplete-verification": 1
+    }
+  },
+  "arms": {
+    "CONTROL": {
+      "slots": [
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "pairs": [
+        {
+          "pair": "C1-C2",
+          "mode": {
+            "n": 40,
+            "agreed": 34,
+            "observed": 0.85,
+            "expected": 0.23374999999999996,
+            "kappa": 0.8042414355628057,
+            "labels_in_play": 9
+          },
+          "category": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.553125,
+            "kappa": 0.8321678321678323,
+            "labels_in_play": 4
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [
+            "bun-test-runs-a-mis-parameterised-instrument-to-completion"
+          ],
+          "disagreements": [
+            {
+              "id": "friction-builder-agents-stall-awaiting-background-gate",
+              "C1": "premature-termination",
+              "C2": "unaware-of-termination-conditions",
+              "C1_reason": "Spawned builders ended their turn awaiting a notification instead of completing the objective, requiring an orchestrator nudge.",
+              "C2_reason": "Spawned builders ended their turn awaiting a notification that never comes, failing to recognise that polling in-turn was the required completion criterion."
+            },
+            {
+              "id": "studio-dev-server-needs-tsx-loader-bare-vite-500s",
+              "C1": "tool-defect",
+              "C2": "environment-defect",
+              "C1_reason": "Bare vite boots without the required tsx loader and 500s with an error naming the workspace, a misleading failure from existing tooling.",
+              "C2_reason": "The launch command lacked the tsx loader so the platform could not resolve .js specifiers, and the error misattributed the cause to the workspace install."
+            },
+            {
+              "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+              "C1": "tool-defect",
+              "C2": "environment-defect",
+              "C1_reason": "gate:bg's detach silently depends on nothing holding stdout, so a pipe makes the timeout SIGTERM the run with an indistinguishable signature.",
+              "C2_reason": "The shell/tool-timeout interaction with a held-open stdout kills the detached run — a platform behaviour, not the repository's code."
+            },
+            {
+              "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+              "C1": "incorrect-verification",
+              "C2": "no-or-incomplete-verification",
+              "C1_reason": "The instrument ran as a test and passed 9/0 while calling its subject with arguments in the wrong order, publishing plausible wrong numbers.",
+              "C2_reason": "The measurement file was never typechecked before its output was trusted, so a mis-parameterised call ran to completion and published plausible wrong numbers."
+            },
+            {
+              "id": "mutation-remedy-omits-deleting-the-unobservable-branch",
+              "C1": "tool-defect",
+              "C2": "information-withholding",
+              "C1_reason": "The mutation rung's closing message offers only two remedies and omits the correct third, steering sessions toward freezing dead code.",
+              "C2_reason": "The rung's closing message offers only two remedies and withholds the correct third — delete the unobservable branch — steering sessions toward a harmful EQUIVALENT marker."
+            },
+            {
+              "id": "kit-island-reproduce-command-names-an-uncommitted-asset",
+              "C1": "tool-defect",
+              "C2": "no-or-incomplete-verification",
+              "C1_reason": "The committed reproduce command's default COMMITTED_RUNG points at an asset that does not exist in the repo, 404ing without naming the cause.",
+              "C2_reason": "The published reproduce command was never verified against a fresh checkout, so it names an asset that is not committed and 404s."
+            }
+          ]
+        },
+        {
+          "pair": "C1-C3",
+          "mode": {
+            "n": 40,
+            "agreed": 35,
+            "observed": 0.875,
+            "expected": 0.28375,
+            "kappa": 0.8254799301919721,
+            "labels_in_play": 8
+          },
+          "category": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.63,
+            "kappa": 0.7972972972972974,
+            "labels_in_play": 3
+          },
+          "seam_splits": [
+            "rerun-failed-flake-label-is-blind-to-live-store-writes"
+          ],
+          "fc3_internal_splits": [
+            "bun-test-runs-a-mis-parameterised-instrument-to-completion"
+          ],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "C1": "tool-defect",
+              "C3": "data-model-gap",
+              "C1_reason": "An unresolved convention — ADR-NNNN doubling as placeholder and generic pattern token — made a repo-wide substitution rewrite unrelated files.",
+              "C3_reason": "The ADR-NNNN placeholder convention cannot distinguish a session's own unallocated reference from the corpus's generic any-ADR pattern token, so a substitution could not tell them apart."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "C1": "no-or-incomplete-verification",
+              "C3": "missing-capability",
+              "C1_reason": "The brief's negative-existence premise was carried without any mechanism re-checking it against the live store at consumption time.",
+              "C3_reason": "No mechanism exists to invalidate or re-check a brief's negative-existence premise against concurrent sibling landings, so the mandate had been discharged with nothing able to say so."
+            },
+            {
+              "id": "check-agents-stale-masks-an-unfixable-budget-red",
+              "C1": "information-withholding",
+              "C3": "tool-defect",
+              "C1_reason": "The check holds both facts at report time but passes on only the staleness, withholding the budget violation the reader needs.",
+              "C3_reason": "The check holds both facts at report time but prints only the routine staleness signature, so its documented remedy is actively wrong for this case."
+            },
+            {
+              "id": "rerun-failed-flake-label-is-blind-to-live-store-writes",
+              "C1": "incorrect-verification",
+              "C3": "tool-defect",
+              "C1_reason": "The rerun comparison ran but validated against git state only, confidently labelling a genuine store-side fix as infrastructure noise.",
+              "C3_reason": "The `--rerun-failed` comparison asserts 'nothing was fixed in between' in a provable register while being structurally unable to see the store write that fixed it."
+            },
+            {
+              "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+              "C1": "incorrect-verification",
+              "C3": "no-or-incomplete-verification",
+              "C1_reason": "The instrument ran as a test and passed 9/0 while calling its subject with arguments in the wrong order, publishing plausible wrong numbers.",
+              "C3_reason": "The session published figures from a measurement file it never typechecked, so a mis-parameterised call ran to completion and its plausible output went uncorroborated."
+            }
+          ]
+        },
+        {
+          "pair": "C1-C4",
+          "mode": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.27625,
+            "kappa": 0.8963730569948187,
+            "labels_in_play": 9
+          },
+          "category": {
+            "n": 40,
+            "agreed": 38,
+            "observed": 0.95,
+            "expected": 0.6,
+            "kappa": 0.8749999999999999,
+            "labels_in_play": 4
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "C1": "no-or-incomplete-verification",
+              "C4": "no-mast-home",
+              "C1_reason": "The brief's negative-existence premise was carried without any mechanism re-checking it against the live store at consumption time.",
+              "C4_reason": "A brief's negative-existence premise was true when written and expired via a concurrent sibling session; none of the 18 modes describes an expiring handed-down premise."
+            },
+            {
+              "id": "check-agents-stale-masks-an-unfixable-budget-red",
+              "C1": "information-withholding",
+              "C4": "tool-defect",
+              "C1_reason": "The check holds both facts at report time but passes on only the staleness, withholding the budget violation the reader needs.",
+              "C4_reason": "An existing check reports a routine-looking staleness red while withholding the budget fact it already holds, making its own documented remedy wrong."
+            },
+            {
+              "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+              "C1": "tool-defect",
+              "C4": "environment-defect",
+              "C1_reason": "gate:bg's detach silently depends on nothing holding stdout, so a pipe makes the timeout SIGTERM the run with an indistinguishable signature.",
+              "C4_reason": "The shell pipe holds stdout open so the harness timeout SIGTERMs the detached run — a shell and tool-timeout interaction, not repository code."
+            }
+          ]
+        },
+        {
+          "pair": "C2-C3",
+          "mode": {
+            "n": 40,
+            "agreed": 31,
+            "observed": 0.775,
+            "expected": 0.239375,
+            "kappa": 0.704190632703369,
+            "labels_in_play": 9
+          },
+          "category": {
+            "n": 40,
+            "agreed": 34,
+            "observed": 0.85,
+            "expected": 0.5900000000000001,
+            "kappa": 0.6341463414634145,
+            "labels_in_play": 4
+          },
+          "seam_splits": [
+            "rerun-failed-flake-label-is-blind-to-live-store-writes"
+          ],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "C2": "tool-defect",
+              "C3": "data-model-gap",
+              "C2_reason": "The repo-wide sed substitution was an unscoped destructive write over an overloaded token, rewriting files outside the session's edits.",
+              "C3_reason": "The ADR-NNNN placeholder convention cannot distinguish a session's own unallocated reference from the corpus's generic any-ADR pattern token, so a substitution could not tell them apart."
+            },
+            {
+              "id": "friction-builder-agents-stall-awaiting-background-gate",
+              "C2": "unaware-of-termination-conditions",
+              "C3": "premature-termination",
+              "C2_reason": "Spawned builders ended their turn awaiting a notification that never comes, failing to recognise that polling in-turn was the required completion criterion.",
+              "C3_reason": "Spawned builders ended their turn awaiting a notification that never comes, stopping before the lane's objective was achieved and requiring an orchestrator nudge."
+            },
+            {
+              "id": "studio-dev-server-needs-tsx-loader-bare-vite-500s",
+              "C2": "environment-defect",
+              "C3": "tool-defect",
+              "C2_reason": "The launch command lacked the tsx loader so the platform could not resolve .js specifiers, and the error misattributed the cause to the workspace install.",
+              "C3_reason": "The bare-vite launch path boots successfully and then 500s every API route with an error naming a workspace package rather than the missing loader — a misleading failure from an existing invocation."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "C2": "no-or-incomplete-verification",
+              "C3": "missing-capability",
+              "C2_reason": "The brief's negative existence premise was never re-verified against the live store at authoring or hand-off, so a discharged mandate was re-issued.",
+              "C3_reason": "No mechanism exists to invalidate or re-check a brief's negative-existence premise against concurrent sibling landings, so the mandate had been discharged with nothing able to say so."
+            },
+            {
+              "id": "check-agents-stale-masks-an-unfixable-budget-red",
+              "C2": "information-withholding",
+              "C3": "tool-defect",
+              "C2_reason": "The check holds both facts at report time — staleness and the budget violation regeneration would expose — but passes on only the first, sending the reader to a wrong remedy.",
+              "C3_reason": "The check holds both facts at report time but prints only the routine staleness signature, so its documented remedy is actively wrong for this case."
+            },
+            {
+              "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+              "C2": "environment-defect",
+              "C3": "tool-defect",
+              "C2_reason": "The shell/tool-timeout interaction with a held-open stdout kills the detached run — a platform behaviour, not the repository's code.",
+              "C3_reason": "`gate:bg`'s detach only holds when nothing keeps stdout open, so the natural act of piping its banner silently SIGTERMs the whole gate run."
+            },
+            {
+              "id": "rerun-failed-flake-label-is-blind-to-live-store-writes",
+              "C2": "incorrect-verification",
+              "C3": "tool-defect",
+              "C2_reason": "The rerun comparison ran but checked git state as a proxy for 'nothing was fixed', so it confidently certified a real store-side fix as infrastructure noise.",
+              "C3_reason": "The `--rerun-failed` comparison asserts 'nothing was fixed in between' in a provable register while being structurally unable to see the store write that fixed it."
+            },
+            {
+              "id": "mutation-remedy-omits-deleting-the-unobservable-branch",
+              "C2": "information-withholding",
+              "C3": "tool-defect",
+              "C2_reason": "The rung's closing message offers only two remedies and withholds the correct third — delete the unobservable branch — steering sessions toward a harmful EQUIVALENT marker.",
+              "C3_reason": "The rung's closing message names only two remedies and omits the correct third, steering the reader toward tests that cannot pass or an EQUIVALENT marker that freezes dead code."
+            },
+            {
+              "id": "kit-island-reproduce-command-names-an-uncommitted-asset",
+              "C2": "no-or-incomplete-verification",
+              "C3": "tool-defect",
+              "C2_reason": "The published reproduce command was never verified against a fresh checkout, so it names an asset that is not committed and 404s.",
+              "C3_reason": "The driver's COMMITTED_RUNG default builds a URL for an asset that is not in the repo, so the published reproduce command 404s on a fresh checkout."
+            }
+          ]
+        },
+        {
+          "pair": "C2-C4",
+          "mode": {
+            "n": 40,
+            "agreed": 33,
+            "observed": 0.825,
+            "expected": 0.23312499999999997,
+            "kappa": 0.771801140994295,
+            "labels_in_play": 10
+          },
+          "category": {
+            "n": 40,
+            "agreed": 35,
+            "observed": 0.875,
+            "expected": 0.5625000000000001,
+            "kappa": 0.7142857142857142,
+            "labels_in_play": 5
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [
+            "bun-test-runs-a-mis-parameterised-instrument-to-completion"
+          ],
+          "disagreements": [
+            {
+              "id": "friction-builder-agents-stall-awaiting-background-gate",
+              "C2": "unaware-of-termination-conditions",
+              "C4": "premature-termination",
+              "C2_reason": "Spawned builders ended their turn awaiting a notification that never comes, failing to recognise that polling in-turn was the required completion criterion.",
+              "C4_reason": "The spawned builders ended their turn before the work was complete, waiting for a notification that would never arrive."
+            },
+            {
+              "id": "studio-dev-server-needs-tsx-loader-bare-vite-500s",
+              "C2": "environment-defect",
+              "C4": "tool-defect",
+              "C2_reason": "The launch command lacked the tsx loader so the platform could not resolve .js specifiers, and the error misattributed the cause to the workspace install.",
+              "C4_reason": "Launching without the documented tsx loader yields a 500 whose message names a workspace package rather than the missing loader, misdirecting diagnosis."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "C2": "no-or-incomplete-verification",
+              "C4": "no-mast-home",
+              "C2_reason": "The brief's negative existence premise was never re-verified against the live store at authoring or hand-off, so a discharged mandate was re-issued.",
+              "C4_reason": "A brief's negative-existence premise was true when written and expired via a concurrent sibling session; none of the 18 modes describes an expiring handed-down premise."
+            },
+            {
+              "id": "check-agents-stale-masks-an-unfixable-budget-red",
+              "C2": "information-withholding",
+              "C4": "tool-defect",
+              "C2_reason": "The check holds both facts at report time — staleness and the budget violation regeneration would expose — but passes on only the first, sending the reader to a wrong remedy.",
+              "C4_reason": "An existing check reports a routine-looking staleness red while withholding the budget fact it already holds, making its own documented remedy wrong."
+            },
+            {
+              "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+              "C2": "no-or-incomplete-verification",
+              "C4": "incorrect-verification",
+              "C2_reason": "The measurement file was never typechecked before its output was trusted, so a mis-parameterised call ran to completion and published plausible wrong numbers.",
+              "C4_reason": "The instrument ran as a test and reported 9 pass on a call whose arguments were in the wrong slots, so the check passed while the measurement was wrong."
+            },
+            {
+              "id": "mutation-remedy-omits-deleting-the-unobservable-branch",
+              "C2": "information-withholding",
+              "C4": "tool-defect",
+              "C2_reason": "The rung's closing message offers only two remedies and withholds the correct third — delete the unobservable branch — steering sessions toward a harmful EQUIVALENT marker.",
+              "C4_reason": "The rung's closing message offers only two remedies and omits the correct one, steering sessions toward tests that cannot pass or a permanent EQUIVALENT marker."
+            },
+            {
+              "id": "kit-island-reproduce-command-names-an-uncommitted-asset",
+              "C2": "no-or-incomplete-verification",
+              "C4": "tool-defect",
+              "C2_reason": "The published reproduce command was never verified against a fresh checkout, so it names an asset that is not committed and 404s.",
+              "C4_reason": "The driver's default committed-rung URL points at an asset not in the repo, so the published reproduce command 404s with a message naming neither file."
+            }
+          ]
+        },
+        {
+          "pair": "C3-C4",
+          "mode": {
+            "n": 40,
+            "agreed": 35,
+            "observed": 0.875,
+            "expected": 0.284375,
+            "kappa": 0.8253275109170306,
+            "labels_in_play": 8
+          },
+          "category": {
+            "n": 40,
+            "agreed": 38,
+            "observed": 0.95,
+            "expected": 0.6450000000000001,
+            "kappa": 0.8591549295774646,
+            "labels_in_play": 3
+          },
+          "seam_splits": [
+            "rerun-failed-flake-label-is-blind-to-live-store-writes"
+          ],
+          "fc3_internal_splits": [
+            "bun-test-runs-a-mis-parameterised-instrument-to-completion"
+          ],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "C3": "data-model-gap",
+              "C4": "tool-defect",
+              "C3_reason": "The ADR-NNNN placeholder convention cannot distinguish a session's own unallocated reference from the corpus's generic any-ADR pattern token, so a substitution could not tell them apart.",
+              "C4_reason": "The repo-wide substitution mechanism used a non-unique placeholder token and performed incorrect writes into unrelated specs."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "C3": "missing-capability",
+              "C4": "no-mast-home",
+              "C3_reason": "No mechanism exists to invalidate or re-check a brief's negative-existence premise against concurrent sibling landings, so the mandate had been discharged with nothing able to say so.",
+              "C4_reason": "A brief's negative-existence premise was true when written and expired via a concurrent sibling session; none of the 18 modes describes an expiring handed-down premise."
+            },
+            {
+              "id": "piping-gate-bg-defeats-its-detach-and-kills-the-run",
+              "C3": "tool-defect",
+              "C4": "environment-defect",
+              "C3_reason": "`gate:bg`'s detach only holds when nothing keeps stdout open, so the natural act of piping its banner silently SIGTERMs the whole gate run.",
+              "C4_reason": "The shell pipe holds stdout open so the harness timeout SIGTERMs the detached run — a shell and tool-timeout interaction, not repository code."
+            },
+            {
+              "id": "rerun-failed-flake-label-is-blind-to-live-store-writes",
+              "C3": "tool-defect",
+              "C4": "incorrect-verification",
+              "C3_reason": "The `--rerun-failed` comparison asserts 'nothing was fixed in between' in a provable register while being structurally unable to see the store write that fixed it.",
+              "C4_reason": "The rerun comparison ran but validated only the git tree, so it confidently declared 'nothing was fixed' when the repair was a live-store write."
+            },
+            {
+              "id": "bun-test-runs-a-mis-parameterised-instrument-to-completion",
+              "C3": "no-or-incomplete-verification",
+              "C4": "incorrect-verification",
+              "C3_reason": "The session published figures from a measurement file it never typechecked, so a mis-parameterised call ran to completion and its plausible output went uncorroborated.",
+              "C4_reason": "The instrument ran as a test and reported 9 pass on a call whose arguments were in the wrong slots, so the check passed while the measurement was wrong."
+            }
+          ]
+        }
+      ],
+      "mean_observed_mode": 0.8541666666666666,
+      "mean_observed_category": 0.9125,
+      "mean_kappa_mode": 0.8045689512273819,
+      "kappa_mode_range": [
+        0.704190632703369,
+        0.8963730569948187
+      ],
+      "mean_kappa_category": 0.7853420191319538,
+      "kappa_category_range": [
+        0.6341463414634145,
+        0.8749999999999999
+      ],
+      "seam_splits_total": 3,
+      "fc3_internal_splits_total": 4,
+      "label_totals": {
+        "tool-defect": 73,
+        "incorrect-verification": 21,
+        "environment-defect": 19,
+        "data-model-gap": 13,
+        "no-or-incomplete-verification": 13,
+        "missing-capability": 13,
+        "premature-termination": 3,
+        "information-withholding": 3,
+        "unaware-of-termination-conditions": 1,
+        "no-mast-home": 1
+      },
+      "category_totals": {
+        "storytree-extension": 118,
+        "verification-and-termination": 37,
+        "inter-agent-misalignment": 3,
+        "specification-and-design": 1,
+        "unhoused": 1
+      },
+      "modal_label": {
+        "friction-studio-kind-blind": "data-model-gap",
+        "coverage-tool-parses-tsx-as-scriptkind-ts": "tool-defect",
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": "tool-defect",
+        "friction-real-build-marks-interactive-session-done": "tool-defect",
+        "friction-builder-agents-stall-awaiting-background-gate": "premature-termination",
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": "tool-defect",
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": "tool-defect",
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": "tool-defect",
+        "task-brief-negative-existence-claim-went-stale": "no-or-incomplete-verification",
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": "incorrect-verification",
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": "tool-defect",
+        "friction-unfenced-cross-surface-mirrors": "no-or-incomplete-verification",
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": "missing-capability",
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": "tool-defect",
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": "tool-defect",
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": "environment-defect",
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": "environment-defect",
+        "comparison-sheet-carries-no-code-state": "data-model-gap",
+        "arc-parked-work-renders-behind-the-whole-history": "tool-defect",
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": "tool-defect",
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": "incorrect-verification",
+        "a-parked-entrys-comparative-steers-target-choice": "no-or-incomplete-verification",
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": "data-model-gap",
+        "check-agents-stale-masks-an-unfixable-budget-red": "tie(information-withholding|tool-defect)",
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": "missing-capability",
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": "tie(environment-defect|tool-defect)",
+        "branch-diff-fence-tests-the-branch-not-the-promise": "incorrect-verification",
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": "missing-capability",
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": "incorrect-verification",
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": "environment-defect",
+        "capture-goto-budget-assumes-a-warm-vite": "tool-defect",
+        "bun-off-path-reds-the-gate-on-a-green-package": "environment-defect",
+        "uat-run-re-observes-the-same-command-once-per-leg": "tool-defect",
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": "tool-defect",
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": "incorrect-verification",
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": "tie(incorrect-verification|no-or-incomplete-verification)",
+        "mutation-remedy-omits-deleting-the-unobservable-branch": "tool-defect",
+        "kit-island-reproduce-command-names-an-uncommitted-asset": "tool-defect",
+        "check-land-art-cannot-pass-on-a-fresh-worktree": "tool-defect",
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": "tool-defect"
+      },
+      "shares_mode": {
+        "friction-studio-kind-blind": 1.0,
+        "coverage-tool-parses-tsx-as-scriptkind-ts": 1.0,
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": 0.5,
+        "friction-real-build-marks-interactive-session-done": 1.0,
+        "friction-builder-agents-stall-awaiting-background-gate": 0.5,
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": 0.5,
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": 1.0,
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": 1.0,
+        "task-brief-negative-existence-claim-went-stale": 0.16666666666666666,
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": 1.0,
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": 1.0,
+        "friction-unfenced-cross-surface-mirrors": 1.0,
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": 1.0,
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": 1.0,
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": 1.0,
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": 1.0,
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": 1.0,
+        "comparison-sheet-carries-no-code-state": 1.0,
+        "arc-parked-work-renders-behind-the-whole-history": 1.0,
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": 1.0,
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": 1.0,
+        "a-parked-entrys-comparative-steers-target-choice": 1.0,
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": 1.0,
+        "check-agents-stale-masks-an-unfixable-budget-red": 0.3333333333333333,
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": 1.0,
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": 0.3333333333333333,
+        "branch-diff-fence-tests-the-branch-not-the-promise": 1.0,
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": 1.0,
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": 1.0,
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": 1.0,
+        "capture-goto-budget-assumes-a-warm-vite": 1.0,
+        "bun-off-path-reds-the-gate-on-a-green-package": 1.0,
+        "uat-run-re-observes-the-same-command-once-per-leg": 1.0,
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": 1.0,
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": 0.5,
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": 0.3333333333333333,
+        "mutation-remedy-omits-deleting-the-unobservable-branch": 0.5,
+        "kit-island-reproduce-command-names-an-uncommitted-asset": 0.5,
+        "check-land-art-cannot-pass-on-a-fresh-worktree": 1.0,
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": 1.0
+      },
+      "shares_category": {
+        "friction-studio-kind-blind": 1.0,
+        "coverage-tool-parses-tsx-as-scriptkind-ts": 1.0,
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": 1.0,
+        "friction-real-build-marks-interactive-session-done": 1.0,
+        "friction-builder-agents-stall-awaiting-background-gate": 0.5,
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": 1.0,
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": 1.0,
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": 1.0,
+        "task-brief-negative-existence-claim-went-stale": 0.16666666666666666,
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": 1.0,
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": 1.0,
+        "friction-unfenced-cross-surface-mirrors": 1.0,
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": 1.0,
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": 1.0,
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": 1.0,
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": 1.0,
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": 1.0,
+        "comparison-sheet-carries-no-code-state": 1.0,
+        "arc-parked-work-renders-behind-the-whole-history": 1.0,
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": 1.0,
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": 1.0,
+        "a-parked-entrys-comparative-steers-target-choice": 1.0,
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": 1.0,
+        "check-agents-stale-masks-an-unfixable-budget-red": 0.3333333333333333,
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": 1.0,
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": 1.0,
+        "branch-diff-fence-tests-the-branch-not-the-promise": 1.0,
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": 1.0,
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": 1.0,
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": 1.0,
+        "capture-goto-budget-assumes-a-warm-vite": 1.0,
+        "bun-off-path-reds-the-gate-on-a-green-package": 1.0,
+        "uat-run-re-observes-the-same-command-once-per-leg": 1.0,
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": 1.0,
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": 0.5,
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": 1.0,
+        "mutation-remedy-omits-deleting-the-unobservable-branch": 0.5,
+        "kit-island-reproduce-command-names-an-uncommitted-asset": 0.5,
+        "check-land-art-cannot-pass-on-a-fresh-worktree": 1.0,
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": 1.0
+      }
+    },
+    "RULE": {
+      "slots": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "pairs": [
+        {
+          "pair": "R1-R2",
+          "mode": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.390625,
+            "kappa": 0.876923076923077,
+            "labels_in_play": 8
+          },
+          "category": {
+            "n": 40,
+            "agreed": 39,
+            "observed": 0.975,
+            "expected": 0.759375,
+            "kappa": 0.896103896103896,
+            "labels_in_play": 3
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "R1": "tool-defect",
+              "R2": "data-model-gap",
+              "R1_reason": "An unresolved placeholder convention (ADR-NNNN doubling as a generic pattern token) made a repo-wide substitution write incorrectly into untouched specs.",
+              "R2_reason": "The ADR-NNNN placeholder namespace cannot distinguish a session's pending allocation from the corpus's generic any-ADR pattern token, so substitution could not be scoped correctly."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "R1": "no-mast-home",
+              "R2": "missing-capability",
+              "R1_reason": "A handoff brief's correct-when-written negative existence premise expired via a concurrent sibling, which none of the eighteen modes describes.",
+              "R2_reason": "No mechanism exists to detect that a brief's negative-existence premise has been overtaken by a concurrent sibling, so the staleness could only be caught by hand."
+            },
+            {
+              "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+              "R1": "environment-defect",
+              "R2": "tool-defect",
+              "R1_reason": "A Linux-CI-only rmdir race in temp-fixture teardown reds branches that touch nothing near it and cannot reproduce on the dev platform.",
+              "R2_reason": "The repository's own test fixture teardown races on rmdir, producing a wrong red for branches that touch nothing near it."
+            }
+          ]
+        },
+        {
+          "pair": "R1-R3",
+          "mode": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.364375,
+            "kappa": 0.8820058997050149,
+            "labels_in_play": 8
+          },
+          "category": {
+            "n": 40,
+            "agreed": 39,
+            "observed": 0.975,
+            "expected": 0.759375,
+            "kappa": 0.896103896103896,
+            "labels_in_play": 3
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "R1": "tool-defect",
+              "R3": "data-model-gap",
+              "R1_reason": "An unresolved placeholder convention (ADR-NNNN doubling as a generic pattern token) made a repo-wide substitution write incorrectly into untouched specs.",
+              "R3_reason": "The ADR-NNNN token cannot distinguish a session-local allocate-late placeholder from the corpus's generic any-ADR pattern, so substitution cannot be targeted."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "R1": "no-mast-home",
+              "R3": "missing-capability",
+              "R1_reason": "A handoff brief's correct-when-written negative existence premise expired via a concurrent sibling, which none of the eighteen modes describes.",
+              "R3_reason": "No mechanism exists to re-validate a brief's negative existence premise against concurrent sibling landings, so the mandate was already discharged with nothing able to say so."
+            },
+            {
+              "id": "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch",
+              "R1": "tool-defect",
+              "R3": "environment-defect",
+              "R1_reason": "The install verb registers an enforcement hook by absolute path without verifying the host script exists or is post-flip, reporting a wall that enforces nothing.",
+              "R3_reason": "The machine-scoped hook registration binds to whatever branch a host checkout happens to sit on, and the platform's silent non-blocking on hook failure is what makes the wall inert."
+            }
+          ]
+        },
+        {
+          "pair": "R1-R4",
+          "mode": {
+            "n": 40,
+            "agreed": 34,
+            "observed": 0.85,
+            "expected": 0.4025,
+            "kappa": 0.7489539748953975,
+            "labels_in_play": 8
+          },
+          "category": {
+            "n": 40,
+            "agreed": 39,
+            "observed": 0.975,
+            "expected": 0.759375,
+            "kappa": 0.896103896103896,
+            "labels_in_play": 3
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "friction-adr-nnnn-placeholder-is-an-overloaded-token",
+              "R1": "tool-defect",
+              "R4": "data-model-gap",
+              "R1_reason": "An unresolved placeholder convention (ADR-NNNN doubling as a generic pattern token) made a repo-wide substitution write incorrectly into untouched specs.",
+              "R4_reason": "The ADR-NNNN token cannot distinguish a session-local allocate-late placeholder from the corpus's generic any-ADR pattern, so the convention itself cannot express what the substitution needed to see."
+            },
+            {
+              "id": "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly",
+              "R1": "data-model-gap",
+              "R4": "tool-defect",
+              "R1_reason": "A .strict() wire schema cannot carry an additive producer field, so the record type could not express the data and it was dropped.",
+              "R4_reason": "A strict wire shape behind a deliberately fail-silent writer is a shipped bad default that discards every usage event on any additive producer field, with no red anywhere."
+            },
+            {
+              "id": "task-brief-negative-existence-claim-went-stale",
+              "R1": "no-mast-home",
+              "R4": "missing-capability",
+              "R1_reason": "A handoff brief's correct-when-written negative existence premise expired via a concurrent sibling, which none of the eighteen modes describes.",
+              "R4_reason": "No mechanism exists to invalidate or re-check a brief's point-in-time existence premise against the live store, so a sibling's concurrent landing silently discharged the mandate."
+            },
+            {
+              "id": "friction-unfenced-cross-surface-mirrors",
+              "R1": "tool-defect",
+              "R4": "missing-capability",
+              "R1_reason": "The shipped check:mirror-conformance registers only one mirror, so it silently passes over every other re-composed route's drift.",
+              "R4_reason": "The fence for every cross-surface mirror other than GET /api/docs simply does not exist, so the /api/activity drift had no guard to catch it."
+            },
+            {
+              "id": "comparison-sheet-carries-no-code-state",
+              "R1": "data-model-gap",
+              "R4": "tool-defect",
+              "R1_reason": "The sheet and delivered PNG dir carry no per-cell record of the code state, so the artifact cannot express which variable each cell varied.",
+              "R4_reason": "sheet.py composes cells without reading the per-dir render-meta.json that already records the flags, so the shipped compositor silently produces two-variable comparisons."
+            },
+            {
+              "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+              "R1": "environment-defect",
+              "R4": "tool-defect",
+              "R1_reason": "A Linux-CI-only rmdir race in temp-fixture teardown reds branches that touch nothing near it and cannot reproduce on the dev platform.",
+              "R4_reason": "A teardown race in an existing test's temp-fixture cleanup reds the suite for branches that touch nothing near it, independent of the branch's code."
+            }
+          ]
+        },
+        {
+          "pair": "R2-R3",
+          "mode": {
+            "n": 40,
+            "agreed": 38,
+            "observed": 0.95,
+            "expected": 0.36750000000000005,
+            "kappa": 0.9209486166007904,
+            "labels_in_play": 7
+          },
+          "category": {
+            "n": 40,
+            "agreed": 40,
+            "observed": 1.0,
+            "expected": 0.78125,
+            "kappa": 1.0,
+            "labels_in_play": 2
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch",
+              "R2": "tool-defect",
+              "R3": "environment-defect",
+              "R2_reason": "The install verb registers an absolute path without checking the host script exists or is post-flip, so it reports an installed wall that enforces nothing.",
+              "R3_reason": "The machine-scoped hook registration binds to whatever branch a host checkout happens to sit on, and the platform's silent non-blocking on hook failure is what makes the wall inert."
+            },
+            {
+              "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+              "R2": "tool-defect",
+              "R3": "environment-defect",
+              "R2_reason": "The repository's own test fixture teardown races on rmdir, producing a wrong red for branches that touch nothing near it.",
+              "R3_reason": "A Linux-CI-only rmdir race in a temp fixture teardown reddened CI on a branch touching nothing near it, and cleared on a bare re-run."
+            }
+          ]
+        },
+        {
+          "pair": "R2-R4",
+          "mode": {
+            "n": 40,
+            "agreed": 37,
+            "observed": 0.925,
+            "expected": 0.40625,
+            "kappa": 0.8736842105263158,
+            "labels_in_play": 7
+          },
+          "category": {
+            "n": 40,
+            "agreed": 40,
+            "observed": 1.0,
+            "expected": 0.78125,
+            "kappa": 1.0,
+            "labels_in_play": 2
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly",
+              "R2": "data-model-gap",
+              "R4": "tool-defect",
+              "R2_reason": "The .strict() wire schema cannot express an additive producer field, and the surface behind it silently drops every event it cannot parse.",
+              "R4_reason": "A strict wire shape behind a deliberately fail-silent writer is a shipped bad default that discards every usage event on any additive producer field, with no red anywhere."
+            },
+            {
+              "id": "friction-unfenced-cross-surface-mirrors",
+              "R2": "tool-defect",
+              "R4": "missing-capability",
+              "R2_reason": "The shipped check:mirror-conformance registers only one mirror, so it returns a clean verdict on drifted routes to every caller.",
+              "R4_reason": "The fence for every cross-surface mirror other than GET /api/docs simply does not exist, so the /api/activity drift had no guard to catch it."
+            },
+            {
+              "id": "comparison-sheet-carries-no-code-state",
+              "R2": "data-model-gap",
+              "R4": "tool-defect",
+              "R2_reason": "The composed sheet and delivered PNG dir have no per-cell field for the code state that produced them, so a two-variable comparison is indistinguishable from a one-variable one.",
+              "R4_reason": "sheet.py composes cells without reading the per-dir render-meta.json that already records the flags, so the shipped compositor silently produces two-variable comparisons."
+            }
+          ]
+        },
+        {
+          "pair": "R3-R4",
+          "mode": {
+            "n": 40,
+            "agreed": 35,
+            "observed": 0.875,
+            "expected": 0.3775,
+            "kappa": 0.7991967871485943,
+            "labels_in_play": 7
+          },
+          "category": {
+            "n": 40,
+            "agreed": 40,
+            "observed": 1.0,
+            "expected": 0.78125,
+            "kappa": 1.0,
+            "labels_in_play": 2
+          },
+          "seam_splits": [],
+          "fc3_internal_splits": [],
+          "disagreements": [
+            {
+              "id": "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly",
+              "R3": "data-model-gap",
+              "R4": "tool-defect",
+              "R3_reason": "The .strict() wire schema cannot express an additive producer field, so the record type itself silently rejects the data it must carry.",
+              "R4_reason": "A strict wire shape behind a deliberately fail-silent writer is a shipped bad default that discards every usage event on any additive producer field, with no red anywhere."
+            },
+            {
+              "id": "friction-unfenced-cross-surface-mirrors",
+              "R3": "tool-defect",
+              "R4": "missing-capability",
+              "R3_reason": "check:mirror-conformance exists but registers only one mirror, so the shipped fence returns a clean verdict on routes it never covers.",
+              "R4_reason": "The fence for every cross-surface mirror other than GET /api/docs simply does not exist, so the /api/activity drift had no guard to catch it."
+            },
+            {
+              "id": "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch",
+              "R3": "environment-defect",
+              "R4": "tool-defect",
+              "R3_reason": "The machine-scoped hook registration binds to whatever branch a host checkout happens to sit on, and the platform's silent non-blocking on hook failure is what makes the wall inert.",
+              "R4_reason": "The install verb computes an absolute hook path into a mutable checkout without verifying the script exists or is post-flip, so it can register a wall that enforces nothing."
+            },
+            {
+              "id": "comparison-sheet-carries-no-code-state",
+              "R3": "data-model-gap",
+              "R4": "tool-defect",
+              "R3_reason": "The delivered sheet and its cells carry no per-cell record of the code state that produced them, so a two-variable comparison is indistinguishable from a one-variable one.",
+              "R4_reason": "sheet.py composes cells without reading the per-dir render-meta.json that already records the flags, so the shipped compositor silently produces two-variable comparisons."
+            },
+            {
+              "id": "promote-fixture-teardown-enotempty-reds-unrelated-prs",
+              "R3": "environment-defect",
+              "R4": "tool-defect",
+              "R3_reason": "A Linux-CI-only rmdir race in a temp fixture teardown reddened CI on a branch touching nothing near it, and cleared on a bare re-run.",
+              "R4_reason": "A teardown race in an existing test's temp-fixture cleanup reds the suite for branches that touch nothing near it, independent of the branch's code."
+            }
+          ]
+        }
+      ],
+      "mean_observed_mode": 0.9083333333333333,
+      "mean_observed_category": 0.9875,
+      "mean_kappa_mode": 0.8502854276331983,
+      "kappa_mode_range": [
+        0.7489539748953975,
+        0.9209486166007904
+      ],
+      "mean_kappa_category": 0.948051948051948,
+      "kappa_category_range": [
+        0.896103896103896,
+        1.0
+      ],
+      "seam_splits_total": 0,
+      "fc3_internal_splits_total": 0,
+      "label_totals": {
+        "tool-defect": 95,
+        "data-model-gap": 17,
+        "missing-capability": 16,
+        "incorrect-verification": 12,
+        "environment-defect": 11,
+        "premature-termination": 4,
+        "no-or-incomplete-verification": 4,
+        "no-mast-home": 1
+      },
+      "category_totals": {
+        "storytree-extension": 139,
+        "verification-and-termination": 20,
+        "unhoused": 1
+      },
+      "modal_label": {
+        "friction-studio-kind-blind": "data-model-gap",
+        "coverage-tool-parses-tsx-as-scriptkind-ts": "tool-defect",
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": "data-model-gap",
+        "friction-real-build-marks-interactive-session-done": "tool-defect",
+        "friction-builder-agents-stall-awaiting-background-gate": "premature-termination",
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": "tool-defect",
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": "tool-defect",
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": "data-model-gap",
+        "task-brief-negative-existence-claim-went-stale": "missing-capability",
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": "tool-defect",
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": "tool-defect",
+        "friction-unfenced-cross-surface-mirrors": "tool-defect",
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": "missing-capability",
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": "tool-defect",
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": "tool-defect",
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": "tool-defect",
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": "environment-defect",
+        "comparison-sheet-carries-no-code-state": "data-model-gap",
+        "arc-parked-work-renders-behind-the-whole-history": "tool-defect",
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": "tool-defect",
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": "incorrect-verification",
+        "a-parked-entrys-comparative-steers-target-choice": "no-or-incomplete-verification",
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": "data-model-gap",
+        "check-agents-stale-masks-an-unfixable-budget-red": "tool-defect",
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": "missing-capability",
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": "tool-defect",
+        "branch-diff-fence-tests-the-branch-not-the-promise": "incorrect-verification",
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": "missing-capability",
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": "tool-defect",
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": "tie(environment-defect|tool-defect)",
+        "capture-goto-budget-assumes-a-warm-vite": "tool-defect",
+        "bun-off-path-reds-the-gate-on-a-green-package": "environment-defect",
+        "uat-run-re-observes-the-same-command-once-per-leg": "tool-defect",
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": "tool-defect",
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": "tool-defect",
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": "incorrect-verification",
+        "mutation-remedy-omits-deleting-the-unobservable-branch": "tool-defect",
+        "kit-island-reproduce-command-names-an-uncommitted-asset": "tool-defect",
+        "check-land-art-cannot-pass-on-a-fresh-worktree": "tool-defect",
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": "tool-defect"
+      },
+      "shares_mode": {
+        "friction-studio-kind-blind": 1.0,
+        "coverage-tool-parses-tsx-as-scriptkind-ts": 1.0,
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": 0.5,
+        "friction-real-build-marks-interactive-session-done": 1.0,
+        "friction-builder-agents-stall-awaiting-background-gate": 1.0,
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": 1.0,
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": 1.0,
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": 0.5,
+        "task-brief-negative-existence-claim-went-stale": 0.5,
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": 1.0,
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": 1.0,
+        "friction-unfenced-cross-surface-mirrors": 0.5,
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": 1.0,
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": 1.0,
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": 1.0,
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": 0.5,
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": 1.0,
+        "comparison-sheet-carries-no-code-state": 0.5,
+        "arc-parked-work-renders-behind-the-whole-history": 1.0,
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": 1.0,
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": 1.0,
+        "a-parked-entrys-comparative-steers-target-choice": 1.0,
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": 1.0,
+        "check-agents-stale-masks-an-unfixable-budget-red": 1.0,
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": 1.0,
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": 1.0,
+        "branch-diff-fence-tests-the-branch-not-the-promise": 1.0,
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": 1.0,
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": 1.0,
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": 0.3333333333333333,
+        "capture-goto-budget-assumes-a-warm-vite": 1.0,
+        "bun-off-path-reds-the-gate-on-a-green-package": 1.0,
+        "uat-run-re-observes-the-same-command-once-per-leg": 1.0,
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": 1.0,
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": 1.0,
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": 1.0,
+        "mutation-remedy-omits-deleting-the-unobservable-branch": 1.0,
+        "kit-island-reproduce-command-names-an-uncommitted-asset": 1.0,
+        "check-land-art-cannot-pass-on-a-fresh-worktree": 1.0,
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": 1.0
+      },
+      "shares_category": {
+        "friction-studio-kind-blind": 1.0,
+        "coverage-tool-parses-tsx-as-scriptkind-ts": 1.0,
+        "friction-adr-nnnn-placeholder-is-an-overloaded-token": 1.0,
+        "friction-real-build-marks-interactive-session-done": 1.0,
+        "friction-builder-agents-stall-awaiting-background-gate": 1.0,
+        "studio-dev-server-needs-tsx-loader-bare-vite-500s": 1.0,
+        "new-package-proof-command-passes-vacuously-so-confirm-red-halts": 1.0,
+        "strict-wire-shape-plus-fail-silent-capture-loses-data-invisibly": 1.0,
+        "task-brief-negative-existence-claim-went-stale": 0.5,
+        "check-coverage-counts-a-test-name-not-a-contracts-clauses": 1.0,
+        "claim-absence-surfaces-only-after-the-gates-expensive-legs": 1.0,
+        "friction-unfenced-cross-surface-mirrors": 1.0,
+        "friction-queue-has-no-claim-so-adjudicator-seats-race": 1.0,
+        "corpus-content-gate-red-on-sibling-mid-stream-live-edit": 1.0,
+        "graduate-park-reason-ignores-at-path-and-overwrites-the-prior-verdict": 1.0,
+        "a-security-boundary-sourced-from-a-mutable-checkout-is-only-as-current-as-its-branch": 1.0,
+        "scratchpad-one-shot-scripts-cannot-resolve-workspace-packages": 1.0,
+        "comparison-sheet-carries-no-code-state": 1.0,
+        "arc-parked-work-renders-behind-the-whole-history": 1.0,
+        "friction-real-build-author-test-turn-ceiling-tiny-unit": 1.0,
+        "camera-probe-non-accretion-proxy-conflated-stable-picture": 1.0,
+        "a-parked-entrys-comparative-steers-target-choice": 1.0,
+        "chip-carried-increment-is-invisible-to-arc-lifecycle": 1.0,
+        "check-agents-stale-masks-an-unfixable-budget-red": 1.0,
+        "adr-prescribed-build-address-outlived-by-later-infrastructure-adr": 1.0,
+        "piping-gate-bg-defeats-its-detach-and-kills-the-run": 1.0,
+        "branch-diff-fence-tests-the-branch-not-the-promise": 1.0,
+        "no-cross-kind-corpus-text-search-so-absence-is-unprovable": 1.0,
+        "opaque-pixel-floor-cannot-see-a-prop-that-stopped-drawing": 1.0,
+        "promote-fixture-teardown-enotempty-reds-unrelated-prs": 1.0,
+        "capture-goto-budget-assumes-a-warm-vite": 1.0,
+        "bun-off-path-reds-the-gate-on-a-green-package": 1.0,
+        "uat-run-re-observes-the-same-command-once-per-leg": 1.0,
+        "doctor-claude-login-fails-a-correctly-provisioned-vault-box": 1.0,
+        "rerun-failed-flake-label-is-blind-to-live-store-writes": 1.0,
+        "bun-test-runs-a-mis-parameterised-instrument-to-completion": 1.0,
+        "mutation-remedy-omits-deleting-the-unobservable-branch": 1.0,
+        "kit-island-reproduce-command-names-an-uncommitted-asset": 1.0,
+        "check-land-art-cannot-pass-on-a-fresh-worktree": 1.0,
+        "discharged-by-loses-its-fence-exemption-when-arc-is-also-passed": 1.0
+      }
+    }
+  }
+}

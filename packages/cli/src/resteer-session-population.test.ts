@@ -266,7 +266,7 @@ test("resteer-list: with a denominator it prints the rate block EXACTLY, and not
   );
   // With nothing unattributable and nothing outside the population, NEITHER warning may appear —
   // a report that always prints its caveats teaches the reader to skip them.
-  assert.ok(!res.body.includes("carry no usable branch stamp"));
+  assert.ok(!res.body.includes("name no session"));
   assert.ok(!res.body.includes("outside the population"));
   assert.ok(
     !res.body.includes("HUMAN INTERVENTION RATE — needs a count"),
@@ -288,15 +288,22 @@ test("resteer-list: without a denominator it prints the caveat and no rate", asy
 test("resteer-list: unattributable rows are printed as their own line, not folded into the ratio", async () => {
   const store = new InMemoryStore();
   await seed(store, "r1", "claude/one");
+  // Both generations of an unattributable stamp: the legacy literal a detached checkout used to be
+  // stored as, and the marker the capture writes now (ADR-0568). They must count together.
   await seed(store, "r2", "HEAD");
+  await seed(store, "r3", "(primary checkout)");
 
   const res = await listResteer(store, pop(["claude/one", "claude/two"]));
 
-  assert.ok(res.body.includes("1 of 2 sessions re-steered — 50.0%"), "HEAD must not enter either side");
+  assert.ok(
+    res.body.includes("1 of 2 sessions re-steered — 50.0%"),
+    "neither the legacy HEAD nor a capture marker may enter either side",
+  );
   assert.ok(
     res.body.includes(
-      "  ⚠ 1 row(s) carry no usable branch stamp (detached HEAD, or no\n" +
-        "    provenance) and are counted in NEITHER side of this ratio.\n",
+      "  ⚠ 2 row(s) name no session (captured in the primary checkout, on a\n" +
+        "    detached HEAD, where git could not answer, or with no provenance) and are counted in\n" +
+        "    NEITHER side of this ratio.\n",
     ),
     `unattributable warning not found verbatim in:\n${res.body}`,
   );

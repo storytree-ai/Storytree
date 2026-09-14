@@ -152,15 +152,41 @@ export const RESTEER_NOT_COMPUTABLE_WITH_DENOMINATOR: readonly string[] = [
 export const RESTEER_CAPTURE_START = "2026-09-05";
 
 /**
- * Branch stamps that name no session. `(unstamped)` is {@link resteerReport}'s own fallback for a row
- * with no provenance; `HEAD` is what `git rev-parse --abbrev-ref HEAD` returns from a DETACHED
- * checkout, so a row carrying it was captured somewhere that could not say which branch it was on.
+ * What the `resteer` CAPTURE writes in place of a branch when the checkout it ran in identifies no
+ * session (ADR-0568) — minted there, recognised by {@link UNATTRIBUTABLE_BRANCHES}, and defined ONCE
+ * here so the capture and the report cannot drift apart.
  *
- * Neither may enter either side of the ratio. Counting them in the numerator asserts an attribution
+ * ⚠ STORED VOCABULARY. These strings live on rows in the store, so renaming one orphans every row
+ * written under the old spelling: it drops out of the unattributable set and starts reading as a
+ * filing branch that never landed. A change is a NEW stamp added beside the old one, never an edit.
+ *
+ * Each carries a space, which git refuses in a ref name, so no real branch can ever collide with one.
+ */
+export const UNATTRIBUTABLE_CAPTURE_STAMP = {
+  /** The shared primary checkout, whatever branch it is on — it identifies no session (ADR-0033 D1). */
+  primaryCheckout: "(primary checkout)",
+  /** A linked worktree with no branch checked out, so there is no branch name to record. */
+  detachedHead: "(detached HEAD)",
+  /** Git gave no answer at all — not a checkout, or no git. */
+  gitCouldNotAnswer: "(git could not answer)",
+} as const;
+
+/**
+ * Branch stamps that name no session. `(unstamped)` is {@link resteerReport}'s own fallback for a row
+ * with no provenance; the {@link UNATTRIBUTABLE_CAPTURE_STAMP} markers are what the capture writes
+ * when its checkout identifies none; and `HEAD` is their LEGACY form — what the capture stored
+ * verbatim from `git rev-parse --abbrev-ref HEAD` in a detached checkout before it named its reason.
+ * Rows carrying it are kept as recorded, never re-stamped (ADR-0568 D6).
+ *
+ * None may enter either side of the ratio. Counting them in the numerator asserts an attribution
  * nothing supports; counting them in the denominator is not even possible, since the population is
  * built from branch names. They are reported on their own.
  */
-export const UNATTRIBUTABLE_BRANCHES: ReadonlySet<string> = new Set(["(unstamped)", "HEAD"]);
+export const UNATTRIBUTABLE_BRANCHES: ReadonlySet<string> = new Set([
+  "(unstamped)",
+  ...Object.values(UNATTRIBUTABLE_CAPTURE_STAMP),
+  "HEAD",
+]);
 
 /**
  * The session population a rate is computed over. SUPPLIED by the caller and never derived here —

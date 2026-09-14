@@ -45,6 +45,7 @@ import {
   ResteerDispositionBy,
   ResteerMode,
   Resteer,
+  UNATTRIBUTABLE_BRANCHES,
   upcastAndValidate,
   type Annotation,
   type SessionPopulation,
@@ -335,6 +336,14 @@ export async function newResteer(
       ` (called by: ${by.data}).` +
       (disposition.data === "taste"
         ? "\nMarked TASTE: excluded from every error figure by construction (ADR-0513 D4)."
+        : "") +
+      // Said AT CAPTURE, and keyed on the report's own set so the two cannot disagree (ADR-0568 D3/D4).
+      // The row still lands — the count is the datum — but the session filing it learns now that it
+      // names no session, instead of the first sign being a `resteer list` it will never read.
+      (UNATTRIBUTABLE_BRANCHES.has(ctx.branch)
+        ? `\n⚠ UNATTRIBUTABLE: stamped "${ctx.branch}", which names no session, so this row is counted in\n` +
+          "  NEITHER side of the intervention rate (ADR-0548 D6). The capture never guesses a branch in its\n" +
+          "  place (ADR-0568)."
         : ""),
     next: ["storytree resteer list --pg", `storytree library artifact ${saved.id} --pg`],
   };
@@ -412,8 +421,9 @@ export async function listResteer(
     );
     if (rate.unattributableRows > 0) {
       lines.push(
-        `  ⚠ ${rate.unattributableRows} row(s) carry no usable branch stamp (detached HEAD, or no`,
-        "    provenance) and are counted in NEITHER side of this ratio.",
+        `  ⚠ ${rate.unattributableRows} row(s) name no session (captured in the primary checkout, on a`,
+        "    detached HEAD, where git could not answer, or with no provenance) and are counted in",
+        "    NEITHER side of this ratio.",
       );
     }
     if (rate.outsidePopulation.length > 0) {
