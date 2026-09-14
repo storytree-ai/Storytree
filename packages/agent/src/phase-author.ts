@@ -3,7 +3,7 @@
  * through. The spine owns every phase transition; a {@link PhaseAuthor} only ever AUTHORS inside
  * the two authoring phases — it never observes red/green and never reports a verdict (ADR-0020).
  *
- * Three implementations exist by design:
+ * Four implementations exist by design (pi is the fourth, listed last):
  *  - the owned loop (`OwnedLoopAuthor` in @storytree/orchestrator): ScriptedModel/AnthropicModel +
  *    ToolExecutor + write-scoped decorator — the offline/deterministic test harness and the
  *    pivot-out fallback;
@@ -11,7 +11,9 @@
  *    live runtime (ADR-0030/0555), subscription-funded, write-scope enforced via PreToolUse hooks;
  *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the default ChatGPT-subscription
  *    live runtime (ADR-0232/0356/0555), authoring in a disposable replica whose observed, explicitly
- *    manifested changes only the spine can promote.
+ *    manifested changes only the spine can promote;
+ *  - pi ({@link PiPhaseAuthor} in ./pi-author.js): a trial harness admitted for the `--live` smoke and
+ *    refused for `--real` (ADR-0449).
  */
 
 /** The two phases a leaf authors in (ADR-0020 §1). All other phases are spine-only — no leaf runs. */

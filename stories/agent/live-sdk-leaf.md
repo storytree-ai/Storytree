@@ -34,11 +34,12 @@ scope is enforced by a PreToolUse hook BEFORE any write lands (`decideWrite` fai
 NOT in the tool surface (a shell write would bypass the scope hook), and red/green is never this
 runtime's to report — the spine re-runs the proof itself, out-of-band, after the leaf stops.
 
-**The escalate channel (proposed — contract [`sdk-leaf-escalate-tool`](sdk-leaf-escalate-tool.md), ADR-0569 D6; not built at HEAD).**
-Today the in-process `spine` MCP server exists only when the spine wires feedback commands, and a leaf
-that finds a frozen input wrong is told to "stop and say so plainly", in a transcript the spine does
-not read. Under the contract, every authoring slice arms `mcp__spine__escalate` on that server, in both
-phases and with or without feedback commands. The tool spawns nothing, is not a feedback tool, and
+**The escalate channel (contract [`sdk-leaf-escalate-tool`](sdk-leaf-escalate-tool.md), signed PASS run `real-mu1mp1h9`; ADR-0569 D6).**
+Before it, the in-process `spine` MCP server existed only when the spine wired feedback commands, and a
+leaf that found a frozen input wrong was told to "stop and say so plainly", in a transcript the spine
+does not read. Now every authoring slice arms `mcp__spine__escalate` on that server, in both phases and
+with or without feedback commands, and the server is built through an injectable `mcpServerFactory`
+(defaulting to the SDK's `createSdkMcpServer`). The tool spawns nothing, is not a feedback tool, and
 never draws on the feedback-run budget. Its arguments are admitted only through the seam's
 `parseAuthoringEscalation` (contract [`authoring-escalation-shape`](authoring-escalation-shape.md)).
 The first valid call in a slice is recorded, and a recorded escalation is what `author()` returns
@@ -52,6 +53,6 @@ The write-scope decision, the system-prompt composition, and the feedback-tool p
 integration-proven offline against the injected query double (ADR-0010 §2). The live `query()` leg is
 operator-attested, not a free/offline standing test — the boundary every live leg in storytree carries
 (the paid leaf can't be a free/offline standing test). `sdk-curator` (the live curator leaf, ADR-0067)
-rides the same query seam and is consumed by the CLI's `curate` path. The escalate channel, once
-built, is offline-provable the same way: an injected MCP-server factory hands a scripted `queryFn` the
-registered tool definitions, and the contract's own focused proof runs that test.
+rides the same query seam and is consumed by the CLI's `curate` path. The escalate channel is
+offline-proven the same way: an injected MCP-server factory hands a scripted `queryFn` the registered
+tool definitions (`sdk-author-escalation.test.ts`, signed PASS run `real-mu1mp1h9`).
