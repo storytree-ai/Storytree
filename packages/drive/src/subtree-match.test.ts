@@ -17,7 +17,7 @@ test("literalPrefix is everything before the first `*`, and the whole of a patte
   assert.equal(literalPrefix("**/x.ts"), "");
 });
 
-test("the three declarations today's manifest carries covered are covered — the file reading of a literal path", () => {
+test("the three declarations the live manifest once carried covered are covered — the file reading of a literal path", () => {
   assert.equal(subtreeCovers("packages/library/src/store", "packages/library/src/store/pg-work-hierarchy-store.ts"), true);
   assert.equal(subtreeCovers("packages/cli/src/*coverage*.ts", "packages/cli/src/check-desktop-route-coverage.ts"), true);
   assert.equal(subtreeCovers("packages/cli/src/uat*.ts", "packages/cli/src/uat-revision-continuity.ts"), true);

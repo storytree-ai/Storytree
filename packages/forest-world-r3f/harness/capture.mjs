@@ -24,8 +24,15 @@
 //   ST_HARNESS_URL           the page to photograph (default: the plant row on :5184)
 //   ST_OUT_DIR               where the pictures and the report go, REPO-ROOT-relative
 //   ST_FULL_PAGE_NAME        filename for the whole-page screenshot
-//   ST_PANEL_NAMES           comma-separated names zipped POSITIONALLY against <section>s
+//   ST_PANEL_NAMES           comma-separated panel ids, each bound to the <section> carrying it as
+//                            `data-st-panel` (unset: every authored panel — see capture-panels.ts)
 //   ST_EXPECT_PROP_CANVASES  how many islands must have had their props verified (default 0)
+//   ST_NAVIGATION_ALLOWANCE_MS  how long the page may take to reach `load` (default 180000 — a COLD
+//                            vite needs far more than 30 s on a busy box; see capture-navigation.ts)
+//
+// HOW IT EXITS. 0 when every claim held. 75 when the allowance ran out while the dev server was still
+// holding the page's module requests — a cold start, so run it again against the SAME server. 1 for
+// every other refusal, a broken page included.
 //
 // ⚠ START THE DEV SERVER FROM THE WORKTREE YOU ARE TESTING. A harness left running by another
 // worktree answers on the same port and this script will photograph ITS tree perfectly happily,
@@ -75,6 +82,18 @@ import { checkPropPresence, describePresenceFailure } from './prop-presence.js';
 // the same reason as everything above it: the declaration of what each canvas claims to be lives
 // inside this script's own module graph, not on the page being audited.
 import { checkColourSpread, describeSpreadFailure } from './colour-spread.js';
+// THE NAVIGATION BOUNDARY — the bounded allowance the page load runs under, and the refusal that
+// tells a COLD dev server from a BROKEN page when either wait ends early. In its own module for the
+// reason every import above is: the rule is provable under `node:test`, and a driver carrying its
+// own copy of a rule is how the rule and its proof drift apart.
+import {
+  NAVIGATION_ALLOWANCE_ENV,
+  SETTLE_TIMEOUT_MS,
+  explainLoadedPage,
+  explainNavigationFailure,
+  parseNavigationAllowance,
+  watchNavigation,
+} from './capture-navigation.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The output directory is overridable so one capture script serves both evidence pages
@@ -87,10 +106,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../..', process.env['ST_OUT_DIR'] ?? 'docs/research/chapter2-live-render-2026-08-19');
 const URL = process.env['ST_HARNESS_URL'] ?? 'http://localhost:5184/compare.html';
 
-function fail(msg) {
+function fail(msg, code = 1) {
   console.error(`REFUSED: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
+
+// Parsed BEFORE the browser starts, so a mistyped allowance costs nothing to find out about.
+const allowance = parseNavigationAllowance(process.env[NAVIGATION_ALLOWANCE_ENV]);
+if (!allowance.ok) fail(allowance.refusal);
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 1100 } });
@@ -99,11 +122,50 @@ page.on('console', (m) => {
   if (m.type() === 'error') consoleErrors.push(m.text());
 });
 page.on('pageerror', (e) => consoleErrors.push(String(e)));
+// Subscribed BEFORE the navigation, or the requests a cold server holds first — the document and
+// the first modules — are exactly the ones never seen.
+const network = watchNavigation(page);
 
-await page.goto(URL, { waitUntil: 'load' });
+// THE NAVIGATION RUNS UNDER A STATED, BOUNDED ALLOWANCE, never Playwright's unstated 30 s default.
+// A vite serving this page for the first time answers nothing until it has scanned, pre-bundled and
+// transformed the R3F/three graph, and with other sessions' gates on the box that is far past 30 s
+// (88 s measured — the ladder is in `capture-navigation.ts`). What a failure MEANS is read off the
+// network, never off the fact of a timeout: a cold server refuses with exit 75 (the same server, run
+// again) and a broken page with exit 1. Every refusal here exits before `OUT` is created, so a failed
+// navigation can never leave a partial evidence directory behind.
+try {
+  await page.goto(URL, { waitUntil: 'load', timeout: allowance.ms });
+} catch (error) {
+  const refusal = explainNavigationFailure({
+    url: URL,
+    phase: 'navigation',
+    error,
+    limitMs: allowance.ms,
+    snapshot: network.snapshot(),
+    consoleErrors,
+  });
+  fail(refusal.message, refusal.exitCode);
+}
+// A page `load` has already shown to be broken is refused NOW. The settled wait below could only end
+// in a refusal for it, thirty seconds later and with less to say about why.
+const brokenAtLoad = explainLoadedPage(URL, network.snapshot(), consoleErrors);
+if (brokenAtLoad) fail(brokenAtLoad.message, brokenAtLoad.exitCode);
 
-// Gate on the page's OWN settled signal, never a sleep.
-await page.waitForFunction(() => window.__stExperimentSettled === true, null, { timeout: 30_000 });
+// Gate on the page's OWN settled signal, never a sleep — the same signal and the same 30 s as ever;
+// only a settle that runs out is now explained instead of thrown.
+try {
+  await page.waitForFunction(() => window.__stExperimentSettled === true, null, { timeout: SETTLE_TIMEOUT_MS });
+} catch (error) {
+  const refusal = explainNavigationFailure({
+    url: URL,
+    phase: 'settle',
+    error,
+    limitMs: SETTLE_TIMEOUT_MS,
+    snapshot: network.snapshot(),
+    consoleErrors,
+  });
+  fail(refusal.message, refusal.exitCode);
+}
 
 if (consoleErrors.length) fail(`the page logged errors:\n  ${consoleErrors.join('\n  ')}`);
 

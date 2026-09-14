@@ -21,13 +21,14 @@ depends_on: []
 # The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
 # story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
 # which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
-# listed. `phase-author-seam` (no capability-level red→green) and `live-sdk-leaf` (an
-# operator-attested live leg, and it depends_on the unwired phase-author-seam) carry NO `real:` arm, so
-# they are deliberately UNLISTED — listing either would make `isStoryBuildable` return false for the
-# whole story. Each does carry a CONTRACT with its own `real:` arm since ADR-0569
-# (`authoring-escalation-shape`, `sdk-leaf-escalate-tool`); a contract is built one grain down and
-# leaves this capability-level answer unchanged. The 3 form a closed set: model-runtime-seam (depends_on []), leaf-tool-surface
-# (depends_on [model-runtime-seam]), owned-turn-loop (depends_on [model-runtime-seam, leaf-tool-surface]).
+# listed. `phase-author-seam` (no capability-level red→green), `live-sdk-leaf` and `live-codex-leaf`
+# (operator-attested live legs, each depending on the unwired phase-author-seam) carry NO `real:` arm,
+# so they are deliberately UNLISTED — listing any of them would make `isStoryBuildable` return false for
+# the whole story. `phase-author-seam` and `live-sdk-leaf` each do carry a CONTRACT with its own `real:`
+# arm since ADR-0569 (`authoring-escalation-shape`, `sdk-leaf-escalate-tool`); a contract is built one
+# grain down and leaves this capability-level answer unchanged. The 3 form a closed set:
+# model-runtime-seam (depends_on []), leaf-tool-surface (depends_on [model-runtime-seam]),
+# owned-turn-loop (depends_on [model-runtime-seam, leaf-tool-surface]).
 capabilities: [model-runtime-seam, leaf-tool-surface, owned-turn-loop]
 # Provider-side inbound edges (ADR-0074 §4 / ADR-0058 §3): the orchestrator (drive-machinery) and the
 # cli HUB both import @storytree/agent as a RUNTIME dependency. The drive-machinery → agent edge is
@@ -157,7 +158,7 @@ standing-tested live legs.** The owned loop, the file-tool surface, the model se
 leaves' authentication/result/scope decisions are offline-proven; the genuinely live SDK/CLI
 subscription invocations remain need-gated, never a standing test in this package.
 
-## Capabilities (5)
+## Capabilities (6)
 
 Listed roots-first (a capability appears after everything it depends on). Edges are **within-story,
 code-derived** (ADR-0010 §3) — read off the real `./`-imports between the source files, never
@@ -168,7 +169,7 @@ The **buildable** column marks the split this story now carries. Three capabilit
 (ADR-0057 — they carry a `proof:` block with a `real:` arm describing a genuine additive red→green
 against the real `packages/agent/src` source) and are listed in the story's `capabilities:`
 frontmatter; that closed, acyclic, every-cap-has-a-`real:`-arm set is exactly what makes the WHOLE
-story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Two are **authored but
+story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Three are **authored but
 intentionally unwired** — they cannot carry a genuine standalone red→green (see the note below the
 table) — so they are NOT in the buildable set, kept honestly `proposed` as documented gaps.
 
@@ -179,8 +180,22 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
 | 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | proposed | **yes** (proof-wired) | `model-runtime-seam` |
 | 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | proposed | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
 | 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam` |
+| 6 | [`live-codex-leaf`](live-codex-leaf.md) | The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam` |
 
-**Why two capabilities stay unwired (honest gaps, not omissions).**
+**Why the two live leaves are separate capabilities (split 2026-09-15).** Until that date
+`repo-manifest.json` homed `codex-*.ts` under `live-sdk-leaf`, whose outcome names only the Claude
+Agent SDK leaf, so no capability described the Codex leaf at all. Claim contention surfaced the gap:
+two sessions changing disjoint files — one `sdk-author.ts`, one `codex-author.ts` — both needed that
+single capability. A claim conflict is never an owner question (ADR-0346), and the orchestrator
+discipline routes a capability drawn too coarse for two disjoint sessions to the story-author. Both
+triggers of the `splitting-rule` fire. Folded, the outcome is a conjunction of two runtimes with
+different walls: the SDK leaf's PreToolUse hook refuses a write before it lands, while the Codex leaf's
+replica diff is judged only after its turn. And the proofs share neither precondition nor observable:
+one runs over an injected `queryFn` and observes hook decisions, the other over an injected
+`CodexRunner` and observes a replica diff and its promotion. Neither source file imports the other, so
+the split crosses no code edge.
+
+**Why three capabilities stay unwired (honest gaps, not omissions).**
 
 - **`phase-author-seam` is a pure type module.** `phase-author.ts` declares `AuthoringPhase`,
   `AuthorResult`, and the `PhaseAuthor` interface — no runtime, no test of its own to count (its own
@@ -196,6 +211,13 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
   leaf). So it has no free, offline red→green to drive under the gate. It also `depends_on:
   [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
   regardless. It stays `proposed`, unwired.
+- **`live-codex-leaf` has the same shape: an operator-attested live leg and an unwired dependency.**
+  Its DECISION functions are offline-proven over an injected `CodexRunner` (the login proof, the
+  credential scrub, the pinned command, the one-turn JSONL contract, manifest validation, replica
+  promotion and rollback, the spawn bound), but its defining behaviour — a real `codex exec` turn
+  drawing on a ChatGPT subscription — is need-gated and operator-attested, never a standing offline
+  test. It also `depends_on` the unwired `phase-author-seam`, so dependency-closure would exclude it
+  from the buildable set regardless. It stays `proposed`, unwired.
 
 > **The Cursor second-harness leaf remains RETIRED (ADR-0198, superseding ADR-0177; subsequently
 > superseded by ADR-0232 without reversing that retirement).** The former
@@ -229,16 +251,21 @@ contract shape IS the coupling) and marked.
   - `sdk-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
-- The second live implementation also consumes `phase-author-seam`: `codex-author.ts` implements
-  `CodexPhaseAuthor` over the official Codex CLI. The injection layer binds it by default when the
-  runtime is omitted (ADR-0555), without changing the Claude-specific `live-sdk-leaf` capability above.
+- `live-codex-leaf` → `phase-author-seam`
+  - `codex-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
+    `./phase-author.js` — `CodexPhaseAuthor` IS the second live implementation of the seam, and the one
+    the injection layer binds when the runtime is omitted (ADR-0555).
+- `live-codex-leaf` → `model-runtime-seam`
+  - `codex-author.ts` imports `TokenUsage` (type) from `./model-events.js` — its run record reports the
+    CLI's token usage in the model-event vocabulary's own shape.
 
 **Cross-story:** **none outbound** — `depends_on: []`. No source file in this package imports another
 storytree organism, in value or in type; the one edge this story used to carry went with the
 claim-at-spawn gate ADR-0175 deleted (see **Direction & the no-cycle check**). Inbound: the `PhaseAuthor` seam (and the
 re-exported model-event vocabulary `port`) is consumed by `drive-machinery` (the spine's
-`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `CodexPhaseAuthor` (the
-omitted-runtime default) or `ClaudeAgentAuthor` (`--runtime claude`) in the CLI's build path — declared
+`OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to either `CodexPhaseAuthor`
+([`live-codex-leaf`](live-codex-leaf.md), the omitted-runtime default) or `ClaudeAgentAuthor`
+([`live-sdk-leaf`](live-sdk-leaf.md), `--runtime claude`) in the CLI's build path — declared
 as the drive-machinery `depends_on agent` edge and this story's `consumed_by: [cli]`.
 
 ## This story's published interface (ADR-0010 §4)
@@ -428,9 +455,10 @@ ADR-0020 `healthy` is only ever DERIVED from signed verdicts — *(scope note 20
 capabilities — `model-runtime-seam`, `leaf-tool-surface`, `owned-turn-loop` — each carry a
 `capability`-mode PASS verdict, i.e. the "next rung" below was not merely authored but DRIVEN. What
 genuinely has no verdict is the pair that never could: `phase-author-seam` and `live-sdk-leaf`, the
-two deliberately unwired capabilities — exactly as **Capabilities (5)** predicts.)*. The remaining
-bootstrap rung is therefore only those two, and neither carries a genuine standalone red→green
-(ADR-0057) to drive.
+two deliberately unwired capabilities — exactly as the capability table then predicted.)* *(Split note
+2026-09-15: `live-codex-leaf`, carved out of `live-sdk-leaf` that day, is a third — a new id with no
+verdict, unwired for the same reason; see **Capabilities (6)**.)* The remaining bootstrap rung is
+therefore only those three, and none carries a genuine standalone red→green (ADR-0057) to drive.
 
 ### This story is now story-`real`-buildable (the first rung is taken)
 
@@ -454,15 +482,17 @@ story's own UAT node is **WITHHELD** from the real build — `isStoryBuildable` 
 machine-driven story UAT, and the integrated acceptance walkthrough above stays human/operator-attested
 (part-scripted, part live-attested, per **Honest status**). So driving the three capabilities to a
 signed verdict is exactly what makes the WHOLE story buildable; the story crown still awaits its human
-witness. The two unwired capabilities (`phase-author-seam`, `live-sdk-leaf`)
+witness. The three unwired capabilities (`phase-author-seam`, `live-sdk-leaf`, `live-codex-leaf`)
 remain documented gaps — they carry no genuine standalone red→green to drive (see
-**Capabilities (5)**), so they are not yet a
+**Capabilities (6)**), so they are not yet a
 rung anyone can take.
 
 ## Open modeling calls (for the owner)
 
-1. **Capability granularity.** Five capabilities split by the within-story code seam (model /
-   tool-surface / turn-loop / phase-author / sdk-leaf). The `model-runtime-seam` bundles the `Model`
+1. **Capability granularity.** Six capabilities split by the within-story code seam (model /
+   tool-surface / turn-loop / phase-author / sdk-leaf / codex-leaf); the codex-leaf split, on
+   2026-09-15, was drawn by the story-author under the claim rule rather than put to the owner (see
+   **Capabilities (6)**). The `model-runtime-seam` bundles the `Model`
    seam + the model-event vocabulary `port`; splitting the published model-event `port` into its own
    sub-capability (the way `proof-protocol` is a pure published shape) is an option if a real defect
    makes it worth proving on its own.
