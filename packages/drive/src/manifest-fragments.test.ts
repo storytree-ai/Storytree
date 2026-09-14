@@ -31,9 +31,9 @@ import { composeManifestTree, readManifestFragmentTree } from "./manifest-fragme
  *  2. The pieces it rests on: the covering search's candidate bound, the duplicate-key scan, the
  *     canonical form, and the disk reader.
  *  3. THE LIVE MANIFEST. `repo-manifest.json` is split at the claim grain and composed back, and must
- *     come back as itself — every declaration and every note — once the declarations it already
- *     carries COVERED are set aside. Those the composer refuses by design, and `storytree ownership`
- *     has long reported the same files contested. No DB and no network: the manifest is a committed file.
+ *     come back as itself — every declaration and every note, with nothing set aside: it may carry no
+ *     declaration another COVERS, which the composer refuses by design and `storytree ownership` reports
+ *     as a contested file. No DB and no network: the manifest is a committed file.
  */
 
 /** This file sits at `<repo>/packages/drive/src/`. */
@@ -721,24 +721,22 @@ function lazy<T>(make: () => T): () => T {
 const liveText = lazy(() => readFileSync(LIVE_MANIFEST, "utf8"));
 
 /**
- * The live manifest, what composing its fragments refused, and the manifest with the declarations it
- * carries COVERED set aside. The composer names those; setting them aside is this test's doing, and
- * everything else must survive the trip.
+ * The live manifest, and what composing its claim-grain fragments refused — which must be nothing.
+ * Increment 1 landed these tests setting aside the three declarations the manifest then carried COVERED;
+ * `repo-manifest-covered-declarations-resolved` narrowed the broader side of each pair, so nothing is set
+ * aside and a covering pair is a red here as well as a CONTESTED line in `storytree ownership`.
  */
 const live = lazy(() => {
   const whole: ManifestObject = JSON.parse(liveText());
-  const first = composeManifest(splitManifest(whole));
-  const refused = first.ok ? [] : first.faults;
-  const covered = refused.flatMap((f) => (f.kind === "overlapping-declaration" ? [f.specific.subtree] : []));
-  const setAside = covered.reduce((m, subtree) => edited(m, ["sourceOwnership", "subtrees", subtree], undefined), whole);
-  return { refused, covered, setAside };
+  const composed = composeManifest(splitManifest(whole));
+  return { whole, refused: composed.ok ? [] : composed.faults };
 });
 
 test("LIVE: the committed manifest repeats no key — the one fault a split of its parsed form could never see", () => {
   assert.deepEqual(duplicateKeyPaths(liveText()), []);
 });
 
-test("LIVE: repo-manifest.json is refused only for declarations it carries COVERED — never for its shape", () => {
+test("LIVE: repo-manifest.json is never refused for its shape", () => {
   assert.deepEqual(
     live().refused.filter((f) => f.kind !== "overlapping-declaration").map((f) => f.message),
     [],
@@ -746,15 +744,23 @@ test("LIVE: repo-manifest.json is refused only for declarations it carries COVER
   );
 });
 
+test("LIVE: repo-manifest.json carries no declaration COVERED by another — nothing is set aside", () => {
+  assert.deepEqual(
+    live().refused.filter((f) => f.kind === "overlapping-declaration").map((f) => f.message),
+    [],
+    "a covered declaration's files would be credited by declaration order, which fragments do not have — each message names its repair",
+  );
+});
+
 test("LIVE: repo-manifest.json round-trips through its claim-grain fragments — every declaration and every note", () => {
-  const { setAside, covered } = live();
-  const split = splitManifest(setAside);
-  assert.deepEqual(manifestOf(composeManifest(split)), setAside);
+  const { whole } = live();
+  const split = splitManifest(whole);
+  assert.deepEqual(manifestOf(composeManifest(split)), whole);
 
   // Not vacuous: hundreds of declarations, the notes that carry the authoring rules, one fragment per owner.
-  const subtrees = objectAt(setAside, "sourceOwnership", "subtrees");
+  const subtrees = objectAt(whole, "sourceOwnership", "subtrees");
   const declared = Object.keys(subtrees).filter((key) => !key.startsWith("$"));
-  assert.ok(declared.length + covered.length > 500, `only ${declared.length} declarations read`);
+  assert.ok(declared.length > 500, `only ${declared.length} declarations read`);
   assert.ok(Object.keys(subtrees).filter((key) => key.startsWith("$")).length >= 10, "the section notes are missing");
   const owners = new Set(declared.map((key) => subtrees[key]));
   const ownerShards = split.filter((f) => f.path.startsWith("source-ownership/") && f.path !== "source-ownership/_domain.json");
@@ -762,9 +768,9 @@ test("LIVE: repo-manifest.json round-trips through its claim-grain fragments —
 });
 
 test("LIVE: the same fragments, written to disk and read back, compose to the same manifest in the same bytes", () => {
-  const { setAside } = live();
-  const split = splitManifest(setAside);
+  const { whole } = live();
+  const split = splitManifest(whole);
   const fromDisk = manifestOf(composeManifestTree(tree(Object.fromEntries(split.map((f) => [f.path, f.text])))));
-  assert.deepEqual(fromDisk, setAside);
+  assert.deepEqual(fromDisk, whole);
   assert.equal(JSON.stringify(fromDisk), JSON.stringify(manifestOf(composeManifest([...split].reverse()))));
 });
