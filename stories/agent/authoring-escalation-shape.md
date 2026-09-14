@@ -89,7 +89,9 @@ This contract changes the `PhaseAuthor` seam in `packages/agent/src/phase-author
   read from the input, and an input's own `phase` key is ignored. `statement` and `assertion` are
   trimmed and must be non-blank strings. An IMPLEMENT escalation without an assertion is refused,
   because a leaf that cannot name the assertion it cannot satisfy has not found an unsatisfiable
-  test. An AUTHOR_TEST escalation carries no `assertion`, whatever the input holds.
+  test. An AUTHOR_TEST escalation carries no `assertion`. A present `assertion` is still validated in
+  either phase, so a malformed one is refused even on AUTHOR_TEST, where a well-formed one is dropped —
+  the leaf's choice at build `real-mu1lbfen`, on the reading that a malformed field is malformed input.
 - **The authority, stated where the type is declared (ADR-0569 D2).** The doc comment on
   `AuthoringEscalation` says an escalation can end a walk without a verdict, and can never advance a
   phase, produce a verdict, or enter a verdict's evidence.
