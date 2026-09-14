@@ -49,7 +49,14 @@ export { runTurn, DEFAULT_MAX_TURNS } from "./run-turn.js";
 export type { StepResult, StepArgs } from "./step.js";
 export { runStep, runStepValidated } from "./step.js";
 
-export type { AuthoringPhase, AuthorResult, LiveRuntime, PhaseAuthor } from "./phase-author.js";
+export type {
+  AuthoringPhase,
+  AuthorResult,
+  AuthoringEscalation,
+  LiveRuntime,
+  PhaseAuthor,
+} from "./phase-author.js";
+export { parseAuthoringEscalation } from "./phase-author.js";
 
 export type {
   SdkQueryFn,
