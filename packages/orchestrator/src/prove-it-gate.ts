@@ -275,7 +275,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     const obs = await spec.testExecutor.run(spec.testId);
     return fail(
       "AUTHOR_TEST",
-      `leaf escalated at AUTHOR_TEST (${escalation.kind}): ${authored.error}`,
+      `leaf escalated at AUTHOR_TEST (${escalation.kind}): ${authored.error}` + describeEscalation(escalation),
       visited,
       { escalation: buildEscalationRecord(escalation, spec.testId, obs.originalProcessResult) },
     );
@@ -359,9 +359,13 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     // WHY (the proof exited 0 but did not exercise the oracle) — surface it so the refusal is forensic,
     // not just "not green".
     const noteSuffix = greenObs.note !== undefined ? ` — ${greenObs.note}` : "";
+    // ADR-0569 D3: a STANDING (confirmed) IMPLEMENT escalation names itself AFTER every existing
+    // suffix above — the ordinary refusal a leaf-free twin would give is unchanged byte for byte;
+    // only text naming the escalation's kind and quoting its statement verbatim is appended.
+    const escalationSuffix = implementEscalation !== undefined ? describeEscalation(implementEscalation.raised) : "";
     return fail(
       "CONFIRM_GREEN",
-      greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green"),
+      greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green") + escalationSuffix,
       visited,
       { failedObservation: greenObs.originalProcessResult, escalation: implementEscalation },
     );
@@ -533,6 +537,15 @@ function exhaustionNote(reason: string | null, target: string): string {
     ? ""
     : ` — the leaf exhausted its turn/budget ceiling before reaching ${target} ` +
         `(${reason}); raise --max-turns/--budget and retry`;
+}
+
+/**
+ * ADR-0569 D3/D4: the text a refusal appends to name the authoring escalation it carries — the
+ * escalation's `kind` and its `statement` quoted verbatim. Appended AFTER every existing suffix a
+ * leaf-free twin's reason would already carry, never in place of it.
+ */
+function describeEscalation(escalation: AuthoringEscalation): string {
+  return ` — escalation (${escalation.kind}): "${escalation.statement}"`;
 }
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */
