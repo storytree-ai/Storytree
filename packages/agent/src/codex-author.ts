@@ -47,6 +47,29 @@ export interface CodexCommand {
    * spine makes to AUTHOR, which had none.
    */
   timeoutMs?: number;
+  /**
+   * An otherwise-empty handle the caller supplies. Before this returns its pending promise,
+   * `runPinnedCodexCli` populates it with real `suspend`/`resume` functions bound to this one spawn.
+   * See {@link CodexBoundControl}.
+   */
+  bound?: CodexBoundControl;
+}
+
+/**
+ * A caller-owned handle letting the spine pause a leaf spawn's bound while it runs a feedback
+ * command, then resume it with exactly the remaining time — so only the leaf's own time counts
+ * against the bound. `runPinnedCodexCli` assigns both members onto the SAME object the caller passed
+ * in via {@link CodexCommand.bound}, before returning its pending promise.
+ *
+ * Both start `undefined` and are populated synchronously (the promise executor runs up to that point
+ * before `runPinnedCodexCli` returns, exactly as the spawn and the initial `clock.setTimeout` already
+ * do). A repeated `suspend()` while already suspended, or `resume()` while already armed, changes
+ * nothing; either call after the spawn has settled changes nothing either, since an armed timer left
+ * behind would keep a finished spawn reachable.
+ */
+export interface CodexBoundControl {
+  suspend?: () => void;
+  resume?: () => void;
 }
 
 export interface CodexCommandResult {
@@ -117,6 +140,12 @@ export type CodexRunner = (command: CodexCommand) => Promise<CodexCommandResult>
 export interface CodexBoundClock {
   setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout>;
   clearTimeout(handle: ReturnType<typeof setTimeout>): void;
+  /**
+   * The time source the suspend/resume remaining-time arithmetic reads. Optional and defaulted to
+   * the system clock's `Date.now`, so an existing test clock declaring only `setTimeout`/
+   * `clearTimeout` keeps typechecking against this interface unchanged.
+   */
+  now?(): number;
 }
 
 const SYSTEM_CLOCK: CodexBoundClock = { setTimeout, clearTimeout };
@@ -556,8 +585,12 @@ export async function runPinnedCodexCli(
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let timedOut = false;
+    let settled = false;
+    const now = (): number => clock.now?.() ?? Date.now();
     // The bound. Released in `settle`, on `exit` or on `error`, so it never outlives the child it
-    // bounds and needs no `unref`.
+    // bounds and needs no `unref`. While `armedTimer` is defined the bound is live; suspending it
+    // (see `command.bound` below) releases it and remembers the remaining time, so only the leaf's
+    // own time — never time spent while the spine runs a feedback command — counts against it.
     //
     // It signals the WRAPPER, not the native binary that stopped answering, and still reaches that
     // binary on both platforms (measured on codex-cli 0.145.0, inner-loop-exit-arc inc-07). On POSIX
@@ -567,12 +600,36 @@ export async function runPinnedCodexCli(
     // this is TerminateProcess on the wrapper alone, but the wrapper's own libuv holds its child
     // in a kill-on-close job object, so the native binary ends with it. SIGKILL alone would
     // ORPHAN the native binary on POSIX, because a SIGKILL cannot be forwarded.
-    const bound = clock.setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, resolveCodexTimeoutMs(command));
+    let armedTimer: ReturnType<typeof setTimeout> | undefined;
+    let armedAt = 0;
+    let remainingMs = resolveCodexTimeoutMs(command);
+    const arm = (ms: number): void => {
+      armedAt = now();
+      remainingMs = ms;
+      armedTimer = clock.setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, ms);
+    };
+    arm(remainingMs);
+    if (command.bound !== undefined) {
+      command.bound.suspend = () => {
+        if (settled || armedTimer === undefined) return;
+        remainingMs = Math.max(0, remainingMs - (now() - armedAt));
+        clock.clearTimeout(armedTimer);
+        armedTimer = undefined;
+      };
+      command.bound.resume = () => {
+        if (settled || armedTimer !== undefined) return;
+        arm(remainingMs);
+      };
+    }
     const settle = (fn: () => void): void => {
-      clock.clearTimeout(bound);
+      settled = true;
+      if (armedTimer !== undefined) {
+        clock.clearTimeout(armedTimer);
+        armedTimer = undefined;
+      }
       fn();
     };
     child.once("error", (error) => settle(() => reject(error)));
