@@ -104,8 +104,10 @@ async function postRaw(
   token: string | undefined,
   body: Record<string, unknown>,
 ): Promise<{ status: number; text: string }> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token !== undefined) headers["Authorization"] = `Bearer ${token}`;
+  const headers =
+    token === undefined
+      ? { "Content-Type": "application/json" }
+      : { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
   const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   return { status: res.status, text: await res.text() };
 }
@@ -298,7 +300,7 @@ test(
       );
       const unknownToolBody = parseJson<JsonRpcFailure>(unknownTool.text);
       assert.notEqual(unknownToolBody.error, undefined);
-      assert.equal((unknownToolBody as unknown as JsonRpcSuccess).result, undefined);
+      assert.equal("result" in unknownToolBody, false);
       assert.equal(runProofLog.length, 1);
 
       const unknownMethod = await within(
@@ -311,7 +313,7 @@ test(
       );
       const unknownMethodBody = parseJson<JsonRpcFailure>(unknownMethod.text);
       assert.notEqual(unknownMethodBody.error, undefined);
-      assert.equal((unknownMethodBody as unknown as JsonRpcSuccess).result, undefined);
+      assert.equal("result" in unknownMethodBody, false);
       assert.equal(runProofLog.length, 1);
       assert.equal(runTypecheckLog.length, 0);
 

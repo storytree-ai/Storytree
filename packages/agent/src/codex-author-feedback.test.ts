@@ -39,7 +39,12 @@ import * as path from "node:path";
 import { test } from "node:test";
 
 import { CodexPhaseAuthor } from "./codex-author.js";
-import type { CodexCommand, CodexPhaseAuthorArgs, CodexRunner } from "./codex-author.js";
+import type {
+  CodexCommand,
+  CodexCommandResult,
+  CodexPhaseAuthorArgs,
+  CodexRunner,
+} from "./codex-author.js";
 import type { CodexFeedbackCommand } from "./codex-feedback-endpoint.js";
 
 const WRITE_GLOBS = {
@@ -96,7 +101,7 @@ function configValue(args: string[], key: string): string | undefined {
   return undefined;
 }
 
-function loginSuccess(): { code: number; stdout: string; stderr: string } {
+function loginSuccess(): CodexCommandResult {
   return { code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" };
 }
 

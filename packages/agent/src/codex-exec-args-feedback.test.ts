@@ -6,10 +6,8 @@ import { buildCodexExecArgs, DEFAULT_CODEX_MODEL } from "./codex-author.js";
 const CWD = process.platform === "win32" ? "C:\\work\\tree" : "/work/tree";
 
 /**
- * The optional `feedback` option `buildCodexExecArgs` does not yet accept. Declared locally, and the
- * call sites below reach it through an `unknown` cast, so this test compiles under the CURRENT
- * two-field signature (AUTHOR_TEST scope forbids touching `codex-author.ts`) and stays compiling once
- * IMPLEMENT widens that signature to match.
+ * The builder's `feedback` option plus one property the contract deliberately does not declare, `token`,
+ * which the last test forces in to show that no token value reaches an argument.
  */
 interface CodexExecFeedbackOption {
   url: string;
@@ -25,9 +23,12 @@ interface CodexExecArgsWithFeedback {
   feedback?: CodexExecFeedbackOption;
 }
 
-const buildArgsWithFeedback = buildCodexExecArgs as unknown as (
-  args: CodexExecArgsWithFeedback,
-) => string[];
+/**
+ * `buildCodexExecArgs` reached through a parameter type that also admits that `token`: a fresh object
+ * literal carrying it would be refused by the builder's own excess-property check. The assignment is
+ * checked, not asserted — it compiles only because the builder accepts every argument of this shape.
+ */
+const buildArgsWithFeedback: (args: CodexExecArgsWithFeedback) => string[] = buildCodexExecArgs;
 
 /** Today's exact command, written out literally — never produced by calling the builder again. */
 const TODAYS_ARGS = [

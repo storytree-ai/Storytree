@@ -426,13 +426,16 @@ function buildFeedbackMcpServersConfigArgs(feedback: CodexExecFeedbackConfig): s
   ];
 }
 
-/** Pure command construction exported so offline tests pin every security-relevant flag. */
-export function buildCodexExecArgs(args: {
+/** What {@link buildCodexExecArgs} turns into a Codex exec command. */
+export interface CodexExecArgsInput {
   model: string;
   cwd: string;
   /** Arms a loopback spine MCP server for a feedback phase; omitted, the command is unchanged. */
   feedback?: CodexExecFeedbackConfig;
-}): string[] {
+}
+
+/** Pure command construction exported so offline tests pin every security-relevant flag. */
+export function buildCodexExecArgs(args: CodexExecArgsInput): string[] {
   return [
     "exec",
     "--json",
@@ -1211,7 +1214,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         });
       }
 
-      const execArgsInput: { model: string; cwd: string; feedback?: CodexExecFeedbackConfig } = {
+      const execArgsInput: CodexExecArgsInput = {
         model,
         cwd: replicaDir,
       };

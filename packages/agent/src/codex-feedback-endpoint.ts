@@ -90,7 +90,20 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-function rpcError(id: unknown, code: number, message: string): unknown {
+/** A JSON-RPC 2.0 error answer. */
+interface JsonRpcErrorResponse {
+  jsonrpc: "2.0";
+  id: number | string | null;
+  error: { code: number; message: string };
+}
+
+/** A `tools/call` answer: the run's framed output as one MCP text item, marked `isError` on a refusal. */
+interface McpToolCallResult {
+  content: { type: "text"; text: string }[];
+  isError?: true;
+}
+
+function rpcError(id: unknown, code: number, message: string): JsonRpcErrorResponse {
   const rpcId = typeof id === "number" || typeof id === "string" || id === null ? id : null;
   return { jsonrpc: "2.0", id: rpcId, error: { code, message } };
 }
@@ -141,7 +154,7 @@ export async function openCodexFeedbackEndpoint(
         record(run);
       },
     });
-    const result: { content: { type: "text"; text: string }[]; isError?: true } = {
+    const result: McpToolCallResult = {
       content: [{ type: "text", text: outcome.text }],
     };
     if (outcome.isError) result.isError = true;
