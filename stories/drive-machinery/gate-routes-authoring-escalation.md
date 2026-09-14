@@ -78,8 +78,8 @@ recording signing store:
 2. **IMPLEMENT escalation, still red.** AUTHOR_TEST succeeds over a red child; the IMPLEMENT slice
    returns an IMPLEMENT escalation and the child stays red. Read `CONFIRM_GREEN` among the visited
    phases, two markers, no signing row, `failedAt: "CONFIRM_GREEN"`, `failedObservation` equal to the
-   second child's exact output, `escalation` deep-equal to `{ raised, testId }` with no `observation`
-   key, and a `reason` containing the escalation's `kind`.
+   second child's exact output, and `escalation` deep-equal to `{ raised, testId }` with no
+   `observation` key.
 3. **IMPLEMENT escalation, overruled.** The child exits red at CONFIRM_RED and green at CONFIRM_GREEN
    (for example it checks for a file the scripted IMPLEMENT slice writes), and the IMPLEMENT slice
    returns an IMPLEMENT escalation. Read exactly one signing row, `ok: true`, `overruledEscalation`
@@ -90,7 +90,7 @@ recording signing store:
 4. **Phase mismatch.** An IMPLEMENT escalation returned from the AUTHOR_TEST slice fails closed at
    AUTHOR_TEST with no marker; an AUTHOR_TEST escalation returned from the IMPLEMENT slice fails closed
    at IMPLEMENT with only the CONFIRM_RED marker. Neither result carries `escalation` or
-   `overruledEscalation`, neither writes a signing row, and each `reason` names both phases.
+   `overruledEscalation`, and neither writes a signing row.
 5. **Exhausted and escalating.** A slice returning `exhausted: true` together with an escalation is
    routed as that escalation: at AUTHOR_TEST it reads as step 1 and never reaches CONFIRM_RED; at
    IMPLEMENT it carries the record step 2 or step 3 carries.
@@ -98,6 +98,22 @@ recording signing store:
    IMPLEMENT error still fails at IMPLEMENT with only the CONFIRM_RED marker; neither carries an
    escalation key. An exhausted slice without an escalation still falls through to its CONFIRM
    observation.
+
+What a standing IMPLEMENT escalation's `reason` and a mismatch `reason` say is contract
+[`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md)'s
+to prove: this contract's signed proof (run `real-mu1lv3wm`) matched only the CONFIRM_GREEN wording
+in the first and asserted nothing about the second.
+
+**Declared gap at landing (ADR-0563 D3 — no mutation rung reaches `packages/orchestrator`).** The
+signed proof did not use the setup this walkthrough names. `prove-it-gate.escalation.test.ts` drives
+`proveUnit` with `RecordingTestExecutor` observations and a `FakeAuthor`, not `ShellTestExecutor`
+children. It therefore reads a call record rather than child-written markers, and it never exercises:
+`failedObservation` on an escalation path, step 1's red child, the absence of an IMPLEMENT request,
+step 5, an AUTHOR_TEST escalation returned from the IMPLEMENT slice, step 3's verdict deep-equality,
+or step 6. The routing those clauses describe was confirmed present in the landed `prove-it-gate.ts`
+by reading the code — a check that the behaviour exists, not a judgement of the test. Contract
+`confirm-green-refusal-names-standing-escalation` exercises several of those paths over real children
+once it is signed.
 
 The observable is the discriminated `ProveResult`, the child-written marker count, the `onPhase`
 record and the signing store. Resolver command calls do not prove a spawn count: production may
@@ -149,6 +165,6 @@ GATE refusals and their order, the signing append, and `toEvidence`.
 ## Contracts (1)
 
 1. **`escalation-ends-the-walk-or-is-overruled-by-observation`** — an authoring escalation ends a walk without a verdict or is overruled by the spine's green observation, and never becomes a verdict.
-   - **asserts —** an AUTHOR_TEST escalation spawns the declared test exactly once, never requests IMPLEMENT, calls `onPhase` for AUTHOR_TEST only, writes no signing row, and returns `failedAt: "AUTHOR_TEST"` with `phasesVisited: ["AUTHOR_TEST"]`, `escalation: { raised, testId, observation }` carrying that child's exact stdout/stderr/exitCode, no `failedObservation`, and a reason containing the kind — whether that run is red or green. An IMPLEMENT escalation still visits CONFIRM_GREEN: still red, it spawns twice, signs nothing, and returns `failedAt: "CONFIRM_GREEN"` with `failedObservation` equal to the second child's output and `escalation: { raised, testId }` with no `observation`; turned green, it signs exactly one verdict deep-equal to the unescalated walk's and returns `overruledEscalation: { raised, testId }` with no `escalation`, and a dirty-tree GATE refusal after the overrule carries `overruledEscalation` with no `escalation` or `failedObservation`. An escalation returned from the other phase's slice fails closed at that slice with no further spawn, no record of either kind, and a reason naming both phases. `exhausted: true` with an escalation routes as the escalation. A plain authoring error, and exhaustion without an escalation, behave as before, with no escalation keys and no extra spawn.
+   - **asserts —** an AUTHOR_TEST escalation spawns the declared test exactly once, never requests IMPLEMENT, calls `onPhase` for AUTHOR_TEST only, writes no signing row, and returns `failedAt: "AUTHOR_TEST"` with `phasesVisited: ["AUTHOR_TEST"]`, `escalation: { raised, testId, observation }` carrying that child's exact stdout/stderr/exitCode, no `failedObservation`, and a reason containing the kind — whether that run is red or green. An IMPLEMENT escalation still visits CONFIRM_GREEN: still red, it spawns twice, signs nothing, and returns `failedAt: "CONFIRM_GREEN"` with `failedObservation` equal to the second child's output and `escalation: { raised, testId }` with no `observation`; turned green, it signs exactly one verdict deep-equal to the unescalated walk's and returns `overruledEscalation: { raised, testId }` with no `escalation`, and a dirty-tree GATE refusal after the overrule carries `overruledEscalation` with no `escalation` or `failedObservation`. An escalation returned from the other phase's slice fails closed at that slice with no further spawn and no record of either kind. `exhausted: true` with an escalation routes as the escalation. A plain authoring error, and exhaustion without an escalation, behave as before, with no escalation keys and no extra spawn.
    - **covers —** `proveUnit`'s escalation routing and the `ProveResult` / `EscalationRecord` types in `packages/orchestrator/src/prove-it-gate.ts`, and the `EscalationRecord` export in `packages/orchestrator/src/index.ts`.
    - **proven by —** a new `packages/orchestrator/src/prove-it-gate.escalation.test.ts` over ordinary `ShellTestExecutor` child commands, through the declared focused REAL proof; the full orchestrator package suite and typecheck remain pre-signature backstops.
