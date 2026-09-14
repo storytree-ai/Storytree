@@ -69,6 +69,12 @@ const TOKEN_ENV_VAR = "STORYTREE_SPINE_MCP_TOKEN";
 const MCP_PATH = "/mcp";
 /** The MCP server name reported in `initialize`. */
 const SERVER_NAME = "spine";
+/**
+ * The MCP server version reported beside the name in `initialize` (ADR-0570): codex-cli 0.145.0
+ * was measured to drop a server whose `serverInfo` carried no `version` at all — no protocol
+ * requirement pins this value beyond non-empty, so it is not read from `package.json`.
+ */
+const SERVER_VERSION = "1";
 /** Every tool's input schema: the leaf controls zero arguments. */
 const EMPTY_INPUT_SCHEMA = { type: "object", properties: {}, additionalProperties: false };
 
@@ -198,7 +204,7 @@ export async function openCodexFeedbackEndpoint(
           result: {
             protocolVersion,
             capabilities: { tools: {} },
-            serverInfo: { name: SERVER_NAME },
+            serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
           },
         });
         return;
