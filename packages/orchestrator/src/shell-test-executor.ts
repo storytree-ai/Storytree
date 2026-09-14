@@ -280,6 +280,19 @@ export class ShellTestExecutor implements TestExecutor {
  *  - secret-shaped names (TOKEN/SECRET/PASSWORD/CREDENTIAL/API_KEY/ACCESS_KEY): the leaf authors
  *    the test file this command executes, and with the spine feedback tool its OUTPUT flows back
  *    to the model — a test that prints `process.env` must find no credentials there.
+ *
+ * A THIRD scrub — `inherited-oracle-guard-scrub` — strips a VALUE rather than a key, so it is not
+ * expressed here: {@link scrubbedChildEnv} strips any `--import` of `assert-oracle-guard.mjs` out
+ * of an inherited `NODE_OPTIONS`, because that key must otherwise still pass through untouched
+ * (`isScrubbedEnvKey` deliberately does not gain a `NODE_OPTIONS` case). When the spine itself runs
+ * a `--real` proof under its own oracle guard, `NODE_OPTIONS` carries the guard's `--import` and
+ * every process THIS spine spawns inherits it. A nested spawned observation that loads a second,
+ * different copy counts nothing — the first copy has already frozen `node:assert`, so the second
+ * cannot install its counter — and its exit hook then overwrites that process's own report with
+ * zero; a spawn deliberately left unguarded picks up an oracle it never asked for. The spine's OWN chosen instrument for the command being spawned
+ * still reaches the child normally: it travels through `cmd.env`, which is merged over
+ * {@link scrubbedChildEnv}'s output in {@link runShellCommand}, so this strip only ever removes an
+ * import the CURRENT process inherited, never one the spine is deliberately wiring onto this spawn.
  */
 export function isScrubbedEnvKey(key: string): boolean {
   return (
@@ -288,13 +301,53 @@ export function isScrubbedEnvKey(key: string): boolean {
   );
 }
 
+/**
+ * Matches one `--import <specifier>` or `--import=<specifier>` token inside a `NODE_OPTIONS`
+ * string, including the whitespace (or start-of-string) immediately before `--import` — so
+ * removing a match also closes the gap it leaves behind instead of leaving a double space. The
+ * specifier itself is captured so the caller can decide, per occurrence, whether THIS particular
+ * `--import` is the one to strip.
+ */
+const NODE_OPTIONS_IMPORT_RE = /(^|\s)--import(?:=(\S+)|\s+(\S+))/g;
+
+/** True when an `--import` specifier names a copy of the assert-oracle guard, any directory. */
+function isOracleGuardSpecifier(specifier: string): boolean {
+  return specifier.replace(/^["']|["']$/g, "").endsWith("assert-oracle-guard.mjs");
+}
+
+/**
+ * Strip every `--import`/`--import=` of `assert-oracle-guard.mjs` out of an inherited
+ * `NODE_OPTIONS` value. Each removed import takes the whitespace just before it along (see
+ * {@link NODE_OPTIONS_IMPORT_RE}); every other option is left as it was — no whitespace
+ * normalisation, no re-quoting. Returns `undefined` when nothing but whitespace remains, so the
+ * caller can drop the variable entirely rather than leave behind an empty/whitespace `NODE_OPTIONS`.
+ */
+function stripInheritedOracleGuard(nodeOptions: string): string | undefined {
+  const stripped = nodeOptions.replace(
+    NODE_OPTIONS_IMPORT_RE,
+    (match: string, _lead: string, eqSpecifier?: string, spaceSpecifier?: string) => {
+      const specifier = eqSpecifier ?? spaceSpecifier ?? "";
+      return isOracleGuardSpecifier(specifier) ? "" : match;
+    },
+  );
+  return stripped.trim() === "" ? undefined : stripped;
+}
+
 /** The child env every spawned test/feedback process gets: the parent env minus the scrub list. */
 export function scrubbedChildEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (!isScrubbedEnvKey(key)) {
-      env[key] = value;
+    if (isScrubbedEnvKey(key)) {
+      continue;
     }
+    if (key === "NODE_OPTIONS" && value !== undefined) {
+      const stripped = stripInheritedOracleGuard(value);
+      if (stripped !== undefined) {
+        env[key] = stripped;
+      }
+      continue;
+    }
+    env[key] = value;
   }
   return env;
 }

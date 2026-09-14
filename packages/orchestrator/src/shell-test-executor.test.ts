@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   DEFAULT_PROOF_TIMEOUT_MS,
@@ -246,6 +247,100 @@ test("ADR-0064 ENV FORCE: cmd.env injects a var the parent never set", async () 
     env: { STORYTREE_INJECTED_ONLY: "from-spine" },
   });
   assert.equal(out.stdout, "from-spine");
+});
+
+// ── an-inherited-oracle-guard-never-reaches-the-child: NODE_OPTIONS strips a foreign guard ──
+// When the SPINE itself runs under a `--real` proof, its own assert-oracle guard reaches child
+// processes through NODE_OPTIONS. A nested spawned observation that inherits it loads a SECOND,
+// different copy of the guard, which counts nothing (the first copy already froze `node:assert`)
+// and overwrites the report with zero — or a spawn deliberately left unguarded inherits a guard
+// it never asked for. Only the GUARD IMPORT must be stripped; every other byte of
+// NODE_OPTIONS, and the command's own `cmd.env`, still reach the child (asserted elsewhere).
+
+test("an-inherited-oracle-guard-never-reaches-the-child: a spawned command strips a foreign guard import from NODE_OPTIONS while preserving everything else", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "storytree-oracle-guard-scrub-"));
+  try {
+    // Two independent "copies" of the guard, in two different directories — "any directory, any
+    // copy" per the node spec, so a single hardcoded path could never prove the rule.
+    const copyADir = join(dir, "copy-a");
+    const copyBDir = join(dir, "copy-b");
+    await mkdir(copyADir, { recursive: true });
+    await mkdir(copyBDir, { recursive: true });
+    const guardA = join(copyADir, "assert-oracle-guard.mjs");
+    const guardB = join(copyBDir, "assert-oracle-guard.mjs");
+    // Harmless stand-ins: the point is the SPECIFIER, not the real guard's behaviour. A real file is
+    // required so an un-fixed spawn can actually import it and run to completion instead of crashing
+    // on ERR_MODULE_NOT_FOUND, which would prove nothing about the scrub.
+    await writeFile(guardA, "// harmless stand-in for the real assert-oracle guard\n");
+    await writeFile(guardB, "// harmless stand-in for the real assert-oracle guard\n");
+
+    const original = process.env["NODE_OPTIONS"];
+    // Both the space-separated and `=`-joined `--import` forms, interleaved with unrelated flags.
+    process.env["NODE_OPTIONS"] =
+      `--enable-source-maps --import ${pathToFileURL(guardA).href} --import=${pathToFileURL(guardB).href} --max-old-space-size=4096`;
+    try {
+      const out = await runShellCommand({
+        file: process.execPath,
+        args: ["-e", "process.stdout.write(process.env.NODE_OPTIONS ?? '<absent>')"],
+      });
+      assert.doesNotMatch(
+        out.stdout,
+        /assert-oracle-guard\.mjs/,
+        "an inherited assert-oracle guard import must never reach the spawned child",
+      );
+      assert.match(
+        out.stdout,
+        /--enable-source-maps/,
+        "unrelated NODE_OPTIONS content must still pass through",
+      );
+      assert.match(
+        out.stdout,
+        /--max-old-space-size=4096/,
+        "unrelated NODE_OPTIONS content must still pass through",
+      );
+    } finally {
+      if (original === undefined) {
+        delete process.env["NODE_OPTIONS"];
+      } else {
+        process.env["NODE_OPTIONS"] = original;
+      }
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("an-inherited-oracle-guard-never-reaches-the-child: NODE_OPTIONS is dropped entirely when only the guard import remains", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "storytree-oracle-guard-scrub-only-"));
+  try {
+    const guard = join(dir, "assert-oracle-guard.mjs");
+    await writeFile(guard, "// harmless stand-in for the real assert-oracle guard\n");
+
+    const original = process.env["NODE_OPTIONS"];
+    process.env["NODE_OPTIONS"] = `--import ${pathToFileURL(guard).href}`;
+    try {
+      const out = await runShellCommand({
+        file: process.execPath,
+        args: [
+          "-e",
+          "process.stdout.write(process.env.NODE_OPTIONS === undefined ? '<absent>' : process.env.NODE_OPTIONS)",
+        ],
+      });
+      assert.equal(
+        out.stdout,
+        "<absent>",
+        "NODE_OPTIONS must be dropped, not left behind as an empty/whitespace string",
+      );
+    } finally {
+      if (original === undefined) {
+        delete process.env["NODE_OPTIONS"];
+      } else {
+        process.env["NODE_OPTIONS"] = original;
+      }
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("isScrubbedEnvKey: the real credential names are scrubbed; benign names are not", () => {
