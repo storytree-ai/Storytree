@@ -6,7 +6,7 @@ title: "The live Claude Agent SDK authors one slice per query() with write scope
 outcome: "The live Claude Agent SDK authors one slice per query() with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report."
 status: proposed
 proof_mode: integration-test
-depends_on: [phase-author-seam]
+depends_on: [phase-author-seam, model-runtime-seam]
 ---
 
 # The live SDK leaf — ClaudeAgentAuthor

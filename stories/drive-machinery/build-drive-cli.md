@@ -73,10 +73,11 @@ The operator surface over the whole machinery — two commands, one honest-envel
   history. Passes and failures without an eligible command observation retain their current envelope;
   the REAL typecheck/regression backstop is a separately shaped diagnostic path and is excluded.
 
-- **Escalation rendering** (proposed — contract
-  [`node-build-escalation-envelope`](node-build-escalation-envelope.md), ADR-0569 D5; not built at
-  HEAD): when the gate returns an authoring escalation (contract `gate-routes-authoring-escalation`),
-  `nodeBuild` renders it through a same-file renderer directly under the `verdict:` line, ahead of the
+- **Escalation rendering** (contract
+  [`node-build-escalation-envelope`](node-build-escalation-envelope.md), signed PASS run
+  `real-mu1ms77f`; ADR-0569 D5): when the gate returns an authoring escalation (contract
+  `gate-routes-authoring-escalation`), `nodeBuild` renders it through the same-file
+  `renderEscalation` directly under the `verdict:` line, ahead of the
   observation section. The block names the raising phase and what it claims, with the unit, run and
   test id; the statement, and IMPLEMENT's assertion, verbatim; for an AUTHOR_TEST escalation, the
   single observation the spine took for it, labelled as not a CONFIRM run; and the orchestrator's two
@@ -176,4 +177,4 @@ event log (`packages/cli/src/story-build.test.ts:17`).
 12. **`node-build-renders-the-returned-escalation-with-its-test-id`** — node build renders the escalation the gate returned, with its unit, run and test id, and names an overruled one, without executing a command
     - **asserts —** a same-file renderer called by `nodeBuild` directly under the `verdict:` line (ahead of the observation section on a failure) renders an AUTHOR_TEST escalation as a labelled header with phase, claim, unit, run and test id, the statement verbatim, the spine's single observation labelled as not a CONFIRM run, and one options line (re-delegate a test revision as one ADR-0563 D4 `revised-test` attempt, or escalate to the owner); an IMPLEMENT escalation as the same header with its claim, statement and assertion, and the options line; an overruled escalation, on a pass or on a GATE refusal after the overrule, as exactly one labelled line with the statement; and a result with neither key as nothing. Rendering adds no spawn to the one (AUTHOR_TEST) or two (CONFIRM_GREEN reached) the walks made.
     - **covers —** `renderEscalation` and its failure- and pass-envelope call sites in `nodeBuild` (`packages/drive/src/node-build.ts`)
-    - **proven by —** contract [`node-build-escalation-envelope`](node-build-escalation-envelope.md): a new `packages/drive/src/node-build-escalation-envelope.test.ts` (proposed; not yet built)
+    - **proven by —** `packages/drive/src/node-build-escalation-envelope.test.ts` through contract [`node-build-escalation-envelope`](node-build-escalation-envelope.md), signed PASS (run `real-mu1ms77f`)
