@@ -82,6 +82,12 @@ export * from "./claim-universe.js";
 // declared, which is the divergence `first-class-edges-arc` exists to close.
 export * from "./source-ownership-map.js";
 export * from "./subtree-match.js";
+// The manifest FRAGMENT contract and its one composer (ADR-0556, `repo-manifest-fragmentation-arc`):
+// what a fragment is, where it lives, and how a set of them composes into the manifest's one view —
+// refusing, never guessing, whenever the set does not say one thing. A SEAM ONLY for now: the
+// committed `repo-manifest.json` is still the source of truth, and no reader goes through it yet.
+export * from "./manifest-fragments.js";
+export * from "./manifest-fragments-read.js";
 // `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs
 // above and the board render STATE, this reads TRANSITIONS (holdings, refusals, the summary). A
 // refusal leaves no state behind, so no state read can answer for it.
