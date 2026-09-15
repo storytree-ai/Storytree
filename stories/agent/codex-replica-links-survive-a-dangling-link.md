@@ -5,7 +5,7 @@ story: agent
 capability: live-codex-leaf
 arc: inner-loop-exit-arc
 title: "Leave a dangling node_modules link out of a Codex replica instead of failing the phase"
-outcome: "Linking a Codex replica to the workspace's installed dependencies leaves out any link whose target does not exist and rebuilds everything else as before, so one dangling link no longer fails an armed phase closed at setup."
+outcome: "Linking a Codex replica to the workspace's installed dependencies leaves out any link whose target is missing and rebuilds everything else as before, so one dangling link no longer fails an armed phase closed at setup."
 status: proposed
 proof_mode: contract-test
 depends_on: [codex-replica-dependency-links]
@@ -41,7 +41,7 @@ proof:
 # Leave a dangling node_modules link out of a Codex replica instead of failing the phase
 
 **Outcome —** Linking a Codex replica to the workspace's installed dependencies leaves out any link
-whose target does not exist and rebuilds everything else as before, so one dangling link no longer
+whose target is missing and rebuilds everything else as before, so one dangling link no longer
 fails an armed phase closed at setup.
 
 ## Proof walkthrough
@@ -92,11 +92,11 @@ dangling link resolves nothing in the worktree either, so leaving it out of the 
 a proof run inside the replica could resolve.
 
 **The rule, in `packages/agent/src/codex-replica-links.ts`.**
-- A link whose target does not exist is left out of the replica, wherever the rebuild meets it: as an
+- A link whose target is missing is left out of the replica, wherever the rebuild meets it: as an
   entry of a project's `node_modules`, as an entry of an `@scope` directory, as a project's
   `node_modules` itself, or as the root `node_modules`.
 - Everything else is rebuilt exactly as contract `codex-replica-dependency-links` specifies.
-- Decide "does not exist" by FOLLOWING the link — `fs.stat` or `fs.realpath` rejecting with code
+- Decide "missing" by FOLLOWING the link — `fs.stat` or `fs.realpath` rejecting with code
   `ENOENT` — never with `lstat`, which describes the link itself and so always succeeds.
 - Any other error still rejects, so a phase still fails closed on a filesystem it cannot read.
 
@@ -122,6 +122,6 @@ reading: no portable fixture produces a permission error on both platforms.
 ## Contracts (1)
 
 1. **`dangling-links-are-left-out-of-the-replica`** — a dangling link among the workspace's installed dependencies is left out of a Codex replica instead of failing the phase.
-   - **asserts —** `linkReplicaDependencies` resolves when the workspace holds a link whose target does not exist, whether that link is an entry of a project `node_modules`, an entry of an `@scope` directory, a project's `node_modules` itself or the root `node_modules`. The replica holds no entry for such a link, and every other entry is rebuilt as before: a live link resolving to its original's target, a scope directory holding its live entries, and a regular file copied byte for byte.
+   - **asserts —** `linkReplicaDependencies` resolves when the workspace holds a link whose target is missing, whether that link is an entry of a project `node_modules`, an entry of an `@scope` directory, a project's `node_modules` itself or the root `node_modules`. The replica holds no entry for such a link, and every other entry is rebuilt as before: a live link resolving to its original's target, a scope directory holding its live entries, and a regular file copied byte for byte.
    - **covers —** `packages/agent/src/codex-replica-links.ts` (`linkReplicaDependencies`).
    - **proven by —** a new `packages/agent/src/codex-replica-links-dangling.test.ts` through the declared Bun proof, with `codex-replica-links.test.ts` and `codex-author-feedback.test.ts` as its regression wall and the `@storytree/agent` typecheck as the pre-promotion wall.
