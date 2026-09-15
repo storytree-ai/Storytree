@@ -177,6 +177,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "model",
   "budget",
   "max-turns",
+  // `node build <id> --real --revise-test <run-id>` (ADR-0571 D3): ONE run id naming the failed build
+  // whose escalation record the re-run's test author revises against. An identity, never content —
+  // the orchestrator names WHICH escalation and never handles its text, so `@path` here would bring
+  // back exactly the hand relay the flag exists to remove.
+  "revise-test",
   "actor",
   "store",
   "node",

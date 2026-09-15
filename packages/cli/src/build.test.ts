@@ -35,6 +35,13 @@ test("build (bare) shows the workflow help: the goal, the auto-route, the nested
   assert.match(env.body, /storytree build node resolve <id>/);
   assert.match(env.body, /storytree build story <id>/);
   assert.match(env.body, /storytree build gate .*--real/);
+  // ADR-0571: the test-revision flag is advertised, scoped to the one surface that takes it
+  assert.ok(
+    env.body.includes(
+      "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+    ),
+    "the build help must name --revise-test and the one mode it is valid in",
+  );
   // teaches that an observe gate is NOT a build — it relocates to `adopt gate`, not under `build`
   assert.match(env.body, /adopt gate/);
   // the back-compat aliases are advertised in-context (no silent breakage)
