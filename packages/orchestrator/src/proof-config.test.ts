@@ -563,6 +563,50 @@ test("R2 — refactorForTests AND editsExisting together is LOUD (mutually exclu
   );
 });
 
+// ── ADR-0573 D3: a cluster brief (real.cluster) ─────────────────────────────────────────────────────
+
+/** An edits-existing arm naming two contracts as one cluster (its literal single source keeps the default route legal). */
+const CLUSTER_BLOCK = {
+  ...NO_INSTALL_BLOCK,
+  real: { ...NO_INSTALL_BLOCK.real, editsExisting: true, cluster: ["add-sums", "clamp-bounds"] },
+};
+
+test("real-cluster-parses-only-on-an-assertion-red: an editsExisting arm naming a cluster parses and round-trips; undeclared, the key stays absent", () => {
+  const cfg = parseNodeBuildConfig(CLUSTER_BLOCK);
+  assert.deepEqual(cfg, CLUSTER_BLOCK);
+  assert.deepEqual(cfg.real?.cluster, ["add-sums", "clamp-bounds"]);
+  const plain = parseNodeBuildConfig(NO_INSTALL_BLOCK);
+  assert.ok(plain.real !== undefined);
+  assert.equal("cluster" in plain.real, false);
+});
+
+test("real-cluster-parses-only-on-an-assertion-red: a cluster on a structural red is LOUD — net-new, and refactorForTests", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({ ...NO_INSTALL_BLOCK, real: { ...NO_INSTALL_BLOCK.real, cluster: ["add-sums", "clamp-bounds"] } }),
+    /real\.cluster requires real\.editsExisting:true/,
+  );
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...REFACTOR_FOR_TESTS,
+        real: { ...REFACTOR_FOR_TESTS.real, cluster: ["add-sums", "clamp-bounds"] },
+      }),
+    /real\.cluster requires real\.editsExisting:true/,
+  );
+});
+
+test("real-cluster-parses-only-on-an-assertion-red: a cluster of fewer than two contracts, or naming one twice, is LOUD", () => {
+  assert.throws(
+    () => parseNodeBuildConfig({ ...CLUSTER_BLOCK, real: { ...CLUSTER_BLOCK.real, cluster: ["add-sums"] } }),
+    /real\.cluster names at least two contracts/,
+  );
+  assert.throws(
+    () => parseNodeBuildConfig({ ...CLUSTER_BLOCK, real: { ...CLUSTER_BLOCK.real, cluster: ["add-sums", "add-sums"] } }),
+    /real\.cluster names a contract more than once/,
+  );
+});
+
 // ── ADR-0064: DB-backed proof (real.db) ──────────────────────────────────────────────────────────
 
 /** A db-backed arm: db:true with install+typecheck (the proof imports the pg change store from node_modules). */

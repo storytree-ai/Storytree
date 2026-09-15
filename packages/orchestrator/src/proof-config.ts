@@ -181,6 +181,24 @@ export interface RealProofConfig {
    */
   refactorForTests?: boolean;
   /**
+   * A CLUSTER brief (ADR-0573 D3, `batched-test-authoring-arc-inc-04`): the ids of two or more of this
+   * unit's OWN declared contracts — the ones that share a fixture or seam — whose tests the red author
+   * writes in ONE AUTHOR_TEST slice and the green author implements against together. ABSENT = one test
+   * per build, the status quo, and every brief keeps its exact bytes. PRESENT = the AUTHOR_TEST brief names
+   * the cluster and asks for a NEW failing test for each of its contracts, the IMPLEMENT brief names the
+   * same cluster, and CONFIRM_RED's per-test review refuses a cluster in which any named contract has no
+   * new vouching test (C7).
+   *
+   * Admitted ONLY where CONFIRM_RED is observed per test: an `editsExisting` unit (an assertion red — the
+   * refine below refuses anything else) whose route runs its ONE test file through a per-test channel
+   * (checked by the resolver, which classifies the route). A structural red — net-new, or
+   * `refactorForTests` — is a test file that does not load yet, which reports no test on any runner, so
+   * such a unit keeps one test per build (ADR-0573 D3/D4). The cluster is decided when the spec is
+   * written, never after an observation: a cluster whose report cannot be read per test is refused, never
+   * observed at file level instead.
+   */
+  cluster?: string[];
+  /**
    * DB-backed proof (ADR-0064): the node's proof needs a live Postgres connection (a store/pg
    * adapter), so the spine provisions an ISOLATED test-database connection for the worktree proof.
    * REQUIRES `install: true` — the proof imports a `@storytree/<organism>/store` subpath / `pg` / the
@@ -352,6 +370,10 @@ const RealProofConfigSchema = z
     proofCommand: ShellCommandSchema.optional(),
     editsExisting: z.boolean().optional(),
     refactorForTests: z.boolean().optional(),
+    cluster: z
+      .array(z.string().min(1))
+      .min(2, "real.cluster names at least two contracts — a build of one contract needs no cluster (ADR-0573 D3)")
+      .optional(),
     db: z.boolean().optional(),
     addDeps: z.array(z.string().min(1)).optional(),
     // ADR-0104: a per-node proof timeout override (ms). Positive int — execFile reads 0/absent as NO
@@ -465,6 +487,23 @@ const RealProofConfigSchema = z
       "behaviour (a runtime-assertion red), refactorForTests preserves it (a structural/missing-symbol " +
       "red). Pick one brief axis (ADR-0098 d.1).",
     path: ["refactorForTests"],
+  })
+  // ADR-0573 D3: a cluster is briefed only where CONFIRM_RED is observed per test, and only an assertion
+  // red (`editsExisting`) loads its test file at red. A structural red — net-new or R2 — is a file that
+  // does not load, so it reports no test on any runner and keeps one test per build (D4).
+  .refine((r) => !(r.cluster !== undefined && r.editsExisting !== true), {
+    message:
+      "real.cluster requires real.editsExisting:true — a cluster is briefed only where CONFIRM_RED is " +
+      "observed per test, and only an assertion red loads its test file at red. A structural red " +
+      "(net-new, or refactorForTests) reports no test on any runner, so it keeps one test per build " +
+      "(ADR-0573 D3/D4).",
+    path: ["cluster"],
+  })
+  // A contract listed twice is one contract: C7 binds it once, and the brief would read as a larger
+  // cluster than the one the gate holds.
+  .refine((r) => r.cluster === undefined || new Set(r.cluster).size === r.cluster.length, {
+    message: "real.cluster names a contract more than once — list each contract of the cluster exactly once",
+    path: ["cluster"],
   });
 
 /**
@@ -542,6 +581,9 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
   // R2 (ADR-0098): same absent-not-undefined idiom — a non-R2 node's config stays byte-for-byte
   // deepEqual to its registry twin (the parity drift-lock holds).
   if (raw.refactorForTests !== undefined) real.refactorForTests = raw.refactorForTests;
+  // ADR-0573 D3: same absent-not-undefined idiom — a unit declaring no cluster keeps the key off the
+  // config (so its registry-vs-spec parity deepEqual holds), and a declared one is a fresh copy.
+  if (raw.cluster !== undefined) real.cluster = [...raw.cluster];
   // ADR-0064: same absent-not-undefined idiom, so the 7 migrated nodes (no `db`) stay deepEqual
   // to their registry twins (the contract-4 parity oracle holds byte-for-byte).
   if (raw.db !== undefined) real.db = raw.db;

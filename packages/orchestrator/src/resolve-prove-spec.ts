@@ -58,6 +58,7 @@ import {
   withPerTestReport,
 } from "./proof/proof-route.js";
 import { allocatePerTestReportPath, perTestReportFile } from "./proof/per-test-report.js";
+import type { PerTestChannel } from "./proof/per-test-report.js";
 import { perTestPolicy } from "./proof/per-test-review.js";
 import type { ProofRoute } from "./proof/proof-route.js";
 import { gitTreeState } from "./prove-it-gate.js";
@@ -747,6 +748,14 @@ function resolveReal(
   // carries that report on the same one command — so the spine's observations and the leaf's run_proof
   // still spawn one object — at a per-build path outside the worktree, allocated once and closed over.
   const perTestChannel = perTestChannelOf(real, base.route);
+  // ADR-0573 D3 (`batched-test-authoring-arc-inc-04`): a CLUSTER brief is admitted here or nowhere —
+  // decided from the declared red kind, the route's channel and the unit's own contracts, before any
+  // authoring turn and never after an observation. The spec schema already refuses a cluster on a
+  // structural red; a registry `real:` arm never passes that schema, so every admission is re-checked.
+  const clusterRefusal = realClusterRefusal(spec, real, perTestChannel);
+  if (clusterRefusal !== undefined) {
+    return { ok: false, reason: `node "${spec.id}": ${clusterRefusal}`, registered: realBuildableNodeIds() };
+  }
   const perTestReportPath =
     perTestChannel === undefined ? undefined : allocatePerTestReportPath(opts.runId, spec.id, perTestChannel);
   const realProofCmd: ShellCommand =
@@ -965,11 +974,16 @@ function resolveReal(
   // reviewed per test only for an assertion red (`editsExisting`): a structural red is a file that does
   // not load, and such a file reports no test on any runner. CONFIRM_GREEN is reviewed on every such route.
   if (perTestChannel !== undefined) {
-    proveSpec.perTest = perTestPolicy({
+    const policy = {
       testFile: path.join(opts.workspace, real.testFile),
       contracts: spec.contracts,
       observeRed: declaredExpectedRed(real) === "assertion",
-    });
+    };
+    // C7: a cluster brief's contracts, each of which a NEW vouching test must name. `realClusterRefusal`
+    // admitted it above only for an assertion red on this route, so this red is always reviewed per test.
+    proveSpec.perTest = perTestPolicy(
+      real.cluster === undefined ? policy : { ...policy, briefContracts: real.cluster },
+    );
   }
   // ADR-0534: the gate's ADR-0016 binding seam gets its first caller. Only on the DEFAULT tree seam
   // (the one that actually commits): the thunk binds the top-level declarations the spine's own
@@ -1000,6 +1014,53 @@ function resolveReal(
  */
 function declaredExpectedRed(real: RealProofConfig): ExpectedRed {
   return real.editsExisting === true ? "assertion" : "structural";
+}
+
+/**
+ * Why this unit's declared CLUSTER cannot be briefed — `undefined` when it can, or when it declares none
+ * (ADR-0573 D3, `batched-test-authoring-arc-inc-04`). A cluster is admitted only where CONFIRM_RED is
+ * observed per test: an assertion red ({@link declaredExpectedRed}) on a route with a per-test channel.
+ * Every id must be a contract the unit itself declares, because C7 binds each id to a NEW test that names
+ * it — an id the unit does not declare could never be satisfied, and a duplicate would read as a larger
+ * cluster than the one the gate holds. Refused rather than narrowed: a cluster briefed where its red cannot
+ * be read per test would be observed at file level, the silent weakening arc end state 2 forbids.
+ */
+function realClusterRefusal(
+  spec: NodeSpec,
+  real: RealProofConfig,
+  perTestChannel: PerTestChannel | undefined,
+): string | undefined {
+  const cluster = real.cluster;
+  if (cluster === undefined) return undefined;
+  if (declaredExpectedRed(real) !== "assertion") {
+    return (
+      "real.cluster is declared on a structural red — a test file that does not load at red reports no " +
+      "test on any runner, so this unit keeps one test per build (ADR-0573 D3/D4). Remove real.cluster, " +
+      "or declare the unit editsExisting if its red is an assertion against source that already exists."
+    );
+  }
+  if (perTestChannel === undefined) {
+    return (
+      "real.cluster is declared, but this unit's proof route does not run its own test file through a " +
+      "runner whose per-test report the spine reads, so its red could not be observed per test. A cluster " +
+      "is briefed only on the default node:test route, a declared node:test command over the node's own " +
+      "file, `vitest run <file>`, or `bun test <file>` (ADR-0573 D3); remove real.cluster to build one " +
+      "test per build."
+    );
+  }
+  if (cluster.length < 2 || new Set(cluster).size !== cluster.length) {
+    return "real.cluster must name at least two distinct contracts, each exactly once (ADR-0573 D3)";
+  }
+  const declared = new Set(spec.contracts.map((c) => c.id));
+  const undeclared = cluster.filter((id) => !declared.has(id));
+  if (undeclared.length > 0) {
+    return (
+      `real.cluster names ${undeclared.map((id) => `\`${id}\``).join(", ")}, which this unit does not ` +
+      "declare in its `## Contracts` — a cluster names the unit's own contracts, and each must be named by " +
+      "a new test (ADR-0573 C7)"
+    );
+  }
+  return undefined;
 }
 
 /**
@@ -1467,6 +1528,21 @@ export function realPrompts(
             `passes before the source changes is refused, unless every contract it names declares a ` +
             `guard-rail in its story (ADR-0572). Do not add one that passes.`
           : "");
+  // ADR-0573 D3 (`batched-test-authoring-arc-inc-04`): the CLUSTER this build writes and implements —
+  // only where red is reviewed per test (an assertion red on a per-test route), which is the only place
+  // the resolver admits one, so a direct caller can never brief a cluster the gate could not hold. Absent
+  // everywhere else, so every other brief keeps its exact bytes.
+  const clusterList =
+    real.cluster !== undefined &&
+    declaredExpectedRed(real) === "assertion" &&
+    perTestChannelOf(real, classifyProofRoute(real)) !== undefined
+      ? real.cluster
+          .map((id) => {
+            const title = spec.contracts.find((c) => c.id === id)?.title;
+            return title === undefined ? `- \`${id}\`` : `- \`${id}\` — ${title}`;
+          })
+          .join("\n")
+      : undefined;
   // The IMPLEMENT green-iteration close: shared Claude wording for both runtimes (ADR-0570 D1) —
   // Codex now iterates against run_proof/run_typecheck too, exactly as Claude is briefed.
   const greenClose = (verb: string, subject: string): string => {
@@ -1511,19 +1587,49 @@ export function realPrompts(
     };
   }
   if (editsExisting) {
+    const authorTestLead =
+      `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+      `within ${testsNamed}. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
+      `regression/refactor, not a net-new file; do NOT recreate them, and do NOT edit any source ` +
+      `in this phase (source writes are refused here). READ the existing source(s) first, then `;
+    const implementLead =
+      `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
+      `then EDIT the existing source file(s) ${sourcesNamed} so `;
+    // ADR-0573 D3: a CLUSTER brief — every contract of the cluster in ONE red slice, implemented together.
+    // C7 refuses the red if one of them has no new vouching test, which is what makes asking for N safe.
+    if (clusterList !== undefined) {
+      return {
+        authorTest:
+          `${authorTestLead}author a CLUSTER of regression tests in this ONE slice — at least one NEW test for ` +
+          `EVERY contract in this build's cluster:\n${clusterList}\n` +
+          `Each is a NEW failing assertion about what the source SHOULD do, NOT a missing-symbol import (the ` +
+          `symbols already exist). Write them all in \`${real.testFile}\`, sharing one fixture or seam across the ` +
+          `cluster where its contracts share one rather than repeating setup per test. A test counts for a ` +
+          `contract only if it is NEW — its full title, enclosing \`describe\` included, is not already in the ` +
+          `file — and names that contract's id, so rewriting the body of an existing test does not count. The ` +
+          `spine refuses the whole red if any contract in the cluster is left without a new test that asserts ` +
+          `something substantive (ADR-0573 C7): if one cannot be tested against the current source, stop and say ` +
+          `so plainly rather than dropping it. The unit's other declared contracts are not this build's work. ` +
+          `After writing them, use \`run_proof\` to confirm each new test fails on its own for the RIGHT reason — ` +
+          `a behaviour-assertion failure, not a syntax error and not a "module not found". The spine observes the ` +
+          `official red itself. When the test file is written and checked, stop.${perTestClause}${revisionBlock}`,
+        implement:
+          `${implementLead}that EVERY test of this build's cluster passes:\n${clusterList}\n` +
+          `Implement against the whole cluster together, not one test at a time (you may write more than one of ` +
+          `the named source files; writes to the test file are refused). The spine observes every test in ` +
+          `\`${real.testFile}\` on its own at green, so a single test left red refuses the whole green. ` +
+          `${greenClose("edit", "every test in the cluster")} If you conclude a test of the cluster is wrong, ` +
+          `stop and say so plainly instead of working around it.`,
+      };
+    }
     return {
       authorTest:
-        `${header}\n\n${conventions}${contractsAuthor}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
-        `within ${testsNamed}. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
-        `regression/refactor, not a net-new file; do NOT recreate them, and do NOT edit any source ` +
-        `in this phase (source writes are refused here). READ the existing source(s) first, then ` +
-        `author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
+        `${authorTestLead}author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
         `assertion about what they SHOULD do, NOT a missing-symbol import (the symbols already ` +
         `exist). ` +
         `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}${perTestClause}${revisionBlock}`,
       implement:
-        `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
-        `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
+        `${implementLead}that test passes (you may write ` +
         `more than one of the named source files; writes to the test file are refused). ` +
         `${greenClose("edit", "the proof")} If you conclude the test itself ` +
         `is wrong, stop and say so plainly instead of working around it.`,

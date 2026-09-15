@@ -67,6 +67,7 @@ The proof ladder follows ADR-0010
 | **Contracts** | body | capability → contract | the unit-test-proven leaf behaviours | glossary *contract* / *contract test* |
 | `asserts` / `covers` | per contract | contract | the single isolated assertion + the real code it tests | ADR-0002, glossary *contract test* |
 | `guard-rail` | per contract, optional | contract | declares the contract a guard-rail, so a new test naming it may pass before its implementation exists — see *Declaring a guard-rail* below | ADR-0572 D2, ADR-0573 D1 (C4) |
+| `real.cluster` | frontmatter (`proof.real`), optional | any real-buildable unit | two or more of the unit's own contract ids briefed as ONE cluster — their tests written in one slice and implemented together — only on an `editsExisting` unit whose route reports per test; see *Briefing a cluster* below | ADR-0573 D3 (C7) |
 
 ### Declaring a guard-rail
 
@@ -111,6 +112,36 @@ The declaration is one labelled bullet under the contract, and it has exactly on
   contract whose id appears in its title path, `describe` titles included, so a test inside a block
   named for a contract that is not a guard-rail gets no exception: give a guard-rail its own test,
   outside any such block.
+
+### Briefing a cluster
+
+A real build normally writes one test and then the code for it. A unit may instead name a **cluster**:
+two or more of its own contracts, whose tests the red author writes in one slice and the green author
+implements against together (ADR-0573 D3; `batched-test-authoring-arc`). It is declared in the unit's
+`proof.real` block:
+
+```yaml
+  real:
+    editsExisting: true
+    cluster: ["parse-port-refuses-garbage", "parse-port-accepts-a-valid-port"]
+```
+
+- **Only where red is observed per test.** The unit must be `editsExisting`, and its proof route must run
+  its own test file through node:test, vitest or `bun test` — the routes the early-pass refusal above
+  applies on. A net-new or `refactorForTests` unit keeps one test per build, because its test file does
+  not load at red: the spec refuses that combination, and a build refuses a cluster on any other route
+  before the leaf authors anything.
+- **Choose the contracts that share a fixture or seam**, not every contract the unit declares, so one
+  test the leaf cannot write does not block the rest.
+- **Every contract in the cluster needs a NEW test that names it** and asserts something substantive — a
+  full title the test file did not already hold. The gate refuses the red if one is missing (C7), so a
+  cluster cannot quietly ship some of its contracts and skip the others. Rewriting an existing test's
+  body does not count.
+- **A guard-rail is still declared on its own contract** (above). Naming a contract in a cluster does not
+  excuse its test from failing at red.
+- **Changing a cluster after a failed build is a `changed-input` attempt** (ADR-0563 D4): drop the
+  contract whose test cannot be written, or split the cluster, then re-run.
+- **Absent, nothing changes:** the briefs keep their exact wording, and the build writes one test.
 
 ### The proof-mode boundary (the rule that tiers a unit)
 
