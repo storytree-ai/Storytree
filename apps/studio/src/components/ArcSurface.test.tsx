@@ -25,8 +25,13 @@
 // same fixtures; no agent / drive / model import (the modelPathBoundary.test.ts wall stays green).
 // Because that read is a promise, every briefing assertion sits behind `settle()`. The lane
 // silhouette, the bar geometry and the panel's proportions are the arc's operator-attested LOOK leg
-// (ADR-0070) — deliberately not asserted here.
+// (ADR-0070) — deliberately not asserted here. The one stylesheet read below is NOT that leg: the
+// queue caret's minimum hit area (2026-09-15) is a floor a pointer can land on, bound to the rules
+// because jsdom resolves none — whether the caret reads as findable stays operator-attested.
 
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { ArcSurface } from './ArcSurface';
@@ -1067,6 +1072,55 @@ describe('ArcSurface — the queue behind an arc lives behind a caret (2026-09-0
     fireEvent.click(screen.getByTestId('arc-lane:blocker'));
     await settle();
     expect(screen.getByTestId('arc-lane-queue:blocker')).not.toBeNull();
+  });
+});
+
+/**
+ * The shipped stylesheet, resolved from THIS FILE and never from `process.cwd()` — TraversalSpine.test.tsx's
+ * spelling, for its reason: `check:mutation-diff` runs these tests inside a Stryker sandbox whose working
+ * directory is not this package, where a cwd-relative read answers ENOENT and reds the rung naming the
+ * tests rather than the path.
+ */
+function readStylesheet(): string {
+  return readFileSync(
+    resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'),
+    'utf8',
+  );
+}
+
+/** The declarations of the rule whose selector is EXACTLY `selector` — never its `:hover`, never a longer class. */
+function ruleBody(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(css);
+  expect(match, `index.css has no \`${selector} { … }\` rule`).not.toBeNull();
+  return match?.[1] ?? '';
+}
+
+/** One length a rule body declares in `px`; a property it does not declare in px fails by name. */
+function pxDeclared(body: string, property: string): number {
+  const match = new RegExp(`(?:^|[;\\s])${property}:\\s*(\\d+(?:\\.\\d+)?)px\\s*;`).exec(body);
+  expect(match, `\`${property}\` is not declared in px`).not.toBeNull();
+  return Number(match?.[1] ?? Number.NaN);
+}
+
+describe('ArcSurface — the queue caret is big enough to find (2026-09-15)', () => {
+  it('the caret’s hit area is at least 24px each way, in a fixed gutter that holds all of it', () => {
+    // Owner, 2026-09-15, after he could not find the five arcs queued behind `inner-loop-exit-arc`:
+    // "found it, and the arrow, we should make this arrow bigger". As shipped the caret was a 0.72em
+    // glyph padded 2px — a 13x15px target. jsdom resolves no stylesheet, so the SIZE is bound to the
+    // rules themselves (the App.route-retention.test.tsx idiom). It is a floor a pointer can land on,
+    // never the look: whether the arrow now reads as findable stays the owner's call (ADR-0070).
+    const css = readStylesheet();
+    const caret = ruleBody(css, '.arc-lane-caret');
+    // 24px on BOTH axes — WCAG 2.2's minimum target size (SC 2.5.8).
+    expect(pxDeclared(caret, 'min-width')).toBeGreaterThanOrEqual(24);
+    expect(pxDeclared(caret, 'min-height')).toBeGreaterThanOrEqual(24);
+    // The gutter stays FIXED on every row, gated or not — it neither grows nor shrinks — so every lane
+    // title still starts at the same x; and it has to hold the whole button, or the bigger target would
+    // spill into the lane beside it.
+    const gutter = /(?:^|[;\s])flex:\s*0\s+0\s+(\d+(?:\.\d+)?)px\s*;/.exec(ruleBody(css, '.arc-lane-caret-slot'));
+    expect(gutter, '`.arc-lane-caret-slot` is not a fixed `flex: 0 0 <n>px` gutter').not.toBeNull();
+    expect(Number(gutter?.[1] ?? Number.NaN)).toBeGreaterThanOrEqual(pxDeclared(caret, 'min-width'));
   });
 });
 
