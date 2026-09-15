@@ -23,7 +23,8 @@ import type { AddressInfo } from "node:net";
 
 import { executeFeedback } from "./sdk-author.js";
 import type { FeedbackCommand, FeedbackRunOutput, SdkFeedbackRun } from "./sdk-author.js";
-import type { AuthoringPhase } from "./phase-author.js";
+import { parseAuthoringEscalation } from "./phase-author.js";
+import type { AuthoringEscalation, AuthoringPhase } from "./phase-author.js";
 
 /**
  * One spine-registered feedback command as this endpoint declares the shape: `{ name,
@@ -57,6 +58,14 @@ export interface OpenCodexFeedbackEndpointArgs {
   maxRuns: number;
   /** Called once per run that actually executed (never on a budget refusal). */
   record: (run: SdkFeedbackRun) => void;
+  /**
+   * Escalation output channel (ADR-0569 D6, extended to the Codex leaf). Absent: `tools/list` is the
+   * commands alone and `escalate` remains an unknown tool. Present: `tools/list` also carries
+   * `escalate`, and the FIRST valid `escalate` call this endpoint sees — validated by
+   * `parseAuthoringEscalation` for this endpoint's own `phase` — is passed here and every later call
+   * is refused. `escalate` never spawns, never calls {@link record}, and never touches `maxRuns`.
+   */
+  recordEscalation?: (escalation: AuthoringEscalation) => void;
 }
 
 export interface CodexFeedbackEndpointHandle {
@@ -84,6 +93,39 @@ const SERVER_NAME = "spine";
 const SERVER_VERSION = "1";
 /** Every tool's input schema: the leaf controls zero arguments. */
 const EMPTY_INPUT_SCHEMA = { type: "object", properties: {}, additionalProperties: false };
+
+/** The spawn-free escalation tool's name (ADR-0569, extended to the Codex leaf). */
+const ESCALATE_TOOL_NAME = "escalate";
+
+/** `escalate`'s description, written literally (ADR-0569, guidance `codex-leaf-escalates`). */
+const ESCALATE_TOOL_DESCRIPTION =
+  "Raise a validated, phase-scoped escalation instead of continuing this authoring slice or " +
+  "working around a frozen input you believe is wrong. Ends the slice without a verdict — it " +
+  "never moves the verdict; the spine alone observes red/green out-of-band. AUTHOR_TEST takes " +
+  "{ statement }, IMPLEMENT takes { statement, assertion }. Exactly the first valid call in a " +
+  "slice is recorded; every later call is refused.";
+
+/** `escalate`'s input schema, written literally. */
+const ESCALATE_INPUT_SCHEMA = {
+  type: "object",
+  properties: { statement: { type: "string" }, assertion: { type: "string" } },
+  required: ["statement"],
+  additionalProperties: false,
+};
+
+/** The fixed text answered for a second (or later) valid `escalate` call in the same slice. */
+const ESCALATE_ALREADY_RECORDED_TEXT =
+  "an escalation was already recorded for this slice; this call is refused " +
+  "(exactly one escalation may be recorded per slice).";
+
+/** The fixed text answered for the first valid `escalate` call in a slice. */
+const ESCALATE_RECORDED_TEXT = "escalation recorded; this slice is ending — stop now.";
+
+interface ListedTool {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+}
 
 interface JsonRpcRequestBody {
   jsonrpc?: unknown;
@@ -130,11 +172,15 @@ async function readBody(req: IncomingMessage): Promise<string> {
 export async function openCodexFeedbackEndpoint(
   args: OpenCodexFeedbackEndpointArgs,
 ): Promise<CodexFeedbackEndpointHandle> {
-  const { phase, replicaRoot, commands, maxRuns, record } = args;
+  const { phase, replicaRoot, commands, maxRuns, record, recordEscalation } = args;
   const token = randomBytes(24).toString("hex");
   // The per-endpoint feedback budget: a fresh counter shared across every command this endpoint
   // serves, exactly as ClaudeAgentAuthor.author() tracks it per slice.
   let feedbackUsed = 0;
+  // The per-endpoint escalation slot (ADR-0569, extended to the Codex leaf): a fresh flag per
+  // endpoint, mirroring the per-slice `escalation` closure in `ClaudeAgentAuthor.author()`. Only
+  // ever set true by the FIRST valid `escalate` call this endpoint answers.
+  let escalationRecorded = false;
 
   const commandMap = new Map<string, FeedbackCommand>(
     commands.map((c) => [
@@ -146,6 +192,33 @@ export async function openCodexFeedbackEndpoint(
   async function handleToolCall(id: unknown, params: unknown, res: ServerResponse): Promise<void> {
     const rawName = (params as { name?: unknown } | undefined)?.name;
     const name = typeof rawName === "string" ? rawName : "";
+    if (name === ESCALATE_TOOL_NAME && recordEscalation !== undefined) {
+      if (escalationRecorded) {
+        const result: McpToolCallResult = {
+          content: [{ type: "text", text: ESCALATE_ALREADY_RECORDED_TEXT }],
+          isError: true,
+        };
+        sendJson(res, 200, { jsonrpc: "2.0", id, result });
+        return;
+      }
+      const rawArguments = (params as { arguments?: unknown } | undefined)?.arguments;
+      const parsed = parseAuthoringEscalation(phase, rawArguments);
+      if (!parsed.ok) {
+        const result: McpToolCallResult = {
+          content: [{ type: "text", text: parsed.reason }],
+          isError: true,
+        };
+        sendJson(res, 200, { jsonrpc: "2.0", id, result });
+        return;
+      }
+      escalationRecorded = true;
+      recordEscalation(parsed.escalation);
+      const result: McpToolCallResult = {
+        content: [{ type: "text", text: ESCALATE_RECORDED_TEXT }],
+      };
+      sendJson(res, 200, { jsonrpc: "2.0", id, result });
+      return;
+    }
     const command = commandMap.get(name);
     if (command === undefined) {
       sendJson(res, 200, rpcError(id, -32602, `unknown tool: ${name}`));
@@ -230,17 +303,19 @@ export async function openCodexFeedbackEndpoint(
         return;
       }
       case "tools/list": {
-        sendJson(res, 200, {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            tools: commands.map((c) => ({
-              name: c.name,
-              description: c.description,
-              inputSchema: EMPTY_INPUT_SCHEMA,
-            })),
-          },
-        });
+        const tools: ListedTool[] = commands.map((c) => ({
+          name: c.name,
+          description: c.description,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        }));
+        if (recordEscalation !== undefined) {
+          tools.push({
+            name: ESCALATE_TOOL_NAME,
+            description: ESCALATE_TOOL_DESCRIPTION,
+            inputSchema: ESCALATE_INPUT_SCHEMA,
+          });
+        }
+        sendJson(res, 200, { jsonrpc: "2.0", id, result: { tools } });
         return;
       }
       case "tools/call": {
