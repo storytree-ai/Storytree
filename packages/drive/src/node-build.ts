@@ -199,7 +199,25 @@ function isCodexMultifileRuntimeSeam(unitId: string): boolean {
  * that pins the text is what stops the requirement being quietly deleted. Reaching it any other way
  * costs a live run.
  */
-export function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: string): string {
+/**
+ * WHETHER THE GATE SIGNED — the half of a verdict's fate that the store cannot report.
+ *
+ * `persisted` is a property of the STORE: it is `true` for every `--store pg` build before the walk
+ * has even run. Read as "a verdict persisted" it is true only of a walk that signed one, and it was
+ * read exactly that way — run `real-mtsqwotf` printed `verdict: NONE — failed closed at
+ * CONFIRM_GREEN` and then "What DID persist: the signed verdict". `nodeBuild` hands its `ProveResult`
+ * over as-is; only `ok` is read, so the renderers stay callable without a walk.
+ */
+interface WalkOutcome {
+  readonly ok: boolean;
+}
+
+export function honestFramingLive(
+  persisted: boolean,
+  outcome: WalkOutcome,
+  runtime: LiveRuntime,
+  unitId: string,
+): string {
   const leaf =
     runtime === "codex"
       ? "the Codex CLI with saved ChatGPT subscription authentication"
@@ -213,7 +231,7 @@ export function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unit
     (isCodexMultifileRuntimeSeam(unitId)
       ? "the synthetic exact two-implementation-file fixture in a temp workspace.\n"
       : "the synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n") +
-    `The node's authored status is untouched; ${verdictFate(persisted)}.` +
+    `The node's authored status is untouched; ${verdictFate(persisted, outcome)}.` +
     // ADR-0449 requires this gap be NAMED in the admission record rather than silently dropped.
     // A pass here says the fence holds under a FRONTIER model; it says nothing about the weak local
     // open-weight model pi would run day to day — which is the kind of model the trial exists to
@@ -227,8 +245,10 @@ export function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unit
   );
 }
 
-function honestFramingReal(
+/** EXPORTED FOR ITS TEST — `nodeBuild`'s `--real` arm is unreachable offline, and this is its framing. */
+export function honestFramingReal(
   persisted: boolean,
+  outcome: WalkOutcome,
   promotion: PromotionResult | undefined,
   regression: "green" | "red" | undefined,
   typecheck: "green" | "red" | undefined,
@@ -242,27 +262,44 @@ function honestFramingReal(
     promotion !== undefined
       ? `the authored commit is PARKED on ${promotion.branch}\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main)`
       : "the authored commit was not promoted (see the promotion line above)";
+  // "BEFORE the gate ruled", never "BEFORE the verdict was signed": the same backstops run ahead of a
+  // refusal, and a refused build signed nothing.
   const suiteClause =
     regression === undefined
       ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
       : typecheck === undefined
-        ? `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree BEFORE the verdict was signed`
-        : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree — both BEFORE the verdict was\nsigned, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code)`;
+        ? `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree BEFORE the gate ruled`
+        : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code)`;
   return (
     "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\n" +
     `node's REAL test/impl files at their real repo paths authored by ${leaf},\n` +
     "the node's declared REAL proof command run by the spine for\n" +
     "both red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
     `\`git status\` off that worktree. ${commitFate}` +
-    (persisted ? "" : "; the verdict\nlanded in an in-memory store and is gone") +
+    (outcome.ok && !persisted ? "; the verdict\nlanded in an in-memory store and is gone" : "") +
     `; and ${suiteClause}.` +
-    (persisted
+    (!outcome.ok
+      ? `\nNo verdict was signed: ${refusalRecord(persisted)}.`
+      : persisted
       ? "\nWhat DID persist: the signed verdict — events.verdict in the shared store (the rollup can\nderive from it across sessions)."
       : "")
   );
 }
 
-function verdictFate(persisted: boolean): string {
+/**
+ * What a walk that signed NOTHING left in its store. There is no verdict to place, so the clause names
+ * the run's own events instead: the `building` mark every build appends, plus whatever claim,
+ * token-usage and write-fence rows the run wrote (`events.claim_event` / `usage_event` / `scope_event`
+ * under `--store pg`). The signing row is appended only after GATE passes (`prove-it-gate.ts`).
+ */
+function refusalRecord(persisted: boolean): string {
+  return persisted
+    ? "the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict"
+    : "this run's own events landed in an in-memory store and are gone";
+}
+
+function verdictFate(persisted: boolean, outcome: WalkOutcome): string {
+  if (!outcome.ok) return `no verdict was signed, and ${refusalRecord(persisted)}`;
   return persisted
     ? "the signed verdict PERSISTED to the shared store (events.verdict — the rollup can derive from it across sessions)"
     : "the verdict landed in an in-memory store and is gone";
@@ -2059,9 +2096,9 @@ export async function nodeBuild(
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real
-      ? honestFramingReal(persisted, promotion, regression, typecheck, runtime)
+      ? honestFramingReal(persisted, result, promotion, regression, typecheck, runtime)
       : live
-      ? honestFramingLive(persisted, runtime, spec.id)
+      ? honestFramingLive(persisted, result, runtime, spec.id)
         : HONEST_FRAMING_DRY;
 
     if (!result.ok) {
