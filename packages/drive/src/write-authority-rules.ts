@@ -32,9 +32,9 @@
  * critically a broad `deny` CANNOT carry an `allow` exception — so "deny the whole checkout except
  * `.claude/worktrees`" is not expressible. The lobby surface must therefore be ENUMERATED, and a
  * hand-kept enumeration silently rots the moment someone adds a top-level directory: the new
- * directory would be writable in the lobby and nothing would say so. `repo-manifest.json` already
- * exists as the enforced allow-list of exactly that surface (`pnpm check:manifest`), so deriving the
- * deny block from it means the wall and the repo surface cannot drift apart.
+ * directory would be writable in the lobby and nothing would say so. The repo manifest's `root`
+ * section already is the allow-list of exactly that surface, so deriving the deny block from it means
+ * the wall and the repo surface cannot drift apart.
  *
  * TWO THINGS THE MANIFEST CANNOT ANSWER ON ITS OWN, both found by review of the installed block and
  * fixed here rather than papered over:
@@ -66,7 +66,7 @@ export const DENIED_CLAUDE_CHILDREN = ["agents", "settings.json", "launch.json"]
 export const NEVER_DENY_CLAUDE_CHILDREN = ["worktrees"] as const;
 
 /**
- * Additional lobby paths denied although `repo-manifest.json` does not list them. The manifest is an
+ * Additional lobby paths denied although the repo manifest's `root` does not list them. The manifest is an
  * allow-list over the TRACKED surface (`git ls-files`), so anything untracked is invisible to it by
  * design — which means these have to be named here or nothing denies them at all.
  *
@@ -143,11 +143,11 @@ function isPlainObject(value: unknown): value is Readonly<Record<string, unknown
  * would make the conformance test useless as a signal.
  *
  * WHY `root.files` GETS THE TREE RULE TOO, when the bucket is named "files". Because the bucket does
- * not mean what its name says, and the manifest is not wrong to do it. `check-manifest.mjs` sorts a
- * tracked path into `root.files` vs `root.dirs` by `git ls-files` output — `parts.length === 1` is a
- * file — and git reports a SUBMODULE as one gitlink entry, not as the tree beneath it. So `web` (the
- * storytree-web submodule) is correctly listed under `root.files` for the gate that owns the manifest,
- * and moving it to `root.dirs` to satisfy this generator would make `pnpm check:manifest` block. The
+ * not mean what its name says, and the manifest is not wrong to do it. The allow-list sorts a tracked
+ * path into `root.files` vs `root.dirs` by `git ls-files` output — a one-segment path is a file — and
+ * git reports a SUBMODULE as one gitlink entry, not as the tree beneath it. So `web` (the
+ * storytree-web submodule) is correctly listed under `root.files`, and moving it to `root.dirs` to
+ * satisfy this generator would misfile it. The
  * manifest stays the single source of truth for WHICH paths make up the lobby surface; resolving what
  * each one is SHAPED like is this generator's job.
  *
@@ -286,7 +286,7 @@ function isWallHookEntry(entry: unknown): boolean {
  * PURE: fold the wall into an existing settings object, returning a NEW one.
  *
  * IDEMPOTENT AND SELF-PRUNING, which is the whole point of having a command rather than a hand-edit.
- * Re-running after `repo-manifest.json` changes must converge on exactly the generated set — so
+ * Re-running after the manifest's `root` changes must converge on exactly the generated set — so
  * previously-installed rules for THIS checkout are dropped before the fresh ones are added (a
  * removed top-level directory leaves no orphan rule behind), while deny rules for anything else and
  * every unrelated setting the user holds are preserved untouched.

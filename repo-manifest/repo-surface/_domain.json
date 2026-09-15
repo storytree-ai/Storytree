@@ -1,0 +1,48 @@
+{
+  "$comment": "Allow-list record for the repo ROOT and docs/. No gate or CI rung checks it: ADR-0311 D2 retired `check:manifest`, and the uninvoked script was deleted when this section moved into the fragment tree (ADR-0556), so it binds the author. Adding a NEW top-level root entry, or a NEW standalone doc under docs/, REQUIRES adding it here with a justification first — that friction is the point: it blocks temp/ad-hoc junk at root and keeps durable project knowledge in the Library (definition/principle/pattern/guardrail/techstack/adr/open-question), not loose prose docs. A new doc's justification must say why it does NOT belong in the Library. See the `repo-surface-allowlist` Library guardrail.",
+  "docs": {
+    "allowedDirs": {
+      "design": "Owner-approved executable HTML mocks and binary visual witnesses referenced by an arc or ADR. Their behavioural rules stay in the Library/decision record; renderable assets do not fit the Library's atomic text schema and must remain directly reviewable by humans and visual-build agents.",
+      "friction-inbox": "Offline/remote capture staging for `friction` Library items (ADR-0168 D2): a remote 443-only session that cannot reach the live store files `storytree friction new` here as validated doc JSON for its PR, and the adjudicator/librarian files it live and deletes the staging file (migrate-only, like sync-corpus). Schema-validated fail-closed by friction-inbox.test.ts in `pnpm -r test`. NOT durable knowledge — a transient staging surface, so it sits in docs/ rather than the Library.",
+      "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model."
+    },
+    "files": {
+      "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the ADRs and Library units' references. A threaded cross-reference ledger, not atomic Library units."
+    }
+  },
+  "root": {
+    "dirs": {
+      ".claude": "Claude Code project config / worktrees.",
+      ".codex": "Codex project config; generated native subagents mirror the Library agent tier.",
+      ".cursor": "Cursor project config; generated native subagents mirror the Library agent tier (ADR-0178).",
+      ".gemini": "Gemini CLI project config; generated native subagents mirror the Library agent tier.",
+      ".github": "CI workflows (the green gate + auto-merge, ADR-0022).",
+      "apps": "Workspace apps (studio).",
+      "docs": "ADRs + open-questions backlog + research notes (see `docs` beside `root` in this file).",
+      "infra": "Terraform / GCP infra (Cloud SQL, WIF/CI + studio identities, deploy pipelines). The instance runs 24/7 per ADR-0302 D2 — no scheduled stop/start.",
+      "legacy": "Read-only V1 Rust submodule (legacy/Agentic); reference only.",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; uat-criterion is the per-criterion detail organism for ADR-0209 D5/D6, live-canonical since ADR-0307 D5, and since 2026-08-31 also the home of the criterion PARSER; the whole model-UAT family — model-judged-uat, model-uat-pilot and finally model-uat itself — was DELETED across ADR-0247 D5's three retirements, which withdrew ADR-0209's rubric-judge, pilot and judge-registry machinery; the one live thing model-uat still held was criterion.ts, lifted into uat-criterion rather than deleted; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps; forest-layout is the same shape one story over — a second forest-world-owned package holding WHERE THE ISLANDS SIT, extracted from apps/studio/src/components/TreeView.tsx on 2026-09-07 by ADR-0537 D1 and NOT foundational because it depends on forest-world. ADR-0537 ruled AGAINST folding it into forest-world itself: that package earns its keep by depending on nothing, while layout has different consumers and a far higher change rate, and only forest-world/src and forest-world-r3f/src are mirrored to the website, so a package outside them pays no publishing toll — which is the toll that had kept the packing surface-side).",
+      "repo-manifest": "The manifest's authoritative fragments (ADR-0556) and its only authoring surface: one directory per domain (repo-surface, package-ownership, source-ownership with one file per owner, hierarchy-camps, hosted-stories), composed by packages/drive/src/manifest-fragments.ts.",
+      "scripts": "Repo-level maintenance scripts (e.g. the gate's background launcher and the session hooks).",
+      "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library."
+    },
+    "files": {
+      ".editorconfig": "Editor formatting baseline.",
+      ".env.example": "Sample env (ANTHROPIC_API_KEY); DB auth is keyless.",
+      ".gcloudignore": "Upload filter for `gcloud builds submit` (the hosted studio image, ADR-0042); must sit at the upload root, which is the repo root.",
+      ".gitattributes": "Git attributes (eol/diff).",
+      ".gitignore": "Ignored paths.",
+      ".gitmodules": "Submodule wiring (legacy/Agentic read-only; web → storytree-web).",
+      ".nvmrc": "Pinned Node version (24).",
+      "AGENTS.md": "Generated Codex root/session guidance from the canonical Library session-orchestrator agent (ADR-0291).",
+      "CLAUDE.md": "Agent onboarding / one-read orientation; load-bearing.",
+      "README.md": "Project front-door (the one standalone narrative doc we keep).",
+      "package.json": "Workspace root manifest + gate/sync scripts.",
+      "pnpm-lock.yaml": "Locked dependency graph (frozen-lockfile in CI).",
+      "pnpm-workspace.yaml": "pnpm workspace definition (packages/*, apps/*).",
+      "repo-manifest.json": "The manifest's former aggregate, kept as an empty object until repo-manifest-aggregate-leaves-git removes it (ADR-0556). Every section is authored under repo-manifest/, and a section written back here is refused as a second home.",
+      "tsconfig.base.json": "Shared TS compiler options every package extends.",
+      "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
+    }
+  }
+}

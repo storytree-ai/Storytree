@@ -285,7 +285,7 @@ export interface ToolchainShellReadings {
 /**
  * The generated `permissions.deny` block for THIS checkout (ADR-0255/0257/0284).
  *
- * `stale` is a first-class state because the block is DERIVED from `repo-manifest.json`: a new
+ * `stale` is a first-class state because the block is DERIVED from the repo manifest's `root`: a new
  * top-level entry leaves the wall silently short by exactly that path, which reads as installed to
  * anything that only asks "is there a block?". `unknown` is the platform/undeterminable escape —
  * see {@link classifyWriteAuthority} for the three producers and why none of them may read as PASS.
@@ -748,10 +748,10 @@ export function devProbes(obs: DevObservations): Probe[] {
     probes.push({
       name: "write-authority",
       level: "WARN",
-      detail: "an older deny block is installed — it no longer covers every entry repo-manifest.json lists",
+      detail: "an older deny block is installed — it no longer covers every top-level entry the repo manifest lists",
       fixHint:
         "re-run `pnpm storytree write-authority install --write` (idempotent). The block is DERIVED " +
-        "from repo-manifest.json, so a new top-level entry leaves the wall short by exactly that " +
+        "from the manifest's root allow-list (repo-manifest/repo-surface/_domain.json), so a new top-level entry leaves the wall short by exactly that " +
         `path — never hand-edit it. See ${guideStep("wall")}.`,
     });
   } else if (obs.writeAuthority === "absent") {
@@ -768,11 +768,11 @@ export function devProbes(obs: DevObservations): Probe[] {
     probes.push({
       name: "write-authority",
       level: "WARN",
-      detail: "wall state not determined (repo-manifest.json or ~/.claude/settings.json unreadable, or the rule set computed empty)",
+      detail: "wall state not determined (the repo manifest did not compose, ~/.claude/settings.json is unreadable, or the rule set computed empty)",
       fixHint:
         "an UNKNOWN here is deliberate — the wall has only ever been exercised on Windows, and a " +
-        "state that cannot be computed must not read as installed. Check that repo-manifest.json " +
-        "parses and that ~/.claude/settings.json is valid JSON, then re-run " +
+        "state that cannot be computed must not read as installed. Check that the repo manifest composes " +
+        "(`pnpm storytree write-authority rules` names why when it does not) and that ~/.claude/settings.json is valid JSON, then re-run " +
         `\`pnpm storytree write-authority install --write\`. See ${guideStep("wall")}.`,
     });
   }
@@ -892,7 +892,7 @@ export function classifySecretsFile(
  * THE VACUOUS-GREEN GUARD IS THE POINT OF THIS FUNCTION, not the comparison. Three separate inputs
  * can leave the expected rule set uncomputable or empty, and every one of them would otherwise
  * resolve to `installed` — a probe reporting an enforcing wall over a machine that has none:
- *   • an unreadable or unparseable `repo-manifest.json` — nothing to derive the rules FROM;
+ *   • a repo manifest that does not compose — nothing to derive the rules FROM;
  *   • an unparseable `~/.claude/settings.json` — we cannot say a block is absent from a file we
  *     cannot read, and telling someone to reinstall over an unparseable settings file is wrong;
  *   • a manifest that parses but yields ZERO rules — an empty expectation is satisfied by an empty

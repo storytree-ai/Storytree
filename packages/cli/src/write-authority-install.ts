@@ -3,7 +3,7 @@
  * (ADR-0257 D1/D6, increment 3: the flip from inert to enforcing).
  *
  * WHY THIS IS A COMMAND AND NOT A ONE-OFF EDIT. The static deny block is DERIVED from
- * `repo-manifest.json` — that is what stops the wall and the repo surface drifting apart (a new
+ * the repo manifest's `root` allow-list — that is what stops the wall and the repo surface drifting apart (a new
  * top-level directory would otherwise be quietly writable in the lobby, with nothing to say so). A
  * derived artifact that can only be produced by hand rots at the first manifest change. So the
  * generator gets a caller: `write-authority install --write` regenerates and re-installs, and is
@@ -104,8 +104,8 @@ function help(): Envelope {
       "  install            DRY RUN: show what would change in ~/.claude/settings.json",
       "  install --write    install/refresh the deny block",
       "",
-      "The block is DERIVED from repo-manifest.json, so re-run `install --write` whenever a",
-      "top-level entry is added or removed — never hand-edit it.",
+      "The block is DERIVED from the manifest's root allow-list (repo-manifest/repo-surface/_domain.json),",
+      "so re-run `install --write` whenever a top-level entry is added or removed — never hand-edit it.",
       "",
       "The wall is STATIC ONLY (ADR-0284). Shell writes and Codex are uncontained; `install --write`",
       "also strips any PreToolUse registration left by an earlier version. There is no Codex",

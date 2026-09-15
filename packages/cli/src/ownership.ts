@@ -22,7 +22,7 @@
  * the same precedent — excluding them now would be the inconsistent move, not the consistent one. The
  * original denominator deliberately matched the one `first-class-edges-arc` measured (519 files at HEAD
  * `7115c899`); this aperture change moved it again, on purpose, per ADR-0269 ("a drain ceiling rises
- * only when the measured population enlarges") — read the CURRENT number from `repo-manifest.json` →
+ * only when the measured population enlarges") — read the CURRENT number from `repo-manifest/source-ownership/_domain.json` →
  * `sourceOwnership.baseline`, never from this comment, which will drift the moment the map is re-walked.
  *
  * REPORT-ONLY: the envelope is `ok: true` even when most of the tree is unowned. That is not

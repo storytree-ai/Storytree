@@ -40,7 +40,7 @@
  *
  * ## A SUBTREE's id is its declaration KEY, verbatim, and only an EXACT key resolves
  *
- * `repo-manifest.json` → `sourceOwnership.subtrees` keys the map by path-or-glob
+ * The repo manifest's `sourceOwnership.subtrees` keys the map by path-or-glob
  * (`packages/cli/src/gate*.ts`), and that key IS the object's address — deriving a slug beside it
  * would create a second name for one object, to be kept in sync and to collide
  * (`packages/cli/src/ownership.ts` and `packages/cli/src/*ownership*.ts` slug alike).
@@ -83,7 +83,7 @@ import { matchesSubtree } from "./subtree-match.js";
  * actually is rather than a bare "unknown".
  *
  * `subtree` ADDED 2026-08-06, on the ledger's other clause: ADR-0317 D3 names it, and — the fence
- * increment 2 left — THE OBJECTS NOW EXIST. `repo-manifest.json` → `sourceOwnership.subtrees`
+ * increment 2 left — THE OBJECTS NOW EXIST. The repo manifest's `sourceOwnership.subtrees`
  * carries 372 declarations covering 527 of 527 source files, 0 contested / 0 stale / 0 unresolved
  * (`first-class-edges-arc` increment 3). Admitting the kind before that would have admitted every
  * typo that looked like a path; admitting it now is what gives the 164 files (31%) declared at STORY

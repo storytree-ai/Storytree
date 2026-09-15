@@ -1,0 +1,467 @@
+{
+  "hierarchyCamps": {
+    "$comment": "The THIRD declared ownership map (ADR-0445 D1, `map-freshness-arc` inc-04), read by packages/cli/src/check-hierarchy-camps.ts and judged by its pure neighbour hierarchy-camps.ts. `packageOwnership` answers 'which story owns this PACKAGE' and `sourceOwnership` answers 'which unit is responsible for this FILE'; this one answers a question neither can: WHICH CLOCK does this module have to agree with when it reads the work hierarchy. ### WHY IT EXISTS. ADR-0445 D1 made the work hierarchy disk-canonical for PROVING and live-canonical for RENDERING, and its own Consequences name the failure mode: 'a THIRD reader added later without asking which camp it is in'. That is not hypothetical here — `readCorpusStoryDocs` walks every story directory and no UAT instrument filters `status: retired`, so every instrument built over it inherited that blindness for free (ADR-0396's Context). A split with no fence acquires wrong-camp readers the same way, one convenience at a time. ### THE ANSWERS. `prove` = 'I must agree with the commit under test' — it reads stories/** off the checkout, because CI validating a live tree would validate the wrong thing. `render` = 'I must agree with NOW' — it reads the store's projection, so the map's QUESTION and its PROOF cannot sit at different commits. `bridge` = 'the gap between them IS my subject' — the loader and the drift rung, and a bridge MUST read both sources, which is what stops it being the label a reader reaches for to avoid answering. There is no 'either'. ### WHAT THE RUNG ENFORCES, and why it is not the presence check ADR-0427 deleted. It never reads a string the subject writes about itself. It computes, from each module's own code, which source that module NAMES — the checkout's stories directory, or `PgWorkHierarchyStore` — and holds that computed fact against the declaration here, in BOTH directions: an undeclared reader fails, a declared read the code does not perform fails, a live read in the prove camp fails, an unstated checkout read in the render camp fails (ADR-0445 D2 permits the fallback and requires it to be STATED — that is what `fallback` is), a bridge that spans one source fails, and a render reader with no stated fallback that imports a prove reader's helper fails, because reaching the wrong clock through a helper is still reaching it. Prose cannot satisfy either half. ### THE MAP IS TOTAL IN BOTH DIRECTIONS, at EXACT paths, no globs — a declaration naming a file that reads nothing is a failure too, the `check:boundaries` 24/24 posture. Adding a reader means adding a line here; that friction is the point, and it is the whole increment. ### WHO IS NOT HERE, deliberately: a module HANDED a folded hierarchy chose no clock, so it has no camp — `apps/studio/server/hierarchySource.ts` and `apps/desktop/src/backend/hierarchy-live.ts` are SEAMS that pick between two callbacks and read nothing themselves; their callers name the sources and carry the camps.",
+    "readers": {
+      "apps/desktop/electron/backend-entry.ts": {
+        "because": "wires the desktop backend's hierarchy sources; the map it feeds must agree with now.",
+        "camp": "render",
+        "fallback": "the desktop composition root supplies BOTH arms: the live `workHierarchy()` reader the map prefers, and the checkout reads behind it — the UAT criterion detail, and the disk arm the runtime cache degrades to. ADR-0445 D2 legitimises the runtime cache and requires the disk arm to be stated; this is the statement.",
+        "reads": [
+          "checkout",
+          "live"
+        ]
+      },
+      "apps/desktop/src/backend/activity-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe: it drives one route over a FIXTURE tree in its own process, and its answer has to describe the commit under test.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/arcs-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/attestations-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/attestations-route.ts": {
+        "because": "a LIVE desktop read route, so it must agree with NOW — the same camp as `tree-verdicts.ts` beside it, and for the same reason: the surface it feeds is the running app, not a proof run.",
+        "camp": "render",
+        "fallback": "it reads the checkout's `stories/` for one story's authored UAT legs. There is no live-projection arm here and that is not an omission: the projection carries each criterion's `criterionId` and `revisionId` but not the leg PROSE or its `(detail:)` pointer, which are what this route puts on the wire. It therefore inherits the desktop's build-freshness skew for those fields exactly as ADR-0445 D1 describes, and the mirror row proves only that the studio inherits it identically.",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/claims-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe for `/api/claims` (ADR-0496 D3). It names a stories path only because the local-backend deps shape requires one — no request it replays reads the hierarchy at all — and its subject is this commit's two surfaces agreeing, never the live ledger.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/floor-health-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/local-backend.ts": {
+        "because": "the desktop map's route table.",
+        "camp": "render",
+        "fallback": "names the stories directory it hands to `readTreeWithCaps` — the disk arm `selectDesktopHierarchy` degrades to, after the runtime cache, when the store cannot answer. For an INSTALLED app a disk read is the incident rather than a neutral fallback (ADR-0445 D2), which is why it is last and why it is declared here.",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/tree-mirror-probe.ts": {
+        "because": "a `check:mirror-conformance` probe over a fixture tree — and on this pair the fixture carries BOTH arms, a `stories/` tree and a work-hierarchy snapshot, because `/api/tree` is the route where the two clocks meet. Its subject is still this commit's two surfaces agreeing, never which clock is right.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/tree-verdicts.ts": {
+        "because": "folds verdicts onto the desktop tree.",
+        "camp": "render",
+        "fallback": "the desktop's disk walk itself — the arm `local-backend.ts` above falls back to. It is in the render camp because the surface it serves must agree with now; it reads the checkout only when nothing current can be reached.",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/uat-attest-mirror-probe.ts": {
+        "because": "the desktop half of the same WRITE pair, and its stories tree is a fixture the harness builds — its subject is this commit's two surfaces, not the live store.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/desktop/src/backend/uat-attest-route.ts": {
+        "because": "PROVE, unlike the `attestations-route.ts` READ beside it, and the difference is what this camp exists to make explicit. That route renders a panel and must agree with NOW; this one SIGNS — it resolves the criterion whose `revisionId` the verdict binds and pins the commit the operator observed, so it must agree with the checkout it is attesting. A live projection is the wrong clock here by construction: a verdict signed against a criterion revision the operator was not looking at is a false green, which is the failure ADR-0082's binding exists to prevent.",
+        "camp": "prove",
+        "fallback": "no live-projection arm, and none is wanted: the projection carries `criterionId` and `revisionId` but the signature must bind the revision as authored in the tree the operator is running, which is what the desktop's clean-tree wall already forces.",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/apiRouter.ts": {
+        "because": "the studio map's route table — the render surface the 2026-08-25 incident was reported against.",
+        "camp": "render",
+        "fallback": "the studio's `/api/tree` prefers the live projection through `selectHierarchy`, which this module wires; what it reads here IS the disk arm that seam falls back to, plus the per-criterion UAT detail still read off the checkout. Every fallback is announced by `announceHierarchyOrigin`, so the disk read can only be reached through a branch that says why (ADR-0445 D2).",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/arcsMirrorProbe.ts": {
+        "because": "the studio half of the same conformance harness; it must answer for the code in this diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/attestationsMirrorProbe.ts": {
+        "because": "the studio half of the `/api/attestations` conformance pair; it must answer for the code in this diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/claimsMirrorProbe.ts": {
+        "because": "the studio half of the same `/api/claims` pair; it must answer for the code in this diff, and the claim rows it folds come from a fixture rather than from the store.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/forestSnapshotCli.ts": {
+        "because": "the exporter shell behind `pnpm web:forest-snapshot` — it publishes what the studio map currently shows, stamped with the moment it was taken, so its clock is now rather than the commit under test.",
+        "camp": "render",
+        "fallback": "the published snapshot is a picture of NOW, and the arc join it carries (ADR-0453 D12) reaches the checkout for the one edge that lives nowhere else: the story-side frontmatter `arc:` stamp, which ADR-0306 D4 defines as a disk scan of the running tree. So this is not a fallback FROM a live read — there is no live copy of that stamp to prefer — and it cannot become one silently: `unpublishableReason` already refuses to publish unless the LIVE store answered, so a checkout-only run writes no file at all.",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/libraryBackend.ts": {
+        "because": "opens `PgWorkHierarchyStore` and is the studio's LIVE half of the map's join. It reads no checkout at all, which is why it carries no `fallback` — and why a checkout read appearing here would red this rung rather than pass unnoticed.",
+        "camp": "render",
+        "reads": [
+          "live"
+        ]
+      },
+      "apps/studio/server/treeMirrorProbe.ts": {
+        "because": "the studio half of the `/api/tree` conformance pair; it must answer for the code in this diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "apps/studio/server/uatAttestMirrorProbe.ts": {
+        "because": "the studio half of the `/api/uat/attest` conformance pair — the registry's only WRITE pair; it must answer for the code in this diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/census_healthy.ts": {
+        "because": "a one-shot research script, frozen against the checkout it was run on.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/emit_healthy_island.ts": {
+        "because": "a one-shot research script, frozen against the checkout it was run on.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/emit_proof.ts": {
+        "because": "a one-shot research script, frozen against the checkout it was run on.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/arc/src/arc-rollup.ts": {
+        "because": "the arc-to-children join reads story frontmatter off the commit under test.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/arc/src/arc.ts": {
+        "because": "reads the arc stamps declared in this checkout's story frontmatter.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/scripts/validate-corpus.ts": {
+        "because": "the `stories/**` corpus guard — its entire subject is the tree in this diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/adopt-capability.ts": {
+        "because": "capability-grain adoption signs against the unit as the commit under test declares it (ADR-0465 D4), exactly like its story-grain sibling.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/adr-health.ts": {
+        "because": "reads each story's `decisions:` off the commit under test.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-adr-health.ts": {
+        "because": "the decision-binding gate judges the bindings this commit declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-boundaries.ts": {
+        "because": "the organism-boundary gate judges the edges declared in THIS diff.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-contract-grammar.ts": {
+        "because": "the ADR-0459 contract-line grammar rung reads the checkout's `stories/` tree at TWO revisions of it — the working tree and the merge base — because the whole question it answers is which contracts THIS COMMIT added or edited. A live projection would answer about a tree nobody is proving, and would excuse or charge contracts by whichever PR merged last.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-coverage.ts": {
+        "because": "coverage is judged against the units the commit under test declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-hierarchy-drift.ts": {
+        "because": "`check:hierarchy-drift` — the gap between the two clocks IS its verdict. It reads the checkout's projection and the store's mirror and reports whether they still describe the same tree, so it necessarily spans both and belongs to neither camp.",
+        "camp": "bridge",
+        "reads": [
+          "checkout",
+          "live"
+        ]
+      },
+      "packages/cli/src/check-mirror-conformance.ts": {
+        "because": "builds the fixture tree the probes above run over; its subject is this commit.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-uat-revision-continuity.ts": {
+        "because": "ADR-0560's merge wall compares the candidate checkout with its merge-base hierarchy. It also reads live signed verdicts, but not the live work-hierarchy projection: the hierarchy question is proof of this candidate and therefore checkout-canonical.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/check-verification-decay.ts": {
+        "because": "the decay instruments bind to proof declared in the commit under test.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/ci-affected.ts": {
+        "because": "the affected-scope classifier maps THIS diff's changed paths; scoping from a live tree would narrow the wrong branch.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/commands.ts": {
+        "because": "the CLI's tree/build/claim verbs address the units this checkout declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/coverage-gate.ts": {
+        "because": "the coverage ceiling is measured over the units in the commit under test.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/friction.ts": {
+        "because": "names the `stories/**` write scope of the checkout a friction item was captured on.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/gate-build-driver.ts": {
+        "because": "drives a build of the unit exactly as this commit declares it.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/hierarchy-git.ts": {
+        "because": "stamps the checkout's `stories/` tree id — the anchor the mirror is later compared against.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/leaf-test-strength.run.ts": {
+        "$note": "Not a gate rung and not a threshold — a by-hand reading for `verdict-accuracy-arc` (docs/research/leaf-test-strength-2026-09-05.md). The gap between the proof's commit and the tree now is REPORTED per pair (`testChangedSinceProof`, from git) rather than resolved, precisely because this reader sits in one camp and says so.",
+        "because": "`pnpm leaf-test-strength` resolves a signed verdict's `unitId` to the file pair the leaf was scoped to author, and it must read the CHECKOUT's `stories/**` because those paths are only meaningful against the tree it is about to mutate — the files it then hands to Stryker are this checkout's files. It also reads the live store, but for `events.verdict`, which is not the work hierarchy: the hierarchy read is checkout-only, and that is what this camp names.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/load-hierarchy.ts": {
+        "because": "the LOADER — it reads the checkout and writes the store's projection, which is the act that makes the two clocks agree. A module that only read one side could not perform it.",
+        "camp": "bridge",
+        "reads": [
+          "checkout",
+          "live"
+        ]
+      },
+      "packages/cli/src/main.ts": {
+        "because": "the CLI composition root hands its verbs the checkout's stories directory.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/ownership.ts": {
+        "because": "the source-ownership sweep is judged against the files in this commit.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/story-baseline.ts": {
+        "because": "story-baseline advancement and its bounded backfill bind signed health to the exact story declaration in the commit under test; the live verdict stream is proof evidence, not a live work-hierarchy projection.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/verdict-contradiction.run.ts": {
+        "$note": "Not a gate rung and not a threshold — a by-hand reading for `verdict-accuracy-arc` increment 2 (docs/research/verdict-contradiction-2026-09-06.md). Shares `leaf-test-strength.run.ts`'s population resolver on purpose: two instruments on one arc disagreeing about which verdicts resolve to a pair would make both unreadable.",
+        "because": "`pnpm verdict-contradiction` resolves a signed verdict's `unitId` to the file pair the leaf was scoped to author, and it must read the CHECKOUT's `stories/**` because those paths are only meaningful against the tree whose git history it then walks. It also reads the live store, but for `events.verdict`, which is not the work hierarchy: the hierarchy read is checkout-only, and that is what this camp names.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/cli/src/worktree-create.ts": {
+        "because": "stamps a new worktree's story and arc from the tree it is cut from.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/adopt.ts": {
+        "because": "adoption signs against the unit as the commit under test declares it.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/claim-universe.ts": {
+        "because": "the claim namespace is the set of ids this commit declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/coupling-churn.ts": {
+        "because": "measures churn over a commit range in this checkout.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/hierarchy-projection.ts": {
+        "because": "the PROJECTOR: it reads the checkout so the mirror describes a COMMIT. Pointing it at the store would make the mirror a copy of itself; the loader that writes what it produces is the bridge.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/node-build.ts": {
+        "because": "a build proves the unit the checkout declares — ADR-0445 D1 names the build drivers as deliberately unmoved.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/orientation-reads.ts": {
+        "because": "orientation reports on the tree the session is actually working in.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/orientation-runner.ts": {
+        "because": "orientation reports on the tree the session is actually working in.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/story-build.ts": {
+        "because": "a story build proves the units the checkout declares, in the order it declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/tree.ts": {
+        "because": "the tree read behind the build drivers — the commit under test is its subject.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/uat-drive-witness.check.ts": {
+        "because": "a UAT walk is signed against the criterion revision in the commit it ran on (ADR-0253).",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/uat-drive.run.ts": {
+        "because": "a UAT walk is signed against the criterion revision in the commit it ran on (ADR-0253).",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/drive/src/work-hierarchy.ts": {
+        "because": "the `story:`/`capability:` ref resolver reads the ids this commit declares.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/library/scripts/migrate-adr0253.ts": {
+        "because": "a one-shot migration over the checkout it was run against.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      },
+      "packages/library/src/store/pg-work-hierarchy-store.ts": {
+        "because": "the live door itself — the only way the stored projection is read or written. Its currency is NOW by construction, so it is `render` rather than a fourth role; the loader and the drift rung that reach through it carry their own `bridge` declarations.",
+        "camp": "render",
+        "reads": [
+          "live"
+        ]
+      },
+      "packages/orchestrator/src/node-spec.ts": {
+        "because": "the spine's unit-spec loader — the PROOF's own reader, named by ADR-0445 D1 as deliberately unmoved.",
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ]
+      }
+    }
+  }
+}

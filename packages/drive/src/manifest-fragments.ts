@@ -2,17 +2,16 @@
  * THE MANIFEST FRAGMENT CONTRACT, and the one composer every reader of it is to use (ADR-0556,
  * `repo-manifest-fragmentation-arc` increment 1).
  *
- * `repo-manifest.json` is one Git path carrying five independent registries — the repo-surface
+ * `repo-manifest.json` was one Git path carrying five independent registries — the repo-surface
  * allow-list, package ownership, source ownership, hierarchy camps and the hosted-story register. In
  * the thirty days to 2026-09-08 it was touched by 162 of 1,283 non-merge commits, 156 of them in
  * `sourceOwnership`, so otherwise independent work queues behind one file. The arc replaces the file
  * with FRAGMENTS cut at the grain claims are taken at, composed by one fail-closed local seam.
  *
  * THIS MODULE IS THAT SEAM, AND ONLY THE SEAM. ADR-0556 D5 landed "a pure composer and fault-seeded
- * tests" before authority moved. Since `repo-manifest-source-ownership-fragments`, `sourceOwnership` is
- * authored as fragments under `repo-manifest/`, and every reader of it composes them with the aggregate
- * through {@link composeRepoManifest}; the other domains are still read from the aggregate until they
- * move. What is settled here is what a fragment is, where it lives, and how a set of them composes into
+ * tests" before authority moved. Since `repo-manifest-remaining-domains-compose`, every section is
+ * authored as fragments under `repo-manifest/`, and every reader composes them — with the aggregate
+ * beside them, now kept empty — through {@link composeRepoManifest}. What is settled here is what a fragment is, where it lives, and how a set of them composes into
  * the manifest's one semantic view. It needs no database and no CI — claim declaration and every gate
  * call it on a laptop, before a pull request exists.
  *
@@ -254,11 +253,11 @@ export const REPO_MANIFEST_TREE = "repo-manifest";
  * What a reader of the repository's manifest found, before any judgement: the committed aggregate and
  * the fragment tree beside it.
  *
- * THE MIGRATION'S SHAPE. ADR-0556 D5 moves authority one domain at a time, so for a while the manifest
- * is part aggregate and part fragments — `sourceOwnership` in the tree, every other section still in
- * `repo-manifest.json`. The aggregate is split exactly as {@link splitManifest} splits it and set beside
- * the tree's files, and the one composer judges the whole set, so no reader can tell, or needs to, which
- * half a section came from.
+ * THE MIGRATION'S SHAPE. ADR-0556 D5 moved authority one domain at a time, so for a while the manifest
+ * was part aggregate and part fragments. Every domain is in the tree now, and the aggregate is kept empty
+ * until `repo-manifest-aggregate-leaves-git` removes it. While it exists it is still split exactly as
+ * {@link splitManifest} splits it and set beside the tree's files, and the one composer judges the whole
+ * set, so a section written back into it is refused as a second home rather than read.
  */
 export interface RepoManifestSources {
   /** The aggregate's text — or why it could not be read. */

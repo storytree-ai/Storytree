@@ -210,7 +210,7 @@ jobs:
       # disk-canonical for PROVING and live-canonical for RENDERING, and its own Consequences name
       # the failure mode: "a THIRD reader added later without asking which camp it is in". This rung
       # computes, from each module's code, which source it NAMES, and holds that against the camp
-      # declared in `repo-manifest.json` -> `hierarchyCamps.readers` — in both directions, so an
+      # declared in `repo-manifest/hierarchy-camps/_domain.json` -> `hierarchyCamps.readers` — in both directions, so an
       # undeclared reader, a declared read the code does not perform, a live read in the prove camp,
       # an unstated checkout fallback in the render camp, and a render reader reaching a prove
       # reader's helper all red. Offline and disk-only: no store, no credential. Deliberately a ROOT

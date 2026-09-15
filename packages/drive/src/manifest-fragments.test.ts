@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -928,22 +928,22 @@ function lazy<T>(make: () => T): () => T {
   return () => (made ??= { value: make() }).value;
 }
 
-const liveText = lazy(() => readFileSync(LIVE_MANIFEST, "utf8"));
 const liveTree = lazy(() => readManifestFragmentTree(manifestFragmentRoot(LIVE_MANIFEST)));
 
 /**
  * The live manifest as every reader sees it — `repo-manifest.json` composed with the fragment tree beside
  * it — and what that composition refused, which must be nothing. Nothing is set aside: the three covered
- * declarations were narrowed away (`repo-manifest-covered-declarations-resolved`), and `sourceOwnership`
- * has been authored as fragments since `repo-manifest-source-ownership-fragments`.
+ * declarations were narrowed away (`repo-manifest-covered-declarations-resolved`), and every section has
+ * been authored as fragments since `repo-manifest-remaining-domains-compose`.
  */
 const live = lazy(() => {
   const composed = readRepoManifest(LIVE_MANIFEST);
   return { composed, refused: composed.ok ? [] : composed.faults };
 });
 
-test("LIVE: no committed manifest file repeats a key — the aggregate and every fragment, which no parsed read could see", () => {
-  assert.deepEqual(duplicateKeyPaths(liveText()), []);
+test("LIVE: no committed fragment repeats a key — which no parsed read could see", () => {
+  // The aggregate is not scanned, and needs no scan: with every domain in the tree, ANY key left in it is
+  // refused as a second home (below), so a repeated key there cannot reach a reader either.
   assert.deepEqual(liveTree().unread, []);
   for (const f of liveTree().fragments) assert.deepEqual(duplicateKeyPaths(f.text), [], f.path);
 });
@@ -964,20 +964,26 @@ test("LIVE: the repository's manifest carries no declaration COVERED by another 
   );
 });
 
-test("LIVE: source ownership is authored in the fragments — the aggregate no longer carries it, and no other domain has moved yet", () => {
-  assert.equal(Object.keys(JSON.parse(liveText())).includes("sourceOwnership"), false, "a sourceOwnership block in repo-manifest.json is a second home");
-  assert.deepEqual([...new Set(liveTree().fragments.map((f) => f.path.split("/")[0]))], ["source-ownership"]);
+test("LIVE: every domain is authored in the fragments — the aggregate beside them contributes nothing, and cannot regain a section", () => {
+  assert.deepEqual(
+    [...new Set(liveTree().fragments.map((f) => f.path.split("/")[0]))].sort(),
+    MANIFEST_DOMAINS.map((domain) => domain.dir).sort(),
+  );
+  // What every reader gets is the fragments' composition alone: the same tree beside an EMPTY aggregate.
+  assert.deepEqual(manifestOf(composeRepoManifest({ aggregate: { text: "{}" }, tree: liveTree() })), manifestOf(live().composed));
+  // And a section written back into the aggregate is a second home, refused by name — for every section.
+  for (const section of MANIFEST_DOMAINS.flatMap((domain) => domain.sections)) {
+    const aggregate = { text: JSON.stringify({ [section]: {} }) };
+    assert.deepEqual(about(faultsOf(composeRepoManifest({ aggregate, tree: liveTree() }))), [["misplaced-declaration", section, [REPO_MANIFEST]]], section);
+  }
 });
 
-test("LIVE: the committed fragments are exactly the claim-grain split of the map — one file per owner, and one for the notes", () => {
+test("LIVE: the committed fragments are exactly the split of the composed manifest — one file per owner, one per domain for the rest", () => {
   const whole = manifestOf(live().composed);
-  const expected = splitManifest(whole)
-    .filter((f) => f.path.startsWith("source-ownership/"))
-    .map((f) => f.path);
-  assert.deepEqual(liveTree().fragments.map((f) => f.path).sort(), expected);
+  assert.deepEqual(liveTree().fragments.map((f) => f.path).sort(), splitManifest(whole).map((f) => f.path));
 });
 
-test("LIVE: the composed manifest round-trips through its claim-grain fragments — every declaration and every note", () => {
+test("LIVE: the composed manifest round-trips through its fragments — every declaration and every note", () => {
   const whole = manifestOf(live().composed);
   const split = splitManifest(whole);
   assert.deepEqual(manifestOf(composeManifest(split)), whole);

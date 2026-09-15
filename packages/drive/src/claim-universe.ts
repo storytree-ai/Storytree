@@ -16,8 +16,8 @@
  * claim proceeds exactly as it did before this check existed. There is no partial-refusal mode.
  *
  * Concretely: no `stories/` directory, an unreadable directory, a node file whose frontmatter
- * declares a tier but no id, a null library store, a library read that throws, an absent or
- * unparseable `repo-manifest.json`, or a manifest carrying no `sourceOwnership.subtrees` map — each
+ * declares a tier but no id, a null library store, a library read that throws, a repo manifest
+ * that does not compose, or a manifest carrying no `sourceOwnership.subtrees` map — each
  * one alone is enough to stand every claim down. The manifest joining the sources therefore cannot
  * START refusing anything: the worst an unreadable map can do is switch the check off (ADR-0317 D3).
  *

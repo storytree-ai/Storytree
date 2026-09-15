@@ -84,9 +84,9 @@ export * from "./source-ownership-map.js";
 export * from "./subtree-match.js";
 // The manifest FRAGMENT contract and its one composer (ADR-0556, `repo-manifest-fragmentation-arc`):
 // what a fragment is, where it lives, and how a set of them composes into the manifest's one view —
-// refusing, never guessing, whenever the set does not say one thing. `sourceOwnership` is authored as
-// fragments under `repo-manifest/` and read through it; the other domains are still read from the
-// committed `repo-manifest.json` until they move.
+// refusing, never guessing, whenever the set does not say one thing. Every section is authored as
+// fragments under `repo-manifest/` and read through it; the committed `repo-manifest.json` is kept
+// empty until `repo-manifest-aggregate-leaves-git` removes it.
 export * from "./manifest-fragments.js";
 export * from "./manifest-fragments-read.js";
 // `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs
@@ -112,7 +112,7 @@ export * from "./coupling-churn.js";
 export * from "./claim-release.js";
 // The session-isolation wall (ADR-0255 D1, ADR-0257 D1, narrowed by ADR-0284): the STATIC
 // `permissions.deny` block that makes the primary checkout unwritable by the agent's file tools,
-// generated from `repo-manifest.json` so the lobby surface and the wall cannot drift apart.
+// generated from the repo manifest's `root` so the lobby surface and the wall cannot drift apart.
 //
 // This is the WHOLE wall. The claim-aware `PreToolUse` half — the decision core, the claim receipt
 // and the Claude adapter — was RETIRED by ADR-0284 D2/D4, never registered, and deleted rather than

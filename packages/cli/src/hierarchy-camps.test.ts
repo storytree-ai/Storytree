@@ -328,4 +328,8 @@ test("hierarchy-camps-names-the-camp-question: the failure text asks which clock
   assert.match(body, /I must agree with NOW/);
   assert.match(body, /hierarchyCamps\.readers/);
   assert.doesNotMatch(body, /every reader declares a camp/);
+  // The repair names the file the declaration is authored in (ADR-0556). `repo-manifest.json` is kept
+  // as an empty object now, so a question sending the reader there would send them to nothing.
+  assert.match(body, /Declare it in repo-manifest\/hierarchy-camps\/_domain\.json → hierarchyCamps\.readers, keyed by the module's path\./);
+  assert.doesNotMatch(body, /repo-manifest\.json/);
 });

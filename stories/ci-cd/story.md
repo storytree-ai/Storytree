@@ -139,12 +139,18 @@ are therefore never reused or shifted.)*
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves the merge of branch+main through every required repository and shared-environment check, including exact UAT revision continuity; a red anything blocks the merge. | proposed | — |
-| 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
+| 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in the repo manifest's repo-surface allow-list (`repo-manifest/repo-surface/_domain.json`), so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
 | 5 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
 | 6 | [`deploy-on-merge`](deploy-on-merge.md) | A studio-touching merge to `main` redeploys the live studio to Cloud Run — keyless WIF → Cloud Build image → `gcloud run deploy` with the full IAP posture. | proposed | `auto-merge-on-green` |
 | 7 | [`ci-claim-corroborate`](ci-claim-corroborate.md) | A branch with a check running right now, or a very recent push, has its ledger claims corroborated live — keyless, monotonic, and never from an open pull request. | proposed | — |
+
+*(Corrected in place 2026-09-15, ADR-0139: the `repo-surface-manifest` row named `repo-manifest.json`
+as where root entries and loose docs are declared. That file no longer holds those declarations:
+ADR-0556 split the repo manifest into fragment files read through one composer, and the allow-list now
+lives in `repo-manifest/repo-surface/_domain.json`. The row still names `check:manifest`, which
+ADR-0311 D2 retired from the gate and CI; open modeling call 5 below carries that question.)*
 
 ## Dependency graph
 
@@ -462,16 +468,35 @@ Surfaced rather than guessed — plain files, cheap to revise.
    `verify` job, it is not a script in the root `package.json`, and it is declared in
    `RETIRED_CHECKS` in [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts). The
    capability's whole outcome ("`pnpm check:manifest` refuses any tracked root entry or loose doc not
-   declared in `repo-manifest.json`") is therefore a claim about a gate that does not run. Two
-   partial survivals complicate the obvious answer, which is why this is surfaced rather than
-   guessed: `scripts/check-manifest.mjs` and `repo-manifest.json` are both still on disk, and
-   `repo-manifest.json` has acquired a **second, live** role as the ownership map that
-   `storytree write-authority install --write` derives the ADR-0255/ADR-0284 write-authority deny
-   block from — so the FILE is load-bearing even though the GATE is not. **Call:** retire the
-   capability, re-scope it to the surviving write-authority role (which is arguably a different
-   story's organ), or re-wire the gate under ADR-0311 D5's fresh-evidence bar. Retiring or
-   re-scoping a capability is a structural call I do not make unilaterally; I left the file
-   untouched.
+   declared in the repo manifest's repo-surface allow-list") is therefore a claim about a gate that
+   does not run. One partial survival complicates the obvious answer, which is why this is surfaced
+   rather than guessed: the allow-list itself, which lives in
+   [`repo-manifest/repo-surface/_domain.json`](../../repo-manifest/repo-surface/_domain.json). Its
+   `root` section has a **second, live** role: `storytree write-authority install --write` reads it
+   through the manifest composer in
+   [`packages/drive/src/manifest-fragments.ts`](../../packages/drive/src/manifest-fragments.ts) and
+   derives from it the write-authority deny block, which makes the primary checkout read-only to
+   Claude Code's file-editing tools (ADR-0255, with its scope set by ADR-0284). So the allow-list's
+   DATA is load-bearing even though the GATE is not. **Call:** retire the capability, re-scope it to
+   the surviving write-authority role (which is arguably a different story's organ), or re-wire the
+   gate under ADR-0311 D5's fresh-evidence bar. Re-wiring would now mean writing a new check that
+   reads the allow-list through that composer, because there is no script left to re-wire: ADR-0311
+   D5 kept re-adding a retired check cheap by keeping its source, and this check's source is gone.
+   The call is still open: ADR-0443 (only undertaken capabilities gate a story's green) and ADR-0465
+   (long-running unproven capabilities are adopted on the owner's risk acceptance, not proven) both
+   list this capability as awaiting it. Retiring or re-scoping a capability is a structural call I do
+   not make unilaterally; I left the file untouched, and its 2026-09-15 correction changed only the
+   paths it names and added notes marking the sentences that still name the deleted script — not its
+   claim, status or contracts.
+
+   *(Corrected in place 2026-09-15, ADR-0139: this item said `scripts/check-manifest.mjs` and
+   `repo-manifest.json` both survived on disk, and called `repo-manifest.json` load-bearing as "the
+   ownership map" the deny block derives from. On this branch the script is deleted, since nothing had
+   run it after ADR-0311 D2 retired `check:manifest` from the gate and CI. Under ADR-0556, which split
+   the repo manifest into fragment files read through one composer, every section left
+   `repo-manifest.json`, which holds only `{}` until a later increment removes it. What the deny block
+   derives from is the allow-list's `root` section, not the ownership map. The call itself is
+   unchanged and still not made.)*
 6. **RESOLVED (owner-directed, 2026-08-07).** `gate-ci-parity`'s contract 1 —
    `declared-content-delta-is-exactly-build` — asserted that the local gate's content-check set
    equals the CI `verify` set minus `pnpm -r build`, "the single declared constant `{pnpm -r build}`

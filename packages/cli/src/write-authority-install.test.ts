@@ -251,6 +251,13 @@ test("no subcommand prints help, and help never writes", () => {
   assert.match(flat, /deleted on 2026-08-20, so Codex now runs at Claude parity/);
   assert.match(flat, /this command has nothing to say about it/);
   assert.doesNotMatch(flat, /ADR-0355/, "the superseded decision must not be cited as live");
+  // The block's source moved out of `repo-manifest.json` into the fragment tree (ADR-0556), and the
+  // aggregate is now an empty object — a help still naming it would send the reader to nothing.
+  assert.match(
+    flat,
+    /The block is DERIVED from the manifest's root allow-list \(repo-manifest\/repo-surface\/_domain\.json\), so re-run `install --write` whenever a top-level entry is added or removed/,
+  );
+  assert.doesNotMatch(flat, /repo-manifest\.json/);
   assert.deepEqual(h.writes, []);
 });
 
