@@ -7,12 +7,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   canonicalJson,
+  composedManifestText,
   composeManifest,
   composeRepoManifest,
   coveringCandidates,
   DOMAIN_SHARD,
   duplicateKeyPaths,
   MANIFEST_DOMAINS,
+  refusalReasons,
   REPO_MANIFEST,
   REPO_MANIFEST_TREE,
   splitManifest,
@@ -719,6 +721,18 @@ test("a tree that cannot be read is UNREAD, and composing it is refused as such 
 test("a tree written from an aggregate's fragments composes back into the aggregate", () => {
   const root = tree(Object.fromEntries(splitManifest(aggregate()).map((f) => [f.path, f.text])));
   assert.deepEqual(manifestOf(composeManifestTree(root)), aggregate());
+});
+
+test("refusalReasons is every fault's own repair, in the composer's order, one `; `-separated clause each", () => {
+  const fault = (message: string): ManifestCompositionFault => ({ kind: "missing-section", fragments: [], at: "", message });
+  assert.equal(refusalReasons([fault("first repair"), fault("second repair")]), "first repair; second repair");
+  assert.equal(refusalReasons([fault("the only repair")]), "the only repair");
+});
+
+test("composedManifestText is the composed manifest as JSON text — and null, never an empty text, for a refused set", () => {
+  const composed = composeManifest(splitManifest(aggregate()));
+  assert.equal(composedManifestText(composed), JSON.stringify(manifestOf(composed)));
+  assert.equal(composedManifestText(composeRepoManifest({ aggregate: { unread: "gone" }, tree: null })), null);
 });
 
 // ---------------------------------------------------------------------------

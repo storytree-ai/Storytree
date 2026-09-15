@@ -80,6 +80,7 @@ import {
 import {
   DB_PROBE_TIMEOUT_MS,
   SECRET_KEYS,
+  composedManifestText,
   deriveIdentity,
   lobbyDenyRules,
   presentEnv,
@@ -1287,7 +1288,7 @@ function writeAuthorityState(): WriteAuthorityState {
     const root = protectedRoot(defaultWallInstallIo);
     return classifyWriteAuthority(
       readOrNull(userSettingsPath(defaultWallInstallIo.homeDir())),
-      readOrNull(path.join(root, "repo-manifest.json")),
+      composedManifestText(defaultWallInstallIo.readManifest(root)),
       root,
     );
   } catch {

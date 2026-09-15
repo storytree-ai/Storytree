@@ -306,6 +306,22 @@ export function composeRepoManifest(sources: RepoManifestSources): ManifestCompo
   return composeManifest([...splitManifest(aggregate), ...tree.fragments]);
 }
 
+/**
+ * A refusal's reasons as one line: every fault's own repair, in the composer's order, each its own `; `-separated
+ * clause. The one wording every reader standing down on a refused set reports, so the repair travels with it.
+ */
+export function refusalReasons(faults: readonly ManifestCompositionFault[]): string {
+  return faults.map((fault) => fault.message).join("; ");
+}
+
+/**
+ * The composed manifest as JSON text, or `null` for a refused set — for a reader whose own contract takes a
+ * manifest's TEXT, so it gets the one semantic view rather than the aggregate file's bytes.
+ */
+export function composedManifestText(composition: ManifestComposition): string | null {
+  return composition.ok ? JSON.stringify(composition.manifest) : null;
+}
+
 function refused(faults: readonly ManifestCompositionFault[]): ManifestComposition {
   return { ok: false, faults: inOrder(faults) };
 }

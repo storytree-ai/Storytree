@@ -41,10 +41,11 @@
  * wrong-camp module when what actually broke is an enumeration.
  */
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { readRepoManifest, refusalReasons, REPO_MANIFEST } from "@storytree/drive";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import {
@@ -57,7 +58,6 @@ import {
 } from "./hierarchy-camps.js";
 
 const TAG = "[check:hierarchy-camps]";
-const MANIFEST = "repo-manifest.json";
 
 /** Directories the walk never enters. Each one is an aperture stated in the module header. */
 const SKIP_DIRS: ReadonlySet<string> = new Set(["build", "coverage", "dist", "legacy", "node_modules", "web"]);
@@ -93,12 +93,17 @@ function walk(dir: string, out: string[]): void {
 }
 
 function main(): void {
-  const manifestPath = join(repoRoot, MANIFEST);
-  if (!existsSync(manifestPath)) {
-    console.error(`${TAG} BLIND CHECK — the repo manifest at ${manifestPath} is absent`);
+  const manifestPath = join(repoRoot, REPO_MANIFEST);
+  // Composed with the fragment tree beside it (ADR-0556). An absent aggregate, an unreadable tree and a
+  // malformed set are all refusals, and each is a BLIND CHECK: there is no map to judge against.
+  const composition = readRepoManifest(manifestPath);
+  if (!composition.ok) {
+    console.error(
+      `${TAG} BLIND CHECK — the repo manifest at ${manifestPath} did not compose: ${refusalReasons(composition.faults)}`,
+    );
     process.exit(1);
   }
-  const map = parseHierarchyCampMap(readFileSync(manifestPath, "utf8"), "the repo manifest");
+  const map = parseHierarchyCampMap(JSON.stringify(composition.manifest), "the repo manifest");
   if (map.unread.length > 0) {
     // Loud, and NOT a verdict: an unreadable map would otherwise present as "every reader is
     // undeclared", sending the author to write declarations that are already there.
