@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { SHIPPED_WHEAT_ANCHOR, SHIPPED_WHEAT_MIX } from '../src/ForestWorldCanvas.tsx';
 import { RENDER_ELEV_DEG } from '../src/kit-vocabulary.ts';
 import { WHEAT_ANCHORS } from '../src/land-wheat.ts';
@@ -76,7 +77,7 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 600000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 600000 }, fail);
 await page.waitForFunction(() => window.wheatRunner !== undefined, null, { timeout: 600000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

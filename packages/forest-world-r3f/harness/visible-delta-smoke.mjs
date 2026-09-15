@@ -26,6 +26,8 @@
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
+
 const ORIGIN = process.env.ST_SMOKE_URL ?? 'http://localhost:5419';
 
 const fail = (why) => {
@@ -40,7 +42,7 @@ try {
   page.on('pageerror', (e) => fail(`the page threw: ${e.message}`));
 
   // ---- the GRASS page -----------------------------------------------------------------------
-  await page.goto(`${ORIGIN}/shipped-grass.html`, { waitUntil: 'domcontentloaded', timeout: 540000 });
+  await gotoServedTree(page, `${ORIGIN}/shipped-grass.html`, { waitUntil: 'domcontentloaded', timeout: 540000 }, fail);
   await page.waitForFunction(() => window.grassRunner !== undefined, null, { timeout: 540000 });
   const grass = await page.evaluate(async () => {
     const r = window.grassRunner;
@@ -97,7 +99,7 @@ try {
   );
 
   // ---- the SKIRT page -----------------------------------------------------------------------
-  await page.goto(`${ORIGIN}/shipped-skirt.html`, { waitUntil: 'domcontentloaded', timeout: 540000 });
+  await gotoServedTree(page, `${ORIGIN}/shipped-skirt.html`, { waitUntil: 'domcontentloaded', timeout: 540000 }, fail);
   await page.waitForFunction(() => window.skirtRunner !== undefined, null, { timeout: 540000 });
   const skirt = await page.evaluate(async () => {
     const r = window.skirtRunner;

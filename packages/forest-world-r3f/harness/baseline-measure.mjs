@@ -27,6 +27,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import { BEFORE_THE_CELL_CASE, SHIPPED_UNDRAWN, authoredTriangles } from './shipped-baseline.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -56,7 +57,7 @@ const page = await browser.newPage({ viewport: { width: 2400, height: 1700 }, de
 
 page.on('pageerror', (e) => console.error(`  page error: ${e.message}`));
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, refuse);
 await page.waitForFunction(() => window.__stExperimentSettled === true, null, { timeout: 180_000 });
 
 const report = await page.evaluate(() => window.__stBaseline ?? null);

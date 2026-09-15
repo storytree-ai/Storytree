@@ -54,6 +54,7 @@ import { chromium } from '@playwright/test';
  *  The owner looked at two arms scored by the touched count and said they did not look meaningfully
  *  different; recomputing by magnitude showed no pixel had moved more than 37/255.
  *  ⚠ IMPORTED, NOT RE-DECLARED — see `visible-delta.ts`'s header for the four copies this replaced. */
+import { gotoServedTree } from './served-tree.ts';
 import { VISIBLE_DELTA } from './visible-delta.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -130,7 +131,7 @@ page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
 
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 300000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 300000 }, fail);
 await page.waitForFunction(() => window.skirtRunner !== undefined, null, { timeout: 300000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

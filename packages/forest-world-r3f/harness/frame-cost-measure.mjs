@@ -29,6 +29,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict, median, spread } from './frame-budget.ts';
 import {
   GPU_TIMER_EXTENSION,
@@ -94,7 +95,7 @@ page.on('response', (r) => {
   if (r.status() >= 400) consoleErrors.push(`HTTP ${r.status()} ${r.url()}`);
 });
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, fail);
 
 // PROVE THE TREE before trusting a single number.
 const title = await page.evaluate(() => document.title);

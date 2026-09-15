@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict, median, spread } from './frame-budget.ts';
 import { CROWD_ARMS } from './crowd-scene.ts';
 
@@ -75,7 +76,7 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => consoleErrors.push(String(e)));
 
-const response = await page.goto(URL_, { waitUntil: 'load', timeout: 180_000 }).catch((e) => {
+const { response } = await gotoServedTree(page, URL_, { waitUntil: 'load', timeout: 180_000 }, fail).catch((e) => {
   fail(`could not reach ${URL_} — ${e}`);
 });
 if (response && response.status() >= 400) fail(`${URL_} answered ${response.status()}`);

@@ -31,6 +31,8 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_BLOOM_URL'] ?? 'http://localhost:5294/shipped-blooms.html';
 const OUT =
@@ -73,7 +75,7 @@ page.on('response', (r) => {
   if (r.status() >= 400) httpErrors.push(`${r.status()} ${r.url()}`);
 });
 
-await page.goto(URL_, { waitUntil: 'networkidle' });
+await gotoServedTree(page, URL_, { waitUntil: 'networkidle' }, fail);
 await page.waitForFunction(() => 'bloomRunner' in window, null, { timeout: 180_000 });
 if (consoleErrors.length > 0) fail(`the page logged errors:\n  ${consoleErrors.join('\n  ')}`);
 if (httpErrors.length > 0) fail(`the page failed to load something:\n  ${httpErrors.join('\n  ')}`);

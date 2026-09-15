@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_CONVENTION_URL'] ?? 'http://localhost:5209/colour-convention.html';
 const OUT = process.env['ST_CONVENTION_OUT'] ?? '';
@@ -60,7 +62,7 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => consoleErrors.push(String(e)));
 
-const response = await page.goto(URL_, { waitUntil: 'load', timeout: 60_000 }).catch((e) => {
+const { response } = await gotoServedTree(page, URL_, { waitUntil: 'load', timeout: 60_000 }, fail).catch((e) => {
   fail(`could not reach ${URL_} — ${e}`);
 });
 if (response && response.status() >= 400) fail(`${URL_} answered ${response.status()}`);

@@ -39,7 +39,8 @@
 // photographed ITS tree perfectly happily, a green that said nothing about your change (friction
 // `capture-default-url-is-a-port-a-sibling-worktree-may-own`). The harness server now stamps the
 // directory it serves on every response, and this script refuses, before it forms any verdict about
-// the page, unless that directory is its own; `served-tree.ts` says why the directory alone decides.
+// the page, unless that directory is its own — as every harness driver now does, through
+// `gotoServedTree`; `served-tree.ts` says why the directory alone decides.
 // When it refuses, start the dev server from THIS worktree — `vite harness --port <free port>
 // --strictPort` — and point `ST_HARNESS_URL` at it.
 
@@ -101,13 +102,11 @@ import {
 // THE SERVED TREE — which checkout the server answering the URL is serving, read off the stamp the
 // harness config's server sets on every response, and the refusal when it is not this one. Its own
 // module for the same reason, and because the SERVER half of the rule lives there too: the header the
-// server writes and the header this script reads are one constant, not two copies.
-import { canonicalDirectory, checkServedTree, describeServer, watchServedTree } from './served-tree.js';
+// server writes and the header this script reads are one constant, not two copies. Every harness driver
+// navigates through the same `gotoServedTree`, so the rule this script meets is the one they all meet.
+import { describeServer, gotoServedTree } from './served-tree.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// THE ONLY TREE THIS SCRIPT CAN JUDGE: the directory its palette, prop and spread declarations were
-// imported from. A page served from anywhere else is refused before a pixel of it is read.
-const OWN_HARNESS = canonicalDirectory(HERE);
 // The output directory is overridable so one capture script serves both evidence pages
 // (the plant row and the island) without a second copy of the readback + refusal logic —
 // this arc already carries three ~700-line compositor copies and a fork detector it had to
@@ -137,8 +136,6 @@ page.on('pageerror', (e) => consoleErrors.push(String(e)));
 // Subscribed BEFORE the navigation, or the requests a cold server holds first — the document and
 // the first modules — are exactly the ones never seen.
 const network = watchNavigation(page);
-// ...and the served-tree stamp on the document response, for the same reason: it is the first to arrive.
-const stamp = watchServedTree(page);
 
 // THE NAVIGATION RUNS UNDER A STATED, BOUNDED ALLOWANCE, never Playwright's unstated 30 s default.
 // A vite serving this page for the first time answers nothing until it has scanned, pre-bundled and
@@ -147,18 +144,19 @@ const stamp = watchServedTree(page);
 // network, never off the fact of a timeout: a cold server refuses with exit 75 (the same server, run
 // again) and a broken page with exit 1. Every refusal here exits before `OUT` is created, so a failed
 // navigation can never leave a partial evidence directory behind.
+//
+// AND ONLY THIS CHECKOUT'S TREE GETS PAST IT. Every worktree's harness answers on the same port, so a
+// page that loaded proves only that SOME harness served it. `gotoServedTree` reads which off the stamp
+// the server set, and refuses anything but this harness's own directory the moment `load` arrives —
+// before the page is judged broken, settled or drawn, because every verdict below applies this tree's
+// declarations to the pixels of whichever tree served the page. It judges the tree when the navigation
+// FAILS too, whenever the document answered, so a cold, broken or stalled verdict is never written about
+// a sibling worktree's page: what reaches the `catch` below failed on THIS tree, or on no server at all.
+// `served-tree.ts` holds the rule, and why the directory alone decides.
+let navigation;
 try {
-  await page.goto(URL, { waitUntil: 'load', timeout: allowance.ms });
+  navigation = await gotoServedTree(page, URL, { waitUntil: 'load', timeout: allowance.ms }, fail);
 } catch (error) {
-  // WHICH TREE ANSWERED IS JUDGED BEFORE WHAT WENT WRONG WITH IT. A cold, broken or stalled verdict
-  // about a sibling worktree's page sends the operator off to debug code that is not theirs, so when
-  // the document answered at all, its stamp is checked first. No document means no tree to judge, and
-  // the network explanation below then stands alone.
-  const observation = stamp.observation();
-  if (observation.observed) {
-    const tree = checkServedTree({ url: URL, observation, ownDirectory: OWN_HARNESS, platform: process.platform });
-    if (!tree.ok) fail(tree.message);
-  }
   const refusal = explainNavigationFailure({
     url: URL,
     phase: 'navigation',
@@ -169,18 +167,6 @@ try {
   });
   fail(refusal.message, refusal.exitCode);
 }
-// THE TREE, BEFORE ANYTHING ON THE PAGE IS BELIEVED. Every worktree's harness answers on the same port,
-// so a page that loaded proves only that SOME harness served it. The stamp says which, and anything but
-// this script's own directory is refused here — before the page is judged broken, settled or drawn —
-// because every verdict below applies this tree's declarations to the pixels of whichever tree served
-// the page. `served-tree.ts` holds the rule, and why the directory alone decides.
-const servedTree = checkServedTree({
-  url: URL,
-  observation: stamp.observation(),
-  ownDirectory: OWN_HARNESS,
-  platform: process.platform,
-});
-if (!servedTree.ok) fail(servedTree.message);
 
 // A page `load` has already shown to be broken is refused NOW. The settled wait below could only end
 // in a refusal for it, thirty seconds later and with less to say about why.
@@ -817,7 +803,7 @@ writeFileSync(join(OUT, 'capture-report.json'), JSON.stringify(report, null, 2) 
 
 await browser.close();
 
-console.log(`served     : this checkout's harness — ${describeServer(servedTree.tree)}`);
+console.log(`served     : this checkout's harness — ${describeServer(navigation.tree)}`);
 console.log(`WebGL      : ${renderer.version} via ${renderer.renderer}`);
 console.log(`software   : ${report.webgl.isSoftware}`);
 console.log(`canvases   : ${delivered.length}`);

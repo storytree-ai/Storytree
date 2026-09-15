@@ -21,6 +21,7 @@ import { brotliCompressSync, constants as zlib } from 'node:zlib';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import {
   CONTROL_ARM,
   CROWN_ARMS,
@@ -71,7 +72,7 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 300000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 300000 }, fail);
 await page.waitForFunction(() => window.detailRunner !== undefined, null, { timeout: 300000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

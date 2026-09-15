@@ -441,17 +441,21 @@ test('the measured cold start, replayed through the ledger, is refused as cold',
 
 // --- the source guard ------------------------------------------------------------------------------
 
-test('the capture driver navigates under a stated timeout and explains both waits through this module', () => {
+test('the capture driver navigates under its own stated allowance and explains both waits through this module', () => {
   // A narrow guard with a narrow claim, in the shape of `capture-panels.test.ts`'s: it proves the
-  // driver still NAMES the pieces, so a revert to a bare `page.goto` cannot land quietly. That the
-  // driver uses them correctly is the live capture runs recorded in the increment's evidence.
+  // driver still NAMES the pieces, so a revert cannot land quietly. That the driver uses them correctly
+  // is the live capture runs recorded in the increment's evidence, and `check:land-art`.
+  //
+  // capture navigates through `gotoServedTree` (`served-tree.ts`), which already gives a driver that
+  // states no bound this module's measured default. So what is pinned here is capture's OWN allowance —
+  // the one `ST_NAVIGATION_ALLOWANCE_MS` moves — and not merely the absence of Playwright's 30 s.
   const driver = readFileSync(join(HERE, 'capture.mjs'), 'utf8');
-  const gotos = [...driver.matchAll(/page\.goto\(([^)]*)\)/g)].map((m) => m[1] ?? '');
-  assert.ok(gotos.length > 0, 'capture.mjs has no page.goto call — this guard would check nothing');
-  for (const args of gotos) {
+  const navigations = [...driver.matchAll(/gotoServedTree\(page, URL, \{([^}]*)\}/g)].map((m) => m[1] ?? '');
+  assert.ok(navigations.length > 0, 'capture.mjs never navigates through gotoServedTree — this guard would check nothing');
+  for (const options of navigations) {
     assert.ok(
-      args.includes('timeout:'),
-      `capture.mjs calls page.goto(${args}) with no timeout, so it inherits Playwright's unstated 30 s default`,
+      options.includes('timeout: allowance.ms'),
+      `capture.mjs navigates with {${options}}, which is not the allowance ${NAVIGATION_ALLOWANCE_ENV} moves`,
     );
   }
   for (const name of ['parseNavigationAllowance', 'watchNavigation', 'explainNavigationFailure', 'explainLoadedPage', 'SETTLE_TIMEOUT_MS']) {

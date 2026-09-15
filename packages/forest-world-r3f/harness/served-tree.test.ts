@@ -13,36 +13,49 @@
 // `great-chaplygin-4e32d5`. The directories and the pid below are those. The start time, branch and
 // commit are illustrative — the filing session recorded none of them, which is part of why the stamp
 // now carries them.
+//
+// THE DRIVERS' HALF, added the day after. `capture.mjs` was the only driver that read the stamp; forty
+// others measured whatever answered their port, and on 2026-08-30 `shipped-land-measure.mjs` measured an
+// orphaned sibling's older tree on :5231. Every driver now navigates through `gotoServedTree`. Its policy
+// is stated below by BEHAVIOUR, against a fake page that emits the document response DURING `goto` — so a
+// guard that subscribed late sees nothing — and the source guard at the bottom refuses any driver that
+// navigates another way.
 
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 
-import type { PluginOption } from 'vite';
+import { transformWithEsbuild, type PluginOption } from 'vite';
 
+import { DEFAULT_NAVIGATION_ALLOWANCE_MS } from './capture-navigation.js';
 import {
+  HARNESS_DIRECTORY,
   PROCESS_SOURCES,
   SERVED_TREE_HEADER,
   SERVED_TREE_PLUGIN,
+  ServedTreeRefused,
   canonicalDirectory,
   checkServedTree,
   encodeServedTree,
+  gotoServedTree,
   installServedTreeStamp,
   readServedTree,
   readServedTreeHeader,
   sameDirectory,
   watchServedTree,
+  type HarnessWaitUntil,
   type ServedTree,
   type ServedTreeCheck,
   type ServedTreeObservation,
   type ServedTreeSources,
   type StampHandler,
   type StampedResponse,
+  type StatedNavigation,
 } from './served-tree.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -210,6 +223,224 @@ test('the watcher keeps the FIRST navigation response: a module response or a la
   assert.deepEqual(stampedWatch.observation(), stamped(siblingTree));
 });
 
+test('a stopped watcher keeps what it saw, hears nothing after, and holds no listener', () => {
+  const page = new EventEmitter();
+  const watch = watchServedTree(page);
+  page.emit('response', answer(true, { 'content-type': 'text/html' }));
+  watch.stop();
+  assert.equal(page.listenerCount('response'), 0, 'a stopped watcher is still subscribed');
+  assert.deepEqual(watch.observation(), { observed: true, header: undefined });
+
+  // Stopped before its document arrived, a watcher must not observe it — or `stop` unsubscribed nothing.
+  const unheard = watchServedTree(page);
+  unheard.stop();
+  page.emit('response', answer(true, { [SERVED_TREE_HEADER]: encodeServedTree(siblingTree) }));
+  assert.deepEqual(unheard.observation(), { observed: false });
+});
+
+// --- every driver's half: navigating to a harness page ---------------------------------------------
+
+/** The stamp THIS checkout's harness server sends: the directory these tests, and every driver, live in. */
+const ownTree: ServedTree = { ...siblingTree, directory: HARNESS_DIRECTORY };
+
+function stampOf(tree: ServedTree) {
+  return { [SERVED_TREE_HEADER]: encodeServedTree(tree) };
+}
+
+const UNSTAMPED = { 'content-type': 'text/html' };
+
+/** What `page.goto` resolved to, as far as the guard is concerned: something to hand back untouched. */
+const RESPONSE = 'the response page.goto resolved to';
+
+/** Playwright's name for a wait that ran out — what `capture-navigation.ts` reads to tell a timeout from a failure. */
+class TimeoutError extends Error {
+  override readonly name = 'TimeoutError';
+}
+
+/** A driver's `fail` that only RECORDS the refusal and returns — `visible-delta-smoke.mjs`'s shape. */
+class RecordingFail {
+  readonly refusals: string[] = [];
+  readonly fail = (message: string): void => {
+    this.refusals.push(message);
+  };
+}
+
+/** A driver's refusal that throws — `palette-measure.ts`'s `refuse`. */
+class Refused extends Error {}
+
+function throwingFail(message: string): never {
+  throw new Refused(message);
+}
+
+interface GotoCall {
+  readonly url: string;
+  readonly options: StatedNavigation;
+}
+
+/** What the fake server does when the page navigates: send its document response, then let the wait settle. */
+type Serve = (page: HarnessPage) => Promise<string>;
+
+/**
+ * A page that records every navigation it is asked for. A real `EventEmitter`, so the watcher subscribes
+ * to it as it does to Playwright's page — and `goto` emits the document response DURING the call, so a
+ * guard that subscribed after calling `goto` never sees it.
+ */
+class HarnessPage extends EventEmitter {
+  readonly calls: GotoCall[] = [];
+  readonly #serve: Serve;
+
+  constructor(serve: Serve) {
+    super();
+    this.#serve = serve;
+  }
+
+  goto(url: string, options: StatedNavigation): Promise<string> {
+    this.calls.push({ url, options });
+    return this.#serve(this);
+  }
+}
+
+/** The document answers with `headers`, and the driver's wait is reached. */
+function loads(headers: Record<string, string>): Serve {
+  return async (page) => {
+    page.emit('response', answer(true, headers));
+    return RESPONSE;
+  };
+}
+
+/** The document answers with `headers`, and then the wait ends in `error`. */
+function answersThenFails(headers: Record<string, string>, error: Error): Serve {
+  return async (page) => {
+    page.emit('response', answer(true, headers));
+    throw error;
+  };
+}
+
+function timedOut(): TimeoutError {
+  return new TimeoutError('page.goto: Timeout 180000ms exceeded.');
+}
+
+test('a page that LOADED is refused when another tree served it and handed back when this one did — and nothing else differs', async () => {
+  const squatter = new RecordingFail();
+  await assert.rejects(
+    gotoServedTree(new HarnessPage(loads(stampOf(siblingTree))), PAGE_URL, { waitUntil: 'networkidle' }, squatter.fail),
+    ServedTreeRefused,
+  );
+  const [refusal = ''] = squatter.refusals;
+  assert.equal(squatter.refusals.length, 1, 'the driver was never told why its page was refused');
+  assert.match(refusal, /is serving ANOTHER TREE, so nothing it draws is evidence about this checkout/);
+  assert.ok(refusal.includes(`served ${SIBLING_HARNESS}`), refusal);
+  assert.ok(refusal.includes(`this   ${HARNESS_DIRECTORY}`), refusal);
+
+  const honest = new RecordingFail();
+  const navigation = await gotoServedTree(new HarnessPage(loads(stampOf(ownTree))), PAGE_URL, { waitUntil: 'networkidle' }, honest.fail);
+  assert.deepEqual(honest.refusals, [], 'this checkout’s own harness was refused');
+  assert.equal(navigation.response, RESPONSE);
+  assert.deepEqual(navigation.tree, ownTree);
+});
+
+interface LoadedCase {
+  readonly name: string;
+  readonly serve: Serve;
+  readonly verdict: string;
+  readonly says: RegExp;
+}
+
+test('a loaded page is refused whatever stops its tree being read — and a fail() that returns still never hands it on', async () => {
+  const cases: readonly LoadedCase[] = [
+    { name: 'no stamp', serve: loads(UNSTAMPED), verdict: 'unstamped', says: /sends no x-storytree-served-tree stamp/ },
+    {
+      name: 'an unreadable stamp',
+      serve: loads({ [SERVED_TREE_HEADER]: '%E0%A4%A' }),
+      verdict: 'unreadable',
+      says: /stamp this capture cannot read/,
+    },
+    { name: 'no document response at all', serve: async () => RESPONSE, verdict: 'unobserved', says: /no document response from .+ was observed/ },
+  ];
+  for (const c of cases) {
+    const log = new RecordingFail();
+    await assert.rejects(gotoServedTree(new HarnessPage(c.serve), PAGE_URL, { waitUntil: 'load' }, log.fail), (error) => {
+      assert.ok(error instanceof ServedTreeRefused, `${c.name}: the navigation ended in ${String(error)}`);
+      assert.ok(error.message.includes(`(${c.verdict})`), `${c.name}: ${error.message}`);
+      return true;
+    });
+    assert.equal(log.refusals.length, 1, `${c.name}: the driver was never told why`);
+    assert.match(log.refusals[0] ?? '', c.says, c.name);
+  }
+});
+
+test('a navigation that FAILED after another tree answered is refused as that tree’s, before the driver can explain the failure as its own', async () => {
+  const foreign = new HarnessPage(answersThenFails(stampOf(siblingTree), timedOut()));
+  await assert.rejects(gotoServedTree(foreign, PAGE_URL, { waitUntil: 'load' }, throwingFail), (error) => {
+    assert.ok(error instanceof Refused, `the driver was handed ${String(error)} to explain, instead of the refusal`);
+    assert.match(error.message, /is serving ANOTHER TREE/);
+    return true;
+  });
+
+  // A harness a sibling left running from before the stamp times out just the same, and is no more this tree.
+  const unstamped = new HarnessPage(answersThenFails(UNSTAMPED, timedOut()));
+  await assert.rejects(gotoServedTree(unstamped, PAGE_URL, { waitUntil: 'load' }, throwingFail), (error) => {
+    assert.ok(error instanceof Refused, `the driver was handed ${String(error)} to explain, instead of the refusal`);
+    assert.match(error.message, /sends no x-storytree-served-tree stamp/);
+    return true;
+  });
+});
+
+test('a navigation that failed on THIS tree, or that no server answered, reaches the driver unchanged — its own explanation stands', async () => {
+  const log = new RecordingFail();
+  const timeout = timedOut();
+  const ours = new HarnessPage(answersThenFails(stampOf(ownTree), timeout));
+  await assert.rejects(gotoServedTree(ours, PAGE_URL, { waitUntil: 'load' }, log.fail), (error) => error === timeout);
+
+  // No document, so no tree to judge: `capture-navigation.ts` must still get to say "nothing answered",
+  // which a refusal as `unobserved` would take from it.
+  const refused = new Error('page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5184/compare.html');
+  const nobody = new HarnessPage(async () => {
+    throw refused;
+  });
+  await assert.rejects(gotoServedTree(nobody, PAGE_URL, { waitUntil: 'load' }, log.fail), (error) => error === refused);
+  assert.deepEqual(log.refusals, []);
+});
+
+test('a driver that states no bound navigates under the measured allowance, never Playwright’s unstated 30 s — and a stated bound and every wait pass through', async () => {
+  const waits: readonly HarnessWaitUntil[] = ['load', 'domcontentloaded', 'networkidle'];
+  for (const waitUntil of waits) {
+    const unstated = new HarnessPage(loads(stampOf(ownTree)));
+    await gotoServedTree(unstated, PAGE_URL, { waitUntil }, new RecordingFail().fail);
+    assert.deepEqual(unstated.calls, [{ url: PAGE_URL, options: { waitUntil, timeout: DEFAULT_NAVIGATION_ALLOWANCE_MS } }]);
+
+    const stated = new HarnessPage(loads(stampOf(ownTree)));
+    await gotoServedTree(stated, PAGE_URL, { waitUntil, timeout: 600_000 }, new RecordingFail().fail);
+    assert.deepEqual(stated.calls, [{ url: PAGE_URL, options: { waitUntil, timeout: 600_000 } }]);
+  }
+});
+
+test('each navigation is judged by ITS OWN document, and no navigation leaves its watcher subscribed', async () => {
+  // `visible-delta-smoke.mjs` sends ONE page to two harness pages in turn.
+  const documents = [stampOf(ownTree), stampOf(siblingTree)];
+  const page = new HarnessPage(async (p) => {
+    p.emit('response', answer(true, documents.shift() ?? UNSTAMPED));
+    return RESPONSE;
+  });
+  const log = new RecordingFail();
+  await gotoServedTree(page, PAGE_URL, { waitUntil: 'domcontentloaded' }, log.fail);
+  assert.equal(page.listenerCount('response'), 0, 'a navigation that was handed back left its watcher subscribed');
+  await assert.rejects(
+    gotoServedTree(page, 'http://localhost:5184/shipped-skirt.html', { waitUntil: 'domcontentloaded' }, log.fail),
+    ServedTreeRefused,
+  );
+  assert.equal(log.refusals.length, 1, 'the second navigation was judged by the first document’s stamp');
+  assert.equal(page.listenerCount('response'), 0, 'a refused navigation left its watcher subscribed');
+
+  const failed = new HarnessPage(answersThenFails(stampOf(ownTree), timedOut()));
+  await assert.rejects(gotoServedTree(failed, PAGE_URL, { waitUntil: 'load' }, log.fail), TimeoutError);
+  assert.equal(failed.listenerCount('response'), 0, 'a failed navigation left its watcher subscribed');
+});
+
+test('the tree every driver is judged against is the harness directory the drivers live in', () => {
+  assert.equal(HARNESS_DIRECTORY, canonicalDirectory(HERE));
+});
+
 // --- the server's half -----------------------------------------------------------------------------
 
 function sources(answers: ReadonlyMap<string, string | null>, calls: string[]): ServedTreeSources {
@@ -354,33 +585,136 @@ function pluginNames(options: readonly PluginOption[]): string[] {
   });
 }
 
-test('the harness config registers the stamp FIRST, and the capture driver judges the tree before the page', async () => {
+/**
+ * Source with its comments gone — through esbuild, the same transform vite runs — so prose ABOUT
+ * `page.goto` neither trips the guards below nor, worse, a comment naming `gotoServedTree(` satisfies
+ * them. Strings, template literals and regex literals come through intact; `name` picks the loader.
+ */
+async function withoutComments(source: string, name: string): Promise<string> {
+  return (await transformWithEsbuild(source, name)).code;
+}
+
+async function driverCode(name: string): Promise<string> {
+  return withoutComments(readFileSync(join(HERE, name), 'utf8'), name);
+}
+
+/** How many times comment-free driver code navigates through the guard. */
+function guardedNavigations(code: string): number {
+  return [...code.matchAll(/\bgotoServedTree\(/g)].length;
+}
+
+test('the harness config registers the stamp FIRST, and the capture driver explains only a navigation the served-tree check made', async () => {
   // THE SERVER HALF, asked of the real config object rather than of its source text.
   const { default: config } = await import('./vite.config.js');
   const names = pluginNames(config.plugins ?? []);
   assert.equal(names[0], SERVED_TREE_PLUGIN, `the harness config's plugins are ${names.join(', ')}`);
 
-  // THE CAPTURE HALF — a narrow guard with a narrow claim, in the shape of `capture-navigation.test.ts`'s:
-  // it proves the driver still CALLS the pieces, in the order the policy needs, so a revert cannot land
-  // quietly. That the driver uses them correctly is the live refusal runs recorded with the increment,
-  // and `check:land-art`, which refuses every page if the honest case stops passing.
-  const driver = readFileSync(join(HERE, 'capture.mjs'), 'utf8');
-  const first = (call: string): number => driver.indexOf(`${call}(`);
-  const last = (call: string): number => driver.lastIndexOf(`${call}(`);
-  for (const call of ['canonicalDirectory', 'watchServedTree', 'checkServedTree', 'page.goto', 'explainLoadedPage']) {
-    assert.ok(first(call) >= 0, `capture.mjs never calls ${call} — this guard would check nothing`);
+  // THE CAPTURE HALF — narrower than it was, because the ORDER the policy needs (subscribe, navigate, judge
+  // on both paths) now lives in `gotoServedTree` and is proved above by behaviour rather than by position.
+  // What is left for `capture.mjs` to get right is that the navigation it explains, and the page it judges
+  // broken, are the guarded ones. That it does so correctly is `check:land-art`, which drives it against a
+  // harness it starts itself and refuses every page if the honest case stops passing.
+  const code = await driverCode('capture.mjs');
+  const at = (call: string): number => code.indexOf(`${call}(`);
+  for (const call of ['gotoServedTree', 'explainNavigationFailure', 'explainLoadedPage']) {
+    assert.ok(at(call) >= 0, `capture.mjs never calls ${call} — this guard would check nothing`);
   }
-  assert.ok(first('watchServedTree') < first('page.goto'), 'capture.mjs subscribes to the stamp only after navigating');
-  assert.ok(
-    first('checkServedTree') < first('explainNavigationFailure'),
-    'a failed navigation is explained before capture.mjs asks which tree answered',
+  assert.ok(at('gotoServedTree') < at('explainNavigationFailure'), 'capture.mjs explains a navigation failure the served-tree check never saw');
+  assert.ok(at('gotoServedTree') < at('explainLoadedPage'), 'capture.mjs judges a page broken before asking which tree served it');
+});
+
+/**
+ * Every way a driver's code can put a page in front of a server the served-tree check never read: a
+ * `.goto` that is not the blank control no server answers (a `page.goto.bind` counts — it is still the
+ * unguarded call), a re-navigation, and navigation from inside the page. Run over esbuild's output, which
+ * writes every string with double quotes.
+ */
+const UNGUARDED_NAVIGATION: readonly RegExp[] = [
+  /\.goto\b(?!\("about:blank"[,)])/g,
+  /\.(?:reload|goBack|goForward)\s*\(/g,
+  /\blocation\.(?:assign|replace)\s*\(/g,
+  /\blocation\.href\s*=(?!=)/g,
+  /\bwindow\.open\s*\(/g,
+];
+
+function unguardedNavigations(code: string): string[] {
+  return UNGUARDED_NAVIGATION.flatMap((pattern) =>
+    [...code.matchAll(pattern)].map((m) => (code.slice(m.index ?? 0).split('\n', 1)[0] ?? '').slice(0, 96)),
   );
-  // TWO checks, and the second is the one that matters most: a squatter's page usually LOADS, so the
-  // check after `load` is the one it meets. Without this line, deleting that check left the failure-path
-  // call satisfying both orderings on its own — found by seeding exactly that fault.
-  assert.ok(
-    last('checkServedTree') > first('explainNavigationFailure'),
-    'capture.mjs never asks which tree served a page that loaded — the case a working squatter takes',
+}
+
+test('the driver guard’s matcher finds every raw navigation, and neither the guarded call nor the blank control', async () => {
+  assert.deepEqual(unguardedNavigations('await gotoServedTree(page, URL_, { waitUntil: "load" }, fail);'), []);
+  assert.deepEqual(unguardedNavigations('await blank.goto("about:blank");\nawait blank.goto("about:blank", { waitUntil: "load" });'), []);
+  const raw = [
+    'await page.goto(URL_, { waitUntil: "networkidle" });',
+    'await comparePage.goto(`${BASE}/compare.html`, { waitUntil: "load" });',
+    'await page.goto("http://localhost:5184/compare.html");',
+    'await page.goto("about:blankety");',
+    'const go = page.goto.bind(page);',
+    'await page.reload();',
+    'await page.goBack();',
+    'await page.evaluate(() => { location.href = "/compare.html"; });',
+    'await page.evaluate(() => location.assign("/compare.html"));',
+    'await page.evaluate(() => window.open("/compare.html"));',
+  ];
+  for (const line of raw) assert.equal(unguardedNavigations(line).length, 1, line);
+  // Reading where a page is, is not going anywhere.
+  assert.deepEqual(unguardedNavigations('const here = location.href; if (location.href === here) {}'), []);
+
+  // AND THROUGH THE COMMENT STRIPPER, which is what the sweep actually reads: a comment naming the guard
+  // beside a raw navigation neither hides it nor counts as a guarded one, and a comment naming a raw
+  // navigation beside the guarded call trips nothing.
+  const disguised = await withoutComments(
+    '// await gotoServedTree(page, URL_, { waitUntil: "load" }, fail);\nawait page.goto(URL_, { waitUntil: "load" });\n',
+    'disguised.mjs',
   );
-  assert.ok(last('checkServedTree') < first('explainLoadedPage'), 'a loaded page is judged before capture.mjs asks which tree served it');
+  assert.equal(unguardedNavigations(disguised).length, 1, disguised);
+  assert.equal(guardedNavigations(disguised), 0, disguised);
+  const narrated = await withoutComments(
+    '/* never page.goto(URL_) here */\nawait gotoServedTree(page, URL_, { waitUntil: "load" }, fail); // and no page.reload()\n',
+    'narrated.mjs',
+  );
+  assert.deepEqual(unguardedNavigations(narrated), [], narrated);
+  assert.equal(guardedNavigations(narrated), 1, narrated);
+});
+
+/** Every script here that drives a browser from Node: each `.mjs`/`.cjs`/`.js`, and each non-test `.ts` importing Playwright. */
+function harnessDrivers(): string[] {
+  return readdirSync(HERE)
+    .filter(
+      (name) =>
+        /\.(?:mjs|cjs|js)$/.test(name) ||
+        (/\.ts$/.test(name) && !/\.(?:test|d)\.ts$/.test(name) && readFileSync(join(HERE, name), 'utf8').includes('@playwright/test')),
+    )
+    .sort();
+}
+
+test('every harness driver reaches a harness page through gotoServedTree, and no other way', async () => {
+  const guarded = new Map<string, number>();
+  const offences: string[] = [];
+  for (const name of harnessDrivers()) {
+    const code = await driverCode(name);
+    for (const navigation of unguardedNavigations(code)) offences.push(`${name}: ${navigation}`);
+    guarded.set(name, guardedNavigations(code));
+  }
+  assert.deepEqual(
+    offences,
+    [],
+    'these harness drivers put a page in front of a server whose tree nothing checks — navigate through ' +
+      `gotoServedTree (served-tree.ts) instead:\n  ${offences.join('\n  ')}`,
+  );
+
+  // NOT VACUOUS. A sweep that enumerated nothing, or read every driver as empty, finds no offence either —
+  // so the drivers each shape of navigation was measured on must be found, navigating the guarded way.
+  const sentinels: ReadonlyMap<string, number> = new Map([
+    ['capture.mjs', 1], // the first driver to read the stamp, and the one `check:land-art` runs
+    ['shipped-land-measure.mjs', 1], // 2026-08-30: measured an orphaned sibling's older tree on :5231
+    ['hardware-floor.mjs', 2], // two harness pages, beside an `about:blank` control no server answers
+    ['visible-delta-smoke.mjs', 2], // ONE page, sent to two harness pages in turn
+    ['palette-measure.ts', 1], // the typed driver, which the `.mjs` sweep alone would miss
+  ]);
+  for (const [name, count] of sentinels) {
+    assert.equal(guarded.get(name), count, `${name} navigates through gotoServedTree ${String(guarded.get(name))} times, not ${count}`);
+  }
 });

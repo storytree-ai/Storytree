@@ -37,6 +37,8 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_STATUS_URL'] ?? 'http://localhost:5361/shipped-status.html';
 const OUT =
@@ -75,7 +77,7 @@ page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
 
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 300000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 300000 }, fail);
 await page.waitForFunction(() => window.statusRunner !== undefined, null, { timeout: 300000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { LAND_PIPELINES, LAND_PIPELINE_SPECS, LAND_ZOOMS } from './shipped-land-scene.ts';
 import { SHADE_LEVELS } from '../src/shade-ladder.ts';
 
@@ -85,7 +86,7 @@ for (const pipeline of LAND_PIPELINES) {
   });
 
   const url = `${URL_}?pipeline=${pipeline}&only=dressed`;
-  await page.goto(url, { waitUntil: 'networkidle' });
+  await gotoServedTree(page, url, { waitUntil: 'networkidle' }, fail);
   await page.waitForFunction(() => 'landRunner' in window, null, { timeout: 120_000 });
   if (consoleErrors.length > 0) {
     fail(`${pipeline}: the page logged errors:\n  ${consoleErrors.join('\n  ')}`);
