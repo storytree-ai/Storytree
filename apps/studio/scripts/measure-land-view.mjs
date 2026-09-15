@@ -203,6 +203,21 @@ function collectErrors(target) {
   return errors;
 }
 
+/**
+ * WHAT A PAGE WAS SHOWING WHEN A WAIT GAVE UP, so a refusal names a cause rather than a symptom.
+ *
+ * ⚠ MEASURED: the production arm's first run on the RTX box refused with "never produced a sized
+ * canvas" and nothing else, after five minutes. The cause was a membership lookup that timed out on a
+ * cold database connection, so the server refused the viewer and the map never loaded — visible in a
+ * single line of page text that the refusal did not print.
+ */
+async function pageState(target, errors) {
+  const text = await target
+    .evaluate(() => (document.body?.innerText ?? '').slice(0, 400))
+    .catch(() => '(the page could not be read)');
+  return `\n  page text: ${JSON.stringify(text)}\n  page errors: ${errors.length === 0 ? 'none' : errors.join(' | ')}`;
+}
+
 /** A CDP session on `target` with the sampling profiler armed. */
 async function armProfiler(target) {
   const cdp = await target.context().newCDPSession(target);
@@ -341,7 +356,9 @@ const phaseA = await profiled(landCdp, async () => {
       null,
       { timeout: 300000 },
     )
-    .catch(() => fail('the land view never produced a sized canvas — nothing was measured'));
+    .catch(async () =>
+      fail(`the land view never produced a sized canvas — nothing was measured${await pageState(page, landErrors)}`),
+    );
   return Date.now() - started;
 });
 const drawnAtMs = phaseA.result;
