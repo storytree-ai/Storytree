@@ -400,6 +400,19 @@ the now-settled modeling call.
   record before any spend, refuses a missing or foreign one, and names the record a failed build
   leaves together with the command that revises against it. It builds after
   `build-node-real-threads-revision`.
+- [`codex-feedback-commands-run-in-the-replica`](codex-feedback-commands-run-in-the-replica.md) —
+  contract grain, spec-borne, edit-existing proof over `resolve-prove-spec.ts`, proposed (ADR-0570 D3).
+  It builds the Codex leaf's `run_proof` and `run_typecheck` from the spine's own command objects, each
+  retargeted from the worktree to the phase's replica, `cwd` and absolute arguments alike. It builds
+  after `real-brief-carries-test-revision`.
+- [`codex-builds-arm-feedback`](codex-builds-arm-feedback.md) — contract grain, spec-borne,
+  edit-existing proof over `resolveReal`, the live smoke and their Codex briefs, proposed (ADR-0570 D1).
+  Every Codex build is armed with those commands and briefed to iterate against them, while a shell run
+  stays no substitute (ADR-0232 D5). It builds after `codex-feedback-commands-run-in-the-replica`.
+- [`node-build-renders-codex-feedback-runs`](node-build-renders-codex-feedback-runs.md) — contract
+  grain, spec-borne, edit-existing proof over `liveLeafLines`, proposed (ADR-0570 D5). The envelope
+  reports an armed Codex leaf's feedback runs from the spine's own record. It builds after
+  `codex-builds-arm-feedback`, and the two ship in one landing.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention

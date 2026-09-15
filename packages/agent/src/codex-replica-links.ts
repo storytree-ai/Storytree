@@ -36,7 +36,7 @@ export const readNodeModulesEntries: ReadNodeModulesEntries = (dir) =>
   fs.readdir(dir, { withFileTypes: true });
 
 async function pathExists(candidate: string): Promise<boolean> {
-  return (await fs.lstat(candidate).catch(() => undefined)) !== undefined;
+  return (await fs.stat(candidate).catch(() => undefined)) !== undefined;
 }
 
 async function linkDirectory(target: string, linkPath: string): Promise<void> {
@@ -87,7 +87,13 @@ async function rebuildNodeModulesTree(
     const sourcePath = path.join(sourceDir, entry.name);
     const destPath = path.join(destDir, entry.name);
     if (entry.isSymbolicLink()) {
-      const target = await resolveReplicaLinkTarget(resolvedWorkspaceRoot, replicaRoot, sourcePath);
+      let target: string;
+      try {
+        target = await resolveReplicaLinkTarget(resolvedWorkspaceRoot, replicaRoot, sourcePath);
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
       await linkDirectory(target, destPath);
     } else if (entry.isDirectory()) {
       if (expandScopes && entry.name.startsWith("@")) {
