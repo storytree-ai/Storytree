@@ -5,12 +5,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
+  AuthoringPhase,
   ClaudeAgentAuthor,
   CodexPhaseAuthor,
   LiveRuntime,
   PhaseAuthor,
   PiPhaseAuthor,
 } from "@storytree/agent";
+import { parseAuthoringEscalation } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
@@ -46,6 +48,7 @@ import type {
   RealProofConfig,
   RealResolveOptions,
   ResolveOptions,
+  TestRevision,
 } from "@storytree/orchestrator";
 import type { LeafPhasePrompts } from "@storytree/orchestrator";
 import {
@@ -2193,4 +2196,256 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
     ].join("\n"),
     next: ["storytree node build library-cli --dry-run", "storytree story build library --dry-run"],
   };
+}
+
+// ── Per-user revision records (ADR-0571 D2/D3): write and read the revision a failed REAL build ──
+// leaves behind, keyed by unit and run. The drive stores and reads a record here; it decides
+// nothing about attempts (nothing counts them, and nothing checks the D4 decision point).
+
+/**
+ * The house per-user state directory a failed REAL build's RETURNED escalation is written under
+ * (ADR-0571 D2) — never committed, never shared across machines.
+ */
+export function defaultEscalationsDir(): string {
+  return path.join(os.homedir(), ".storytree", "escalations");
+}
+
+/** `dir` untouched, or {@link defaultEscalationsDir} when `dir` is undefined. */
+export function resolveEscalationsDir(dir: string | undefined): string {
+  return dir ?? defaultEscalationsDir();
+}
+
+/** The on-disk path a unit/run's revision record lives at: `<dir>/<unitId>/<runId>.json`. */
+export function revisionRecordPath(dir: string, unitId: string, runId: string): string {
+  return path.join(dir, unitId, `${runId}.json`);
+}
+
+/** The outcome of {@link writeRevisionRecord}: never throws, so a filesystem failure still resolves. */
+export type RevisionWrite =
+  | { written: true; path: string }
+  | { written: false; path: string; reason: string };
+
+/** The stable shape a stored/observed test observation must match (ADR-0571 D3). */
+type StoredObservation = { stdout: string; stderr: string; exitCode: number | null };
+
+/**
+ * Write a failed REAL build's RETURNED escalation to its per-user revision record (ADR-0571 D2).
+ * Returns `null` — writing nothing, creating no directory — when `dir` is undefined or `result` is
+ * not a returned escalation: an `overruledEscalation`, or a result carrying neither key, both count
+ * as not returned. Never throws: a filesystem failure resolves to `{ written: false, path, reason }`.
+ * The record is `{ unitId, runId, escalation, failedObservation? }`, serialized straight from `result`
+ * — `failedObservation` is present only when `result` carries one.
+ */
+export async function writeRevisionRecord(
+  dir: string | undefined,
+  unitId: string,
+  runId: string,
+  result: ProveResult,
+): Promise<RevisionWrite | null> {
+  if (dir === undefined) return null;
+  if (result.ok) return null;
+  if (result.escalation === undefined) return null;
+  const filePath = revisionRecordPath(dir, unitId, runId);
+  const record: Record<string, unknown> = { unitId, runId, escalation: result.escalation };
+  if (result.failedObservation !== undefined) record.failedObservation = result.failedObservation;
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(record), "utf8");
+    return { written: true, path: filePath };
+  } catch (e) {
+    return { written: false, path: filePath, reason: (e as Error).message };
+  }
+}
+
+/** Narrows `value` to one of the two phases a leaf authors in, or `undefined` for anything else. */
+function asAuthoringPhase(value: unknown): AuthoringPhase | undefined {
+  return value === "AUTHOR_TEST" || value === "IMPLEMENT" ? value : undefined;
+}
+
+/** The escalation kind the named phase produces (`AuthoringEscalation`'s own discriminant). */
+function expectedEscalationKind(phase: AuthoringPhase): string {
+  return phase === "AUTHOR_TEST" ? "untestable-contract" : "unsatisfiable-test";
+}
+
+/** A non-null, non-array object a field can be read off. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** `{ stdout: string; stderr: string; exitCode: number | null }` — never anything looser. */
+function isStoredObservation(value: unknown): value is StoredObservation {
+  if (!isPlainRecord(value)) return false;
+  return (
+    typeof value.stdout === "string" &&
+    typeof value.stderr === "string" &&
+    (typeof value.exitCode === "number" || value.exitCode === null)
+  );
+}
+
+/**
+ * Parse a stored (or otherwise untrusted) value into a {@link TestRevision} for the given `unitId`
+ * (ADR-0571 D3; ADR-0569 D3/D4) — refusing every shape the gate never produces rather than trusting
+ * it. The raised escalation is REBUILT through {@link parseAuthoringEscalation} rather than trusted
+ * verbatim, so an extra field the stored object carries is dropped, not round-tripped.
+ */
+export function parseTestRevision(
+  input: unknown,
+  unitId: string,
+): { ok: true; revision: TestRevision } | { ok: false; reason: string } {
+  if (!isPlainRecord(input)) {
+    return { ok: false, reason: "a test revision record must be an object" };
+  }
+  if (input.unitId !== unitId) {
+    return {
+      ok: false,
+      reason:
+        `a test revision record's unitId "${String(input.unitId)}" does not match ` +
+        `the expected unitId "${unitId}"`,
+    };
+  }
+  const runId = input.runId;
+  if (typeof runId !== "string" || runId.trim().length === 0) {
+    return { ok: false, reason: "a test revision record's runId must be a non-blank string" };
+  }
+  const escalationInput = input.escalation;
+  if (!isPlainRecord(escalationInput)) {
+    return { ok: false, reason: "a test revision record's escalation must be an object" };
+  }
+  const testId = escalationInput.testId;
+  if (typeof testId !== "string" || testId.trim().length === 0) {
+    return {
+      ok: false,
+      reason: "a test revision record's escalation.testId must be a non-blank string",
+    };
+  }
+  const raised = escalationInput.raised;
+  if (!isPlainRecord(raised)) {
+    return { ok: false, reason: "a test revision record's escalation.raised must be an object" };
+  }
+  const phase = asAuthoringPhase(raised.phase);
+  if (phase === undefined) {
+    return {
+      ok: false,
+      reason:
+        `a test revision record's declared phase "${String(raised.phase)}" must be ` +
+        `AUTHOR_TEST or IMPLEMENT`,
+    };
+  }
+  const expectedKind = expectedEscalationKind(phase);
+  if (raised.kind !== expectedKind) {
+    return {
+      ok: false,
+      reason:
+        `a ${phase} escalation's kind must be "${expectedKind}", not "${String(raised.kind)}"`,
+    };
+  }
+  const rebuilt = parseAuthoringEscalation(phase, raised);
+  if (!rebuilt.ok) {
+    return { ok: false, reason: rebuilt.reason };
+  }
+  if (phase === "IMPLEMENT" && escalationInput.observation !== undefined) {
+    return {
+      ok: false,
+      reason: "an IMPLEMENT-kind escalation must not carry escalation.observation",
+    };
+  }
+  if (phase === "AUTHOR_TEST" && input.failedObservation !== undefined) {
+    return {
+      ok: false,
+      reason: "an AUTHOR_TEST-kind record must not carry a top-level failedObservation",
+    };
+  }
+  let observation: StoredObservation | undefined;
+  if (escalationInput.observation !== undefined) {
+    if (!isStoredObservation(escalationInput.observation)) {
+      return {
+        ok: false,
+        reason:
+          "escalation.observation must be { stdout: string; stderr: string; exitCode: number | null }",
+      };
+    }
+    observation = escalationInput.observation;
+  }
+  let failedObservation: StoredObservation | undefined;
+  if (input.failedObservation !== undefined) {
+    if (!isStoredObservation(input.failedObservation)) {
+      return {
+        ok: false,
+        reason: "failedObservation must be { stdout: string; stderr: string; exitCode: number | null }",
+      };
+    }
+    failedObservation = input.failedObservation;
+  }
+
+  const escalation: EscalationRecord =
+    observation === undefined
+      ? { raised: rebuilt.escalation, testId }
+      : { raised: rebuilt.escalation, testId, observation };
+
+  return {
+    ok: true,
+    revision:
+      failedObservation === undefined
+        ? { unitId, runId, escalation }
+        : { unitId, runId, escalation, failedObservation },
+  };
+}
+
+/** Whether `runId` is a single path segment — never blank, `.`, `..`, or containing a separator. */
+function isSinglePathSegment(runId: string): boolean {
+  return runId.length > 0 && runId !== "." && runId !== ".." && !runId.includes("/") && !runId.includes("\\");
+}
+
+/**
+ * Read a unit/run's revision record back (ADR-0571 D3). An undefined `runId` answers
+ * `{ ok: true, revision: undefined }` without touching the filesystem — there is nothing to revise
+ * against yet. A `runId` that is not a single path segment is refused before the filesystem is
+ * touched, which is what keeps this from ever naming an arbitrary file. Every other refusal names
+ * the path or the mismatch it found.
+ */
+export function readTestRevision(
+  dir: string,
+  unitId: string,
+  runId: string | undefined,
+): { ok: true; revision: TestRevision | undefined } | { ok: false; reason: string } {
+  if (runId === undefined) return { ok: true, revision: undefined };
+  if (!isSinglePathSegment(runId)) {
+    return {
+      ok: false,
+      reason: `runId "${runId}" is not a single path segment — it must name one run, not a path`,
+    };
+  }
+  const filePath = revisionRecordPath(dir, unitId, runId);
+  if (!existsSync(filePath)) {
+    return { ok: false, reason: `no revision record found at ${filePath}` };
+  }
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf8");
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `could not read the revision record at ${filePath}: ${(e as Error).message}`,
+    };
+  }
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(raw);
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `the revision record at ${filePath} is not valid JSON: ${(e as Error).message}`,
+    };
+  }
+  const parsed = parseTestRevision(parsedJson, unitId);
+  if (!parsed.ok) return parsed;
+  if (parsed.revision.runId !== runId) {
+    return {
+      ok: false,
+      reason:
+        `the revision record at ${filePath} was written under runId "${parsed.revision.runId}", ` +
+        `not the requested runId "${runId}"`,
+    };
+  }
+  return { ok: true, revision: parsed.revision };
 }
