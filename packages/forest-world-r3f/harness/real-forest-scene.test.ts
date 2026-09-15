@@ -26,6 +26,9 @@ import {
   realIslandRects,
   rectInFrame,
   syntheticForestStream,
+  fetchJsonFromPage,
+  parseHarnessElevation,
+  parseScenesRoute,
   twoDView,
   validateRealManifest,
   type RealForestManifest,
@@ -77,6 +80,12 @@ test('the manifest is refused unless it is the shipped map', () => {
   assert.throws(() => validateRealManifest(armPatched({ tile: undefined })), /records no tile/);
   assert.throws(() => validateRealManifest({ ...m, twoD: [] }), /nothing to stand the 3D beside/);
   assert.throws(() => validateRealManifest({ arms: [] }), /is not the shipped map/);
+  // ⚠⚠ THE OWNER-LOOK FENCE. A scene DRAWN at another elevation is un-projected here at the studio
+  // default, so it would build a forest with the wrong depth and say nothing. The 3D arm moves the
+  // camera over the default-drawn scene instead; an export that re-drew is refused outright.
+  assert.throws(() => validateRealManifest(armPatched({ drawnElevationDeg: 50 })), /DRAWN at 50°/);
+  // and the shipped export, which asks the map for nothing, carries no such stamp
+  assert.doesNotThrow(() => validateRealManifest(armPatched({})));
 });
 
 test('twoDView refuses a view the driver never photographed', () => {
@@ -234,4 +243,76 @@ test('frame equality is byte equality, and a length difference is a difference',
   // ⚠ THE LAST BYTE COUNTS. A loop stopping one short would call two frames identical that differ
   // exactly where a rim pixel lives.
   assert.ok(!sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2, 3, 9])));
+});
+
+test('the harness elevation flag: an angle in (0, 90] is the owner-look arm, absent is the shipped angle', () => {
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=20')), 20);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=50')), 50);
+  // ABSENT IS THE SHIPPED ANGLE — the property that keeps every existing invocation unchanged.
+  assert.equal(parseHarnessElevation(new URLSearchParams('')), null);
+  // 0° looks along the ground plane: sin e is 0, which is a division by zero in the registration
+  // arithmetic this whole arm exists to unblock, not a picture. Refused rather than clamped.
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=0')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=-10')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=120')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=nope')), null);
+});
+
+test('the scenes flag names a directory under docs/research/, never a path out of it', () => {
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=chapter2-shared-elevation-2026-09-15')), '/reference/chapter2-shared-elevation-2026-09-15/scenes');
+  // ABSENT IS THE COMMITTED EXPORT — every existing invocation is unchanged.
+  assert.equal(parseScenesRoute(new URLSearchParams('')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=')), null);
+  // ⚠ A DIRECTORY NAME, NOT A PATH. The harness's own `/reference/` middleware normalises and fences
+  // too, so this is the second of two walls rather than the only one — but a flag that can be talked
+  // into naming a traversal is one a caption could be wrong about even when nothing escapes.
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=../../etc')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=a/b')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=..')), null);
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE DEFAULT THE PAGE ACTUALLY RUNS ON. `createRealForestRunner` takes its fetcher injected, and
+// every test above drives it with a fake — so without this one, the implementation that runs in a
+// browser is reached by nothing and the suite is evidence about the fakes (ADR-0278). It is DRIVEN
+// rather than merely named: importing a seam without calling it reads as covered and proves the
+// same nothing.
+
+test('fetchJsonFromPage returns the parsed body on a 200', async () => {
+  const real = globalThis.fetch;
+  const seen: string[] = [];
+  // A REAL `Response`, not a shape cast into one: the seam calls `.ok`, `.status` and `.json()`, and
+  // a hand-built stand-in would be evidence about the stand-in — which is the whole failure this
+  // test exists to close.
+  globalThis.fetch = async (input) => {
+    seen.push(String(input));
+    return new Response(JSON.stringify({ arms: ['shipped'] }), { status: 200 });
+  };
+  try {
+    assert.deepEqual(await fetchJsonFromPage('/reference/x/scenes/manifest.json'), { arms: ['shipped'] });
+    assert.deepEqual(seen, ['/reference/x/scenes/manifest.json']);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test('fetchJsonFromPage REFUSES a non-200 and its message names the export step and the worktree', async () => {
+  const real = globalThis.fetch;
+  // ⚠ The BODY is valid JSON on purpose. A refusal that parsed it anyway would hand a 404 page back
+  // as a manifest, and a body that could not parse would hide that by failing for another reason.
+  globalThis.fetch = async () => new Response(JSON.stringify({ notAManifest: true }), { status: 404 });
+  try {
+    await assert.rejects(
+      () => fetchJsonFromPage('/reference/missing/scenes/manifest.json'),
+      (e: Error) => {
+        assert.match(e.message, /answered 404/);
+        // The two things a reader hitting this actually needs: run the export, and serve from HERE.
+        assert.match(e.message, /export-real-forest\.mjs/);
+        assert.match(e.message, /THIS worktree/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = real;
+  }
 });

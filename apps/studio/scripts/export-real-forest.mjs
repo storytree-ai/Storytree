@@ -45,6 +45,19 @@ const VIEWPORT = { width: 2560, height: 1600 };
 const MIN_ISLANDS = Number(process.env['ST_REAL_MIN_ISLANDS'] ?? 30);
 /** The one arm's id — the shipped map. Named rather than `default` so a sheet's caption can say it. */
 const ARM = 'shipped';
+/**
+ * WHICH CAMERA TO DRAW THE MAP AT — the owner-look arm for `the-two-layers-share-one-elevation`.
+ *
+ * ⚠ UNSET ⇒ THE MAP ASKS FOR NOTHING, which is what every sentence above promises: the layout a
+ * member opens the studio on today, at the studio's own default elevation. Set ⇒ the driver appends
+ * `?elevation=<deg>` to both views, which moves the DRAWING only — `packWorld` decides tiles,
+ * ownership and the coast at `PLAN_VIEW_ELEVATION_DEG` regardless, so the two arms are the same
+ * forest seen twice, and the fit/resting layout-identity refusal below still binds.
+ *
+ * It renders an arm; it does not pick one. Which elevation the two layers should SHARE is an owner
+ * look (ADR-0070 stage 2) and nothing here decides it.
+ */
+const ELEV = process.env['ST_REAL_ELEVATION'] ?? '';
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -53,6 +66,32 @@ const fail = (why) => {
 
 if (!URL_) fail('set ST_STUDIO_URL to the studio you started on a port of your own (e.g. http://127.0.0.1:5417)');
 if (/:5173(\/|$)/.test(URL_)) fail("ST_STUDIO_URL points at 5173, the studio's default port — a sibling worktree may own it. Start your own on another port.");
+if (ELEV !== '' && !(Number.isFinite(Number(ELEV)) && Number(ELEV) > 0 && Number(ELEV) <= 90)) {
+  fail(`ST_REAL_ELEVATION=${ELEV} is not an elevation in (0, 90] — the map would silently ignore it and this export would be captioned as an arm it is not`);
+}
+/**
+ * ⚠⚠ AN ELEVATION ARM MUST NOT OVERWRITE THE CANONICAL SCENES, and this refusal is the whole reason
+ * the flag is safe to have.
+ *
+ * The committed scene graph is a 2D DRAWING, and the 3D pages un-project it back to true ground at
+ * the studio's OWN default elevation (`landStreamFromDrawing`, `true-ground.ts` — ADR-0546 D1
+ * stopped the mapper repairing it). A scene drawn at another elevation and filed under the
+ * canonical name would be un-projected as though it were the default: every 3D page reading it
+ * would build a forest with the wrong depth, report numbers off it, and say nothing.
+ *
+ * So the 3D half of the owner look does NOT re-export at 50°. It photographs the SAME
+ * default-drawn scene from another CAMERA (`ST_REAL_ELEVATION` on `real-forest-measure.mjs`),
+ * which is what "the same world seen twice" means. Only the 2D half re-draws.
+ */
+const CANONICAL_SCENES = join(REPO, 'docs', 'research', 'chapter2-real-forest-2026-09-08', 'scenes');
+if (ELEV !== '' && resolve(SCENES_OUT) === resolve(CANONICAL_SCENES)) {
+  fail(
+    `ST_REAL_ELEVATION=${ELEV} would write a ${ELEV}°-drawn scene over the canonical scenes at ${CANONICAL_SCENES}. ` +
+      'The 3D pages un-project that file at the studio DEFAULT elevation, so they would silently build a forest ' +
+      'with the wrong depth. Point ST_REAL_SCENES_OUT (or ST_REAL_EVIDENCE_OUT) at a directory of your own — and ' +
+      'take the 3D arm by moving the CAMERA (ST_REAL_ELEVATION on real-forest-measure.mjs), never by re-exporting.',
+  );
+}
 
 mkdirSync(SCENES_OUT, { recursive: true });
 mkdirSync(EVIDENCE_OUT, { recursive: true });
@@ -114,9 +153,11 @@ async function capture(view) {
 
 /** The two 2D views: the whole forest fitted — the one the 3D page's own fit is comparable to — and
  *  the designed resting view the map actually opens on (ADR-0471), which is a CROP of it. */
+const elevQuery = ELEV === '' ? '' : `elevation=${ELEV}`;
+const join2 = (...parts) => parts.filter(Boolean).join('&');
 const VIEWS = [
-  { id: 'fit', query: 'restingView=fit' },
-  { id: 'resting', query: '' },
+  { id: 'fit', query: join2('restingView=fit', elevQuery) },
+  { id: 'resting', query: elevQuery },
 ];
 
 const rows = [];
@@ -142,7 +183,7 @@ for (const view of VIEWS) {
   const ys = r.islands2d.map((i) => i.y);
   const x2 = r.islands2d.map((i) => i.x + i.w);
   const y2 = r.islands2d.map((i) => i.y + i.h);
-  rows.push({
+  const row = {
     view: view.id,
     islands: r.islands2d.length,
     scale: r.camera.scale,
@@ -150,8 +191,13 @@ for (const view of VIEWS) {
     contentExtentPx: r.islands2d.length ? { w: Math.max(...x2) - Math.min(...xs), h: Math.max(...y2) - Math.min(...ys) } : null,
     medianIslandWidthPx: r.islands2d.length ? r.islands2d.map((i) => i.w).sort((p, q) => p - q)[Math.floor(r.islands2d.length / 2)] : null,
     png: r.png,
-  });
-  console.log(`${view.id.padEnd(8)} islands ${r.islands2d.length}  scale ${r.camera.scale}  → ${r.png}`);
+  };
+  // The key is ADDED rather than spread-in-or-not: absent means "the studio's own default", which
+  // is what the 3D page falls back to, and a present-and-null would claim the elevation is unknown
+  // when it never is.
+  if (ELEV !== '') row.elevationDeg = Number(ELEV);
+  rows.push(row);
+  console.log(`${view.id.padEnd(8)} islands ${r.islands2d.length}  scale ${r.camera.scale}  elevation ${ELEV === '' ? 'default' : `${ELEV}°`}  → ${r.png}`);
 }
 
 const manifest = {
@@ -172,6 +218,10 @@ const manifest = {
   ],
   twoD: rows,
 };
+// Stamped so a reader of this file can never mistake an owner-look arm for the shipped drawing —
+// `validateRealManifest` refuses one rather than un-projecting it wrongly. Added rather than
+// spread, so the shipped export carries no key at all.
+if (ELEV !== '') manifest.arms[0].drawnElevationDeg = Number(ELEV);
 writeFileSync(join(SCENES_OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 await browser.close();
 

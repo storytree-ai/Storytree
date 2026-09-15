@@ -32,8 +32,12 @@ import {
   crowdPxPerUnit,
   crowdSize,
   crowdStrips,
+  orientedCamera,
+  viewDirAtElevation,
 } from './shipped-crowd-scene.js';
 import { litLadderOf, shippedCasters, shippedParcels } from './shipped-land-scene.js';
+import { RENDER_ELEV_DEG } from '../src/kit-vocabulary.js';
+import { viewElevationDeg } from './shipped-spacing-scene.js';
 
 const ONE = crowdSize('one');
 const MONO = crowdSize('forest-mono');
@@ -321,4 +325,46 @@ test('islandPaths joins the two landings across every island — ONE crossing pe
   }
   // Deterministic: the same crowd wears the same paths twice.
   assert.deepEqual(paths, islandPaths(clipped, crowdStrips(REAL)));
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE OWNER-LOOK ARM: `orientedCamera` can be aimed at another elevation, and absent is the shipped
+// angle. `the-two-layers-share-one-elevation` needs the same forest photographed at 20° and 50°;
+// what a test can hold is that asking moves EXACTLY the elevation, and that not asking moves nothing.
+
+test('orientedCamera without an elevation is the SHIPPED angle — every existing caller is unmoved', () => {
+  // Read off the camera's own world direction, never transcribed. `viewElevationDeg` rather than the
+  // land-ratio page's position-normalising reader, so an off-origin centre reports the truth too.
+  assert.ok(Math.abs(viewElevationDeg(orientedCamera({ x: 0, z: 0 }, 1)) - RENDER_ELEV_DEG) < 1e-9);
+  assert.ok(Math.abs(viewElevationDeg(orientedCamera({ x: 1700, z: -2400 }, 3.5)) - RENDER_ELEV_DEG) < 1e-9);
+});
+
+test('orientedCamera aimed at an elevation looks down at exactly that, from any centre and any zoom', () => {
+  for (const deg of [20, 35, 50, 65]) {
+    for (const centre of [{ x: 0, z: 0 }, { x: 1700, z: -2400 }]) {
+      const got = viewElevationDeg(orientedCamera(centre, 2, deg));
+      assert.ok(Math.abs(got - deg) < 1e-6, `asked ${deg}°, camera looks down at ${got.toFixed(6)}° from (${centre.x}, ${centre.z})`);
+    }
+  }
+});
+
+test('asking for the shipped elevation reproduces the shipped direction — the arm has no seam at 50°', () => {
+  const shipped = orientedCamera({ x: 0, z: 0 }, 1);
+  const asked = orientedCamera({ x: 0, z: 0 }, 1, RENDER_ELEV_DEG);
+  for (const k of ['x', 'y', 'z'] as const) {
+    assert.ok(Math.abs(shipped.position[k] - asked.position[k]) < 1e-6, `${k}: ${shipped.position[k]} vs ${asked.position[k]}`);
+  }
+});
+
+test('ONLY the elevation moves — the azimuth is kept, so the arm compares one thing', () => {
+  // ⚠ THE ASSERTION THAT CATCHES A RE-AIMED BEARING. ADR-0380 D6 fixes the azimuth; an arm that
+  // swung it too would put two different views side by side and call the difference elevation.
+  const bearing = (v: { x: number; z: number }) => Math.atan2(v.x, v.z);
+  const shipped = viewDirAtElevation(RENDER_ELEV_DEG);
+  for (const deg of [20, 35, 65]) {
+    const d = viewDirAtElevation(deg);
+    assert.ok(Math.abs(bearing(d) - bearing(shipped)) < 1e-9, `${deg}° swung the azimuth`);
+    // and the direction is still a unit vector, so `dist` still means what the camera thinks it does
+    assert.ok(Math.abs(Math.hypot(d.x, d.y, d.z) - 1) < 1e-12);
+  }
 });
