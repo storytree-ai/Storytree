@@ -171,27 +171,24 @@ export interface CoverageDrainConfig {
  * that matters — this list went 66 → 121 without a single run failing, and it is the only worklist in
  * this arc whose measured history never once fell back.
  *
- * IT WILL NEED EXACTLY ONE RAISE, AND THE NUMBER IS RECORDED HERE IN ADVANCE so the session that earns
- * it is not blindsided by a gate it had no way to anticipate. `check:coverage` reads ADR-0126's
- * `analyzeObservedTests`, which parses only the `.skip`/`.todo` MODIFIER and NOT the options form
- * (`test(name, { skip: !DB }, fn)`) — the defect the `vacuous-proof` instrument locates in 7 test files.
- * Teaching it the options form ENLARGES what this sweep can observe, which is the one legitimate upward
- * move (ADR-0269, which amends ADR-0252 D3 — that clause alone grants no upward move at all), and the
- * enlargement was MEASURED rather than feared, which is the differential control ADR-0269 4(b)
- * requires: recomputing the sweep with
- * every options-form-skipped name removed moves `uncovered` 119 → 120 and `unbound` not at all. Exactly
- * ONE contract — `release-claims-by-branch-clears-the-branch` on `claim-store-work-time`, whose sole
- * vouching test is `skip: !DB` in `claim-store-release-by-branch.live.test.ts`. The other six located
- * files bind no capability's `real.testFile` or name no declared contract, so they move nothing (the
- * `vacuous-proof` instrument states this over-report itself). So: the classifier fix re-baselines this
- * axis IN THE SAME COMMIT, with that reason. It is also the second reason the accumulating axis
- * counts contracts — the capability count is blind to this growth, measured at +0.
+ * THE ONE RAISE THIS CEILING WAS EXPECTED TO NEED NEVER HAD TO BE TAKEN. It was recorded here in
+ * advance for the day ADR-0126's `analyzeObservedTests` learned the `node:test` options form of skip
+ * (`test(name, { skip: !DB }, fn)`), because reading it ENLARGES what this sweep can observe, which is
+ * the one legitimate upward move (ADR-0269, which amends ADR-0252 D3 — that clause alone grants no
+ * upward move at all). The enlargement was MEASURED in advance, the differential control ADR-0269 4(b)
+ * requires: on 2026-07-28, recomputing the sweep with every options-form-skipped name removed moved
+ * `uncovered` 119 → 120 and `unbound` not at all — exactly ONE contract,
+ * `release-claims-by-branch-clears-the-branch` on `claim-store-work-time`, whose only vouching tests
+ * carry `skip: !DB` in `claim-store-release-by-branch.live.test.ts`. The other located files bind no
+ * capability's `real.testFile` or name no declared contract, so they moved nothing.
  *
- * ⚠ THE `119 → 120` ABOVE IS THE MEASUREMENT AS TAKEN, NOT A LIVE TARGET. The ceiling has since been
- * tightened to 112 through a WIDER aperture (ADR-0353, below), so when that classifier fix lands the
- * move to re-record is `+1 FROM WHATEVER THE THEN-CURRENT BASELINE IS` — 113 on today's, not 120. The
- * reasoning, the single named contract, and the `unbound: +0` finding all still hold; only the
- * arithmetic was overtaken. Re-measure before re-baselining rather than trusting either number.
+ * LANDED 2026-09-16 (`classifier-reads-the-options-form-skip`), and re-measured on the real sweep that
+ * day rather than trusting either number above: the same ONE contract, and nothing else, left the
+ * covered set. The WARN list's per-capability lines went from 36 capabilities / 105 contracts to
+ * 37 / 106 — the capability count moved this time, because ADR-0353's surface had since credited that
+ * capability's other contracts — and the sweep computed no breach of the ceiling below before or after,
+ * so there was nothing to re-baseline. The obligation was moot in any case: ADR-0311 D2 retired this
+ * rung, so nothing reads the ceiling at the gate.
  *
  * Any OTHER upward move is the named gaming failure mode on `process:verification-decay-detection`.
  * Raising it to admit work being landed is exactly what this instrument exists to catch.

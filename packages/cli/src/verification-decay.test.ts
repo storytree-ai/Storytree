@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { extractVouchingTestNames } from "@storytree/orchestrator";
+import { extractVouchingTestNames, findOptionsFormSkips } from "@storytree/orchestrator";
 
 import { attributeDecayFindings } from "./decay-attribution.js";
 import { DECISION_SOURCE_DRIFT } from "./decision-source-decay.js";
@@ -19,7 +19,6 @@ import {
   extractSeamDefaults,
   findContractBindingDrift,
   findMirrorPairDrift,
-  findOptionsFormSkips,
   findUnprovenSeamDefault,
   findVacuousProof,
   findWarnListHygiene,
@@ -377,70 +376,46 @@ function testFile(
   };
 }
 
-describe("findOptionsFormSkips: reading the skip form the repo's own classifier cannot see", () => {
-  it("reads the options form on test / it / describe, quoting the gate back", () => {
-    const skips = findOptionsFormSkips(
-      [
-        'test("a runs", () => { assert.ok(x); });',
-        'test("b is gated", { skip: !DB }, () => { assert.ok(x); });',
-        'it("c is gated", { todo: "pending" }, () => { assert.ok(x); });',
-        'describe("d is gated", { skip: true }, () => {});',
-      ].join("\n"),
-      "x.test.ts",
-    );
-    assert.deepEqual([...skips.keys()], ["b is gated", "c is gated", "d is gated"]);
-    assert.equal(skips.get("b is gated"), "skip: !DB");
+describe("vacuous-proof's input: the options-form skips, read through the classifier's own rule", () => {
+  // `findOptionsFormSkips` moved beside ADR-0126's classifier in `@storytree/orchestrator`, where its
+  // reading rules are tested. What stays here is what THIS instrument rests on: the join, end to end.
+
+  /** One file's facts, read by the repo's own two readers — never hand-built. */
+  const readFacts = (filePath: string, src: string): TestFileFacts => ({
+    path: filePath,
+    optionsSkipped: findOptionsFormSkips(src, filePath),
+    vouching: new Set(extractVouchingTestNames(src, filePath)),
   });
 
-  it("does NOT read a literal `skip: false` as a skip — it skips nothing", () => {
-    // The false-positive this exclusion prevents: `nvidia-trellis.test.ts` writes
-    // `skip: liveEnabled ? false : "…"`, so in this corpus the value is an EXPRESSION far more often
-    // than a bare `true`. A rule keyed on the key's mere presence would flag a test that always runs.
-    const skips = findOptionsFormSkips(
-      'test("always runs", { skip: false, concurrency: 2 }, () => { assert.ok(x); });',
-      "x.test.ts",
-    );
-    assert.deepEqual([...skips.keys()], []);
-  });
-
-  it("does NOT read the `.skip` MODIFIER — that form is already VISIBLE to the classifier", () => {
-    // The boundary: this instrument's subject is the INVISIBLE skip. `test.skip(…)` is exactly what
-    // `analyzeObservedTests` does parse, so flagging it would re-derive what ADR-0126 already sees.
-    const skips = findOptionsFormSkips(
-      ['test.skip("modifier", () => { assert.ok(x); });', 'it.todo("todo modifier");'].join("\n"),
-      "x.test.ts",
-    );
-    assert.deepEqual([...skips.keys()], []);
-  });
-
-  it("ignores an options object on a call that is not a test declaration", () => {
-    const skips = findOptionsFormSkips(
-      'request("/api/x", { skip: true }, () => {});\nconfigure("y", { skip: !DB });',
-      "x.test.ts",
-    );
-    assert.deepEqual([...skips.keys()], []);
-  });
-
-  it("spells a title EXACTLY as ADR-0126's classifier does, so the vacuous-proof join holds", () => {
-    // The coupling this instrument rests on: `findVacuousProof` matches these names against
-    // `extractVouchingTestNames`'s output. A title shape only ONE of the two readers understands
-    // makes the join miss silently — the instrument reports nothing and still looks healthy. This
-    // used to be kept true by a hand-copied reader; it is now the same function, and this pins it.
+  it("spells a title EXACTLY as ADR-0126's classifier does, so the join lands on a same-titled running sibling", () => {
+    // `findVacuousProof` matches these names against `extractVouchingTestNames`'s output, so a title
+    // shape only ONE reader understands makes the join miss silently and the instrument look healthy.
+    // Since the classifier learned the options form, the one name both sides can still hold is a gated
+    // declaration sharing its title with a test that RUNS. The join is by name, so that is located.
+    const title = "gated-contract: a title split across two literals";
     const src = [
       'test("gated-contract: a title split " + "across two literals",',
       "     { skip: !DB }, () => { assert.equal(actual, expected); });",
+      'test("gated-contract: a title split " + "across two literals", () => { assert.equal(actual, expected); });',
     ].join("\n");
-    const skipped = [...findOptionsFormSkips(src, "x.test.ts").keys()];
-    // Both readers must produce the SAME string for the join to land…
-    assert.deepEqual(skipped, ["gated-contract: a title split across two literals"]);
-    // …which is only checkable against the other reader itself. (The options-form skip is invisible
-    // to `analyzeObservedTests` by design, ADR-0126's named blind spot, so it reads as vouching.)
-    assert.deepEqual(extractVouchingTestNames(src, "x.test.ts"), skipped);
-    // And the finding the join produces is actually emitted, end to end.
-    const findings = findVacuousProof([
-      testFile("x.test.ts", { "gated-contract: a title split across two literals": "skip: !DB" }, skipped),
-    ]);
-    assert.equal(findings.length, 1);
+    const facts = readFacts("x.test.ts", src);
+    assert.deepEqual([...facts.optionsSkipped.keys()], [title]);
+    assert.deepEqual([...facts.vouching], [title], "only the running sibling vouches");
+    assert.equal(findVacuousProof([facts]).length, 1);
+  });
+
+  it("drains BY CONSTRUCTION: fed the repo's own readers, no options-form skip of either certainty is located", () => {
+    // Until ADR-0126's classifier read the options form, every declaration below vouched while carrying
+    // a skip, and the file was one finding. Both readers now apply ONE rule, so the join is empty.
+    const src = [
+      'test("c-live: a live-store proof", { skip: !DB }, async () => { assert.equal(rows.length, 2); });',
+      'test("c-credential: a hosted backend", { skip: liveEnabled ? false : "credential-gated" }, () => { assert.ok(glb); });',
+      'it("c-off: never runs", { skip: true }, () => { assert.ok(v); });',
+      'describe("c-suite: a gated suite", { todo: pending }, () => { it("inner", () => { assert.ok(v); }); });',
+    ].join("\n");
+    const facts = readFacts("packages/a/src/x.live.test.ts", src);
+    assert.equal(facts.optionsSkipped.size, 4, "every gated declaration is still READ");
+    assert.deepEqual(findVacuousProof([facts]), []);
   });
 });
 
@@ -460,8 +435,8 @@ describe("vacuous-proof: what it locates", () => {
   });
 
   it("emits ONE finding per FILE listing every test — the ceiling counts repairs, not mentions", () => {
-    // `claim-store-grades.live.test.ts` holds four of these and they share ONE repair: the file's
-    // live-gating idiom. Counting mentions would let a single file eat four units of a budget that is
+    // `claim-store-grades.live.test.ts` carried five of these and they shared ONE repair: the file's
+    // live-gating idiom. Counting mentions would let a single file eat five units of a budget that is
     // meant to measure backlog (the granularity #949 settled).
     const findings = findVacuousProof([
       testFile(
@@ -471,7 +446,7 @@ describe("vacuous-proof: what it locates", () => {
       ),
     ]);
     assert.equal(findings.length, 1);
-    assert.match(findings[0]?.detail ?? "", /^4 test\(s\)/);
+    assert.match(findings[0]?.detail ?? "", /^4 test name\(s\)/);
   });
 
   it("orders findings by path so the ceiling's view of the backlog is stable run to run", () => {
@@ -484,14 +459,28 @@ describe("vacuous-proof: what it locates", () => {
       ["packages/a/src/a.test.ts", "packages/z/src/z.test.ts"],
     );
   });
+
+  it("states both observations and both ways a gated name can reach the join, every name quoted with its gate", () => {
+    // The detail IS the report a reader acts on, so it is pinned whole: a containment check cannot see a
+    // blanked clause or a dropped separator between the quoted names, and either would still pass one.
+    const findings = findVacuousProof([
+      testFile("packages/a/src/x.live.test.ts", { a: "skip: !DB", b: "skip: true" }, ["a", "b"]),
+    ]);
+    assert.equal(
+      findings[0]?.detail,
+      "2 test name(s) carry an OPTIONS-FORM skip while `analyzeObservedTests` — the classifier coverage " +
+        'reads — reports the same name(s) as running and substantively asserting: "a" (`skip: !DB`); ' +
+        '"b" (`skip: true`). The join is by name, so either a gated declaration shares its title with a ' +
+        "test that runs, or the two readers of the skip rule no longer agree",
+    );
+  });
 });
 
 describe("vacuous-proof: what it must NOT flag (the false-positive guards)", () => {
-  it("does NOT flag the VISIBLE placeholder idiom — options-skipped but asserting nothing", () => {
-    // `store.test.ts`'s honest shape: `if (LIVE) { suite() } else { test(…, { skip: true }, () => {}) }`.
-    // The classifier reports it NOT vouching, so it can never make a contract read covered — nothing
-    // is misled, and flagging it would price the very idiom that fixes this class. This is the
-    // tightening that keeps both halves of the rule load-bearing.
+  it("does NOT flag an options-skipped placeholder that asserts nothing", () => {
+    // The `else` half of `store.test.ts`: `test(…, { skip: true }, () => {})`. The classifier reports it
+    // NOT vouching, so it can never make a contract read covered. (The idiom's `if (LIVE)` half is
+    // NOT an honest shape: a test declared inside it vouches whether or not it runs — ADR-0126.)
     assert.deepEqual(
       findVacuousProof([
         testFile("packages/a/src/store.test.ts", { "parity (skipped: set DB_LIVE=1)": "skip: true" }, []),
@@ -531,8 +520,8 @@ describe("vacuous-proof: what it must NOT flag (the false-positive guards)", () 
     for (const adjudication of ["falsely covered", "not proven", "is not a proof", "should not skip"]) {
       assert.ok(!detail.includes(adjudication), `detail must not adjudicate: "${adjudication}"`);
     }
-    assert.match(detail, /does not parse/);
-    assert.match(detail, /No static observer in this repo distinguishes them/);
+    assert.match(detail, /carry an OPTIONS-FORM skip/);
+    assert.match(detail, /The join is by name/);
   });
 
   it("never ESCALATES — it is an ordinary located region with a real false-positive surface", () => {

@@ -26,14 +26,15 @@ import { PgClaimStore } from "./claim-store.js";
 // DB-backed proof (ADR-0064): runs ONLY when STORYTREE_DB_NAME names a disposable test DB, so it
 // never touches production and never reds the offline gate.
 //
-// ⚠ REGISTERED THROUGH THE `if (LIVE) … else` IDIOM, NOT `test(name, { skip: !DB }, fn)`, AND THE
-// DIFFERENCE IS NOT COSMETIC. `analyzeObservedTests` — the classifier `check:coverage` reads —
-// parses only the `.skip`/`.todo` MODIFIER and a LITERAL options skip, so an options form computed
-// from an env var reports this test as RUNNING AND SUBSTANTIVELY ASSERTING when it did neither.
-// A proof that cannot fail is not a proof (ADR-0211/0249), and the worse half is that nothing
-// static could tell. `check:verification-decay`'s `vacuous-proof` instrument locates exactly this
-// and its ceiling is the count of files that still have it; the honest move is to make the skip
-// VISIBLE rather than to raise the number.
+// REGISTERED THROUGH `if (DB) … else` WITH AN EXTRACTED CALLBACK. That shape was chosen when
+// `analyzeObservedTests` — the classifier coverage reads — could not see an options-form skip
+// (`test(name, { skip: !DB }, fn)`) and credited such a test as RUNNING AND SUBSTANTIVELY ASSERTING
+// offline, when it did neither. Since 2026-09-16 it reads the options form, which is now the
+// sanctioned visible shape for a gated proof. This file stays honest as it is for a narrower reason:
+// the test body is the named function `proveBranchStamp`, so the static read finds no assertion inside
+// the `test(...)` call and credits nothing either way. The `if` alone would NOT be enough: the
+// classifier reads no control flow, so an inline asserting body inside `if (DB) { … }` vouches whether
+// or not it runs (ADR-0126).
 const DB = process.env["STORYTREE_DB_NAME"];
 
 const proveBranchStamp = async (): Promise<void> => {

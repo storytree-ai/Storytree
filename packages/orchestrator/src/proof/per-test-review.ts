@@ -29,7 +29,8 @@
  *  - C4 individually red — every NEW test failed, except one whose named contracts ALL declare a
  *    guard-rail (ADR-0572 D2), which may pass and is recorded (D3);
  *  - C5 the declared kind — every NEW test's red is an assertion red;
- *  - C6 substance — every NEW test vouches under ADR-0126;
+ *  - C6 substance — every NEW test vouches under ADR-0126, except that a CONDITIONAL options-form skip
+ *    (`{ skip: !DB }`) is left to C3, which sees from the report whether it ran;
  *  - C7 the brief's contracts — in a CLUSTER brief only, every contract the brief named is named by a NEW
  *    vouching test;
  *  - green — at CONFIRM_GREEN, every declared test individually passed.
@@ -103,7 +104,13 @@ function guardRailNearMiss(contract: ContractDecl): string | undefined {
 export interface DeclaredTest {
   /** The full title path, outermost suite first. */
   readonly path: readonly string[];
-  /** ADR-0126: it runs, and holds a substantive assertion. */
+  /**
+   * ADR-0126's substance, as this review reads it: the test holds a substantive assertion and is not
+   * skipped for CERTAIN. A CONDITIONAL options-form skip (`{ skip: !DB }`) counts here although it
+   * withholds coverage credit, because whether it ran is C3's to observe from the runner's report. Under
+   * `--real` the spine forces the environment such a gate reads (ADR-0064), so refusing it statically
+   * would refuse a live proof that C3 accepts. C6 and C7 both read this.
+   */
   readonly vouches: boolean;
   /**
    * Why no reported row can be bound to it one-to-one, when none can (ADR-0573 D3): a title the static
@@ -158,10 +165,10 @@ export function declaredTestsOf(testSource: string, testFile: string): DeclaredT
         : !t.titleFullyStatic || suites.some((s) => s?.fullyStatic === false)
           ? "unread-title"
           : undefined;
+    // Not `t.vouches`, which also withholds credit from a CONDITIONAL skip: see `DeclaredTest.vouches`.
+    const vouches = t.substantive && !t.skipped;
     declared.push(
-      unbindable === undefined
-        ? { path: titlePath, vouches: t.vouches }
-        : { path: titlePath, vouches: t.vouches, unbindable },
+      unbindable === undefined ? { path: titlePath, vouches } : { path: titlePath, vouches, unbindable },
     );
   }
   return declared;
