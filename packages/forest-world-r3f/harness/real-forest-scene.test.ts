@@ -281,10 +281,13 @@ test('the scenes flag names a directory under docs/research/, never a path out o
 test('fetchJsonFromPage returns the parsed body on a 200', async () => {
   const real = globalThis.fetch;
   const seen: string[] = [];
-  globalThis.fetch = (async (url: string) => {
-    seen.push(String(url));
-    return { ok: true, status: 200, json: async () => ({ arms: ['shipped'] }) } as unknown as Response;
-  }) as unknown as typeof fetch;
+  // A REAL `Response`, not a shape cast into one: the seam calls `.ok`, `.status` and `.json()`, and
+  // a hand-built stand-in would be evidence about the stand-in — which is the whole failure this
+  // test exists to close.
+  globalThis.fetch = async (input) => {
+    seen.push(String(input));
+    return new Response(JSON.stringify({ arms: ['shipped'] }), { status: 200 });
+  };
   try {
     assert.deepEqual(await fetchJsonFromPage('/reference/x/scenes/manifest.json'), { arms: ['shipped'] });
     assert.deepEqual(seen, ['/reference/x/scenes/manifest.json']);
@@ -295,13 +298,9 @@ test('fetchJsonFromPage returns the parsed body on a 200', async () => {
 
 test('fetchJsonFromPage REFUSES a non-200 and its message names the export step and the worktree', async () => {
   const real = globalThis.fetch;
-  globalThis.fetch = (async () => ({
-    ok: false,
-    status: 404,
-    // ⚠ A refusal that read the body anyway would hand back a 404 page as a manifest. The parse must
-    // never be reached, so this throws if it is.
-    json: async () => { throw new Error('the refusal parsed the body of a failed response'); },
-  }) as unknown as Response) as unknown as typeof fetch;
+  // ⚠ The BODY is valid JSON on purpose. A refusal that parsed it anyway would hand a 404 page back
+  // as a manifest, and a body that could not parse would hide that by failing for another reason.
+  globalThis.fetch = async () => new Response(JSON.stringify({ notAManifest: true }), { status: 404 });
   try {
     await assert.rejects(
       () => fetchJsonFromPage('/reference/missing/scenes/manifest.json'),
