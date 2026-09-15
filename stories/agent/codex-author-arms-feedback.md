@@ -79,6 +79,9 @@ this contract's write scope pin today's wiring — `packages/cli/src/codex-leaf-
 `packages/orchestrator/src/resolve-prove-spec.test.ts` assert that a Codex author's
 `feedbackToolNames` is `[]` — and they stay green only because an author without feedback commands
 behaves exactly as it does today.
+*(Overtaken 2026-09-15: contract `codex-builds-arm-feedback` now passes feedback commands to the
+Codex leaf in every build, and it flipped both tests named above to assert the armed tool names.
+This contract's own write scope is unchanged.)*
 
 **The change is `CodexPhaseAuthor`.** It composes what the four contracts it depends on added under
 `packages/agent/src`: the `feedback` option of `buildCodexExecArgs`, `linkReplicaDependencies` in

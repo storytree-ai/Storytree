@@ -33,7 +33,12 @@ import type { TestSurfaceRead } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
 import type { ExpectedRed } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
-import { ShellTestExecutor, runShellCommand, unvettedGreenNote } from "./shell-test-executor.js";
+import {
+  DEFAULT_PROOF_TIMEOUT_MS,
+  ShellTestExecutor,
+  runShellCommand,
+  unvettedGreenNote,
+} from "./shell-test-executor.js";
 import type { ShellCommand, ShellRunResult, ShellTestResolver } from "./shell-test-executor.js";
 import {
   PROOF_REPORT_ENV,
@@ -582,6 +587,11 @@ export function resolveProveSpec(
           IMPLEMENT: codexPromotionManifest(DRY_RUN_IMPL_REL, [DRY_RUN_IMPL_REL]),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        feedbackCommands: codexFeedbackCommandsFor(
+          syntheticProofCmd,
+          `node ${DRY_RUN_TEST_REL}`,
+          opts.workspace,
+        ),
       };
       if (opts.phasePrompts !== undefined) codexArgs.phasePrompts = opts.phasePrompts;
       if (opts.model !== undefined) codexArgs.model = opts.model;
@@ -824,6 +834,12 @@ function resolveReal(
           IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        feedbackCommands: codexFeedbackCommandsFor(
+          realProofCmd,
+          proofDisplay,
+          opts.workspace,
+          typecheckCmd,
+        ),
       };
       if (opts.phasePrompts !== undefined) codexArgs.phasePrompts = opts.phasePrompts;
       if (opts.model !== undefined) codexArgs.model = opts.model;
@@ -1119,6 +1135,76 @@ export function feedbackCommandsFor(
   return commands;
 }
 
+/**
+ * Move any absolute `cwd`/argument that sits inside `workspace` to the same relative place under
+ * `replicaRoot`; keep everything else (`file`, non-moving arguments, `env`, `timeoutMs`, `shell`)
+ * exactly, and never mutate the command it was given (`codex-feedback-runs-in-the-replica`).
+ *
+ * A value MOVES when it is absolute AND `path.relative(workspace, value)` is inside — i.e. the
+ * relative path is `""`, or is not itself absolute, is not `..`, and does not begin with
+ * `.. + path.sep`. This is deliberately NOT a string-prefix check: a sibling directory that merely
+ * shares the workspace's own path as a string prefix (e.g. `${workspace}-sibling`) must never move,
+ * and only `path.relative`'s `..`-leading answer tells the two apart. `file` never moves — the leaf's
+ * proof/typecheck binary is always resolved off the real machine, never off the replica.
+ */
+export function retargetShellCommand(
+  cmd: ShellCommand,
+  workspace: string,
+  replicaRoot: string,
+): ShellCommand {
+  const moveIfInside = (value: string): string => {
+    if (!path.isAbsolute(value)) return value;
+    const rel = path.relative(workspace, value);
+    const inside = rel === "" || (!path.isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${path.sep}`));
+    return inside ? path.join(replicaRoot, rel) : value;
+  };
+  const retargeted: ShellCommand = { ...cmd, args: cmd.args.map(moveIfInside) };
+  if (cmd.cwd !== undefined) retargeted.cwd = moveIfInside(cmd.cwd);
+  return retargeted;
+}
+
+/**
+ * The Codex leaf's feedback commands (`codex-feedback-runs-in-the-replica`): the SAME command
+ * objects the spine's own CONFIRM observations spawn, each retargeted from the worktree to the
+ * phase's disposable replica before it runs — so a feedback run sees the leaf's own edits instead of
+ * the unedited worktree. `run_proof` always; `run_typecheck` only when `typecheckCmd` is given. Each
+ * `run(replicaRoot)` calls {@link runShellCommand} over {@link retargetShellCommand}'s result, so the
+ * run keeps `runShellCommand`'s env scrub, exit-code-as-data and wall-clock bound exactly as the
+ * spine's own observations do.
+ */
+export function codexFeedbackCommandsFor(
+  proofCmd: ShellCommand,
+  proofDisplay: string,
+  workspace: string,
+  typecheckCmd?: ShellCommand,
+): NonNullable<CodexPhaseAuthorArgs["feedbackCommands"]>[number][] {
+  const commands: NonNullable<CodexPhaseAuthorArgs["feedbackCommands"]>[number][] = [
+    {
+      name: "run_proof",
+      description:
+        `Run the node's proof command (${proofDisplay}) against the leaf's disposable replica ` +
+        "and return its exit code and output. Bounded runs. FEEDBACK ONLY: the spine re-runs the " +
+        "proof itself, out of band, in the real worktree after it promotes the phase, and only " +
+        "that observation decides red and green.",
+      timeoutMs: proofCmd.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+      run: (replicaRoot: string) =>
+        runShellCommand(retargetShellCommand(proofCmd, workspace, replicaRoot)),
+    },
+  ];
+  if (typecheckCmd !== undefined) {
+    commands.push({
+      name: "run_typecheck",
+      description:
+        "Run the package typecheck (tsc --noEmit, full strict flags) against the leaf's " +
+        "disposable replica and return its exit code and output. Bounded runs. FEEDBACK ONLY.",
+      timeoutMs: typecheckCmd.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+      run: (replicaRoot: string) =>
+        runShellCommand(retargetShellCommand(typecheckCmd, workspace, replicaRoot)),
+    });
+  }
+  return commands;
+}
+
 /** Per-stream character cap on a test-revision brief's carried observation (tail-kept). */
 const REVISION_STREAM_CHARS = 8_000;
 
@@ -1232,13 +1318,13 @@ export function realPrompts(
   // R2 (ADR-0098): refactor-for-testability — the source EXISTS and is CORRECT but untestable; the
   // red is STRUCTURAL (a seam that does not exist yet), the green is the whole-package suite.
   const refactorForTests = real.refactorForTests === true;
-  // ADR-0356/0555's runtime amendment (contracts 9/10): Codex authors natively with shell/apply_patch
-  // in a disposable replica and carries NO run_proof/run_typecheck/MCP feedback tool
-  // (`CodexPhaseAuthor.feedbackToolNames` is always `[]`) — so a brief written for Claude falsely
-  // promises a tool Codex lacks and falsely denies the shell authoring it genuinely has. Available
-  // shell authoring grants no substitute for the spine's registered proof/typecheck feedback either
-  // (ADR-0232 D5), so the codex branch never invites "run it yourself to check" as pseudo-feedback.
-  // Claude keeps its feedback/tool contract and legacy helper behavior; its scope wording names the complete declared scope.
+  // ADR-0570 D1: Codex authors natively with shell/apply_patch in a disposable replica AND now carries
+  // the same `run_proof`/`run_typecheck` feedback commands the Claude leaf gets
+  // (`codexFeedbackCommandsFor`, retargeted into the replica) — so the tooling/close prose below is
+  // shared with Claude's. Available shell authoring still grants no substitute for the spine's
+  // registered proof/typecheck feedback (ADR-0232 D5 is NOT narrowed), so the tooling line still says
+  // plainly that a shell re-run is not feedback. `codexRuntime` still governs the finite-promotion
+  // wildcard filtering below, which is about Codex's promotion boundary, not about feedback.
   const codexRuntime = runtime === "codex";
   // Codex may name only finite promotion targets: a wildcard is a hook-wall pattern, never a Codex
   // promotion target (`codexPromotionManifest` filters it the same way). Claude's write wall is the
@@ -1269,10 +1355,7 @@ export function realPrompts(
       : `\`${real.testFile}\` (the required output) and the other test files in your permitted ` +
         `scope (matching ${namedTestGlobs.map((g) => `\`${g}\``).join(", ")}) — IMPLEMENT may ` +
         `read them but writes only its source targets`;
-  const typecheckClose = codexRuntime
-    ? `There is no automated feedback tool for the type check here — write type-legal code from ` +
-      `the start; promotion still refuses a type-illegal green.`
-    : `Use the \`run_typecheck\` feedback tool before stopping.`;
+  const typecheckClose = `Use the \`run_typecheck\` feedback tool before stopping.`;
   const depsLine =
     real.install === true
       ? `- the worktree HAS its workspace dependencies installed (lockfile-only): you may import ` +
@@ -1294,16 +1377,19 @@ export function realPrompts(
       `red→green (it may run a package suite or another runner, not necessarily node:test on a ` +
       `single file).\n`
     : `- the TEST file is ${testsNamed} (node:test + node:assert/strict).\n`;
-  // The tooling clause: Claude's genuine run_proof feedback tool + genuine no-shell constraint
-  // (unchanged, the legacy/default text), or Codex's genuine native shell/apply_patch authoring with
-  // no feedback tool and no shell-run substitute for the spine's registered observations.
+  // The tooling clause (ADR-0570 D1): Claude's genuine run_proof feedback tool + genuine no-shell
+  // constraint (unchanged, the legacy/default text), or Codex's genuine native shell/apply_patch
+  // authoring PLUS the same run_proof feedback tool (retargeted into its disposable replica) — with a
+  // plain statement that a shell re-run of the proof/test/typecheck/build command is still not a
+  // substitute for the spine's registered observations (ADR-0232 D5 is not narrowed).
   const toolingLine = codexRuntime
-    ? `You are authoring with native shell/apply_patch access in a disposable replica of this repo ` +
-      `— no automated feedback tool exists here for the proof command or the type check, and no ` +
-      `MCP tools are available. Running either command yourself through your shell is NOT a ` +
-      `substitute for the spine's registered observations — do not treat it as feedback. The spine ` +
-      `alone observes the official red/green, promotes the exact allowed targets, and signs the ` +
-      `verdict, out of band after you stop.\n`
+    ? `You are authoring with native shell/apply_patch access in a disposable replica of this repo. ` +
+      `You can run that same proof command against your replica at any time via the \`run_proof\` ` +
+      `feedback tool, in bounded runs whose output is feedback and never the verdict. Running a ` +
+      `proof, test, typecheck, or build command yourself through your shell is not a substitute for ` +
+      `the spine's registered observations, and is not feedback. The spine alone observes the ` +
+      `official red/green, promotes the exact allowed targets, and signs the verdict, out of band ` +
+      `after you stop.\n`
     : `You can run that same command yourself at any time via ` +
       `the \`run_proof\` feedback tool (bounded runs; its output is feedback, never the verdict). ` +
       `You cannot run shell commands.\n`;
@@ -1320,29 +1406,18 @@ export function realPrompts(
     // nodes) this is byte-identical to the old `\`${real.sourceFile}\`` — parity-of-prose preserved.
     `- the IMPLEMENTATION file is ${sourcesNamed}.\n` +
     depsLine;
-  // The AUTHOR_TEST red-confirmation close: Claude checks with run_proof before stopping (unchanged);
-  // Codex has no feedback tool to reach for, so it is simply told to stop — the spine alone judges
-  // the kind of red it observes (`gate-the-right-kind-red`), never a shell re-run offered as a
-  // substitute.
+  // The AUTHOR_TEST red-confirmation close: shared Claude wording for both runtimes (ADR-0570 D1) —
+  // Codex now checks with run_proof before stopping too, exactly as Claude is briefed.
   const redClose = (reason: string): string =>
-    codexRuntime
-      ? `The spine observes the official red itself and requires ${reason}. When the test file is ` +
-        `written, stop.`
-      : `After writing it, use \`run_proof\` to confirm it fails for ${reason}. The spine observes ` +
-        `the official red itself. When the test file is written and checked, stop.`;
-  // The IMPLEMENT green-iteration close: Claude iterates against run_proof (unchanged); Codex has no
-  // feedback tool to iterate against, so it is told what must be green when it stops rather than an
-  // iterate-against-the-tool loop it cannot run.
+    `After writing it, use \`run_proof\` to confirm it fails for ${reason}. The spine observes ` +
+    `the official red itself. When the test file is written and checked, stop.`;
+  // The IMPLEMENT green-iteration close: shared Claude wording for both runtimes (ADR-0570 D1) —
+  // Codex now iterates against run_proof/run_typecheck too, exactly as Claude is briefed.
   const greenClose = (verb: string, subject: string): string => {
     const typecheckSuffix =
-      real.install === true && real.typecheck !== undefined && !codexRuntime
-        ? " and `run_typecheck` is green"
-        : "";
-    return codexRuntime
-      ? `${subject} must be green${typecheckSuffix} before you stop; the spine observes the ` +
-        `official green itself.`
-      : `Iterate: ${verb}, \`run_proof\`, fix — until ${subject} is green${typecheckSuffix}, then ` +
-        `stop; the spine observes the official green itself.`;
+      real.install === true && real.typecheck !== undefined ? " and `run_typecheck` is green" : "";
+    return `Iterate: ${verb}, \`run_proof\`, fix — until ${subject} is green${typecheckSuffix}, then ` +
+      `stop; the spine observes the official green itself.`;
   };
   // C (ADR-0057 §3): the EDIT-EXISTING arm drops the net-new "must NOT exist yet" assumption and
   // steers the leaf to a regression red (a new failing assertion against existing behaviour, not a
@@ -1421,14 +1496,16 @@ export function realPrompts(
  */
 export function liveSmokePrompts(spec: NodeSpec, runtime: LiveRuntime = "claude"): PhasePrompts {
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
-  // ADR-0356/0555's runtime amendment: Codex has no run_proof feedback tool here either (a live-smoke
-  // author is the SAME CodexPhaseAuthor as a real build), so the smoke's brief must not promise one.
+  // ADR-0570 D1: a live-smoke Codex author now carries the same run_proof feedback command (retargeted
+  // into its disposable replica) that a real build's Codex author gets — the smoke's brief says so, and
+  // still says plainly that a shell re-run of proof/test/typecheck/build is not a substitute for it.
   const codexRuntime = runtime === "codex";
   const feedbackLine = codexRuntime
-    ? `You are authoring with native shell/apply_patch access in this temp workspace — no automated ` +
-      `feedback tool exists here either. Do not run a shell proof, test, typecheck, or build command ` +
-      `as feedback: shell access is not a substitute for the spine's registered observations. The spine ` +
-      `alone observes the official red/green itself.`
+    ? `You are authoring with native shell/apply_patch access in a disposable replica of this temp ` +
+      `workspace. The \`run_proof\` feedback tool runs that test command against your replica ` +
+      `(bounded runs; feedback, never the verdict). Do not run a shell proof, test, typecheck, or ` +
+      `build command as feedback: shell access is not a substitute for the spine's registered ` +
+      `observations. The spine alone observes the official red/green itself.`
     : `The \`run_proof\` feedback tool runs that test command for you (bounded runs; its output is\n` +
       `feedback, never the verdict — the spine observes the official red/green itself).`;
   const conventions =
@@ -1439,10 +1516,8 @@ export function liveSmokePrompts(spec: NodeSpec, runtime: LiveRuntime = "claude"
     `  that \`add(2, 3) === 5\`, then log ok;\n` +
     `- the IMPL file is \`${DRY_RUN_IMPL_REL}\`: \`module.exports = { add }\`.\n` +
     feedbackLine;
-  const redCheck = codexRuntime
-    ? "The spine observes the official red itself. When the test file is written, stop."
-    : `After writing, you may \`run_proof\` to confirm it fails for the right reason. When the test ` +
-      `file is written, stop.`;
+  const redCheck = `After writing, you may \`run_proof\` to confirm it fails for the right reason. ` +
+    `When the test file is written, stop.`;
   return {
     authorTest:
       `${header}\n\n${conventions}\n\nPhase AUTHOR_TEST — write ONLY \`${DRY_RUN_TEST_REL}\`. ` +
