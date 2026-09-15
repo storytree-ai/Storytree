@@ -405,7 +405,7 @@ export const CLI_READ_VERBS = {
   ),
   "adr push": silent("write — replaces the whole decision document"),
   "adr new": silent("write — reserves a number and scaffolds the decision"),
-  "adr next": silent("write — reserves a number and reads nothing"),
+  "adr next": silent("retired — it refuses, reserving no number and reading nothing"),
   "adr rebind": silent("write — freezes a span binding"),
 
   // --- question ------------------------------------------------------------

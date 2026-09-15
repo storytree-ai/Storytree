@@ -376,6 +376,16 @@ test("`adr`'s writes stay silent, and so does the one verb argv cannot classify"
   }
 });
 
+test("`adr next` is retired and observes nothing, and its recorded reason says it refuses rather than reserving", () => {
+  // The verb stays dispatched only to REFUSE (`adrNextRetired` in packages/cli/src/adr.ts): it reserved a
+  // decision number that nothing could then write. The reason is pinned whole because the generic sweep
+  // only asks that a silence carry SOME reason, and this row used to say the verb reserves a number.
+  assert.deepEqual(CLI_READ_VERBS["adr next"], {
+    observes: "nothing",
+    why: "retired — it refuses, reserving no number and reading nothing",
+  });
+});
+
 /**
  * THE HOLE ADR-0484 EXISTS TO CLOSE, proved live on 2026-08-30: a `library search` run mid-session
  * left no event in that session's own trace, because the observer's `library` branch handled
