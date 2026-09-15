@@ -68,6 +68,10 @@ export const NAVIGATION_ALLOWANCE_ENV = 'ST_NAVIGATION_ALLOWANCE_MS';
  * original driver failed it at exactly 30 s (reproduced, `page.goto: Timeout 30000ms exceeded`), and
  * 180 s clears it twice over. It is not larger because this is also what a WEDGED server costs before
  * it is refused — per page, in `check:land-art`.
+ *
+ * It is also the bound every OTHER harness driver navigates under when it states none: `gotoServedTree`
+ * (`served-tree.ts`) supplies it, because those drivers met the same cold server with the same unstated
+ * 30 s. Only `capture.mjs` reads the override and explains a failure through this module.
  */
 export const DEFAULT_NAVIGATION_ALLOWANCE_MS = 180_000;
 

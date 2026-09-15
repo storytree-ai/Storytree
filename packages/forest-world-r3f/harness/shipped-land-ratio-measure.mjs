@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { COVER_DENSITY, COVER_SIZE } from '../src/cover-dressing.ts';
 import { RENDER_ELEV_DEG } from '../src/kit-vocabulary.ts';
 import { LAND_AREA_PER_CAPABILITY, LAND_SCALE, TUNED_LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.ts';
@@ -84,7 +85,7 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 600000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 600000 }, fail);
 await page.waitForFunction(() => window.landRatioRunner !== undefined, null, { timeout: 600000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

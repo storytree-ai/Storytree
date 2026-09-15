@@ -79,6 +79,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.js';
 import { SHIPPED_GROUND_COLOUR, SPIKE_STATUS_COLOUR } from './shipped-baseline.js';
 // The page's report shape, declared ONCE and shared with the page that writes it — a driver
 // holding its own copy is this increment's own defect, one size down.
@@ -333,7 +334,7 @@ async function measureShot(buffer: Buffer, excluded: number[][]): Promise<PanelM
 /** One whole arm: load the page as the file currently stands, prove it settled, photograph the
  *  two sections, and reduce every one of the twelve canvases. */
 async function captureArm(arm: string, water: number[]): Promise<Arm> {
-  await page.goto(URL, { waitUntil: 'load' });
+  await gotoServedTree(page, URL, { waitUntil: 'load' }, refuse);
   const title = await page.title();
   if (!/shipped ground\+crown palette/.test(title)) {
     refuse(`${URL} served "${title}" — that is not this branch's palette page.`);

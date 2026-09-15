@@ -35,6 +35,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import { familylessTokens, paletteImageOfToken, toHex } from './palette-band.ts';
 import { pairVerdict, readTerrain } from './terrain-separation.ts';
 import { REFUSED_THEMES, THEMES, resolveTheme, themeSeparation, themeVerdictLine } from './land-theme.ts';
@@ -83,7 +84,11 @@ const consoleErrors = [];
 page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text()));
 page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, async (why) => {
+  console.error(`REFUSED: ${why}`);
+  await browser.close();
+  process.exit(2);
+});
 
 // PROVE THE TREE before trusting a number. A page that served but is not this branch's theme page
 // would still render islands and still produce plausible figures.

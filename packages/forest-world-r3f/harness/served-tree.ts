@@ -1,5 +1,6 @@
 // served-tree.ts — WHICH CHECKOUT a harness dev server is serving: stamped by the server on every
-// response, and checked by `capture.mjs` before it believes a single delivered pixel.
+// response, and checked by every harness driver — through `gotoServedTree` — before it believes a single
+// delivered pixel.
 //
 // THE DEFECT THIS CLOSES. `vite.config.ts` pins `server: { port: 5184, strictPort: true }` for EVERY
 // worktree, and `capture.mjs` defaults `ST_HARNESS_URL` to that port. So a capture started in one
@@ -20,17 +21,29 @@
 //     response. Nothing in the stamp comes from the REQUEST: a stamp that echoed what the caller asked
 //     about would be a check that verified nothing — the rule `apps/studio/server/codeStamp.ts` states
 //     for the `directory` in the studio's `/api/health`.
-//  2. THE CAPTURE COMPARES DIRECTORIES, and refuses unless the served root IS the directory
-//     `capture.mjs` lives in. That is more than a port-squatting check: it keeps the instrument
-//     coherent. `capture.mjs` judges pixels against declarations imported from its OWN module graph —
-//     the palette closure, the prop manifest, the colour-spread bands — so capturing another tree's
-//     page holds that tree's pixels to this tree's declarations, which measures neither.
+//  2. THE DRIVER COMPARES DIRECTORIES, and refuses unless the served root IS the harness directory the
+//     driver lives in. That is more than a port-squatting check: it keeps the instrument coherent. A
+//     driver judges pixels against declarations imported from its OWN module graph — capture's palette
+//     closure, prop manifest and colour-spread bands, a measure driver's arms and thresholds — so
+//     measuring another tree's page holds that tree's pixels to this tree's declarations, which
+//     measures neither.
 //  3. NO STAMP IS A REFUSAL, NEVER A PASS. A harness that predates the stamp sends none, and a harness
 //     a sibling worktree left running on an older `main` is exactly what that looks like. Reading the
 //     absence as "nothing to object to" would re-open the defect for the very servers it was filed about.
 //  4. THE TREE IS JUDGED BEFORE THE PAGE, on the failure path too. A cold, broken or stalled refusal
 //     about ANOTHER tree's page sends the operator off to debug code that is not theirs, so whenever the
-//     document answered at all, its stamp is checked before `capture-navigation.ts` explains the rest.
+//     document answered at all, its stamp is checked before the driver explains the rest
+//     (`capture-navigation.ts`, for `capture.mjs`).
+//  5. EVERY DRIVER, ONE GUARD. For its first day only `capture.mjs` read the stamp, while forty other
+//     drivers each defaulted a URL to a hand-picked port that every worktree's harness answers — and on
+//     2026-08-30 `shipped-land-measure.mjs` measured an orphaned sibling's older tree on :5231 and
+//     refused on a relief defect that was not in the code under test. Those drivers navigate in thirteen
+//     shapes (three waits, with and without a bound, with and without a `.catch`), so the guard does not
+//     pick the wait: `gotoServedTree` takes the driver's own, subscribes, navigates, judges on both paths
+//     and refuses through the driver's own `fail`. It also carries the bound most of them lacked: a
+//     driver that states none navigates under capture's measured allowance, never Playwright's unstated
+//     30 s, which a cold vite on a busy box outruns (`capture-navigation.ts`). The source guard in
+//     `served-tree.test.ts` refuses a driver that reaches a page any other way.
 //
 // WHY ONLY THE DIRECTORY IS COMPARED, when the stamp also carries a branch and a commit. A vite dev
 // server serves the WORKING TREE from disk, uncommitted edits included, so a commit describes the served
@@ -53,9 +66,12 @@
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
 import { z } from 'zod';
+
+import { DEFAULT_NAVIGATION_ALLOWANCE_MS } from './capture-navigation.js';
 
 /** The response header the stamp travels in. Tested by its LITERAL string, because the name is the interface. */
 export const SERVED_TREE_HEADER = 'x-storytree-served-tree';
@@ -174,7 +190,7 @@ export interface ServedTreeQuestion {
   /** The page being captured. */
   readonly url: string;
   readonly observation: ServedTreeObservation;
-  /** The directory the capture script itself lives in, canonicalised. */
+  /** The directory the driver itself lives in, canonicalised — {@link HARNESS_DIRECTORY}, for every driver here. */
   readonly ownDirectory: string;
   /** Whose path rules decide sameness — `process.platform` in the driver. */
   readonly platform: NodeJS.Platform;
@@ -182,7 +198,7 @@ export interface ServedTreeQuestion {
 
 const REMEDY =
   'Start the harness from THIS worktree on a free port (`vite harness --port <free port> --strictPort`) ' +
-  'and point ST_HARNESS_URL at it.';
+  'and point the driver at it through its ST_* URL variable.';
 
 /**
  * The tree, when it is this checkout's own; otherwise the refusal. Printed after `REFUSED:`, so short on
@@ -252,24 +268,135 @@ export interface StampedResponse {
 /** The slice of a Playwright `Page` the watcher subscribes to. A real `EventEmitter` satisfies it. */
 export interface StampWatchablePage {
   on(event: 'response', listener: (response: StampedResponse) => void): unknown;
+  off(event: 'response', listener: (response: StampedResponse) => void): unknown;
 }
 
 export interface ServedTreeWatch {
   observation(): ServedTreeObservation;
+  /** Unsubscribe. What was observed stays observed; nothing after is. */
+  stop(): void;
 }
 
 /**
- * Keep the stamp off the FIRST navigation response — the document the capture asked for. Subscribe
+ * Keep the stamp off the FIRST navigation response — the document the driver asked for. Subscribe
  * BEFORE `page.goto`, or that response is exactly the one never seen. A later navigation (a frame the
- * page embeds, say) never replaces it: it is not the page that was requested.
+ * page embeds, say) never replaces it: it is not the page that was requested. `stop` once the navigation
+ * has settled, so a driver that sends one page to many harness pages does not collect a listener a visit.
  */
 export function watchServedTree(page: StampWatchablePage): ServedTreeWatch {
   let first: ServedTreeObservation = { observed: false };
-  page.on('response', (response) => {
+  const keepTheDocument = (response: StampedResponse): void => {
     if (first.observed || !response.request().isNavigationRequest()) return;
     first = { observed: true, header: response.headers()[SERVED_TREE_HEADER] };
-  });
-  return { observation: () => first };
+  };
+  page.on('response', keepTheDocument);
+  return {
+    observation: () => first,
+    stop: () => {
+      page.off('response', keepTheDocument);
+    },
+  };
+}
+
+// --- every driver's half: navigating to a harness page -------------------------------------------
+
+/**
+ * The harness directory, canonicalised — the one tree a driver beside this module can judge, because
+ * every declaration a driver holds a page to is imported from here. Read off this module's own location
+ * rather than passed in by every caller, so no caller can name the wrong one.
+ */
+export const HARNESS_DIRECTORY = canonicalDirectory(path.dirname(fileURLToPath(import.meta.url)));
+
+/** The waits a driver may state. Each resolves only after the document response, so the stamp is in hand when `goto` returns. */
+export type HarnessWaitUntil = 'load' | 'domcontentloaded' | 'networkidle';
+
+/** How a driver asks to navigate: its own wait, and its own bound when it has one. */
+export interface HarnessNavigationOptions {
+  readonly waitUntil: HarnessWaitUntil;
+  /** In ms. Unstated means {@link DEFAULT_NAVIGATION_ALLOWANCE_MS} — never Playwright's unstated 30 s. */
+  readonly timeout?: number;
+}
+
+/** What reaches `page.goto`: the driver's wait, and a bound that is always stated. */
+export interface StatedNavigation {
+  readonly waitUntil: HarnessWaitUntil;
+  readonly timeout: number;
+}
+
+/** The slice of a Playwright `Page` a harness navigation drives. */
+export interface NavigablePage<R> extends StampWatchablePage {
+  goto(url: string, options: StatedNavigation): Promise<R>;
+}
+
+/** A driver's own refusal. It is expected not to return — {@link ServedTreeRefused} is for the drivers whose refusal does. */
+export type Refuse = (message: string) => unknown;
+
+/** What a navigation this checkout's harness served hands back. */
+export interface HarnessNavigation<R> {
+  /** Whatever `page.goto` resolved to — Playwright's document response, or `null`. */
+  readonly response: R;
+  /** The server's account of itself: which process, up since when, started on what branch and commit. */
+  readonly tree: ServedTree;
+}
+
+/**
+ * Thrown when a driver's refusal RETURNED. Some only record a refusal — `visible-delta-smoke.mjs` sets
+ * `process.exitCode`, and a refusal that counts and carries on is a shape more than one driver here has —
+ * and a guard that returned after one would hand the driver another tree's page to measure. So the page
+ * is abandoned instead.
+ */
+export class ServedTreeRefused extends Error {
+  override readonly name = 'ServedTreeRefused';
+}
+
+/**
+ * Navigate to a harness page, and refuse it — through the driver's own `fail` — unless THIS checkout's
+ * harness served it. The header's policy, in the order it needs:
+ *
+ *  - SUBSCRIBED BEFORE THE NAVIGATION, or the document response is exactly the one never seen.
+ *  - JUDGED THE MOMENT `goto` RETURNS, before the driver reads a thing: a squatter's page usually loads.
+ *  - JUDGED WHEN IT FAILS TOO, whenever the document answered, before the driver can explain the failure
+ *    as its own page's. A navigation no document answered has no tree to judge, so its error reaches the
+ *    driver unchanged — a driver that explains failures still gets to say "nothing answered".
+ *  - UNDER A STATED BOUND: the driver's `timeout` when it gives one, the measured allowance when not.
+ *
+ * It does not choose the wait. The drivers' pages settle on different signals, and that is theirs.
+ */
+export async function gotoServedTree<R>(
+  page: NavigablePage<R>,
+  url: string,
+  options: HarnessNavigationOptions,
+  fail: Refuse,
+): Promise<HarnessNavigation<R>> {
+  const stated: StatedNavigation = {
+    waitUntil: options.waitUntil,
+    timeout: options.timeout ?? DEFAULT_NAVIGATION_ALLOWANCE_MS,
+  };
+  const watch = watchServedTree(page);
+  try {
+    let response: R;
+    try {
+      response = await page.goto(url, stated);
+    } catch (error) {
+      const observation = watch.observation();
+      if (observation.observed) await refuseUnlessOwn(url, observation, fail);
+      throw error;
+    }
+    return { response, tree: await refuseUnlessOwn(url, watch.observation(), fail) };
+  } finally {
+    watch.stop();
+  }
+}
+
+/** The tree, when this checkout's harness served `url`; otherwise the driver's refusal, and the page is never handed on. */
+async function refuseUnlessOwn(url: string, observation: ServedTreeObservation, fail: Refuse): Promise<ServedTree> {
+  const check = checkServedTree({ url, observation, ownDirectory: HARNESS_DIRECTORY, platform: process.platform });
+  if (check.ok) return check.tree;
+  await fail(check.message);
+  throw new ServedTreeRefused(
+    `${url} was refused (${check.verdict}), and the driver's refusal returned — so the page is abandoned, ` +
+      `not measured: ${firstLine(check.message)}`,
+  );
 }
 
 // --- the server's half: stamping every response ----------------------------------------------

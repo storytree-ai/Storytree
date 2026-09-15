@@ -44,6 +44,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import { GPU_TIMER_EXTENSION, acceptSamples, isInterleaved, roundRobinPlan } from './frame-cost.ts';
 import { median, spread } from './frame-budget.ts';
 import { landFloorVerdict } from './land-floor.ts';
@@ -177,7 +178,7 @@ page.on('response', (r) => {
   if (r.status() >= 400) consoleErrors.push(`HTTP ${r.status()} ${r.url()}`);
 });
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, fail);
 
 // PROVE THE TREE before trusting a single number.
 const title = await page.evaluate(() => document.title);

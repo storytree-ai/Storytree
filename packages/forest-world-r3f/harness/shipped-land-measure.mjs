@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict, median, spread } from './frame-budget.ts';
 import { grainColourHalfVerdict, admissibleMixCeiling } from './grain-status-reading.ts';
 import {
@@ -120,7 +121,7 @@ page.on('response', (r) => {
   if (r.status() >= 400) httpErrors.push(`${r.status()} ${r.url()}`);
 });
 
-await page.goto(URL_, { waitUntil: 'networkidle' });
+await gotoServedTree(page, URL_, { waitUntil: 'networkidle' }, fail);
 await page.waitForFunction(() => 'landRunner' in window, null, { timeout: 120_000 });
 
 if (consoleErrors.length > 0) fail(`the page logged errors:\n  ${consoleErrors.join('\n  ')}`);

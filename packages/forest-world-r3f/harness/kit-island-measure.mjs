@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict, median, spread } from './frame-budget.ts';
 import { KIT_ARMS, ZOOMS } from './kit-island-scene.ts';
 import { SHADE_LEVELS } from './palette-band.ts';
@@ -107,7 +108,7 @@ async function openPage(kitUrl) {
   page.on('pageerror', (e) => consoleErrors.push(String(e)));
 
   const target = kitUrl ? `${URL_}?kit=${encodeURIComponent(kitUrl)}` : URL_;
-  const response = await page.goto(target, { waitUntil: 'load', timeout: 120_000 }).catch((e) => {
+  const { response } = await gotoServedTree(page, target, { waitUntil: 'load', timeout: 120_000 }, fail).catch((e) => {
     fail(`could not reach ${target} — ${e}`);
   });
   if (response && response.status() >= 400) fail(`${target} answered ${response.status()}`);

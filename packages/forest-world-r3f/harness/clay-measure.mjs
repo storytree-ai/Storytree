@@ -40,6 +40,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import { STATUS_TOKENS, landPalette, paletteImageOfToken, toHex } from './palette-band.ts';
 import { measurePixels } from './pixel-metrics.ts';
 import {
@@ -88,7 +89,11 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, async (why) => {
+  console.error(`REFUSED: ${why}`);
+  await browser.close();
+  process.exit(2);
+});
 
 // PROVE THE TREE before trusting a single number. A page that served but is not this branch's
 // comparison page would still render islands and still produce plausible figures.

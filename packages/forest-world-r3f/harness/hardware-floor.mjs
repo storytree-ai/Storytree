@@ -32,6 +32,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.js';
 import { cadenceNoiseFloorMs, describeCadence } from './cadence-verdict.js';
 import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict } from './frame-budget.js';
 
@@ -121,7 +122,7 @@ async function instrumentedPage(label, viewport) {
 const page = await instrumentedPage('hardware-floor.html', { width: 1280, height: 900 });
 
 // --- the hardware assertion, before any timing is taken ------------------------------------
-await page.goto(`${BASE}/hardware-floor.html`, { waitUntil: 'load' });
+await gotoServedTree(page, `${BASE}/hardware-floor.html`, { waitUntil: 'load' }, fail);
 await page.waitForFunction(() => window.__stFloorReady === true, null, { timeout: 30_000 });
 
 const gpu = await page.evaluate(() => {
@@ -170,7 +171,7 @@ if (controlBlank.p50 > 100) {
 
 // --- control A: the shipped comparison page, on the same GPU --------------------------------
 const comparePage = await instrumentedPage('compare.html', { width: 1280, height: 1100 });
-await comparePage.goto(`${BASE}/compare.html`, { waitUntil: 'load' });
+await gotoServedTree(comparePage, `${BASE}/compare.html`, { waitUntil: 'load' }, fail);
 await comparePage.waitForFunction(() => window.__stExperimentSettled === true, null, {
   timeout: 30_000,
 });

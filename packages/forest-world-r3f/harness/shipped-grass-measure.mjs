@@ -56,6 +56,7 @@ import { chromium } from '@playwright/test';
  *  driver and both of their pages — four spellings of one number. The two driver copies were the
  *  worse pair, because they appear only inside REPORT SENTENCES: prose saying "20" over a page
  *  that had moved to 30 is a false claim about a true number, and no assertion reads prose. */
+import { gotoServedTree } from './served-tree.ts';
 import { VISIBLE_DELTA } from './visible-delta.ts';
 import { GRASS_ARMS } from './shipped-grass-scene.ts';
 
@@ -121,7 +122,7 @@ page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
 
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 300000 });
+await gotoServedTree(page, URL_, { waitUntil: 'domcontentloaded', timeout: 300000 }, fail);
 await page.waitForFunction(() => window.grassRunner !== undefined, null, { timeout: 300000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 

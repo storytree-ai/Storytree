@@ -36,6 +36,7 @@ import { Buffer } from 'node:buffer';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { gotoServedTree } from './served-tree.ts';
 import {
   MEASURED_ARMS,
   SOURCE_TEXTURE_BYTES_2048,
@@ -106,7 +107,7 @@ page.on('response', (r) => {
   if (r.status() >= 400) consoleErrors.push(`HTTP ${r.status()} ${r.url()}`);
 });
 
-await page.goto(URL, { waitUntil: 'load' });
+await gotoServedTree(page, URL, { waitUntil: 'load' }, fail);
 
 const title = await page.evaluate(() => document.title);
 if (!/the first textured asset on the GPU clock/.test(title)) {

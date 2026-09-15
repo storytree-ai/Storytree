@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+import { gotoServedTree } from './served-tree.ts';
 import { RENDER_ELEV_DEG } from '../src/kit-vocabulary.ts';
 import { LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.ts';
 import { REAL_ARMS, REAL_FOREST_EVIDENCE_DIR, REAL_FOREST_PICTURES, REAL_READ_ZOOM } from './real-forest-scene.ts';
@@ -86,7 +87,7 @@ page.on('console', (m) => {
 // the refusal below: a driver that set the check without setting the page would refuse its own run.
 const query = [ELEV === RENDER_ELEV_DEG ? '' : `elevation=${ELEV}`, SCENES_DIR === '' ? '' : `scenes=${SCENES_DIR}`].filter(Boolean).join('&');
 const pageUrl = query === '' ? URL_ : `${URL_}${URL_.includes('?') ? '&' : '?'}${query}`;
-await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 600000 });
+await gotoServedTree(page, pageUrl, { waitUntil: 'domcontentloaded', timeout: 600000 }, fail);
 await page.waitForFunction(() => window.realForestRunner !== undefined, null, { timeout: 600000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 
