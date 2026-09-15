@@ -17,16 +17,40 @@
 //
 // ⚠ IT ATTRIBUTES BY THE OWNING MODULE, NEVER BY FUNCTION NAME. Names are minified, shared
 // (`map`, `forEach`), and re-used across packages; a module path is what actually says whose code
-// ran. In vite dev — which is what the owner ran, and therefore what this measures — those paths
-// are the real source paths, which is why dev is the honest arm here rather than a convenience.
+// ran. In vite dev those paths are the real source paths. A PRODUCTION build's chunks carry none,
+// so that arm is attributed through its own source maps ({@link sourceLocator},
+// {@link locatorFromSourceMaps}) rather than withheld.
+//
+// ⚠⚠ CORRECTED 2026-09-15: DEV IS NOT THE HONEST CPU ARM, though the first version of this module
+// said it was. Its figures are inflated twice over — vite serves hundreds of unbundled modules, and
+// the studio renders under React StrictMode, which runs a component body twice per render in
+// development while `LandView` computes its land stream in its body. Dev stays measured because it
+// is what the owner ran; the CPU split is read off the production arm, through its maps.
 //
 // Pure: no DOM, no CDP, no `node:`. The driver (`scripts/measure-land-view.mjs`) collects; this
 // decides. Same seam as `cameraRasterisationProbe.ts` beside it.
 
+/** ⚠ IMPORTED RATHER THAN SPELLED. `check:desktop-route-coverage` derives the called-route set from
+ *  `api.ts` alone, so an `/api/…` literal anywhere else in frontend source blinds that derivation —
+ *  it reds, correctly, rather than reporting a perfect sweep it could not see. */
+import { API_PATH_PREFIX } from '../api.js';
+
+/**
+ * A profile node's call frame, narrowed to what attribution reads. `lineNumber` and `columnNumber`
+ * are V8's 0-based position of the FUNCTION's start: enough to name its module through a source
+ * map, which is the only thing they are used for here.
+ */
+export interface CallFrame {
+  readonly functionName: string;
+  readonly url: string;
+  readonly lineNumber?: number;
+  readonly columnNumber?: number;
+}
+
 /** One node of a V8 CPU profile, as `Profiler.stop` returns it. */
 export interface ProfileNode {
   readonly id: number;
-  readonly callFrame: { readonly functionName: string; readonly url: string };
+  readonly callFrame: CallFrame;
   readonly children?: readonly number[];
 }
 
@@ -129,6 +153,9 @@ const ZERO = {
   unattributed: 0,
 } satisfies Record<LoadStage, number>;
 
+/** The stages in their declared order — the tie-break every ranking below uses. */
+const STAGE_ORDER = Object.keys(ZERO) as LoadStage[];
+
 /**
  * ⚠⚠ WAITING IS NOT UNPLACEABLE, AND CONFLATING THEM RUINS THE ANSWER. V8's synthetic frames all
  * arrive with an EMPTY url, so a url-only attribution drops `(idle)` — a page doing nothing while
@@ -147,34 +174,74 @@ function syntheticStage(functionName: string): LoadStage | null {
 }
 
 /**
- * SELF TIME PER STAGE over a V8 CPU profile.
- *
- * ⚠ SELF TIME, NOT TOTAL TIME, and the difference decides whether the answer is usable. A sample
- * charges the frame it was TAKEN IN, so a stage's figure is the time its own code was executing —
- * which is what "where does the time go" means. Total (inclusive) time would charge React for
- * everything React called, and every stage would read as "React".
- *
- * ⚠ IT REFUSES A MALFORMED PROFILE rather than reporting a plausible number over half of one.
- * `samples` and `timeDeltas` are parallel arrays by construction; a run that lost the end of one
- * would otherwise silently report the prefix as the whole.
+ * Maps a call frame to the module url attribution reads. The default — the frame's own url — is
+ * right wherever module paths survive (vite dev); a production build is handed a source-map-backed
+ * one, {@link locatorFromSourceMaps}.
  */
-export function stageSplit(profile: CpuProfile): StageSplit {
+export type Locate = (frame: CallFrame) => string;
+
+const ownUrl: Locate = (frame) => frame.url;
+
+/** The row a frame is charged to: its module's readable path and its stage. */
+interface FrameKey {
+  readonly module: string;
+  readonly stage: LoadStage;
+}
+
+/** Where every frame with no url, no synthetic name and no node lands — one row, never dropped. */
+const UNPLACED: FrameKey = { module: '(unattributed)', stage: 'unattributed' };
+
+/**
+ * THE ONE ATTRIBUTION every split below shares, so the stage table, the module table and the burst
+ * timeline can never disagree about which stage a frame is in.
+ *
+ * ⚠ THE SYNTHETIC NAME IS CONSULTED ONLY WHEN THE URL PLACES NOTHING, so it is strictly a refinement
+ * of `unattributed` and can never override a real module's attribution. Written as a guard rather
+ * than as `syntheticStage(...) ?? stageOf(...)`, which reads the same and is not: that form lets a
+ * frame NAMED `(idle)` inside a real module take the whole module's time out of its package's
+ * figure, and the module's own test is what caught it.
+ */
+function frameKey(frame: CallFrame, locate: Locate): FrameKey {
+  const url = locate(frame);
+  const stage = stageOf(url);
+  if (stage !== 'unattributed') return { module: moduleOf(url), stage };
+  const synthetic = syntheticStage(frame.functionName);
+  if (synthetic !== null) return { module: frame.functionName, stage: synthetic };
+  return url === '' ? UNPLACED : { module: moduleOf(url), stage };
+}
+
+/**
+ * ⚠ A MALFORMED PROFILE IS REFUSED rather than reported. `samples` and `timeDeltas` are parallel
+ * arrays by construction; a run that lost the end of one would otherwise silently report the prefix
+ * as the whole.
+ */
+function refuseTruncated(profile: CpuProfile): void {
   if (profile.samples.length !== profile.timeDeltas.length) {
     throw new Error(
       `landViewProfile: ${profile.samples.length} sample(s) against ${profile.timeDeltas.length} ` +
         'time delta(s) — the profile is truncated and any split over it would report a prefix as the whole',
     );
   }
-  const stageById = new Map<number, LoadStage>();
-  for (const node of profile.nodes) {
-    // ⚠ THE SYNTHETIC NAME IS CONSULTED ONLY WHEN THE URL PLACES NOTHING, so this is strictly a
-    // refinement of `unattributed` and can never override a real module's attribution. Written as
-    // a guard rather than as `syntheticStage(...) ?? stageOf(...)`, which reads the same and is
-    // not: that form lets a frame NAMED `(idle)` inside a real module take the whole module's time
-    // out of its package's figure, and the module's own test is what caught it.
-    const byUrl = stageOf(node.callFrame.url);
-    stageById.set(node.id, byUrl === 'unattributed' ? syntheticStage(node.callFrame.functionName) ?? byUrl : byUrl);
-  }
+}
+
+/** Each node's attribution, resolved once per profile. */
+function keysOf(profile: CpuProfile, locate: Locate): Map<number, FrameKey> {
+  const keys = new Map<number, FrameKey>();
+  for (const node of profile.nodes) keys.set(node.id, frameKey(node.callFrame, locate));
+  return keys;
+}
+
+/**
+ * SELF TIME PER STAGE over a V8 CPU profile.
+ *
+ * ⚠ SELF TIME, NOT TOTAL TIME, and the difference decides whether the answer is usable. A sample
+ * charges the frame it was TAKEN IN, so a stage's figure is the time its own code was executing —
+ * which is what "where does the time go" means. Total (inclusive) time would charge React for
+ * everything React called, and every stage would read as "React".
+ */
+export function stageSplit(profile: CpuProfile, locate: Locate = ownUrl): StageSplit {
+  refuseTruncated(profile);
+  const keys = keysOf(profile, locate);
   const byStage = { ...ZERO };
   let totalMs = 0;
   for (const [i, id] of profile.samples.entries()) {
@@ -183,76 +250,296 @@ export function stageSplit(profile: CpuProfile): StageSplit {
     totalMs += ms;
     // ⚠ A SAMPLE NAMING A NODE THE PROFILE DOES NOT CARRY IS `unattributed`, not dropped. Dropping
     // it would shrink the total and inflate every share taken against it.
-    byStage[stageById.get(id) ?? 'unattributed'] += ms;
+    byStage[(keys.get(id) ?? UNPLACED).stage] += ms;
   }
   return { totalMs, byStage };
 }
 
-/** ⚠ IMPORTED RATHER THAN SPELLED. `check:desktop-route-coverage` derives the called-route set from
- *  `api.ts` alone, so an `/api/…` literal anywhere else in frontend source blinds that derivation —
- *  it reds, correctly, rather than reporting a perfect sweep it could not see. */
-import { API_PATH_PREFIX } from '../api.js';
-
-/** One network fetch, as `performance.getEntriesByType('resource')` reports it. */
-export interface ResourceTiming {
-  readonly name: string;
-  readonly durationMs: number;
-  readonly transferSizeBytes: number;
+/** Several phases' splits as one — stage by stage, and the total with them. */
+export function sumSplits(splits: readonly StageSplit[]): StageSplit {
+  const byStage = { ...ZERO };
+  let totalMs = 0;
+  for (const split of splits) {
+    totalMs += split.totalMs;
+    for (const stage of STAGE_ORDER) byStage[stage] += split.byStage[stage];
+  }
+  return { totalMs, byStage };
 }
 
-/** What the network cost, split the way the load actually experiences it. */
-export interface NetworkSplit {
-  readonly storePayloadMs: number;
-  readonly storePayloadBytes: number;
-  readonly canvasChunkMs: number;
-  readonly canvasChunkBytes: number;
-  readonly otherMs: number;
-  readonly otherBytes: number;
+/** One stage of what the land view ADDED over the map alone. */
+export interface StageDeltaRow {
+  readonly stage: LoadStage;
+  readonly landMs: number;
+  readonly controlMs: number;
+  readonly addedMs: number;
 }
 
 /**
- * THE NETWORK HALF — the tree payload the map is built from, against the canvas chunk the land view
- * alone pulls.
+ * WHAT THE LAND VIEW ADDED, stage by stage, over the same route with the flag off.
  *
- * ⚠ THE TWO ARE SEPARATED BECAUSE ONLY ONE OF THEM IS THE LAND VIEW'S FAULT. The store payload is
- * paid by the ordinary map too; the canvas chunk and the kit are paid only by someone who typed the
- * flag. A single "network" figure would let the land view be blamed for a wait the map already had.
- *
- * ⚠ `durationMs` is WALL CLOCK PER REQUEST AND THEY OVERLAP — the browser fetches in parallel, so
- * these sum to more than the load took. They are reported as what each cost, never as a timeline.
+ * ⚠ A NEGATIVE ROW IS KEPT NEGATIVE, never clamped to zero. Two page loads are two runs, and a stage
+ * that came in cheaper on the land arm is noise or a real saving — either way a clamp would hide it
+ * and make every other row look more certain than the pair of runs can make it.
  */
-export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
-  let storePayloadMs = 0;
-  let storePayloadBytes = 0;
-  let canvasChunkMs = 0;
-  let canvasChunkBytes = 0;
-  let otherMs = 0;
-  let otherBytes = 0;
-  for (const e of entries) {
-    if (e.name.includes(API_PATH_PREFIX)) {
-      storePayloadMs += e.durationMs;
-      storePayloadBytes += e.transferSizeBytes;
-    } else if (isCanvasPayload(e.name)) {
-      canvasChunkMs += e.durationMs;
-      canvasChunkBytes += e.transferSizeBytes;
-    } else {
-      otherMs += e.durationMs;
-      otherBytes += e.transferSizeBytes;
-    }
-  }
-  return { storePayloadMs, storePayloadBytes, canvasChunkMs, canvasChunkBytes, otherMs, otherBytes };
+export function stageDelta(land: StageSplit, control: StageSplit): readonly StageDeltaRow[] {
+  return STAGE_ORDER.map((stage) => ({
+    stage,
+    landMs: land.byStage[stage],
+    controlMs: control.byStage[stage],
+    addedMs: land.byStage[stage] - control.byStage[stage],
+  })).sort((a, b) => b.addedMs - a.addedMs || STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
 }
 
-/** What only a land-view viewer pays for: the 3D stack and the bought kit's assets. */
-function isCanvasPayload(name: string): boolean {
-  return (
-    name.includes('three') ||
-    name.includes('@react-three') ||
-    name.includes('drei') ||
-    name.includes('forest-world-r3f') ||
-    name.endsWith('.glb') ||
-    name.endsWith('.gltf')
-  );
+/**
+ * A MODULE URL AS A PATH A READER CAN FIND IN THE REPO, whichever way the server reached it.
+ *
+ * A dev server hands out `/@fs/<absolute path>`, app-relative `/src/…` and `/node_modules/.vite/deps/…`;
+ * a production source map hands out `../../packages/…` relative to its chunk. The capability that
+ * owns a file is looked up by its repo path, so every form is folded to one: a workspace package by
+ * `packages/<name>/…` (its symlink under `node_modules/@storytree/` included), a dependency by
+ * `node_modules/<name>/…` past pnpm's store, and anything else by its path with the server's prefix
+ * taken off.
+ */
+export function moduleOf(url: string): string {
+  const bare = url.split(/[?#]/, 1)[0] ?? '';
+  const path = bare.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '').replaceAll('\\', '/');
+  const underModules = path.lastIndexOf('node_modules/');
+  if (underModules >= 0) {
+    const rest = path.slice(underModules + 'node_modules/'.length);
+    return rest.startsWith('@storytree/') ? `packages/${rest.slice('@storytree/'.length)}` : `node_modules/${rest}`;
+  }
+  const underPackages = path.lastIndexOf('packages/');
+  if (underPackages >= 0) return path.slice(underPackages);
+  const underApps = path.lastIndexOf('apps/');
+  if (underApps >= 0) return path.slice(underApps);
+  return path.replace(/^(?:\.\.\/)+/, '').replace(/^\/@fs\//, '').replace(/^\/+/, '');
+}
+
+/** One file's self time. */
+export interface ModuleRow {
+  readonly module: string;
+  readonly stage: LoadStage;
+  readonly ms: number;
+}
+
+/** The files the time is in, largest first, with what the table did not list summed beside it. */
+export interface ModuleSplit {
+  readonly totalMs: number;
+  readonly rows: readonly ModuleRow[];
+  readonly restMs: number;
+  readonly restModules: number;
+}
+
+/**
+ * SELF TIME PER FILE — the table that names a capability lane.
+ *
+ * ⚠ A STAGE IS TOO COARSE TO CHOOSE A CURE BY. `land-stream` spans the scene model, the delivery
+ * canvas and the land surface — three capabilities with three owners — so the successor increment
+ * cannot claim "the land stream"; it has to claim the files. This is that list.
+ *
+ * ⚠ THE ROWS PLUS THE REST SUM TO THE TOTAL, the same closure `stageSplit` keeps: a top-N table that
+ * quietly drops its tail would read as the whole.
+ */
+export function moduleSplit(profile: CpuProfile, limit: number, locate: Locate = ownUrl): ModuleSplit {
+  refuseTruncated(profile);
+  const keys = keysOf(profile, locate);
+  const byModule = new Map<string, { module: string; stage: LoadStage; ms: number }>();
+  let totalMs = 0;
+  for (const [i, id] of profile.samples.entries()) {
+    const ms = (profile.timeDeltas[i] ?? 0) / 1000;
+    totalMs += ms;
+    const key = keys.get(id) ?? UNPLACED;
+    const row = byModule.get(key.module);
+    if (row === undefined) byModule.set(key.module, { module: key.module, stage: key.stage, ms });
+    else row.ms += ms;
+  }
+  const ranked = [...byModule.values()].sort((a, b) => b.ms - a.ms || a.module.localeCompare(b.module));
+  const rest = ranked.slice(limit);
+  return {
+    totalMs,
+    rows: ranked.slice(0, limit),
+    restMs: rest.reduce((sum, row) => sum + row.ms, 0),
+    restModules: rest.length,
+  };
+}
+
+/** A source map, narrowed to what naming a frame's module needs. Vite emits no `sourceRoot`. */
+export interface SourceMapV3 {
+  readonly sources: readonly (string | null)[];
+  readonly mappings: string;
+}
+
+/** Which source a generated position belongs to, or `null` where the map places nothing. Both
+ *  coordinates 0-based, as V8 reports them. */
+export type SourceLocator = (line: number, column: number) => string | null;
+
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const DIGIT = new Int8Array(128).fill(-1);
+for (const [value, char] of [...BASE64].entries()) DIGIT[char.charCodeAt(0)] = value;
+
+/** The segments of one generated line: each one's start column and source index (-1: no source). */
+interface MappedLine {
+  readonly columns: number[];
+  readonly sources: number[];
+}
+
+/**
+ * A SOURCE MAP'S `mappings`, decoded to answer one question: which source does this column belong to.
+ *
+ * Hand-rolled rather than imported: the studio resolves no source-map library, and the question is
+ * the smallest one the v3 format answers. Base64 VLQ, the sign in the lowest bit; the generated
+ * column resets on every line while the source index carries across lines; a segment of one field
+ * maps to no source.
+ *
+ * ⚠ A CORRUPT STRING IS REFUSED, including a value cut off mid-digit, rather than decoded into
+ * plausible columns — a locator that silently mis-names files would put the land stream's time in
+ * somebody else's package, which is the failure this whole module is built against.
+ */
+export function sourceLocator(map: SourceMapV3): SourceLocator {
+  const lines: MappedLine[] = [];
+  let current: MappedLine = { columns: [], sources: [] };
+  let column = 0;
+  let source = 0;
+  let fields: number[] = [];
+  const endSegment = (): void => {
+    if (fields.length === 0) return;
+    column += fields[0] ?? 0;
+    let mapped = -1;
+    if (fields.length >= 4) {
+      source += fields[1] ?? 0;
+      mapped = source;
+    }
+    current.columns.push(column);
+    current.sources.push(mapped);
+    fields = [];
+  };
+  const endLine = (): void => {
+    endSegment();
+    lines.push(current);
+    current = { columns: [], sources: [] };
+    column = 0;
+  };
+  const text = map.mappings;
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    if (char === ';') {
+      endLine();
+      i += 1;
+    } else if (char === ',') {
+      endSegment();
+      i += 1;
+    } else {
+      let value = 0;
+      let shift = 0;
+      let digit: number;
+      do {
+        // Past the end `charCodeAt` is NaN, and past the 7-bit table the index is out of range: both
+        // read as no digit, so a value cut off mid-digit is refused like any stray character.
+        digit = DIGIT[text.charCodeAt(i)] ?? -1;
+        if (digit < 0) {
+          throw new Error(
+            `landViewProfile: a source map's mappings are not base64 VLQ at character ${i} — refusing ` +
+              'to name modules off a corrupt map',
+          );
+        }
+        value += (digit & 31) * 2 ** shift;
+        shift += 5;
+        i += 1;
+      } while (digit & 32);
+      fields.push(value % 2 === 1 ? -Math.floor(value / 2) : Math.floor(value / 2));
+    }
+  }
+  endLine();
+  return (line, at) => {
+    const segments = lines[line];
+    if (segments === undefined) return null;
+    // The last segment starting at or before the column — the columns are ascending within a line.
+    let low = 0;
+    let high = segments.columns.length - 1;
+    let found = -1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if ((segments.columns[mid] ?? 0) <= at) {
+        found = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const index = segments.sources[found] ?? -1;
+    return index < 0 ? null : (map.sources[index] ?? null);
+  };
+}
+
+/**
+ * A {@link Locate} that names a production frame's module through its chunk's source map.
+ *
+ * A source is resolved against the chunk's own url — maps sit beside their chunks, so the two share
+ * a base — and wherever the map cannot answer (no map for that chunk, no position on the frame, a
+ * column before the first segment) the frame keeps its own url, which the stage rules then treat
+ * exactly as they would have without a map.
+ */
+export function locatorFromSourceMaps(maps: ReadonlyMap<string, SourceLocator>): Locate {
+  return (frame) => {
+    const locate = maps.get(frame.url);
+    if (locate === undefined || frame.lineNumber === undefined || frame.columnNumber === undefined) return frame.url;
+    const source = locate(frame.lineNumber, frame.columnNumber);
+    return source === null ? frame.url : new URL(source, frame.url).href;
+  };
+}
+
+/** One contiguous run of a stage's work on the profile's clock. */
+export interface Burst {
+  readonly startMs: number;
+  readonly endMs: number;
+  /** The member stage's own self time inside the run — never the run's wall span. */
+  readonly memberMs: number;
+}
+
+/** How runs are told apart. */
+export interface BurstOptions {
+  /** Two member samples this close (ms) are one run. */
+  readonly mergeGapMs: number;
+  /** A run with less member time than this (ms) is dropped: a stray sample is not a rebuild. */
+  readonly minMemberMs: number;
+}
+
+/**
+ * WHEN THE WORK HAPPENED, not only how much of it there was.
+ *
+ * ⚠⚠ THE QUESTION A TOTAL CANNOT ANSWER. Seven seconds of land-stream time is one slow build or
+ * seven fast ones, and those have opposite cures — the first wants the build made cheaper, the
+ * second wants it to stop happening. Reading the code says the canvas's ground memo is keyed on an
+ * array `LandView` rebuilds on every render, which would make every studio re-render a rebuild; a
+ * run timeline is what turns that reading into a measurement or refutes it.
+ *
+ * Times are milliseconds from the profile's own start. A sample is charged the interval that ENDS
+ * at it, as `stageSplit` charges it.
+ */
+export function bursts(
+  profile: CpuProfile,
+  member: (stage: LoadStage) => boolean,
+  options: BurstOptions,
+  locate: Locate = ownUrl,
+): readonly Burst[] {
+  refuseTruncated(profile);
+  const keys = keysOf(profile, locate);
+  const runs: { startMs: number; endMs: number; memberMs: number }[] = [];
+  let t = 0;
+  for (const [i, id] of profile.samples.entries()) {
+    const ms = (profile.timeDeltas[i] ?? 0) / 1000;
+    t += ms;
+    if (!member((keys.get(id) ?? UNPLACED).stage)) continue;
+    const last = runs[runs.length - 1];
+    if (last !== undefined && t - ms - last.endMs <= options.mergeGapMs) {
+      last.endMs = t;
+      last.memberMs += ms;
+    } else {
+      runs.push({ startMs: t - ms, endMs: t, memberMs: ms });
+    }
+  }
+  return runs.filter((run) => run.memberMs >= options.minMemberMs);
 }
 
 /** What a run of animation frames cost, in the terms "laggy" actually means. */
@@ -317,6 +604,43 @@ function quantile(sorted: readonly number[], q: number): number {
   return sorted[Math.ceil(q * sorted.length) - 1] ?? 0;
 }
 
+/** A group of late frames that arrived together. */
+export interface LateCluster {
+  /** When the first late frame of the group began, ms from the first frame of the window. */
+  readonly atMs: number;
+  readonly frames: number;
+  readonly worstMs: number;
+  /** From the first late frame's start to the last one's end. */
+  readonly spanMs: number;
+}
+
+/**
+ * WHEN THE LATE FRAMES CAME, grouped.
+ *
+ * ⚠ A LATE COUNT CANNOT SAY WHETHER LAG IS A CONSTANT DRAG OR A PERIODIC STALL, and those point at
+ * different causes: the first is the steady frame, the second is something that recurs — a poll, a
+ * clock tick, a rebuild. Nine late frames spread evenly and nine arriving together every thirty
+ * seconds read identically as `late: 9`; this is what tells them apart.
+ */
+export function lateFrameClusters(deltasMs: readonly number[], gapMs: number): readonly LateCluster[] {
+  const clusters: { atMs: number; endMs: number; frames: number; worstMs: number }[] = [];
+  let t = 0;
+  for (const delta of deltasMs) {
+    const start = t;
+    t += delta;
+    if (delta <= LATE_FRAME_MS) continue;
+    const last = clusters[clusters.length - 1];
+    if (last !== undefined && start - last.endMs <= gapMs) {
+      last.frames += 1;
+      last.worstMs = Math.max(last.worstMs, delta);
+      last.endMs = t;
+    } else {
+      clusters.push({ atMs: start, endMs: t, frames: 1, worstMs: delta });
+    }
+  }
+  return clusters.map(({ atMs, endMs, frames, worstMs }) => ({ atMs, frames, worstMs, spanMs: endMs - atMs }));
+}
+
 /** A stage's share of the sampled total, as a percentage. Shares are taken against the WHOLE,
  *  `unattributed` included — see this module's opening note. */
 export function shareOf(split: StageSplit, stage: LoadStage): number {
@@ -333,8 +657,8 @@ export function shareOf(split: StageSplit, stage: LoadStage): number {
  * printed a tidy table of zeroes that reads exactly like "no stage costs anything".
  *
  * So a caller asks first. A split that placed almost none of its busy time is withheld with the
- * reason rather than published — the dev arm is where the CPU question can be answered, and the
- * production arm answers the LOAD and FRAME questions instead.
+ * reason rather than published. Handed the build's own source maps
+ * ({@link locatorFromSourceMaps}), the same production samples place, and the split is reportable.
  */
 export function cpuSplitIsReportable(split: StageSplit): boolean {
   const busy = busyMs(split);
@@ -353,8 +677,69 @@ export function busyMs(split: StageSplit): number {
 /** The stages, largest first — the answer to "which of these dominates". Ties break by the declared
  *  stage order so the ranking is deterministic across runs. */
 export function rankedStages(split: StageSplit): readonly { stage: LoadStage; ms: number; share: number }[] {
-  const order = Object.keys(ZERO) as LoadStage[];
-  return order
-    .map((stage) => ({ stage, ms: split.byStage[stage], share: shareOf(split, stage) }))
-    .sort((a, b) => b.ms - a.ms || order.indexOf(a.stage) - order.indexOf(b.stage));
+  return STAGE_ORDER.map((stage) => ({ stage, ms: split.byStage[stage], share: shareOf(split, stage) })).sort(
+    (a, b) => b.ms - a.ms || STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage),
+  );
+}
+
+/** One network fetch, as `performance.getEntriesByType('resource')` reports it. */
+export interface ResourceTiming {
+  readonly name: string;
+  readonly durationMs: number;
+  readonly transferSizeBytes: number;
+}
+
+/** What the network cost, split the way the load actually experiences it. */
+export interface NetworkSplit {
+  readonly storePayloadMs: number;
+  readonly storePayloadBytes: number;
+  readonly canvasChunkMs: number;
+  readonly canvasChunkBytes: number;
+  readonly otherMs: number;
+  readonly otherBytes: number;
+}
+
+/**
+ * THE NETWORK HALF — the tree payload the map is built from, against the canvas chunk the land view
+ * alone pulls.
+ *
+ * ⚠ THE TWO ARE SEPARATED BECAUSE ONLY ONE OF THEM IS THE LAND VIEW'S FAULT. The store payload is
+ * paid by the ordinary map too; the canvas chunk and the kit are paid only by someone who typed the
+ * flag. A single "network" figure would let the land view be blamed for a wait the map already had.
+ *
+ * ⚠ `durationMs` is WALL CLOCK PER REQUEST AND THEY OVERLAP — the browser fetches in parallel, so
+ * these sum to more than the load took. They are reported as what each cost, never as a timeline.
+ */
+export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
+  let storePayloadMs = 0;
+  let storePayloadBytes = 0;
+  let canvasChunkMs = 0;
+  let canvasChunkBytes = 0;
+  let otherMs = 0;
+  let otherBytes = 0;
+  for (const e of entries) {
+    if (e.name.includes(API_PATH_PREFIX)) {
+      storePayloadMs += e.durationMs;
+      storePayloadBytes += e.transferSizeBytes;
+    } else if (isCanvasPayload(e.name)) {
+      canvasChunkMs += e.durationMs;
+      canvasChunkBytes += e.transferSizeBytes;
+    } else {
+      otherMs += e.durationMs;
+      otherBytes += e.transferSizeBytes;
+    }
+  }
+  return { storePayloadMs, storePayloadBytes, canvasChunkMs, canvasChunkBytes, otherMs, otherBytes };
+}
+
+/** What only a land-view viewer pays for: the 3D stack and the bought kit's assets. */
+function isCanvasPayload(name: string): boolean {
+  return (
+    name.includes('three') ||
+    name.includes('@react-three') ||
+    name.includes('drei') ||
+    name.includes('forest-world-r3f') ||
+    name.endsWith('.glb') ||
+    name.endsWith('.gltf')
+  );
 }

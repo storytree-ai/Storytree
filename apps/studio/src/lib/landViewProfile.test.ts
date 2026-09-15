@@ -11,15 +11,24 @@ import { describe, it, expect } from 'vitest';
 import {
   FRAME_BUDGET_MS,
   LATE_FRAME_MS,
+  bursts,
   frameCost,
   busyMs,
   cpuSplitIsReportable,
+  lateFrameClusters,
+  locatorFromSourceMaps,
+  moduleOf,
+  moduleSplit,
   networkSplit,
   rankedStages,
   shareOf,
+  sourceLocator,
+  stageDelta,
   stageOf,
   stageSplit,
+  sumSplits,
   type CpuProfile,
+  type LoadStage,
   type ProfileNode,
 } from './landViewProfile.js';
 
@@ -368,5 +377,340 @@ describe('the boundaries', () => {
       'land-stream',
       'three-and-r3f',
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// 2026-09-15 — THE WHOLE WAIT, THE PRODUCTION ARM, AND WHICH FILE THE TIME IS IN
+//
+// The first version of this instrument profiled only up to the first sized canvas, could attribute
+// only the dev build, and stopped at a stage. In production 25.9 of 32.5 seconds came after the
+// canvas; dev runs a StrictMode component body twice; and one stage spans three capabilities. Each
+// function below closes one of those, and each keeps the closure the rest of this file insists on.
+// ---------------------------------------------------------------------------------------------
+
+describe('moduleOf', () => {
+  it('names a workspace package file by its repo path, however the server reached it', () => {
+    expect(
+      moduleOf('http://127.0.0.1:5186/@fs/C:/code/storytree/.claude/worktrees/w/packages/forest-world-r3f/src/cell-ground-geometry.ts?t=1'),
+    ).toBe('packages/forest-world-r3f/src/cell-ground-geometry.ts');
+    expect(moduleOf('http://x/apps/studio/node_modules/@storytree/forest-world-r3f/src/ForestWorldCanvas.tsx')).toBe(
+      'packages/forest-world-r3f/src/ForestWorldCanvas.tsx',
+    );
+    expect(moduleOf('http://h/packages/forest-layout/src/pack.ts#frag')).toBe('packages/forest-layout/src/pack.ts');
+    expect(moduleOf('C:\\code\\x\\packages\\forest-world\\src\\hex.ts')).toBe('packages/forest-world/src/hex.ts');
+  });
+
+  it('keeps a dependency under node_modules, past the pnpm store', () => {
+    expect(moduleOf('http://h/node_modules/.pnpm/three@0.180.0/node_modules/three/build/three.module.js')).toBe(
+      'node_modules/three/build/three.module.js',
+    );
+    expect(moduleOf('http://h/node_modules/.vite/deps/three.js?v=abc')).toBe('node_modules/.vite/deps/three.js');
+  });
+
+  it('names the app files from the path they were served or mapped at', () => {
+    expect(moduleOf('http://127.0.0.1:5186/src/components/TreeView.tsx')).toBe('src/components/TreeView.tsx');
+    expect(moduleOf('http://h/@fs/C:/x/apps/studio/src/lib/landView.ts')).toBe('apps/studio/src/lib/landView.ts');
+    expect(moduleOf('../../src/lib/landView.ts')).toBe('src/lib/landView.ts');
+    expect(moduleOf('/@fs/tmp/elsewhere.ts')).toBe('tmp/elsewhere.ts');
+    expect(moduleOf('HTTP://apps.example/src/a.ts')).toBe('src/a.ts');
+    expect(moduleOf('')).toBe('');
+  });
+});
+
+describe('sourceLocator', () => {
+  // ⚠ EVERY MAPPING STRING BELOW IS HAND-ENCODED FROM THE V3 SPEC — base64 VLQ with the sign in the
+  // lowest bit — and NOT produced by an encoder in this file, which would share any mistake with the
+  // decoder it was checking.
+
+  it('finds the source a generated column belongs to', () => {
+    // "AAAA": column 0, source 0. "KCAA": column +5 ("K" = 10, which halves to 5), source +1.
+    const at = sourceLocator({ sources: ['a.ts', 'b.ts'], mappings: 'AAAA,KCAA' });
+    expect(at(0, 0)).toBe('a.ts');
+    expect(at(0, 4)).toBe('a.ts');
+    expect(at(0, 5)).toBe('b.ts');
+    expect(at(0, 90000)).toBe('b.ts');
+  });
+
+  it('resets the column on every line and carries the source index across lines', () => {
+    // Line 1's "AAAA" is column 0 of a NEW line; its source delta of 0 keeps the source line 0 ended on.
+    const at = sourceLocator({ sources: ['a.ts', 'b.ts'], mappings: 'AAAA,KCAA;AAAA' });
+    expect(at(1, 0)).toBe('b.ts');
+  });
+
+  it('decodes a negative delta and a two-digit value', () => {
+    // "ADAA": source -1 ("D" = 3, odd, so negative 1). "gBCAA": column +16 — "g" = 32 carries, "B"
+    // adds 1 << 5 = 32, which halves to 16 — then source +1.
+    const at = sourceLocator({ sources: ['a.ts', 'b.ts'], mappings: 'AAAA,KCAA;ADAA,gBCAA' });
+    expect(at(1, 15)).toBe('a.ts');
+    expect(at(1, 16)).toBe('b.ts');
+  });
+
+  it('answers null wherever the map places nothing', () => {
+    // "KAAA": column 5, source 0. "K": column +5 with ONE field, which maps to no source.
+    const at = sourceLocator({ sources: ['a.ts'], mappings: 'KAAA,K;' });
+    expect(at(0, 4)).toBeNull(); // before the first segment
+    expect(at(0, 5)).toBe('a.ts');
+    expect(at(0, 10)).toBeNull(); // the one-field segment
+    expect(at(1, 0)).toBeNull(); // a line the map carries but leaves empty
+    expect(at(7, 0)).toBeNull(); // a line it does not carry at all
+  });
+
+  it('a null source entry names nothing rather than a string', () => {
+    expect(sourceLocator({ sources: [null], mappings: 'AAAA' })(0, 0)).toBeNull();
+  });
+
+  it('searches a long line for the LAST segment at or before the column', () => {
+    // Eight segments five columns apart, each naming the next source — the search has to land on the
+    // right one from either side, not merely on the first or the last.
+    const sources = ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7'];
+    const at = sourceLocator({ sources, mappings: 'AAAA,KCAA,KCAA,KCAA,KCAA,KCAA,KCAA,KCAA' });
+    expect([0, 4, 5, 9, 17, 24, 25, 34, 35, 1000].map((column) => at(0, column))).toEqual([
+      's0', 's0', 's1', 's1', 's3', 's4', 's5', 's6', 's7', 's7',
+    ]);
+  });
+
+  it('REFUSES a corrupt mapping string — a stray character, or a value cut off mid-digit', () => {
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AA!A' })).toThrow(/not base64 VLQ at character 2/);
+    // "g" sets the continuation bit and then the string ends.
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'g' })).toThrow(/not base64 VLQ at character 1/);
+    // A character past the 7-bit table is refused, not read as some digit.
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AAéA' })).toThrow(/not base64 VLQ at character 2/);
+  });
+});
+
+describe('locatorFromSourceMaps', () => {
+  const chunk = 'http://h/assets/index-C5.js';
+  // "KAAA": column 5 names the studio module; "KCAA": column 10 names the engine module.
+  const locate = locatorFromSourceMaps(
+    new Map([
+      [
+        chunk,
+        sourceLocator({
+          sources: ['../../src/lib/landView.ts', '../../packages/forest-world-r3f/src/world-to-3d.ts'],
+          mappings: 'KAAA,KCAA',
+        }),
+      ],
+    ]),
+  );
+
+  it('names a production frame through its chunk map, resolved against the chunk url', () => {
+    expect(locate({ functionName: 'a', url: chunk, lineNumber: 0, columnNumber: 12 })).toBe(
+      'http://h/packages/forest-world-r3f/src/world-to-3d.ts',
+    );
+    expect(locate({ functionName: 'b', url: chunk, lineNumber: 0, columnNumber: 5 })).toBe('http://h/src/lib/landView.ts');
+  });
+
+  it('keeps the frame url wherever the map cannot answer', () => {
+    // No map for that chunk; no position at all; half a position; a column before the first segment.
+    expect(locate({ functionName: 'c', url: 'http://h/assets/other.js', lineNumber: 0, columnNumber: 12 })).toBe(
+      'http://h/assets/other.js',
+    );
+    expect(locate({ functionName: 'd', url: chunk })).toBe(chunk);
+    expect(locate({ functionName: 'e', url: chunk, lineNumber: 0 })).toBe(chunk);
+    expect(locate({ functionName: 'f', url: chunk, columnNumber: 12 })).toBe(chunk);
+    expect(locate({ functionName: 'g', url: chunk, lineNumber: 0, columnNumber: 2 })).toBe(chunk);
+  });
+
+  it('turns the withheld production table into a reportable one — the same samples, placed', () => {
+    const p = profile(
+      [
+        { id: 1, callFrame: { functionName: 'a', url: chunk, lineNumber: 0, columnNumber: 12 } },
+        { id: 2, callFrame: { functionName: 'b', url: chunk, lineNumber: 0, columnNumber: 2 } },
+      ],
+      [[1, 6000], [2, 2000]],
+    );
+    const unmapped = stageSplit(p);
+    expect(unmapped.byStage.unattributed).toBe(8);
+    expect(cpuSplitIsReportable(unmapped)).toBe(false);
+    const mapped = stageSplit(p, locate);
+    expect(mapped.byStage['land-stream']).toBe(6);
+    expect(mapped.byStage.unattributed).toBe(2); // column 2 is before the map's first segment
+    expect(cpuSplitIsReportable(mapped)).toBe(true);
+  });
+});
+
+describe('moduleSplit', () => {
+  it('names the FILE the time is in, and the rows plus the rest SUM TO THE TOTAL', () => {
+    const m = moduleSplit(
+      profile(
+        [
+          node(1, 'http://x/packages/forest-world-r3f/src/cell-ground-geometry.ts', 'build'),
+          node(2, 'http://x/packages/forest-world-r3f/src/world-to-3d.ts'),
+          node(3, 'http://x/packages/forest-world-r3f/src/cell-ground-geometry.ts', 'another'),
+          node(4, 'http://x/node_modules/.vite/deps/three.js'),
+          { id: 5, callFrame: { functionName: '(idle)', url: '' } },
+          node(6, ''),
+        ],
+        [[1, 5000], [3, 3000], [2, 2000], [4, 1000], [5, 4000], [6, 500]],
+      ),
+      3,
+    );
+    expect(m.rows).toEqual([
+      { module: 'packages/forest-world-r3f/src/cell-ground-geometry.ts', stage: 'land-stream', ms: 8 },
+      { module: '(idle)', stage: 'idle', ms: 4 },
+      { module: 'packages/forest-world-r3f/src/world-to-3d.ts', stage: 'land-stream', ms: 2 },
+    ]);
+    expect(m.restModules).toBe(2);
+    expect(m.restMs).toBe(1.5);
+    expect(m.totalMs).toBe(15.5);
+    expect(m.rows.reduce((sum, row) => sum + row.ms, 0) + m.restMs).toBeCloseTo(m.totalMs, 10);
+  });
+
+  it('keeps a url the stages cannot place as its own row, and puts nameless and node-less time in ONE row', () => {
+    const m = moduleSplit(
+      profile(
+        [node(1, ''), node(2, 'http://h/assets/index-C5.js'), { id: 3, callFrame: { functionName: '(garbage collector)', url: '' } }],
+        [[1, 1000], [99, 2000], [2, 4000], [3, 500]],
+      ),
+      10,
+    );
+    expect(m.rows).toEqual([
+      { module: 'assets/index-C5.js', stage: 'unattributed', ms: 4 },
+      { module: '(unattributed)', stage: 'unattributed', ms: 3 },
+      { module: '(garbage collector)', stage: 'gc', ms: 0.5 },
+    ]);
+    expect(m.restModules).toBe(0);
+    expect(m.restMs).toBe(0);
+  });
+
+  it('breaks a tie by module name, so two runs of one profile list alike', () => {
+    const m = moduleSplit(profile([node(1, 'http://x/packages/b.ts'), node(2, 'http://x/packages/a.ts')], [[1, 1000], [2, 1000]]), 5);
+    expect(m.rows.map((row) => row.module)).toEqual(['packages/a.ts', 'packages/b.ts']);
+  });
+
+  it('REFUSES a truncated profile, as the stage split does', () => {
+    expect(() => moduleSplit({ nodes: [node(1, '')], samples: [1, 1], timeDeltas: [1000] }, 5)).toThrow(/truncated/);
+  });
+});
+
+describe('sumSplits and stageDelta', () => {
+  it('charges the land view only for what it ADDED over the map alone', () => {
+    const land = stageSplit(
+      profile(
+        [node(1, 'http://x/packages/forest-world-r3f/src/world-to-3d.ts'), node(2, 'http://x/src/components/TreeView.tsx')],
+        [[1, 9000], [2, 3000]],
+      ),
+    );
+    const control = stageSplit(profile([node(2, 'http://x/src/components/TreeView.tsx')], [[2, 2000]]));
+    const rows = stageDelta(land, control);
+    expect(rows[0]).toEqual({ stage: 'land-stream', landMs: 9, controlMs: 0, addedMs: 9 });
+    expect(rows[1]).toEqual({ stage: 'scene-build', landMs: 3, controlMs: 2, addedMs: 1 });
+    expect(rows).toHaveLength(9);
+  });
+
+  it('a stage the land arm came in CHEAPER on keeps its negative figure and ranks last', () => {
+    const land = stageSplit(profile([node(1, 'http://x/src/components/TreeView.tsx')], [[1, 1000]]));
+    const control = stageSplit(profile([node(1, 'http://x/src/components/TreeView.tsx')], [[1, 4000]]));
+    expect(stageDelta(land, control).at(-1)).toEqual({ stage: 'scene-build', landMs: 1, controlMs: 4, addedMs: -3 });
+  });
+
+  it('ties in the delta break by declared stage order', () => {
+    const empty = stageSplit(profile([], []));
+    expect(stageDelta(empty, empty).map((row) => row.stage)).toEqual([
+      'store-payload',
+      'scene-build',
+      'land-stream',
+      'three-and-r3f',
+      'kit-decode',
+      'react-and-studio',
+      'idle',
+      'gc',
+      'unattributed',
+    ]);
+  });
+
+  it('sums phases stage by stage, and the total with them', () => {
+    const a = stageSplit(profile([node(1, 'http://x/packages/forest-layout/src/pack.ts')], [[1, 2000]]));
+    const b = stageSplit(
+      profile(
+        [node(1, 'http://x/packages/forest-layout/src/pack.ts'), { id: 2, callFrame: { functionName: '(idle)', url: '' } }],
+        [[1, 1000], [2, 5000]],
+      ),
+    );
+    const sum = sumSplits([a, b]);
+    expect(sum.totalMs).toBe(8);
+    expect(sum.byStage['scene-build']).toBe(3);
+    expect(sum.byStage.idle).toBe(5);
+    expect(sumSplits([]).totalMs).toBe(0);
+  });
+});
+
+describe('bursts', () => {
+  const isLand = (stage: LoadStage): boolean => stage === 'land-stream';
+  const land = 'http://x/packages/forest-world-r3f/src/world-to-3d.ts';
+  const other = 'http://x/src/other.ts';
+
+  it('finds each separate run of land-stream work, and when it started', () => {
+    // One-millisecond samples: land 0–3; other work 3–103; land 103–105; 1 ms of other; land to 108.
+    const p = profile(
+      [node(1, land), node(2, other)],
+      [[1, 1000], [1, 1000], [1, 1000], [2, 100000], [1, 1000], [1, 1000], [2, 1000], [1, 1000], [1, 1000]],
+    );
+    expect(bursts(p, isLand, { mergeGapMs: 50, minMemberMs: 0 })).toEqual([
+      { startMs: 0, endMs: 3, memberMs: 3 },
+      { startMs: 103, endMs: 108, memberMs: 4 },
+    ]);
+  });
+
+  it('merges a gap EXACTLY at the bar and splits one just past it', () => {
+    const p = profile([node(1, land), node(2, other)], [[1, 1000], [2, 2000], [1, 1000]]);
+    expect(bursts(p, isLand, { mergeGapMs: 2, minMemberMs: 0 })).toEqual([{ startMs: 0, endMs: 4, memberMs: 2 }]);
+    expect(bursts(p, isLand, { mergeGapMs: 1.5, minMemberMs: 0 })).toEqual([
+      { startMs: 0, endMs: 1, memberMs: 1 },
+      { startMs: 3, endMs: 4, memberMs: 1 },
+    ]);
+  });
+
+  it('drops a run under the member-time floor, and keeps one exactly at it', () => {
+    const p = profile([node(1, land), node(2, other)], [[1, 1000], [2, 500000], [1, 1000], [1, 1000]]);
+    expect(bursts(p, isLand, { mergeGapMs: 10, minMemberMs: 2 })).toEqual([{ startMs: 501, endMs: 503, memberMs: 2 }]);
+  });
+
+  it('a sample naming no node is never a member', () => {
+    const p = profile([node(1, land)], [[1, 1000], [99, 1000], [1, 1000]]);
+    expect(bursts(p, isLand, { mergeGapMs: 0, minMemberMs: 0 })).toEqual([
+      { startMs: 0, endMs: 1, memberMs: 1 },
+      { startMs: 2, endMs: 3, memberMs: 1 },
+    ]);
+  });
+
+  it('reads a production frame through the locator it is handed', () => {
+    const chunk = 'http://h/assets/index-C5.js';
+    const locate = locatorFromSourceMaps(
+      new Map([[chunk, sourceLocator({ sources: ['../../packages/forest-world-r3f/src/x.ts'], mappings: 'AAAA' })]]),
+    );
+    const p = profile([{ id: 1, callFrame: { functionName: 'f', url: chunk, lineNumber: 0, columnNumber: 0 } }], [[1, 3000]]);
+    expect(bursts(p, isLand, { mergeGapMs: 0, minMemberMs: 0 })).toEqual([]);
+    expect(bursts(p, isLand, { mergeGapMs: 0, minMemberMs: 0 }, locate)).toEqual([{ startMs: 0, endMs: 3, memberMs: 3 }]);
+  });
+
+  it('REFUSES a truncated profile', () => {
+    expect(() => bursts({ nodes: [], samples: [1], timeDeltas: [] }, isLand, { mergeGapMs: 0, minMemberMs: 0 })).toThrow(
+      /truncated/,
+    );
+  });
+});
+
+describe('lateFrameClusters', () => {
+  it('groups late frames that arrive together, and says when each group began', () => {
+    // t: 16, 32 | 400 runs 32–432 | 30 runs 432–462 (late, touching) | six 16s to 558 | 900 runs 558–1458.
+    const deltas = [16, 16, 400, 30, 16, 16, 16, 16, 16, 16, 900];
+    expect(lateFrameClusters(deltas, 50)).toEqual([
+      { atMs: 32, frames: 2, worstMs: 400, spanMs: 430 },
+      { atMs: 558, frames: 1, worstMs: 900, spanMs: 900 },
+    ]);
+    // The two groups are 96 ms apart: one group once the allowed gap reaches that, two just short of it.
+    expect(lateFrameClusters(deltas, 96)).toEqual([{ atMs: 32, frames: 3, worstMs: 900, spanMs: 1426 }]);
+    expect(lateFrameClusters(deltas, 95)).toHaveLength(2);
+  });
+
+  it('keeps the WORST of a group, whichever order its frames came in', () => {
+    expect(lateFrameClusters([900, 30], 0)).toEqual([{ atMs: 0, frames: 2, worstMs: 900, spanMs: 930 }]);
+  });
+
+  it('a frame exactly at the late bar starts no group, and an empty run has none', () => {
+    expect(lateFrameClusters([LATE_FRAME_MS, LATE_FRAME_MS], 1000)).toEqual([]);
+    expect(lateFrameClusters([], 1000)).toEqual([]);
   });
 });
