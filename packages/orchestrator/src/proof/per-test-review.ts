@@ -524,6 +524,8 @@ export interface PerTestPolicy {
   readonly confirmGreen: (obs: TestObservation) => PerTestJudgement;
   /** Why CONFIRM_RED is not observed per test, when it is not — disclosed on the red evidence. */
   readonly redNotObserved?: string;
+  /** C7's input when the brief was a CLUSTER: the contracts it named — disclosed on the red evidence. */
+  readonly briefContracts?: readonly string[];
 }
 
 /** Why a structural red is observed by its exit code alone. */
@@ -593,14 +595,17 @@ export function perTestPolicy(args: PerTestPolicyArgs): PerTestPolicy {
     },
     confirmGreen,
   };
-  return args.observeRed
+  const policy = args.observeRed
     ? { ...baseline, confirmRed }
     : { ...baseline, redNotObserved: args.redNotObserved ?? STRUCTURAL_RED_NOT_OBSERVED };
+  // Carried so the red evidence can say the brief was a cluster (ADR-0573 D5's disclosure channel).
+  return args.briefContracts === undefined ? policy : { ...policy, briefContracts: args.briefContracts };
 }
 
 /**
  * The disclosure a verdict's RED evidence carries (ADR-0573 D5): whether red was observed per test and,
- * if it was, how many tests were accepted as declared guard-rails — so "no test was accepted early" and
+ * if it was, how many tests were accepted as declared guard-rails and which contracts a cluster brief
+ * named — so "no test was accepted early" and
  * "red was not observed per test" never read alike. `undefined` when the unit has no per-test policy.
  */
 export function redEvidenceDisclosure(
@@ -612,8 +617,15 @@ export function redEvidenceDisclosure(
     return `per-test: not observed at CONFIRM_RED — ${policy.redNotObserved ?? "no per-test review ran for this red"}`;
   }
   const accepted = review.acceptedGuardRails.length;
+  // A cluster brief says so and names its contracts, so a batched red never reads as a one-test red.
+  const cluster =
+    policy.briefContracts === undefined
+      ? ""
+      : `a cluster brief of ${policy.briefContracts.length} contract(s) (${policy.briefContracts.join(", ")}), ` +
+        "each named by a new vouching test; ";
   return (
     `per-test: ${review.declaredTests} declared test(s) reviewed individually at CONFIRM_RED (ADR-0573 C1–C7); ` +
+    cluster +
     (accepted === 0
       ? "none accepted before its implementation existed"
       : `${accepted} accepted as a declared guard-rail, never observed failing (ADR-0572)`)

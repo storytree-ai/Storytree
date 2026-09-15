@@ -89,7 +89,7 @@ registry is no longer required to make a node buildable. Mirror `prove-spec-reso
 walks (dry-run glue + the REAL-mode worktree walk via the `authorOverride` seam), keyed off a spec's
 own proof config rather than the hand-map.
 
-## Contracts (6)
+## Contracts (7)
 
 1. **`spec-proof-block-parses`** — the loader reads + zod-validates an optional `proof:` block off a node spec
    - **asserts —** a well-formed block yields a typed build config; a malformed block is LOUD (`.strict()` rejects a typo'd key, an empty glob, an empty command, `install:true` without `typecheck`); absent = not buildable (fail-closed).
@@ -115,3 +115,7 @@ own proof config rather than the hand-map.
    - **asserts —** the `PathWriteScope` predicate matrix (test only in AUTHOR_TEST; source only in IMPLEMENT; observe-only phases deny all) AND the `WriteScopedToolExecutor` enforcement path (an out-of-phase write is refused, the inner executor never reached, the violation recorded) both hold when the scope is sourced from a spec's `proof:` block — identical to a registry scope.
    - **covers —** `phase-machine.ts` + `write-scoped-executor.ts` (UNCHANGED) driven from spec-borne scope
    - **proven by —** `resolve-prove-spec.test.ts` (the two "contract 6 —" tests, REAL, passing)
+7. **`real-cluster-parses-only-on-an-assertion-red`** — a spec may declare a cluster brief only on a unit whose red is an assertion
+   - **asserts —** `real.cluster` parses as two or more contract ids and round-trips, and stays absent when undeclared; it is LOUD on a unit that does not declare `editsExisting` (net-new, or `refactorForTests`), with fewer than two ids, and with an id listed twice.
+   - **covers —** `packages/orchestrator/src/proof-config.ts` (the `cluster` field, its two refines and `buildReal`)
+   - **proven by —** `packages/orchestrator/src/proof-config.test.ts` (session-authored; no signed verdict)

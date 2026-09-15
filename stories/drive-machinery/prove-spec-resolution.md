@@ -105,7 +105,7 @@ capability split, and safe downstream fan-out.
 > or a brief naming no feedback tool no longer hold. The shell-feedback prohibition this revision
 > introduced still does (ADR-0232 D5). Contracts 9, 10 and 13 below carry the current assertions.
 
-Retain all fifteen contracts, IDs, titles, commands and fences. The read-only resolver suite remains
+Retain all seventeen contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
 and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
 shared fixture and assertion, especially the signed `0bf`, `aaf966f`, `5ba4b553`, and `fccb80df`
@@ -229,6 +229,18 @@ route. Every other route is observed as before. On an armed route `realPrompts` 
 rules in the AUTHOR_TEST brief — the brief ADR-0573's Consequences call for — before the ADR-0571
 revision section, which stays last.
 
+**Cluster brief (contracts 16 and 17, ADR-0573 D3).** A unit whose spec declares `real.cluster` — two or
+more of its own contract ids, the ones sharing a fixture or seam — is briefed to write those contracts'
+tests in ONE AUTHOR_TEST slice and to implement against them together. `resolveReal` admits a cluster
+only where red is reviewed per test: an `editsExisting` unit on an armed route, naming contracts the unit
+declares, each once. Anywhere else it refuses before any authoring turn, and never falls back to a
+one-test brief or to a file-level red. An admitted cluster reaches the gate's policy as `briefContracts`,
+so C7 refuses a red in which a named contract has no new vouching test, and the red evidence names the
+cluster. `realPrompts` names the cluster in both briefs of the `editsExisting` arm: AUTHOR_TEST asks for
+at least one NEW failing test per contract in the one test file, and says a rewritten existing test does
+not count; IMPLEMENT asks for every test of the cluster green, iterating against `run_proof`. A unit
+without a cluster, and a cluster on any route where it could not be held, briefs byte for byte as before.
+
 **Authored source and proof ownership.** IMPLEMENT may edit only
 `packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
 `packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
@@ -293,6 +305,8 @@ rather than requiring the tool name's erasure.
 - **`codex-feedback-runs-in-the-replica`** — `retargetShellCommand` moves `cwd` and every absolute argument at or inside the worktree into the replica, judged by path and not by string prefix, and keeps everything else; `codexFeedbackCommandsFor` builds `run_proof`, and `run_typecheck` when one is registered, from the spine's own command objects with their own bound, each run spawning the retargeted command.
 - **`real-routes-arm-per-test-observation`** — contract 14's full assertion.
 - **`real-author-test-brief-states-the-per-test-rules`** — contract 15's full assertion.
+- **`real-cluster-is-admitted-only-where-red-is-observed-per-test`** — contract 16's full assertion.
+- **`real-cluster-brief-names-the-cluster-in-both-phases`** — contract 17's full assertion.
 
 ## Integration test
 
@@ -312,7 +326,7 @@ walks remain offline tests of machinery; they are not a substitute author or sig
 repair. The declared REAL proof runs both test files, and promotion retains both package suites
 and typechecks as the regression floor.
 
-## Contracts (15)
+## Contracts (17)
 
 1. **`spec-files-locate-and-load`** — capability and story specs are found and parse to typed NodeSpecs with guidance prose
    - **asserts —** `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
@@ -372,5 +386,13 @@ and typechecks as the regression floor.
     - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
 15. **`real-author-test-brief-states-the-per-test-rules`** — on an armed route, the AUTHOR_TEST brief states the per-test rules
     - **asserts —** on an armed route, the AUTHOR_TEST brief from `realPrompts` says every test in the test file reports on its own and must pass at green, and to give each test a literal title, because a `.each` table or a runtime-built title is refused, naming its contract in the title or the enclosing describe; for an `editsExisting` unit it adds that every NEW test must fail now with an assertion, and that an early pass is refused unless every contract it names declares a guard-rail; an unarmed route's brief carries none of this; and the clause sits before the ADR-0571 revision block, which stays the brief's last part.
+    - **covers —** `realPrompts` (`packages/orchestrator/src/resolve-prove-spec.ts`)
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
+16. **`real-cluster-is-admitted-only-where-red-is-observed-per-test`** — the resolver briefs a cluster only where CONFIRM_RED is reviewed per test, and arms C7 with it
+    - **asserts —** `resolveReal` refuses a `real.cluster` on a structural red, on a route without a per-test channel, naming a contract the unit does not declare, and naming fewer than two contracts or one twice — each with a reason naming ADR-0573, before any authoring turn; an admitted cluster reaches the gate's per-test policy as `briefContracts`, and a unit without one is armed exactly as before; end to end on the default route, a cluster build whose new tests leave a named contract without one is refused at CONFIRM_RED by C7, the same test with the cluster undeclared signs, and a build writing the whole cluster signs with a red evidence note naming it.
+    - **covers —** `resolveReal` and `realClusterRefusal` (`packages/orchestrator/src/resolve-prove-spec.ts`)
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
+17. **`real-cluster-brief-names-the-cluster-in-both-phases`** — a cluster unit's two briefs name the cluster, and every other brief is unchanged
+    - **asserts —** for an `editsExisting` unit on an armed route declaring a cluster, the AUTHOR_TEST brief names exactly the cluster's contracts, with titles and in their declared order, asks for a CLUSTER of regression tests in one slice with at least one NEW failing test per contract, says a rewritten existing test does not count and that C7 refuses a contract left without a new test, and still carries the per-test rules; the IMPLEMENT brief names the same contracts and asks for every test of the cluster green together, iterating against `run_proof`; a unit without a cluster keeps the one-test brief, and a cluster on a structural red or an unarmed route briefs byte for byte as it would without one.
     - **covers —** `realPrompts` (`packages/orchestrator/src/resolve-prove-spec.ts`)
     - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
