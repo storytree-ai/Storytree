@@ -774,7 +774,7 @@ function loadTestFileFacts(root: string): TestFileFacts[] {
         facts.push({ path: rel, optionsSkipped, vouching: new Set() });
         continue;
       }
-      facts.push({ path: rel, optionsSkipped, vouching: new Set(extractVouchingTestNames(source)) });
+      facts.push({ path: rel, optionsSkipped, vouching: new Set(extractVouchingTestNames(source, rel)) });
     }
   }
   requireObserved(facts.length, `no test files found under ${TEST_ROOT_DIRS.join(", ")}`);

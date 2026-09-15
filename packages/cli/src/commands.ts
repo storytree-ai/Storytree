@@ -2567,7 +2567,7 @@ function walkTestFiles(absDir: string): string[] {
  * ADR-0294 D2 author holds a running test and needs the node that claims it. An unreadable file
  * contributes no tests (fail-closed — silence about a file is never a claim about it).
  */
-function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
+export function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
   const toRel = toRepoRelative(root);
   return sweepCapabilitySurfaces(storiesDir, root).surfaces.map((surface) => ({
     unitId: surface.unitId,
@@ -2575,7 +2575,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
     contractIds: surface.contractIds,
     files: surface.absTestFiles.map((abs) => {
       try {
-        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8")) };
+        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8"), abs) };
       } catch {
         return { file: toRel(abs), observed: [] };
       }
@@ -2592,7 +2592,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
  * globs. A config without a real arm keeps the package/dir walk over its ordinary proof scope.
  * Pure-by-injection seam for `coverageCommand`.
  */
-function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
+export function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
   const file = findNodeSpecFile(storiesDir, unitId);
   if (file === null) return null;
   let spec: ReturnType<typeof loadNodeSpec>;
@@ -2628,7 +2628,7 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
       // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
       // reads uncovered. `unreadTitles` rides along so the report can distinguish a contract NO test
       // names from one whose test has a title the static reader could not read.
-      const surface = readTestSurface(readFileSync(f, "utf8"));
+      const surface = readTestSurface(readFileSync(f, "utf8"), f);
       testNames.push(...surface.vouching);
       unreadTitles += surface.unreadTitles;
     } catch {

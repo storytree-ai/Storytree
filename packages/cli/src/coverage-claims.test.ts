@@ -31,7 +31,7 @@ function unit(
     unitId,
     tier: "capability",
     contractIds,
-    files: files.map((f) => ({ file: f.file, observed: analyzeObservedTests(f.src) })),
+    files: files.map((f) => ({ file: f.file, observed: analyzeObservedTests(f.src, f.file) })),
   };
 }
 

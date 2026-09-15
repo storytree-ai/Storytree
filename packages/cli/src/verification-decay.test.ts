@@ -435,7 +435,7 @@ describe("findOptionsFormSkips: reading the skip form the repo's own classifier 
     assert.deepEqual(skipped, ["gated-contract: a title split across two literals"]);
     // …which is only checkable against the other reader itself. (The options-form skip is invisible
     // to `analyzeObservedTests` by design, ADR-0126's named blind spot, so it reads as vouching.)
-    assert.deepEqual(extractVouchingTestNames(src), skipped);
+    assert.deepEqual(extractVouchingTestNames(src, "x.test.ts"), skipped);
     // And the finding the join produces is actually emitted, end to end.
     const findings = findVacuousProof([
       testFile("x.test.ts", { "gated-contract: a title split across two literals": "skip: !DB" }, skipped),

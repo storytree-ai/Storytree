@@ -296,7 +296,9 @@ against the single-session dock at HEAD (the red), then rewrite the dock to a se
   test whose assertions follow an INLINE JSX object prop (e.g. `<TerminalDock headerRight={<X/>}/>`) can read
   as uncovered — hoist any inline object/element prop to a `const` before the assertions
   (`const headerRight = <X/>; render(<TerminalDock headerRight={headerRight}/>)`), the shape the existing
-  suite already uses for `seed`.
+  suite already uses for `seed`. *[Resolved 2026-09-15 by `batched-test-authoring-arc-inc-06`: the static
+  read now parses a `.tsx` test file as TSX, so an inline JSX prop no longer hides a test from
+  `storytree coverage` or from the per-test join (ADR-0573 D1), and the hoist is no longer needed.]*
 - **The RED the spine observes —** the new cases drive a multi-session panel — a "+" that spawns a SECOND
   session, a session switch, a per-row "×" — none of which exist on the single-session dock at HEAD (no
   "+", one session), so `mst-new-tab-spawns-independent-session` (and the others) fail — a real

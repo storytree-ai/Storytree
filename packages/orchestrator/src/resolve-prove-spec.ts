@@ -1097,7 +1097,7 @@ function computeContractCoverage(
   if (!existsSync(testAbs)) return undefined;
   let surface: TestSurfaceRead;
   try {
-    surface = readTestSurface(readFileSync(testAbs, "utf8"));
+    surface = readTestSurface(readFileSync(testAbs, "utf8"), testAbs);
   } catch {
     return undefined;
   }

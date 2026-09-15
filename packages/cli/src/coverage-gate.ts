@@ -280,7 +280,7 @@ export function sweepRealBuildCoverage(
       try {
         // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
         // named only by an `assert(true)` reads uncovered (not falsely covered).
-        testNames.push(...extractVouchingTestNames(readFileSync(testPath, "utf8")));
+        testNames.push(...extractVouchingTestNames(readFileSync(testPath, "utf8"), testPath));
       } catch {
         // An unreadable test file contributes no names (fail-closed toward uncovered).
       }
