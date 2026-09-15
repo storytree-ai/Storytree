@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 
 import { linkReplicaDependencies } from "./codex-replica-links.js";
+import type { ReadNodeModulesEntries } from "./codex-replica-links.js";
 
 async function link(target: string, linkPath: string): Promise<void> {
   await fs.mkdir(path.dirname(linkPath), { recursive: true });
@@ -104,6 +105,29 @@ test("dangling-links-are-left-out-of-the-replica: leaves a root node_modules lin
     await assert.doesNotReject(linkReplicaDependencies(workspace, replica));
 
     await rejectsWithEnoent(() => fs.lstat(path.join(replica, "node_modules")));
+  } finally {
+    await fs.rm(replica, { recursive: true, force: true });
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("dangling-links-are-left-out-of-the-replica: still rejects when resolving a link fails for a reason other than a missing target", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-dangling-"));
+  const replica = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replica-links-replica-"));
+  try {
+    await fs.mkdir(path.join(workspace, "packages", "consumer", "node_modules"), { recursive: true });
+    // A NUL byte in the name makes `fs.realpath` reject with ERR_INVALID_ARG_VALUE, not ENOENT, under
+    // Node and Bun alike. No directory can hold such a name, so the injected reader presents it.
+    const readEntries: ReadNodeModulesEntries = async () => [
+      {
+        name: "bad" + String.fromCharCode(0) + "name",
+        isSymbolicLink: () => true,
+        isDirectory: () => false,
+        isFile: () => false,
+      },
+    ];
+
+    await assert.rejects(linkReplicaDependencies(workspace, replica, readEntries), { code: "ERR_INVALID_ARG_VALUE" });
   } finally {
     await fs.rm(replica, { recursive: true, force: true });
     await fs.rm(workspace, { recursive: true, force: true });

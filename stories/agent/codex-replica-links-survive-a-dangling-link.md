@@ -116,8 +116,11 @@ binds a test to this contract. Build every fixture under `os.tmpdir()` and remov
 name is written as its LITERAL string. The new file is already owned by the `packages/agent/src/codex-*.ts`
 entry in `repo-manifest/source-ownership/live-codex-leaf.json`.
 
-**Declared, not observed.** That an error other than a missing target still rejects is confirmed by
-reading: no portable fixture produces a permission error on both platforms.
+**Observed after signing.** The signed test left one clause unobserved: that an error other than a
+missing target still rejects. The mutation-strengthening pass added that case through the existing
+`readEntries` seam. An entry name holding a NUL byte makes `fs.realpath` reject with
+`ERR_INVALID_ARG_VALUE` under both Node 24.15.0 and Bun 1.4.0, and `linkReplicaDependencies` rejects
+with it. The same pass reshaped the guard to the package's `NodeJS.ErrnoException` idiom.
 
 ## Contracts (1)
 

@@ -941,6 +941,10 @@ function feedbackRunsLine(runs: readonly { phase: string; tool: string; code: nu
   );
 }
 
+/** The namespace `CodexPhaseAuthor` puts on every feedback tool name; the armed line strips it. */
+// Stryker disable next-line Regex: EQUIVALENT — every `CodexPhaseAuthor.feedbackToolNames` entry is built as `mcp__spine__${name}` by its constructor (packages/agent/src/codex-author.ts), so the prefix always sits at index 0, and a non-global replace strips that same first occurrence with or without the `^` anchor.
+const SPINE_FEEDBACK_TOOL_PREFIX = /^mcp__spine__/;
+
 /**
  * The Codex branch's feedback line: the spine's own `feedbackRuns` record when non-empty (rendered
  * identically to the Claude branch via {@link feedbackRunsLine}), otherwise the leaf's own
@@ -954,7 +958,7 @@ function codexFeedbackLine(liveAuthor: {
   if (liveAuthor.feedbackRuns.length > 0) return feedbackRunsLine(liveAuthor.feedbackRuns);
   if (liveAuthor.feedbackToolNames.length > 0) {
     const names = liveAuthor.feedbackToolNames
-      .map((name) => name.replace(/^mcp__spine__/, ""))
+      .map((name) => name.replace(SPINE_FEEDBACK_TOOL_PREFIX, ""))
       .join(", ");
     return `feedback:    0 bounded runs — armed with ${names}; the leaf called none (the spine's own observations decided)`;
   }

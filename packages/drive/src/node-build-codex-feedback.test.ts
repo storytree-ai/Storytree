@@ -8,9 +8,9 @@
  *
  *   "feedback:    none — the spine reruns every registered proof command out of band"
  *
- * That is only true for a Codex leaf given NO feedback tools. This file authors the three cases the
- * node spec names, each its own test, with every expected line written as a LITERAL string (this
- * package sits inside the mutation rung).
+ * That is only true for a Codex leaf given NO feedback tools. This file authors the cases the node
+ * spec names, each its own test, with every expected line written as a LITERAL string (this package
+ * sits inside the mutation rung).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -89,5 +89,55 @@ test("codex-envelope-reports-feedback-runs: a Codex leaf given no feedback tools
     "cost:        not metered — ChatGPT subscription quota (no API/list-price USD asserted)",
     "scope walls: no write refusals",
     "feedback:    none — the spine reruns every registered proof command out of band",
+  ]);
+});
+
+test("codex-envelope-reports-feedback-runs: a feedback run whose exit code is null renders exit none, in record order", () => {
+  const codex = codexAuthor(["run_proof", "run_typecheck"]);
+  codex.feedbackRuns.push(
+    { phase: "AUTHOR_TEST", tool: "run_proof", code: 1 },
+    { phase: "IMPLEMENT", tool: "run_proof", code: 0 },
+    { phase: "IMPLEMENT", tool: "run_typecheck", code: null },
+  );
+
+  assert.deepEqual(liveLeafLines(codex), [
+    "leaf:        Codex CLI / ChatGPT subscription (no slices ran)",
+    "cost:        not metered — ChatGPT subscription quota (no API/list-price USD asserted)",
+    "scope walls: no write refusals",
+    "feedback:    3 bounded run(s) — AUTHOR_TEST:run_proof=exit 1, IMPLEMENT:run_proof=green, IMPLEMENT:run_typecheck=exit none (feedback only; the spine's own observations decided)",
+  ]);
+});
+
+test("codex-envelope-reports-feedback-runs: armed with run_proof alone, the armed line names that one tool", () => {
+  const codex = codexAuthor(["run_proof"]);
+
+  assert.deepEqual(liveLeafLines(codex), [
+    "leaf:        Codex CLI / ChatGPT subscription (no slices ran)",
+    "cost:        not metered — ChatGPT subscription quota (no API/list-price USD asserted)",
+    "scope walls: no write refusals",
+    "feedback:    0 bounded runs — armed with run_proof; the leaf called none (the spine's own observations decided)",
+  ]);
+});
+
+test("codex-envelope-reports-feedback-runs: a Claude leaf with no feedback runs renders no feedback line, and one recorded run adds exactly the shared line", () => {
+  const claude = cannedLiveAuthor([]);
+
+  const lines = liveLeafLines(claude);
+  assert.deepEqual(lines, [
+    "leaf:        Claude Agent SDK (no slices ran)",
+    "cost:        $0.0000 SDK-reported (subscription-billed)",
+    "scope walls: no write refusals",
+  ]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("feedback:")),
+    [],
+  );
+
+  claude.feedbackRuns.push({ phase: "IMPLEMENT", tool: "run_proof", code: 0 });
+  assert.deepEqual(liveLeafLines(claude), [
+    "leaf:        Claude Agent SDK (no slices ran)",
+    "cost:        $0.0000 SDK-reported (subscription-billed)",
+    "scope walls: no write refusals",
+    "feedback:    1 bounded run(s) — IMPLEMENT:run_proof=green (feedback only; the spine's own observations decided)",
   ]);
 });

@@ -91,9 +91,7 @@ async function rebuildNodeModulesTree(
       try {
         target = await resolveReplicaLinkTarget(resolvedWorkspaceRoot, replicaRoot, sourcePath);
       } catch (error: unknown) {
-        if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
-          continue;
-        }
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
         throw error;
       }
       await linkDirectory(target, destPath);
