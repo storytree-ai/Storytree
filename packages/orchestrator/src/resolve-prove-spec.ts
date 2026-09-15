@@ -33,7 +33,12 @@ import type { TestSurfaceRead } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
 import type { ExpectedRed } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
-import { ShellTestExecutor, runShellCommand, unvettedGreenNote } from "./shell-test-executor.js";
+import {
+  DEFAULT_PROOF_TIMEOUT_MS,
+  ShellTestExecutor,
+  runShellCommand,
+  unvettedGreenNote,
+} from "./shell-test-executor.js";
 import type { ShellCommand, ShellRunResult, ShellTestResolver } from "./shell-test-executor.js";
 import {
   PROOF_REPORT_ENV,
@@ -1114,6 +1119,76 @@ export function feedbackCommandsFor(
         "return its exit code and output. Bounded runs. Promotion requires this green — the " +
         "proof command runs under tsx (types stripped), so only this sees type errors.",
       run: () => runShellCommand(typecheckCmd),
+    });
+  }
+  return commands;
+}
+
+/**
+ * Move any absolute `cwd`/argument that sits inside `workspace` to the same relative place under
+ * `replicaRoot`; keep everything else (`file`, non-moving arguments, `env`, `timeoutMs`, `shell`)
+ * exactly, and never mutate the command it was given (`codex-feedback-runs-in-the-replica`).
+ *
+ * A value MOVES when it is absolute AND `path.relative(workspace, value)` is inside — i.e. the
+ * relative path is `""`, or is not itself absolute, is not `..`, and does not begin with
+ * `.. + path.sep`. This is deliberately NOT a string-prefix check: a sibling directory that merely
+ * shares the workspace's own path as a string prefix (e.g. `${workspace}-sibling`) must never move,
+ * and only `path.relative`'s `..`-leading answer tells the two apart. `file` never moves — the leaf's
+ * proof/typecheck binary is always resolved off the real machine, never off the replica.
+ */
+export function retargetShellCommand(
+  cmd: ShellCommand,
+  workspace: string,
+  replicaRoot: string,
+): ShellCommand {
+  const moveIfInside = (value: string): string => {
+    if (!path.isAbsolute(value)) return value;
+    const rel = path.relative(workspace, value);
+    const inside = rel === "" || (!path.isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${path.sep}`));
+    return inside ? path.join(replicaRoot, rel) : value;
+  };
+  const retargeted: ShellCommand = { ...cmd, args: cmd.args.map(moveIfInside) };
+  if (cmd.cwd !== undefined) retargeted.cwd = moveIfInside(cmd.cwd);
+  return retargeted;
+}
+
+/**
+ * The Codex leaf's feedback commands (`codex-feedback-runs-in-the-replica`): the SAME command
+ * objects the spine's own CONFIRM observations spawn, each retargeted from the worktree to the
+ * phase's disposable replica before it runs — so a feedback run sees the leaf's own edits instead of
+ * the unedited worktree. `run_proof` always; `run_typecheck` only when `typecheckCmd` is given. Each
+ * `run(replicaRoot)` calls {@link runShellCommand} over {@link retargetShellCommand}'s result, so the
+ * run keeps `runShellCommand`'s env scrub, exit-code-as-data and wall-clock bound exactly as the
+ * spine's own observations do.
+ */
+export function codexFeedbackCommandsFor(
+  proofCmd: ShellCommand,
+  proofDisplay: string,
+  workspace: string,
+  typecheckCmd?: ShellCommand,
+): NonNullable<CodexPhaseAuthorArgs["feedbackCommands"]>[number][] {
+  const commands: NonNullable<CodexPhaseAuthorArgs["feedbackCommands"]>[number][] = [
+    {
+      name: "run_proof",
+      description:
+        `Run the node's proof command (${proofDisplay}) against the leaf's disposable replica ` +
+        "and return its exit code and output. Bounded runs. FEEDBACK ONLY: the spine re-runs the " +
+        "proof itself, out of band, in the real worktree after it promotes the phase, and only " +
+        "that observation decides red and green.",
+      timeoutMs: proofCmd.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+      run: (replicaRoot: string) =>
+        runShellCommand(retargetShellCommand(proofCmd, workspace, replicaRoot)),
+    },
+  ];
+  if (typecheckCmd !== undefined) {
+    commands.push({
+      name: "run_typecheck",
+      description:
+        "Run the package typecheck (tsc --noEmit, full strict flags) against the leaf's " +
+        "disposable replica and return its exit code and output. Bounded runs. FEEDBACK ONLY.",
+      timeoutMs: typecheckCmd.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+      run: (replicaRoot: string) =>
+        runShellCommand(retargetShellCommand(typecheckCmd, workspace, replicaRoot)),
     });
   }
   return commands;
