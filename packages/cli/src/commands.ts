@@ -2766,6 +2766,9 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
   if (values.runtime !== undefined) opts.runtime = values.runtime;
   if (values.budget !== undefined) opts.budgetUsd = Number(values.budget);
   if (values["max-turns"] !== undefined) opts.maxTurns = Number(values["max-turns"]);
+  // ADR-0571 D3: unguarded, because `reviseTest` admits undefined — a guard here would be a mutant
+  // no test could kill. `story build` never sees it: `storyBuildFromValues` refuses the flag first.
+  opts.reviseTest = values["revise-test"];
   if (values.actor !== undefined) opts.actor = values.actor;
   if (values.store !== undefined) opts.verdictStore = values.store;
   opts.onLeafSlices = captureBuildLeafSlices;

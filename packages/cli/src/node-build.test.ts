@@ -667,6 +667,26 @@ test("node build --emit-wisp WITHOUT --dry-run is refused (live/real already lig
   assert.match(env.body, /DRY-RUN smoke/);
 });
 
+test("node build carries --revise-test to nodeBuild on every node route, which refuses it without --real (ADR-0571 D3)", async () => {
+  // The end-to-end proof that the argv table and nodeStoryBuildOpts actually deliver the flag: a unit
+  // test of nodeBuild alone cannot see a flag the dispatch drops, and a dropped flag would let this
+  // dry-run proceed rather than refuse.
+  const body =
+    "--revise-test is valid only with --real: it hands a prior attempt's returned escalation to " +
+    "the AUTHOR_TEST leaf as this REAL build's revision brief, and neither --dry-run nor --live " +
+    "authors at real repo paths (ADR-0571 D3).";
+  for (const argv of [
+    ["node", "build", "library-cli", "--dry-run", "--revise-test", "real-abc123", "--actor", "tester@example.com"],
+    ["build", "node", "library-cli", "--dry-run", "--revise-test", "real-abc123", "--actor", "tester@example.com"],
+    ["build", "library-cli", "--dry-run", "--revise-test", "real-abc123", "--actor", "tester@example.com"],
+  ]) {
+    const env = await run(argv, deps);
+    assert.equal(env.ok, false, argv.join(" "));
+    assert.equal(env.body, body, argv.join(" "));
+    assert.deepEqual(env.next, ["storytree node build library-cli --real --revise-test real-abc123"], argv.join(" "));
+  }
+});
+
 test("node build --dry-run --emit-wisp --dwell 0 is refused (dwell must be positive) — no DB touched", async () => {
   const env = await run(
     ["node", "build", "library-cli", "--dry-run", "--emit-wisp", "--dwell", "0", "--actor", "tester@example.com"],
