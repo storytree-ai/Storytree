@@ -391,14 +391,28 @@ function isSubstantiveAssertion(node: ts.Node): boolean {
  * ancestor), and whether it VOUCHES (runs AND has a substantive assertion anywhere in its region,
  * including nested tests). Source-ordered, deterministic, offline — no execution.
  *
+ * THE FILE NAME SELECTS THE PARSE, which is why every caller must pass it. `testFile` is the test
+ * file's own path, and the parse follows its extension exactly as TypeScript's own does: a `.tsx` file
+ * parses with JSX, a `.ts` file without. Neither parse is safe for the other kind of file:
+ *  - read as plain TypeScript, a `.tsx` file's JSX is a run of syntax errors, and the parser's
+ *    recovery can close a `describe` early, so the tests after the JSX lose their enclosing suite.
+ *    Measured 2026-09-15 on four real test files, where the per-test join (ADR-0573 D1) refused
+ *    correct tests because their title paths no longer matched the rows their runner reported
+ *    (`docs/research/net-new-skeleton-red-measurement-2026-09-15.md` §7);
+ *  - read as TSX, a `.ts` file's generic arrow (`<T>(x: T) => x`) or angle-bracket assertion
+ *    (`<number>x`) opens a JSX element instead, and every test after it is lost.
+ *
  * Fail-closed on the READABILITY axis, at two different grains — the distinction matters:
  *  - a SOURCE that does not parse contributes no tests at all (there is nothing to observe);
  *  - a TEST whose TITLE does not read is still OBSERVED, with empty/partial `name` and
  *    `titleFullyStatic: false`. It vouches for no contract, but it is on the record — so the report
  *    can say "unread", never silently "absent".
  */
-export function analyzeObservedTests(testSource: string): ObservedTest[] {
-  const sf = ts.createSourceFile("__coverage__.ts", testSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+export function analyzeObservedTests(testSource: string, testFile: string): ObservedTest[] {
+  // No explicit script kind: `createSourceFile` derives it from the name, as the repo's other static
+  // readers of a source file already let it — `findOptionsFormSkips` among them, whose names are
+  // joined against this read's, so the two now parse any test file the same way.
+  const sf = ts.createSourceFile(testFile, testSource, ts.ScriptTarget.Latest, true);
   const collected: { test: ObservedTest; pos: number }[] = [];
   /** Post-order: returns whether `node`'s subtree holds a substantive assertion. Skip flows top-down. */
   function visit(node: ts.Node, ancestorSkipped: boolean, ancestorTitles: readonly string[]): boolean {
@@ -458,10 +472,11 @@ export interface TestSurfaceRead {
  * names to classify, and the count of titles that could not be read in full. Keeping them on one
  * return is the point: they come from the same parse and are only meaningful together (ADR-0126's
  * hollowness fold and the readability fold point in opposite directions, so an uncovered contract is
- * ambiguous until you know which fold produced it).
+ * ambiguous until you know which fold produced it). `testFile` selects the parse, as it does for
+ * {@link analyzeObservedTests}.
  */
-export function readTestSurface(testSource: string): TestSurfaceRead {
-  const observed = analyzeObservedTests(testSource);
+export function readTestSurface(testSource: string, testFile: string): TestSurfaceRead {
+  const observed = analyzeObservedTests(testSource, testFile);
   return {
     // An empty name vouches for nothing (`testNameCoversContract` never matches it) — drop it rather
     // than feed a meaningless "" to the classifier; `unreadTitles` is where that test is accounted.
@@ -472,12 +487,12 @@ export function readTestSurface(testSource: string): TestSurfaceRead {
 
 /**
  * PURE: the observed test names that VOUCH for their contract — the hollow-aware replacement for
- * {@link extractTestNames} as the coverage check's input (ADR-0126). The drop-in for
- * `extractTestNames` in the coverage loaders; {@link readTestSurface} when the caller also wants to
- * report WHY a contract is uncovered.
+ * {@link extractTestNames} as the coverage check's input (ADR-0126). It replaced `extractTestNames`
+ * in the coverage loaders; {@link readTestSurface} when the caller also wants to report WHY a contract
+ * is uncovered. `testFile` selects the parse, as it does for {@link analyzeObservedTests}.
  */
-export function extractVouchingTestNames(testSource: string): string[] {
-  return readTestSurface(testSource).vouching;
+export function extractVouchingTestNames(testSource: string, testFile: string): string[] {
+  return readTestSurface(testSource, testFile).vouching;
 }
 
 // ---------------------------------------------------------------------------

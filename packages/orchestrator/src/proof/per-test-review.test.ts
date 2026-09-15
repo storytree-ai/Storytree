@@ -22,6 +22,9 @@ import {
 } from "./per-test-review.js";
 import type { PerTestFinding, PerTestJudgement } from "./per-test-review.js";
 
+/** The file name the source fixtures are read as: they are plain TypeScript, and the name selects the parse. */
+const FIXTURE_FILE = "probe-cluster.test.ts";
+
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 /** The probe's cluster (research doc, Appendix A.1): three real contract tests and four hollow shapes. */
@@ -119,7 +122,7 @@ const keyed = (judgement: PerTestJudgement): string[] =>
 // ── The static half ─────────────────────────────────────────────────────────
 
 test("per-test-red-review-refuses-hollow-tests: the static read declares the cluster's leaf tests, with their substance", () => {
-  const declared = declaredTestsOf(CLUSTER);
+  const declared = declaredTestsOf(CLUSTER, FIXTURE_FILE);
   assert.deepEqual(
     declared.map((t) => `${t.path.join(" > ")} vouches=${String(t.vouches)}`),
     [
@@ -149,7 +152,7 @@ describe("empty", () => {});
 test("plain", () => { expect(label).toBe("dynamic"); });
 `;
   assert.deepEqual(
-    declaredTestsOf(source).map((t) => `${t.path.join(" > ")}: ${t.unbindable ?? "bindable"}`),
+    declaredTestsOf(source, FIXTURE_FILE).map((t) => `${t.path.join(" > ")}: ${t.unbindable ?? "bindable"}`),
     [
       "case %s > runs: parameterised",
       "adds %i: parameterised",
@@ -164,7 +167,7 @@ test("plain", () => { expect(label).toBe("dynamic"); });
 
 test("per-test-red-review-refuses-hollow-tests: a hollow test beside real reds refuses, naming each hollow test and its check", () => {
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(CLUSTER),
+    declared: declaredTestsOf(CLUSTER, FIXTURE_FILE),
     before: [],
     report: report([...REAL.map((t) => assertionRed(suite(t))), ...HOLLOW.map((t) => passed(suite(t)))]),
     contracts: CLUSTER_CONTRACTS,
@@ -184,7 +187,7 @@ test("per-test-red-review-refuses-hollow-tests: a hollow test beside real reds r
 test("per-test-red-review-refuses-hollow-tests: a clean cluster advances, with nothing accepted early", () => {
   const clean = CLUSTER.split("  test(\"hollow-empty")[0] + "});\n";
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(clean),
+    declared: declaredTestsOf(clean, FIXTURE_FILE),
     before: [],
     report: report(REAL.map((t) => assertionRed(suite(t)))),
     contracts: CLUSTER_CONTRACTS,
@@ -193,7 +196,7 @@ test("per-test-red-review-refuses-hollow-tests: a clean cluster advances, with n
 });
 
 test("per-test-red-review-refuses-hollow-tests: C1 refuses an absent report, an unreadable one, and an observation with none", () => {
-  const declared = declaredTestsOf(CLUSTER);
+  const declared = declaredTestsOf(CLUSTER, FIXTURE_FILE);
   const base = { declared, before: [], contracts: CLUSTER_CONTRACTS };
   for (const judged of [
     reviewConfirmRed({ ...base, report: { channel: "bun-junit", present: false, rows: [] } }),
@@ -206,7 +209,7 @@ test("per-test-red-review-refuses-hollow-tests: C1 refuses an absent report, an 
 });
 
 test("per-test-red-review-refuses-hollow-tests: C2 refuses a test never reported, a row matching nothing, and a FILE-level row", () => {
-  const declared = declaredTestsOf(CLUSTER.split("  test(\"hollow-empty")[0] + "});\n");
+  const declared = declaredTestsOf(CLUSTER.split("  test(\"hollow-empty")[0] + "});\n", FIXTURE_FILE);
   const judgement = reviewConfirmRed({
     declared,
     before: [],
@@ -223,7 +226,7 @@ test("per-test-red-review-refuses-hollow-tests: C2 refuses two declared tests sh
 test("add-sums: one", () => { assert.ok(true); });
 `;
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(source),
+    declared: declaredTestsOf(source, FIXTURE_FILE),
     before: [],
     report: report([assertionRed(["add-sums: one"]), passed(["add-sums: one"])]),
     contracts: CLUSTER_CONTRACTS,
@@ -238,7 +241,7 @@ test("per-test-red-review-refuses-hollow-tests: C3 refuses a skipped or todo tes
   const source = `test("add-sums: runs", () => { assert.equal(add(2, 3), 5); });
 test("clamp-bounds: skipped by options", { skip: true }, () => { assert.equal(clamp(15, 0, 10), 10); });
 `;
-  const declared = declaredTestsOf(source);
+  const declared = declaredTestsOf(source, FIXTURE_FILE);
   assert.equal(declared[1]?.vouches, true);
   const judgement = reviewConfirmRed({
     declared,
@@ -278,7 +281,7 @@ test.fails("fails-modifier", () => { expect(add(1, 1)).toBe(3); });
     ],
   });
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(source),
+    declared: declaredTestsOf(source, FIXTURE_FILE),
     before: [],
     report: { channel: "vitest-json", present: true, rows: readVitestJsonReport(vitestJson) },
     contracts: [contract("add-sums")],
@@ -296,7 +299,7 @@ test.fails("fails-modifier", () => { expect(add(1, 1)).toBe(3); });
 
 test("per-test-red-review-refuses-hollow-tests: C5 refuses a new test red for the wrong reason, read per channel", () => {
   const source = `test("add-sums: typo", () => { assert.equal(add(2, 3), 5); });\n`;
-  const declared = declaredTestsOf(source);
+  const declared = declaredTestsOf(source, FIXTURE_FILE);
   const typeError: ReportedTest = { path: ["add-sums: typo"], outcome: "failed", errorName: "TypeError", message: "o.x is not a function" };
   assert.deepEqual(keyed(reviewConfirmRed({ declared, before: [], report: report([typeError]), contracts: CLUSTER_CONTRACTS })), ["C5 add-sums: typo"]);
   // node's channel reads the error CODE: a name alone is not an assertion red there.
@@ -311,8 +314,8 @@ test("per-test-red-review-refuses-hollow-tests: C5 refuses a new test red for th
 test("per-test-red-review-refuses-hollow-tests: a pre-existing test carries no outcome rule at red, and no substance rule", () => {
   const beforeSource = `test("clamp-bounds: existing baseline", () => { assert.ok(true); });\n`;
   const afterSource = `${beforeSource}test("add-sums: the new red", () => { assert.equal(add(2, 3), 5); });\n`;
-  const before = declaredTestsOf(beforeSource);
-  const declared = declaredTestsOf(afterSource);
+  const before = declaredTestsOf(beforeSource, FIXTURE_FILE);
+  const declared = declaredTestsOf(afterSource, FIXTURE_FILE);
   for (const existing of [passed(["clamp-bounds: existing baseline"]), assertionRed(["clamp-bounds: existing baseline"])]) {
     const judgement = reviewConfirmRed({
       declared,
@@ -329,7 +332,7 @@ test("per-test-red-review-refuses-hollow-tests: C7 refuses a cluster brief's con
 test("clamp-bounds: hollow", () => {});
 `;
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(source),
+    declared: declaredTestsOf(source, FIXTURE_FILE),
     before: [],
     report: report([assertionRed(["add-sums: real"]), assertionRed(["clamp-bounds: hollow"])]),
     contracts: CLUSTER_CONTRACTS,
@@ -353,7 +356,7 @@ test("per-test-red-review-refuses-hollow-tests: a test file with no test in it r
 // ── The early-pass rule (ADR-0572) ──────────────────────────────────────────
 
 test("early-pass-refused-unless-its-contract-declares-a-guard-rail: G1 refuses without a declaration, and is accepted and recorded with one", () => {
-  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER);
+  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER, FIXTURE_FILE);
   const rows = [assertionRed(suite(REAL[0] ?? "")), assertionRed(suite(REAL[2] ?? "")), passed(suite(G1))];
 
   const undeclared = reviewConfirmRed({
@@ -392,7 +395,7 @@ test("early-pass-refused-unless-its-contract-declares-a-guard-rail: EVERY contra
 });
 `;
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(source),
+    declared: declaredTestsOf(source, FIXTURE_FILE),
     before: [],
     report: report([passed(["add-sums: the suite names one contract", "clamp-bounds: and the test names another"])]),
     contracts: [contract("add-sums", ["guard-rail", GUARD_RAIL_TEXT]), contract("clamp-bounds")],
@@ -406,7 +409,7 @@ test("early-pass-refused-unless-its-contract-declares-a-guard-rail: EVERY contra
 test("early-pass-refused-unless-its-contract-declares-a-guard-rail: a passing test naming no contract refuses", () => {
   const source = `test("never throws", () => { assert.doesNotThrow(() => parsePort("8080")); });\n`;
   const [finding] = findingsOf(
-    reviewConfirmRed({ declared: declaredTestsOf(source), before: [], report: report([passed(["never throws"])]), contracts: CLUSTER_CONTRACTS }),
+    reviewConfirmRed({ declared: declaredTestsOf(source, FIXTURE_FILE), before: [], report: report([passed(["never throws"])]), contracts: CLUSTER_CONTRACTS }),
   );
   assert.equal(finding?.check, "C4");
   assert.deepEqual(finding?.namedContracts, []);
@@ -415,7 +418,7 @@ test("early-pass-refused-unless-its-contract-declares-a-guard-rail: a passing te
 
 test("early-pass-refused-unless-its-contract-declares-a-guard-rail: an empty guard-rail bullet and a near-miss label declare nothing, and say so", () => {
   const source = `test("parse-port-accepts-a-valid-port: never throws", () => { assert.doesNotThrow(() => parsePort("8080")); });\n`;
-  const declared = declaredTestsOf(source);
+  const declared = declaredTestsOf(source, FIXTURE_FILE);
   const rows = [passed(["parse-port-accepts-a-valid-port: never throws"])];
   const empty = reviewConfirmRed({
     declared,
@@ -435,7 +438,7 @@ test("early-pass-refused-unless-its-contract-declares-a-guard-rail: an empty gua
 
 test("early-pass-refused-unless-its-contract-declares-a-guard-rail: the refusal names each test and check, and carries the three routes only for an early pass", () => {
   const judgement = reviewConfirmRed({
-    declared: declaredTestsOf(CLUSTER),
+    declared: declaredTestsOf(CLUSTER, FIXTURE_FILE),
     before: [],
     report: report([...REAL.map((t) => assertionRed(suite(t))), ...HOLLOW.map((t) => passed(suite(t)))]),
     contracts: CLUSTER_CONTRACTS,
@@ -456,7 +459,7 @@ test("early-pass-refused-unless-its-contract-declares-a-guard-rail: the refusal 
 // ── Completeness at CONFIRM_GREEN ───────────────────────────────────────────
 
 test("per-test-green-requires-every-declared-test: every declared test, new and pre-existing, must report individually green", () => {
-  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER);
+  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER, FIXTURE_FILE);
   const allGreen = [passed(suite(REAL[0] ?? "")), passed(suite(REAL[2] ?? "")), passed(suite(G1))];
   assert.deepEqual(reviewConfirmGreen({ declared, report: report(allGreen) }), { ok: true, declaredTests: 3, acceptedGuardRails: [] });
 
@@ -467,7 +470,7 @@ test("per-test-green-requires-every-declared-test: every declared test, new and 
 });
 
 test("per-test-green-requires-every-declared-test: an early exit's single passing FILE row does not make a green", () => {
-  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER);
+  const declared = declaredTestsOf(GUARD_RAIL_CLUSTER, FIXTURE_FILE);
   const judgement = reviewConfirmGreen({ declared, report: report([passed(["guardrail.test.ts"])]) });
   assert.deepEqual(keyed(judgement), [`C2 ${REAL[0]}`, `C2 ${REAL[2]}`, `C2 ${G1}`, "C2 guardrail.test.ts"].sort());
   // bun writes no report at all after an early exit.
@@ -523,6 +526,54 @@ test("per-test-review-only-refuses: the policy reads the test file before AUTHOR
     assert.deepEqual(confirmRed(obs), { ok: true, declaredTests: 2, acceptedGuardRails: [] });
 
     assert.equal(policy.confirmGreen({ ...obs, result: "green" }).ok, false, "a declared test still red refuses the green");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("per-test-green-requires-every-declared-test: the policy reads a `.tsx` test file as TSX, so a correct test after JSX binds to its row", async () => {
+  // MEASURED 2026-09-15 on four real `.tsx` files (`docs/research/net-new-skeleton-red-measurement-2026-09-15.md`
+  // §7): read as plain TypeScript, the suite around a test that follows JSX is lost, so the runner's row
+  // `Dock > c-follows-jsx: …` matches no declaration and the declaration is never reported, and C2
+  // refused CORRECT tests. The file's own name is what selects the parse.
+  const dir = await mkdtemp(join(tmpdir(), "storytree-per-test-tsx-"));
+  try {
+    const testFile = join(dir, "Dock.test.tsx");
+    await writeFile(
+      testFile,
+      `describe("Dock", () => {
+  it("c-seeds: a seed opens a tab", () => {
+    render(<Dock seed={{ command: "ls", token: 1 }} />);
+    expect(screen.getByRole("tab")).toBeTruthy();
+  });
+  it("c-follows-jsx: a test after the JSX keeps its describe", () => {
+    expect(bridge.write).not.toHaveBeenCalled();
+  });
+});
+`,
+    );
+    const policy = perTestPolicy({ testFile, contracts: [], observeRed: false });
+    const rows = readVitestJsonReport(
+      JSON.stringify({
+        testResults: [
+          {
+            name: testFile,
+            status: "passed",
+            assertionResults: [
+              { ancestorTitles: ["Dock"], title: "c-seeds: a seed opens a tab", status: "passed", failureMessages: [] },
+              {
+                ancestorTitles: ["Dock"],
+                title: "c-follows-jsx: a test after the JSX keeps its describe",
+                status: "passed",
+                failureMessages: [],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const obs: TestObservation = { result: "green", testId: "dock", perTest: report(rows, "vitest-json") };
+    assert.deepEqual(policy.confirmGreen(obs), { ok: true, declaredTests: 2, acceptedGuardRails: [] });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

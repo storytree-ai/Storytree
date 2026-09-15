@@ -46,6 +46,8 @@ import { LIGHT_DIRECTION, SHADE_LEVELS } from '../src/shade-ladder.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHIPPED = join(HERE, '..', 'src', 'ForestWorldCanvas.tsx');
+/** Where the ground's four input lists are DERIVED (2026-09-15) — the canvas mounts them, this
+ *  module makes them, and several claims below are read here rather than in the canvas. */
 
 /**
  * The `[start, end)` span of the shipped source between two anchors — REFUSING when either anchor
@@ -529,8 +531,12 @@ test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 a
     !/showShadows|shadows\s*=\s*false|shadow\?:\s*boolean/.test(src),
     'a shadow behind a prop is not adoption',
   );
-  // And the casters are derived from the WHOLE descriptor set, so a cave portal casts too.
-  assert.match(src, /groundCasters\(descriptors\)/);
+  // And the casters are derived from the WHOLE descriptor set, so a cave portal casts too. ⚠ THAT
+  // HALF MOVED on 2026-09-15 and is now DRIVEN rather than parsed, in
+  // `src/ground-dependency.test.ts` ('ONE PLACEMENT, TWO READERS'): the four lists the ground is
+  // built from are made in `ground-dependency.ts`, and a source parse over that file cannot live
+  // here — `check:mutation-diff` instruments it, so the parse would read Stryker's rewritten text
+  // and fail every run. A claim about a file the rung mutates has to be a behaviour.
 });
 
 test('THE KIT CASTS: one placement, made before the ground, read by the casters AND by KitProps', () => {
@@ -541,20 +547,27 @@ test('THE KIT CASTS: one placement, made before the ground, read by the casters 
   // footprints in the canvas, spread into the casters AND handed to `KitProps`. A canvas that
   // computed it twice would have a tree and its shadow as two lists that agree today.
   const src = readFileSync(SHIPPED, 'utf8');
+  // ⚠ THE DERIVATION MOVED ON 2026-09-15 AND THE INVARIANT DID NOT. `ground-dependency.ts` now
+  // makes these four lists together, so that the ground is re-derived on its own CONTENT rather
+  // than on the descriptor array's identity — which is what stopped the studio rebuilding the whole
+  // ground on every poll. The two halves of the rule that live THERE are driven in
+  // `src/ground-dependency.test.ts` ('ONE PLACEMENT, TWO READERS') rather than parsed here, because
+  // `check:mutation-diff` instruments that file and a parse would read Stryker's text. What is
+  // still this file's to read is the CANVAS side: the frozen tables it derives against, and the one
+  // list reaching `KitProps`.
   assert.match(
     src,
-    /const placements = useMemo\(\s*\(\) => dressMapWithCover\(descriptors, \{ relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 \}\),\s*\[descriptors\],\s*\)/,
-    'the placement is made once, from the FROZEN footprints, off the whole descriptor stream',
+    /const SHIPPED_GROUND_INPUT: GroundInputOptions = \{\s*relief: LAND_RELIEF_AMPLITUDE,\s*footprint: KIT_FOOTPRINTS_2026_08_29,\s*height: KIT_HEIGHTS_2026_08_29,\s*\}/,
+    'and the frozen tables it is derived against are still the canvas’s own shipped pick',
   );
-  assert.match(
-    src,
-    /\.\.\.groundCasters\(descriptors\),\s*\.\.\.placementCasters\(placements, KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29\)/,
-    'the ground’s casters are the descriptor families UNIONED with one caster per placement',
-  );
-  assert.match(src, /<KitProps placements=\{placements\} \/>/, 'and KitProps draws that same list');
+  assert.match(src, /<KitProps placements=\{ground\.placements\} \/>/, 'and KitProps draws that same list');
   assert.ok(
     !/useMemo\(\(\) => groundCasters\(descriptors\), \[descriptors\]\)/.test(src),
     'groundCasters(descriptors) alone is no longer the whole caster list',
+  );
+  assert.ok(
+    !/dressMapWithCover\(|placementCasters\(/.test(src),
+    'the canvas must not make a SECOND placement or caster list beside the derived one',
   );
   // ⚠ THE CANVAS STANDS THE TOP LAYER, and the other entry point is a strictly smaller map.
   // `dressMapFromKit` is the vocabulary alone; on this line it would be the shipped map quietly
@@ -640,7 +653,11 @@ test('a WISP casts nothing on the shipped map, and the canvas does not decide th
   // would be the LAND appearing to change under work that never touched it.
   const src = readFileSync(SHIPPED, 'utf8');
   assert.ok(!/wisp[^\n]*caster/i.test(src), 'the canvas must not build casters from wisps');
-  assert.match(src, /import \{[\s\S]{0,200}groundCasters[\s\S]{0,200}\} from '\.\/ground-casters\.js'/);
+  // ⚠ AND THE DERIVATION MUST NOT EITHER, since 2026-09-15 — the canvas mounts the caster list, it
+  // no longer makes it. That half is DRIVEN in `src/ground-dependency.test.ts` ('THE EXCLUSION IS
+  // JUSTIFIED'), which hands the real reader a map with and without wisps and refuses any
+  // difference — strictly stronger than this parse, and the only form available over a file
+  // `check:mutation-diff` instruments.
 });
 
 test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {

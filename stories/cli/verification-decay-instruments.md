@@ -49,7 +49,7 @@ decisions: [252, 278, 301, 424]
 # joins the organ only when it manufactures observability that does not otherwise exist, and that
 # file reads only facts already on disk (source text, package.json, git). It is the
 # `check-boundaries.ts` shape — glue — and the precedent for declaring it here anyway is exactly
-# `check-boundaries.ts`, which `repo-manifest.json` homes to `organism-boundary-tooling` while that
+# `check-boundaries.ts`, which the repo manifest homes to `organism-boundary-tooling` while that
 # capability's own spec excludes it. Ownership answers who is RESPONSIBLE; the proof block answers
 # what is BOUND. They are allowed to differ, and here they do.
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:

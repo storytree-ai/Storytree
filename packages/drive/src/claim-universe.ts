@@ -220,7 +220,7 @@ export async function loadClaimUniverse(sources: {
   readonly storiesDir: string;
   readonly library: LibraryDocsReadLike | null;
   /**
-   * Path to `repo-manifest.json`. REQUIRED rather than optional, and `null` is a legal value meaning
+   * Path to the manifest fragment tree, `repo-manifest/` (ADR-0556). REQUIRED rather than optional, and `null` is a legal value meaning
    * "no caller composed one" — so a new composition site has to decide in the open instead of
    * silently switching the whole check off, which is what an omittable field would allow.
    */

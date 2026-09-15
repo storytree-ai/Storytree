@@ -67,7 +67,8 @@ landed.
 `tier: contract` while sitting in this story's `capabilities:` array and being named by both other
 capabilities' `depends_on` — an incoherent tiering that `storytree tree` already resolved in favour of
 the capability rung. It was re-tiered in place (`prove-unproven-capabilities-arc` inc-25); the id is a
-join key `repo-manifest.json` holds outside `stories/**`, so it was deliberately not renamed, and the
+join key `repo-manifest/source-ownership/proof-binding-outcome-contract.json` holds outside
+`stories/**`, so it was deliberately not renamed, and the
 suffix now reads as the typed API contract that unit publishes. Its own spec records the reasoning.
 "The shared contract" below and in the paragraph above means that published result type, never a tier.
 

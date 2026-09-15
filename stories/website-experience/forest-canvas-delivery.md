@@ -100,7 +100,8 @@ while all three art lanes are being worked by other sessions.
 | `apps/studio/src/lib/canvasRegistration.constants.ts` | its constants. |
 
 **WHY THE STUDIO FILES ARE HERE AND NOT IN THE STUDIO STORY.** They are owned by the RENDERER in
-`repo-manifest.json`, and that ownership is correct rather than historical: they exist to mount and
+`repo-manifest/source-ownership/forest-canvas-delivery.json`, and that ownership is correct rather than
+historical: they exist to mount and
 size THIS canvas, and they change when the canvas changes. Given that they are the renderer's, the
 only live question was which LANE takes them, and delivery is the answer because cost and mount
 behaviour are worked together. Filing them with an art lane would put the optimisation session and

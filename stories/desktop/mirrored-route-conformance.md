@@ -19,7 +19,8 @@ decisions: [251, 176, 100, 252, 249, 57]
 #      + literal `real.scope.sourceGlobs` and `continue`s on an absent `real` (`:226`). So this unit
 #      contributes nothing to `unitSourceFiles`, and neither the ADR-0192 landlord rule nor the
 #      packages-forward refusal fires over the two foreign buildings this organ spans. (Belt and
-#      braces: `desktop` is ALREADY in repo-manifest.json's `hostedStories.register` for
+#      braces: `desktop` is ALREADY in repo-manifest/hosted-stories/_domain.json's
+#      `hostedStories.register` for
 #      `apps/studio`. It is NOT registered for `packages/cli` — which costs nothing while there is no
 #      `real:` arm, and is the thing to check first if one is ever added.)
 # SINGLE-COMMAND PROOF, and the choice is deliberate — see "The proof command" in Guidance. The

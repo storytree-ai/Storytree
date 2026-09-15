@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,13 +10,12 @@ import {
   canonicalJson,
   composedManifestText,
   composeManifest,
-  composeRepoManifest,
   coveringCandidates,
   DOMAIN_SHARD,
   duplicateKeyPaths,
   MANIFEST_DOMAINS,
+  manifestDrift,
   refusalReasons,
-  REPO_MANIFEST,
   REPO_MANIFEST_TREE,
   splitManifest,
   type ManifestComposition,
@@ -25,8 +25,7 @@ import {
   type ManifestObject,
 } from "./manifest-fragments.js";
 import {
-  composeManifestTree,
-  manifestFragmentRoot,
+  composeFragmentTree,
   readManifestFragmentTree,
   readManifestFragmentTreeAt,
   readRepoManifest,
@@ -37,22 +36,22 @@ import {
  * The manifest fragment contract and its composer (`repo-manifest-fragmentation-arc`).
  *
  * Four parts:
- *  1. The contract over a small aggregate built here: split, compose, and every fault the composer
+ *  1. The contract over a small manifest built here: split, compose, and every fault the composer
  *     refuses — each against the unbroken set, which composes, so no refusal can pass because the
  *     whole set was broken. Each refusal's wording is pinned once, because the wording is the repair.
  *  2. The pieces it rests on: the covering search's candidate bound, the duplicate-key scan, the
- *     canonical form, and the disk reader.
- *  3. THE REPOSITORY'S MANIFEST as its readers get it: the aggregate composed with the fragment tree
- *     beside it, off the disk and at a commit, with one home per section — and the concurrency witness:
- *     two owners' changes landing in two files while the set is still judged whole.
- *  4. THE LIVE MANIFEST. `repo-manifest.json` and `repo-manifest/` compose, and the composition splits at
- *     the claim grain and comes back as itself — every declaration and every note, with nothing set
- *     aside. No DB and no network: the manifest and its fragments are committed files.
+ *     canonical form, the disk reader, and the one form a tree is written in (`manifestDrift`).
+ *  3. THE REPOSITORY'S MANIFEST as its readers get it: the fragment tree alone, off the disk and at a
+ *     commit — and the concurrency witness, in miniature and then end to end through real git: two
+ *     owners' changes landing in two files, merging clean, and composing with nothing to regenerate.
+ *  4. THE LIVE MANIFEST. `repo-manifest/` composes, is written in its one form, and splits at the claim
+ *     grain and comes back as itself — every declaration and every note, with nothing set aside. No DB
+ *     and no network: the fragments are committed files.
  */
 
 /** This file sits at `<repo>/packages/drive/src/`. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
-const LIVE_MANIFEST = path.join(REPO_ROOT, "repo-manifest.json");
+const LIVE_TREE = path.join(REPO_ROOT, REPO_MANIFEST_TREE);
 
 const OBT = "source-ownership/organism-boundary-tooling.json";
 
@@ -714,13 +713,15 @@ test("a tree that cannot be read is UNREAD, and composing it is refused as such 
     assert.deepEqual(read.fragments, [], root);
     assert.equal(read.unread.length, 1, root);
     assert.match(read.unread[0] ?? "", /could not be read in full/, root);
-    assert.deepEqual(about(faultsOf(composeManifestTree(root))), [["unreadable-fragment-set", "", []]], root);
+    assert.deepEqual(about(faultsOf(composeFragmentTree(read))), [["unreadable-fragment-set", "", []]], root);
+    assert.deepEqual(faultsOf(composeFragmentTree(read)).map((f) => f.message), read.unread, root);
   }
 });
 
-test("a tree written from an aggregate's fragments composes back into the aggregate", () => {
+test("a tree written from a manifest's fragments composes back into the manifest — off the disk and as read", () => {
   const root = tree(Object.fromEntries(splitManifest(aggregate()).map((f) => [f.path, f.text])));
-  assert.deepEqual(manifestOf(composeManifestTree(root)), aggregate());
+  assert.deepEqual(manifestOf(readRepoManifest(root)), aggregate());
+  assert.deepEqual(manifestOf(composeFragmentTree(readManifestFragmentTree(root))), aggregate());
 });
 
 test("refusalReasons is every fault's own repair, in the composer's order, one `; `-separated clause each", () => {
@@ -732,105 +733,92 @@ test("refusalReasons is every fault's own repair, in the composer's order, one `
 test("composedManifestText is the composed manifest as JSON text — and null, never an empty text, for a refused set", () => {
   const composed = composeManifest(splitManifest(aggregate()));
   assert.equal(composedManifestText(composed), JSON.stringify(manifestOf(composed)));
-  assert.equal(composedManifestText(composeRepoManifest({ aggregate: { unread: "gone" }, tree: null })), null);
+  assert.equal(composedManifestText(composeManifest([])), null);
 });
 
 // ---------------------------------------------------------------------------
-// The repository's manifest — the aggregate and the tree beside it
+// The repository's manifest — the fragment tree alone
 // ---------------------------------------------------------------------------
 
-/** The fixture in two halves: `sections` moved into a tree of their own fragments, the rest left in the aggregate. */
-function moved(...sections: readonly string[]) {
-  const whole = aggregate();
-  return {
-    aggregate: JSON.stringify(sections.reduce((m, section) => edited(m, [section], undefined), whole)),
-    tree: splitManifest(Object.fromEntries(sections.map((section) => [section, whole[section] ?? null]))),
-  };
-}
+test("readRepoManifest composes the tree at the root it is handed — and refuses an absent or unreadable one by name", () => {
+  const root = tree(Object.fromEntries(splitManifest(aggregate()).map((f) => [f.path, f.text])));
+  assert.deepEqual(manifestOf(readRepoManifest(root)), aggregate());
 
-const READ_IN_FULL = { unread: [] } as const;
-
-test("an aggregate with no tree beside it composes as the fragment set split from it does — nothing has moved yet", () => {
-  assert.deepEqual(manifestOf(composeRepoManifest({ aggregate: { text: JSON.stringify(aggregate()) }, tree: null })), aggregate());
-});
-
-test("sections moved into the tree compose back into the same manifest — no reader can tell which half a section came from", () => {
-  for (const sections of [["sourceOwnership"], ["sourceOwnership", "hostedStories"], ["$comment", "root", "docs"]]) {
-    const { aggregate: text, tree: fragments } = moved(...sections);
-    assert.deepEqual(
-      manifestOf(composeRepoManifest({ aggregate: { text }, tree: { fragments, ...READ_IN_FULL } })),
-      aggregate(),
-      sections.join(" + "),
-    );
-  }
-});
-
-test("a section left in the aggregate once its domain has fragments has two homes, and is refused naming the move", () => {
-  const withTree = (kept: ManifestObject, fragments: readonly ManifestFragmentSource[]) =>
-    composeRepoManifest({ aggregate: { text: JSON.stringify(kept) }, tree: { fragments, ...READ_IN_FULL } });
-
-  const refused = faultsOf(withTree(aggregate(), moved("sourceOwnership").tree));
-  assert.deepEqual(about(refused), [["misplaced-declaration", "sourceOwnership", [REPO_MANIFEST]]]);
-  assert.equal(
-    refused[0]?.message,
-    "repo-manifest.json: sourceOwnership belongs to the source-ownership domain, whose fragments live in " +
-      "repo-manifest/source-ownership/ — a section has one home, so move what it declares into those fragments and delete it here",
-  );
-
-  // The manifest's own top-level note belongs to the repo-surface domain, beside `root` and `docs`.
-  assert.deepEqual(about(faultsOf(withTree(aggregate(), moved("root").tree))), [
-    ["misplaced-declaration", "$comment", [REPO_MANIFEST]],
-    ["misplaced-declaration", "docs", [REPO_MANIFEST]],
-    ["misplaced-declaration", "root", [REPO_MANIFEST]],
+  // There is no other half to fall back on, so an absent tree is refused naming where it looked.
+  const absent = path.join(tmpdir(), "no-such-manifest-fragment-tree-6620");
+  assert.deepEqual(faultsOf(readRepoManifest(absent)), [
+    { kind: "unreadable-fragment-set", fragments: [], at: "", message: `the manifest fragment tree is absent at ${absent}` },
   ]);
-  // A section no domain owns is filed under a domain of its own name, and gets no second home either.
-  assert.deepEqual(
-    about(faultsOf(withTree(edited(aggregate(), ["mystery"], {}), [fragment("mystery/_domain.json", { mystery: {} })]))),
-    [["misplaced-declaration", "mystery", [REPO_MANIFEST]]],
-  );
-});
-
-test("an aggregate that cannot be read, or holds no object, is refused — the tree is never composed alone", () => {
-  const whole = { fragments: splitManifest(aggregate()), ...READ_IN_FULL };
-  const absent = faultsOf(composeRepoManifest({ aggregate: { unread: "absent at /x/repo-manifest.json" }, tree: whole }));
-  assert.deepEqual(about(absent), [["unreadable-fragment-set", "", []]]);
-  assert.equal(absent[0]?.message, "repo-manifest.json: absent at /x/repo-manifest.json");
-
-  for (const text of ["[1]", "{ not json"]) {
-    assert.deepEqual(about(faultsOf(composeRepoManifest({ aggregate: { text }, tree: null }))), [["malformed-fragment", "", [REPO_MANIFEST]]], text);
-  }
-  assert.equal(faultsOf(composeRepoManifest({ aggregate: { text: "[1]" }, tree: null }))[0]?.message, "repo-manifest.json: does not hold a JSON object");
-});
-
-test("a tree that did not read in full is refused with its own reasons, however whole the aggregate", () => {
-  const refused = faultsOf(composeRepoManifest({ aggregate: { text: JSON.stringify(aggregate()) }, tree: { fragments: [], unread: ["b", "a"] } }));
-  assert.deepEqual(refused.map((f) => [f.kind, f.message]), [
-    ["unreadable-fragment-set", "a"],
-    ["unreadable-fragment-set", "b"],
-  ]);
-});
-
-test("readRepoManifest composes the aggregate on disk with the fragment tree named for it — and refuses what it cannot read", () => {
-  const { aggregate: text, tree: fragments } = moved("sourceOwnership");
-  const files = Object.fromEntries(fragments.map((f) => [`${REPO_MANIFEST_TREE}/${f.path}`, f.text]));
-  const whole = tree({ [REPO_MANIFEST]: text, ...files });
-  assert.deepEqual(manifestOf(readRepoManifest(path.join(whole, REPO_MANIFEST))), aggregate());
-
-  // With no tree beside it, a section that moved is simply missing — a blind read, never an empty one.
-  const bare = tree({ [REPO_MANIFEST]: text });
-  assert.deepEqual(about(faultsOf(readRepoManifest(path.join(bare, REPO_MANIFEST)))), [["missing-section", "sourceOwnership", []]]);
-
-  const absent = path.join(tmpdir(), "no-such-repo-manifest-6620.json");
-  assert.deepEqual(faultsOf(readRepoManifest(absent)).map((f) => f.message), [`repo-manifest.json: absent at ${absent}`]);
 
   // A tree that cannot be listed — here a file where the directory belongs — is unread, never skipped.
-  const blocked = tree({ [REPO_MANIFEST]: text, [REPO_MANIFEST_TREE]: "not a directory" });
-  assert.deepEqual(about(faultsOf(readRepoManifest(path.join(blocked, REPO_MANIFEST)))), [["unreadable-fragment-set", "", []]]);
+  const blocked = path.join(tree({ "not-a-tree": "junk" }), "not-a-tree");
+  const unread = faultsOf(readRepoManifest(blocked));
+  assert.deepEqual(about(unread), [["unreadable-fragment-set", "", []]]);
+  assert.match(unread[0]?.message ?? "", /^the manifest fragment tree at .* could not be read in full/);
+
+  // A tree missing a section is a blind read, refused as one — never an empty manifest.
+  const partial = tree(
+    Object.fromEntries(splitManifest({ sourceOwnership: aggregate()["sourceOwnership"] ?? null }).map((f) => [f.path, f.text])),
+  );
+  assert.ok(about(faultsOf(readRepoManifest(partial))).some(([kind, at]) => kind === "missing-section" && at === "root"));
 });
 
-test("manifestFragmentRoot is the directory beside a manifest file, named for it", () => {
-  assert.equal(manifestFragmentRoot(path.join("a", "b", "repo-manifest.json")), path.join("a", "b", "repo-manifest"));
-  assert.equal(manifestFragmentRoot(path.join("a", "v1.manifest.json")), path.join("a", "v1.manifest"));
+// ---------------------------------------------------------------------------
+// The one form a tree is written in
+// ---------------------------------------------------------------------------
+
+test("a tree written exactly as the composer writes it has no drift — in whatever order it was listed", () => {
+  const written = splitManifest(aggregate());
+  assert.deepEqual(manifestDrift(written, aggregate()), []);
+  assert.deepEqual(manifestDrift([...written].reverse(), aggregate()), []);
+});
+
+test("drift names every repair in path order: create what is missing, delete what the composer never writes, rewrite what is out of form", () => {
+  const written = splitManifest(aggregate());
+  const canonical = new Map(written.map((f) => [f.path, f.text]));
+  const camps = "hierarchy-camps/_domain.json";
+  const surface = "repo-surface/_domain.json";
+  const drifted: ManifestFragmentSource[] = [
+    // Out of form: the same declarations, compacted onto one line.
+    { path: surface, text: JSON.stringify(JSON.parse(canonical.get(surface) ?? "")) },
+    ...written.filter((f) => f.path !== camps && f.path !== surface),
+    // A named shard the contract allows but the composer never writes: the domain's content, moved out of `_domain`.
+    { path: "hierarchy-camps/readers.json", text: canonical.get(camps) ?? "" },
+  ];
+  // Every one of these composes to the same manifest — drift is about the files, never the declarations.
+  const composed = manifestOf(composeManifest(drifted));
+  assert.deepEqual(composed, aggregate());
+
+  const drift = manifestDrift(drifted, composed);
+  assert.deepEqual(drift, [
+    {
+      repair: "create",
+      path: camps,
+      text: canonical.get(camps),
+      message: "repo-manifest/hierarchy-camps/_domain.json is where the composed manifest writes part of what the tree declares, and no fragment is there",
+    },
+    {
+      repair: "delete",
+      path: "hierarchy-camps/readers.json",
+      message: "repo-manifest/hierarchy-camps/readers.json is not a fragment the composed manifest splits into — what it declares belongs in its domain's _domain.json",
+    },
+    {
+      repair: "rewrite",
+      path: surface,
+      text: canonical.get(surface),
+      message: "repo-manifest/repo-surface/_domain.json is not written the way the composer writes it — keys sorted at every depth, two-space indentation, one trailing newline",
+    },
+  ]);
+
+  // The repairs are a fixpoint: the tree they leave has nothing left to repair, and composes to the same manifest.
+  const repaired = new Map(drifted.map((f) => [f.path, f.text]));
+  for (const d of drift) {
+    if (d.repair === "delete") repaired.delete(d.path);
+    else repaired.set(d.path, d.text);
+  }
+  const after = [...repaired].map(([at, text]) => ({ path: at, text }));
+  assert.deepEqual(manifestDrift(after, composed), []);
+  assert.deepEqual(manifestOf(composeManifest(after)), composed);
 });
 
 test("readManifestFragmentTreeAt reads a commit's tree in full or not at all — and a commit with none has none", () => {
@@ -919,6 +907,75 @@ test("two ownership changes in two owners' fragments share no file, and composin
   ]);
 });
 
+test("END TO END, through real git: two owners' changes land in two fragments, merge clean, and compose with nothing to regenerate", () => {
+  // ADR-0556 D6's witness, asked of git itself rather than of a model of it. Two branches cut from one base
+  // each declare a subtree for a different owner, written exactly as the composer writes a tree. Each touches
+  // its own owner's file and nothing else; both merge into the base without a conflict; the merged tree
+  // composes with both declarations; and it is ALREADY in its one form — so no aggregate, no projection and no
+  // other tracked file had to be regenerated for either change to land.
+  const repo = mkdtempSync(path.join(tmpdir(), "manifest-concurrency-"));
+  const git = (...args: string[]): string =>
+    execFileSync(
+      "git",
+      ["-c", "user.name=fixture", "-c", "user.email=fixture@storytree.test", "-c", "core.autocrlf=false", ...args],
+      { cwd: repo, encoding: "utf8" },
+    );
+  const writeTree = (fragments: readonly ManifestFragmentSource[]): void => {
+    for (const f of fragments) {
+      const out = path.join(repo, REPO_MANIFEST_TREE, ...f.path.split("/"));
+      mkdirSync(path.dirname(out), { recursive: true });
+      writeFileSync(out, f.text, "utf8");
+    }
+  };
+  const base = splitManifest(aggregate());
+  /** The fragments one more declaration changes, each written in the tree's one form. */
+  const declaring = (subtree: string, owner: string): ManifestFragmentSource[] =>
+    splitManifest(edited(aggregate(), ["sourceOwnership", "subtrees", subtree], owner)).filter(
+      (f) => base.find((b) => b.path === f.path)?.text !== f.text,
+    );
+
+  git("init", "-q", "-b", "main");
+  writeTree(base);
+  git("add", "-A");
+  git("commit", "-q", "-m", "base");
+
+  git("checkout", "-q", "-b", "mine");
+  writeTree(declaring("packages/drive/src/manifest-fragments-read.ts", "organism-boundary-tooling"));
+  git("add", "-A");
+  git("commit", "-q", "-m", "mine");
+
+  git("checkout", "-q", "main");
+  git("checkout", "-q", "-b", "theirs");
+  writeTree(declaring("packages/cli/src/claims.ts", "claim-at-declare"));
+  git("add", "-A");
+  git("commit", "-q", "-m", "theirs");
+
+  const changed = (branch: string): string[] => git("diff", "--name-only", "main", branch).trim().split("\n");
+  assert.deepEqual(changed("mine"), ["repo-manifest/source-ownership/organism-boundary-tooling.json"]);
+  assert.deepEqual(changed("theirs"), ["repo-manifest/source-ownership/claim-at-declare.json"]);
+
+  // Both land on the base with no conflict — git throws here on one.
+  git("checkout", "-q", "main");
+  git("merge", "-q", "--no-ff", "--no-edit", "mine");
+  git("merge", "-q", "--no-ff", "--no-edit", "theirs");
+
+  const root = path.join(repo, REPO_MANIFEST_TREE);
+  const composed = manifestOf(readRepoManifest(root));
+  const subtrees = objectAt(composed, "sourceOwnership", "subtrees");
+  assert.equal(subtrees["packages/drive/src/manifest-fragments-read.ts"], "organism-boundary-tooling");
+  assert.equal(subtrees["packages/cli/src/claims.ts"], "claim-at-declare");
+  // Nothing to regenerate: the merged tree is already exactly what the composer writes for what it declares.
+  assert.deepEqual(manifestDrift(readManifestFragmentTree(root).fragments, composed), []);
+  // And the repository tracks nothing but the fragments — no aggregate came back to be merged.
+  assert.deepEqual(
+    git("ls-files")
+      .trim()
+      .split("\n")
+      .filter((file) => !file.startsWith(`${REPO_MANIFEST_TREE}/`)),
+    [],
+  );
+});
+
 // ---------------------------------------------------------------------------
 // The live manifest
 // ---------------------------------------------------------------------------
@@ -928,22 +985,21 @@ function lazy<T>(make: () => T): () => T {
   return () => (made ??= { value: make() }).value;
 }
 
-const liveTree = lazy(() => readManifestFragmentTree(manifestFragmentRoot(LIVE_MANIFEST)));
+const liveTree = lazy(() => readManifestFragmentTree(LIVE_TREE));
 
 /**
- * The live manifest as every reader sees it — `repo-manifest.json` composed with the fragment tree beside
- * it — and what that composition refused, which must be nothing. Nothing is set aside: the three covered
- * declarations were narrowed away (`repo-manifest-covered-declarations-resolved`), and every section has
- * been authored as fragments since `repo-manifest-remaining-domains-compose`.
+ * The live manifest as every reader sees it — the fragment tree, composed — and what that composition
+ * refused, which must be nothing. Nothing is set aside: the three covered declarations were narrowed away
+ * (`repo-manifest-covered-declarations-resolved`), every section has been authored as fragments since
+ * `repo-manifest-remaining-domains-compose`, and no aggregate sits beside them since
+ * `repo-manifest-aggregate-leaves-git`.
  */
 const live = lazy(() => {
-  const composed = readRepoManifest(LIVE_MANIFEST);
+  const composed = readRepoManifest(LIVE_TREE);
   return { composed, refused: composed.ok ? [] : composed.faults };
 });
 
 test("LIVE: no committed fragment repeats a key — which no parsed read could see", () => {
-  // The aggregate is not scanned, and needs no scan: with every domain in the tree, ANY key left in it is
-  // refused as a second home (below), so a repeated key there cannot reach a reader either.
   assert.deepEqual(liveTree().unread, []);
   for (const f of liveTree().fragments) assert.deepEqual(duplicateKeyPaths(f.text), [], f.path);
 });
@@ -964,23 +1020,17 @@ test("LIVE: the repository's manifest carries no declaration COVERED by another 
   );
 });
 
-test("LIVE: every domain is authored in the fragments — the aggregate beside them contributes nothing, and cannot regain a section", () => {
+test("LIVE: every domain is authored in the fragments, and what every reader gets is their composition alone", () => {
   assert.deepEqual(
     [...new Set(liveTree().fragments.map((f) => f.path.split("/")[0]))].sort(),
     MANIFEST_DOMAINS.map((domain) => domain.dir).sort(),
   );
-  // What every reader gets is the fragments' composition alone: the same tree beside an EMPTY aggregate.
-  assert.deepEqual(manifestOf(composeRepoManifest({ aggregate: { text: "{}" }, tree: liveTree() })), manifestOf(live().composed));
-  // And a section written back into the aggregate is a second home, refused by name — for every section.
-  for (const section of MANIFEST_DOMAINS.flatMap((domain) => domain.sections)) {
-    const aggregate = { text: JSON.stringify({ [section]: {} }) };
-    assert.deepEqual(about(faultsOf(composeRepoManifest({ aggregate, tree: liveTree() }))), [["misplaced-declaration", section, [REPO_MANIFEST]]], section);
-  }
+  assert.deepEqual(manifestOf(composeFragmentTree(liveTree())), manifestOf(live().composed));
 });
 
-test("LIVE: the committed fragments are exactly the split of the composed manifest — one file per owner, one per domain for the rest", () => {
-  const whole = manifestOf(live().composed);
-  assert.deepEqual(liveTree().fragments.map((f) => f.path).sort(), splitManifest(whole).map((f) => f.path));
+test("LIVE: the committed fragments are written in their one form — the split of their own composition, byte for byte", () => {
+  // One file per owner and one per domain for the rest, each exactly as the composer writes it.
+  assert.deepEqual(manifestDrift(liveTree().fragments, manifestOf(live().composed)), []);
 });
 
 test("LIVE: the composed manifest round-trips through its fragments — every declaration and every note", () => {
@@ -1001,7 +1051,7 @@ test("LIVE: the composed manifest round-trips through its fragments — every de
 test("LIVE: the same fragments, written to disk and read back, compose to the same manifest in the same bytes", () => {
   const whole = manifestOf(live().composed);
   const split = splitManifest(whole);
-  const fromDisk = manifestOf(composeManifestTree(tree(Object.fromEntries(split.map((f) => [f.path, f.text])))));
+  const fromDisk = manifestOf(readRepoManifest(tree(Object.fromEntries(split.map((f) => [f.path, f.text])))));
   assert.deepEqual(fromDisk, whole);
   assert.equal(JSON.stringify(fromDisk), JSON.stringify(manifestOf(composeManifest([...split].reverse()))));
 });

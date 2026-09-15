@@ -30,14 +30,14 @@ import {
   toPermissionPath,
   type ManifestRootSlice,
 } from "./write-authority-rules.js";
-import { refusalReasons, REPO_MANIFEST } from "./manifest-fragments.js";
+import { refusalReasons, REPO_MANIFEST_TREE } from "./manifest-fragments.js";
 import { readRepoManifest } from "./manifest-fragments-read.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /** The live manifest as every reader gets it: composed with its fragment tree (ADR-0556), never the aggregate's bytes. */
 function readManifest(): ManifestRootSlice {
-  const composition = readRepoManifest(path.join(REPO_ROOT, REPO_MANIFEST));
+  const composition = readRepoManifest(path.join(REPO_ROOT, REPO_MANIFEST_TREE));
   if (!composition.ok) assert.fail(`the live manifest did not compose — ${refusalReasons(composition.faults)}`);
   return rootSliceOf(composition.manifest);
 }
@@ -301,7 +301,8 @@ test("if this machine has the wall installed, its deny block must match the gene
   assert.deepEqual(
     missing,
     [],
-    "the installed deny block has drifted from repo-manifest.json — regenerate it with " +
+    "the installed deny block has drifted from the repo manifest's root allow-list " +
+      "(repo-manifest/repo-surface/_domain.json) — regenerate it with " +
       "`storytree write-authority install --write` rather than hand-editing",
   );
   assert.deepEqual(rulesDenyingWorktrees(declared), []);

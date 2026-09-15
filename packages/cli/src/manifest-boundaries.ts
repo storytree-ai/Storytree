@@ -7,10 +7,11 @@
  *
  * Every section of the repo manifest is authored as fragments under `repo-manifest/`, and every reader
  * gets the one semantic view from `readRepoManifest` (`@storytree/drive`), which composes those fragments
- * with the aggregate beside them and refuses what it cannot read. The aggregate is kept as an empty object
- * until `repo-manifest-aggregate-leaves-git` removes it. A module that opens it directly reads `{}` today
- * and nothing once it is gone — and it reads it without complaint, so every section it looks for is simply
- * absent. This judge refuses that read when it is written, not when a check built on it quietly goes blind.
+ * and refuses what it cannot read. The aggregate left Git (`repo-manifest-aggregate-leaves-git`), so a module
+ * that opens it directly finds nothing — or, through a `git show` of an old commit, a manifest that stopped
+ * being true — and a reader built to tolerate an absent file does so without complaint, every section it
+ * looks for simply absent. This judge refuses that read when it is written, not when a check built on it
+ * quietly goes blind.
  *
  * ## It detects READS, not mentions
  *
@@ -31,8 +32,9 @@
  *
  * Bindings are followed transitively, in any declaration order: a variable whose initializer carries the
  * path carries it too, so `MANIFEST` → `manifestPath` → `readFileSync(manifestPath)` is one read. Across
- * modules, an EXPORTED binding that carries it — today only `REPO_MANIFEST` in `@storytree/drive` — carries
- * it into every module that imports it, under its own name or another, or reaches it through a namespace.
+ * modules, an EXPORTED binding that carries it — none today, since `@storytree/drive`'s `REPO_MANIFEST` left
+ * Git with the aggregate — carries it into every module that imports it, under its own name or another, or
+ * reaches it through a namespace.
  *
  * ## The aperture, stated
  *
@@ -47,10 +49,18 @@
  *
  * `readRepoManifest` reads the path it is HANDED, as a parameter, which carries nothing a scan of its module
  * can see — so the seam is judged like everything else and passes. What remains is
- * {@link MONOLITH_READ_ALLOWANCES}: a module permitted an exact NUMBER of direct reads, each with its reason.
- * More reads than allowed is a violation, and so is FEWER, because an allowance the code no longer uses is
- * stale. That second rule also keeps the judge honest against the real tree: a scan that stopped seeing
- * reads would find the allowed one missing and say so, rather than passing over nothing.
+ * {@link MONOLITH_READ_ALLOWANCES}: a module permitted an exact NUMBER of direct reads, each with its reason —
+ * none today. More reads than allowed is a violation, and so is FEWER, because an allowance the code no longer
+ * uses is stale.
+ *
+ * ## A blind sweep is refused
+ *
+ * While an allowance existed it doubled as the judge's anchor on the real tree: a scan that stopped seeing
+ * reads found the allowed one missing and said so. With none left, the anchor is the sweep itself, and a sweep
+ * that EXAMINED no module is refused ({@link judgeMonolithReads}). This module spells the name it looks for, so
+ * any walk that reached the source tree examines at least one module; zero can only mean the walk read
+ * nothing. The limit, stated: it proves the sweep reached modules, not that read detection works on them —
+ * the fixtures in `manifest-boundaries.test.ts` prove that.
  */
 
 import ts from "typescript5";
@@ -88,15 +98,12 @@ export interface MonolithReadAllowance {
   readonly why: string;
 }
 
-export const MONOLITH_READ_ALLOWANCES: readonly MonolithReadAllowance[] = [
-  {
-    path: "packages/drive/src/source-ownership-map.ts",
-    reads: 1,
-    why:
-      "readSourceOwnershipMapAt reads the aggregate at a merge-base commit from before the fragment tree existed — " +
-      "the seam's one compatibility path, deleted with the aggregate by repo-manifest-aggregate-leaves-git",
-  },
-];
+/**
+ * EMPTY. The last allowance was `readSourceOwnershipMapAt`'s read of the aggregate at a merge base from before
+ * the fragment tree existed, and it left Git with the aggregate (`repo-manifest-aggregate-leaves-git`). An
+ * entry added here names its module, an exact count, and why nothing but a direct read will do.
+ */
+export const MONOLITH_READ_ALLOWANCES: readonly MonolithReadAllowance[] = [];
 
 /** The calls that read the path they are handed. */
 const READERS: ReadonlySet<string> = new Set(["readFileSync", "readFile", "readJson", "readOrNull", "show", "require", "import"]);
@@ -146,10 +153,25 @@ export function findMonolithReads(modules: readonly SourceModule[]): MonolithRea
 }
 
 /**
- * The refusals: a module reading the aggregate more often than it is allowed, and an allowance its module no
- * longer uses. In the order the reads were found, then the allowances.
+ * The refusals: a sweep that examined no module, a module reading the aggregate more often than it is allowed,
+ * and an allowance its module no longer uses. The blind sweep first, then in the order the reads were found,
+ * then the allowances.
  */
-export function judgeMonolithReads(reads: readonly MonolithRead[], allowances: readonly MonolithReadAllowance[]): string[] {
+export function judgeMonolithReads(scan: MonolithReadScan, allowances: readonly MonolithReadAllowance[]): string[] {
+  return [...blindSweep(scan), ...judgeReads(scan.reads, allowances)];
+}
+
+/** A sweep that examined no module saw nothing, so a clean result from it would be blind (see "A blind sweep is refused"). */
+function blindSweep(scan: MonolithReadScan): string[] {
+  return scan.examined === 0
+    ? [
+        `the sweep examined no module that names ${MONOLITH} — not even packages/cli/src/manifest-boundaries.ts, which ` +
+          "spells it — so it read nothing, and a clean result would be blind: check the module walk in check-boundaries.ts",
+      ]
+    : [];
+}
+
+function judgeReads(reads: readonly MonolithRead[], allowances: readonly MonolithReadAllowance[]): string[] {
   const paths = [...new Set([...reads.map((read) => read.path), ...allowances.map((allowance) => allowance.path)])];
   return paths.flatMap((path) => {
     const found = reads.filter((read) => read.path === path);

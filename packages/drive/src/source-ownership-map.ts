@@ -14,12 +14,11 @@
  *
  * ## It reads the COMPOSED manifest
  *
- * The map is no longer a block of `repo-manifest.json`: it is one fragment per owner under
- * `repo-manifest/source-ownership/`, composed with the aggregate beside it through the one fail-closed
- * seam every reader uses (ADR-0556 D3, `manifest-fragments.ts`). A set the composer refuses — a malformed
- * fragment, a key declared twice, one declaration covering another, a section with two homes — is
- * UNREAD here, never a partial map: a declaration silently skipped would present as an unowned file, or
- * as a claim id that names nothing.
+ * The map is one fragment per owner under `repo-manifest/source-ownership/`, composed with the rest of the
+ * fragment tree through the one fail-closed seam every reader uses (ADR-0556 D3, `manifest-fragments.ts`).
+ * A set the composer refuses — a malformed fragment, a key declared twice, one declaration covering
+ * another, a section nobody supplies — is UNREAD here, never a partial map: a declaration silently skipped
+ * would present as an unowned file, or as a claim id that names nothing.
  *
  * ## Reading FAILURE is the interesting return value
  *
@@ -27,16 +26,21 @@
  * the claim universe treats a non-empty `unread` the way it treats an unreadable story tree: the
  * whole namespace check STANDS DOWN rather than refusing anything (`claim-universe.ts`). That
  * asymmetry is the design's centre — a false refusal blocks a session from claiming work it
- * genuinely owns, while the leak it replaces merely fails to catch a typo. So an absent manifest, an
- * unparseable one, or one with no `sourceOwnership.subtrees` object must never START refusing
- * claims; each one withdraws the licence to refuse instead.
+ * genuinely owns, while the leak it replaces merely fails to catch a typo. So an absent fragment tree,
+ * an unparseable fragment, or a tree with no `sourceOwnership.subtrees` object must never START
+ * refusing claims; each one withdraws the licence to refuse instead.
  *
  * An `subtrees: {}` that IS present and IS an object is a different statement — a deliberately empty
  * map — and reads clean with zero entries.
  */
 
-import { composeRepoManifest, REPO_MANIFEST, REPO_MANIFEST_TREE, type ManifestComposition } from "./manifest-fragments.js";
-import { readManifestFragmentTreeAt, readRepoManifest, type GitTreeReader } from "./manifest-fragments-read.js";
+import { REPO_MANIFEST_TREE, type ManifestComposition } from "./manifest-fragments.js";
+import {
+  composeFragmentTree,
+  readManifestFragmentTreeAt,
+  readRepoManifest,
+  type GitTreeReader,
+} from "./manifest-fragments-read.js";
 
 /** One entry of the declared map: a subtree (path or glob), and the addressable object owning it. */
 export interface SubtreeOwnershipEntry {
@@ -66,43 +70,41 @@ function fail(why: string): SourceOwnershipMapRead {
 }
 
 /**
- * Read the declared subtree map for the manifest at `manifestPath` — the aggregate composed with the
- * fragment tree beside it.
+ * Read the declared subtree map out of the manifest whose fragment tree is at `root`.
  *
  * `null` means no caller composed one, which is NOT the same as "there are no subtrees": it is a
  * source that could not be read, and it is reported as such so the caller stands down rather than
  * concluding every subtree id names nothing.
  */
-export function readSourceOwnershipMap(manifestPath: string | null): SourceOwnershipMapRead {
-  if (manifestPath === null) {
+export function readSourceOwnershipMap(root: string | null): SourceOwnershipMapRead {
+  if (root === null) {
     return fail("no repo manifest was supplied, so declared subtrees are unknown");
   }
-  return sourceOwnershipOf(readRepoManifest(manifestPath), "the repo manifest");
+  return sourceOwnershipOf(readRepoManifest(root), "the repo manifest");
 }
 
 /**
  * The map as it stood at a commit — what `check:ownership-totality` charges a branch against.
  *
- * It asks git for exactly what the working-tree read gets from the disk and composes it through the same
- * seam, so the two reads cannot disagree about what is declared: in a check whose entire verdict is a
- * comparison between them, a disagreement would present as an ownership change nobody made. `source`
- * names the read, so a failure says which one broke.
+ * It asks git for exactly what the working-tree read gets from the disk — the fragment tree, listed and
+ * read in full — and composes it through the same step, so the two reads cannot disagree about what is
+ * declared: in a check whose entire verdict is a comparison between them, a disagreement would present as
+ * an ownership change nobody made. `source` names the read, so a failure says which one broke.
  *
- * THE ONE COMPATIBILITY PATH, and it is explicit. A commit from before the map moved into fragments has
- * no tree, and history is not migrated: its aggregate is read by {@link parseLegacySourceOwnershipMap},
- * the parser it was always read by — which also tolerates the covered declarations that map carried
- * until `repo-manifest-covered-declarations-resolved`, so a branch whose merge base predates that
- * landing is charged against its base rather than blinded by it. Delete this path, and that parser,
- * when the aggregate leaves Git (`repo-manifest-aggregate-leaves-git`).
+ * THERE IS NO COMPATIBILITY PATH. A commit with no fragment tree predates ADR-0556, and nothing reads the
+ * aggregate it carried instead: that reader left Git with the aggregate
+ * (`repo-manifest-aggregate-leaves-git`). Such a base is UNREAD, and its repair is to move the merge base
+ * past it — never to charge the branch against a map composed some other way.
  */
 export function readSourceOwnershipMapAt(git: GitTreeReader, ref: string, source: string): SourceOwnershipMapRead {
   const tree = readManifestFragmentTreeAt(git, ref, REPO_MANIFEST_TREE);
-  const text = git.show(ref, REPO_MANIFEST);
   if (tree === null) {
-    return text === null ? fail(`${source} could not be read at ${ref}`) : parseLegacySourceOwnershipMap(text, source);
+    return fail(
+      `${source} has no ${REPO_MANIFEST_TREE}/ fragment tree at ${ref}, so that commit predates ADR-0556 — ` +
+        "merge a freshly fetched origin/main to move the merge base past it",
+    );
   }
-  const aggregate = text === null ? { unread: `could not be read at ${ref}` } : { text };
-  return sourceOwnershipOf(composeRepoManifest({ aggregate, tree }), source);
+  return sourceOwnershipOf(composeFragmentTree(tree), source);
 }
 
 /** The map out of a composition — UNREAD, carrying every reason the composer gave, when there is none. */
@@ -111,22 +113,6 @@ export function sourceOwnershipOf(composition: ManifestComposition, source: stri
     return fail(`${source} did not compose — ${composition.faults.map((f) => f.message).join("; ")}`);
   }
   return sourceOwnershipIn(composition.manifest, source);
-}
-
-/**
- * The map out of an aggregate's TEXT, read the way it was before the map moved into fragments — kept
- * ONLY for commits from before that move ({@link readSourceOwnershipMapAt}). It skips an entry the
- * composer would refuse, which is right for history and wrong for anything a session can still edit.
- */
-export function parseLegacySourceOwnershipMap(text: string, source: string): SourceOwnershipMapRead {
-  let manifest: unknown;
-  try {
-    manifest = JSON.parse(text);
-  } catch (err) {
-    const why = err instanceof Error ? err.message : String(err);
-    return fail(`${source} is unreadable (${why})`);
-  }
-  return sourceOwnershipIn(manifest, source);
 }
 
 function sourceOwnershipIn(manifest: unknown, source: string): SourceOwnershipMapRead {

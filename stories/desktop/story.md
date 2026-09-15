@@ -377,7 +377,8 @@ any backend is wired at all, and consumes only `@storytree/drive`'s `ensureLiveD
   `/api/*` dispatcher rather than one seam of it.
   > **One same-package edge deliberately NOT drawn, recorded so it is not re-derived as an omission.**
   > `activity-mirror-probe.ts:42` also imports `claimRowsToActivity` from `./claim-activity.js`, a file
-  > `repo-manifest.json` homes to `render-claim-as-wisp` — a capability of the **`wisp-as-story-claim`**
+  > `repo-manifest/source-ownership/render-claim-as-wisp.json` homes to `render-claim-as-wisp` — a
+  > capability of the **`wisp-as-story-claim`**
   > story, not this one. No edge is drawn for two reasons: `depends_on` is within-story only
   > (`topoOrderStoryNodes`, `packages/orchestrator/src/story-build.ts:161-168`, mechanically refuses an
   > id outside the owning story's capability set), and the import is same-package relative, so

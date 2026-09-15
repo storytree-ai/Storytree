@@ -114,8 +114,8 @@ bottom of the dependency order, depending on nothing. It is shared *studio + web
 is why ADR-0093 named it `packages/forest-world` over the web-only-sounding `packages/web-engine`
 (ADR-0066
 Decision 2) — role-not-position (ADR-0078).
-It is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `forest-world`) and in the
-`foundational` subset that carries the minimality rule.
+It is registered in `repo-manifest/package-ownership/_domain.json` `packageOwnership.organisms`
+(→ `forest-world`) and in the `foundational` subset that carries the minimality rule.
 
 ## Design floor — foundational minimality
 

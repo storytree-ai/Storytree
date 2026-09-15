@@ -140,7 +140,7 @@ whole distance between a containment chain and a decision tree.
 - `consumed_by: [cli]` — the provider-side declaration for the CLI's runtime import of this package
   at its dispatch boundary. Provider-side keeps the `cli` story spec untouched, and the edge is
   code-backed (a real `dependencies` entry), not declaration wallpaper.
-- `repo-manifest.json` → `packageOwnership.organisms` carries
+- `repo-manifest/package-ownership/_domain.json` → `packageOwnership.organisms` carries
   `"@storytree/context-traversal-capture": "context-traversal-capture"`. This story is NOT in the
   `hostedStories` register and must never be added to it: every proof-bound source it claims lives
   inside its own package. The CLI-side lines it needs are un-asserted connective glue (ADR-0158) and

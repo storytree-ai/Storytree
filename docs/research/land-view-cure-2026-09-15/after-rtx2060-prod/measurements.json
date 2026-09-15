@@ -1,0 +1,843 @@
+{
+  "measuredAt": "2026-09-15T08:51:57.308Z",
+  "url": "http://127.0.0.1:5483/",
+  "arm": "production build, RTX 2060 Linux desktop, AFTER (b04acb50)",
+  "angle": "gl",
+  "renderer": {
+    "name": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "software": false
+  },
+  "viewport": {
+    "width": 1600,
+    "height": 1000
+  },
+  "windows": {
+    "steadyMs": 6000,
+    "longIdleMs": 65000,
+    "slowPollMs": 30000,
+    "ageTickMs": 60000
+  },
+  "attribution": {
+    "sourcemaps": true,
+    "mappedChunks": 3,
+    "unmappedChunks": []
+  },
+  "load": {
+    "landViewDrawnAtMs": 8904,
+    "mapOnlyDrawnAtMs": 7621,
+    "landViewSettle": {
+      "settled": true,
+      "waitedMs": 4433,
+      "windowMedianMs": 16.69999999999891,
+      "windows": [
+        {
+          "atMs": 2099,
+          "medianMs": 133.1999999999989,
+          "worstMs": 1933.2000000000007,
+          "frames": 3
+        },
+        {
+          "atMs": 3416,
+          "medianMs": 16.69999999999891,
+          "worstMs": 283.39999999999964,
+          "frames": 24
+        },
+        {
+          "atMs": 4433,
+          "medianMs": 16.69999999999891,
+          "worstMs": 16.80000000000109,
+          "frames": 60
+        }
+      ]
+    },
+    "mapOnlySettle": {
+      "settled": true,
+      "waitedMs": 2106,
+      "windowMedianMs": 16.69999999999891,
+      "windows": [
+        {
+          "atMs": 1087,
+          "medianMs": 16.69999999999891,
+          "worstMs": 100,
+          "frames": 57
+        },
+        {
+          "atMs": 2106,
+          "medianMs": 16.69999999999891,
+          "worstMs": 16.80000000000109,
+          "frames": 60
+        }
+      ]
+    }
+  },
+  "cpu": {
+    "landA": {
+      "totalMs": 8916.108999999511,
+      "busyMs": 2525.342999999344,
+      "reportable": true,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 41.07,
+        "land-stream": 2158.069999999975,
+        "three-and-r3f": 1.058,
+        "kit-decode": 3.144,
+        "react-and-studio": 145.25899999999996,
+        "idle": 6390.766000000167,
+        "gc": 55.762,
+        "unattributed": 120.98000000000009
+      }
+    },
+    "landB": {
+      "totalMs": 4531.580000000016,
+      "busyMs": 4248.227000000016,
+      "reportable": true,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 5.327,
+        "land-stream": 2538.0169999999935,
+        "three-and-r3f": 435.88600000000025,
+        "kit-decode": 12.769,
+        "react-and-studio": 388.1270000000004,
+        "idle": 283.3529999999999,
+        "gc": 86.431,
+        "unattributed": 781.669999999998
+      }
+    },
+    "landC": {
+      "totalMs": 65260.8099999905,
+      "busyMs": 36526.58399998065,
+      "reportable": false,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 5.307,
+        "land-stream": 683.1259999999993,
+        "three-and-r3f": 379.10399999999987,
+        "kit-decode": 0,
+        "react-and-studio": 183.50799999999992,
+        "idle": 28734.22600000985,
+        "gc": 145.62700000000007,
+        "unattributed": 35129.91200001241
+      }
+    },
+    "controlA": {
+      "totalMs": 7633.548000000052,
+      "busyMs": 2173.2569999998905,
+      "reportable": true,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 36.044000000000004,
+        "land-stream": 1874.132999999913,
+        "three-and-r3f": 0,
+        "kit-decode": 3.176,
+        "react-and-studio": 127.8930000000001,
+        "idle": 5460.291000000161,
+        "gc": 38.464999999999996,
+        "unattributed": 93.54600000000005
+      }
+    },
+    "controlB": {
+      "totalMs": 2211.515999999994,
+      "busyMs": 820.7309999999986,
+      "reportable": true,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 2.12,
+        "land-stream": 0,
+        "three-and-r3f": 0,
+        "kit-decode": 0,
+        "react-and-studio": 337.51000000000016,
+        "idle": 1390.7849999999955,
+        "gc": 52.54500000000001,
+        "unattributed": 428.55599999999987
+      }
+    },
+    "controlC": {
+      "totalMs": 65139.02099999147,
+      "busyMs": 36593.78299998074,
+      "reportable": false,
+      "byStage": {
+        "store-payload": 0,
+        "scene-build": 16.153999999999996,
+        "land-stream": 38.155,
+        "three-and-r3f": 0,
+        "kit-decode": 0,
+        "react-and-studio": 4318.873999999992,
+        "idle": 28545.238000010726,
+        "gc": 299.40599999999995,
+        "unattributed": 31921.194000013984
+      }
+    }
+  },
+  "addedToLoad": [
+    {
+      "stage": "land-stream",
+      "landMs": 4696.086999999969,
+      "controlMs": 1874.132999999913,
+      "addedMs": 2821.9540000000557
+    },
+    {
+      "stage": "three-and-r3f",
+      "landMs": 436.94400000000024,
+      "controlMs": 0,
+      "addedMs": 436.94400000000024
+    },
+    {
+      "stage": "unattributed",
+      "landMs": 902.6499999999982,
+      "controlMs": 522.1019999999999,
+      "addedMs": 380.5479999999983
+    },
+    {
+      "stage": "react-and-studio",
+      "landMs": 533.3860000000004,
+      "controlMs": 465.40300000000025,
+      "addedMs": 67.98300000000017
+    },
+    {
+      "stage": "gc",
+      "landMs": 142.19299999999998,
+      "controlMs": 91.01,
+      "addedMs": 51.18299999999998
+    },
+    {
+      "stage": "kit-decode",
+      "landMs": 15.913,
+      "controlMs": 3.176,
+      "addedMs": 12.737
+    },
+    {
+      "stage": "scene-build",
+      "landMs": 46.397,
+      "controlMs": 38.164,
+      "addedMs": 8.232999999999997
+    },
+    {
+      "stage": "store-payload",
+      "landMs": 0,
+      "controlMs": 0,
+      "addedMs": 0
+    },
+    {
+      "stage": "idle",
+      "landMs": 6674.119000000167,
+      "controlMs": 6851.0760000001565,
+      "addedMs": -176.95699999998942
+    }
+  ],
+  "addedAtRest": [
+    {
+      "stage": "unattributed",
+      "landMs": 35129.91200001241,
+      "controlMs": 31921.194000013984,
+      "addedMs": 3208.7179999984255
+    },
+    {
+      "stage": "land-stream",
+      "landMs": 683.1259999999993,
+      "controlMs": 38.155,
+      "addedMs": 644.9709999999993
+    },
+    {
+      "stage": "three-and-r3f",
+      "landMs": 379.10399999999987,
+      "controlMs": 0,
+      "addedMs": 379.10399999999987
+    },
+    {
+      "stage": "idle",
+      "landMs": 28734.22600000985,
+      "controlMs": 28545.238000010726,
+      "addedMs": 188.98799999912444
+    },
+    {
+      "stage": "store-payload",
+      "landMs": 0,
+      "controlMs": 0,
+      "addedMs": 0
+    },
+    {
+      "stage": "kit-decode",
+      "landMs": 0,
+      "controlMs": 0,
+      "addedMs": 0
+    },
+    {
+      "stage": "scene-build",
+      "landMs": 5.307,
+      "controlMs": 16.153999999999996,
+      "addedMs": -10.846999999999996
+    },
+    {
+      "stage": "gc",
+      "landMs": 145.62700000000007,
+      "controlMs": 299.40599999999995,
+      "addedMs": -153.77899999999988
+    },
+    {
+      "stage": "react-and-studio",
+      "landMs": 183.50799999999992,
+      "controlMs": 4318.873999999992,
+      "addedMs": -4135.365999999992
+    }
+  ],
+  "modules": {
+    "landA": {
+      "totalMs": 8916.108999999511,
+      "rows": [
+        {
+          "module": "(idle)",
+          "stage": "idle",
+          "ms": 6390.766000000167
+        },
+        {
+          "module": "packages/forest-world/src/routing.ts",
+          "stage": "land-stream",
+          "ms": 1570.5559999999593
+        },
+        {
+          "module": "packages/forest-world/src/rng.ts",
+          "stage": "land-stream",
+          "ms": 201.61599999999996
+        },
+        {
+          "module": "packages/forest-world-r3f/src/coast-clip.ts",
+          "stage": "land-stream",
+          "ms": 114.09100000000002
+        },
+        {
+          "module": "(unattributed)",
+          "stage": "unattributed",
+          "ms": 91.32599999999995
+        },
+        {
+          "module": "packages/forest-world/src/coast.ts",
+          "stage": "land-stream",
+          "ms": 56.756999999999984
+        },
+        {
+          "module": "(garbage collector)",
+          "stage": "gc",
+          "ms": 55.762
+        },
+        {
+          "module": "packages/app-surface/src/svg-island-accretion.ts",
+          "stage": "react-and-studio",
+          "ms": 43.39499999999999
+        },
+        {
+          "module": "node_modules/react-dom/cjs/react-dom-client.production.js",
+          "stage": "react-and-studio",
+          "ms": 37.440999999999974
+        },
+        {
+          "module": "packages/forest-world-r3f/src/land-shadow.ts",
+          "stage": "land-stream",
+          "ms": 30.697999999999993
+        },
+        {
+          "module": "src/components/TreeView.tsx",
+          "stage": "scene-build",
+          "ms": 29.770999999999997
+        },
+        {
+          "module": "packages/app-surface/src/sprite-sizing.ts",
+          "stage": "react-and-studio",
+          "ms": 29.027
+        },
+        {
+          "module": "packages/forest-world/src/scene.ts",
+          "stage": "land-stream",
+          "ms": 24.420999999999992
+        },
+        {
+          "module": "packages/forest-world-r3f/src/ground-dependency.ts",
+          "stage": "land-stream",
+          "ms": 24.089
+        },
+        {
+          "module": "packages/forest-world-r3f/src/shore-grid.ts",
+          "stage": "land-stream",
+          "ms": 21.039
+        }
+      ],
+      "restMs": 195.35399999999998,
+      "restModules": 47
+    },
+    "landB": {
+      "totalMs": 4531.580000000016,
+      "rows": [
+        {
+          "module": "packages/forest-world-r3f/src/shore-grid.ts",
+          "stage": "land-stream",
+          "ms": 1195.5139999999903
+        },
+        {
+          "module": "(unattributed)",
+          "stage": "unattributed",
+          "ms": 774.2439999999982
+        },
+        {
+          "module": "node_modules/three/build/three.module.js",
+          "stage": "three-and-r3f",
+          "ms": 326.19600000000014
+        },
+        {
+          "module": "packages/forest-world-r3f/src/ground-dependency.ts",
+          "stage": "land-stream",
+          "ms": 288.1409999999996
+        },
+        {
+          "module": "(idle)",
+          "stage": "idle",
+          "ms": 283.3529999999999
+        },
+        {
+          "module": "packages/forest-world-r3f/src/land-shadow.ts",
+          "stage": "land-stream",
+          "ms": 182.98599999999993
+        },
+        {
+          "module": "node_modules/react-dom/cjs/react-dom-client.production.js",
+          "stage": "react-and-studio",
+          "ms": 132.41000000000005
+        },
+        {
+          "module": "packages/forest-world-r3f/src/map-texels.ts",
+          "stage": "land-stream",
+          "ms": 116.95000000000016
+        },
+        {
+          "module": "packages/forest-world-r3f/src/camera-framing.ts",
+          "stage": "land-stream",
+          "ms": 110.12500000000001
+        },
+        {
+          "module": "packages/forest-world-r3f/src/coast-clip.ts",
+          "stage": "land-stream",
+          "ms": 108.13499999999999
+        },
+        {
+          "module": "packages/app-surface/src/SceneView.tsx",
+          "stage": "react-and-studio",
+          "ms": 94.17300000000002
+        },
+        {
+          "module": "packages/forest-world-r3f/src/texture-convention.ts",
+          "stage": "land-stream",
+          "ms": 87.82200000000003
+        },
+        {
+          "module": "(garbage collector)",
+          "stage": "gc",
+          "ms": 86.431
+        },
+        {
+          "module": "packages/forest-world-r3f/src/kit-asset.ts",
+          "stage": "land-stream",
+          "ms": 84.75800000000005
+        },
+        {
+          "module": "src/api.ts",
+          "stage": "react-and-studio",
+          "ms": 64.61799999999998
+        }
+      ],
+      "restMs": 595.7239999999998,
+      "restModules": 42
+    },
+    "landC": {
+      "totalMs": 65260.8099999905,
+      "rows": [
+        {
+          "module": "(unattributed)",
+          "stage": "unattributed",
+          "ms": 35118.27400001242
+        },
+        {
+          "module": "(idle)",
+          "stage": "idle",
+          "ms": 28734.22600000985
+        },
+        {
+          "module": "packages/forest-world-r3f/src/ground-dependency.ts",
+          "stage": "land-stream",
+          "ms": 413.10400000000055
+        },
+        {
+          "module": "node_modules/three/build/three.module.js",
+          "stage": "three-and-r3f",
+          "ms": 249.32399999999998
+        },
+        {
+          "module": "packages/forest-world-r3f/src/camera-framing.ts",
+          "stage": "land-stream",
+          "ms": 150.33400000000012
+        },
+        {
+          "module": "(garbage collector)",
+          "stage": "gc",
+          "ms": 145.62700000000007
+        },
+        {
+          "module": "node_modules/three/build/three.core.js",
+          "stage": "three-and-r3f",
+          "ms": 81.88900000000001
+        },
+        {
+          "module": "packages/forest-world-r3f/src/ForestWorldCanvas.tsx",
+          "stage": "land-stream",
+          "ms": 62.50199999999998
+        },
+        {
+          "module": "node_modules/react-dom/cjs/react-dom-client.production.js",
+          "stage": "react-and-studio",
+          "ms": 61.563999999999986
+        },
+        {
+          "module": "node_modules/@react-three/fiber/dist/events-b389eeca.esm.js",
+          "stage": "three-and-r3f",
+          "ms": 42.588000000000015
+        },
+        {
+          "module": "packages/app-surface/src/sprite-sizing.ts",
+          "stage": "react-and-studio",
+          "ms": 33.971999999999994
+        },
+        {
+          "module": "packages/app-surface/src/svg-island-accretion.ts",
+          "stage": "react-and-studio",
+          "ms": 33.863
+        },
+        {
+          "module": "packages/app-surface/src/SceneView.tsx",
+          "stage": "react-and-studio",
+          "ms": 28.575999999999997
+        },
+        {
+          "module": "packages/forest-world/src/scene.ts",
+          "stage": "land-stream",
+          "ms": 27.530999999999995
+        },
+        {
+          "module": "node_modules/react/cjs/react.production.js",
+          "stage": "react-and-studio",
+          "ms": 11.669999999999998
+        }
+      ],
+      "restMs": 65.76600000000002,
+      "restModules": 23
+    },
+    "controlC": {
+      "totalMs": 65139.02099999147,
+      "rows": [
+        {
+          "module": "(unattributed)",
+          "stage": "unattributed",
+          "ms": 31919.07000001398
+        },
+        {
+          "module": "(idle)",
+          "stage": "idle",
+          "ms": 28545.238000010726
+        },
+        {
+          "module": "node_modules/react-dom/cjs/react-dom-client.production.js",
+          "stage": "react-and-studio",
+          "ms": 2018.3389999999845
+        },
+        {
+          "module": "packages/app-surface/src/SceneView.tsx",
+          "stage": "react-and-studio",
+          "ms": 1683.9839999999913
+        },
+        {
+          "module": "(garbage collector)",
+          "stage": "gc",
+          "ms": 299.40599999999995
+        },
+        {
+          "module": "node_modules/react/cjs/react.production.js",
+          "stage": "react-and-studio",
+          "ms": 209.60099999999997
+        },
+        {
+          "module": "packages/app-surface/src/sprite-sizing.ts",
+          "stage": "react-and-studio",
+          "ms": 135.11100000000005
+        },
+        {
+          "module": "packages/app-surface/src/sprite-sheet.ts",
+          "stage": "react-and-studio",
+          "ms": 108.33400000000007
+        },
+        {
+          "module": "packages/app-surface/src/svg-island-accretion.ts",
+          "stage": "react-and-studio",
+          "ms": 48.92600000000001
+        },
+        {
+          "module": "packages/app-surface/src/island-vegetation-growth.ts",
+          "stage": "react-and-studio",
+          "ms": 33.155
+        },
+        {
+          "module": "packages/forest-world/src/scene.ts",
+          "stage": "land-stream",
+          "ms": 27.577999999999996
+        },
+        {
+          "module": "packages/app-surface/src/forest-regrow-render.ts",
+          "stage": "react-and-studio",
+          "ms": 24.595000000000002
+        },
+        {
+          "module": "src/components/TreeView.tsx",
+          "stage": "scene-build",
+          "ms": 16.153999999999996
+        },
+        {
+          "module": "src/components/WorldLegend.tsx",
+          "stage": "react-and-studio",
+          "ms": 15.929999999999998
+        },
+        {
+          "module": "packages/app-surface/src/WorldSceneView.tsx",
+          "stage": "react-and-studio",
+          "ms": 8.482999999999999
+        }
+      ],
+      "restMs": 45.11699999999999,
+      "restModules": 18
+    }
+  },
+  "landStreamRuns": {
+    "landA": [
+      {
+        "startMs": 6504.31000000017,
+        "endMs": 8913.990999999512,
+        "memberMs": 2158.069999999975
+      }
+    ],
+    "landB": [
+      {
+        "startMs": 235.47899999999973,
+        "endMs": 2184.359999999975,
+        "memberMs": 1816.48799999998
+      },
+      {
+        "startMs": 2384.499999999976,
+        "endMs": 3114.646999999999,
+        "memberMs": 323.5509999999998
+      },
+      {
+        "startMs": 3280.7789999999977,
+        "endMs": 4529.462000000016,
+        "memberMs": 386.332
+      }
+    ],
+    "landC": [
+      {
+        "startMs": 211.28599999999994,
+        "endMs": 2856.2239999999956,
+        "memberMs": 621.6769999999996
+      },
+      {
+        "startMs": 32915.627000013155,
+        "endMs": 33096.77900001301,
+        "memberMs": 61.448999999999984
+      }
+    ]
+  },
+  "network": {
+    "storePayloadMs": 48638.20000052452,
+    "storePayloadBytes": 40599527,
+    "canvasChunkMs": 283.60000014305115,
+    "canvasChunkBytes": 4584312,
+    "otherMs": 80.7999997138977,
+    "otherBytes": 2894999
+  },
+  "apiRequests": [
+    {
+      "path": "/api/assets",
+      "durationMs": 11179,
+      "transferSizeBytes": 40249901
+    },
+    {
+      "path": "/api/tree",
+      "durationMs": 6361,
+      "transferSizeBytes": 262843
+    },
+    {
+      "path": "/api/docs",
+      "durationMs": 6443,
+      "transferSizeBytes": 74051
+    },
+    {
+      "path": "/api/floor-health",
+      "durationMs": 11293,
+      "transferSizeBytes": 1962
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 6361,
+      "transferSizeBytes": 1048
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 1246,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 654,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 686,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 714,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 755,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 716,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/activity",
+      "durationMs": 750,
+      "transferSizeBytes": 1046
+    },
+    {
+      "path": "/api/me",
+      "durationMs": 16,
+      "transferSizeBytes": 415
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 254,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 189,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 129,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 435,
+      "transferSizeBytes": 397
+    },
+    {
+      "path": "/api/health",
+      "durationMs": 458,
+      "transferSizeBytes": 397
+    }
+  ],
+  "frames": {
+    "harnessFloor": {
+      "frames": 180,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.800000000000068,
+      "worstMs": 16.800000000000182,
+      "late": 0
+    },
+    "idle": {
+      "frames": 242,
+      "medianMs": 16.700000000000728,
+      "p95Ms": 50,
+      "worstMs": 66.70000000000073,
+      "late": 97
+    },
+    "drag": {
+      "frames": 126,
+      "medianMs": 50,
+      "p95Ms": 83.29999999999927,
+      "worstMs": 149.89999999999782,
+      "late": 88
+    },
+    "controlIdle": {
+      "frames": 301,
+      "medianMs": 16.700000000000728,
+      "p95Ms": 33.399999999999636,
+      "worstMs": 50,
+      "late": 60
+    },
+    "longIdle": {
+      "frames": 3888,
+      "medianMs": 16.69999999999709,
+      "p95Ms": 16.70000000001164,
+      "worstMs": 199.90000000000146,
+      "late": 4
+    },
+    "controlLongIdle": {
+      "frames": 3508,
+      "medianMs": 16.69999999999709,
+      "p95Ms": 33.29999999999927,
+      "worstMs": 166.59999999999854,
+      "late": 184
+    },
+    "budgetMs": 16.666666666666668,
+    "lateMs": 25
+  },
+  "stalls": {
+    "land": [
+      {
+        "atMs": 33.400000000001455,
+        "frames": 1,
+        "worstMs": 33.20000000000073,
+        "spanMs": 33.20000000000073
+      },
+      {
+        "atMs": 2633.2000000000007,
+        "frames": 2,
+        "worstMs": 33.400000000001455,
+        "spanMs": 66.70000000000073
+      },
+      {
+        "atMs": 32715.399999999998,
+        "frames": 1,
+        "worstMs": 199.90000000000146,
+        "spanMs": 199.9000000000051
+      }
+    ],
+    "control": [
+      {
+        "atMs": 0,
+        "frames": 181,
+        "worstMs": 166.59999999999854,
+        "spanMs": 9516.3
+      },
+      {
+        "atMs": 12882.900000000001,
+        "frames": 2,
+        "worstMs": 33.29999999999927,
+        "spanMs": 116.59999999999854
+      },
+      {
+        "atMs": 43881.700000000004,
+        "frames": 1,
+        "worstMs": 166.59999999999854,
+        "spanMs": 166.59999999999854
+      }
+    ]
+  },
+  "errorsAfterLoad": {
+    "landView": [],
+    "mapAlone": []
+  }
+}

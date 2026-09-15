@@ -8,23 +8,22 @@
  * whatever declarations were inside it.
  *
  * It reads the WORKING TREE, not the index. Ownership is branch-local, and an edit a session has not
- * committed yet is exactly what its own checks must see — the property the committed aggregate has
- * today, kept.
+ * committed yet is exactly what its own checks must see.
  *
  * A COMMIT is read the same way through git ({@link readManifestFragmentTreeAt}): listed, then read in
  * full or not at all, so a check comparing the working tree with its merge base asks both halves of the
  * one question through the one composer.
+ *
+ * THE TREE IS THE WHOLE MANIFEST. The committed aggregate that sat beside it left Git
+ * (`repo-manifest-aggregate-leaves-git`, ADR-0556 D4), so nothing here reads a file outside the tree. A
+ * `repo-manifest.json` left on a disk belongs to no manifest, and `pnpm check:manifest-fragments` refuses
+ * one rather than let it pass for an edit surface.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import {
-  composeManifest,
-  composeRepoManifest,
-  type ManifestComposition,
-  type ManifestFragmentSource,
-} from "./manifest-fragments.js";
+import { composeManifest, type ManifestComposition, type ManifestFragmentSource } from "./manifest-fragments.js";
 
 export interface ManifestFragmentTreeRead {
   readonly fragments: readonly ManifestFragmentSource[];
@@ -51,46 +50,37 @@ function listFiles(root: string, within: readonly string[]): ManifestFragmentSou
 }
 
 /**
- * One manifest file's text. The aggregate and every fragment are read by this one function, so the two
- * halves of one manifest can never be decoded two different ways before the composer judges them as a set.
+ * One fragment's text. Every fragment is read by this one function, so no two halves of one manifest can
+ * be decoded two different ways before the composer judges them as a set.
  */
 function readManifestText(file: string): string {
   return readFileSync(file, "utf8");
 }
 
-/** Read the tree at `root` and compose it — refused outright when the tree did not read in full. */
-export function composeManifestTree(root: string): ManifestComposition {
-  const read = readManifestFragmentTree(root);
-  if (read.unread.length > 0) {
-    return {
-      ok: false,
-      faults: read.unread.map((message) => ({ kind: "unreadable-fragment-set", fragments: [], at: "", message })),
-    };
-  }
-  return composeManifest(read.fragments);
+/**
+ * A tree as it was read, composed — or refused with every reason it did not read in full. The one step the
+ * working tree and a commit share, so an unread tree is refused the same way wherever it was read from.
+ */
+export function composeFragmentTree(read: ManifestFragmentTreeRead): ManifestComposition {
+  return read.unread.length > 0 ? unreadable(read.unread) : composeManifest(read.fragments);
 }
 
 /**
- * The fragment tree that belongs to a manifest file: the directory beside it, named for it —
- * `repo-manifest.json` → `repo-manifest/`. Deriving it from the file rather than from a repo root keeps
- * every reader's existing argument, and gives a fixture manifest in a temporary directory its own tree
- * or none.
+ * The repository's manifest as the WORKING TREE holds it: the fragment tree at `root`, composed. An absent
+ * tree is refused naming where it looked — there is no other half to fall back on — and a tree that cannot
+ * be read in full is refused, never composed from whatever did read.
  */
-export function manifestFragmentRoot(manifestPath: string): string {
-  return path.join(path.dirname(manifestPath), path.basename(manifestPath, path.extname(manifestPath)));
+export function readRepoManifest(root: string): ManifestComposition {
+  return existsSync(root)
+    ? composeFragmentTree(readManifestFragmentTree(root))
+    : unreadable([`the manifest fragment tree is absent at ${root}`]);
 }
 
-/**
- * The repository's manifest as the WORKING TREE holds it: the aggregate at `manifestPath` composed with
- * the fragment tree beside it. No tree is a legal statement — every section still in the aggregate —
- * while a tree that cannot be read is refused, never quietly replaced by the aggregate alone.
- */
-export function readRepoManifest(manifestPath: string): ManifestComposition {
-  const root = manifestFragmentRoot(manifestPath);
-  return composeRepoManifest({
-    aggregate: existsSync(manifestPath) ? { text: readManifestText(manifestPath) } : { unread: `absent at ${manifestPath}` },
-    tree: existsSync(root) ? readManifestFragmentTree(root) : null,
-  });
+function unreadable(messages: readonly string[]): ManifestComposition {
+  return {
+    ok: false,
+    faults: messages.map((message) => ({ kind: "unreadable-fragment-set", fragments: [], at: "", message })),
+  };
 }
 
 /** What a reader needs from git to see a manifest as it stood at a commit. */

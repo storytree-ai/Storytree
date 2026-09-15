@@ -464,7 +464,7 @@ export const AREAS_WITHOUT_CORPUS_READS = {
   noticeboard: "the claim ledger",
   branch: "git branch ergonomics",
   worktree: "git worktrees on this machine",
-  "write-authority": "installs the write wall from repo-manifest.json",
+  "write-authority": "installs the write wall from the repo manifest's root allow-list",
   attest: "reads and writes the ATTESTATION store — a proof record about a node, never the node",
   uat: "the UAT proof surface (ADR-0082): the attestation store and a story's legs, not the corpus DAG",
   witness: "`uat`'s other spelling (ADR-0118) — the same code path, the same store",

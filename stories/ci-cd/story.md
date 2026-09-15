@@ -494,9 +494,9 @@ Surfaced rather than guessed — plain files, cheap to revise.
    ownership map" the deny block derives from. On this branch the script is deleted, since nothing had
    run it after ADR-0311 D2 retired `check:manifest` from the gate and CI. Under ADR-0556, which split
    the repo manifest into fragment files read through one composer, every section left
-   `repo-manifest.json`, which holds only `{}` until a later increment removes it. What the deny block
-   derives from is the allow-list's `root` section, not the ownership map. The call itself is
-   unchanged and still not made.)*
+   `repo-manifest.json`, and the file itself left Git in `repo-manifest-aggregate-leaves-git`.
+   What the deny block derives from is the allow-list's `root` section, not the ownership map.
+   The call itself is unchanged and still not made.)*
 6. **RESOLVED (owner-directed, 2026-08-07).** `gate-ci-parity`'s contract 1 —
    `declared-content-delta-is-exactly-build` — asserted that the local gate's content-check set
    equals the CI `verify` set minus `pnpm -r build`, "the single declared constant `{pnpm -r build}`

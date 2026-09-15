@@ -35,7 +35,8 @@
  *   8. every JavaScript and TypeScript module in the repository, tests included ({@link readSourceModules}),
  *      for the manifest SEAM judge ({@link file://./manifest-boundaries.ts}, ADR-0556 D3): nothing reads
  *      `repo-manifest.json` except through `readRepoManifest`, beyond the exact per-module allowances that
- *      judge declares — so a new direct read of the emptied aggregate fails the gate the day it is written.
+ *      judge declares (none today) — so a new direct read of the aggregate that left Git fails the gate the
+ *      day it is written, and so does a sweep that examined no module at all.
  *
  * Exits non-zero listing every violation, so an undeclared cross-organism coupling (Gap A) — or a
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
@@ -57,7 +58,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadNodeSpec } from "@storytree/orchestrator";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import { readRepoManifest, refusalReasons, REPO_MANIFEST } from "@storytree/drive";
+import { readRepoManifest, refusalReasons, REPO_MANIFEST_TREE } from "@storytree/drive";
 
 import {
   checkBoundaries,
@@ -181,12 +182,12 @@ function readSourceImports(): SourceImport[] {
 }
 
 /**
- * The repo manifest as every reader of it gets it: `repo-manifest.json` composed with the fragment tree beside
- * it (ADR-0556). A set the composer refuses THROWS, carrying the composer's own reasons — the gate must never
- * judge boundaries against a partial view, which is what reading either half alone would give it.
+ * The repo manifest as every reader of it gets it: the fragment tree under `repo-manifest/`, composed
+ * (ADR-0556). A set the composer refuses THROWS, carrying the composer's own reasons — the gate must never
+ * judge boundaries against a partial view.
  */
 function readManifest(): Record<string, unknown> {
-  const composition = readRepoManifest(join(repoRoot, REPO_MANIFEST));
+  const composition = readRepoManifest(join(repoRoot, REPO_MANIFEST_TREE));
   if (!composition.ok) throw new Error(`the repo manifest did not compose — ${refusalReasons(composition.faults)}`);
   return composition.manifest;
 }
@@ -395,9 +396,10 @@ function main(): void {
     // package whose owner is retired, or absent from that walk entirely, fails the gate.
     retiredStories: [...retired].sort(),
   });
-  // ADR-0556 D3: nothing reads `repo-manifest.json` except through the manifest's composition seam.
+  // ADR-0556 D3: nothing reads `repo-manifest.json` — the aggregate that left Git — except through the
+  // manifest's composition seam, and a sweep that examined no module is refused rather than read as clean.
   const seam = findMonolithReads(readSourceModules());
-  const seamViolations = judgeMonolithReads(seam.reads, MONOLITH_READ_ALLOWANCES);
+  const seamViolations = judgeMonolithReads(seam, MONOLITH_READ_ALLOWANCES);
 
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);

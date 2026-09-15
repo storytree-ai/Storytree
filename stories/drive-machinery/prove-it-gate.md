@@ -98,7 +98,9 @@ phase with `perTestFindings` and no signing row. Whenever red was reviewed per t
 (ADR-0572 D3); with no policy the walk signs exactly as before. [`prove-spec-resolution`](prove-spec-resolution.md)
 supplies the policy on every real proof route that runs ONE test file through node:test, vitest or
 `bun test` (ADR-0573 D3), reviewing red per test only for an `editsExisting` unit, whose file loads at
-red; whole-package suites and other runners sign exactly as before.
+red; whole-package suites and other runners sign exactly as before. Where that unit's spec declares a
+`real.cluster` (ADR-0573 D3), the policy also carries the cluster's contracts as `briefContracts`: C7
+then refuses a red in which one of them has no new vouching test, and the red evidence names the cluster.
 
 ## Integration test
 
@@ -110,7 +112,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (15)
+## Contracts (16)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -172,3 +174,7 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
     - **asserts —** `proveUnit` reads the policy's baseline before AUTHOR_TEST is handed out; each review runs only after `nextPhase` would advance, and never rescues an observation `nextPhase` refused; a refused review fails closed at its CONFIRM phase with `perTestFindings` and no signing row; `verdict.acceptedGuardRails` is stamped exactly when red was reviewed per test, `[]` included; the evidence notes disclose whether each observation was per test; and a unit with no policy signs exactly as before.
     - **covers —** `proveUnit`'s per-test sequencing, `ProveSpec.perTest`, `ProveResult.perTestFindings` and `toEvidence` (`packages/orchestrator/src/prove-it-gate.ts`)
     - **proven by —** `packages/orchestrator/src/prove-it-gate.per-test.test.ts` (session-authored; no signed verdict)
+16. **`cluster-brief-names-every-contract-with-a-new-test`** — at CONFIRM_RED, a cluster brief in which one named contract has no new vouching test does not advance, on node and on bun
+    - **asserts —** a per-test policy carrying `briefContracts` refuses (C7) a red whose NEW vouching tests leave one of the brief's contracts unnamed, naming that contract, with IMPLEMENT never handed out and no signing row; the same test file briefed as exactly the cluster it covers advances and signs, and its red evidence note names the cluster's contracts; on node and on bun.
+    - **covers —** `reviewConfirmRed`'s C7 branch, `perTestPolicy`'s `briefContracts` and `redEvidenceDisclosure` (`packages/orchestrator/src/proof/per-test-review.ts`)
+    - **proven by —** `packages/orchestrator/src/prove-it-gate.per-test.e2e.test.ts` (session-authored; no signed verdict)

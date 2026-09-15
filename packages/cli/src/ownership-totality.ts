@@ -220,7 +220,7 @@ export function judgeOwnershipTotality(facts: OwnershipTotalityFacts): Ownership
   }
   if (facts.declarationCount === 0) {
     throw new VacuousOwnershipSweep(
-      "the CURRENT `sourceOwnership.subtrees` map declared nothing (unreadable repo-manifest.json?)",
+      "the CURRENT `sourceOwnership.subtrees` map declared nothing (was the repo-manifest/ fragment tree unreadable?)",
     );
   }
   if (facts.baseFiles.size === 0) {
@@ -228,7 +228,7 @@ export function judgeOwnershipTotality(facts: OwnershipTotalityFacts): Ownership
   }
   if (facts.baseDeclarationCount === 0) {
     throw new VacuousOwnershipSweep(
-      "the BASE `sourceOwnership.subtrees` map declared nothing (unreadable merge-base repo-manifest.json?)",
+      "the BASE `sourceOwnership.subtrees` map declared nothing (was the merge base's repo-manifest/ fragment tree unreadable?)",
     );
   }
 

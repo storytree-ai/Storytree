@@ -2567,7 +2567,7 @@ function walkTestFiles(absDir: string): string[] {
  * ADR-0294 D2 author holds a running test and needs the node that claims it. An unreadable file
  * contributes no tests (fail-closed — silence about a file is never a claim about it).
  */
-function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
+export function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
   const toRel = toRepoRelative(root);
   return sweepCapabilitySurfaces(storiesDir, root).surfaces.map((surface) => ({
     unitId: surface.unitId,
@@ -2575,7 +2575,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
     contractIds: surface.contractIds,
     files: surface.absTestFiles.map((abs) => {
       try {
-        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8")) };
+        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8"), abs) };
       } catch {
         return { file: toRel(abs), observed: [] };
       }
@@ -2592,7 +2592,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
  * globs. A config without a real arm keeps the package/dir walk over its ordinary proof scope.
  * Pure-by-injection seam for `coverageCommand`.
  */
-function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
+export function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
   const file = findNodeSpecFile(storiesDir, unitId);
   if (file === null) return null;
   let spec: ReturnType<typeof loadNodeSpec>;
@@ -2628,7 +2628,7 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
       // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
       // reads uncovered. `unreadTitles` rides along so the report can distinguish a contract NO test
       // names from one whose test has a title the static reader could not read.
-      const surface = readTestSurface(readFileSync(f, "utf8"));
+      const surface = readTestSurface(readFileSync(f, "utf8"), f);
       testNames.push(...surface.vouching);
       unreadTitles += surface.unreadTitles;
     } catch {
@@ -4005,7 +4005,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "write-authority") {
     // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
-    // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
+    // block is DERIVED from the repo manifest's root allow-list, so it needs a caller that can regenerate it;
     // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
     return writeAuthorityCommand(sub, { write: values.write === true, help });
   }
@@ -4785,7 +4785,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area === "ownership") {
     // ADR-0317 D2 — the SECOND declared ownership map, at subtree grain, held to the disk by a
     // totality walk. REPORT-ONLY: it names every source file falling under no declared subtree and
-    // fails nothing. It reads `repo-manifest.json` `sourceOwnership`, never `proof.real.sourceFile`
+    // fails nothing. It reads the composed manifest's `sourceOwnership`, never `proof.real.sourceFile`
     // (a unit→file build target) or `scope.sourceGlobs` (a write fence) — neither is ownership, and
     // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
     if (help) return ownershipHelp();

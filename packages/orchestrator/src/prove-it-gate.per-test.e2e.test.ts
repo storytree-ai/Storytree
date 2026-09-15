@@ -32,7 +32,8 @@ import type { ShellCommand, ShellTestResolver } from "./shell-test-executor.js";
  * END STATE 5 of `batched-test-authoring-arc`, on BOTH runners (ADR-0573): a hollow test beside a real
  * red does not advance CONFIRM_RED, a clean cluster does, the probe's G1 guard-rail is refused without a
  * declaration and accepted and recorded with one, and a green forged by one dummy assertion followed by
- * `process.exit(0)` is refused at CONFIRM_GREEN.
+ * `process.exit(0)` is refused at CONFIRM_GREEN. And for a CLUSTER brief (`batched-test-authoring-arc-inc-04`),
+ * a brief naming a contract that no new vouching test names does not advance CONFIRM_RED (C7).
  *
  * Everything that OBSERVES is real: the gate, a real `ShellTestExecutor` spawning `node --test` (through
  * the spine's reporter module) or `bun test` (junit), the ADR-0211 assert-oracle guard preloaded on both,
@@ -267,6 +268,8 @@ async function walk(args: {
   implement: string;
   contracts: readonly ContractDecl[];
   perTest: boolean;
+  /** C7's input: the contracts a cluster brief named. */
+  briefContracts?: readonly string[];
 }): Promise<Walk> {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), `storytree-per-test-e2e-${args.runner.name}-`));
   const reportPath = allocatePerTestReportPath("per-test-e2e", args.runner.name, args.runner.channel);
@@ -311,11 +314,10 @@ async function walk(args: {
       expectedRed: "assertion",
     };
     if (args.perTest) {
-      spec.perTest = perTestPolicy({
-        testFile: path.join(workspace, TEST),
-        contracts: args.contracts,
-        observeRed: true,
-      });
+      const policy = { testFile: path.join(workspace, TEST), contracts: args.contracts, observeRed: true };
+      spec.perTest = perTestPolicy(
+        args.briefContracts === undefined ? policy : { ...policy, briefContracts: args.briefContracts },
+      );
     }
 
     const result = await proveUnit(spec);
@@ -433,5 +435,45 @@ for (const runner of RUNNERS) {
     const checks = new Set((result.perTestFindings ?? []).map((f) => f.check));
     // node's runner relays a synthetic FILE row and never the declared tests; bun writes no report at all.
     assert.ok(runner.channel === "bun-junit" ? checks.has("C1") : checks.has("C2"), result.reason);
+  });
+
+  test(`cluster-brief-names-every-contract-with-a-new-test: on ${runner.name}, a cluster brief naming a contract no new test names does not advance CONFIRM_RED, and the same tests briefed as the cluster they cover sign`, async () => {
+    const covered = ["add-sums", "clamp-bounds", "parse-port-refuses-garbage"];
+
+    const dropped = await walk({
+      runner,
+      testSource: CLEAN_CLUSTER,
+      implement: IMPLEMENTED_SUBJECT,
+      contracts: contracts(false),
+      perTest: true,
+      briefContracts: [...covered, "parse-port-accepts-a-valid-port"],
+    });
+    assert.equal(dropped.result.ok, false);
+    if (dropped.result.ok) return;
+    assert.equal(dropped.result.failedAt, "CONFIRM_RED", dropped.result.reason);
+    assert.deepEqual(dropped.requested, ["AUTHOR_TEST"], "IMPLEMENT is never handed out over an incomplete cluster");
+    assert.equal(dropped.signingRows, 0);
+    assert.deepEqual(
+      (dropped.result.perTestFindings ?? []).map((f) => `${f.check} ${f.detail}`),
+      ["C7 the brief named contract `parse-port-accepts-a-valid-port`, and no new test that vouches names it"],
+    );
+
+    // The discriminating twin: the same test file, briefed as exactly the cluster it covers.
+    const whole = await walk({
+      runner,
+      testSource: CLEAN_CLUSTER,
+      implement: IMPLEMENTED_SUBJECT,
+      contracts: contracts(false),
+      perTest: true,
+      briefContracts: covered,
+    });
+    assert.equal(whole.result.ok, true, refusal(whole.result));
+    if (!whole.result.ok) return;
+    assert.equal(whole.signingRows, 1);
+    assert.match(
+      whole.result.verdict.evidence[0]?.note ?? "",
+      /a cluster brief of 3 contract\(s\) \(add-sums, clamp-bounds, parse-port-refuses-garbage\), each named by a new vouching test/,
+    );
+    assert.equal(Verdict.safeParse(whole.result.verdict).success, true);
   });
 }

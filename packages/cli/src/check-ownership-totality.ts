@@ -27,7 +27,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import { readSourceOwnershipMap, readSourceOwnershipMapAt } from "@storytree/drive";
+import { readSourceOwnershipMap, readSourceOwnershipMapAt, REPO_MANIFEST_TREE } from "@storytree/drive";
 
 import { gatherSourceFiles } from "./ownership.js";
 import { judgeSourceOwnership } from "./source-ownership.js";
@@ -40,7 +40,6 @@ import {
 } from "./ownership-totality.js";
 
 const TAG = "[check:ownership-totality]";
-const MANIFEST = "repo-manifest.json";
 
 // The repo root is a PARAMETER (ADR-0246), exactly as `check:boundaries` treats it.
 const repoRoot = resolveRepoRoot({
@@ -114,7 +113,7 @@ function resolveBaseRef(): BaseRefChoice {
 }
 
 function main(): void {
-  const currentMap = readSourceOwnershipMap(join(repoRoot, MANIFEST));
+  const currentMap = readSourceOwnershipMap(join(repoRoot, REPO_MANIFEST_TREE));
   if (currentMap.unread.length > 0) {
     // Loud, and NOT a verdict: an unreadable map would otherwise present as "every file is unowned",
     // sending the reader to write declarations for a map that is already complete.
@@ -131,8 +130,9 @@ function main(): void {
 
   // The BASE map, read through the same composition seam the current map went through — never a second
   // reader, or the two reads could disagree about what is declared and present it as an ownership change
-  // nobody made. A base that cannot be read comes back UNREAD with no subtrees, which the judge's
-  // `baseDeclarationCount === 0` guard turns into a BLIND CHECK rather than a red.
+  // nobody made. A base that cannot be read comes back UNREAD, and is reported as a BLIND CHECK carrying
+  // its own reason — which names the repair, e.g. a merge base from before ADR-0556's fragment tree —
+  // rather than reaching the judge, whose `baseDeclarationCount === 0` guard would refuse it without WHY.
   const baseMap = readSourceOwnershipMapAt(
     {
       show: (ref, file) => git(["show", `${ref}:${file}`]),
@@ -144,6 +144,10 @@ function main(): void {
     base.ref,
     "the merge-base repo manifest",
   );
+  if (baseMap.unread.length > 0) {
+    console.error(`${TAG} BLIND CHECK — ${baseMap.unread.join("; ")}`);
+    process.exit(1);
+  }
 
   // Judged over only the files that EXISTED at the base: asking whether a file that did not exist was
   // owned is a question with no honest answer, and the judge never consults this set for those files.
