@@ -25,6 +25,17 @@ import * as path from "node:path";
 
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 import type { TokenUsage } from "./model-events.js";
+import { openCodexFeedbackEndpoint } from "./codex-feedback-endpoint.js";
+import type {
+  CodexFeedbackCommand,
+  CodexFeedbackEndpointHandle,
+} from "./codex-feedback-endpoint.js";
+import { linkReplicaDependencies } from "./codex-replica-links.js";
+import type { SdkFeedbackRun } from "./sdk-author.js";
+
+// Re-exported for callers constructing `CodexPhaseAuthorArgs.feedbackCommands` — the command shape
+// is declared once, in `codex-feedback-endpoint.ts`, never duplicated here.
+export type { CodexFeedbackCommand } from "./codex-feedback-endpoint.js";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
 export const CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
@@ -47,6 +58,29 @@ export interface CodexCommand {
    * spine makes to AUTHOR, which had none.
    */
   timeoutMs?: number;
+  /**
+   * An otherwise-empty handle the caller supplies. Before this returns its pending promise,
+   * `runPinnedCodexCli` populates it with real `suspend`/`resume` functions bound to this one spawn.
+   * See {@link CodexBoundControl}.
+   */
+  bound?: CodexBoundControl;
+}
+
+/**
+ * A caller-owned handle letting the spine pause a leaf spawn's bound while it runs a feedback
+ * command, then resume it with exactly the remaining time — so only the leaf's own time counts
+ * against the bound. `runPinnedCodexCli` assigns both members onto the SAME object the caller passed
+ * in via {@link CodexCommand.bound}, before returning its pending promise.
+ *
+ * Both start `undefined` and are populated synchronously (the promise executor runs up to that point
+ * before `runPinnedCodexCli` returns, exactly as the spawn and the initial `clock.setTimeout` already
+ * do). A repeated `suspend()` while already suspended, or `resume()` while already armed, changes
+ * nothing; either call after the spawn has settled changes nothing either, since an armed timer left
+ * behind would keep a finished spawn reachable.
+ */
+export interface CodexBoundControl {
+  suspend?: () => void;
+  resume?: () => void;
 }
 
 export interface CodexCommandResult {
@@ -117,6 +151,12 @@ export type CodexRunner = (command: CodexCommand) => Promise<CodexCommandResult>
 export interface CodexBoundClock {
   setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout>;
   clearTimeout(handle: ReturnType<typeof setTimeout>): void;
+  /**
+   * The time source the suspend/resume remaining-time arithmetic reads. Optional and defaulted to
+   * the system clock's `Date.now`, so an existing test clock declaring only `setTimeout`/
+   * `clearTimeout` keeps typechecking against this interface unchanged.
+   */
+  now?(): number;
 }
 
 const SYSTEM_CLOCK: CodexBoundClock = { setTimeout, clearTimeout };
@@ -186,6 +226,13 @@ export interface CodexPhaseAuthorArgs {
   env?: NodeJS.ProcessEnv;
   /** @internal Test-only fault seam, accepted only together with an injected runner. */
   promotionFaults?: CodexPromotionFaults;
+  /**
+   * Spine-registered feedback commands, exposed to the leaf as bounded loopback MCP tools
+   * (`mcp__spine__<name>`) run against the replica's own root. Absent/empty leaves the leaf blind
+   * exactly as before: no endpoint is opened, no replica dependency links are made, and the exec
+   * arguments are unchanged (`mcp_servers={}`).
+   */
+  feedbackCommands?: CodexFeedbackCommand[];
 }
 
 interface ParsedCodexStream {
@@ -327,11 +374,68 @@ function validatePromotionManifest(manifest: CodexPromotionManifest | undefined)
   return { ok: true, allowed, required };
 }
 
-/** Pure command construction exported so offline tests pin every security-relevant flag. */
-export function buildCodexExecArgs(args: {
+/**
+ * The optional loopback spine MCP server a feedback phase arms. `url` and `tokenEnvVar` are written
+ * literally into the TOML config strings; `toolTimeoutSec` is written as a bare integer and reused for
+ * both the tool and startup timeouts. The token VALUE never crosses into argv (ADR-0570 D2) — only the
+ * environment variable's name does.
+ */
+export interface CodexExecFeedbackConfig {
+  url: string;
+  tokenEnvVar: string;
+  toolTimeoutSec: number;
+}
+
+/**
+ * Codex's own MCP tool-call timeout for a feedback run (`mcp_servers.spine.tool_timeout_sec`). Must
+ * exceed the spine's proof commands' own ten-minute default bound (ADR-0570 D4), so Codex never
+ * abandons a run the spine is still executing. `@storytree/agent` imports no other storytree
+ * package, so the orchestrator's `DEFAULT_PROOF_TIMEOUT_MS` cannot be read here directly.
+ */
+const FEEDBACK_TOOL_TIMEOUT_SEC = 900;
+
+/** Per-slice feedback-run cap shared across commands, mirroring the Claude leaf's default (ADR-0570 D5). */
+const DEFAULT_CODEX_MAX_FEEDBACK_RUNS = 5;
+
+function buildFeedbackMcpServersConfigArgs(feedback: CodexExecFeedbackConfig): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(feedback.url);
+  } catch {
+    throw new Error(`Codex feedback url must be a valid URL: ${feedback.url}`);
+  }
+  if (parsed.protocol !== "http:" || parsed.hostname !== "127.0.0.1") {
+    throw new Error(
+      `Codex feedback url must be an http://127.0.0.1 loopback endpoint: ${feedback.url}`,
+    );
+  }
+  if (!Number.isInteger(feedback.toolTimeoutSec) || feedback.toolTimeoutSec <= 0) {
+    throw new Error(
+      `Codex feedback tool timeout must be a positive integer: ${feedback.toolTimeoutSec}`,
+    );
+  }
+  return [
+    "--config",
+    `mcp_servers.spine.url="${feedback.url}"`,
+    "--config",
+    `mcp_servers.spine.bearer_token_env_var="${feedback.tokenEnvVar}"`,
+    "--config",
+    `mcp_servers.spine.tool_timeout_sec=${feedback.toolTimeoutSec}`,
+    "--config",
+    `mcp_servers.spine.startup_timeout_sec=${feedback.toolTimeoutSec}`,
+  ];
+}
+
+/** What {@link buildCodexExecArgs} turns into a Codex exec command. */
+export interface CodexExecArgsInput {
   model: string;
   cwd: string;
-}): string[] {
+  /** Arms a loopback spine MCP server for a feedback phase; omitted, the command is unchanged. */
+  feedback?: CodexExecFeedbackConfig;
+}
+
+/** Pure command construction exported so offline tests pin every security-relevant flag. */
+export function buildCodexExecArgs(args: CodexExecArgsInput): string[] {
   return [
     "exec",
     "--json",
@@ -354,8 +458,9 @@ export function buildCodexExecArgs(args: {
     'forced_login_method="chatgpt"',
     "--config",
     'model_provider="openai"',
-    "--config",
-    "mcp_servers={}",
+    ...(args.feedback === undefined
+      ? ["--config", "mcp_servers={}"]
+      : buildFeedbackMcpServersConfigArgs(args.feedback)),
     "--config",
     "agents.enabled=false",
     "--config",
@@ -512,8 +617,12 @@ export async function runPinnedCodexCli(
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let timedOut = false;
+    let settled = false;
+    const now = (): number => clock.now?.() ?? Date.now();
     // The bound. Released in `settle`, on `exit` or on `error`, so it never outlives the child it
-    // bounds and needs no `unref`.
+    // bounds and needs no `unref`. While `armedTimer` is defined the bound is live; suspending it
+    // (see `command.bound` below) releases it and remembers the remaining time, so only the leaf's
+    // own time — never time spent while the spine runs a feedback command — counts against it.
     //
     // It signals the WRAPPER, not the native binary that stopped answering, and still reaches that
     // binary on both platforms (measured on codex-cli 0.145.0, inner-loop-exit-arc inc-07). On POSIX
@@ -523,12 +632,36 @@ export async function runPinnedCodexCli(
     // this is TerminateProcess on the wrapper alone, but the wrapper's own libuv holds its child
     // in a kill-on-close job object, so the native binary ends with it. SIGKILL alone would
     // ORPHAN the native binary on POSIX, because a SIGKILL cannot be forwarded.
-    const bound = clock.setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, resolveCodexTimeoutMs(command));
+    let armedTimer: ReturnType<typeof setTimeout> | undefined;
+    let armedAt = 0;
+    let remainingMs = resolveCodexTimeoutMs(command);
+    const arm = (ms: number): void => {
+      armedAt = now();
+      remainingMs = ms;
+      armedTimer = clock.setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, ms);
+    };
+    arm(remainingMs);
+    if (command.bound !== undefined) {
+      command.bound.suspend = () => {
+        if (settled || armedTimer === undefined) return;
+        remainingMs = Math.max(0, remainingMs - (now() - armedAt));
+        clock.clearTimeout(armedTimer);
+        armedTimer = undefined;
+      };
+      command.bound.resume = () => {
+        if (settled || armedTimer !== undefined) return;
+        arm(remainingMs);
+      };
+    }
     const settle = (fn: () => void): void => {
-      clock.clearTimeout(bound);
+      settled = true;
+      if (armedTimer !== undefined) {
+        clock.clearTimeout(armedTimer);
+        armedTimer = undefined;
+      }
       fn();
     };
     child.once("error", (error) => settle(() => reject(error)));
@@ -926,17 +1059,22 @@ export class CodexPhaseAuthor implements PhaseAuthor {
   readonly runtime = "codex" as const;
   readonly runs: CodexRunInfo[] = [];
   readonly violations: CodexWriteViolation[] = [];
-  readonly feedbackRuns: [] = [];
-  /** Codex cannot run feedback commands; registered proofs remain spine-only and out of band. */
-  readonly feedbackToolNames: [] = [];
+  readonly feedbackRuns: SdkFeedbackRun[] = [];
+  /** `mcp__spine__<name>` per registered feedback command; empty when none were supplied. */
+  readonly feedbackToolNames: string[];
   readonly #args: CodexPhaseAuthorArgs;
   readonly #runner: CodexRunner;
   readonly #injectedRunner: boolean;
+  readonly #feedbackCommands: CodexFeedbackCommand[];
 
   constructor(args: CodexPhaseAuthorArgs) {
     this.#args = { ...args, cwd: path.resolve(args.cwd) };
     this.#injectedRunner = args.runner !== undefined;
     this.#runner = args.runner ?? runPinnedCodexCli;
+    this.#feedbackCommands = args.feedbackCommands ?? [];
+    this.feedbackToolNames = this.#feedbackCommands.map(
+      (command) => `mcp__spine__${command.name}`,
+    );
   }
 
   async author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult> {
@@ -1014,6 +1152,11 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     }
     const replicaDir = replica.dir;
     try {
+      // Dependency links land before the before-snapshot (ADR-0570 D3): a link made after it would
+      // be observed as an unlisted path and refuse the whole phase.
+      if (this.#feedbackCommands.length > 0) {
+        await linkReplicaDependencies(this.#args.cwd, replicaDir);
+      }
       if (replica.seeded) beforeSnapshot = await snapshotReplica(replicaDir);
     } catch (error) {
       await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
@@ -1039,23 +1182,74 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       "observed allowed subset. One unlisted change refuses the whole phase; your final response " +
       "and file-change report are not promotion evidence.";
 
-    let execution: CodexCommandResult;
+    let feedbackHandle: CodexFeedbackEndpointHandle | undefined;
+    const bound: CodexBoundControl = {};
     try {
-      execution = await this.#runner({
-        args: buildCodexExecArgs({
-          model,
-          cwd: replicaDir,
-        }),
-        cwd: replicaDir,
-        env: childEnv,
-        stdin: fullPrompt,
-      });
-    } catch (error) {
-      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
-      return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
-    }
+      // Opened BEFORE `codex exec` starts, so the leaf can reach it from turn one; closed in the
+      // `finally` below, which covers every exit after it opened — success, a refused promotion, and
+      // a thrown runner alike.
+      if (this.#feedbackCommands.length > 0) {
+        const wrappedFeedbackCommands: CodexFeedbackCommand[] = this.#feedbackCommands.map(
+          (command) => ({
+            name: command.name,
+            description: command.description,
+            // Only the leaf's own exec-spawn time counts against its bound: suspended for the
+            // duration of a feedback run, resumed once it settles (ADR-0570 D4).
+            run: async (feedbackReplicaRoot: string) => {
+              bound.suspend?.();
+              try {
+                return await command.run(feedbackReplicaRoot);
+              } finally {
+                bound.resume?.();
+              }
+            },
+          }),
+        );
+        feedbackHandle = await openCodexFeedbackEndpoint({
+          phase,
+          replicaRoot: replicaDir,
+          commands: wrappedFeedbackCommands,
+          maxRuns: DEFAULT_CODEX_MAX_FEEDBACK_RUNS,
+          record: (run) => this.feedbackRuns.push(run),
+        });
+      }
 
-    try {
+      const execArgsInput: CodexExecArgsInput = {
+        model,
+        cwd: replicaDir,
+      };
+      if (feedbackHandle !== undefined) {
+        execArgsInput.feedback = {
+          url: feedbackHandle.url,
+          tokenEnvVar: feedbackHandle.tokenEnvVar,
+          toolTimeoutSec: FEEDBACK_TOOL_TIMEOUT_SEC,
+        };
+      }
+      // The token VALUE lives only in the exec child's environment, under the endpoint's own
+      // variable name — never in argv (ADR-0570 D2); `execArgsInput` carries the name alone.
+      const execEnv: NodeJS.ProcessEnv =
+        feedbackHandle === undefined
+          ? childEnv
+          : { ...childEnv, [feedbackHandle.tokenEnvVar]: feedbackHandle.token };
+      const execCommand: CodexCommand = {
+        args: buildCodexExecArgs(execArgsInput),
+        cwd: replicaDir,
+        env: execEnv,
+        stdin: fullPrompt,
+      };
+      if (feedbackHandle !== undefined) execCommand.bound = bound;
+
+      let execution: CodexCommandResult;
+      try {
+        execution = await this.#runner(execCommand);
+      } catch (error) {
+        // `force` is left off here and in the `finally` below: all it does is turn a replica that is
+        // already gone into a success, and the `.catch` absorbs that failure anyway.
+        await fs.rm(replicaDir, { recursive: true }).catch(() => undefined);
+        return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
+      }
+
+      try {
       // Checked BEFORE the JSONL is parsed: a killed child emits no turn envelope, so the parser would
       // report "must contain exactly one turn (started=0, completed=0)" — a statement about the leaf's
       // OUTPUT for a leaf that never produced any. The bound is the honest answer, and it is UNVERIFIED
@@ -1200,8 +1394,11 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         return failRun(`Codex replica promotion failed: ${promoted.error}`);
       }
       return { ok: true };
+      } finally {
+        await fs.rm(replicaDir, { recursive: true }).catch(() => undefined);
+      }
     } finally {
-      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+      await feedbackHandle?.close();
     }
   }
 }
