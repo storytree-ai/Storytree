@@ -423,6 +423,70 @@ export function attributeChurn(
   };
 }
 
+/**
+ * ── A SURFACE THAT WAS SPLIT: reading its successor without rewriting its history ──────────────
+ *
+ * ADR-0556 split `repo-manifest.json` — the surface `marginalRanking` put first on 2026-09-08, at +3.2 pp
+ * of post-2026-08-04 build waves — into fragment files under `repo-manifest/`, and the aggregate left Git.
+ * File-level disjointness already sees each fragment as its own file, so a landing made after the split
+ * needs nothing new to be scored. What the simulation cannot say unaided is what the split BOUGHT, and that
+ * is two questions with two answers that are never to be added together:
+ *
+ *   - THE HISTORICAL COUNTERFACTUAL — the 2026-09-08 reading. Over landings made against the aggregate,
+ *     forgive the aggregate. It is `marginalRanking`'s delta for the surface, and it rewrites nothing: no
+ *     historical landing is ever told it touched a fragment.
+ *   - THE FORWARD BASELINE ({@link forwardReading}) — landings made on or after the split, measured as they
+ *     actually landed, beside the SAME landings with every fragment folded back into the one aggregate path.
+ *     The gap is the width the split bought on real work. It starts thin, and carries its own landing count
+ *     so a thin reading cannot pass for a settled one.
+ */
+export type SurfaceSplit = {
+  /** the surface that was split, as history names it */
+  readonly surface: string;
+  /** the directory, with its trailing slash, whose files replaced it */
+  readonly successor: string;
+  /** the first landing date (YYYY-MM-DD) authored against the successor */
+  readonly since: string;
+};
+
+/** A landing's files with every successor file folded back into the one surface it replaced. */
+export const foldSplit = (files: Iterable<string>, split: SurfaceSplit): Set<string> =>
+  new Set([...files].map((f) => (f.startsWith(split.successor) ? split.surface : f)));
+
+export type ForwardReading = {
+  readonly since: string;
+  /** every landing on or after `since`, before the population filter */
+  readonly landings: number;
+  /** of those, how many touched the surface or its successor */
+  readonly touching: number;
+  /** the landings as they actually landed */
+  readonly split: Measurement;
+  /** the same landings with the successor folded back into one file — what the aggregate would have cost them */
+  readonly aggregate: Measurement;
+};
+
+/** The forward baseline for one split surface — see "A SURFACE THAT WAS SPLIT" above. */
+export function forwardReading(
+  arcs: readonly ArcUnits[],
+  want: (k: Kind) => boolean,
+  split: SurfaceSplit,
+  policy: ForgivePolicy,
+): ForwardReading {
+  const forward = arcs.map(({ arc, units }) => ({ arc, units: units.filter((u) => u.date >= split.since) }));
+  const landings = forward.flatMap((a) => a.units);
+  const folded = forward.map(({ arc, units }) => ({
+    arc,
+    units: units.map((u) => ({ ...u, files: foldSplit(u.files, split) })),
+  }));
+  return {
+    since: split.since,
+    landings: landings.length,
+    touching: landings.filter((u) => [...u.files].some((f) => f === split.surface || f.startsWith(split.successor))).length,
+    split: measure(forward, want, policy),
+    aggregate: measure(folded, want, policy),
+  };
+}
+
 /** Story-grain lanes a single landing collapsed into a serial pass — instrument B, confound-free. */
 export const storyKeys = (files: Iterable<string>): Set<string> => {
   const s = new Set<string>();

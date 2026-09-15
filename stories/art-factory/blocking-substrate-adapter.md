@@ -49,9 +49,10 @@ governs (ADR-0217 stations 1–3). That hand-off is a real within-story code edg
 > HEAD**: `packages/art-authoring/` landed in `ff98fbc8` ("the offline generative blocking-substrate
 > adapter seam (ADR-0225, contracts 1-3)") with the adapter, the backend registry, the re-author
 > hand-off, two real backends and a test file per contract — the tests are literally NAMED for the
-> contract ids below. It is registered in `repo-manifest.json`. A session trusting this paragraph
-> would have paid the prove-it-gate to manufacture a red over green code, which is the exact failure
-> ADR-0465 exists to stop; the spec's own self-report is never the evidence, the code is.
+> contract ids below. It is registered in `repo-manifest/package-ownership/_domain.json`. A session
+> trusting this paragraph would have paid the prove-it-gate to manufacture a red over green code,
+> which is the exact failure ADR-0465 exists to stop; the spec's own self-report is never the
+> evidence, the code is.
 >
 > The build path it described is therefore spent: contracts 1–3 and contract 4's OFFLINE conformance
 > half are discharged by ADOPTION on the owner's recorded risk acceptance (ADR-0465 D2/D4) against
@@ -103,8 +104,9 @@ real checker), carries the HTTP client + owner-provided credential + fixture bac
 NEVER imported by the browser bundle, the deterministic build, or the runtime. A standalone script is
 too thin for a vendor-swappable interface with multiple backends and a real test surface. Registration
 of that package under `art-factory` ownership — and its EXCLUSION from the manifest's `foundational`
-subset (it is author-time tooling, not a shipped foundational organism) — is a `repo-manifest.json` /
-wiring concern for the build increment, outside this spec's `stories/**` surface.
+subset (it is author-time tooling, not a shipped foundational organism) — is a
+`repo-manifest/package-ownership/_domain.json` / wiring concern for the build increment, outside
+this spec's `stories/**` surface.
 
 ## Integration test
 

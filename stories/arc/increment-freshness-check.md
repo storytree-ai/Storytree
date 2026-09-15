@@ -19,7 +19,7 @@ depends_on: []
 decisions: [183, 305, 369]
 # A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 6, 2026-08-08; the arc that re-homed it:
-# arc-tier-extraction-arc increment 1, 2026-08-14). It resolves ONE `repo-manifest.json`
+# arc-tier-extraction-arc increment 1, 2026-08-14). It resolves ONE repo manifest
 # `sourceOwnership` declaration: `packages/arc/src/increment.ts`.
 #
 # WHY THIS IS NOT PART OF `arc-derived-initiative-view`, ITS SIBLING IN THE SAME ORGAN. The splitting

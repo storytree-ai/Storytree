@@ -42,7 +42,7 @@
 import { readdirSync, existsSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-import { readSourceOwnershipMap } from "@storytree/drive";
+import { readSourceOwnershipMap, REPO_MANIFEST_TREE } from "@storytree/drive";
 
 import type { Envelope } from "./envelope.js";
 import {
@@ -136,7 +136,7 @@ export interface GatherDeclarationsResult {
 
 /**
  * The declared map, `sourceOwnership.subtrees` — one fragment per owner under
- * `repo-manifest/source-ownership/`, composed with `repo-manifest.json` beside it (ADR-0556).
+ * `repo-manifest/source-ownership/`, composed with the rest of the fragment tree (ADR-0556).
  *
  * DELEGATED, not re-implemented: `readSourceOwnershipMap` in `@storytree/drive` is the ONE reader of
  * this block, because the claim namespace turns the same declarations into claimable objects
@@ -156,7 +156,7 @@ export interface GatherDeclarationsResult {
  * The claim namespace reads the same failure the opposite way and stands down; see that module.
  */
 export function gatherDeclarations(repoRoot: string): GatherDeclarationsResult {
-  const map = readSourceOwnershipMap(join(repoRoot, "repo-manifest.json"));
+  const map = readSourceOwnershipMap(join(repoRoot, REPO_MANIFEST_TREE));
   return {
     declarations: map.subtrees.map((d) => ({ subtree: d.subtree, owner: d.owner })),
     baseline: map.baseline,

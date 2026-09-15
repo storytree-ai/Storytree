@@ -136,8 +136,9 @@ D1, standing on ADR-0075's
 ports-as-root-organisms and ADR-0093's
 foundational-root shape) — exactly like `proof-protocol`, `storage-protocol`, and `forest-world`:
 `depends_on: []`, the bottom of the dependency order, depending on nothing. `@storytree/procedural-architecture`
-is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `art-factory`, moved off
-`forest-world` by ADR-0222 D1) and stays in the `foundational` subset that carries the minimality rule.
+is registered in `repo-manifest/package-ownership/_domain.json` `packageOwnership.organisms`
+(→ `art-factory`, moved off `forest-world` by ADR-0222 D1) and stays in the `foundational` subset
+that carries the minimality rule.
 
 ## Design floor — foundational minimality
 

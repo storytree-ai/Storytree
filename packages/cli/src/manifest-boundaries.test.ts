@@ -7,6 +7,7 @@ import {
   MONOLITH,
   MONOLITH_READ_ALLOWANCES,
   type MonolithRead,
+  type MonolithReadScan,
   type SourceModule,
 } from "./manifest-boundaries.js";
 
@@ -199,8 +200,13 @@ test("a git show of the path handed to anything that runs a command is a read �
 // How the reads are judged
 // ---------------------------------------------------------------------------
 
+/** A sweep that examined `examined` modules and found `reads` in them. */
+function scanOf(reads: readonly MonolithRead[], examined = 1): MonolithReadScan {
+  return { reads, examined };
+}
+
 test("an unallowed read is refused with every line it reads at, and the seam named as the repair", () => {
-  assert.deepEqual(judgeMonolithReads([at("tools/a.ts", 3, "readFileSync"), at("tools/a.ts", 9, "show")], []), [
+  assert.deepEqual(judgeMonolithReads(scanOf([at("tools/a.ts", 3, "readFileSync"), at("tools/a.ts", 9, "show")]), []), [
     "tools/a.ts reads repo-manifest.json directly 2 time(s) and is allowed 0: line 3 (readFileSync), line 9 (show). " +
       "Read the manifest through its composition seam instead — readRepoManifest (@storytree/drive) composes the " +
       "fragments under repo-manifest/ and refuses what it cannot read (ADR-0556 D3).",
@@ -210,13 +216,13 @@ test("an unallowed read is refused with every line it reads at, and the seam nam
 test("an allowance is exact: met it is silent, exceeded it refuses, and unmet it is stale", () => {
   const allowance = { path: "tools/legacy.ts", reads: 1, why: "the compatibility path" };
   const once = [at("tools/legacy.ts", 4, "show")];
-  assert.deepEqual(judgeMonolithReads(once, [allowance]), []);
-  assert.deepEqual(judgeMonolithReads([...once, at("tools/legacy.ts", 8, "readFileSync")], [allowance]), [
+  assert.deepEqual(judgeMonolithReads(scanOf(once), [allowance]), []);
+  assert.deepEqual(judgeMonolithReads(scanOf([...once, at("tools/legacy.ts", 8, "readFileSync")]), [allowance]), [
     "tools/legacy.ts reads repo-manifest.json directly 2 time(s) and is allowed 1: line 4 (show), line 8 (readFileSync). " +
       "Read the manifest through its composition seam instead — readRepoManifest (@storytree/drive) composes the " +
       "fragments under repo-manifest/ and refuses what it cannot read (ADR-0556 D3).",
   ]);
-  assert.deepEqual(judgeMonolithReads([], [allowance]), [
+  assert.deepEqual(judgeMonolithReads(scanOf([]), [allowance]), [
     "tools/legacy.ts is allowed 1 direct read(s) of repo-manifest.json and makes 0 — the allowance is stale: lower " +
       "it in MONOLITH_READ_ALLOWANCES (packages/cli/src/manifest-boundaries.ts), or delete it at zero.",
   ]);
@@ -224,7 +230,7 @@ test("an allowance is exact: met it is silent, exceeded it refuses, and unmet it
 
 test("the refusals come in the order their reads were found, then the stale allowances", () => {
   const judged = judgeMonolithReads(
-    [at("tools/b.ts", 1, "readFile"), at("tools/a.ts", 1, "readFile")],
+    scanOf([at("tools/b.ts", 1, "readFile"), at("tools/a.ts", 1, "readFile")]),
     [
       { path: "tools/c.ts", reads: 1, why: "stale" },
       { path: "tools/a.ts", reads: 1, why: "allowed" },
@@ -236,13 +242,22 @@ test("the refusals come in the order their reads were found, then the stale allo
   );
 });
 
-test("the only allowance is the seam's merge-base compatibility read, and it names the increment that deletes it", () => {
-  assert.equal(MONOLITH, "repo-manifest.json");
+test("a sweep that examined no module is refused as blind — one examined module is enough to be heard", () => {
+  // With no allowance left, nothing else anchors the judge to the real tree: a walk that read nothing would
+  // otherwise find no read and pass.
+  const blind =
+    "the sweep examined no module that names repo-manifest.json — not even packages/cli/src/manifest-boundaries.ts, " +
+    "which spells it — so it read nothing, and a clean result would be blind: check the module walk in check-boundaries.ts";
+  assert.deepEqual(judgeMonolithReads(scanOf([], 0), []), [blind]);
+  assert.deepEqual(judgeMonolithReads(scanOf([], 1), []), []);
+  // The blind sweep leads, and hides nothing else the judgement found.
   assert.deepEqual(
-    MONOLITH_READ_ALLOWANCES.map(({ path, reads }) => ({ path, reads })),
-    [{ path: "packages/drive/src/source-ownership-map.ts", reads: 1 }],
+    judgeMonolithReads(scanOf([], 0), [{ path: "tools/c.ts", reads: 1, why: "stale" }]).map((refusal) => refusal.split(" ")[0]),
+    ["the", "tools/c.ts"],
   );
-  const why = MONOLITH_READ_ALLOWANCES[0]?.why ?? "";
-  assert.match(why, /reads the aggregate at a merge-base commit from before the fragment tree existed/);
-  assert.match(why, /deleted with the aggregate by repo-manifest-aggregate-leaves-git/);
+});
+
+test("no module is allowed a direct read — the merge-base compatibility read left Git with the aggregate", () => {
+  assert.equal(MONOLITH, "repo-manifest.json");
+  assert.deepEqual(MONOLITH_READ_ALLOWANCES, []);
 });

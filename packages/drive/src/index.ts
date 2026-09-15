@@ -85,8 +85,8 @@ export * from "./subtree-match.js";
 // The manifest FRAGMENT contract and its one composer (ADR-0556, `repo-manifest-fragmentation-arc`):
 // what a fragment is, where it lives, and how a set of them composes into the manifest's one view —
 // refusing, never guessing, whenever the set does not say one thing. Every section is authored as
-// fragments under `repo-manifest/` and read through it; the committed `repo-manifest.json` is kept
-// empty until `repo-manifest-aggregate-leaves-git` removes it.
+// fragments under `repo-manifest/` and read through it; no committed aggregate sits beside them
+// (`repo-manifest-aggregate-leaves-git`).
 export * from "./manifest-fragments.js";
 export * from "./manifest-fragments-read.js";
 // `noticeboard history` — the READ verb over the claim AUDIT log (ADR-0310 D1): the ledger verbs

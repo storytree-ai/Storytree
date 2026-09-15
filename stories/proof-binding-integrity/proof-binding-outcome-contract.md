@@ -17,7 +17,8 @@ decisions: [180, 249]
 # "Why this is a capability, not a contract". Neither the outcome nor the honesty boundary moved.
 #
 # THE ID KEEPS ITS `-contract` SUFFIX, and that is a decision rather than an oversight: the id is a
-# join key held OUTSIDE `stories/**` — `repo-manifest.json` `sourceOwnership` homes
+# join key held OUTSIDE `stories/**` —
+# `repo-manifest/source-ownership/proof-binding-outcome-contract.json` homes
 # `packages/library/src/proof-binding-outcome.ts` to it — so renaming it is a cross-fence edit, not a
 # spec correction. The suffix now reads as the typed API contract this unit PUBLISHES, which is the
 # thing both consumers actually spend, rather than as its tier.
@@ -156,7 +157,8 @@ pass, so ADR-0395 keeps the authored baseline at `proposed`.
 
 **LANDED — this unit no longer names a seam, it names files.** The source/test pair is
 `packages/library/src/proof-binding-outcome.{ts,test.ts}`, beside the resolver it adapts, and
-`repo-manifest.json` `sourceOwnership` homes the module here. *(Superseding the authored-time note
+`repo-manifest/source-ownership/proof-binding-outcome-contract.json` homes the module here.
+*(Superseding the authored-time note
 that said the literal pair "belongs beside the existing library resolver" and that this unit
 "deliberately names the seam, not a premature file edit": both were true when written and neither
 survived the landing.)*

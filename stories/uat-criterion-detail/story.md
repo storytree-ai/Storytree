@@ -200,8 +200,8 @@ The graph is acyclic; `uat-detail-kind` is the root.
 
 This NEW story owns the NEW `@storytree/uat-criterion` port at `packages/uat-criterion`; every
 `proof.real.sourceFile` and literal `sourceGlobs` entry is under that one building. Package scaffold
-+ `repo-manifest.json` `packageOwnership` registration must land before the leaf chain (same bootstrap
-as `model-uat-witness`).
++ `repo-manifest/package-ownership/_domain.json` `packageOwnership` registration must land before
+the leaf chain (same bootstrap as `model-uat-witness`).
 
 Runtime dependencies (honest `depends_on`):
 

@@ -306,6 +306,12 @@ test("the rendered listing prints the keys, splits the three remedies, and drops
   assert.doesNotMatch(text, /no capability exists for that subtree/);
   // ADR-0308 D5's fallback — what a session with no capability to name actually does.
   assert.match(text, /INCREMENT you are driving/);
+  // The residue remedy cites its rule where the rule is authored — the source-ownership notes fragment, not
+  // the aggregate that left Git (ADR-0556).
+  assert.match(
+    text,
+    /the opening move that arc forbids \(the source-ownership map's rule 4, in repo-manifest\/source-ownership\/_domain\.json\)\./,
+  );
 });
 
 test("the listing is absent when nothing is at story grain, rather than printing an empty heading", () => {

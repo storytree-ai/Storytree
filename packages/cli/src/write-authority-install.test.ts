@@ -17,7 +17,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { composeRepoManifest, REPO_MANIFEST } from "@storytree/drive";
+import {
+  composeManifest,
+  REPO_MANIFEST_TREE,
+  splitManifest,
+  type ManifestComposition,
+  type ManifestObject,
+} from "@storytree/drive";
 
 import {
   defaultWallInstallIo,
@@ -39,6 +45,12 @@ const MANIFEST = JSON.stringify({
   hierarchyCamps: { readers: {} },
   hostedStories: { register: {} },
 });
+
+/** What the real reader answers for a checkout with no fragment tree — the harness's stand-in for it. */
+const ABSENT: ManifestComposition = {
+  ok: false,
+  faults: [{ kind: "unreadable-fragment-set", fragments: [], at: "", message: `${REPO_MANIFEST_TREE}/: absent` }],
+};
 
 /**
  * The fixture checkout root, PLATFORM-APPROPRIATE rather than hard-coded Windows.
@@ -69,17 +81,19 @@ function harness(
   const files = new Map<string, string>();
   const writes: string[] = [];
   const manifest = over.manifest === undefined ? MANIFEST : over.manifest;
-  if (manifest !== null) files.set(path.join(PRIMARY, "repo-manifest.json"), manifest);
+  if (manifest !== null) files.set(path.join(PRIMARY, REPO_MANIFEST_TREE), manifest);
   const settings = over.settings === undefined ? null : over.settings;
   if (settings !== null) files.set(userSettingsPath("C:\\Users\\dev"), settings);
   return {
     files,
     writes,
     io: {
-      // The real composer over the injected files, so a fixture reads exactly as a checkout with no fragment tree.
+      // The real composer over the injected manifest, split into fragments exactly as a checkout's tree holds them.
       readManifest: (root) => {
-        const text = files.get(path.join(root, REPO_MANIFEST));
-        return composeRepoManifest({ aggregate: text === undefined ? { unread: "absent" } : { text }, tree: null });
+        const text = files.get(path.join(root, REPO_MANIFEST_TREE));
+        if (text === undefined) return ABSENT;
+        const parsed: ManifestObject = JSON.parse(text);
+        return composeManifest(splitManifest(parsed));
       },
       readFile: (p) => files.get(p) ?? null,
       writeFile: (p, body) => {
@@ -167,7 +181,7 @@ test("a manifest that does not compose refuses rather than emitting an empty blo
   assert.equal(gone.ok, false);
   assert.equal(
     gone.body,
-    `the repo manifest under ${PRIMARY} did not compose — repo-manifest.json: absent. ` +
+    `the repo manifest under ${PRIMARY} did not compose — ${REPO_MANIFEST_TREE}/: absent. ` +
       "The deny block is DERIVED from it and must never be hand-written, so nothing was generated.",
   );
   assert.deepEqual(absent.writes, []);
@@ -329,7 +343,7 @@ test("defaultWallInstallIo: real file IO round-trips, and a missing file reads a
     if (refused.ok) assert.fail("a directory with no manifest composed one");
     assert.deepEqual(
       refused.faults.map((f) => f.message),
-      [`${REPO_MANIFEST}: absent at ${path.join(dir, REPO_MANIFEST)}`],
+      [`the manifest fragment tree is absent at ${path.join(dir, REPO_MANIFEST_TREE)}`],
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

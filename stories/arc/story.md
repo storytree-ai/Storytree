@@ -195,7 +195,7 @@ The capability graph within this story is therefore **two roots and one edge**:
 
 **The package's fifth source file has no capability, and that is not a gap.** `src/index.ts` is the
 barrel — it re-exports the four modules and states the design; it asserts nothing. It is owned at
-STORY grain in `repo-manifest.json`'s `sourceOwnership`, the same shape `packages/cli/src/index.ts`
+STORY grain in `repo-manifest/source-ownership/arc.json`, the same shape `packages/cli/src/index.ts`
 (→ `cli`) and `packages/drive/src/index.ts` (→ `drive-machinery`) already carry. Checked with
 `storytree ownership packages/arc`: **five source files, five owned (100%)** — four by the capabilities
 above and the barrel by this story. No unhomed organ, so no capability was invented to cover one.

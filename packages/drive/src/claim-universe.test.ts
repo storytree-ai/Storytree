@@ -16,7 +16,7 @@ import {
   subtreeClaimNote,
   type LibraryDocsReadLike,
 } from "./claim-universe.js";
-import { splitManifest } from "./manifest-fragments.js";
+import { splitManifest, type ManifestObject } from "./manifest-fragments.js";
 
 /**
  * Gathering the claim namespace (ADR-0310 D2). The suite is dominated by the FAILURE cases on
@@ -66,21 +66,24 @@ function fakeLibrary(docs: readonly unknown[]): LibraryDocsReadLike {
 
 /**
  * A throwaway manifest carrying a two-entry `sourceOwnership.subtrees` map — the third source
- * (ADR-0317 D3) — laid out as the real one is: `repo-manifest.json` holding every other section, and the
- * map split into the fragment tree beside it (ADR-0556). Hermetic like the tree fixture: never the real
- * manifest, so this suite does not red when the live map gains a declaration. That the LIVE map's keys
- * all resolve is a separate, deliberate assertion in `source-ownership-map.test.ts`.
+ * (ADR-0317 D3) — laid out as the real one is: every section split into a fragment tree (ADR-0556), whose
+ * root this returns. Hermetic like the tree fixture: never the real manifest, so this suite does not red
+ * when the live map gains a declaration. That the LIVE map's keys all resolve is a separate, deliberate
+ * assertion in `source-ownership-map.test.ts`.
  */
 function manifest(subtrees: Record<string, string> = FIXTURE_SUBTREES): string {
-  const root = mkdtempSync(path.join(tmpdir(), "claim-universe-manifest-"));
-  const file = path.join(root, "repo-manifest.json");
-  writeFileSync(file, JSON.stringify(REST_OF_MANIFEST), "utf8");
-  for (const fragment of splitManifest({ sourceOwnership: { subtrees } })) {
-    const out = path.join(root, "repo-manifest", ...fragment.path.split("/"));
+  return fragmentTree({ ...REST_OF_MANIFEST, sourceOwnership: { subtrees } });
+}
+
+/** `whole` split into its fragments and written under a fresh `repo-manifest/`, whose path this returns. */
+function fragmentTree(whole: ManifestObject): string {
+  const root = path.join(mkdtempSync(path.join(tmpdir(), "claim-universe-manifest-")), "repo-manifest");
+  for (const fragment of splitManifest(whole)) {
+    const out = path.join(root, ...fragment.path.split("/"));
     mkdirSync(path.dirname(out), { recursive: true });
     writeFileSync(out, fragment.text, "utf8");
   }
-  return file;
+  return root;
 }
 
 /** Every section a composed manifest needs besides the source-ownership map — each empty, which is a legal statement. */
@@ -290,7 +293,7 @@ test("an ABSENT or uncomposed manifest stands the check down — it never starts
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const live = fakeLibrary([{ kind: "arc", id: "a" }]);
 
-  for (const manifestPath of [null, path.join(tmpdir(), "no-such-manifest-8812.json")]) {
+  for (const manifestPath of [null, path.join(tmpdir(), "no-such-manifest-tree-8812")]) {
     const u = await loadClaimUniverse({ storiesDir: root, library: live, manifestPath });
     assert.equal(u.complete, false);
     assert.equal(u.targets.filter((x) => x.kind === "subtree").length, 0);
@@ -309,9 +312,8 @@ test("a manifest with no sourceOwnership.subtrees is UNREAD, not an empty map", 
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const live = fakeLibrary([]);
 
-  const dir = mkdtempSync(path.join(tmpdir(), "claim-universe-bare-"));
-  const bare = path.join(dir, "repo-manifest.json");
-  writeFileSync(bare, JSON.stringify({ packageOwnership: {} }), "utf8");
+  // A tree holding every section but the source-ownership map: a blind read, not an empty one.
+  const bare = fragmentTree({ ...REST_OF_MANIFEST });
   const missing = await loadClaimUniverse({ storiesDir: root, library: live, manifestPath: bare });
   assert.equal(missing.complete, false);
   assert.match(missing.unreadSources.join(" "), /sourceOwnership/);

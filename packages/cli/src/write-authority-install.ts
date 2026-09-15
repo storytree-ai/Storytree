@@ -37,7 +37,7 @@ import {
   locateWorktree,
   readRepoManifest,
   refusalReasons,
-  REPO_MANIFEST,
+  REPO_MANIFEST_TREE,
   repoRoot,
   rootSliceOf,
   rulesDenyingWorktrees,
@@ -49,7 +49,7 @@ import type { Envelope } from "./envelope.js";
 
 /** File I/O, injected so the whole command is provable without touching a real home directory. */
 export interface WallInstallIo {
-  /** The repo manifest under a checkout root: the aggregate composed with the fragment tree beside it (ADR-0556). */
+  /** The repo manifest under a checkout root: its fragment tree, composed (ADR-0556). */
   readonly readManifest: (root: string) => ManifestComposition;
   readonly readFile: (p: string) => string | null;
   readonly writeFile: (p: string, body: string) => void;
@@ -59,7 +59,7 @@ export interface WallInstallIo {
 }
 
 export const defaultWallInstallIo: WallInstallIo = {
-  readManifest: (root) => readRepoManifest(path.join(root, REPO_MANIFEST)),
+  readManifest: (root) => readRepoManifest(path.join(root, REPO_MANIFEST_TREE)),
   readFile: (p) => {
     try {
       return readFileSync(p, "utf8");

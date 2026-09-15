@@ -201,7 +201,11 @@ test("an empty SOURCE WALK throws instead of reporting a clean repo (the DEFLATI
 test("an empty CURRENT declaration map throws instead of charging the whole tree", () => {
   assert.throws(
     () => judgeOwnershipTotality(facts({ declarationCount: 0 })),
-    (e: unknown) => e instanceof VacuousOwnershipSweep && /CURRENT/.test((e as Error).message),
+    (e: unknown) =>
+      e instanceof VacuousOwnershipSweep &&
+      /^the CURRENT `sourceOwnership\.subtrees` map declared nothing \(was the repo-manifest\/ fragment tree unreadable\?\) — /.test(
+        (e as Error).message,
+      ),
   );
 });
 
@@ -213,11 +217,15 @@ test("an empty MERGE-BASE tree throws instead of calling every file new", () => 
 });
 
 test("an empty BASE declaration map throws instead of calling every file newly un-owned", () => {
-  // Without this guard an unreadable `git show <base>:repo-manifest.json` would make every unowned
-  // file look like one this branch un-owned — a red naming the wrong defect.
+  // Without this guard a merge-base fragment tree that declared nothing would make every unowned file
+  // look like one this branch un-owned — a red naming the wrong defect.
   assert.throws(
     () => judgeOwnershipTotality(facts({ baseDeclarationCount: 0 })),
-    (e: unknown) => e instanceof VacuousOwnershipSweep && /BASE/.test((e as Error).message),
+    (e: unknown) =>
+      e instanceof VacuousOwnershipSweep &&
+      /^the BASE `sourceOwnership\.subtrees` map declared nothing \(was the merge base's repo-manifest\/ fragment tree unreadable\?\) — /.test(
+        (e as Error).message,
+      ),
   );
 });
 

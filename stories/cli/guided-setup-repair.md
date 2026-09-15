@@ -149,7 +149,7 @@ organ imports by type. The glob was a filename coincidence, and increment 2's `d
    it wanted to.
 2. **It rides the CLI's test surface**, which is the criterion
    [`organism-boundary-tooling`](organism-boundary-tooling.md) was admitted on and the one
-   `repo-manifest.json`'s rule (6) records as operative.
+   source-ownership rule (6) (`repo-manifest/source-ownership/_domain.json`) records as operative.
 3. **`app-guide` — checked, because its story is literally about guiding a newcomer through
    install and authentication, and refuted on three independent facts.** Its outcome is *"A newcomer
    opening the DESKTOP APP is guided by a CONVERSATIONAL CONCIERGE …"*: a different surface (the

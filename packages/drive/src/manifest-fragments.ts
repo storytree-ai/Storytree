@@ -9,11 +9,12 @@
  * with FRAGMENTS cut at the grain claims are taken at, composed by one fail-closed local seam.
  *
  * THIS MODULE IS THAT SEAM, AND ONLY THE SEAM. ADR-0556 D5 landed "a pure composer and fault-seeded
- * tests" before authority moved. Since `repo-manifest-remaining-domains-compose`, every section is
- * authored as fragments under `repo-manifest/`, and every reader composes them — with the aggregate
- * beside them, now kept empty — through {@link composeRepoManifest}. What is settled here is what a fragment is, where it lives, and how a set of them composes into
- * the manifest's one semantic view. It needs no database and no CI — claim declaration and every gate
- * call it on a laptop, before a pull request exists.
+ * tests" before authority moved. Every section is authored as fragments under `repo-manifest/`, and
+ * since `repo-manifest-aggregate-leaves-git` no committed aggregate sits beside them: every reader
+ * composes the tree alone, through `readRepoManifest` (`manifest-fragments-read.ts`). What is settled
+ * here is what a fragment is, where it lives, how a set of them composes into the manifest's one
+ * semantic view, and the one form a tree is written in ({@link manifestDrift}). It needs no database and
+ * no CI — claim declaration and every gate call it on a laptop, before a pull request exists.
  *
  * ## The layout
  *
@@ -240,70 +241,15 @@ export function composeManifest(sources: readonly ManifestFragmentSource[]): Man
 }
 
 // ---------------------------------------------------------------------------
-// The repository's manifest — the aggregate and the fragment tree beside it
+// The repository's manifest
 // ---------------------------------------------------------------------------
 
-/** The committed aggregate, as fault messages name it. */
-export const REPO_MANIFEST = "repo-manifest.json";
-
-/** The fragment tree beside it: named for it, and the directory every fragment path is relative to. */
+/**
+ * The repository's fragment tree, at the repo root — the directory every fragment path is relative to,
+ * and the manifest's only home: the committed aggregate that once sat beside it left Git
+ * (`repo-manifest-aggregate-leaves-git`, ADR-0556 D4).
+ */
 export const REPO_MANIFEST_TREE = "repo-manifest";
-
-/**
- * What a reader of the repository's manifest found, before any judgement: the committed aggregate and
- * the fragment tree beside it.
- *
- * THE MIGRATION'S SHAPE. ADR-0556 D5 moved authority one domain at a time, so for a while the manifest
- * was part aggregate and part fragments. Every domain is in the tree now, and the aggregate is kept empty
- * until `repo-manifest-aggregate-leaves-git` removes it. While it exists it is still split exactly as
- * {@link splitManifest} splits it and set beside the tree's files, and the one composer judges the whole
- * set, so a section written back into it is refused as a second home rather than read.
- */
-export interface RepoManifestSources {
-  /** The aggregate's text — or why it could not be read. */
-  readonly aggregate: { readonly text: string } | { readonly unread: string };
-  /** The fragment tree beside the aggregate, as it was read — `null` where there is none. */
-  readonly tree: { readonly fragments: readonly ManifestFragmentSource[]; readonly unread: readonly string[] } | null;
-}
-
-/**
- * Compose the repository's manifest from the aggregate and the fragment tree beside it — or refuse it,
- * with every reason, exactly as {@link composeManifest} refuses a fragment set.
- *
- * ONE HOME PER SECTION. A section whose domain has fragments in the tree may not also sit in the
- * aggregate: two homes compose into duplicate declarations at best and a silently shadowed one at worst,
- * and the aggregate is the half that is leaving (ADR-0556 D1). So it is refused, naming the move — which
- * is also what turns a declaration written to the aggregate AFTER its section moved into a refusal
- * rather than a quiet second source.
- */
-export function composeRepoManifest(sources: RepoManifestSources): ManifestComposition {
-  if ("unread" in sources.aggregate) {
-    return refused([fault("unreadable-fragment-set", [], [], `${REPO_MANIFEST}: ${sources.aggregate.unread}`)]);
-  }
-  const aggregate = parseObject(sources.aggregate.text);
-  if (typeof aggregate === "string") {
-    return refused([fault("malformed-fragment", [REPO_MANIFEST], [], `${REPO_MANIFEST}: ${aggregate}`)]);
-  }
-  const tree = sources.tree ?? { fragments: [], unread: [] };
-  if (tree.unread.length > 0) {
-    return refused(tree.unread.map((message) => fault("unreadable-fragment-set", [], [], message)));
-  }
-  const inTree = new Set(tree.fragments.map((f) => f.path.split("/")[0]));
-  const twoHomes = Object.keys(aggregate)
-    .filter((key) => inTree.has(domainOf(key)))
-    .map((key) =>
-      fault(
-        "misplaced-declaration",
-        [REPO_MANIFEST],
-        [key],
-        `${REPO_MANIFEST}: ${label([key])} belongs to the ${domainOf(key)} domain, whose fragments live in ` +
-          `${REPO_MANIFEST_TREE}/${domainOf(key)}/ — a section has one home, so move what it declares into ` +
-          `those fragments and delete it here`,
-      ),
-    );
-  if (twoHomes.length > 0) return refused(twoHomes);
-  return composeManifest([...splitManifest(aggregate), ...tree.fragments]);
-}
 
 /**
  * A refusal's reasons as one line: every fault's own repair, in the composer's order, each its own `; `-separated
@@ -315,14 +261,10 @@ export function refusalReasons(faults: readonly ManifestCompositionFault[]): str
 
 /**
  * The composed manifest as JSON text, or `null` for a refused set — for a reader whose own contract takes a
- * manifest's TEXT, so it gets the one semantic view rather than the aggregate file's bytes.
+ * manifest's TEXT, so it gets the one semantic view rather than any one fragment's bytes.
  */
 export function composedManifestText(composition: ManifestComposition): string | null {
   return composition.ok ? JSON.stringify(composition.manifest) : null;
-}
-
-function refused(faults: readonly ManifestCompositionFault[]): ManifestComposition {
-  return { ok: false, faults: inOrder(faults) };
 }
 
 /** The domain directory a top-level key is filed under — its own name where no domain claims it. */
@@ -643,9 +585,9 @@ function canonicalObject(value: ManifestObject): ManifestObject {
 }
 
 /**
- * The fragments an aggregate manifest breaks into at the claim grain — the inverse of
- * {@link composeManifest}, the migration `repo-manifest-source-ownership-fragments` ran for
- * `sourceOwnership`, and how {@link composeRepoManifest} reads the sections still in the aggregate.
+ * The fragments a manifest breaks into at the claim grain — the inverse of {@link composeManifest}, the
+ * migration `repo-manifest-source-ownership-fragments` and `repo-manifest-remaining-domains-compose` ran,
+ * and the one form {@link manifestDrift} holds a committed tree to.
  *
  * TOTAL, and deliberately dumb: every key lands somewhere, and anything the contract would not accept
  * lands where composition will refuse it by name — a section no domain owns goes under a directory
@@ -681,6 +623,65 @@ export function splitManifest(manifest: ManifestObject): ManifestFragmentSource[
   return [...fragments.keys()]
     .sort()
     .map((path) => ({ path, text: `${JSON.stringify(treeObject(fragments.get(path) ?? new Map()), null, 2)}\n` }));
+}
+
+/**
+ * What a committed fragment tree would have to change to be written the one way the composer writes it —
+ * exactly {@link splitManifest} of its own composition (ADR-0556 D4, `repo-manifest-aggregate-leaves-git`).
+ *
+ * WHY THERE IS ONE FORM. With no committed aggregate the fragments are the manifest's only bytes, so the
+ * bytes are held to a function of the declarations alone. An edit's diff is then the same whoever made it —
+ * a key lands where it sorts, never wherever an author appended it, which also keeps two concurrent edits to
+ * one shared `_domain.json` on different lines — and a drifted tree has exactly one repair. Composition is
+ * order-free already; this is the same property for the files it reads.
+ *
+ * `manifest` must be what `fragments` compose to: a set that does not compose has no form to drift from, and
+ * its refusal comes first. Every repair is named for what it does to the tree, in path order.
+ */
+export function manifestDrift(fragments: readonly ManifestFragmentSource[], manifest: ManifestObject): ManifestDrift[] {
+  const held = new Map(fragments.map((f) => [f.path, f.text]));
+  const written = new Map(splitManifest(manifest).map((f) => [f.path, f.text]));
+  return [...new Set([...written.keys(), ...held.keys()])]
+    .sort()
+    .flatMap((path) => driftAt(path, held.get(path), written.get(path)));
+}
+
+export type ManifestDrift =
+  /** The text the composer writes at `path` — over what is there, or where nothing is. */
+  | { readonly repair: "rewrite" | "create"; readonly path: string; readonly text: string; readonly message: string }
+  /** A file the composer writes nothing at: what it declares belongs in its domain's other fragments. */
+  | { readonly repair: "delete"; readonly path: string; readonly message: string };
+
+function driftAt(path: string, held: string | undefined, written: string | undefined): ManifestDrift[] {
+  const at = `${REPO_MANIFEST_TREE}/${path}`;
+  if (written === undefined) {
+    return [
+      {
+        repair: "delete",
+        path,
+        message: `${at} is not a fragment the composed manifest splits into — what it declares belongs in its domain's ${DOMAIN_SHARD}.json`,
+      },
+    ];
+  }
+  if (held === undefined) {
+    return [
+      {
+        repair: "create",
+        path,
+        text: written,
+        message: `${at} is where the composed manifest writes part of what the tree declares, and no fragment is there`,
+      },
+    ];
+  }
+  if (held === written) return [];
+  return [
+    {
+      repair: "rewrite",
+      path,
+      text: written,
+      message: `${at} is not written the way the composer writes it — keys sorted at every depth, two-space indentation, one trailing newline`,
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------

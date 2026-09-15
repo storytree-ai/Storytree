@@ -7,6 +7,7 @@ import {
   lobbyDenyRules,
   readRepoManifest,
   readSourceOwnershipMap,
+  REPO_MANIFEST_TREE,
   rootSliceOf,
   sourceOwnershipOf,
   type SourceOwnershipMapRead,
@@ -29,16 +30,16 @@ import { parseHierarchyCampMap } from "./hierarchy-camps.js";
  *    read in full from the composition.
  *
  * Nothing is set aside: the live manifest composes whole, or this is red. A reader that returns a list
- * returns it in the composed order — sorted — so lists compare as sets. Nothing here reads
- * `repo-manifest.json` for itself: the file is kept as an empty object until it leaves Git.
+ * returns it in the composed order — sorted — so lists compare as sets. The tree is the whole manifest: the
+ * committed aggregate left Git (`repo-manifest-aggregate-leaves-git`), and nothing here looks for one.
  */
 
 /** This file sits at `<repo>/packages/cli/src/`. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
-const LIVE_MANIFEST = path.join(REPO_ROOT, "repo-manifest.json");
+const LIVE_TREE = path.join(REPO_ROOT, REPO_MANIFEST_TREE);
 
 function composedLive() {
-  const composition = readRepoManifest(LIVE_MANIFEST);
+  const composition = readRepoManifest(LIVE_TREE);
   if (!composition.ok) assert.fail(`the live manifest did not compose:\n${composition.faults.map((f) => f.message).join("\n")}`);
   return composition.manifest;
 }
@@ -48,9 +49,9 @@ test("the CLI's source-ownership reader reads exactly the map the live compositi
     assert.deepEqual(read.unread, []);
     return { baseline: read.baseline, subtrees: [...read.subtrees].sort((a, b) => (a.subtree < b.subtree ? -1 : 1)) };
   };
-  const held = bySubtree(sourceOwnershipOf(readRepoManifest(LIVE_MANIFEST), "the composed manifest"));
+  const held = bySubtree(sourceOwnershipOf(readRepoManifest(LIVE_TREE), "the composed manifest"));
   assert.ok(held.subtrees.length > 500, "the source-ownership map is authored in full");
-  assert.deepEqual(bySubtree(readSourceOwnershipMap(LIVE_MANIFEST)), held);
+  assert.deepEqual(bySubtree(readSourceOwnershipMap(LIVE_TREE)), held);
 });
 
 test("the hierarchy-camp map and the write wall's root read in full from the composition, where they are authored", () => {
@@ -64,4 +65,9 @@ test("the hierarchy-camp map and the write wall's root read in full from the com
   for (const dir of ["packages", "stories", "repo-manifest"]) {
     assert.ok(rules.includes(`Write(//c/code/storytree/${dir}/**)`), `the root allow-list lost ${dir}/`);
   }
+  // The aggregate left Git, so the allow-list no longer declares it and the wall no longer names it.
+  assert.deepEqual(
+    rules.filter((rule) => rule.includes("repo-manifest.json")),
+    [],
+  );
 });

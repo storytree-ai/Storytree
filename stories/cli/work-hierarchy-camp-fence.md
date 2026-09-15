@@ -4,7 +4,7 @@ tier: capability
 story: cli
 arc: map-freshness-arc
 title: "Every work-hierarchy reader declares which clock it must agree with, and a gate rung holds it to that"
-outcome: "A pure judge computes, from each module's own code, whether it reads the work hierarchy off the checkout or out of the live store, and a gate rung holds that computed fact against a declared camp in repo-manifest.json — so the render/prove split cannot silently acquire an undeclared or wrong-camp reader."
+outcome: "A pure judge computes, from each module's own code, whether it reads the work hierarchy off the checkout or out of the live store, and a gate rung holds that computed fact against a declared camp in repo-manifest/hierarchy-camps/_domain.json — so the render/prove split cannot silently acquire an undeclared or wrong-camp reader."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -22,9 +22,10 @@ proof:
 
 **Outcome —** A pure judge computes, from each module's own code, whether it reads the work hierarchy
 off the CHECKOUT or out of the LIVE store, and `pnpm check:hierarchy-camps` holds that computed fact
-against a camp declared in [`repo-manifest.json`](../../repo-manifest.json) → `hierarchyCamps.readers`
-— so the render/prove split ADR-0445 D1 created cannot silently acquire an undeclared or wrong-camp
-reader.
+against a camp declared in
+[`repo-manifest/hierarchy-camps/_domain.json`](../../repo-manifest/hierarchy-camps/_domain.json) →
+`hierarchyCamps.readers` — so the render/prove split ADR-0445 D1 created cannot silently acquire an
+undeclared or wrong-camp reader.
 
 **The condition being fenced.** ADR-0445 D1 gave the work hierarchy two readers with different
 currencies, permanently: a story is disk-canonical for PROVING and live-canonical for RENDERING. Its
@@ -84,7 +85,7 @@ Author only:
 
 - `packages/cli/src/hierarchy-camps.ts` (the pure judge) and its `.test.ts`
 - `packages/cli/src/check-hierarchy-camps.ts` (the thin gatherer)
-- `repo-manifest.json` (`hierarchyCamps`, the declared map)
+- `repo-manifest/hierarchy-camps/_domain.json` (`hierarchyCamps`, the declared map)
 - `package.json`, `packages/cli/src/gate-order.ts`, `packages/cli/src/gate-order.test.ts`,
   `.github/workflows/ci.yml` (the wiring)
 

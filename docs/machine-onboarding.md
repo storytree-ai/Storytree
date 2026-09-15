@@ -404,8 +404,9 @@ pnpm storytree write-authority install --write  # install it
 
 This generates a `permissions.deny` block in the **user-level** `~/.claude/settings.json` that
 refuses file-tool writes into the primary checkout, so §4's rule is enforced rather than merely
-advised. The block is **derived from `repo-manifest.json`** — never hand-edit it; re-run
-`install --write` when the manifest changes.
+advised. The block is **derived from the repo manifest's root allow-list**
+(`repo-manifest/repo-surface/_domain.json`) — never hand-edit it; re-run `install --write` when that
+allow-list changes.
 
 **Know its limits before you rely on it (ADR-0284).** It is a static permissions block and nothing
 more: it binds the three file-editing tools, **not Bash** — a shell write into the primary checkout

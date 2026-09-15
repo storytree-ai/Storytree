@@ -183,6 +183,16 @@ jobs:
       - name: Lint (the anti-slop ratchet)
         run: pnpm lint
 
+      # The repo manifest's fragment tree (ADR-0556 D4, `repo-manifest-aggregate-leaves-git`). The committed
+      # aggregate left Git, so the fragments under `repo-manifest/` are the manifest's only bytes. This step
+      # composes them from this clean checkout and reds on a refused or unreadable set, on a fragment not
+      # written exactly as the composer writes it, and on a `repo-manifest.json` back beside the tree. It
+      # runs before the three steps that read the composed manifest, so a refused set is named once, here,
+      # under the manifest's own name. Nothing is generated and nothing is uploaded: CI proves the tree
+      # reproduces its own composition, and never puts a composed view back into a diff. Offline, disk-only.
+      - name: Repo manifest fragments
+        run: pnpm check:manifest-fragments
+
       # Organism boundary (ADR-0074): the real cross-organism code-dependency graph must be a
       # subgraph of the declared cross-story `depends_on` graph (substrate/ports excepted). Refuses
       # an undeclared cross-story coupling or a dependency cycle — so coupling can't be added without

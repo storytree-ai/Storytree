@@ -22,7 +22,7 @@ depends_on: []
 decisions: [183, 267, 305, 314, 369]
 # A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 6, 2026-08-08; the arc that re-homed it:
-# arc-tier-extraction-arc increment 1, 2026-08-14). It resolves THREE `repo-manifest.json`
+# arc-tier-extraction-arc increment 1, 2026-08-14). It resolves THREE repo manifest
 # `sourceOwnership` declarations, all three now in this story's OWN building:
 # `packages/arc/src/arc.ts`, `packages/arc/src/question.ts` and `packages/arc/src/arc-rollup.ts`.
 #

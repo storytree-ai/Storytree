@@ -7,13 +7,16 @@ import {
   attributeChurn,
   classify,
   constructLines,
+  foldSplit,
   forgiveOnly,
+  forwardReading,
   marginalRanking,
   measure,
   simulateWaves,
   storyKeys,
   type ArcUnits,
   type SurfaceEdit,
+  type SurfaceSplit,
   type Unit,
 } from "./lane-width.js";
 
@@ -212,4 +215,52 @@ test("storyKeys reads story grain from both the disk path and the seed-kind path
     [...storyKeys(["stories/cli/story.md", "packages/cli/src/x.ts", "stories/library/story.md"])],
     ["cli", "library"],
   );
+});
+
+// A surface split into a successor directory — ADR-0556's `repo-manifest.json` → `repo-manifest/`, in miniature.
+const SPLIT: SurfaceSplit = { surface: "M.json", successor: "M/", since: "2026-09-15" };
+
+const dated = (name: string, n: number, date: string, files: string[]): Unit => ({
+  arc: name,
+  incs: [`${name}-inc-${n}`],
+  date,
+  prs: [n],
+  files: new Set(files),
+});
+
+test("foldSplit folds every successor file back into the one surface — and nothing that merely shares its prefix", () => {
+  assert.deepEqual(
+    [...foldSplit(["M/a/one.json", "M/two.json", "M.json", "Mother/x.json", "src/a.ts"], SPLIT)],
+    ["M.json", "Mother/x.json", "src/a.ts"],
+  );
+});
+
+test("the forward baseline reads only landings on or after the split, as landed and folded back into the one file", () => {
+  const arcs: ArcUnits[] = [
+    {
+      arc: "a",
+      units: [
+        // Before the split, both on the aggregate itself. History: the forward reading must not see them.
+        dated("a", 1, "2026-09-10", ["x.ts", "M.json"]),
+        dated("a", 2, "2026-09-14", ["y.ts", "M.json"]),
+        // The split's own landing, on the day, touching the aggregate AND a fragment.
+        dated("a", 3, "2026-09-15", ["z.ts", "M.json", "M/c.json"]),
+        // After it: two owners' changes in two fragments, and one landing touching neither.
+        dated("a", 4, "2026-09-16", ["p.ts", "M/a.json"]),
+        dated("a", 5, "2026-09-17", ["q.ts", "M/b.json"]),
+        dated("a", 6, "2026-09-18", ["r.ts"]),
+      ],
+    },
+  ];
+  const r = forwardReading(arcs, all, SPLIT, STRICT);
+  assert.equal(r.since, "2026-09-15");
+  assert.equal(r.landings, 4, "the split's own day and the three after it");
+  assert.equal(r.touching, 3, "the landing on the aggregate and a fragment, and the two fragment-only landings");
+  // As landed, the four are file-disjoint: one wave of four.
+  assert.deepEqual(r.split.dist, [[4, 1]]);
+  // Folded back, landings 3, 4 and 5 all touch the one file, each closing the wave before it: 1, 1, then 5 with 6.
+  assert.deepEqual(r.aggregate.dist, [
+    [1, 2],
+    [2, 1],
+  ]);
 });

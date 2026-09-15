@@ -190,7 +190,8 @@ anyway — `topoOrderStoryNodes` (`packages/orchestrator/src/story-build.ts:161-
 `depends_on` naming an id outside the owning story's capability set. The
 [`live-build-db-preflight`](../drive-machinery/live-build-db-preflight.md) precedent exactly.
 
-**One correction carried forward.** `repo-manifest.json`'s section comment describes
+**One correction carried forward.** The repo manifest's section comment (`$section_desktop` in
+`repo-manifest/source-ownership/_domain.json`) describes
 `apps/desktop/src/apply` as "the ADR-0117 brokered rebuild loop". Every file header in that directory
 says ADR-0164 / ADR-0181, and ADR-0117 is the *brokered forest write* decision
 ([`shared-forest-connection`](shared-forest-connection.md)), an unrelated concern. The code is

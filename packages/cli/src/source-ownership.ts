@@ -410,7 +410,8 @@ const BARREL_SUBTREE = /(^|\/)index\.ts$/;
 
 /**
  * Why this story-grain declaration is at story grain. See {@link StoryGrainReason} for what each
- * verdict means and which of `repo-manifest.json`'s authoring rules settles it.
+ * verdict means and which of the source-ownership map's authoring rules
+ * (`repo-manifest/source-ownership/_domain.json`) settles it.
  *
  * Ordered barrel-first because rule (4) is the more specific settlement: a story with no capabilities
  * that also declares a barrel is answered by the barrel rule, which holds regardless of how many
@@ -442,7 +443,8 @@ const STORY_GRAIN_SECTIONS: readonly {
     remedy:
       "The `capability-layer-coverage-arc` worklist, and ONLY this. Resolving one means authoring a " +
       "capability that STATES ITS PROOF — re-pointing a declaration ahead of authoring the organ is " +
-      "the opening move that arc forbids (repo-manifest.json rule 4).",
+      "the opening move that arc forbids (the source-ownership map's rule 4, in " +
+      "repo-manifest/source-ownership/_domain.json).",
   },
   {
     reason: "barrel",

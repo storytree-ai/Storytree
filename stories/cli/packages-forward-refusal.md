@@ -34,9 +34,9 @@ depends_on: []
 # `*`), and sourceGlobs === [sourceFile], so the default node:test proof on the single test file is legal
 # — no `proofCommand` (the honesty refine does not fire: one literal source glob equal to sourceFile, no
 # wildcard, stays on the default command). The write scope stays within packages/cli (ADR-0087: one
-# concrete package per write scope). The register READ from repo-manifest.json's `hostedStories` list is
-# the disk gatherer's glue in check-boundaries.ts — deliberately OUT of this contract's write scope,
-# exactly like rule 5's dir→owner gathering.
+# concrete package per write scope). The register READ from the `hostedStories` list in
+# repo-manifest/hosted-stories/_domain.json is the disk gatherer's glue in check-boundaries.ts —
+# deliberately OUT of this contract's write scope, exactly like rule 5's dir→owner gathering.
 proof:
   command:
     file: pnpm
@@ -72,14 +72,14 @@ worklist.
 > in its OWN workspace package (an organism, ADR-0068)
 > where the compiler and the package-granular gate enforce every edge for free — a new story must not host
 > in a neighbour's building **at all**, edge or no edge. The existing hosted stories are GRANDFATHERED in a
-> register in `repo-manifest.json`, frozen at adoption in the sense that matters: adding a name is a loud,
-> owner-reviewed diff citing its reason
+> register in `repo-manifest/hosted-stories/_domain.json`, frozen at adoption in the sense that matters:
+> adding a name is a loud, owner-reviewed diff citing its reason
 > — the exact opposite of the silent `depends_on: []` omission that let the library-tech-tree-overlay
 > incident through (owner-caught 2026-07-13). Entries LEAVE as stories migrate or retire; the register is
 > a reviewed, bounded residual, not an immutable list (see the `hostedStories` bullet below).
 > This contract is the pure core of that SECOND blocking rule. It reuses rule 5's exact evidence (so the
 > two rules can never disagree about what "hosted" means); the disk gatherer that reads the `hostedStories`
-> list out of `repo-manifest.json` (in
+> list out of `repo-manifest/hosted-stories/_domain.json` (in
 > [`check-boundaries.ts`](../../packages/cli/src/check-boundaries.ts)) is the consuming surface's I/O glue,
 > deliberately OUT of this contract's write scope — exactly like rule 5's dir→owner gathering.
 
@@ -94,10 +94,12 @@ is binding):
 
 - **`hostedStories?: string[]`** — the grandfather register: the currently-hosted story ids that are
   permitted to keep files in a foreign building. In the real gather it comes from the `hostedStories`
-  block in `repo-manifest.json`, read by `check-boundaries.ts` (that read is the gatherer's glue, OUT of
+  block in `repo-manifest/hosted-stories/_domain.json`, read by `check-boundaries.ts` (that read is
+  the gatherer's glue, OUT of
   this contract's write scope). **That block is a MAP**, not a list — story id → a note naming the hosts
   it claimed at adoption — and the gatherer passes its KEYS to the pure judge, which is why the judge's
-  input shape here is a `string[]`. **`repo-manifest.json` is the register's only source of truth, and
+  input shape here is a `string[]`. **`repo-manifest/hosted-stories/_domain.json` is the register's
+  only source of truth, and
   this spec deliberately does NOT re-enumerate it.** At adoption (2026-07-13) it held **18** story ids
   with a mapped foreign-hosting pair, derived mechanically via rule 5's evidence, each already carrying a
   declared host edge (the increment-1 remediation) so rule 5 was green over them. The register is the
@@ -127,7 +129,8 @@ register, in TWO directions:
   declared `depends_on`/`consumed_by` edge SATISFIES rule 5 but does NOT satisfy this rule — a NEW story
   cannot squat in a foreign building at all (ADR-0192 decision 2). The message points the fix: re-home the
   unit's sources into `S`'s OWN workspace package (packages-forward, ADR-0192) — OR, ONLY for a deliberate
-  owner-reviewed grandfathering, add `S` to the `hostedStories` register in `repo-manifest.json` (a loud
+  owner-reviewed grandfathering, add `S` to the `hostedStories` register in
+  `repo-manifest/hosted-stories/_domain.json` (a loud
   reviewed diff that must carry its reason alongside the entry; entries leave again as stories migrate or
   retire).
 - **Stale-register (a registered story with no hosting evidence).** For each entry `E` in `hostedStories`

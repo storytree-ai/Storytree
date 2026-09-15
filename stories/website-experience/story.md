@@ -861,8 +861,9 @@ true history (copy-on-write) while discharging none of the thirteen legs above. 
 NOT because an increment is unbuilt (increment I is EXECUTED and owner-attested; see its record above).
 FOUR of the seven parent-side LEAF caps are armed with `--real` proof config so the orchestrator
 drives each through `node build <id> --real --store pg` in dependency order — with the one documented
-pre-step that `forest-scene-model`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
-ownership) is orchestrator-supplemented GLUE before its leaf runs (a leaf can never touch package.json,
+pre-step that `forest-scene-model`'s package scaffold (package.json + deps + tsconfig +
+`repo-manifest/package-ownership/_domain.json` ownership) is orchestrator-supplemented GLUE
+before its leaf runs (a leaf can never touch package.json,
 ADR-0031 §2). **The other three — `forest-land-surface`, `forest-land-dressing` and
 `forest-canvas-delivery` — are LEAF-class and NOT armed**, and that is a true statement about them
 rather than a gap left by the 2026-09-12 split: the split drew boundaries and armed no new red→green,

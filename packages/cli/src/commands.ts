@@ -4005,7 +4005,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "write-authority") {
     // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
-    // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
+    // block is DERIVED from the repo manifest's root allow-list, so it needs a caller that can regenerate it;
     // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
     return writeAuthorityCommand(sub, { write: values.write === true, help });
   }
@@ -4785,7 +4785,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area === "ownership") {
     // ADR-0317 D2 — the SECOND declared ownership map, at subtree grain, held to the disk by a
     // totality walk. REPORT-ONLY: it names every source file falling under no declared subtree and
-    // fails nothing. It reads `repo-manifest.json` `sourceOwnership`, never `proof.real.sourceFile`
+    // fails nothing. It reads the composed manifest's `sourceOwnership`, never `proof.real.sourceFile`
     // (a unit→file build target) or `scope.sourceGlobs` (a write fence) — neither is ownership, and
     // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
     if (help) return ownershipHelp();

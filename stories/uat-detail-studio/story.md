@@ -127,8 +127,9 @@ armed for `node build --real` with vitest `proofCommand` (hud-chrome precedent).
 ## Ownership (ADR-0192)
 
 **Hosted in `studio` (`apps/studio`).** Every `proof.real.sourceFile` / scoped glob for the leaves
-lives under `apps/studio/src`. Bootstrap must add `uat-detail-studio` to `repo-manifest.json`
-`hostedStories.register` (hosted in studio) — packages-forward forbids a silent foreign squat.
+lives under `apps/studio/src`. Bootstrap must add `uat-detail-studio` to
+`repo-manifest/hosted-stories/_domain.json` `hostedStories.register` (hosted in studio) —
+packages-forward forbids a silent foreign squat.
 
 Runtime dependency (honest `depends_on`):
 

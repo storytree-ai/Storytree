@@ -50,6 +50,7 @@ import {
   deriveIdentity,
   openCorpusStore,
   registerSpawn,
+  REPO_MANIFEST_TREE,
   repoRoot,
   resolveStoreDoor,
 } from "@storytree/drive";
@@ -561,7 +562,7 @@ export async function main(): Promise<void> {
           library: store,
           // The declared subtree map (ADR-0317 D2/D3) — the third source. Unreadable here means
           // the whole check stands down, never that a subtree claim starts being refused.
-          manifestPath: path.join(repoRoot(), "repo-manifest.json"),
+          manifestPath: path.join(repoRoot(), REPO_MANIFEST_TREE),
         }),
       };
     }
