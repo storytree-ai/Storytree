@@ -26,6 +26,7 @@ import {
   realIslandRects,
   rectInFrame,
   syntheticForestStream,
+  fetchJsonFromPage,
   parseHarnessElevation,
   parseScenesRoute,
   twoDView,
@@ -268,4 +269,51 @@ test('the scenes flag names a directory under docs/research/, never a path out o
   assert.equal(parseScenesRoute(new URLSearchParams('?scenes=../../etc')), null);
   assert.equal(parseScenesRoute(new URLSearchParams('?scenes=a/b')), null);
   assert.equal(parseScenesRoute(new URLSearchParams('?scenes=..')), null);
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE DEFAULT THE PAGE ACTUALLY RUNS ON. `createRealForestRunner` takes its fetcher injected, and
+// every test above drives it with a fake — so without this one, the implementation that runs in a
+// browser is reached by nothing and the suite is evidence about the fakes (ADR-0278). It is DRIVEN
+// rather than merely named: importing a seam without calling it reads as covered and proves the
+// same nothing.
+
+test('fetchJsonFromPage returns the parsed body on a 200', async () => {
+  const real = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = (async (url: string) => {
+    seen.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ arms: ['shipped'] }) } as unknown as Response;
+  }) as unknown as typeof fetch;
+  try {
+    assert.deepEqual(await fetchJsonFromPage('/reference/x/scenes/manifest.json'), { arms: ['shipped'] });
+    assert.deepEqual(seen, ['/reference/x/scenes/manifest.json']);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test('fetchJsonFromPage REFUSES a non-200 and its message names the export step and the worktree', async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: false,
+    status: 404,
+    // ⚠ A refusal that read the body anyway would hand back a 404 page as a manifest. The parse must
+    // never be reached, so this throws if it is.
+    json: async () => { throw new Error('the refusal parsed the body of a failed response'); },
+  }) as unknown as Response) as unknown as typeof fetch;
+  try {
+    await assert.rejects(
+      () => fetchJsonFromPage('/reference/missing/scenes/manifest.json'),
+      (e: Error) => {
+        assert.match(e.message, /answered 404/);
+        // The two things a reader hitting this actually needs: run the export, and serve from HERE.
+        assert.match(e.message, /export-real-forest\.mjs/);
+        assert.match(e.message, /THIS worktree/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = real;
+  }
 });
