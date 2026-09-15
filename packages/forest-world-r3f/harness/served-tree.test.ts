@@ -333,5 +333,12 @@ test('the harness config registers the stamp FIRST, and the capture driver judge
     first('checkServedTree') < first('explainNavigationFailure'),
     'a failed navigation is explained before capture.mjs asks which tree answered',
   );
+  // TWO checks, and the second is the one that matters most: a squatter's page usually LOADS, so the
+  // check after `load` is the one it meets. Without this line, deleting that check left the failure-path
+  // call satisfying both orderings on its own — found by seeding exactly that fault.
+  assert.ok(
+    last('checkServedTree') > first('explainNavigationFailure'),
+    'capture.mjs never asks which tree served a page that loaded — the case a working squatter takes',
+  );
   assert.ok(last('checkServedTree') < first('explainLoadedPage'), 'a loaded page is judged before capture.mjs asks which tree served it');
 });
