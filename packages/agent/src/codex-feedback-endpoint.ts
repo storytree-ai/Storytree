@@ -37,6 +37,13 @@ export interface CodexFeedbackCommand {
   description: string;
   /** Spawn the fixed registered command against the disposable replica (never throws on a red exit — a genuine spawn failure is still allowed to throw and is caught by `executeFeedback`). */
   run: (replicaRoot: string) => Promise<FeedbackRunOutput>;
+  /**
+   * The wall-clock bound, in milliseconds, the spine applies to this command's own run (ADR-0104
+   * `RealProofConfig.timeoutMs`). Read by `CodexPhaseAuthor` to size Codex's own MCP tool-call
+   * timeout above the longest bound any registered command carries — never enforced by this
+   * endpoint itself.
+   */
+  timeoutMs?: number;
 }
 
 export interface OpenCodexFeedbackEndpointArgs {

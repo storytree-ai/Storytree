@@ -394,6 +394,27 @@ export interface CodexExecFeedbackConfig {
  */
 const FEEDBACK_TOOL_TIMEOUT_SEC = 900;
 
+/** Sixty seconds of headroom for the spine to kill a run, format its output and answer the call. */
+const FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC = 60;
+
+/**
+ * Codex's own MCP tool-call timeout, raised above the longest `timeoutMs` any registered feedback
+ * command carries (ADR-0570 D4): `max(900, ceil(longest / 1000) + 60)` seconds, where `longest` is
+ * the largest positive finite `timeoutMs` among `commands`, and `900` when none carries one.
+ */
+function computeFeedbackToolTimeoutSec(commands: CodexFeedbackCommand[]): number {
+  let longestMs = 0;
+  for (const command of commands) {
+    const ms = command.timeoutMs;
+    if (typeof ms === "number" && Number.isFinite(ms) && ms > longestMs) longestMs = ms;
+  }
+  if (longestMs <= 0) return FEEDBACK_TOOL_TIMEOUT_SEC;
+  return Math.max(
+    FEEDBACK_TOOL_TIMEOUT_SEC,
+    Math.ceil(longestMs / 1000) + FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC,
+  );
+}
+
 /** Per-slice feedback-run cap shared across commands, mirroring the Claude leaf's default (ADR-0570 D5). */
 const DEFAULT_CODEX_MAX_FEEDBACK_RUNS = 5;
 
@@ -1222,7 +1243,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         execArgsInput.feedback = {
           url: feedbackHandle.url,
           tokenEnvVar: feedbackHandle.tokenEnvVar,
-          toolTimeoutSec: FEEDBACK_TOOL_TIMEOUT_SEC,
+          toolTimeoutSec: computeFeedbackToolTimeoutSec(this.#feedbackCommands),
         };
       }
       // The token VALUE lives only in the exec child's environment, under the endpoint's own
