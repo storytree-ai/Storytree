@@ -127,6 +127,19 @@ test("a refused set is unread WITH the composer's own reasons, so the repair tra
   assert.deepEqual(readSourceOwnershipMap(null).unread, ["no repo manifest was supplied, so declared subtrees are unknown"]);
 });
 
+test("EVERY reason the composer gave travels with the refusal, each its own `; `-separated clause", () => {
+  // Two covered declarations, so two reasons — one repair each, and neither may run into the other.
+  const twice = { subtrees: { ...COVERED.subtrees, "packages/drive/src": "drive", "packages/drive/src/b.ts": "b" } };
+  const [why = ""] = readSourceOwnershipMap(write(REST, twice)).unread;
+  const prefix = "the repo manifest did not compose — ";
+  assert.ok(why.startsWith(prefix), why);
+  const covered = why
+    .slice(prefix.length)
+    .split("; ")
+    .map((reason) => /^sourceOwnership\.subtrees\["([^"]+)"\] \(\w+\) is covered by /.exec(reason)?.[1]);
+  assert.deepEqual(covered.sort(), ["packages/cli/src/a.ts", "packages/drive/src/b.ts"], why);
+});
+
 test("a deliberately EMPTY subtrees map reads CLEAN — declaring nothing is not failing to read", () => {
   const map = readSourceOwnershipMap(write(REST, { subtrees: {} }));
   assert.deepEqual(map.subtrees, []);

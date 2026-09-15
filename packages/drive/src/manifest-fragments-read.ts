@@ -46,8 +46,16 @@ function listFiles(root: string, within: readonly string[]): ManifestFragmentSou
     const at = [...within, entry.name];
     return entry.isDirectory()
       ? listFiles(root, at)
-      : [{ path: at.join("/"), text: readFileSync(path.join(root, ...at), "utf8") }];
+      : [{ path: at.join("/"), text: readManifestText(path.join(root, ...at)) }];
   });
+}
+
+/**
+ * One manifest file's text. The aggregate and every fragment are read by this one function, so the two
+ * halves of one manifest can never be decoded two different ways before the composer judges them as a set.
+ */
+function readManifestText(file: string): string {
+  return readFileSync(file, "utf8");
 }
 
 /** Read the tree at `root` and compose it — refused outright when the tree did not read in full. */
@@ -80,9 +88,7 @@ export function manifestFragmentRoot(manifestPath: string): string {
 export function readRepoManifest(manifestPath: string): ManifestComposition {
   const root = manifestFragmentRoot(manifestPath);
   return composeRepoManifest({
-    aggregate: existsSync(manifestPath)
-      ? { text: readFileSync(manifestPath, "utf8") }
-      : { unread: `absent at ${manifestPath}` },
+    aggregate: existsSync(manifestPath) ? { text: readManifestText(manifestPath) } : { unread: `absent at ${manifestPath}` },
     tree: existsSync(root) ? readManifestFragmentTree(root) : null,
   });
 }
