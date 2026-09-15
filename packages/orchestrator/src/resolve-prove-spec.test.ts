@@ -659,7 +659,7 @@ test("live runtime selection defaults to Codex and preserves Claude explicitly",
   if (!claude.ok) return;
   assert.ok(claude.liveAuthor instanceof ClaudeAgentAuthor);
   assert.equal(claude.liveAuthor.runtime, "claude");
-  assert.deepEqual(defaultRuntime.liveAuthor.feedbackToolNames, []);
+  assert.deepEqual(defaultRuntime.liveAuthor.feedbackToolNames, ["mcp__spine__run_proof"]);
 });
 
 test("Codex promotion manifests widen only to additional literal phase-scope targets", () => {

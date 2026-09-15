@@ -64,6 +64,8 @@ acceptance.
 **The adapter is dormant.** Nothing in `packages/orchestrator/src/resolve-prove-spec.ts` passes
 feedback commands to the Codex leaf yet, so no build behaviour changes when this lands. Leave that file
 alone. `packages/agent/src/sdk-author.ts` is out of scope and must not be edited.
+*(Overtaken 2026-09-15: contract `codex-builds-arm-feedback` now passes feedback commands to the
+Codex leaf in every build, so the adapter is armed. This contract's own write scope is unchanged.)*
 
 **The change is one function.** `buildCodexExecArgs` in `packages/agent/src/codex-author.ts` gains an
 optional `feedback: { url, tokenEnvVar, toolTimeoutSec }` on its argument object. `CodexPhaseAuthor`

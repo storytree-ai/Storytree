@@ -150,7 +150,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (15)
+## Contracts (16)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -212,3 +212,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
     - **asserts —** `nodeBuild` refuses `reviseTest` without `real`. With `real`, it reads the named record after the REAL prechecks and before the leaf prompts, the DB preflight, the claim and the worktree. It refuses a missing record, naming its path, and a foreign one, naming both ids, and hands a valid record to the REAL lifecycle. The header names the run being revised. The failure envelope names the record a failed build left, with `storytree node build <id> --real --runtime <runtime> --revise-test <run-id>`, or says it was not written and why.
     - **covers —** `nodeBuild`'s `reviseTest` handling, `NodeBuildOpts.reviseTest` and `NodeBuildOpts.escalationsDir`, `renderRevisingLine` and `renderRevisionRecord` (`packages/drive/src/node-build.ts`)
     - **proven by —** `packages/drive/src/node-build-revise-test.test.ts` through contract [`node-build-revise-test`](node-build-revise-test.md), signed PASS (run `real-mu20lsxo`). Not exercised by that proof: any progress stage, so "before any stage" and the prompt-render-then-preflight order are unobserved; and the REAL worktree arm's pass-through, which is confirmed by reading.
+16. **`codex-envelope-reports-feedback-runs`** — the build envelope reports a Codex leaf's feedback runs from the spine's own record
+    - **asserts —** `liveLeafLines` renders a Codex author that recorded feedback runs with exactly the Claude branch's feedback line, each run as `<phase>:<tool>=green` or `=exit <code>` with a null code as `none`. It renders an armed Codex author with no runs as `0 bounded runs — armed with` its tool names without the `mcp__spine__` prefix, and a Codex author given no feedback commands with today's `none` line. The Claude branch's feedback line is byte-identical to today's, a Claude author with no runs still renders no feedback line, and pi's `none` line is unchanged.
+    - **covers —** `liveLeafLines` (`packages/drive/src/node-build.ts`)
+    - **proven by —** `packages/drive/src/node-build-codex-feedback.test.ts` through contract [`node-build-renders-codex-feedback-runs`](node-build-renders-codex-feedback-runs.md), signed PASS on the first attempt (run `real-mu25wogv`), with the `@storytree/drive` suite and typecheck as pre-signature backstops. `packages/drive` is inside the mutation rung, which scores this test at the landing's gate.

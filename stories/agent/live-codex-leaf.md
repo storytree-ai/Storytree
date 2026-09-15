@@ -62,10 +62,12 @@ The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
   probe runs.
 - **The disposable replica is the whole isolation (ADR-0390).** Each turn authors in a fresh copy of the
   build workspace, cut under the checkout's gitignored `.gate-logs/codex-replicas` without `.git`,
-  `.codex`, `.claude`, `.gate-logs` or `node_modules`. The command is pinned (`buildCodexExecArgs`): one
+  `.codex`, `.claude`, `.gate-logs` or `node_modules`; an armed phase links the installed dependencies
+  back in before its before-snapshot (ADR-0570 D3). The command is pinned (`buildCodexExecArgs`): one
   ephemeral `--json` turn that ignores user config and rules, never asks for approval, forces ChatGPT
-  login on the `openai` provider, disables web search, MCP servers, subagents, hooks, apps, remote
-  plugins and unified exec, and keeps the legacy shell tool that carries `apply_patch`. It runs
+  login on the `openai` provider, disables web search, subagents, hooks, apps, remote plugins, unified
+  exec and every MCP server except the spine's own loopback endpoint an armed phase is given (ADR-0570
+  D2), and keeps the legacy shell tool that carries `apply_patch`. It runs
   `--sandbox danger-full-access`: no OS sandbox fences the process and network is NOT disabled, so the
   real workspace stays within the process's reach. The promotion wall below decides what the spine
   copies; it is not a write wall.
@@ -83,14 +85,16 @@ The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
   exit path.
 - **Authoring only, never proof (ADR-0232 D5).** The brief tells the leaf it works in a replica, names
   its allowed and required targets, and says the spine runs every registered proof after it stops.
-  No build hands Codex feedback commands yet, so in every build `feedbackToolNames` is `[]` and
-  `feedbackRuns` stays empty — no `run_proof` or `run_typecheck` reaches it, and its native shell carries
-  no proof-feedback authority in their place. Red/green, promotion and the verdict stay the spine's.
-  *(Clarified in place 2026-09-15.)* The adapter itself can already be armed (ADR-0570, proposed). An
-  author given feedback commands exposes them on the spine's loopback endpoint, run against its own
-  replica, with Codex's tool timeout above the longest proof bound the commands carry. The same endpoint
-  carries `escalate` (ADR-0569): the first valid escalation in a slice ends it with nothing promoted.
-  Nothing constructs such an author until builds arm the leaf.
+  Every build arms the leaf (ADR-0570 D1, contract `codex-builds-arm-feedback` under
+  `prove-spec-resolution`): it is handed the spine's registered `run_proof`, and `run_typecheck` for an
+  installed node that registers one, exposed on the spine's loopback endpoint and run against its own
+  replica, with Codex's tool timeout above the longest proof bound the commands carry. Each executed run
+  is recorded on `feedbackRuns`, and the build envelope reports them (contract
+  `node-build-renders-codex-feedback-runs`). The same endpoint carries `escalate` (ADR-0569): the first
+  valid escalation in a slice ends it with nothing promoted. Its native shell still carries no
+  proof-feedback authority, and red/green, promotion and the verdict stay the spine's. *(Corrected in
+  place 2026-09-15, when builds armed the leaf; until then no build handed it feedback commands and
+  `feedbackToolNames` was `[]`.)*
 - **One turn, parsed fail-closed, accounted honestly (ADR-0232 D6).** `parseCodexJsonl` requires exactly
   one `turn.started` and one `turn.completed` carrying readable token usage; a malformed event, a failed
   turn, or a missing or extra turn fails the slice. The run record keeps the model, the single turn,
