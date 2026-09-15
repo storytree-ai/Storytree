@@ -1,5 +1,5 @@
 // render-claim-as-wisp — pure claimsToActivity fold (B1 + B2).
-// Proof command: node --import tsx --test apps/studio/server/inFlightActivity.test.ts
+// Proof command: pnpm --filter studio exec vitest run server/inFlightActivity.test.ts
 //
 // Why a standalone module (mirrors inFlightBuilds.ts pattern): the live SQL that
 // reads events.node_claim needs a DB (activityApi integration test + operator-attested
@@ -152,13 +152,23 @@ describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — th
     return row;
   };
 
-  it.each(['exploring', 'waiting', 'work'] as const)(
-    'ADR-0200 D7: carries grade %s through the fold',
-    (grade) => {
-      const out = claimsToActivity([gradeRow(grade)], NOW);
-      expect(out[0]?.grade).toBe(grade);
-    },
-  );
+  // One literal test per grade, never an `it.each` table: per-test observation binds each declared test
+  // to exactly one reported row, and a table is one declaration the runner expands into several
+  // (ADR-0573 D3). The titles are the ones the table used to expand to.
+  it('ADR-0200 D7: carries grade exploring through the fold', () => {
+    const out = claimsToActivity([gradeRow('exploring')], NOW);
+    expect(out[0]?.grade).toBe('exploring');
+  });
+
+  it('ADR-0200 D7: carries grade waiting through the fold', () => {
+    const out = claimsToActivity([gradeRow('waiting')], NOW);
+    expect(out[0]?.grade).toBe('waiting');
+  });
+
+  it('ADR-0200 D7: carries grade work through the fold', () => {
+    const out = claimsToActivity([gradeRow('work')], NOW);
+    expect(out[0]?.grade).toBe('work');
+  });
 
   it('ADR-0200 D2: an ABSENT grade normalises to "work" (the pre-grade doc IS the work claim)', () => {
     const out = claimsToActivity([gradeRow(undefined)], NOW);

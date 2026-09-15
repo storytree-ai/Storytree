@@ -8,13 +8,13 @@ status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
 decisions: [138, 45, 99]
-# Node-borne proof config (ADR-0057 keystone A). The §5-load-bearing delta is PURE DATA MATH: the fold that
-# turns node_claim rows into map activity, with a distinct discriminator for claimed-vs-proven. NET-NEW,
-# builtins-only — mirrors the existing apps/studio/server/inFlightBuilds.test.ts (pure, NO DB, NO install).
-# The leaf authors a net-new claimsToActivity fold in apps/studio/server/inFlightActivity.ts; the red is the
-# missing module. The LIVE SQL that selects node_claim (B3, mirrored in backend-entry.ts / libraryBackend.ts)
-# is glue under this capability, not part of the pure proof. NO `install`/`db` — the fold is pure (rows + now
-# in, activity out), so the default node:test single-file proof runs it byte-for-byte like inFlightBuilds.
+# Node-borne proof config (ADR-0057 keystone A). The load-bearing delta is still PURE DATA MATH: the
+# claimsToActivity fold in apps/studio/server/inFlightActivity.ts (node_claim rows + now in, map activity out,
+# with a distinct claimed-vs-proven discriminator; NO DB). The LIVE SQL that selects node_claim (B3, mirrored
+# in backend-entry.ts / libraryBackend.ts) is glue under this capability, not part of the pure proof.
+# The studio suite is VITEST, not node:test: the default `node --import tsx --test <file>` real proof cannot
+# load this file, so the `real:` arm declares a proofCommand running the ONE test file under vitest, with the
+# install: true + studio typecheck wall a pnpm command requires (proof-config.ts refuses it otherwise).
 proof:
   command:
     file: pnpm
@@ -36,6 +36,20 @@ proof:
     scope:
       testGlobs: ["apps/studio/server/inFlightActivity.test.ts"]
       sourceGlobs: ["apps/studio/server/inFlightActivity.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "studio", "typecheck"]
+    # vitest, not node:test: the ONE test file, package-relative (`--filter studio exec` runs in apps/studio).
+    proofCommand:
+      file: pnpm
+      args:
+        - "--filter"
+        - "studio"
+        - "exec"
+        - "vitest"
+        - "run"
+        - "server/inFlightActivity.test.ts"
 ---
 
 # Render the claim as a wisp
