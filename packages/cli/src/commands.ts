@@ -2567,7 +2567,7 @@ function walkTestFiles(absDir: string): string[] {
  * ADR-0294 D2 author holds a running test and needs the node that claims it. An unreadable file
  * contributes no tests (fail-closed — silence about a file is never a claim about it).
  */
-function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
+export function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
   const toRel = toRepoRelative(root);
   return sweepCapabilitySurfaces(storiesDir, root).surfaces.map((surface) => ({
     unitId: surface.unitId,
@@ -2592,7 +2592,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
  * globs. A config without a real arm keeps the package/dir walk over its ordinary proof scope.
  * Pure-by-injection seam for `coverageCommand`.
  */
-function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
+export function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
   const file = findNodeSpecFile(storiesDir, unitId);
   if (file === null) return null;
   let spec: ReturnType<typeof loadNodeSpec>;
