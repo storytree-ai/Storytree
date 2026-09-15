@@ -2738,6 +2738,7 @@ interface BuildValues {
   runtime?: string;
   budget?: string;
   "max-turns"?: string;
+  "revise-test"?: string;
   actor?: string;
   store?: string;
   signer?: string;
@@ -2765,10 +2766,35 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
   if (values.runtime !== undefined) opts.runtime = values.runtime;
   if (values.budget !== undefined) opts.budgetUsd = Number(values.budget);
   if (values["max-turns"] !== undefined) opts.maxTurns = Number(values["max-turns"]);
+  // ADR-0571 D3: unguarded, because `reviseTest` admits undefined — a guard here would be a mutant
+  // no test could kill. `story build` never sees it: `storyBuildFromValues` refuses the flag first.
+  opts.reviseTest = values["revise-test"];
   if (values.actor !== undefined) opts.actor = values.actor;
   if (values.store !== undefined) opts.verdictStore = values.store;
   opts.onLeafSlices = captureBuildLeafSlices;
   return opts;
+}
+
+/**
+ * `story build` from argv, refusing `--revise-test` first (ADR-0571 D3). A test revision names ONE
+ * unit's failed run, and a chain has no single unit to revise; without this refusal the flag would
+ * reach `storyBuild` through the options it shares with `node build` and be silently ignored.
+ */
+export async function storyBuildFromValues(
+  storyId: string | undefined,
+  values: BuildValues,
+): Promise<Envelope> {
+  const revision = values["revise-test"];
+  if (revision !== undefined) {
+    return {
+      ok: false,
+      body:
+        "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
+        "(ADR-0571 D3): a story chain has no single unit to revise.",
+      next: [`storytree node build <unit-id> --real --revise-test ${revision}`],
+    };
+  }
+  return storyBuild(storyId, nodeStoryBuildOpts(values));
 }
 
 /**
@@ -2902,6 +2928,7 @@ function buildHelp(): Envelope {
       "flags: --dry-run (scripted, offline) · --live (subscription leaf smoke) · --real (real build)",
       "       --runtime claude|codex|pi (default: codex) · --model <runtime-model-id>",
       "       --budget <usd> (Claude only) · --max-turns <n>   ·   --runtime pi is --live only (ADR-0449)",
+      "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
       "",
       "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",
       "The moved verbs keep working as back-compat aliases (`node build`, `node resolve`, `story build`,",
@@ -3096,6 +3123,9 @@ export const CLI_OPTIONS = {
   model: { type: "string" },
   budget: { type: "string" },
   "max-turns": { type: "string" },
+  // `node build <id> --real --revise-test <run-id>` (ADR-0571): re-run the unit as a test revision
+  // against that run's escalation record. `node build` only — `story build` refuses it.
+  "revise-test": { type: "string" },
   actor: { type: "string" },
   store: { type: "string" },
   "working-on": { type: "string" },
@@ -3587,7 +3617,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);
     // `story build <id>` is the back-compat alias for `build story <id>` (ADR-0118) — one code path.
-    return storyBuild(third, nodeStoryBuildOpts(values));
+    return storyBuildFromValues(third, values);
   }
 
   if (area === "build") {
@@ -3609,7 +3639,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub === "story") {
       if (third === undefined || help) return storyHelp();
       if (values.store === "memory") return refuseMemoryStore("story", third);
-      return storyBuild(third, nodeStoryBuildOpts(values));
+      return storyBuildFromValues(third, values);
     }
     if (sub === "gate") {
       // `build gate <story>#gate-<n> --real` (was `gate run --real`) — the build-tests primitive. The
@@ -3631,7 +3661,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const kind = classifyBuildTarget(target, storiesDir);
     if (values.store === "memory") return refuseMemoryStore(kind, target);
     return kind === "story"
-      ? storyBuild(target, nodeStoryBuildOpts(values))
+      ? storyBuildFromValues(target, values)
       : nodeBuild(target, nodeStoryBuildOpts(values));
   }
 

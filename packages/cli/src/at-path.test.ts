@@ -57,6 +57,14 @@ test("`traversal origin`'s three flags are LITERAL — an enum word and two cano
   }
 });
 
+test("`node build --revise-test` is LITERAL — a run id naming a revision record, never prose", () => {
+  // ADR-0571 D3. Named rather than left to the generic sweep above, because the sweep only asks that
+  // a flag be classified SOMEHOW: were `--revise-test` to drift into PROSE, `--revise-test @notes.md`
+  // would read a file where a run id belongs — the hand-relayed escalation the flag exists to remove.
+  assert.equal(LITERAL_FLAGS.has("revise-test"), true, "revise-test must be literal");
+  assert.equal(PROSE_FLAGS.has("revise-test"), false, "a run id is an identity, never a record");
+});
+
 test("`resteer new`'s six flags are classified on the right side of the prose/literal line", () => {
   // ADR-0515. Named rather than left to the generic exhaustiveness sweep above, because that sweep
   // only asks that a flag be classified SOMEHOW — it stays green if a PROSE flag drifts into LITERAL,

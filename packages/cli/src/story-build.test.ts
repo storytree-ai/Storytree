@@ -328,6 +328,24 @@ test("story build threads explicit runtime policy before any live work starts", 
   assert.match(budget.body, /ChatGPT subscription quota/);
 });
 
+test("story build REFUSES --revise-test on every route to the chain — no single unit to revise (ADR-0571 D3)", async () => {
+  // The flag reaches `storyBuild` through the options it shares with `node build`, so without the
+  // refusal a chain would silently ignore it. All three dispatch routes to the chain must refuse.
+  const body =
+    "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
+    "(ADR-0571 D3): a story chain has no single unit to revise.";
+  for (const argv of [
+    ["story", "build", "library", "--dry-run", "--revise-test", "real-abc123"],
+    ["build", "story", "library", "--dry-run", "--revise-test", "real-abc123"],
+    ["build", "library", "--dry-run", "--revise-test", "real-abc123"],
+  ]) {
+    const env = await run(argv, deps);
+    assert.equal(env.ok, false, argv.join(" "));
+    assert.equal(env.body, body, argv.join(" "));
+    assert.deepEqual(env.next, ["storytree node build <unit-id> --real --revise-test real-abc123"], argv.join(" "));
+  }
+});
+
 test("story build on a story with nodes lacking proof config fails closed BEFORE any node runs", async () => {
   const env = await run(
     ["story", "build", "studio", "--dry-run", "--actor", "t@e.c"],

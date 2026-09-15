@@ -185,6 +185,23 @@ boundaries for omitted and explicit runtime choices, so legacy helper compatibil
 in for truthful default-Codex instructions. This is a prompt-helper compatibility rule, not a
 change to which provider or model any build selects.
 
+**Test revision brief (contract 12, ADR-0571 D4).** A REAL build can be handed a `TestRevision`: the
+escalation a failed run returned, plus, for an IMPLEMENT escalation, the CONFIRM_GREEN observation
+behind it. With one, the AUTHOR_TEST brief gains a revision section appended after everything the
+brief says without it, in all three REAL arms and for every runtime. The section names:
+
+- the ADR-0563 D6 `revised-test` attempt it consumes;
+- the prior run id, the raising phase and its kind, and the test id;
+- the statement and assertion, verbatim;
+- the spine's observation, with each stream tail-kept at 8,000 characters.
+
+The IMPLEMENT brief is byte-identical with or without a revision, and a build handed none briefs
+exactly as before. `realPrompts` takes the revision as an optional fifth argument, and
+`RealResolveOptions.testRevision` threads it through `resolveReal`. It is built through its own
+spec-borne contract, [`real-brief-carries-test-revision`](real-brief-carries-test-revision.md). That
+contract's proof block and write scope are its own. The authored-source paragraph below describes
+this capability's proof, not that contract's.
+
 **Authored source and proof ownership.** IMPLEMENT may edit only
 `packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
 `packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
@@ -245,6 +262,7 @@ rather than requiring the tool name's erasure.
 - **`prompts-brief-the-real-constraints`** — BOTH phases in all three REAL arms preserve outcome, guidance, contract IDs, the exact declared test/source scope, dependency restrictions, required outputs and stop-if-test-wrong behavior. For multiple literal test targets, AUTHOR_TEST names the complete permitted set instead of claiming only the spotlight is writable; IMPLEMENT may read those tests but writes only its source targets. Additional allowed paths remain optional unless already required by the existing manifest, and wildcard scope never becomes Codex promotion authority. A machine capturing actual final Codex stdin after rendered-role and adapter composition sees available native shell/`apply_patch` authoring and exact observed promotion, no promised `PreToolUse`/OS containment, no instruction to use unavailable proof/typecheck tools, and an explicit prohibition on substituting shell proof/typecheck feedback. The spine alone observes and signs. The same runtime truthfulness holds for live-smoke while its synthetic pair and deliberate absence of real contract IDs remain unchanged. Explicit Claude retains its actual tool and enforcement instructions. The standalone three-argument `realPrompts` helper retains its legacy Claude prose, while production REAL/live-smoke resolution explicitly supplies the selected runtime; omitted build runtime therefore remains Codex. The existing Codex model default and all proof/scoping/promotion inputs are unchanged.
 - **`feedback-tools-spawn-the-same-oracle`** — explicit Claude's `run_proof` spawns the exact CONFIRM oracle in REAL and live-smoke, and `run_typecheck` is armed and advertised only with its registered installed-node command. Codex's actual `feedbackToolNames` remains empty, its launch keeps MCP disabled, and BOTH phases of every REAL arm and live-smoke tell it to stop for the spine's independent observations without demanding unavailable feedback or authorizing a shell substitute. Installed Codex nodes still receive the spine-owned typecheck requirement. Native authoring tool availability, default runtime/model, registered commands and spine observation/signing authority are unchanged.
 - **`briefs-name-the-declared-contract-ids`** — `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
+- **`test-revision-reaches-only-the-author-test-brief`** — a supplied `TestRevision` reaches the AUTHOR_TEST brief after its unchanged text, in all three REAL arms and both runtimes, carrying the escalation and a tail-bounded observation. The IMPLEMENT brief is byte-identical with or without it, and real-mode `resolveProveSpec` threads it into the AUTHOR_TEST brief only.
 
 ## Integration test
 
@@ -264,7 +282,7 @@ walks remain offline tests of machinery; they are not a substitute author or sig
 repair. The declared REAL proof runs both test files, and promotion retains both package suites
 and typechecks as the regression floor.
 
-## Contracts (11)
+## Contracts (12)
 
 1. **`spec-files-locate-and-load`** — capability and story specs are found and parse to typed NodeSpecs with guidance prose
    - **asserts —** `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
@@ -310,3 +328,7 @@ and typechecks as the regression floor.
     - **asserts —** `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
     - **covers —** `resolve-prove-spec.ts` — the `contractsBrief` helper and its splice sites in `assemblePrompts` and the three `realPrompts` arms
     - **proven by —** `resolve-prove-spec.test.ts` — the five tests whose titles begin `briefs-name-the-declared-contract-ids —`, covering `assemblePrompts enumerates the declared ids in BOTH phases`; `the ids arrive though` the spec's own `## Guidance` restates none; `ALL THREE realPrompts arms carry them`; `a unit declaring NONE gets no block`; and `the live-SMOKE brief deliberately carries NONE` (REAL, passing)
+12. **`test-revision-reaches-only-the-author-test-brief`** — a test revision handed to a REAL build reaches the AUTHOR_TEST brief, after everything that brief says today, and no other brief
+    - **asserts —** given a `TestRevision`, `realPrompts` returns, in all three REAL arms and under both runtimes, an AUTHOR_TEST brief that begins byte for byte with the brief returned without one. The brief continues with the ADR-0563 D6 `revised-test` attempt, the prior run id, phase, kind and test id, the statement and assertion verbatim, and the spine's observation with each stream tail-kept at 8,000 characters. The IMPLEMENT brief is byte-identical with or without the revision, and `resolveProveSpec` threads `testRevision` into the AUTHOR_TEST brief only.
+    - **covers —** `realPrompts`, `RealResolveOptions.testRevision` and its pass-through in `resolveReal` (`packages/orchestrator/src/resolve-prove-spec.ts`), and the `TestRevision` type export through `packages/orchestrator/src/index.ts`
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.revision.test.ts` through contract [`real-brief-carries-test-revision`](real-brief-carries-test-revision.md), signed PASS (run `real-mu1xkwj2`). Not exercised by that proof: either kind literal or the phase label (the section calls an AUTHOR_TEST escalation's phase "test-authoring"), an IMPLEMENT observation's exit code, an IMPLEMENT revision with no observation, and a stream of exactly 8,000 characters.

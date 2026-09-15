@@ -5,12 +5,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
+  AuthoringPhase,
   ClaudeAgentAuthor,
   CodexPhaseAuthor,
   LiveRuntime,
   PhaseAuthor,
   PiPhaseAuthor,
 } from "@storytree/agent";
+import { parseAuthoringEscalation } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
@@ -46,6 +48,7 @@ import type {
   RealProofConfig,
   RealResolveOptions,
   ResolveOptions,
+  TestRevision,
 } from "@storytree/orchestrator";
 import type { LeafPhasePrompts } from "@storytree/orchestrator";
 import {
@@ -1092,6 +1095,45 @@ export function renderEscalation(unitId: string, runId: string, result: ProveRes
   return overruled === undefined ? [] : renderOverruledLine(overruled);
 }
 
+/**
+ * `[]` for an undefined revision, or one exact line naming the prior run id, the raising phase and
+ * the test id (ADR-0571 D3/D6): this build is a test revision — one D4 attempt, kind `revised-test`.
+ * A pure reader of the {@link TestRevision} the revision read already resolved; it never itself reads
+ * the escalation store or invents a phase.
+ */
+export function renderRevisingLine(revision: TestRevision | undefined): string[] {
+  if (revision === undefined) return [];
+  const { runId, escalation } = revision;
+  return [
+    `revising:    run ${runId} (${escalation.raised.phase} escalation, test ${escalation.testId}) — ` +
+      "this build is an ADR-0563 D6 test revision: one D4 attempt, `revised-test`.",
+  ];
+}
+
+/**
+ * `[]` when there is no {@link RevisionWrite} (`escalationsDir` was never supplied, or nothing this
+ * attempt returned was written). A successful write names the path and the exact re-run command,
+ * carrying the SAME `runtime` this attempt ran under — so running it as printed never switches leaves
+ * (ADR-0571 D3). An unwritten record names the path and the reason, and never a command: there is
+ * nothing on disk to revise against, so the escalation block above must be relayed by hand.
+ */
+export function renderRevisionRecord(
+  unitId: string,
+  runId: string,
+  runtime: LiveRuntime,
+  write: RevisionWrite | undefined,
+): string[] {
+  if (write === undefined) return [];
+  if (write.written) {
+    return [
+      `revision:    written to ${write.path} — re-run with: storytree node build ${unitId} --real --runtime ${runtime} --revise-test ${runId}`,
+    ];
+  }
+  return [
+    `revision:    NOT written (${write.path}): ${write.reason} — relay the escalation block above to the owner by hand`,
+  ];
+}
+
 // ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
 
 /**
@@ -1173,6 +1215,20 @@ export interface RealBuildArgs {
   /** Offline test seam: a scripted {@link PhaseAuthor}; defaults to the live SDK leaf. */
   authorOverride?: PhaseAuthor;
   /**
+   * ADR-0571 D4: a prior attempt's returned escalation, threaded verbatim into the AUTHOR_TEST
+   * brief as this attempt's test revision. Assigned unconditionally onto `resolveOptions` (never
+   * behind an `if (... !== undefined)` guard) — the brief-carrying contract is proven independently
+   * by `real-brief-carries-test-revision`, this is only the threading.
+   */
+  testRevision?: TestRevision | undefined;
+  /**
+   * ADR-0571 D2: when supplied, this attempt's own RETURNED escalation (if any) is recorded under
+   * this directory via {@link writeRevisionRecord}, and the write is reported on
+   * {@link RealBuildResult.revisionWrite}. Absent means nothing is recorded and the result carries
+   * no `revisionWrite` key at all.
+   */
+  escalationsDir?: string | undefined;
+  /**
    * ADR-0243 D1 — the accounting-only widening: a canned {@link LiveAuthor} reported as
    * `result.liveAuthor` alongside `authorOverride`'s scripted authoring, so an offline caller can
    * exercise the leaf-slices observer without a real live leaf ever authoring anything. Meaningless
@@ -1206,6 +1262,12 @@ export interface RealBuildResult {
   promotionSkipped?: string;
   regression?: "green" | "red";
   typecheck?: "green" | "red";
+  /**
+   * ADR-0571 D2: present only when {@link RealBuildArgs.escalationsDir} was supplied — the outcome
+   * of recording THIS attempt's own returned escalation (if any) via {@link writeRevisionRecord}.
+   * Absent entirely (not merely `undefined`) when no directory was supplied.
+   */
+  revisionWrite?: RevisionWrite;
 }
 
 /**
@@ -1238,6 +1300,9 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     signerInputs: { flag: signer },
     phasePrompts: args.phasePrompts,
   };
+  // ADR-0571 D4: unconditional — a guard here would be a mutant no test could kill, since assigning
+  // `undefined` is harmless and the brief-threading contract is proven by `real-brief-carries-test-revision`.
+  resolveOptions.testRevision = args.testRevision;
   if (args.authorOverride !== undefined) resolveOptions.authorOverride = args.authorOverride;
   if (args.liveAuthorOverride !== undefined) {
     resolveOptions.liveAuthorOverride = args.liveAuthorOverride;
@@ -1328,6 +1393,12 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   // alike, so the report can say WHICH observation refused the verdict.
   if (typecheck !== undefined) out.typecheck = typecheck;
   if (regression !== undefined) out.regression = regression;
+  // ADR-0571 D2: record THIS attempt's own returned escalation (if any) under the supplied
+  // directory, and report exactly what was written. `writeRevisionRecord` itself resolves to `null`
+  // when `escalationsDir` is undefined or `result` carries no escalation, so the key is present on
+  // `out` only when a directory was supplied — never merely `undefined`.
+  const revisionWrite = await writeRevisionRecord(args.escalationsDir, spec.id, runId, result);
+  if (revisionWrite !== null) out.revisionWrite = revisionWrite;
   if (!result.ok) return out;
   out.commitSha = result.verdict.commitSha;
 
@@ -1444,6 +1515,17 @@ export interface NodeBuildOpts {
    * envelope rather than the chatter.
    */
   progress?: BuildProgress;
+  /**
+   * `--revise-test <runId>` (ADR-0571 D3): the run id whose revision record this `--real` build
+   * revises against. A LITERAL run id, never `@path` content — the orchestrator names which
+   * escalation and never handles its text. Valid only with `--real`.
+   */
+  reviseTest?: string | undefined;
+  /**
+   * Test seam for {@link resolveEscalationsDir} (ADR-0571 D2/D3). Production omits it and gets the
+   * default house per-user directory.
+   */
+  escalationsDir?: string | undefined;
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -1553,6 +1635,18 @@ export async function nodeBuild(
       next: [`storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex`],
     };
   }
+  // ADR-0571 D3: --revise-test hands a prior attempt's returned escalation to the AUTHOR_TEST leaf
+  // as this build's revision brief — only --real authors at real repo paths, so it is real-only.
+  if (opts.reviseTest !== undefined && !real) {
+    return {
+      ok: false,
+      body:
+        "--revise-test is valid only with --real: it hands a prior attempt's returned escalation to " +
+        "the AUTHOR_TEST leaf as this REAL build's revision brief, and neither --dry-run nor --live " +
+        "authors at real repo paths (ADR-0571 D3).",
+      next: [`storytree node build ${unitId} --real --revise-test ${opts.reviseTest}`],
+    };
+  }
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -1655,6 +1749,15 @@ export async function nodeBuild(
     if (!resolvedDeps.ok) return resolvedDeps.refusal;
     addDepsGroup = resolvedDeps.group;
   }
+
+  // ADR-0571 D3: read the named revision record before any spend — before the leaf-prompt render,
+  // the DB preflight, the claim and the worktree. `readTestRevision` returns no revision (and never
+  // touches the filesystem) when `opts.reviseTest` is undefined, so a dry-run/live-smoke walk (where
+  // the mode check above already refused a supplied --revise-test) passes through untouched.
+  const escalationsDir = resolveEscalationsDir(opts.escalationsDir);
+  const revisionRead = await readTestRevision(escalationsDir, spec.id, opts.reviseTest);
+  if (!revisionRead.ok) return { ok: false, body: revisionRead.reason, next: [] };
+  const testRevision = revisionRead.revision;
 
   // ADR-0051 §4: the live SDK leaf's per-phase system prompt IS the rendered Library agent
   // (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Assemble it offline and fail-loud on a
@@ -1769,6 +1872,7 @@ export async function nodeBuild(
     let liveAuthor: LiveAuthor | undefined;
     let worktree: BuildWorktree | undefined;
     let promotion: PromotionResult | undefined;
+    let revisionWrite: RevisionWrite | undefined;
     let promotionSkipped: string | undefined;
     let regression: "green" | "red" | undefined;
     let typecheck: "green" | "red" | undefined;
@@ -1814,6 +1918,8 @@ export async function nodeBuild(
         if (opts.model !== undefined) realArgs.model = opts.model;
         if (opts.budgetUsd !== undefined) realArgs.budgetUsd = opts.budgetUsd;
         if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
+        realArgs.testRevision = testRevision;
+        realArgs.escalationsDir = escalationsDir;
         const built = await progress.stage(
           "gate (the leaf authors, the spine observes red -> green)",
           () => buildNodeReal(realArgs),
@@ -1821,6 +1927,7 @@ export async function nodeBuild(
         result = built.result;
         liveAuthor = built.liveAuthor;
         promotion = built.promotion;
+        revisionWrite = built.revisionWrite;
         promotionSkipped = built.promotionSkipped;
         regression = built.regression;
         typecheck = built.typecheck;
@@ -1874,6 +1981,7 @@ export async function nodeBuild(
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
       ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
+      ...renderRevisingLine(testRevision),
       ...(real && worktree !== undefined && realConfig !== undefined
         ? [
             `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
@@ -1932,6 +2040,7 @@ export async function nodeBuild(
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
           ...renderEscalation(spec.id, runId, result),
+          ...renderRevisionRecord(spec.id, runId, runtime, revisionWrite),
           ...renderFailedConfirmObservation(spec.id, runId, result.failedObservation),
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
@@ -2193,4 +2302,268 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
     ].join("\n"),
     next: ["storytree node build library-cli --dry-run", "storytree story build library --dry-run"],
   };
+}
+
+// ── Per-user revision records (ADR-0571 D2/D3): write and read the revision a failed REAL build ──
+// leaves behind, keyed by unit and run. The drive stores and reads a record here; it decides
+// nothing about attempts (nothing counts them, and nothing checks the D4 decision point).
+
+/**
+ * The house per-user state directory a failed REAL build's RETURNED escalation is written under
+ * (ADR-0571 D2) — never committed, never shared across machines.
+ */
+export function defaultEscalationsDir(): string {
+  return path.join(os.homedir(), ".storytree", "escalations");
+}
+
+/** `dir` untouched, or {@link defaultEscalationsDir} when `dir` is undefined. */
+export function resolveEscalationsDir(dir: string | undefined): string {
+  return dir ?? defaultEscalationsDir();
+}
+
+/** The on-disk path a unit/run's revision record lives at: `<dir>/<unitId>/<runId>.json`. */
+export function revisionRecordPath(dir: string, unitId: string, runId: string): string {
+  return path.join(dir, unitId, `${runId}.json`);
+}
+
+/** The outcome of {@link writeRevisionRecord}: never throws, so a filesystem failure still resolves. */
+export type RevisionWrite =
+  | { written: true; path: string }
+  | { written: false; path: string; reason: string };
+
+/** The stable shape a stored/observed test observation must match (ADR-0571 D3). */
+type StoredObservation = { stdout: string; stderr: string; exitCode: number | null };
+
+/**
+ * What {@link writeRevisionRecord} reads off a result: every {@link ProveResult} satisfies it. Only a
+ * refusal ever carries `escalation`, so reading that key directly needs no `ok` guard — and a guard
+ * would be a mutant no test can kill, because a pass has no `escalation` to write either way.
+ */
+type RevisionSource = {
+  ok: boolean;
+  escalation?: EscalationRecord | undefined;
+  failedObservation?: Extract<ProveResult, { ok: false }>["failedObservation"];
+};
+
+/**
+ * Write a failed REAL build's RETURNED escalation to its per-user revision record (ADR-0571 D2).
+ * Returns `null` — writing nothing, creating no directory — when `dir` is undefined or `result` is
+ * not a returned escalation: an `overruledEscalation`, or a result carrying neither key, both count
+ * as not returned. Never throws: a filesystem failure resolves to `{ written: false, path, reason }`.
+ * The record is `{ unitId, runId, escalation, failedObservation? }`, serialized straight from `result`
+ * — `failedObservation` is present only when `result` carries one.
+ */
+export async function writeRevisionRecord(
+  dir: string | undefined,
+  unitId: string,
+  runId: string,
+  result: RevisionSource,
+): Promise<RevisionWrite | null> {
+  if (dir === undefined || result.escalation === undefined) return null;
+  const filePath = revisionRecordPath(dir, unitId, runId);
+  // JSON.stringify omits a key whose value is undefined, so a result carrying no failedObservation
+  // writes no such key: the record holds exactly what the result carries, with no branch to get wrong.
+  const record = { unitId, runId, escalation: result.escalation, failedObservation: result.failedObservation };
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(record));
+    return { written: true, path: filePath };
+  } catch (e) {
+    return { written: false, path: filePath, reason: (e as Error).message };
+  }
+}
+
+/** Narrows `value` to one of the two phases a leaf authors in, or `undefined` for anything else. */
+function asAuthoringPhase(value: unknown): AuthoringPhase | undefined {
+  return value === "AUTHOR_TEST" || value === "IMPLEMENT" ? value : undefined;
+}
+
+/** The escalation kind the named phase produces (`AuthoringEscalation`'s own discriminant). */
+function expectedEscalationKind(phase: AuthoringPhase): string {
+  return phase === "AUTHOR_TEST" ? "untestable-contract" : "unsatisfiable-test";
+}
+
+/** A non-null, non-array object a field can be read off. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** `{ stdout: string; stderr: string; exitCode: number | null }` — never anything looser. */
+function isStoredObservation(value: unknown): value is StoredObservation {
+  if (!isPlainRecord(value)) return false;
+  return (
+    typeof value.stdout === "string" &&
+    typeof value.stderr === "string" &&
+    (typeof value.exitCode === "number" || value.exitCode === null)
+  );
+}
+
+/**
+ * Parse a stored (or otherwise untrusted) value into a {@link TestRevision} for the given `unitId`
+ * (ADR-0571 D3; ADR-0569 D3/D4) — refusing every shape the gate never produces rather than trusting
+ * it. The raised escalation is REBUILT through {@link parseAuthoringEscalation} rather than trusted
+ * verbatim, so an extra field the stored object carries is dropped, not round-tripped.
+ */
+export function parseTestRevision(
+  input: unknown,
+  unitId: string,
+): { ok: true; revision: TestRevision } | { ok: false; reason: string } {
+  if (!isPlainRecord(input)) {
+    return { ok: false, reason: "a test revision record must be an object" };
+  }
+  if (input.unitId !== unitId) {
+    return {
+      ok: false,
+      reason:
+        `a test revision record's unitId "${String(input.unitId)}" does not match ` +
+        `the expected unitId "${unitId}"`,
+    };
+  }
+  const runId = input.runId;
+  if (typeof runId !== "string" || runId.trim().length === 0) {
+    return { ok: false, reason: "a test revision record's runId must be a non-blank string" };
+  }
+  const escalationInput = input.escalation;
+  if (!isPlainRecord(escalationInput)) {
+    return { ok: false, reason: "a test revision record's escalation must be an object" };
+  }
+  const testId = escalationInput.testId;
+  if (typeof testId !== "string" || testId.trim().length === 0) {
+    return {
+      ok: false,
+      reason: "a test revision record's escalation.testId must be a non-blank string",
+    };
+  }
+  const raised = escalationInput.raised;
+  if (!isPlainRecord(raised)) {
+    return { ok: false, reason: "a test revision record's escalation.raised must be an object" };
+  }
+  const phase = asAuthoringPhase(raised.phase);
+  if (phase === undefined) {
+    return {
+      ok: false,
+      reason:
+        `a test revision record's declared phase "${String(raised.phase)}" must be ` +
+        `AUTHOR_TEST or IMPLEMENT`,
+    };
+  }
+  const expectedKind = expectedEscalationKind(phase);
+  if (raised.kind !== expectedKind) {
+    return {
+      ok: false,
+      reason:
+        `a ${phase} escalation's kind must be "${expectedKind}", not "${String(raised.kind)}"`,
+    };
+  }
+  const rebuilt = parseAuthoringEscalation(phase, raised);
+  if (!rebuilt.ok) {
+    return { ok: false, reason: rebuilt.reason };
+  }
+  if (phase === "IMPLEMENT" && escalationInput.observation !== undefined) {
+    return {
+      ok: false,
+      reason: "an IMPLEMENT-kind escalation must not carry escalation.observation",
+    };
+  }
+  if (phase === "AUTHOR_TEST" && input.failedObservation !== undefined) {
+    return {
+      ok: false,
+      reason: "an AUTHOR_TEST-kind record must not carry a top-level failedObservation",
+    };
+  }
+  let observation: StoredObservation | undefined;
+  if (escalationInput.observation !== undefined) {
+    if (!isStoredObservation(escalationInput.observation)) {
+      return {
+        ok: false,
+        reason:
+          "escalation.observation must be { stdout: string; stderr: string; exitCode: number | null }",
+      };
+    }
+    observation = escalationInput.observation;
+  }
+  let failedObservation: StoredObservation | undefined;
+  if (input.failedObservation !== undefined) {
+    if (!isStoredObservation(input.failedObservation)) {
+      return {
+        ok: false,
+        reason: "failedObservation must be { stdout: string; stderr: string; exitCode: number | null }",
+      };
+    }
+    failedObservation = input.failedObservation;
+  }
+
+  const escalation: EscalationRecord =
+    observation === undefined
+      ? { raised: rebuilt.escalation, testId }
+      : { raised: rebuilt.escalation, testId, observation };
+
+  return {
+    ok: true,
+    revision:
+      failedObservation === undefined
+        ? { unitId, runId, escalation }
+        : { unitId, runId, escalation, failedObservation },
+  };
+}
+
+/** Whether `runId` is a single path segment — never blank, `.`, `..`, or containing a separator. */
+function isSinglePathSegment(runId: string): boolean {
+  return runId.length > 0 && runId !== "." && runId !== ".." && !runId.includes("/") && !runId.includes("\\");
+}
+
+/**
+ * Read a unit/run's revision record back (ADR-0571 D3). An undefined `runId` answers
+ * `{ ok: true, revision: undefined }` without touching the filesystem — there is nothing to revise
+ * against yet. A `runId` that is not a single path segment is refused before the filesystem is
+ * touched, which is what keeps this from ever naming an arbitrary file. Every other refusal names
+ * the path or the mismatch it found.
+ */
+export function readTestRevision(
+  dir: string,
+  unitId: string,
+  runId: string | undefined,
+): { ok: true; revision: TestRevision | undefined } | { ok: false; reason: string } {
+  if (runId === undefined) return { ok: true, revision: undefined };
+  if (!isSinglePathSegment(runId)) {
+    return {
+      ok: false,
+      reason: `runId "${runId}" is not a single path segment — it must name one run, not a path`,
+    };
+  }
+  const filePath = revisionRecordPath(dir, unitId, runId);
+  if (!existsSync(filePath)) {
+    return { ok: false, reason: `no revision record found at ${filePath}` };
+  }
+  let raw: string;
+  try {
+    // Decoded by Buffer#toString, which is UTF-8 — the same decoding an explicit "utf8" asks for, and
+    // with no encoding literal whose emptied mutant JSON.parse would decode identically anyway.
+    raw = readFileSync(filePath).toString();
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `could not read the revision record at ${filePath}: ${(e as Error).message}`,
+    };
+  }
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(raw);
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `the revision record at ${filePath} is not valid JSON: ${(e as Error).message}`,
+    };
+  }
+  const parsed = parseTestRevision(parsedJson, unitId);
+  if (!parsed.ok) return parsed;
+  if (parsed.revision.runId !== runId) {
+    return {
+      ok: false,
+      reason:
+        `the revision record at ${filePath} was written under runId "${parsed.revision.runId}", ` +
+        `not the requested runId "${runId}"`,
+    };
+  }
+  return { ok: true, revision: parsed.revision };
 }

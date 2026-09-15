@@ -86,6 +86,28 @@ The operator surface over the whole machinery — two commands, one honest-envel
   a result with no escalation renders nothing. Rendering runs no command. Only `node build` renders
   the block: `story build` and the gate build driver print the refusal reason alone.
 
+- **Test revision** (proposed, ADR-0571; contracts
+  [`revision-record-round-trip`](revision-record-round-trip.md),
+  [`build-node-real-threads-revision`](build-node-real-threads-revision.md) and
+  [`node-build-revise-test`](node-build-revise-test.md)).
+  - **The record.** When a REAL node build fails with an escalation the gate returned, `buildNodeReal`
+    writes a per-user record, `~/.storytree/escalations/<unit-id>/<run-id>.json`, holding the unit and
+    run ids, the escalation record, and any `failedObservation`. It writes only when its caller
+    supplies a directory: `node build` does, and `story build` and the gate build driver do not. A
+    write failure never fails the build.
+  - **The envelope.** The failure envelope names the record, together with the re-run command
+    `storytree node build <id> --real --runtime <runtime> --revise-test <run-id>`. If the record was
+    not written, it says so and why.
+  - **The re-run.** `node build --real --revise-test <run-id>` reads that record before the leaf
+    prompts, the DB preflight, the claim or the worktree. It refuses the flag without `--real`, a
+    run id that is not a single path segment, a missing record, and a record that does not describe
+    a returned escalation for this unit and this run. It then
+    hands the revision to `buildNodeReal`, which briefs only the AUTHOR_TEST leaf with it (contract
+    [`real-brief-carries-test-revision`](real-brief-carries-test-revision.md)). The header names the
+    run being revised.
+  - **What it does not do.** Nothing here counts attempts or records the orchestrator's grant
+    (ADR-0571 D5).
+
 - **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
   `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry
   points, deliberately, because wiring two would leave the class open at the next one, which is the
@@ -128,7 +150,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (12)
+## Contracts (15)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -178,3 +200,15 @@ event log (`packages/cli/src/story-build.test.ts:17`).
     - **asserts —** a same-file renderer called by `nodeBuild` directly under the `verdict:` line (ahead of the observation section on a failure) renders an AUTHOR_TEST escalation as a labelled header with phase, claim, unit, run and test id, the statement verbatim, the spine's single observation labelled as not a CONFIRM run, and one options line (re-delegate a test revision as one ADR-0563 D4 `revised-test` attempt, or escalate to the owner); an IMPLEMENT escalation as the same header with its claim, statement and assertion, and the options line; an overruled escalation, on a pass or on a GATE refusal after the overrule, as exactly one labelled line with the statement; and a result with neither key as nothing. Rendering adds no spawn to the one (AUTHOR_TEST) or two (CONFIRM_GREEN reached) the walks made.
     - **covers —** `renderEscalation` and its failure- and pass-envelope call sites in `nodeBuild` (`packages/drive/src/node-build.ts`)
     - **proven by —** `packages/drive/src/node-build-escalation-envelope.test.ts` through contract [`node-build-escalation-envelope`](node-build-escalation-envelope.md), signed PASS (run `real-mu1ms77f`)
+13. **`a-returned-escalation-round-trips-through-its-revision-record`** — a failed build's returned escalation is written to a per-user record keyed by unit and run, and reading that record back yields its test revision or a refusal that says why
+    - **asserts —** `writeRevisionRecord` writes `{ unitId, runId, escalation }` for a returned AUTHOR_TEST escalation, and adds `failedObservation` for an IMPLEMENT one, at `revisionRecordPath(dir, unitId, runId)`. `readTestRevision` reads each record back deep-equal. An overruled escalation, a result with no escalation and an undefined directory write nothing. A run id that is not a single path segment (blank, containing `/` or `\`, or `.` or `..`) is refused before the filesystem is touched, with a reason naming it. A missing run, a record for another unit, a record stored under another run's filename (its reason naming both run ids), invalid JSON and every shape the gate never produces are refused with a reason, not thrown. A write that cannot land returns `{ written: false, path, reason }`. The default directory is `~/.storytree/escalations`.
+    - **covers —** `defaultEscalationsDir`, `resolveEscalationsDir`, `revisionRecordPath`, `writeRevisionRecord`, `parseTestRevision` and `readTestRevision` (`packages/drive/src/node-build.ts`)
+    - **proven by —** `packages/drive/src/node-build-revision-record.test.ts` through contract [`revision-record-round-trip`](revision-record-round-trip.md), signed PASS (run `real-mu1y606w`). It was strengthened to 53 tests on this branch (`74fc53b3`), and `check:mutation-diff` passes with no survivors. Not exercised: an AUTHOR_TEST record written and then read back through `readTestRevision`.
+14. **`build-node-real-threads-the-revision-and-records-the-escalation`** — the single-node REAL lifecycle hands a supplied revision to the AUTHOR_TEST brief and records a returned escalation where its caller asked
+    - **asserts —** given `testRevision`, `buildNodeReal` hands the AUTHOR_TEST leaf a prompt carrying the revision's run id, statement and assertion. Given `escalationsDir`, a walk whose escalation the gate returned yields `revisionWrite` deep-equal to `{ written: true, path }`, and the record reads back with the result's escalation. With no directory, or a failure carrying no escalation, the result has no `revisionWrite` key and nothing is written. `story build` and the gate build driver pass neither field.
+    - **covers —** `buildNodeReal`, `RealBuildArgs.testRevision`, `RealBuildArgs.escalationsDir` and `RealBuildResult.revisionWrite` (`packages/drive/src/node-build.ts`)
+    - **proven by —** `packages/drive/src/build-node-real-revision.test.ts` through contract [`build-node-real-threads-revision`](build-node-real-threads-revision.md), signed PASS on attempt 2 (run `real-mu1zy9xy`), as an ADR-0563 D6 test revision after attempt 1 (run `real-mu1zabhu`) escalated. Not exercised by that proof: the walk without `testRevision`, the assertion clause, and a failure carrying no escalation with a directory set.
+15. **`node-build-takes-a-revision-and-names-the-record-it-leaves`** — node build reads a named revision record before any spend, refuses a bad one, and names the record a failed build leaves with the command that revises against it
+    - **asserts —** `nodeBuild` refuses `reviseTest` without `real`. With `real`, it reads the named record after the REAL prechecks and before the leaf prompts, the DB preflight, the claim and the worktree. It refuses a missing record, naming its path, and a foreign one, naming both ids, and hands a valid record to the REAL lifecycle. The header names the run being revised. The failure envelope names the record a failed build left, with `storytree node build <id> --real --runtime <runtime> --revise-test <run-id>`, or says it was not written and why.
+    - **covers —** `nodeBuild`'s `reviseTest` handling, `NodeBuildOpts.reviseTest` and `NodeBuildOpts.escalationsDir`, `renderRevisingLine` and `renderRevisionRecord` (`packages/drive/src/node-build.ts`)
+    - **proven by —** `packages/drive/src/node-build-revise-test.test.ts` through contract [`node-build-revise-test`](node-build-revise-test.md), signed PASS (run `real-mu20lsxo`). Not exercised by that proof: any progress stage, so "before any stage" and the prompt-render-then-preflight order are unobserved; and the REAL worktree arm's pass-through, which is confirmed by reading.

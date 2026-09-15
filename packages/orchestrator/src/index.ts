@@ -96,6 +96,7 @@ export type {
   ResolveOptions,
   ResolveResult,
   LeafPhasePrompts,
+  TestRevision,
 } from "./resolve-prove-spec.js";
 export {
   resolveProveSpec,
