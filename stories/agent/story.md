@@ -263,6 +263,10 @@ contract shape IS the coupling) and marked.
   - `codex-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `CodexPhaseAuthor` IS the second live implementation of the seam, and the one
     the injection layer binds when the runtime is omitted (ADR-0555).
+  - *(added 2026-09-15, contract `codex-leaf-escalates`, ADR-0569)* `codex-feedback-endpoint.ts` imports
+    `parseAuthoringEscalation` (value) and `AuthoringEscalation` (type) from `./phase-author.js` — the
+    endpoint's `escalate` tool validates a call only through the seam's own parser — and `codex-author.ts`
+    adds `AuthoringEscalation` (type) to its existing import. Same edge, no new one.
 - `live-codex-leaf` → `model-runtime-seam`
   - `codex-author.ts` imports `TokenUsage` (type) from `./model-events.js` — its run record reports the
     CLI's token usage in the model-event vocabulary's own shape.
