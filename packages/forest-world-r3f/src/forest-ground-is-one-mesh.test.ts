@@ -20,7 +20,9 @@
 //   3. The banded material's ramp — the uniform array that doubled when the ladder was refined,
 //      and the thing the increment feared was being uploaded per island — is sized by
 //      `tokens x levels` and by nothing else. Not by cells, not by islands.
-//   4. `ForestWorldCanvas` mounts exactly ONE `<CellGround>` and hands it the whole slice.
+//   4. `ForestWorldCanvas` mounts exactly ONE `<CellGround>` and hands it the whole slice. Since
+//      2026-09-15 the SLICING is `ground-dependency.ts`'s and is therefore driven rather than
+//      parsed; only the mount count and the one prop it is handed are still read off the source.
 //
 // ⚠ CLAIM 4 IS A SOURCE PARSE, and it is the weakest of the four on purpose rather than by
 // accident. Claims 1-3 are the arithmetic and can be driven directly; what claim 4 asserts is a
@@ -47,7 +49,17 @@ import {
 import { createBandedGroundMaterial } from './banded-ground-material.js';
 import { cellGroundGeometry } from './cell-ground-geometry.js';
 import { SHADE_LEVELS, LEGACY_SHADE_LEVELS } from './shade-ladder.js';
+import { groundInput, type GroundInputOptions } from './ground-dependency.js';
+import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29 } from './kit-vocabulary.js';
+import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { worldTo3D, type InstanceDescriptor } from './world-to-3d.js';
+
+/** The shipped derivation's constants — this file asks WHAT was sliced, never how it looks. */
+const GROUND_OPTS: GroundInputOptions = {
+  relief: LAND_RELIEF_AMPLITUDE,
+  footprint: KIT_FOOTPRINTS_2026_08_29,
+  height: KIT_HEIGHTS_2026_08_29,
+};
 
 // ---------------------------------------------------------------------------
 // A TWO-ISLAND WORLD ON THE RELAXED-MESH SUBSTRATE — the substrate the studio ships.
@@ -259,23 +271,33 @@ test('ForestWorldCanvas mounts exactly ONE <CellGround>, over the whole cell sli
       'forest\'s ground a single draw call; more than one would give the ramp uniform a second ' +
       'upload per frame and would make this arc\'s per-island frame figures understate the map.',
   );
-  // The slice it is handed is the WHOLE `cell-ground` family, not a per-island subset.
   assert.match(
     CANVAS_SRC,
-    /const cells = useMemo\(\(\) => byKind\(descriptors, 'cell-ground'\), \[descriptors\]\)/,
-    'the cells handed to <CellGround> must be every cell-ground descriptor in the scene',
+    /<CellGround ground=\{ground\} \/>/,
+    'and the one mount must be handed the whole derived ground, not a slice of it',
   );
-  // The strips ride along too (layer 3's docks) — the WHOLE `trail-strip` family, unfiltered, for
-  // the same reason: a per-island subset would dock some trails and not others.
-  assert.match(
-    CANVAS_SRC,
-    /const strips = useMemo\(\(\) => byKind\(descriptors, 'trail-strip'\), \[descriptors\]\)/,
-    'the strips handed to <CellGround> must be every trail-strip descriptor in the scene',
-  );
-  assert.match(
-    CANVAS_SRC,
-    /<CellGround cells=\{cells\} casters=\{casters\} strips=\{strips\} \/>/,
-    'and they must be handed over unfiltered',
+});
+
+test('the slice <CellGround> is handed is the WHOLE family, across every island', () => {
+  // ⚠ THIS USED TO BE TWO REGEXES OVER THE CANVAS SOURCE, and it is a real derivation now because
+  // the derivation MOVED: `ground-dependency.ts` is where the cells and the strips are sliced, and
+  // it is pure, so the claim can be driven instead of read. Strictly stronger than the parse it
+  // replaces — a regex could only see that `byKind` was written, never that it returned everything.
+  //
+  // A per-island subset is the failure being refused, in both families: it would give the forest a
+  // mesh per island (claim 4's whole subject), and it would dock some trails and not others.
+  const world = twoIslandWorld(3);
+  const map = worldTo3D(buildScene(world));
+  const { cells, strips } = groundInput(map, GROUND_OPTS, 0);
+
+  const wanted = (kind: string) => map.filter((d) => d.kind === kind).length;
+  assert.ok(wanted('cell-ground') > 0, 'non-vacuity: the two-island world really draws ground');
+  assert.equal(cells.length, wanted('cell-ground'), 'the ground was sliced by island, not taken whole');
+  assert.equal(strips.length, wanted('trail-strip'), 'the strips were sliced by island, not taken whole');
+  assert.equal(
+    new Set(cells.map((c) => c.island)).size,
+    2,
+    'non-vacuity: the cells handed over really span BOTH islands',
   );
 });
 
