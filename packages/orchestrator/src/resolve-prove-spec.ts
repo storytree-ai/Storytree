@@ -1450,10 +1450,11 @@ export function realPrompts(
   const redClose = (reason: string): string =>
     `After writing it, use \`run_proof\` to confirm it fails for ${reason}. The spine observes ` +
     `the official red itself. When the test file is written and checked, stop.`;
-  // ADR-0573 D6 / ADR-0572: on a route observed PER TEST the red author is told the rules in the same
-  // brief — every test reports on its own, and, where red is reviewed per test, a new test that already
-  // passes is refused unless its contract declares a guard-rail. Empty on every other route, so those
-  // briefs keep their exact bytes. Placed before `revisionBlock`, which stays the brief's last part.
+  // ADR-0572, as ADR-0573's Consequences require: on a route observed PER TEST the red author is told
+  // the rules in the same brief — every test reports on its own, and, where red is reviewed per test, a
+  // new test that already passes is refused unless its contract declares a guard-rail. Empty on every
+  // other route, so those briefs keep their exact bytes. Placed before `revisionBlock`, which stays the
+  // brief's last part.
   const perTestClause =
     perTestChannelOf(real, classifyProofRoute(real)) === undefined
       ? ""

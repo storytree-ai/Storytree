@@ -17,7 +17,8 @@ import { proveUnit } from "./prove-it-gate.js";
 import { realPrompts, realProofCommand, resolveProveSpec } from "./resolve-prove-spec.js";
 
 // The arming half of ADR-0573: which real proof routes carry a per-test channel (D2/D3), how the channel
-// rides the ONE resolved command, the review the resolver hands the gate, and the brief rule (D6).
+// rides the ONE resolved command, the review the resolver hands the gate, and the brief rule its
+// Consequences require.
 
 const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 const TEST_FILE = "packages/unit/src/unit.test.ts";
