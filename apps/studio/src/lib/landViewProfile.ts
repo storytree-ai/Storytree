@@ -27,13 +27,14 @@
 // development while `LandView` computes its land stream in its body. Dev stays measured because it
 // is what the owner ran; the CPU split is read off the production arm, through its maps.
 //
+// ⚠ NO HAND-WRITTEN LOOP COUNTER AND NO RECURSION, ANYWHERE BELOW. The mutation rung measured both on
+// this module's first version: a mutant that stops a `while` index or a recursive walk from making
+// progress HANGS rather than failing (the engine it runs under eliminates tail calls, so a runaway
+// recursion never overflows), and a hang is scored unproven, not killed. Every walk is a built-in
+// iteration over a finite collection, which always ends.
+//
 // Pure: no DOM, no CDP, no `node:`. The driver (`scripts/measure-land-view.mjs`) collects; this
 // decides. Same seam as `cameraRasterisationProbe.ts` beside it.
-
-/** ⚠ IMPORTED RATHER THAN SPELLED. `check:desktop-route-coverage` derives the called-route set from
- *  `api.ts` alone, so an `/api/…` literal anywhere else in frontend source blinds that derivation —
- *  it reds, correctly, rather than reporting a perfect sweep it could not see. */
-import { API_PATH_PREFIX } from '../api.js';
 
 /**
  * A profile node's call frame, narrowed to what attribution reads. `lineNumber` and `columnNumber`
@@ -107,8 +108,9 @@ const STAGE_RULES: readonly StageRule[] = [
   // The rendering stack the canvas chunk pulls in.
   { stage: 'kit-decode', test: has('GLTFLoader') },
   { stage: 'kit-decode', test: has('/kit-') },
+  // ⚠ ONE rule for the whole three.js family. `@react-three` contains `three`, so a separate rule for
+  // it after this one could never be reached — the mutation rung found it exactly that way.
   { stage: 'three-and-r3f', test: has('three') },
-  { stage: 'three-and-r3f', test: has('@react-three') },
   { stage: 'three-and-r3f', test: has('/drei') },
   // Everything else the studio itself runs.
   { stage: 'react-and-studio', test: has('/react') },
@@ -121,14 +123,11 @@ const STAGE_RULES: readonly StageRule[] = [
  *
  * ⚠ AN EMPTY URL IS `unattributed` AND ALWAYS WILL BE. V8 gives no url to `(program)`, `(idle)`,
  * `(garbage collector)` or a native frame, and inventing a home for them would put the browser's
- * own time inside one of our packages' figures.
+ * own time inside one of our packages' figures. No rule matches the empty string, so no guard for it
+ * is needed — the one that stood here was an identity the mutation rung could not separate from its
+ * absence.
  */
 export function stageOf(url: string): LoadStage {
-  // ⚠ THE `url === ''` EARLY RETURN THAT STOOD HERE IS GONE, AND IT WAS DOING NOTHING. No rule
-  // below matches the empty string, so an empty url already fell through to `unattributed` by the
-  // ordinary path — the mutation rung reported both of its mutants as survivors, which is what a
-  // guard wearing a correctness guard's clothes over an identity looks like. Deleted rather than
-  // annotated, the playbook's own preference. The BEHAVIOUR it described is still asserted below.
   for (const rule of STAGE_RULES) {
     if (rule.test(url)) return rule.stage;
   }
@@ -153,7 +152,8 @@ const ZERO = {
   unattributed: 0,
 } satisfies Record<LoadStage, number>;
 
-/** The stages in their declared order — the tie-break every ranking below uses. */
+/** The stages in their declared order. Every ranking below builds its rows in this order, and
+ *  `Array.prototype.sort` is stable, so equal rows keep it without a tie-break. */
 const STAGE_ORDER = Object.keys(ZERO) as LoadStage[];
 
 /**
@@ -173,14 +173,15 @@ function syntheticStage(functionName: string): LoadStage | null {
   return null;
 }
 
-/**
- * Maps a call frame to the module url attribution reads. The default — the frame's own url — is
- * right wherever module paths survive (vite dev); a production build is handed a source-map-backed
- * one, {@link locatorFromSourceMaps}.
- */
+/** Maps a call frame to the module url attribution reads. */
 export type Locate = (frame: CallFrame) => string;
 
-const ownUrl: Locate = (frame) => frame.url;
+/**
+ * The default {@link Locate}: a frame's own url, which is right wherever module paths survive (vite
+ * dev). A production build is handed a source-map-backed one instead, {@link locatorFromSourceMaps}.
+ * Exported so the default every split falls through to is tested by name, not only through fakes.
+ */
+export const ownUrl: Locate = (frame) => frame.url;
 
 /** The row a frame is charged to: its module's readable path and its stage. */
 interface FrameKey {
@@ -192,7 +193,7 @@ interface FrameKey {
 const UNPLACED: FrameKey = { module: '(unattributed)', stage: 'unattributed' };
 
 /**
- * THE ONE ATTRIBUTION every split below shares, so the stage table, the module table and the burst
+ * THE ONE ATTRIBUTION every split below shares, so the stage table, the module table and the run
  * timeline can never disagree about which stage a frame is in.
  *
  * ⚠ THE SYNTHETIC NAME IS CONSULTED ONLY WHEN THE URL PLACES NOTHING, so it is strictly a refinement
@@ -287,7 +288,7 @@ export function stageDelta(land: StageSplit, control: StageSplit): readonly Stag
     landMs: land.byStage[stage],
     controlMs: control.byStage[stage],
     addedMs: land.byStage[stage] - control.byStage[stage],
-  })).sort((a, b) => b.addedMs - a.addedMs || STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
+  })).sort((a, b) => b.addedMs - a.addedMs);
 }
 
 /**
@@ -316,12 +317,12 @@ export function moduleOf(url: string): string {
 }
 
 /** A path with no workspace anchor, with what a server or a map puts in front of it taken off — `../`
- *  hops, vite's `/@fs/` prefix, and leading slashes. Recursive rather than a loop, so a mutant that
- *  stops the prefix shrinking overflows the stack and fails fast instead of hanging the rung. */
+ *  hops, leading slashes, and vite's `/@fs/` prefix. By path segment rather than by a loop or a
+ *  recursion: see this module's opening note on why neither may appear here. */
 function servedPath(path: string): string {
-  if (path.startsWith('../')) return servedPath(path.slice('../'.length));
-  if (path.startsWith('/@fs/')) return path.slice('/@fs/'.length);
-  return path.startsWith('/') ? servedPath(path.slice(1)) : path;
+  const parts = path.split('/');
+  const rest = parts.slice(parts.findIndex((part) => part !== '' && part !== '..'));
+  return (rest[0] === '@fs' ? rest.slice(1) : rest).join('/');
 }
 
 /** One file's self time. */
@@ -362,6 +363,7 @@ export function moduleSplit(profile: CpuProfile, limit: number, locate: Locate =
     if (row === undefined) byModule.set(key.module, { module: key.module, stage: key.stage, ms });
     else row.ms += ms;
   }
+  // The rows arrive in the order the samples first named each file, so here a tie-break is needed.
   const ranked = [...byModule.values()].sort((a, b) => b.ms - a.ms || a.module.localeCompare(b.module));
   const rest = ranked.slice(limit);
   return {
@@ -382,106 +384,90 @@ export interface SourceMapV3 {
  *  coordinates 0-based, as V8 reports them. */
 export type SourceLocator = (line: number, column: number) => string | null;
 
-const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-const DIGIT = new Int8Array(128).fill(-1);
-for (const [value, char] of [...BASE64].entries()) DIGIT[char.charCodeAt(0)] = value;
-
 /** The segments of one generated line: each one's start column and source index (-1: no source). */
 interface MappedLine {
-  readonly columns: number[];
-  readonly sources: number[];
+  readonly columns: readonly number[];
+  readonly sources: readonly number[];
 }
 
 /**
  * A SOURCE MAP'S `mappings`, decoded to answer one question: which source does this column belong to.
  *
  * Hand-rolled rather than imported: the studio resolves no source-map library, and the question is
- * the smallest one the v3 format answers. Base64 VLQ, the sign in the lowest bit; the generated
- * column resets on every line while the source index carries across lines; a segment of one field
- * maps to no source.
+ * the smallest one the v3 format answers. Lines are separated by `;` and segments by `,`; each segment
+ * is base64 VLQ with the sign in the lowest bit; the generated column resets on every line while the
+ * source index carries across lines; a segment of one field maps to no source.
  *
- * ⚠ A CORRUPT STRING IS REFUSED, including a value cut off mid-digit, rather than decoded into
- * plausible columns — a locator that silently mis-names files would put the land stream's time in
- * somebody else's package, which is the failure this whole module is built against.
+ * ⚠ A CORRUPT STRING IS REFUSED rather than decoded into plausible columns — a locator that silently
+ * mis-names files would put the land stream's time in somebody else's package, which is the failure
+ * this whole module is built against.
+ *
+ * ⚠ THE COLUMN IS FOUND BY A SCAN, NOT A SEARCH, because a hand-written search is a loop whose mutants
+ * hang (this module's opening note). A production chunk's line can hold a hundred thousand segments,
+ * so the driver memoises what it asks; a test's lines hold a handful.
  */
 export function sourceLocator(map: SourceMapV3): SourceLocator {
-  const lines: MappedLine[] = [];
-  let current: MappedLine = { columns: [], sources: [] };
-  let column = 0;
+  // Built per map rather than at module load: a table built once at import is a mutant the rung's
+  // runner cannot reach, and it reported both halves of the old one as survivors.
+  const digits = new Map([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'].map((char, value) => [char, value]));
   let source = 0;
-  let fields: number[] = [];
-  const endSegment = (): void => {
-    if (fields.length === 0) return;
-    column += fields[0] ?? 0;
-    let mapped = -1;
-    if (fields.length >= 4) {
-      source += fields[1] ?? 0;
-      mapped = source;
+  const lines: readonly MappedLine[] = map.mappings.split(';').map((text) => {
+    const columns: number[] = [];
+    const sources: number[] = [];
+    let column = 0;
+    for (const segment of text.split(',')) {
+      const fields = vlqFields(segment, digits);
+      if (fields.length === 0) continue;
+      column += fields[0] ?? 0;
+      columns.push(column);
+      if (fields.length >= 4) {
+        source += fields[1] ?? 0;
+        sources.push(source);
+      } else {
+        sources.push(-1);
+      }
     }
-    current.columns.push(column);
-    current.sources.push(mapped);
-    fields = [];
-  };
-  const endLine = (): void => {
-    endSegment();
-    lines.push(current);
-    current = { columns: [], sources: [] };
-    column = 0;
-  };
-  const text = map.mappings;
-  let i = 0;
-  while (i < text.length) {
-    const char = text[i];
-    if (char === ';') {
-      endLine();
-      i += 1;
-    } else if (char === ',') {
-      endSegment();
-      i += 1;
-    } else {
-      let value = 0;
-      let shift = 0;
-      let digit: number;
-      do {
-        // Past the end `charCodeAt` is NaN, and past the 7-bit table the index is out of range: both
-        // read as no digit, so a value cut off mid-digit is refused like any stray character.
-        digit = DIGIT[text.charCodeAt(i)] ?? -1;
-        if (digit < 0) {
-          throw new Error(
-            `landViewProfile: a source map's mappings are not base64 VLQ at character ${i} — refusing ` +
-              'to name modules off a corrupt map',
-          );
-        }
-        value += (digit & 31) * 2 ** shift;
-        shift += 5;
-        i += 1;
-      } while (digit & 32);
-      fields.push(value % 2 === 1 ? -Math.floor(value / 2) : Math.floor(value / 2));
-    }
-  }
-  endLine();
+    return { columns, sources };
+  });
   return (line, at) => {
     const segments = lines[line];
     if (segments === undefined) return null;
-    const index = segments.sources[lastAtOrBefore(segments.columns, at, 0, segments.columns.length - 1)] ?? -1;
-    return index < 0 ? null : (map.sources[index] ?? null);
+    // -1 (no segment at or before the column, or a segment with no source) indexes nothing, so it
+    // reads as null without a branch of its own.
+    const index = segments.sources[segments.columns.findLastIndex((column) => column <= at)] ?? -1;
+    return map.sources[index] ?? null;
   };
 }
 
-/**
- * The index of the last column at or before `at`, or -1: a binary search over a line's ascending
- * segment columns.
- *
- * ⚠ RECURSIVE ON PURPOSE. As a `while` loop, a mutant that stops `low` or `high` moving spins forever,
- * and the mutation rung scores a hang as unproven rather than killed; recursing, the same mutant
- * overflows the stack and fails in milliseconds. The depth is the log of a line's segment count.
- */
-function lastAtOrBefore(columns: readonly number[], at: number, low: number, high: number): number {
-  if (low > high) return high;
-  const mid = (low + high) >> 1;
-  return (columns[mid] ?? 0) <= at
-    ? lastAtOrBefore(columns, at, mid + 1, high)
-    : lastAtOrBefore(columns, at, low, mid - 1);
+/** One segment's fields: base64 VLQ, five value bits per digit, the sixth bit a continuation, the sign
+ *  in the lowest bit of the assembled value. Refuses a character outside the alphabet, and a value
+ *  whose last digit still asked for another. */
+function vlqFields(segment: string, digits: ReadonlyMap<string, number>): number[] {
+  const fields: number[] = [];
+  let value = 0;
+  let shift = 0;
+  for (const [at, char] of [...segment].entries()) {
+    const digit = digits.get(char) ?? -1;
+    if (digit < 0) {
+      throw new Error(
+        `landViewProfile: a source map segment "${segment}" is not base64 VLQ at character ${at} — refusing to name modules off a corrupt map`,
+      );
+    }
+    value += (digit % 32) * 2 ** shift;
+    if (digit < 32) {
+      fields.push(value % 2 === 1 ? -(value - 1) / 2 : value / 2);
+      value = 0;
+      shift = 0;
+    } else {
+      shift += 5;
+    }
+  }
+  if (shift !== 0) {
+    throw new Error(
+      `landViewProfile: a source map segment "${segment}" ends in the middle of a value — refusing to name modules off a corrupt map`,
+    );
+  }
+  return fields;
 }
 
 /**
@@ -524,9 +510,8 @@ export interface BurstOptions {
  *
  * ⚠⚠ THE QUESTION A TOTAL CANNOT ANSWER. Seven seconds of land-stream time is one slow build or
  * seven fast ones, and those have opposite cures — the first wants the build made cheaper, the
- * second wants it to stop happening. Reading the code says the canvas's ground memo is keyed on an
- * array `LandView` rebuilds on every render, which would make every studio re-render a rebuild; a
- * run timeline is what turns that reading into a measurement or refutes it.
+ * second wants it to stop happening. The run timeline is what showed the land view rebuilding its
+ * whole ground on every studio re-render (2026-09-15).
  *
  * Times are milliseconds from the profile's own start. A sample is charged the interval that ENDS
  * at it, as `stageSplit` charges it.
@@ -553,7 +538,10 @@ export function bursts(
       runs.push({ startMs: t - ms, endMs: t, memberMs: ms });
     }
   }
-  return runs.filter((run) => run.memberMs >= options.minMemberMs);
+  // ⚠ WRITTEN AS "NOT UNDER THE FLOOR" rather than "at or over it". The two agree on every real run,
+  // and differ on an entry with no member time at all — which `>=` would quietly drop and this keeps
+  // where a test can see it, so nothing can hide in the list's starting contents.
+  return runs.filter((run) => !(run.memberMs < options.minMemberMs));
 }
 
 /** What a run of animation frames cost, in the terms "laggy" actually means. */
@@ -675,8 +663,9 @@ export function shareOf(split: StageSplit, stage: LoadStage): number {
  * ({@link locatorFromSourceMaps}), the same production samples place, and the split is reportable.
  */
 export function cpuSplitIsReportable(split: StageSplit): boolean {
+  // No guard for a split that was never busy: its share is 0/0, which is NaN, and NaN compares false
+  // — the same answer a guard gives, which is why the rung reported the guard that stood here.
   const busy = busyMs(split);
-  if (busy <= 0) return false;
   return (busy - split.byStage.unattributed) / busy >= 0.25;
 }
 
@@ -688,11 +677,11 @@ export function busyMs(split: StageSplit): number {
   return split.totalMs - split.byStage.idle;
 }
 
-/** The stages, largest first — the answer to "which of these dominates". Ties break by the declared
- *  stage order so the ranking is deterministic across runs. */
+/** The stages, largest first — the answer to "which of these dominates". The rows are built in the
+ *  declared stage order and the sort is stable, so ties keep that order across runs. */
 export function rankedStages(split: StageSplit): readonly { stage: LoadStage; ms: number; share: number }[] {
   return STAGE_ORDER.map((stage) => ({ stage, ms: split.byStage[stage], share: shareOf(split, stage) })).sort(
-    (a, b) => b.ms - a.ms || STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage),
+    (a, b) => b.ms - a.ms,
   );
 }
 
@@ -721,10 +710,19 @@ export interface NetworkSplit {
  * paid by the ordinary map too; the canvas chunk and the kit are paid only by someone who typed the
  * flag. A single "network" figure would let the land view be blamed for a wait the map already had.
  *
+ * ⚠ WHICH FETCHES ARE THE STORE PAYLOAD IS A PARAMETER, NOT A PATH WRITTEN HERE.
+ * `check:desktop-route-coverage` derives the studio's called routes from its one API client, and it
+ * refuses a path literal starting with the API prefix anywhere else in the frontend trees — and a bare
+ * prefix inside the client too — because either would blind that derivation. The driver, which is not
+ * frontend source, supplies the rule.
+ *
  * ⚠ `durationMs` is WALL CLOCK PER REQUEST AND THEY OVERLAP — the browser fetches in parallel, so
  * these sum to more than the load took. They are reported as what each cost, never as a timeline.
  */
-export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
+export function networkSplit(
+  entries: readonly ResourceTiming[],
+  isStorePayload: (name: string) => boolean,
+): NetworkSplit {
   let storePayloadMs = 0;
   let storePayloadBytes = 0;
   let canvasChunkMs = 0;
@@ -732,7 +730,7 @@ export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
   let otherMs = 0;
   let otherBytes = 0;
   for (const e of entries) {
-    if (e.name.includes(API_PATH_PREFIX)) {
+    if (isStorePayload(e.name)) {
       storePayloadMs += e.durationMs;
       storePayloadBytes += e.transferSizeBytes;
     } else if (isCanvasPayload(e.name)) {

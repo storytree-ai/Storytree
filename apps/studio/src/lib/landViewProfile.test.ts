@@ -20,6 +20,7 @@ import {
   moduleOf,
   moduleSplit,
   networkSplit,
+  ownUrl,
   rankedStages,
   shareOf,
   sourceLocator,
@@ -30,6 +31,7 @@ import {
   type CpuProfile,
   type LoadStage,
   type ProfileNode,
+  type ResourceTiming,
 } from './landViewProfile.js';
 
 /** A profile node at a given module url — the only field attribution reads. */
@@ -44,6 +46,13 @@ const profile = (nodes: readonly ProfileNode[], samples: readonly (readonly [num
   samples: samples.map(([id]) => id),
   timeDeltas: samples.map(([, us]) => us),
 });
+
+/** The store-payload rule the driver hands in: a fetch whose path's first segment is the API's. Read
+ *  by segment, as the driver reads it, so no literal in frontend source starts with the API prefix. */
+const isStore = (name: string): boolean => new URL(name).pathname.split('/')[1] === 'api';
+
+/** `networkSplit` with that rule. */
+const splitNetwork = (entries: readonly ResourceTiming[]) => networkSplit(entries, isStore);
 
 describe('stageOf', () => {
   it('sends the engine packages to the land stream and the studio catch-all LAST', () => {
@@ -154,7 +163,7 @@ describe('stageSplit', () => {
     );
     const ranked = rankedStages(split);
     expect(ranked[0]?.ms).toBe(5);
-    // Equal times break by the declared stage order, so two runs of the same profile rank alike.
+    // Equal times keep the declared stage order, so two runs of the same profile rank alike.
     expect(ranked.slice(0, 2).map((r) => r.stage)).toEqual(['scene-build', 'land-stream']);
     expect(ranked).toHaveLength(9);
   });
@@ -197,9 +206,9 @@ describe('cpuSplitIsReportable', () => {
 
 describe('networkSplit', () => {
   it('keeps the store payload apart from what only a land-view viewer pays for', () => {
-    // ⚠ THE SEPARATION IS THE WHOLE POINT: the map already paid for /api/, so a single "network"
-    // figure would blame the land view for a wait it did not cause.
-    const n = networkSplit([
+    // ⚠ THE SEPARATION IS THE WHOLE POINT: the map already paid for the store payload, so a single
+    // "network" figure would blame the land view for a wait it did not cause.
+    const n = splitNetwork([
       { name: 'http://x/api/tree', durationMs: 900, transferSizeBytes: 400_000 },
       { name: 'http://x/node_modules/.vite/deps/three.js', durationMs: 300, transferSizeBytes: 1_200_000 },
       { name: 'http://x/assets/kit.glb', durationMs: 700, transferSizeBytes: 1_700_000 },
@@ -224,7 +233,7 @@ describe('frameCost', () => {
     // ⚠⚠ AND HERE IS THE LIMIT OF p95 ITSELF, asserted rather than assumed: two bad frames in
     // sixty is 3.3% of the run, which is INSIDE the 95th percentile, so p95 reports a perfectly
     // smooth 16 ms over a run a person would call janky. That is not a defect in the statistic —
-    // it is why `worstMs` and `overBudget` are reported beside it and why the report must not lead
+    // it is why `worstMs` and `late` are reported beside it and why the report must not lead
     // with a percentile. A run whose stalls are rarer than 1 in 20 is invisible to p95 by
     // construction.
     expect(c.p95Ms).toBe(16);
@@ -267,11 +276,12 @@ describe('frameCost', () => {
 // ---------------------------------------------------------------------------------------------
 // THE RULES AND THE BOUNDARIES THE TESTS ABOVE LEFT UNWITNESSED
 //
-// `check:mutation-diff` reported twenty survivors over this module, and reading them was the
-// cheapest review it has had: each one named a line whose behaviour nothing here pinned. Two were
-// dead guards and are now DELETED rather than tested (the empty-url early return, the quantile's
-// clamp — both provably unable to change an answer). The rest are below, and they are not padding:
-// a stage rule with no test is a bucket that can be renamed to `""` and nobody notices.
+// `check:mutation-diff` reported survivors over this module twice, and reading them was the
+// cheapest review it has had: each one named a line whose behaviour nothing here pinned. Where the
+// line was an identity no input could separate — a guard, a clamp, a tie-break over rows already in
+// order, a rule nothing could reach — it was DELETED rather than tested. The rest are below, and
+// they are not padding: a stage rule with no test is a bucket that can be renamed to `""` and nobody
+// notices.
 // ---------------------------------------------------------------------------------------------
 
 describe('every stage rule is witnessed by its own path', () => {
@@ -283,11 +293,13 @@ describe('every stage rule is witnessed by its own path', () => {
     expect(stageOf('http://x/node_modules/.vite/deps/@react-three_fiber.js')).toBe('three-and-r3f');
     expect(stageOf('http://x/node_modules/.vite/deps/drei/index.js')).toBe('three-and-r3f');
     expect(stageOf('http://x/node_modules/.vite/deps/react-dom_client.js')).toBe('react-and-studio');
+    // The last rule: an app file served from its own root, with no `apps/studio` in the url.
+    expect(stageOf('http://x/src/main.tsx')).toBe('react-and-studio');
   });
 
-  it('an empty url still comes back unattributed now the guard that said so is gone', () => {
-    // The guard was equivalent — no rule matches '' — so the behaviour is asserted where it always
-    // belonged, on the function, rather than defended by a branch nothing could separate.
+  it('an empty url still comes back unattributed with no guard to say so', () => {
+    // No rule matches '' — the behaviour is asserted on the function, rather than defended by a
+    // branch nothing could separate from its absence.
     expect(stageOf('')).toBe('unattributed');
   });
 });
@@ -317,7 +329,7 @@ describe('the boundaries', () => {
   it('the network split adds bytes on every branch — a sign flip is a plausible-looking total', () => {
     // `+=` mutated to `-=` leaves a negative total, which reads as a units bug rather than as the
     // arithmetic fault it is. Each of the three accumulators is asserted, not just the interesting one.
-    const n = networkSplit([
+    const n = splitNetwork([
       { name: 'http://x/api/tree', durationMs: 10, transferSizeBytes: 1000 },
       { name: 'http://x/api/assets', durationMs: 20, transferSizeBytes: 3000 },
       { name: 'http://x/src/main.tsx', durationMs: 5, transferSizeBytes: 700 },
@@ -331,7 +343,7 @@ describe('the boundaries', () => {
   it('recognises the production canvas and kit chunks by the names a build gives them', () => {
     // ⚠ MEASURED: the first production run counted both chunks as "everything else" and reported
     // the land view's own payload as zero, because a built chunk carries its entry module's name.
-    const n = networkSplit([
+    const n = splitNetwork([
       { name: 'http://h/assets/ForestWorldCanvas-CLGCjs9e.js', durationMs: 40, transferSizeBytes: 3000 },
       { name: 'http://h/assets/kit-BkNhlUTR.js', durationMs: 20, transferSizeBytes: 1000 },
       { name: 'http://h/assets/index-GWkh9kn4.js', durationMs: 5, transferSizeBytes: 700 },
@@ -342,7 +354,7 @@ describe('the boundaries', () => {
   });
 
   it('a .gltf is recognised by its ENDING, which is the only place an extension can be', () => {
-    const n = networkSplit([{ name: 'http://x/assets/kit.gltf', durationMs: 3, transferSizeBytes: 42 }]);
+    const n = splitNetwork([{ name: 'http://x/assets/kit.gltf', durationMs: 3, transferSizeBytes: 42 }]);
     expect(n.canvasChunkBytes).toBe(42);
   });
 
@@ -370,9 +382,24 @@ describe('the boundaries', () => {
     expect(cpuSplitIsReportable(quarter)).toBe(true);
   });
 
-  it('rankedStages breaks a tie by SUBTRACTING the declared positions, so the order is a real order', () => {
-    // Adding the two indices is symmetric in a and b, which is not a comparator at all — it ranks
-    // by the pair's sum and gives a different answer depending on where the sort happens to start.
+  it('cpuSplitIsReportable withholds a split that placed a fifth of its busy time — just under the bar', () => {
+    // Two of ten busy milliseconds placed is 0.2, under the quarter. A share taken as a PRODUCT rather
+    // than a ratio would read 20 and publish the split.
+    const fifth = stageSplit(
+      profile(
+        [
+          { id: 1, callFrame: { functionName: 'f', url: 'http://x/packages/forest-world/src/hex.ts' } },
+          { id: 2, callFrame: { functionName: 'n', url: 'http://x/assets/minified.js' } },
+        ],
+        [[1, 2000], [2, 8000]],
+      ),
+    );
+    expect(busyMs(fifth)).toBe(10);
+    expect(fifth.byStage.unattributed).toBe(8);
+    expect(cpuSplitIsReportable(fifth)).toBe(false);
+  });
+
+  it('rankedStages keeps ties in the declared order, because the rows are built in it and the sort is stable', () => {
     const split = stageSplit(
       profile(
         [
@@ -401,6 +428,17 @@ describe('the boundaries', () => {
 // canvas; dev runs a StrictMode component body twice; and one stage spans three capabilities. Each
 // function below closes one of those, and each keeps the closure the rest of this file insists on.
 // ---------------------------------------------------------------------------------------------
+
+describe('ownUrl', () => {
+  it('is the default attribution: a frame is its own url, which is right wherever module paths survive', () => {
+    expect(
+      ownUrl({ functionName: 'f', url: 'http://x/packages/forest-world/src/hex.ts', lineNumber: 3, columnNumber: 9 }),
+    ).toBe('http://x/packages/forest-world/src/hex.ts');
+    // And it IS what a split with no locator falls through to: the two agree sample for sample.
+    const p = profile([node(1, 'http://x/packages/forest-layout/src/pack.ts'), node(2, '')], [[1, 2000], [2, 1000]]);
+    expect(stageSplit(p)).toEqual(stageSplit(p, ownUrl));
+  });
+});
 
 describe('moduleOf', () => {
   it('names a workspace package file by its repo path, however the server reached it', () => {
@@ -460,8 +498,9 @@ describe('sourceLocator', () => {
   });
 
   it('answers null wherever the map places nothing', () => {
-    // "KAAA": column 5, source 0. "K": column +5 with ONE field, which maps to no source.
-    const at = sourceLocator({ sources: ['a.ts'], mappings: 'KAAA,K;' });
+    // "KAAA": column 5, source 0. "K": column +5 with ONE field, which maps to no source — and with a
+    // second source present, so a sourceless segment read as source 1 would name one.
+    const at = sourceLocator({ sources: ['a.ts', 'b.ts'], mappings: 'KAAA,K;' });
     expect(at(0, 4)).toBeNull(); // before the first segment
     expect(at(0, 5)).toBe('a.ts');
     expect(at(0, 10)).toBeNull(); // the one-field segment
@@ -473,8 +512,8 @@ describe('sourceLocator', () => {
     expect(sourceLocator({ sources: [null], mappings: 'AAAA' })(0, 0)).toBeNull();
   });
 
-  it('searches a long line for the LAST segment at or before the column', () => {
-    // Eight segments five columns apart, each naming the next source — the search has to land on the
+  it('finds the LAST segment at or before the column on a long line', () => {
+    // Eight segments five columns apart, each naming the next source — the scan has to land on the
     // right one from either side, not merely on the first or the last.
     const sources = ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7'];
     const at = sourceLocator({ sources, mappings: 'AAAA,KCAA,KCAA,KCAA,KCAA,KCAA,KCAA,KCAA' });
@@ -484,16 +523,20 @@ describe('sourceLocator', () => {
   });
 
   it('REFUSES a corrupt mapping string — a stray character, or a value cut off mid-digit', () => {
-    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AA!A' })).toThrow(/not base64 VLQ at character 2/);
-    // "g" sets the continuation bit and then the string ends.
-    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'g' })).toThrow(/not base64 VLQ at character 1/);
-    // A character past the 7-bit table is refused, not read as some digit.
-    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AAéA' })).toThrow(/not base64 VLQ at character 2/);
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AA!A' })).toThrow(
+      /segment "AA!A" is not base64 VLQ at character 2 — refusing to name modules off a corrupt map/,
+    );
+    // "g" sets the continuation bit and then its segment ends.
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AAAA,g' })).toThrow(
+      /segment "g" ends in the middle of a value — refusing to name modules off a corrupt map/,
+    );
+    // A character outside the alphabet — past the 7-bit range, too — is refused, not read as some digit.
+    expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AAéA' })).toThrow(/segment "AAéA" is not base64 VLQ at character 2/);
   });
 
   it('an empty segment names nothing, and does not shadow the real one before it', () => {
     // Two stray commas after a real segment: were each recorded as a sourceless segment at the same
-    // column, the search would land on the last of them and answer null for a column the map names.
+    // column, the scan would land on the last of them and answer null for a column the map names.
     expect(sourceLocator({ sources: ['a.ts'], mappings: 'AAAA,,' })(0, 0)).toBe('a.ts');
   });
 });
@@ -635,7 +678,7 @@ describe('sumSplits and stageDelta', () => {
     expect(stageDelta(land, control).at(-1)).toEqual({ stage: 'scene-build', landMs: 1, controlMs: 4, addedMs: -3 });
   });
 
-  it('ties in the delta break by declared stage order', () => {
+  it('ties in the delta keep the declared stage order', () => {
     const empty = stageSplit(profile([], []));
     expect(stageDelta(empty, empty).map((row) => row.stage)).toEqual([
       'store-payload',

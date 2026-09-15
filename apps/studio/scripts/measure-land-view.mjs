@@ -465,7 +465,23 @@ const profiles = {
   controlC: controlC.profile,
 };
 const attribution = await attributionFor(Object.values(profiles));
-const locate = attribution.locate;
+// ⚠ MEMOISED HERE, IN THE DRIVER. A production chunk's single line can carry a hundred thousand
+// segments, the locator scans a line rather than searching it, and every phase profile asks about the
+// same few thousand function positions three times over.
+const located = new Map();
+const locate =
+  attribution.locate === undefined
+    ? undefined
+    : (frame) => {
+        const key = `${frame.url} ${frame.lineNumber} ${frame.columnNumber}`;
+        if (!located.has(key)) located.set(key, attribution.locate(frame));
+        return located.get(key);
+      };
+/** The store payload: what the page fetched from the studio's API, paid with or without the flag.
+ *  ⚠ DECIDED HERE, NOT IN THE PURE MODULE. `check:desktop-route-coverage` refuses a string literal
+ *  starting `/api/` anywhere in the frontend trees outside the API client, so the module takes this
+ *  as a parameter. It reads the path's first segment, so no literal here starts `/api/` either. */
+const isStorePayload = (name) => new URL(name).pathname.split('/')[1] === 'api';
 const splits = Object.fromEntries(Object.entries(profiles).map(([name, profile]) => [name, stageSplit(profile, locate)]));
 const addedToLoad = stageDelta(sumSplits([splits.landA, splits.landB]), sumSplits([splits.controlA, splits.controlB]));
 const addedAtRest = stageDelta(splits.landC, splits.controlC);
@@ -481,7 +497,7 @@ const landStreamRuns = {
   landB: bursts(profiles.landB, isLandStream, BURST_OPTIONS, locate),
   landC: bursts(profiles.landC, isLandStream, BURST_OPTIONS, locate),
 };
-const net = networkSplit(resources);
+const net = networkSplit(resources, isStorePayload);
 const idle = frameCost(idleDeltas);
 const drag = frameCost(dragDeltas);
 const controlIdleCost = frameCost(controlIdle);
