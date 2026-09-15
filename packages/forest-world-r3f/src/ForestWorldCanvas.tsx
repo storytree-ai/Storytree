@@ -61,7 +61,12 @@ import {
   buildAtlasOcclusion,
   type AtlasField,
 } from './shadow-atlas.js';
-import { groundBounds, groundCasters, placementCasters } from './ground-casters.js';
+import { groundBounds } from './ground-casters.js';
+import {
+  createGroundInputCache,
+  type GroundInput,
+  type GroundInputOptions,
+} from './ground-dependency.js';
 import { SHADOW_PENUMBRA, type ShadowCaster } from './land-shadow.js';
 import { CONTACT_SPREAD, SHADOW_CONTACT_BAND, type ContactBand } from './contact-shade.js';
 import { SHADOW_DEPTH, SHADOW_EDGE, type ShadowDepthOptions } from './shadow-rung.js';
@@ -73,7 +78,6 @@ import {
   heightDriftOf,
   type KitPlacement,
 } from './kit-vocabulary.js';
-import { dressMapWithCover } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
 import { WHEAT_STATUS_GATE, wheatAnchor, wheatLift } from './land-wheat.js';
@@ -191,6 +195,16 @@ const groundColourOf = (material: string | undefined): string =>
 
 const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['kind']) =>
   descriptors.filter((d): d is InstanceDescriptor => d.kind === kind);
+
+/** THE SHIPPED GROUND DERIVATION'S CONSTANTS — the relief the props are lifted onto and the frozen
+ *  kit tables the placement and its casters are measured against. Stated here, where this surface's
+ *  other shipped picks are, rather than inside `ground-dependency.ts`: that module owns WHEN the
+ *  ground is re-derived, and this file owns WHAT it is derived against. */
+const SHIPPED_GROUND_INPUT: GroundInputOptions = {
+  relief: LAND_RELIEF_AMPLITUDE,
+  footprint: KIT_FOOTPRINTS_2026_08_29,
+  height: KIT_HEIGHTS_2026_08_29,
+};
 
 /** Status variant → LINEAR colour, using three's OWN sRGB transfer function rather than a
  *  transcription of it. `<Instance color="#4f9d5d" />` puts the hex through `THREE.Color` on its
@@ -963,17 +977,14 @@ export function shippedGroundBuild(
  *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
  *  it — but uploading an attribute no material reads would be payload the map draws nothing
  *  with. */
-function CellGround({
-  cells,
-  casters,
-  strips,
-}: {
-  cells: InstanceDescriptor[];
-  casters: readonly ShadowCaster[];
-  /** The visible trail strips — layer 3's connector reads their ends as the islands' docks. */
-  strips: readonly InstanceDescriptor[];
-}) {
+function CellGround({ ground }: { ground: GroundInput }) {
+  // ⚠ ONE DEPENDENCY, NOT THREE. The parcels, the casters and the strips are derived together by
+  // `createGroundInputCache` and handed over as one object, so this memo cannot be re-entered for a
+  // ground that did not change — and, just as important, cannot be SKIPPED for one that did. Three
+  // separate deps were three chances for the identities to disagree; `ground.revision` is the count
+  // this memo runs, and it is what `ground-dependency.test.ts` asserts in both directions.
   const built = useMemo(() => {
+    const { cells, casters, strips } = ground;
     const { field, shore, wear, input } = shippedGroundBuild(cells, casters, strips);
     const geo = cellGroundGeometry(input);
     // ⚠ LAYER 1 IS WORN UNCONDITIONALLY AND WITH NO FLAG, like the relief, the ladder, the grain
@@ -995,7 +1006,7 @@ function CellGround({
     const extras: GroundLayerExtras = { rock: SHIPPED_LAYERS.rock, detail: SHIPPED_LAYERS.detail };
     if (wearField !== null) extras.wear = { field: wearField, mix: SHIPPED_LAYERS.wearMix };
     return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS, shore(), SHIPPED_SAND_MIX, extras) };
-  }, [cells, casters, strips]);
+  }, [ground]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that
   // re-mounts on every navigation would strand one copy per visit — a leak that grows with use
@@ -1312,46 +1323,29 @@ export function ForestWorldCanvas({ descriptors, showTrails = false, viewport }:
   // REFUSES a classic-substrate scene outright rather than emitting anything of that family for
   // this canvas to draw, so there is nothing left here to mount a second ground component for.
   // One substrate, drawn unconditionally; the other is a refusal upstream, not a flag down here.
-  // ⚠ MEMOISED ON `descriptors` RATHER THAN RECOMPUTED PER RENDER, which `byKind` alone was.
-  // The parcel slice is what `CellGround` keys its own memo on, and that memo now builds a 107 KB
-  // occlusion field and uploads a texture: a fresh array identity every render would rebuild and
-  // re-upload both on every frame the canvas re-rendered for any reason at all.
-  const cells = useMemo(() => byKind(descriptors, 'cell-ground'), [descriptors]);
-  // The visible trail strips, whether or not they are DRAWN (`showTrails` below): layer 3's
-  // connector reads their ends as the islands' docks, so the worn path crosses the land the
-  // trail arrives at even on a canvas that draws no ribbon at sea. Memoised for the same reason
-  // `cells` is — `CellGround` keys its build on it.
-  const strips = useMemo(() => byKind(descriptors, 'trail-strip'), [descriptors]);
-  // ⚠⚠ THE KIT'S PLACEMENT, MADE ONCE, BEFORE THE GROUND — pure and synchronous off the frozen
-  // footprints, so it exists at mount rather than after the asset has parsed. The SAME list is
-  // read twice below: once as casters (the ground darkens under every placement) and once by
-  // `KitProps` (which draws exactly these). Computing it in either consumer alone is how a tree
-  // and its shadow become two lists that agree today. `dressMapWithCover` is the shipped
-  // dressing entire: one tree per capability — and NOTHING else tree-shaped, ADR-0518 — one bloom
-  // per signature, and every healthy island's GROUND COVER on top (`cover-dressing.ts`) — the
-  // whole descriptor stream, because the signatures, the island ids and the trail docks the cover
-  // keeps off the path are all IN it.
+  // ⚠⚠ THE GROUND IS DERIVED FROM WHAT IT DEPENDS ON, NOT FROM THE ARRAY IT ARRIVED IN — the whole
+  // of `ground-dependency.ts`, and the cure for the defect
+  // `docs/research/land-view-performance-2026-09-15/` measured. These four lists (the parcels, the
+  // strips whose ends dock on them, the kit's placement and everything that casts on them) used to
+  // be four `useMemo`s keyed on `descriptors`'s IDENTITY, and `CellGround`'s own build — a 107 KB
+  // occlusion field, a shore field, a wear field, three texture uploads and about 2 s of main
+  // thread — keyed on theirs. That is correct on a surface handed a stable array and WRONG on the
+  // studio, which rebuilds its scene on every clock tick and every live-activity poll: a poll that
+  // changed nothing a viewer could see still handed this canvas a brand-new array and froze the
+  // frame for ~1.9 s, about every thirty seconds at rest and eight times over during a load.
   //
-  // ⚠ THE CASTER READER BELOW CASTS FROM EVERY MEMBER OF THIS LIST, cover included, since
-  // 2026-09-06 — `placementCasters` and `COVER_CASTS` in `ground-casters.ts` are where that
-  // reversal is enforced and argued, and each role casts its own silhouette (`ROLE_SILHOUETTE`).
-  const placements = useMemo(
-    () => dressMapWithCover(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
-    [descriptors],
-  );
-  // Everything that stands on the land and therefore darkens it: the descriptor families that
-  // cast (`groundCasters` — the cave portals, since ADR-0508 retired the story tree that was the
-  // only other one; wisps and trails cast nothing, and
-  // that rule lives there) UNIONED with every kit placement, from the frozen tables the placement
-  // itself was made against. A caller reading this list should see one place that answers "what
-  // casts a shadow here", and since 2026-09-03 the answer is everything that stands.
-  const casters = useMemo(
-    () => [
-      ...groundCasters(descriptors),
-      ...placementCasters(placements, KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29),
-    ],
-    [descriptors, placements],
-  );
+  // ⚠ THE CACHE IS PER CANVAS INSTANCE, held in a ref rather than module scope. Two canvases on one
+  // page draw two different worlds, and a shared slot would make each one's poll evict the other's
+  // ground — turning a cache into a second source of the very rebuild it removes.
+  //
+  // The lists themselves are unchanged in CONTENT and in meaning; only when they are re-derived has
+  // moved. In particular the kit's placement is still made ONCE, before the ground, pure and
+  // synchronous off the frozen footprints — the SAME list reaching the casters (the ground darkens
+  // under every placement, cover included since 2026-09-06) and `KitProps` (which draws exactly
+  // these). A tree and its shadow are still one list, not two that agree today.
+  const cacheRef = useRef<((d: readonly Descriptor3D[]) => GroundInput) | null>(null);
+  cacheRef.current ??= createGroundInputCache(SHIPPED_GROUND_INPUT);
+  const ground = cacheRef.current(descriptors);
   // trail-ghost-strip descriptors are deliberately not drawn (the surface's call —
   // the under-island run is told by the cave props, which render unconditionally
   // like the 2D scene's flora-layer props).
@@ -1384,8 +1378,8 @@ export function ForestWorldCanvas({ descriptors, showTrails = false, viewport }:
     >
       <color attach="background" args={['#101418']} />
       <CalibratedLights />
-      <CellGround cells={cells} casters={casters} strips={strips} />
-      <KitProps placements={placements} />
+      <CellGround ground={ground} />
+      <KitProps placements={ground.placements} />
       {trails.map((t, i) => (
         <TrailStrip key={i} strip={t} />
       ))}

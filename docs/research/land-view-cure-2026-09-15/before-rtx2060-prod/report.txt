@@ -1,0 +1,189 @@
+THE LAND VIEW'S LOAD AND FRAME COST, on the real forest, in the studio
+measured     2026-09-15T08:18:11.394Z
+arm          production build, RTX 2060 Linux desktop, BEFORE (b66c2050)
+renderer     ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0) (software=false, --use-angle=gl)
+attribution  source maps — 3 chunk(s) mapped, 0 without one
+
+1. TIME TO THE LAND BEING ON SCREEN
+   with the land view   9066 ms
+   the map alone        8455 ms   <- the control: what a member pays without the flag
+   the land view's own  611 ms
+
+   AND THE HONEST READING OF "TAKES A WHILE" — a canvas with a size is not a page that has
+   finished. Time from there until two consecutive one-second windows run under 1.25 budgets:
+   land view  +26372 ms
+   map alone  +2097 ms
+   so a viewer waits 35.4 s for a land view that has stopped moving,
+   against 10.6 s for the map alone.
+
+   THE LAND VIEW'S TAIL, one entry per window — seconds since the canvas had a size, then
+   median/worst frame in ms:
+     +2.7 s 300/1983  +6.8 s 150/1800  +10.6 s 183/1683  +14.9 s 200/1733  +18.8 s 183/1750  +22.6 s 150/1750  +25.4 s 17/17  +26.4 s 17/17
+
+2. WHERE THE CPU WENT — self time per stage, shares against each phase's WHOLE, waiting included
+   A. navigation to a sized canvas — 9217.0 ms sampled, 2899.1 ms of it busy
+      idle                6317.9 ms   68.5%
+      land-stream         2167.1 ms   23.5%
+      unattributed         406.4 ms    4.4%
+      react-and-studio     193.3 ms    2.1%
+      gc                    88.0 ms    1.0%
+      scene-build           38.0 ms    0.4%
+      three-and-r3f          3.2 ms    0.0%
+      kit-decode             3.2 ms    0.0%
+      store-payload          0.0 ms    0.0%
+   B. a sized canvas to quiet — 26486.3 ms sampled, 25529.6 ms of it busy
+      land-stream        21898.2 ms   82.7%
+      unattributed        1823.8 ms    6.9%
+      three-and-r3f        962.3 ms    3.6%
+      idle                 956.7 ms    3.6%
+      gc                   597.6 ms    2.3%
+      react-and-studio     231.9 ms    0.9%
+      kit-decode            11.6 ms    0.0%
+      scene-build            4.2 ms    0.0%
+      store-payload          0.0 ms    0.0%
+   C. a 65.0 s idle window after the drag — 65143.3 ms sampled, 35692.7 ms of it busy
+      WITHHELD — the attribution placed under a quarter of this phase's busy time
+      (35692.7 ms busy, 32980.9 ms of it unattributed). A production
+      build's chunks carry no package path: re-run with --sourcemaps 1 on a --sourcemap build.
+   ⚠ `unattributed` is anything with no module url that is not idle or GC. It is reported
+     rather than divided out; a split that cannot say what it missed is not a split.
+
+   WHAT THE LAND VIEW ADDED over the map alone, stage by stage (negative: the land arm came in cheaper)
+   to load and settle, phases A + B:
+      land-stream        22203.0 ms   (land view 24065.2 ms, map alone 1862.2 ms)
+      unattributed        1747.0 ms   (land view 2230.2 ms, map alone 483.2 ms)
+      three-and-r3f        965.5 ms   (land view 965.5 ms, map alone 0.0 ms)
+      gc                   623.0 ms   (land view 685.6 ms, map alone 62.6 ms)
+      scene-build           13.6 ms   (land view 42.2 ms, map alone 28.6 ms)
+      kit-decode            12.7 ms   (land view 14.8 ms, map alone 2.1 ms)
+      store-payload          0.0 ms   (land view 0.0 ms, map alone 0.0 ms)
+      react-and-studio     -59.0 ms   (land view 425.2 ms, map alone 484.2 ms)
+      idle                -468.2 ms   (land view 7274.6 ms, map alone 7742.9 ms)
+   at rest, phase C (65.0 s each):
+      land-stream         1920.5 ms   (land view 1958.6 ms, map alone 38.1 ms)
+      idle                1305.4 ms   (land view 29450.6 ms, map alone 28145.2 ms)
+      unattributed         701.8 ms   (land view 32980.9 ms, map alone 32279.1 ms)
+      three-and-r3f        468.5 ms   (land view 468.5 ms, map alone 0.0 ms)
+      store-payload          0.0 ms   (land view 0.0 ms, map alone 0.0 ms)
+      kit-decode             0.0 ms   (land view 0.0 ms, map alone 0.0 ms)
+      scene-build          -18.3 ms   (land view 0.0 ms, map alone 18.3 ms)
+      gc                  -144.1 ms   (land view 171.2 ms, map alone 315.3 ms)
+      react-and-studio   -4269.6 ms   (land view 113.5 ms, map alone 4383.1 ms)
+
+3. WHICH FILES — the top 15 modules by self time, shares against the phase's whole
+   A. navigation to a sized canvas
+       6317.9 ms  68.5%  idle             (idle)
+       1537.5 ms  16.7%  land-stream      packages/forest-world/src/routing.ts
+        378.8 ms   4.1%  unattributed     (unattributed)
+        208.0 ms   2.3%  land-stream      packages/forest-world/src/rng.ts
+        117.8 ms   1.3%  land-stream      packages/forest-world-r3f/src/coast-clip.ts
+         88.0 ms   1.0%  gc               (garbage collector)
+         49.3 ms   0.5%  land-stream      packages/forest-world/src/coast.ts
+         45.5 ms   0.5%  react-and-studio src/api.ts
+         42.0 ms   0.5%  land-stream      packages/forest-world-r3f/src/world-to-3d.ts
+         41.4 ms   0.4%  react-and-studio packages/app-surface/src/svg-island-accretion.ts
+         38.3 ms   0.4%  react-and-studio node_modules/react-dom/cjs/react-dom-client.production.js
+         25.9 ms   0.3%  land-stream      packages/forest-world/src/scene.ts
+         24.7 ms   0.3%  land-stream      packages/forest-world-r3f/src/dressing-ground.ts
+         23.8 ms   0.3%  react-and-studio packages/app-surface/src/sprite-sizing.ts
+         22.2 ms   0.2%  scene-build      src/components/TreeView.tsx
+        255.7 ms   2.8%                   … 50 more module(s)
+   B. a sized canvas to quiet
+      13601.7 ms  51.4%  land-stream      packages/forest-world-r3f/src/shore-grid.ts
+       2037.5 ms   7.7%  land-stream      packages/forest-world-r3f/src/land-shadow.ts
+       1969.7 ms   7.4%  land-stream      packages/forest-world-r3f/src/coast-clip.ts
+       1822.7 ms   6.9%  unattributed     (unattributed)
+        956.7 ms   3.6%  idle             (idle)
+        786.8 ms   3.0%  land-stream      packages/forest-world/src/coast.ts
+        701.5 ms   2.6%  land-stream      packages/forest-world-r3f/src/land-relief.ts
+        613.4 ms   2.3%  land-stream      packages/forest-world-r3f/src/shore-atlas.ts
+        597.6 ms   2.3%  gc               (garbage collector)
+        540.3 ms   2.0%  three-and-r3f    node_modules/three/build/three.module.js
+        460.3 ms   1.7%  land-stream      packages/forest-world-r3f/src/contact-shade.ts
+        305.5 ms   1.2%  land-stream      packages/forest-world-r3f/src/cell-ground-geometry.ts
+        295.1 ms   1.1%  three-and-r3f    node_modules/three/build/three.core.js
+        193.8 ms   0.7%  land-stream      packages/forest-world-r3f/src/shore-fall.ts
+        157.5 ms   0.6%  land-stream      packages/forest-world-r3f/src/shore-ring.ts
+       1446.2 ms   5.5%                   … 45 more module(s)
+   C. the long idle window
+      32980.9 ms  50.6%  unattributed     (unattributed)
+      29450.6 ms  45.2%  idle             (idle)
+       1197.8 ms   1.8%  land-stream      packages/forest-world-r3f/src/shore-grid.ts
+        310.2 ms   0.5%  three-and-r3f    node_modules/three/build/three.module.js
+        202.0 ms   0.3%  land-stream      packages/forest-world-r3f/src/land-shadow.ts
+        182.1 ms   0.3%  land-stream      packages/forest-world-r3f/src/coast-clip.ts
+        171.2 ms   0.3%  gc               (garbage collector)
+        111.5 ms   0.2%  three-and-r3f    node_modules/three/build/three.core.js
+         64.4 ms   0.1%  land-stream      packages/forest-world/src/coast.ts
+         51.9 ms   0.1%  land-stream      packages/forest-world-r3f/src/shore-atlas.ts
+         51.8 ms   0.1%  land-stream      packages/forest-world-r3f/src/land-relief.ts
+         41.3 ms   0.1%  land-stream      packages/forest-world-r3f/src/contact-shade.ts
+         32.8 ms   0.1%  react-and-studio packages/app-surface/src/svg-island-accretion.ts
+         30.8 ms   0.0%  react-and-studio packages/app-surface/src/sprite-sizing.ts
+         29.7 ms   0.0%  land-stream      packages/forest-world/src/scene.ts
+        234.3 ms   0.4%                   … 27 more module(s)
+   the map alone at rest, its phase C — what the studio does without the flag
+      32276.0 ms  49.5%  unattributed     (unattributed)
+      28145.2 ms  43.2%  idle             (idle)
+       2105.7 ms   3.2%  react-and-studio node_modules/react-dom/cjs/react-dom-client.production.js
+       1623.7 ms   2.5%  react-and-studio packages/app-surface/src/SceneView.tsx
+        315.3 ms   0.5%  gc               (garbage collector)
+        247.4 ms   0.4%  react-and-studio node_modules/react/cjs/react.production.js
+        131.5 ms   0.2%  react-and-studio packages/app-surface/src/sprite-sizing.ts
+        120.8 ms   0.2%  react-and-studio packages/app-surface/src/sprite-sheet.ts
+         47.7 ms   0.1%  react-and-studio packages/app-surface/src/svg-island-accretion.ts
+         32.2 ms   0.0%  react-and-studio packages/app-surface/src/forest-regrow-render.ts
+         30.9 ms   0.0%  react-and-studio packages/app-surface/src/island-vegetation-growth.ts
+         29.6 ms   0.0%  land-stream      packages/forest-world/src/scene.ts
+         18.3 ms   0.0%  scene-build      src/components/TreeView.tsx
+         13.8 ms   0.0%  react-and-studio src/components/WorldLegend.tsx
+          5.4 ms   0.0%  react-and-studio packages/app-surface/src/vegetation-render.ts
+         35.6 ms   0.1%                   … 15 more module(s)
+
+4. WHEN THE LAND STREAM RAN — separate runs of its work, seconds from each phase's own start
+   (samples within 100 ms are one run; a run needs 50 ms of land-stream time)
+   A. navigation to a sized canvas
+      2 run(s), 2167.1 ms of land-stream time in them:
+        +6.4 s 1844 ms   +8.7 s 323 ms
+   B. a sized canvas to quiet
+      5 run(s), 21898.2 ms of land-stream time in them:
+        +0.1 s 274 ms   +0.6 s 9312 ms   +10.6 s 1947 ms   +13.0 s 5165 ms   +18.7 s 5200 ms
+   C. the long idle window
+      1 run(s), 1958.6 ms of land-stream time in them:
+        +11.9 s 1959 ms
+
+5. WHAT THE NETWORK COST — per request, and they OVERLAP, so these do not sum to a timeline
+   store payload (/api/)   45733.8 ms  38.72 MB   <- the map pays this too
+   the canvas + the kit    269.4 ms  4.37 MB   <- only a land-view viewer pays this
+   everything else         68.1 ms  2.67 MB
+   EVERY /api/ CALL, largest first — ⚠ `transferSize` UNDER-REPORTS (a dev arm read 0.07 MB where
+   the server sent 37.2 MiB), so confirm any byte figure with curl against the server:
+       39307 kB    8542 ms  /api/assets
+         257 kB    6288 ms  /api/tree
+          72 kB    6420 ms  /api/docs
+           2 kB   11860 ms  /api/floor-health
+           1 kB    6287 ms  /api/activity
+           1 kB    1298 ms  /api/activity
+           1 kB     672 ms  /api/activity
+           1 kB     711 ms  /api/activity
+
+6. FRAME COST — 60 Hz budget is 16.7 ms
+   HARNESS FLOOR      median 16.7 ms over 180 frames on about:blank — the control that makes the rest mean something
+   idle, land view    median 16.7 ms  p95 16.7 ms  worst 16.8 ms  late 0/360
+   idle, map alone    median 16.7 ms  p95 33.4 ms  worst 50.1 ms  late 57/299
+   under a drag       median 16.7 ms  p95 16.7 ms  worst 16.8 ms  late 0/360
+   long idle, land    median 16.7 ms  p95 16.7 ms  worst 1899.9 ms  late 2/3770
+   long idle, map     median 16.7 ms  p95 33.3 ms  worst 166.7 ms  late 182/3511
+   "late" is over 25.0 ms — rAF reports an ON-TIME 60 Hz frame as 16.7 ms, so a strict
+   comparison against the 16.667 budget calls every healthy frame late (it did, 216 of 360).
+   ⚠ READ `worst` AND `late`, NOT ONLY THE PERCENTILE: with sixty frames p95 sits at the 57th, so
+     a stall rarer than four frames in sixty is invisible to it by construction.
+
+   WHEN THE LATE FRAMES CAME in the 65.0 s windows — seconds from each window's start,
+   late frames within 1000 ms counted as one stall:
+   land view
+      +11.8 s 2x worst 1900 ms
+   map alone
+      +0.0 s 179x worst 167 ms   +12.9 s 2x worst 33 ms   +43.3 s 1x worst 167 ms
+
+IT DECIDES NOTHING. This is the split the increment asked for before any cure is chosen.

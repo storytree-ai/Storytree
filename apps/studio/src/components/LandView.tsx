@@ -17,7 +17,7 @@
 // it; `renderCanvas` substitutes the ONE thing a headless runner cannot execute — a WebGL context —
 // and leaves the framing, the failure path and the measurement real.
 
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SceneG } from '@storytree/forest-world';
 import type { Descriptor3D } from '@storytree/forest-world-r3f';
@@ -92,7 +92,14 @@ function useMeasuredFrame(): [React.RefObject<HTMLDivElement | null>, { width: n
  */
 export function LandView({ scene, renderCanvas = DefaultLandCanvas }: LandViewProps): React.JSX.Element {
   const [ref, frame] = useMeasuredFrame();
-  const stream = scene === null ? null : landViewStream(scene);
+  // ⚠ MEMOISED ON THE SCENE, AND THAT IS THE SMALLER HALF OF THE CURE RATHER THAN THE CURE. It stops
+  // the conversion being paid twice when this panel re-renders for its OWN reasons — the frame
+  // measurement arriving is one per mount — but it does NOT stop the poll-driven repeat the land
+  // view's load cost was made of, because the studio replaces the scene OBJECT on every clock tick
+  // and every live-activity poll (`docs/research/land-view-performance-2026-09-15/`). What stops
+  // that is downstream, where the ground is keyed on its own CONTENT rather than on this array's
+  // identity (`@storytree/forest-world-r3f`'s `ground-dependency.ts`).
+  const stream = useMemo(() => (scene === null ? null : landViewStream(scene)), [scene]);
   return (
     <aside className="land-view" data-testid="land-view" aria-label="the land, drawn beside the map">
       <header className="land-view-head">
