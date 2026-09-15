@@ -1176,6 +1176,20 @@ export interface RealBuildArgs {
   /** Offline test seam: a scripted {@link PhaseAuthor}; defaults to the live SDK leaf. */
   authorOverride?: PhaseAuthor;
   /**
+   * ADR-0571 D4: a prior attempt's returned escalation, threaded verbatim into the AUTHOR_TEST
+   * brief as this attempt's test revision. Assigned unconditionally onto `resolveOptions` (never
+   * behind an `if (... !== undefined)` guard) — the brief-carrying contract is proven independently
+   * by `real-brief-carries-test-revision`, this is only the threading.
+   */
+  testRevision?: TestRevision | undefined;
+  /**
+   * ADR-0571 D2: when supplied, this attempt's own RETURNED escalation (if any) is recorded under
+   * this directory via {@link writeRevisionRecord}, and the write is reported on
+   * {@link RealBuildResult.revisionWrite}. Absent means nothing is recorded and the result carries
+   * no `revisionWrite` key at all.
+   */
+  escalationsDir?: string | undefined;
+  /**
    * ADR-0243 D1 — the accounting-only widening: a canned {@link LiveAuthor} reported as
    * `result.liveAuthor` alongside `authorOverride`'s scripted authoring, so an offline caller can
    * exercise the leaf-slices observer without a real live leaf ever authoring anything. Meaningless
@@ -1209,6 +1223,12 @@ export interface RealBuildResult {
   promotionSkipped?: string;
   regression?: "green" | "red";
   typecheck?: "green" | "red";
+  /**
+   * ADR-0571 D2: present only when {@link RealBuildArgs.escalationsDir} was supplied — the outcome
+   * of recording THIS attempt's own returned escalation (if any) via {@link writeRevisionRecord}.
+   * Absent entirely (not merely `undefined`) when no directory was supplied.
+   */
+  revisionWrite?: RevisionWrite;
 }
 
 /**
@@ -1241,6 +1261,9 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     signerInputs: { flag: signer },
     phasePrompts: args.phasePrompts,
   };
+  // ADR-0571 D4: unconditional — a guard here would be a mutant no test could kill, since assigning
+  // `undefined` is harmless and the brief-threading contract is proven by `real-brief-carries-test-revision`.
+  resolveOptions.testRevision = args.testRevision;
   if (args.authorOverride !== undefined) resolveOptions.authorOverride = args.authorOverride;
   if (args.liveAuthorOverride !== undefined) {
     resolveOptions.liveAuthorOverride = args.liveAuthorOverride;
@@ -1331,6 +1354,12 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   // alike, so the report can say WHICH observation refused the verdict.
   if (typecheck !== undefined) out.typecheck = typecheck;
   if (regression !== undefined) out.regression = regression;
+  // ADR-0571 D2: record THIS attempt's own returned escalation (if any) under the supplied
+  // directory, and report exactly what was written. `writeRevisionRecord` itself resolves to `null`
+  // when `escalationsDir` is undefined or `result` carries no escalation, so the key is present on
+  // `out` only when a directory was supplied — never merely `undefined`.
+  const revisionWrite = await writeRevisionRecord(args.escalationsDir, spec.id, runId, result);
+  if (revisionWrite !== null) out.revisionWrite = revisionWrite;
   if (!result.ok) return out;
   out.commitSha = result.verdict.commitSha;
 
