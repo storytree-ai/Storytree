@@ -1,0 +1,40 @@
+{
+  "packageOwnership": {
+    "$comment": "The organism-boundary ownership map (ADR-0074, amended by ADR-0075), read by packages/cli/src/check-boundaries.ts (`pnpm check:boundaries`, wired into `pnpm gate` + the CI verify job). Every @storytree/* package under packages/* is classified EXACTLY once as an `organism` (owned by one story). The gate asserts every real runtime cross-organism dependency edge (each package.json `dependencies`; devDeps are test scaffolding and excluded, ADR-0010 §5) is COVERED by a declared cross-story edge — consumer-side in the consumer story's `depends_on`, OR provider-side in the provider story's `consumed_by` (stories/*/story.md, ADR-0074 §4) — so cross-organism coupling can't be added without a declared edge, and because the studio forest renders `depends_on`, every coupling is therefore UI-visible. NOTE (ADR-0075, 2026-06-19; the ports renamed for role-not-position per ADR-0078, 2026-06-20): the shared ports storage-protocol/proof-protocol are NO LONGER an exempt `substrate` class — they are ordinary ROOT organisms (stories/storage-protocol + stories/proof-protocol, depends_on [] / [proof-protocol]) that every consumer DECLARES depends_on, exactly like cli/store stopped being exempt 'composition roots' in ADR-0074 §2. They stay listed in `foundational` (a SUBSET of organisms, not a class) to carry ONE minimality rule the gate enforces — a foundational port may only depend on another foundational port — which keeps them zod-only / node+pg-free so the studio's browser bundle works. So a port dependency is a visible declared+rendered edge, not an invisible exemption.",
+    "$comment_surfaces": "Consuming SURFACES (ADR-0100): a surface name → the story that owns it. A surface is an apps/* app (the studio) — a sink that wires organisms together and is consumed by nothing. ADR-0100 brought apps/* into the same boundary scan as packages/*: a surface's package.json @storytree/* deps are COVERED by the same rule as an organism's (declared in the surface's own story depends_on), so the studio's real wiring is enforced + rendered, exactly the visibility-over-exemption call ADR-0074 §2 made for the cli/store hubs. A surface is never `foundational` and draws no inbound edge. (The public-website subrepo is also a consuming surface but ships no workspace package — its forest-world edge is a declared story node backed by the check:web-engine drift gate, ADR-0093, not a package scanned here.)",
+    "foundational": [
+      "@storytree/storage-protocol",
+      "@storytree/proof-protocol",
+      "@storytree/forest-world",
+      "@storytree/procedural-architecture"
+    ],
+    "organisms": {
+      "@storytree/agent": "agent",
+      "@storytree/app-surface": "app-surface",
+      "@storytree/arc": "arc",
+      "@storytree/art-authoring": "art-factory",
+      "@storytree/ci-cd": "ci-cd",
+      "@storytree/cli": "cli",
+      "@storytree/context-traversal-capture": "context-traversal-capture",
+      "@storytree/context-traversal-spawn": "context-traversal-spawn",
+      "@storytree/context-traversal-telemetry": "context-traversal-telemetry",
+      "@storytree/context-traversal-transcript": "context-traversal-transcript",
+      "@storytree/drive": "drive-machinery",
+      "@storytree/forest-layout": "forest-world",
+      "@storytree/forest-world": "forest-world",
+      "@storytree/forest-world-r3f": "website-experience",
+      "@storytree/library": "library",
+      "@storytree/notice-board": "notice-board",
+      "@storytree/orchestrator": "drive-machinery",
+      "@storytree/procedural-architecture": "art-factory",
+      "@storytree/proof-protocol": "proof-protocol",
+      "@storytree/storage-protocol": "storage-protocol",
+      "@storytree/studio-members": "studio-members",
+      "@storytree/uat-criterion": "uat-criterion-detail"
+    },
+    "surfaces": {
+      "desktop": "desktop",
+      "studio": "studio"
+    }
+  }
+}

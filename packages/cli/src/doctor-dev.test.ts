@@ -447,6 +447,30 @@ test("write-authority: all four states read differently (different causes, diffe
   assert.equal(new Set(details).size, 4);
 });
 
+test("write-authority: the stale and unknown remedies name where the block is derived from, never the emptied aggregate", () => {
+  // ADR-0556 moved the root allow-list out of `repo-manifest.json` into the fragment tree, and the
+  // aggregate is kept as an empty object until it leaves Git. A remedy telling the reader to check or
+  // edit that file would now send them to nothing, so each one names the composed manifest instead.
+  const stale = probeNamed({ ...DEV_HEALTHY, writeAuthority: "stale" }, "write-authority")!;
+  assert.match(stale.detail, /no longer covers every top-level entry the repo manifest lists/);
+  assert.match(
+    stale.fixHint ?? "",
+    /DERIVED from the manifest's root allow-list \(repo-manifest\/repo-surface\/_domain\.json\), so a new top-level entry/,
+  );
+  const unknown = probeNamed({ ...DEV_HEALTHY, writeAuthority: "unknown" }, "write-authority")!;
+  assert.match(
+    unknown.detail,
+    /\(the repo manifest did not compose, ~\/\.claude\/settings\.json is unreadable, or the rule set computed empty\)/,
+  );
+  assert.match(
+    unknown.fixHint ?? "",
+    /Check that the repo manifest composes \(`pnpm storytree write-authority rules` names why when it does not\) and that/,
+  );
+  for (const probe of [stale, unknown]) {
+    assert.doesNotMatch(`${probe.detail} ${probe.fixHint ?? ""}`, /repo-manifest\.json/);
+  }
+});
+
 test("worktree-identity: the primary checkout explains the refusal it is about to cause", () => {
   const probe = probeNamed({ ...DEV_HEALTHY, worktreeIdentity: "primary-checkout" }, "worktree-identity")!;
   assert.match(probe.detail, /noticeboard declare/, "it names the verb that will refuse");

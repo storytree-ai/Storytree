@@ -1338,3 +1338,65 @@ test("rule 7 (ownership liveness): both cases in one run are reported once each,
   assert.match(violations[1]!, /"@storytree\/library"/);
   assert.match(violations[1]!, /RETIRED/);
 });
+
+// ---------------------------------------------------------------------------
+// The repairs name the fragment each section is authored in (ADR-0556)
+// ---------------------------------------------------------------------------
+
+/** The violation carrying `phrase`, asserted present — so a repair is pinned by what it tells the reader. */
+function saying(violations: readonly string[], phrase: string): string {
+  const found = violations.find((v) => v.includes(phrase));
+  assert.ok(found !== undefined, `no violation says ${JSON.stringify(phrase)}:\n${violations.join("\n")}`);
+  return found;
+}
+
+test("every repair that edits the manifest names the fragment the section is authored in, never the emptied aggregate", () => {
+  // `repo-manifest-remaining-domains-compose` moved `packageOwnership` and `hostedStories` out of
+  // `repo-manifest.json` into `repo-manifest/`, and the aggregate is kept as an empty object until it
+  // leaves Git. A repair still naming that file would send the reader to edit nothing.
+  const bad: Ownership = { organisms: {}, foundational: ["@storytree/storage-protocol"] };
+  const renamed: Ownership = { ...ownership, organisms: { ...ownership.organisms, "@storytree/cli": "cli-renamed" } };
+  const repairs = [
+    saying(
+      checkBoundaries({ ownership, packageDeps: { "@storytree/library": ["@storytree/newcomer"] }, storyGraph, consumedBy }).violations,
+      'unclassified package "@storytree/newcomer" — declare it in repo-manifest/package-ownership/_domain.json packageOwnership organisms',
+    ),
+    saying(
+      checkBoundaries({ ownership: bad, packageDeps: {}, storyGraph: {} }).violations,
+      "every foundational port must also be listed in repo-manifest/package-ownership/_domain.json packageOwnership organisms",
+    ),
+    saying(
+      livenessOnly(ownership, ["notice-board"]),
+      "(delete its building and its repo-manifest/package-ownership/_domain.json packageOwnership entry), or repoint the map",
+    ),
+    saying(
+      livenessOnly(renamed, []),
+      "(delete its building and its repo-manifest/package-ownership/_domain.json packageOwnership entry), or repoint the map",
+    ),
+    saying(
+      checkBoundaries({
+        ownership,
+        packageDeps: {},
+        storyGraph: { ...storyGraph, "studio-members": ["notice-board"] },
+        consumedBy,
+        unitSourceFiles: { "studio-members": ["packages/notice-board/src/a.ts"] },
+        dirOwners: { "packages/notice-board": "notice-board" },
+        hostedStories: [],
+      } as Parameters<typeof checkBoundaries>[0]).violations,
+      'add "studio-members" to the hostedStories register in repo-manifest/hosted-stories/_domain.json.',
+    ),
+    saying(
+      checkBoundaries({
+        ownership,
+        packageDeps: {},
+        storyGraph,
+        consumedBy,
+        unitSourceFiles: { library: ["packages/library/src/foo.ts"] },
+        dirOwners: { "packages/library": "library" },
+        hostedStories: ["studio-members"],
+      } as Parameters<typeof checkBoundaries>[0]).violations,
+      'stale-register: "studio-members" is listed in repo-manifest/hosted-stories/_domain.json hostedStories, but it no longer claims',
+    ),
+  ];
+  for (const repair of repairs) assert.doesNotMatch(repair, /repo-manifest\.json/);
+});

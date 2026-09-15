@@ -1,10 +1,10 @@
 /**
- * `pnpm check:boundaries` — the organism-boundary gate (ADR-0074). Sibling to
- * `scripts/check-manifest.mjs`, wired into `pnpm gate` and the CI `verify` job.
+ * `pnpm check:boundaries` — the organism-boundary gate (ADR-0074), wired into `pnpm gate` and the CI
+ * `verify` job.
  *
  * It gathers the inputs from disk and hands them to the pure {@link checkBoundaries} judge
  * ({@link file://./boundaries.ts}):
- *   1. the package↔story ownership map (repo-manifest.json `packageOwnership`: organisms + the
+ *   1. the package↔story ownership map (the composed manifest's `packageOwnership`: organisms + the
  *      foundational subset — ADR-0075 collapsed the substrate class, so the ports base/proof-protocol
  *      are now ordinary root organisms held minimal, not an exempt class),
  *   2. the real runtime cross-package dependency graph (each `packages/<x>/package.json` AND each
@@ -22,7 +22,7 @@
  *      ({@link readUnitSourceFiles} / {@link readDirOwners}) — so a story whose sources live inside
  *      another story's building without a declared neighbour edge (either direction) FAILS the gate
  *      instead of rendering as an orphaned island.
- *   6. the ADR-0192 decision-2 packages-forward GRANDFATHER register (repo-manifest.json
+ *   6. the ADR-0192 decision-2 packages-forward GRANDFATHER register (the composed manifest's
  *      `hostedStories.register`, {@link readHostedStories}): the FROZEN list of stories permitted to
  *      keep hosted sources. A hosted story ABSENT from it is refused REGARDLESS of declared edges
  *      (a NEW story's code lives in its own package), and a register entry with no hosting evidence
@@ -32,6 +32,10 @@
  *      map — and never resolves the VALUE, so a package could outlive its owning story invisibly.
  *      Handing the judge the retired set plus the total story graph closes both shapes at once: an
  *      owner RETIRED out from under a live package, and an owner that never existed.
+ *   8. every JavaScript and TypeScript module in the repository, tests included ({@link readSourceModules}),
+ *      for the manifest SEAM judge ({@link file://./manifest-boundaries.ts}, ADR-0556 D3): nothing reads
+ *      `repo-manifest.json` except through `readRepoManifest`, beyond the exact per-module allowances that
+ *      judge declares — so a new direct read of the emptied aggregate fails the gate the day it is written.
  *
  * Exits non-zero listing every violation, so an undeclared cross-organism coupling (Gap A) — or a
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
@@ -67,6 +71,13 @@ import {
   type SourceImport,
   type VirtualStorySource,
 } from "./boundaries.js";
+import {
+  findMonolithReads,
+  judgeMonolithReads,
+  MONOLITH,
+  MONOLITH_READ_ALLOWANCES,
+  type SourceModule,
+} from "./manifest-boundaries.js";
 
 // The repo root is a PARAMETER (ADR-0246) — `STORYTREE_REPO_ROOT` points the boundary check at
 // another project's workspace; unset, the module-location derivation (three dirs up) applies.
@@ -251,7 +262,7 @@ function isGlobPattern(s: string): boolean {
 }
 
 /**
- * The ADR-0192 decision-2 packages-forward GRANDFATHER register: the keys of repo-manifest.json
+ * The ADR-0192 decision-2 packages-forward GRANDFATHER register: the keys of the composed manifest's
  * `hostedStories.register` (story id → a note naming its hosts at freeze time). FAIL-CLOSED: a
  * missing or malformed block reads as the EMPTY register — never `undefined` — so the pure judge's
  * refusal rule always runs against the real corpus (an empty register refuses every hosted story,
@@ -384,6 +395,10 @@ function main(): void {
     // package whose owner is retired, or absent from that walk entirely, fails the gate.
     retiredStories: [...retired].sort(),
   });
+  // ADR-0556 D3: nothing reads `repo-manifest.json` except through the manifest's composition seam.
+  const seam = findMonolithReads(readSourceModules());
+  const seamViolations = judgeMonolithReads(seam.reads, MONOLITH_READ_ALLOWANCES);
+
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);
     for (const v of violations) console.error(`  - ${v}`);
@@ -391,9 +406,44 @@ function main(): void {
       "\nThe cross-organism code graph must be a subgraph of the declared cross-story depends_on " +
         "graph.\nDeclare the edge in the owning story (it then shows in the forest) or remove the coupling.",
     );
-    process.exit(1);
   }
+  if (seamViolations.length > 0) {
+    console.error(`✗ manifest seam (ADR-0556): ${seamViolations.length} violation(s)`);
+    for (const v of seamViolations) console.error(`  - ${v}`);
+  }
+  if (violations.length > 0 || seamViolations.length > 0) process.exit(1);
   console.log("✓ organism boundary (ADR-0074): the code dependency graph matches the declared story graph");
+  console.log(
+    `✓ manifest seam (ADR-0556): ${seam.examined} module(s) name ${MONOLITH} or a binding of it, and none reads it ` +
+      "beyond its allowance",
+  );
+}
+
+/** Directories the manifest-seam sweep never enters. Dot-directories are skipped too — see {@link readSourceModules}. */
+const SWEEP_SKIP_DIRS: ReadonlySet<string> = new Set(["build", "coverage", "dist", "legacy", "node_modules", "web"]);
+const SWEEP_SOURCE = /\.[cm]?[jt]sx?$/;
+
+/**
+ * Every JavaScript and TypeScript module in the repository, in path order, for the manifest-seam judge
+ * ({@link findMonolithReads}). Tests are included: a test that opens the aggregate reads `{}` exactly as a
+ * check does. Its aperture is the repo root, like `check:hierarchy-camps`'s sweep, minus build output,
+ * dependencies, the vendored `legacy/` submodule, the separate `web/` repository, and dot-directories —
+ * `.claude` in the primary checkout holds every sibling worktree, whose files are not this branch's.
+ */
+function readSourceModules(): SourceModule[] {
+  const paths: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith(".") && !SWEEP_SKIP_DIRS.has(entry.name)) walk(full);
+      } else if (SWEEP_SOURCE.test(entry.name)) {
+        paths.push(relative(repoRoot, full).split(sep).join("/"));
+      }
+    }
+  };
+  walk(repoRoot);
+  return paths.sort().map((path) => ({ path, text: readFileSync(join(repoRoot, path), "utf8") }));
 }
 
 main();

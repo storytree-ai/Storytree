@@ -143,9 +143,9 @@ test("a manifest `root.files` entry that is really a DIRECTORY is denied as a tr
   // was `Write(//c/code/storytree/web)`, an EXACT path. It matches the literal path `web` and nothing
   // under it, so the whole `web/` tree was file-tool-writable in the primary checkout.
   //
-  // The manifest is not wrong to list it under `root.files`: `check-manifest.mjs` classifies by
+  // The manifest is not wrong to list it under `root.files`: the allow-list classifies by
   // `git ls-files`, which reports a submodule as ONE gitlink entry, so `web` IS a root file to the
-  // gate that owns the manifest — moving it to `root.dirs` would make `pnpm check:manifest` block.
+  // manifest — moving it to `root.dirs` would misfile it.
   // The generator is what must stop trusting the bucket name.
   const manifest = readManifest();
   assert.ok("web" in manifest.root.files, "`web` left root.files — re-point this regression test");

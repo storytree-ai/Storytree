@@ -34,7 +34,7 @@
  * a string the renderer already printed, so the cheapest possible compliance satisfied it. This one
  * never consults a string the subject authors about itself. It computes, from the module's own code,
  * WHICH SOURCE THE MODULE ACTUALLY NAMES, and holds that computed fact against an independent
- * declaration in `repo-manifest.json`. Neither half can be satisfied by writing prose: to pass, a
+ * declaration in the repo manifest's `hierarchyCamps`. Neither half can be satisfied by writing prose: to pass, a
  * module has to read the source it says it reads. That two-sided shape is `check:boundaries`'s, and
  * it is the reason this rung can go RED under mutation (see `hierarchy-camps.test.ts`, and the
  * increment's own mutation proof).
@@ -96,7 +96,7 @@ export interface HierarchyAccess {
   readonly exports: readonly string[];
 }
 
-/** One `repo-manifest.json` → `hierarchyCamps.readers` entry. */
+/** One `hierarchyCamps.readers` entry, authored in `repo-manifest/hierarchy-camps/_domain.json`. */
 export interface HierarchyCampDeclaration {
   /** Repo-relative, POSIX-separated. EXACT paths only — this map is total in both directions. */
   readonly path: string;
@@ -649,7 +649,7 @@ const CAMP_QUESTION = [
   `${TAG}   render  — "I must agree with NOW."                    reads the store's projection`,
   `${TAG}   bridge  — "the gap between them IS my subject."        reads BOTH, or it is not a bridge`,
   `${TAG}`,
-  `${TAG} Declare it in repo-manifest.json → hierarchyCamps.readers, keyed by the module's path.`,
+  `${TAG} Declare it in repo-manifest/hierarchy-camps/_domain.json → hierarchyCamps.readers, keyed by the module's path.`,
 ].join("\n");
 
 export function formatHierarchyCamps(verdict: HierarchyCampVerdict): string {

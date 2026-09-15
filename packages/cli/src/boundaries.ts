@@ -124,7 +124,7 @@ export interface BoundaryInput {
   /**
    * Rule 6 (ADR-0192, packages-forward-refusal — a sibling to rule 5, sharing its evidence): the
    * FROZEN grandfather register — the currently-hosted story ids permitted to keep unit source files
-   * in a foreign building. Gathered from `repo-manifest.json`'s `hostedStories` list. `undefined`
+   * in a foreign building. Gathered from the composed manifest's `hostedStories` register. `undefined`
    * skips the rule entirely (a narrow fixture that doesn't pass the register is unaffected; the real
    * gatherer always passes it). An EMPTY array is NOT the same as absent — `[]` grandfathers nobody,
    * so every mapped foreign-hosting pair is refused (fail-closed).
@@ -218,7 +218,7 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
   for (const pkg of [...allPkgs].sort()) {
     if (classOf(pkg, ownership) === null) {
       violations.push(
-        `unclassified package "${pkg}" — declare it in repo-manifest.json packageOwnership ` +
+        `unclassified package "${pkg}" — declare it in repo-manifest/package-ownership/_domain.json packageOwnership ` +
           `organisms (a reusable package; if a browser-safe root port, also in foundational) or ` +
           `surfaces (an apps/* consuming surface, ADR-0100)`,
       );
@@ -230,7 +230,7 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
     if (classOf(pkg, ownership) === null) {
       violations.push(
         `foundational package "${pkg}" is not an organism — every foundational port must also be ` +
-          `listed in repo-manifest.json packageOwnership organisms`,
+          `listed in repo-manifest/package-ownership/_domain.json packageOwnership organisms`,
       );
     }
   }
@@ -343,14 +343,14 @@ function checkOwnershipLiveness(input: BoundaryInput, violations: string[]): voi
       violations.push(
         `package "${pkg}" is owned by RETIRED story "${story}" — a live package cannot outlive its ` +
           `owning story. Either retire the package with its story (delete its building and its ` +
-          `repo-manifest.json packageOwnership entry), or repoint the map at the live story that ` +
+          `repo-manifest/package-ownership/_domain.json packageOwnership entry), or repoint the map at the live story that ` +
           `inherited the code.`,
       );
     } else if (!Object.prototype.hasOwnProperty.call(storyGraph, story)) {
       violations.push(
         `package "${pkg}" is owned by story "${story}", which does not exist — stories/${story}/ ` +
           `carries no story.md. Either retire the package with its story (delete its building and ` +
-          `its repo-manifest.json packageOwnership entry), or repoint the map at the live story ` +
+          `its repo-manifest/package-ownership/_domain.json packageOwnership entry), or repoint the map at the live story ` +
           `that inherited the code (a renamed story directory leaves the map behind).`,
       );
     }
@@ -509,14 +509,14 @@ function checkPackagesForwardRefusal(input: BoundaryInput, violations: string[])
         `register — a NEW story cannot host in a foreign building at all, regardless of any declared ` +
         `depends_on/consumed_by edge (ADR-0192 packages-forward). Re-home the unit's sourceFile into ` +
         `"${story}"'s own workspace package — or, for a deliberate owner-reviewed grandfathering, add ` +
-        `"${story}" to the hostedStories register in repo-manifest.json.`,
+        `"${story}" to the hostedStories register in repo-manifest/hosted-stories/_domain.json.`,
     );
   }
 
   for (const entry of [...registered].sort()) {
     if (storiesWithPairs.has(entry)) continue;
     violations.push(
-      `packages-forward stale-register: "${entry}" is listed in repo-manifest.json hostedStories, but ` +
+      `packages-forward stale-register: "${entry}" is listed in repo-manifest/hosted-stories/_domain.json hostedStories, but ` +
         `it no longer claims any unit source file in a foreign building — remove the entry (ADR-0192: ` +
         `the register is a self-pruning migration worklist that must shrink as stories migrate).`,
     );

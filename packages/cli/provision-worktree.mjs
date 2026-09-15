@@ -10,7 +10,7 @@
 //
 // Constraints that shape it:
 //   - BARE NODE, ZERO non-builtin deps — it runs BEFORE node_modules exists, so it cannot use tsx or
-//     import any @storytree/* package (mirrors `scripts/check-manifest.mjs`, not `launch.mjs`).
+//     import any @storytree/* package.
 //   - IDEMPOTENT + fast-path — a provisioned worktree is a near-zero no-op, so it is safe to run at
 //     EVERY SessionStart (the primary checkout + reused worktrees, ~80 % of sessions, pay nothing).
 //   - FAIL-SAFE as a hook — `--hook` forces exit 0 on every path (the presence-hook.sh contract), so a
