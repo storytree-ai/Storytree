@@ -11,9 +11,17 @@
 // it; do not set ST_REAL_ALLOW_SOFTWARE to get past it and then quote a frame cost.
 //
 // ⚠ EVERY REFUSAL IS A WAY THIS PAGE COULD REPORT ON SOMETHING OTHER THAN THE MAP: a software
-// rasteriser; a camera that is not the signed 50°; an island whose land is not the shipped ratio;
-// fewer islands than the export recorded; a `matched` picture whose px/unit is not the 2D map's own
-// delivered scale; and a page that reported errors.
+// rasteriser; a camera that is not THE ONE THIS RUN ASKED FOR; an island whose land is not the
+// shipped ratio; fewer islands than the export recorded; a `matched` picture whose px/unit is not
+// the 2D map's own delivered scale; and a page that reported errors.
+//
+// ⚠ THE CAMERA REFUSAL CHECKS AGREEMENT, NOT A CONSTANT — and that is a narrowing, not a loosening.
+// It used to compare every row against the signed `RENDER_ELEV_DEG` and refuse anything else, which
+// made the whole page unable to photograph the 20° arm `the-two-layers-share-one-elevation` needs
+// for the owner look. It now refuses any row that does not match ST_REAL_ELEVATION — defaulting to
+// the signed 50°, so an ordinary run refuses exactly what it refused before — which is the property
+// that was actually wanted: the pictures were all taken from the angle the caption will claim.
+// Asking for an arm is deliberate and visible in the environment; drifting into one is still caught.
 //
 // ⚠ IT DECIDES NOTHING. Frame cost REPORTS (ADR-0517 D4). The Adreno X1-85 acceptance floor of
 // ADR-0380 D2 is NOT measured here and the report says so in terms — this box has an RTX 2060 and
@@ -37,11 +45,19 @@ const OUT = process.env['ST_REAL_OUT'] ?? join(HERE, '..', '..', '..', 'docs', '
 const ANGLE = process.env['ST_REAL_ANGLE'] ?? 'gl';
 const ALLOW_SOFTWARE = process.env['ST_REAL_ALLOW_SOFTWARE'] === '1';
 const COST_BATCH = Number(process.env['ST_REAL_COST_BATCH'] ?? 60);
+/** The owner-look arm: which elevation to photograph the land from. Unset ⇒ the signed shipped
+ *  angle, so every existing invocation is unchanged. */
+const ELEV = Number(process.env['ST_REAL_ELEVATION'] ?? RENDER_ELEV_DEG);
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
   process.exit(1);
 };
+
+if (!Number.isFinite(ELEV) || ELEV <= 0 || ELEV > 90) {
+  console.error(`REFUSED: ST_REAL_ELEVATION=${process.env['ST_REAL_ELEVATION']} is not an elevation in (0, 90]`);
+  process.exit(1);
+}
 
 if (URL_.includes(':5184/')) {
   fail(
@@ -63,7 +79,10 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 page.on('console', (m) => {
   if (m.type() === 'error') pageErrors.push(m.text());
 });
-await page.goto(URL_, { waitUntil: 'domcontentloaded', timeout: 600000 });
+// The page reads `?elevation=` itself (`parseHarnessElevation`), so ONE number drives the render and
+// the refusal below: a driver that set the check without setting the page would refuse its own run.
+const pageUrl = ELEV === RENDER_ELEV_DEG ? URL_ : `${URL_}${URL_.includes('?') ? '&' : '?'}elevation=${ELEV}`;
+await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 600000 });
 await page.waitForFunction(() => window.realForestRunner !== undefined, null, { timeout: 600000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);
 
@@ -110,8 +129,11 @@ const arm = result.manifest.arms[0];
 const at = (p) => result.rows.find((r) => r.picture === p);
 
 for (const row of result.rows) {
-  if (Math.abs(row.elevationDeg - RENDER_ELEV_DEG) > 0.05) {
-    fail(`${row.picture}: the camera looks down at ${row.elevationDeg.toFixed(2)}°, not the signed ${RENDER_ELEV_DEG}°`);
+  if (Math.abs(row.elevationDeg - ELEV) > 0.05) {
+    fail(
+      `${row.picture}: the camera looks down at ${row.elevationDeg.toFixed(2)}°, not the ${ELEV}° this run asked for` +
+        (ELEV === RENDER_ELEV_DEG ? ' (the signed shipped angle)' : ' (ST_REAL_ELEVATION)'),
+    );
   }
   if (row.bounds.islands !== arm.islands) {
     fail(`${row.picture}: ${row.bounds.islands} islands rendered against the ${arm.islands} the export recorded`);
@@ -154,6 +176,8 @@ const measurements = {
   projection: result.projection,
   extents: result.extents,
   landAreaPerCapability: LAND_AREA_PER_CAPABILITY,
+  viewedElevationDeg: ELEV,
+  shippedElevationDeg: RENDER_ELEV_DEG,
   costBatch: COST_BATCH,
   rows: result.rows,
   costs: result.costs,
@@ -183,6 +207,8 @@ const lines = [
   '          a frame read before its textures land is darker than the one anybody sees, and a status',
   '          verdict off it comes back plausible and wrong (2026-09-08; rendering twice does NOT fix it)',
   `map       ${arm.islands} islands, exported ${result.manifest.generatedAt} from the studio at ${result.manifest.studio.head.slice(0, 8)} (${result.manifest.studio.branch})`,
+  `arm       land photographed at ${ELEV}°${ELEV === RENDER_ELEV_DEG ? ' — the signed shipped angle' : ' — an OWNER-LOOK arm, not the shipped angle'}` +
+    `, against a 2D map drawn at ${result.projection.drawnElevationDeg}°`,
   `tile      ${arm.tile.quota}, hex circumradius ${arm.tile.hexR.toFixed(3)} (ADR-0528: derived)`,
   `trails    ${arm.trails.edges} edges routed, ${arm.trails.dropped.length} dropped`,
   '',

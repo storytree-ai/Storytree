@@ -923,6 +923,39 @@ function readSpacingTuning(): Partial<SpacingTuning> {
   return parseSpacingTuning(new URLSearchParams(window.location.search));
 }
 
+/**
+ * `?elevation=<deg>` — WHICH CAMERA THE MAP IS DRAWN AT, for the owner look the increment
+ * `the-two-layers-share-one-elevation` stages. Absent ⇒ `buildWorld`'s own default, which is the
+ * shipped `LAND_CAMERA_ELEVATION_DEG` (20°), so a bare `#/tree` is the map everybody works in.
+ *
+ * ⚠ IT RENDERS AN ARM; IT DOES NOT PICK ONE. The 3D land canvas views true ground at 50° and this
+ * map draws at 20°, and `registrationCamera` can only put the two layers on the same pixel when
+ * `sin` of the two agrees (`apps/studio/src/lib/canvasRegistration.ts`). Which elevation they
+ * should SHARE is an owner look (ADR-0070 stage 2) — 50° changes the surface everybody works in
+ * every day, 20° gives up the depth ADR-0517 deliberately took — so this flag exists to render
+ * both arms on the real forest for that look, exactly as `?restingView=fit` and `?spacing=` render
+ * theirs. The DEFAULT is unchanged by design.
+ *
+ * ⚠ It moves the DRAWING and not the LAYOUT: `packWorld` decides tiles, ownership and the coast at
+ * `PLAN_VIEW_ELEVATION_DEG` regardless, so the two arms are the same forest seen twice.
+ *
+ * A non-finite value, or one outside the open interval (0°, 90°], is not an elevation and is
+ * ignored: at 0° the ground plane is edge-on and `sin e` is 0, which is a division by zero in the
+ * registration arithmetic rather than a picture.
+ */
+export function parseMapElevation(q: URLSearchParams): number | null {
+  const raw = q.get('elevation');
+  if (raw === null) return null;
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v <= 0 || v > 90) return null;
+  return v;
+}
+
+function readMapElevation(): number | null {
+  if (typeof window === 'undefined') return null;
+  return parseMapElevation(new URLSearchParams(window.location.search));
+}
+
 /** Live 2D ART-RUNG overrides from the URL (ADR-0528 D2) — `?treeRung=&plateRung=&floraRung=&trailRung=`,
  *  each a factor on the shipped rung, so the art ladder can be captured from the running map
  *  (`scripts/export-tile-art-ladder.mjs`). Absent ⇒ the shipped drawing. */
@@ -1564,10 +1597,18 @@ export function TreeView({
   // `buildWorld`'s own (now tighter) defaults.
   const spacingTuning = useMemo(() => readSpacingTuning(), [search]);
   const artRungs = useMemo(() => readArtRungs(), [search]);
-  const world = useMemo(
-    () => (stories ? buildWorld(stories, { plantsScatter, buildings, spacing: spacingTuning }) : null),
-    [stories, plantsScatter, buildings, spacingTuning],
-  );
+  // `the-two-layers-share-one-elevation`: `?elevation=<deg>` draws the map at another camera for the
+  // owner look. Absent ⇒ `buildWorld`'s own default, so the shipped map is untouched.
+  const mapElevation = useMemo(() => readMapElevation(), [search]);
+  const world = useMemo(() => {
+    if (!stories) return null;
+    // By statement, not a spread: under `exactOptionalPropertyTypes` a present-and-undefined
+    // `elevationDeg` is a different input from an absent key, and only the absent key leaves
+    // `packWorld` on its own default — the same reason `buildWorld` guards its own forward below.
+    const opts: NonNullable<Parameters<typeof buildWorld>[1]> = { plantsScatter, buildings, spacing: spacingTuning };
+    if (mapElevation !== null) opts.elevationDeg = mapElevation;
+    return buildWorld(stories, opts);
+  }, [stories, plantsScatter, buildings, spacingTuning, mapElevation]);
   // ADR-0088: the building-class stories that fill the permanent Shared Islands panel. Generic
   // over `story.building === true` (sharedIslandStories). Empty when `?buildings=off` (the
   // buildings render as normal islands then, so the panel has nothing to lift off the map).

@@ -65,7 +65,6 @@ import {
   type GroundLayerExtras,
   type ShippedGroundBuild,
 } from '../src/ForestWorldCanvas.js';
-import { RENDER_ELEV_DEG } from '../src/kit-vocabulary.js';
 import { LAND_AREA_PER_CAPABILITY } from '../src/land-per-capability.js';
 import { KIT_PROP_INDIRECT_FRACTION } from '../src/prop-lighting.js';
 import { atlasCoverage } from '../src/shadow-atlas.js';
@@ -130,6 +129,15 @@ export interface TwoDView {
   viewport: { w: number; h: number };
   contentExtentPx: { w: number; h: number } | null;
   medianIslandWidthPx: number | null;
+  /** WHICH CAMERA THE 2D MAP WAS DRAWN AT, as the export driver asked for it (`?elevation=`).
+   *
+   *  ⚠ OPTIONAL BECAUSE OLDER EXPORTS DO NOT CARRY IT, and absent means "the studio's own default"
+   *  rather than "unknown": every manifest written before `the-two-layers-share-one-elevation`
+   *  staged the owner look was taken from a map that asked for nothing, which is
+   *  {@link LAND_CAMERA_ELEVATION_DEG}. It is read rather than assumed so a sheet's caption can say
+   *  which arm each picture is, instead of the page transcribing a constant that may not be the
+   *  one the picture beside it was taken at. */
+  elevationDeg?: number;
   png: string;
 }
 
@@ -164,6 +172,18 @@ export function validateRealManifest(m: unknown): RealForestManifest {
     return bad(`the arm carries a spacing override (${JSON.stringify(arm.spacing)}) — it was exported from a ladder rung, not from the shipped map`);
   }
   if (typeof arm.tile?.hexR !== 'number') return bad('the arm records no tile — since ADR-0528 the tile is derived and a scene must say which one it stands on');
+  // ⚠⚠ AN ARM DRAWN AT ANOTHER ELEVATION IS NOT UN-PROJECTABLE HERE. The committed scene is a 2D
+  // drawing and `landStreamFromDrawing` converts it back to true ground at the studio's DEFAULT
+  // elevation; a scene drawn at 50° would be un-projected as though it were the default and the
+  // forest would silently come out with the wrong depth. The owner look's 3D arm moves the CAMERA
+  // over this same default-drawn scene instead (`?elevation=` / ST_REAL_ELEVATION), which is what
+  // makes the two pictures the same world seen twice.
+  if ((arm as { drawnElevationDeg?: number }).drawnElevationDeg !== undefined) {
+    return bad(
+      `the arm was DRAWN at ${(arm as { drawnElevationDeg?: number }).drawnElevationDeg}° — this page un-projects the drawing at the ` +
+        'studio default, so it would build a forest with the wrong depth. Photograph the default-drawn scene from another camera instead.',
+    );
+  }
   if (!Array.isArray(o.twoD) || !o.twoD.some((v) => v.view === 'fit' && typeof v.scale === 'number')) {
     return bad('no fitted 2D view with a delivered scale — there is nothing to stand the 3D beside');
   }
@@ -448,6 +468,7 @@ export function buildRealForestScene(
   pic: RealPicture,
   matchedPxPerUnit: number,
   armId: RealArmId = 'map',
+  elevationDeg?: number,
 ): RealForestScene {
   const build = armId === 'unshadowed' || armId === 'norock' ? unshadowedGroundBuild(arm) : armGroundBuild(arm);
   const geo = cellGroundGeometry(build.input);
@@ -490,15 +511,20 @@ export function buildRealForestScene(
   const fit = fitCamera(geo.positions);
   let camera: THREE.OrthographicCamera;
   let pxPerUnit: number;
+  // ⚠ BY STATEMENT: `orientedCamera`'s third argument is optional and absent means THE SHIPPED
+  // ANGLE, so a present-and-undefined would be the same thing here — but spelling the fork keeps
+  // the shipped path visibly the one this page took before the owner-look arm existed.
+  const aim = (centre: { x: number; z: number }, px: number): THREE.OrthographicCamera =>
+    elevationDeg === undefined ? orientedCamera(centre, px) : orientedCamera(centre, px, elevationDeg);
   if (pic.id === 'one') {
     pxPerUnit = REAL_READ_ZOOM;
-    camera = orientedCamera(read.centre, pxPerUnit);
+    camera = aim(read.centre, pxPerUnit);
   } else if (pic.id === 'matched') {
     pxPerUnit = matchedPxPerUnit;
-    camera = orientedCamera(fit.centre, pxPerUnit);
+    camera = aim(fit.centre, pxPerUnit);
   } else {
     pxPerUnit = fit.pxPerUnit;
-    camera = orientedCamera(fit.centre, pxPerUnit);
+    camera = aim(fit.centre, pxPerUnit);
   }
   return {
     scene,
@@ -746,7 +772,19 @@ export async function fetchJsonFromPage(url: string): Promise<unknown> {
   return res.json();
 }
 
-export async function createRealForestRunner(fetchJson: FetchJson = fetchJsonFromPage): Promise<RealForestRunner> {
+/**
+ * THE OWNER-LOOK ARM: which elevation this page photographs the land from.
+ *
+ * ⚠ ABSENT IS THE SHIPPED ANGLE, and every existing caller is absent. Present ⇒ the whole page —
+ * all three pictures, all four arms — is taken from that angle instead, which is what lets the same
+ * forest be photographed at 20° and at 50° for `the-two-layers-share-one-elevation`. It changes NO
+ * shipped surface: `camera-framing.ts` and `ForestWorldCanvas` are untouched, and what moves is the
+ * instrument's camera.
+ */
+export async function createRealForestRunner(
+  fetchJson: FetchJson = fetchJsonFromPage,
+  elevationDeg?: number,
+): Promise<RealForestRunner> {
   const { manifest, arm } = await loadRealForest(fetchJson);
   const fitView = twoDView(manifest, 'fit');
   const t0 = performance.now();
@@ -770,7 +808,10 @@ export async function createRealForestRunner(fetchJson: FetchJson = fetchJsonFro
     const k = `${id}|${armId}`;
     const hit = cache.get(k);
     if (hit !== undefined) return hit;
-    const built = buildRealForestScene(kit, lit, arm, realPicture(id), fitView.scale, armId);
+    const built =
+      elevationDeg === undefined
+        ? buildRealForestScene(kit, lit, arm, realPicture(id), fitView.scale, armId)
+        : buildRealForestScene(kit, lit, arm, realPicture(id), fitView.scale, armId, elevationDeg);
     cache.set(k, built);
     return built;
   };
@@ -821,12 +862,25 @@ export async function createRealForestRunner(fetchJson: FetchJson = fetchJsonFro
     identity: () => readIdentity(gl),
     calibration: () => cal,
     kits: () => facts,
-    projection: () => ({
-      drawnElevationDeg: LAND_CAMERA_ELEVATION_DEG,
-      viewedElevationDeg: RENDER_ELEV_DEG,
-      depthGain: Math.sin((RENDER_ELEV_DEG * Math.PI) / 180) / groundFlattening(LAND_CAMERA_ELEVATION_DEG),
-      matchedPxPerUnit: fitView.scale,
-    }),
+    projection: () => {
+      // ⚠ BOTH ANGLES ARE READ, NEVER TRANSCRIBED. `viewed` comes off the camera this page actually
+      // rendered through, and `drawn` off the manifest the 2D picture beside it was exported with —
+      // so when an arm moves one of them, the reported numbers move with it. Transcribing the two
+      // constants would keep printing "20° / 50°" over a sheet taken at 50° / 50°, which is exactly
+      // the caption an owner look cannot afford to get wrong.
+      // ⚠ `viewElevationDeg`, NOT the land-ratio page's position-normalising reader: this page's
+      // camera is aimed at the forest's own centroid rather than the origin, where normalising the
+      // POSITION reports an angle that is not the one the camera looks along (the same trap that
+      // once made an off-origin 50° camera report 40.7°, documented on `viewElevationDeg` itself).
+      const viewed = viewElevationDeg(sceneFor('fit').camera);
+      const drawn = fitView.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+      return {
+        drawnElevationDeg: drawn,
+        viewedElevationDeg: viewed,
+        depthGain: Math.sin((viewed * Math.PI) / 180) / groundFlattening(drawn),
+        matchedPxPerUnit: fitView.scale,
+      };
+    },
     extents: () => extentComparison(armStream(arm), syntheticForestStream()),
     read(picture) {
       const s = render(picture);
@@ -927,8 +981,20 @@ export async function createRealForestRunner(fetchJson: FetchJson = fetchJsonFro
 
 // ---------------------------------------------------------------- the page
 
+/** `?elevation=<deg>` on this page's URL — the OWNER-LOOK arm, absent ⇒ the shipped angle. Same
+ *  grammar as the studio map's own `?elevation=` flag, so one number drives both halves of the
+ *  sheet `the-two-layers-share-one-elevation` stages. Out of (0°, 90°] is not an elevation. */
+export function parseHarnessElevation(q: URLSearchParams): number | null {
+  const raw = q.get('elevation');
+  if (raw === null) return null;
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v <= 0 || v > 90) return null;
+  return v;
+}
+
 export async function mountRealForest(root: HTMLElement): Promise<void> {
-  const runner = await createRealForestRunner();
+  const asked = parseHarnessElevation(new URLSearchParams(window.location.search));
+  const runner = asked === null ? await createRealForestRunner() : await createRealForestRunner(fetchJsonFromPage, asked);
   window.realForestRunner = runner;
   const id = runner.identity();
   const m = runner.manifest();
@@ -940,7 +1006,7 @@ export async function mountRealForest(root: HTMLElement): Promise<void> {
     `${id.vendor} — ${id.renderer} · software=${id.software} · ` +
     `the map exported ${m.generatedAt} from the studio at ${m.studio.head.slice(0, 8)} (${m.studio.branch}) · ` +
     `${m.arms[0]!.islands} islands · tile ${m.arms[0]!.tile.quota}, hex r ${m.arms[0]!.tile.hexR.toFixed(2)} · ` +
-    `land ${LAND_AREA_PER_CAPABILITY} units² per capability · drawn at ${p.drawnElevationDeg}°, viewed at ${p.viewedElevationDeg}° ` +
+    `land ${LAND_AREA_PER_CAPABILITY} units² per capability · drawn at ${p.drawnElevationDeg.toFixed(2)}°, viewed at ${p.viewedElevationDeg.toFixed(2)}° ` +
     `(depth delivers ${p.depthGain.toFixed(2)}× more screen height in 3D) · ` +
     `real forest ${e.real.w.toFixed(0)}×${e.real.d.toFixed(0)} units against the synthetic crowd's ${e.synthetic.w.toFixed(0)}×${e.synthetic.d.toFixed(0)}`;
   root.appendChild(head);

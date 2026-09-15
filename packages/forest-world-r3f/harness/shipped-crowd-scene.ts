@@ -298,22 +298,50 @@ const SHIPPED_VIEW_DIR: THREE.Vector3 = (() => {
   ).normalize();
 })();
 
+/**
+ * THE SHIPPED VIEW DIRECTION RE-AIMED TO ANOTHER ELEVATION, KEEPING ITS AZIMUTH.
+ *
+ * ⚠ ONLY THE ELEVATION MOVES, and that is the whole contract. ADR-0380 D6 fixes the azimuth, and
+ * the arm this exists for (`the-two-layers-share-one-elevation`) is about the angle above the
+ * ground plane and nothing else — so the horizontal bearing is READ OFF {@link SHIPPED_VIEW_DIR}
+ * rather than re-assumed, and only the y/horizontal split is rebuilt. Asked for the shipped
+ * elevation it reproduces the shipped direction to float precision.
+ *
+ * ⚠ IT IS THE INSTRUMENT'S, NOT THE PRODUCT'S. `camera-framing.ts` still looks down at exactly
+ * {@link SHIPPED_ELEVATION_DEG} and nothing here changes it; this lets a HARNESS page photograph
+ * the same world from another angle so the owner can compare two pictures.
+ */
+export function viewDirAtElevation(elevationDeg: number): THREE.Vector3 {
+  const e = (elevationDeg * Math.PI) / 180;
+  const horiz = Math.hypot(SHIPPED_VIEW_DIR.x, SHIPPED_VIEW_DIR.z);
+  // A straight-down shipped direction would carry no azimuth to keep; fall back to the +z side the
+  // framing is built from (`eyeOffset` backs off along +z), so the result is still a real bearing.
+  const ux = horiz === 0 ? 0 : SHIPPED_VIEW_DIR.x / horiz;
+  const uz = horiz === 0 ? 1 : SHIPPED_VIEW_DIR.z / horiz;
+  return new THREE.Vector3(ux * Math.cos(e), Math.sin(e), uz * Math.cos(e));
+}
+
 /** A camera at the shipped angle, looking at `centre`, with the frustum sized for `pxPerUnit`.
  *
  *  ⚠ THE DEPTH RANGE IS THE INSTRUMENT'S, NOT THE PRODUCT'S. `ForestWorldCanvas` clips at
  *  `near: 1, far: 4000` around ONE world; a forest 3,500 units across seen from 8,000 units away
  *  needs more, and clipping is not what this page measures. Symmetric and generous, so nothing is
- *  ever clipped out of a frame whose cost is being counted. */
-export function orientedCamera(centre: { x: number; z: number }, pxPerUnit: number): THREE.OrthographicCamera {
+ *  ever clipped out of a frame whose cost is being counted.
+ *
+ *  `elevationDeg` is the OWNER-LOOK arm and is absent on every shipped-angle caller: absent ⇒
+ *  {@link SHIPPED_VIEW_DIR}, so every one of this file's ~20 existing callers is byte-unchanged and
+ *  the pages asserting the signed 50° still see it. Present ⇒ {@link viewDirAtElevation}. */
+export function orientedCamera(
+  centre: { x: number; z: number },
+  pxPerUnit: number,
+  elevationDeg?: number,
+): THREE.OrthographicCamera {
+  const dir = elevationDeg === undefined ? SHIPPED_VIEW_DIR : viewDirAtElevation(elevationDeg);
   const halfW = CROWD_VIEWPORT.w / pxPerUnit / 2;
   const halfH = CROWD_VIEWPORT.h / pxPerUnit / 2;
   const camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, -20000, 20000);
   const dist = 8000;
-  camera.position.set(
-    centre.x + SHIPPED_VIEW_DIR.x * dist,
-    SHIPPED_VIEW_DIR.y * dist,
-    centre.z + SHIPPED_VIEW_DIR.z * dist,
-  );
+  camera.position.set(centre.x + dir.x * dist, dir.y * dist, centre.z + dir.z * dist);
   camera.up.set(0, 1, 0);
   camera.lookAt(centre.x, 0, centre.z);
   camera.updateProjectionMatrix();

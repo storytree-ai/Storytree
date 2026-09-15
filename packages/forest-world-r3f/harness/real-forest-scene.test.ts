@@ -26,6 +26,7 @@ import {
   realIslandRects,
   rectInFrame,
   syntheticForestStream,
+  parseHarnessElevation,
   twoDView,
   validateRealManifest,
   type RealForestManifest,
@@ -77,6 +78,12 @@ test('the manifest is refused unless it is the shipped map', () => {
   assert.throws(() => validateRealManifest(armPatched({ tile: undefined })), /records no tile/);
   assert.throws(() => validateRealManifest({ ...m, twoD: [] }), /nothing to stand the 3D beside/);
   assert.throws(() => validateRealManifest({ arms: [] }), /is not the shipped map/);
+  // ⚠⚠ THE OWNER-LOOK FENCE. A scene DRAWN at another elevation is un-projected here at the studio
+  // default, so it would build a forest with the wrong depth and say nothing. The 3D arm moves the
+  // camera over the default-drawn scene instead; an export that re-drew is refused outright.
+  assert.throws(() => validateRealManifest(armPatched({ drawnElevationDeg: 50 })), /DRAWN at 50°/);
+  // and the shipped export, which asks the map for nothing, carries no such stamp
+  assert.doesNotThrow(() => validateRealManifest(armPatched({})));
 });
 
 test('twoDView refuses a view the driver never photographed', () => {
@@ -234,4 +241,17 @@ test('frame equality is byte equality, and a length difference is a difference',
   // ⚠ THE LAST BYTE COUNTS. A loop stopping one short would call two frames identical that differ
   // exactly where a rim pixel lives.
   assert.ok(!sameFrame(new Uint8ClampedArray([1, 2, 3]), new Uint8ClampedArray([1, 2, 3, 9])));
+});
+
+test('the harness elevation flag: an angle in (0, 90] is the owner-look arm, absent is the shipped angle', () => {
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=20')), 20);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=50')), 50);
+  // ABSENT IS THE SHIPPED ANGLE — the property that keeps every existing invocation unchanged.
+  assert.equal(parseHarnessElevation(new URLSearchParams('')), null);
+  // 0° looks along the ground plane: sin e is 0, which is a division by zero in the registration
+  // arithmetic this whole arm exists to unblock, not a picture. Refused rather than clamped.
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=0')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=-10')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=120')), null);
+  assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=nope')), null);
 });

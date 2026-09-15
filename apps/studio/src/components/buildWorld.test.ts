@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { AXIAL_DIRS } from '@storytree/forest-world';
 
-import { buildWorld, parseArtRungs, parseSpacingTuning } from './TreeView.js';
+import { buildWorld, parseArtRungs, parseMapElevation, parseSpacingTuning } from './TreeView.js';
 import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS } from '@storytree/forest-layout';
 import type { TreeStory } from '../types';
 
@@ -275,5 +275,36 @@ describe('buildWorld — ADR-0521: the gaps derive from island size', () => {
     expect(parseSpacingTuning(new URLSearchParams('?spacing=-1'))).toEqual({});
     expect(parseSpacingTuning(new URLSearchParams('?spacing=abc'))).toEqual({});
     expect(parseSpacingTuning(new URLSearchParams(''))).toEqual({});
+  });
+});
+
+describe('the-two-layers-share-one-elevation — ?elevation= renders an arm, and changes nothing by default', () => {
+  it('parseMapElevation: a finite angle in (0, 90] is the arm; anything else is not an elevation', () => {
+    expect(parseMapElevation(new URLSearchParams('?elevation=50'))).toBe(50);
+    expect(parseMapElevation(new URLSearchParams('?elevation=20'))).toBe(20);
+    expect(parseMapElevation(new URLSearchParams('?elevation=90'))).toBe(90);
+    // absent is the SHIPPED map — the whole point of the flag is that it defaults to nothing
+    expect(parseMapElevation(new URLSearchParams(''))).toBeNull();
+    // 0° is the ground edge-on: `sin e` is 0, which is a division by zero in the registration
+    // arithmetic (`registrationCamera`'s Tz) rather than a picture. Refused, not clamped.
+    expect(parseMapElevation(new URLSearchParams('?elevation=0'))).toBeNull();
+    expect(parseMapElevation(new URLSearchParams('?elevation=-20'))).toBeNull();
+    expect(parseMapElevation(new URLSearchParams('?elevation=91'))).toBeNull();
+    expect(parseMapElevation(new URLSearchParams('?elevation=abc'))).toBeNull();
+    expect(parseMapElevation(new URLSearchParams('?elevation='))).toBeNull();
+  });
+
+  it('the flag reaches the drawing: 50° flattens x nothing and lifts the drawn depth over 20°', () => {
+    const stories = [library()];
+    const at20 = buildWorld(stories, { buildings: false, elevationDeg: 20 });
+    const at50 = buildWorld(stories, { buildings: false, elevationDeg: 50 });
+    const bare = buildWorld(stories, { buildings: false });
+    // the DEFAULT is 20° — the shipped `LAND_CAMERA_ELEVATION_DEG` — so a bare call is the 20° arm
+    expect(at20.width).toBeCloseTo(bare.width, 9);
+    expect(at20.height).toBeCloseTo(bare.height, 9);
+    // neither projection touches x, so the drawn width is the same at both elevations...
+    expect(at50.width).toBeCloseTo(at20.width, 9);
+    // ...and the drawn DEPTH is what moves: sin(50°)/sin(20°) = 2.24x more screen height.
+    expect(at50.height).toBeGreaterThan(at20.height);
   });
 });
