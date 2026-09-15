@@ -99,6 +99,28 @@ contract's write scope.
 `## Proof walkthrough` and the full assertion under `## Contracts (1)` — before writing. The
 contract-id briefing in the phase prompt is an index, never a substitute for that reading.
 
+**Test revision — attempt 2 (ADR-0563 D6: one D4 attempt, kind `revised-test`).** Attempt 1 (run
+`real-mu1zabhu`) ended at CONFIRM_GREEN with an IMPLEMENT escalation (`unsatisfiable-test`). The
+spine's red observation did not overrule it: four of the five authored tests passed. It is relayed
+here by hand, because carrying an escalation into a re-run mechanically is what this increment
+builds. Nothing from that run is in the worktree, so the test is authored afresh. The outcome, the
+walkthrough and the contract are unchanged.
+
+- **The assertion the implementer could not satisfy, verbatim:**
+  `assert.deepEqual(built.revisionWrite, directWrite); (build-node-real-revision.test.ts:289)`
+- **Its statement, verbatim, abridged only at the ellipses:** "…contains two assertions on the same
+  value that cannot both hold for any implementation of buildNodeReal. Line 245 creates a second,
+  independent temp dir `directDir = await fsp.mkdtemp(...)`, distinct from the `dir` passed as
+  `escalationsDir`. Line 272-273 asserts `built.revisionWrite` deep-equals `{ written: true, path:
+  revisionRecordPath(dir, UNIT_ID, runId) }` — i.e. the write must be under `dir`. Line 278 then
+  calls `writeRevisionRecord(directDir, ...)` (a DIFFERENT directory) producing `directWrite`, and
+  line 289 asserts `built.revisionWrite` deep-equals `directWrite`, whose `.path` is
+  `revisionRecordPath(directDir, UNIT_ID, runId)` — i.e. the write must be under `directDir`. …
+  The test's own surrounding comment … together with the adjacent content-only check at lines
+  284-288 (`assert.equal(rawFromBuild, rawFromDirect, ...)`, which DOES pass) show the intended check
+  was that the WRITTEN CONTENT matches byte-for-byte across a direct call with the same result…"
+- **The spine's observation:** exit code 1 from the declared bun proof, over that one failing test.
+
 Only `buildNodeReal`, `RealBuildArgs` and `RealBuildResult` in `packages/drive/src/node-build.ts`
 change. The record functions they call belong to contract
 [`revision-record-round-trip`](revision-record-round-trip.md), and the brief they feed belongs to
