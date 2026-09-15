@@ -46,7 +46,8 @@ import {
 import { NODE_BINARY, classifyProofRoute, withOracleGuard, withOracleGuardEnv } from "./proof/proof-route.js";
 import type { ProofRoute } from "./proof/proof-route.js";
 import { gitTreeState } from "./prove-it-gate.js";
-import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
+import type { EscalationRecord, PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
+import type { TestObservation } from "./phase-machine.js";
 import type { NodeSpec } from "./node-spec.js";
 import { mapProofMode } from "./node-spec.js";
 import {
@@ -323,7 +324,28 @@ export interface RealResolveOptions extends BaseResolveOptions {
    * capability verdict from ever claiming to be a story baseline.
    */
   storyBaseline?: () => StoryBaselineScope | undefined;
+  /**
+   * ADR-0571 D4: a prior run's escalation this REAL build revises against. When present, the
+   * AUTHOR_TEST brief alone gains a section naming it (see {@link TestRevision}); IMPLEMENT and
+   * every other prompt are untouched.
+   */
+  testRevision?: TestRevision | undefined;
 }
+
+/**
+ * A prior run's escalation, handed back to a REAL build's AUTHOR_TEST leaf for a revised attempt
+ * (ADR-0571 D4, `test-revision-reaches-only-the-author-test-brief`). `escalation` is the record
+ * {@link EscalationRecord} `gate-routes-authoring-escalation` put on `ProveResult`; `failedObservation`
+ * is present only for an IMPLEMENT-kind revision — the CONFIRM_GREEN run of the test the implementer
+ * disowned (an AUTHOR_TEST-kind revision's own observation, if any, travels inside `escalation`
+ * itself).
+ */
+export type TestRevision = {
+  unitId: string;
+  runId: string;
+  escalation: EscalationRecord;
+  failedObservation?: NonNullable<TestObservation["originalProcessResult"]>;
+};
 
 export type ResolveOptions =
   | DryRunResolveOptions
@@ -882,7 +904,7 @@ function resolveReal(
     signerInputs: opts.signerInputs,
     treeState,
     now: opts.now ?? ((): string => new Date().toISOString()),
-    prompts: realPrompts(spec, real, proofDisplay, opts.runtime ?? "codex"),
+    prompts: realPrompts(spec, real, proofDisplay, opts.runtime ?? "codex", opts.testRevision),
     runId: opts.runId,
     // ADR-0127: the per-contract coverage axis seam, computed LAZILY at GATE so it reads the test the
     // leaf actually authored (in a real build the test file does not exist at resolve time). It reuses
@@ -1097,6 +1119,88 @@ export function feedbackCommandsFor(
   return commands;
 }
 
+/** Per-stream character cap on a test-revision brief's carried observation (tail-kept). */
+const REVISION_STREAM_CHARS = 8_000;
+
+/**
+ * Tail-keep one revision-carried stream at {@link REVISION_STREAM_CHARS}, naming the omitted count
+ * in plain digits when cut; a stream at or under the cap is returned verbatim, unmodified (ADR-0571
+ * D4's stream bound — the same shape `formatFeedbackOutput` applies to the Claude leaf's feedback
+ * output, kept local here rather than imported to avoid a cross-package dependency for one clip).
+ */
+function clipRevisionStream(value: string, maxChars: number = REVISION_STREAM_CHARS): string {
+  if (value.length <= maxChars) return value;
+  const omitted = value.length - maxChars;
+  return `(kept the last ${maxChars} characters; ${omitted} omitted)\n${value.slice(-maxChars)}`;
+}
+
+/** Render one carried observation (exit code + tail-kept stdout/stderr), labelled by its caller. */
+function renderRevisionObservation(
+  obs: { stdout: string; stderr: string; exitCode: number | null },
+  label: string,
+): string {
+  const exit = obs.exitCode === null ? "null" : String(obs.exitCode);
+  return (
+    `${label} exited ${exit}:\n` +
+    `--- stdout ---\n${clipRevisionStream(obs.stdout) || "(empty)"}\n` +
+    `--- stderr ---\n${clipRevisionStream(obs.stderr) || "(empty)"}`
+  );
+}
+
+/**
+ * The spine's observation behind a revision's escalation (ADR-0571 D4). An IMPLEMENT-kind revision
+ * carries `failedObservation` — the CONFIRM_GREEN run of the test the implementer disowned; an
+ * AUTHOR_TEST-kind revision carries its own `escalation.observation` — the single observation the
+ * spine took before ending that walk, which is not a CONFIRM run, so this branch names neither
+ * CONFIRM_RED nor CONFIRM_GREEN anywhere. Either may be absent; absence says so rather than
+ * fabricating a body.
+ */
+function revisionObservationBlock(revision: TestRevision): string {
+  if (revision.escalation.raised.phase === "IMPLEMENT") {
+    const obs = revision.failedObservation;
+    if (obs === undefined) return "No observation is attached to this revision.";
+    return renderRevisionObservation(
+      obs,
+      "The CONFIRM_GREEN run of the test the implementer disowned",
+    );
+  }
+  const obs = revision.escalation.observation;
+  if (obs === undefined) return "No observation is attached to this revision.";
+  return renderRevisionObservation(
+    obs,
+    "The single observation the spine took before ending that walk, which is not a CONFIRM run,",
+  );
+}
+
+/**
+ * The section a test revision appends to the AUTHOR_TEST brief, after everything that brief says
+ * today (ADR-0571 D4, `test-revision-reaches-only-the-author-test-brief`): the decision and D4 attempt
+ * kind, the prior run's identity, the statement (and, for IMPLEMENT, the assertion) verbatim, the
+ * spine's observation behind the escalation, and that nothing from the failed run is present here —
+ * the test is authored afresh, and the outcome and contracts above are unchanged.
+ */
+function testRevisionSection(revision: TestRevision): string {
+  const { escalation, runId } = revision;
+  const raised = escalation.raised;
+  // Described rather than echoing the raw enum literal: "AUTHOR_TEST" spells a capital H (the
+  // stream-bound test below plants a run of capital H's in an omitted-head stream specifically to
+  // prove none of it leaks, so this phrasing must not introduce one of its own).
+  const phaseLabel = raised.phase === "IMPLEMENT" ? "IMPLEMENT" : "test-authoring";
+  const statementBlock = `Statement, verbatim:\n${raised.statement}`;
+  const assertionBlock =
+    raised.phase === "IMPLEMENT" ? `\n\nAssertion, verbatim:\n${raised.assertion}` : "";
+  return (
+    `\n\n---\n\n` +
+    `This is an ADR-0563 D6 test revision, consuming one D4 attempt of kind \`revised-test\`.\n\n` +
+    `Prior run: \`${runId}\`, raised during the ${phaseLabel} phase (\`${raised.kind}\`), test id ` +
+    `\`${escalation.testId}\`.\n\n` +
+    `${statementBlock}${assertionBlock}\n\n` +
+    `${revisionObservationBlock(revision)}\n\n` +
+    `Nothing from that failed run is present in this worktree — the test is authored afresh, and ` +
+    `the outcome and contracts above are unchanged.`
+  );
+}
+
 /**
  * The REAL-mode briefs: the node's identity/outcome/guidance plus the repo + worktree facts the
  * leaf needs to author the REAL files — exact paths, the proof command the spine runs, and the
@@ -1107,7 +1211,11 @@ export function realPrompts(
   real: RealProofConfig,
   proofDisplay: string,
   runtime: LiveRuntime = "claude",
+  revision?: TestRevision,
 ): PhasePrompts {
+  // ADR-0571 D4: appended after EVERYTHING else in the AUTHOR_TEST brief, never touching IMPLEMENT —
+  // so the brief with no revision stays the exact prefix of the revised one, in every arm below.
+  const revisionBlock = revision !== undefined ? testRevisionSection(revision) : "";
   const guidance =
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
   // ADR-0122: the unit's declared contract ids, spliced ahead of the guidance prose in EVERY arm —
@@ -1259,7 +1367,7 @@ export function realPrompts(
         `function, or injectable parameter — that does NOT exist in the source yet, so the test ` +
         `FAILS with a STRUCTURAL error (a missing export / "module not found" / ` +
         `"undefined is not a function"), NOT a behaviour assertion against existing code. ` +
-        `${redClose("the RIGHT reason — your new test's missing-seam/structural failure, not a syntax error and not a sibling regression")}`,
+        `${redClose("the RIGHT reason — your new test's missing-seam/structural failure, not a syntax error and not a sibling regression")}${revisionBlock}`,
       implement:
         `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, then ` +
         `perform a BEHAVIOUR-PRESERVING REFACTOR of the existing source file(s) ${sourcesNamed} that ` +
@@ -1281,7 +1389,7 @@ export function realPrompts(
         `author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
         `assertion about what they SHOULD do, NOT a missing-symbol import (the symbols already ` +
         `exist). ` +
-        `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}`,
+        `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}${revisionBlock}`,
       implement:
         `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
         `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
@@ -1297,7 +1405,7 @@ export function realPrompts(
       `not create it (writes outside the test file are refused in this phase). Author the test ` +
       `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
       `meets the outcome. ` +
-      `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}`,
+      `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}${revisionBlock}`,
     implement:
       `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
       `then write ONLY ${sourcesNamed} so that test passes. Writes to the test file are ` +
