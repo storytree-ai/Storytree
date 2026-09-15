@@ -107,8 +107,9 @@ const SPAWNERS: ReadonlySet<string> = new Set(["execFileSync", "execSync", "spaw
 /** The calls that turn a path into another path to the same file. */
 const PATH_BUILDERS: ReadonlySet<string> = new Set(["join", "resolve", "fileURLToPath", "URL"]);
 
-/** One module parsed once: its syntax tree, its variables, and what it imports under which local name. */
+/** One module parsed: its syntax tree, its variables, and what it imports under which local name. */
 interface Analysis {
+  readonly module: SourceModule;
   readonly source: ts.SourceFile;
   readonly declarations: readonly Declaration[];
   /** Local name → the name it was imported as. */
@@ -129,13 +130,19 @@ interface Carriers {
 
 /** Every direct read of the aggregate in `modules`. */
 export function findMonolithReads(modules: readonly SourceModule[]): MonolithReadScan {
-  const analyses = new Map<SourceModule, Analysis>();
-  const analysisOf = (module: SourceModule): Analysis => analyses.get(module) ?? analyse(module, analyses);
+  // Each module is parsed once, on first need, and every parse is kept. The carrying names only grow, so every
+  // module examinable in an earlier pass is examinable in the last one: the parses are exactly the examined modules.
+  const parsed: Analysis[] = [];
+  const analysisOf = (module: SourceModule): Analysis => {
+    const known = parsed.find((analysis) => analysis.module === module);
+    if (known !== undefined) return known;
+    const fresh = analyse(module);
+    parsed.push(fresh);
+    return fresh;
+  };
   const shared = sharedCarriers(modules, analysisOf, new Set());
   const reads = examinable(modules, shared).flatMap((module) => readsIn(module, analysisOf(module), shared));
-  // The carrying names only grow, so every module examinable in an earlier pass is examinable in the last one:
-  // what was parsed is exactly what was examined, and it is counted where the parsing happened.
-  return { reads, examined: analyses.size };
+  return { reads, examined: parsed.length };
 }
 
 /**
@@ -170,8 +177,8 @@ function examinable(modules: readonly SourceModule[], shared: ReadonlySet<string
   return modules.filter((module) => [MONOLITH, ...shared].some((name) => module.text.includes(name)));
 }
 
-/** Parse `module` once and remember it, so every pass over it after the first costs no parse. */
-function analyse(module: SourceModule, analyses: Map<SourceModule, Analysis>): Analysis {
+/** Parse one module: its syntax tree, its variables, and its imports. */
+function analyse(module: SourceModule): Analysis {
   const source = ts.createSourceFile(module.path, module.text, ts.ScriptTarget.Latest, true);
   const imports = new Map<string, string>();
   const visit = (node: ts.Node): void => {
@@ -179,9 +186,7 @@ function analyse(module: SourceModule, analyses: Map<SourceModule, Analysis>): A
     ts.forEachChild(node, visit);
   };
   visit(source);
-  const analysis: Analysis = { source, declarations: declarationsIn(source), imports };
-  analyses.set(module, analysis);
-  return analysis;
+  return { module, source, declarations: declarationsIn(source), imports };
 }
 
 /**
