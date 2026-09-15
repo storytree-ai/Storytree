@@ -93,33 +93,56 @@ under the temp directories. The test file is NEW: `packages/drive/src/build-node
 The existing `backstop-before-signature.test.ts` and `leaf-slices-activation.test.ts` are not in this
 contract's write scope.
 
+**As built (signed PASS on attempt 2, run `real-mu1zy9xy`, merged at `697868a0`).** The signed test
+has two tests, not three steps.
+
+- **Test 1.**
+  - The prior revision comes from a real `proveUnit` walk over a `ShellTestExecutor` child, whose
+    AUTHOR_TEST leaf escalates. Its returned escalation goes straight into a `TestRevision` literal,
+    not through `writeRevisionRecord` and `readTestRevision`. It is AUTHOR_TEST-kind, not
+    IMPLEMENT-kind.
+  - A recording author captures the AUTHOR_TEST prompt and returns a current AUTHOR_TEST escalation
+    built with `parseAuthoringEscalation`. `buildNodeReal` gets `testRevision`, `escalationsDir` and
+    `promote: false`.
+  - The build fails at AUTHOR_TEST with a returned escalation, and the captured prompt carries the
+    prior revision's statement, run id and test id.
+  - `built.revisionWrite` deep-equals `{ written: true, path: revisionRecordPath(dir, "cap-a", runId) }`.
+  - The written file's bytes equal those of a direct `writeRevisionRecord` of the same result into a
+    second temp directory, and the two paths are asserted to differ.
+- **Test 2.** The same escalating walk without `escalationsDir` gives a result with no `revisionWrite`
+  key (checked with `in`).
+
+**Not exercised by that proof:**
+
+- the walk without `testRevision` (step 1's second bullet);
+- the assertion clause, because the prior revision is AUTHOR_TEST-kind and carries no assertion;
+- step 1's plain-error author and its key check;
+- that IMPLEMENT is never requested;
+- reading the written record back with `readTestRevision`, for which byte equality with a direct write
+  stands in;
+- step 3, a failure carrying no escalation with a directory set.
+
+`check:mutation-diff` passes with these lines included. The always-true mutant on the
+`revisionWrite !== null` guard dies in test 2.
+
 ## Guidance
 
 **Leaf test acceptance (prompt-exposed).** AUTHOR_TEST and IMPLEMENT both read this whole file —
 `## Proof walkthrough` and the full assertion under `## Contracts (1)` — before writing. The
 contract-id briefing in the phase prompt is an index, never a substitute for that reading.
 
-**Test revision — attempt 2 (ADR-0563 D6: one D4 attempt, kind `revised-test`).** Attempt 1 (run
-`real-mu1zabhu`) ended at CONFIRM_GREEN with an IMPLEMENT escalation (`unsatisfiable-test`). The
-spine's red observation did not overrule it: four of the five authored tests passed. It is relayed
-here by hand, because carrying an escalation into a re-run mechanically is what this increment
-builds. Nothing from that run is in the worktree, so the test is authored afresh. The outcome, the
-walkthrough and the contract are unchanged.
+**Test revision history (ADR-0563 D6: one D4 attempt, kind `revised-test`).**
 
-- **The assertion the implementer could not satisfy, verbatim:**
-  `assert.deepEqual(built.revisionWrite, directWrite); (build-node-real-revision.test.ts:289)`
-- **Its statement, verbatim, abridged only at the ellipses:** "…contains two assertions on the same
-  value that cannot both hold for any implementation of buildNodeReal. Line 245 creates a second,
-  independent temp dir `directDir = await fsp.mkdtemp(...)`, distinct from the `dir` passed as
-  `escalationsDir`. Line 272-273 asserts `built.revisionWrite` deep-equals `{ written: true, path:
-  revisionRecordPath(dir, UNIT_ID, runId) }` — i.e. the write must be under `dir`. Line 278 then
-  calls `writeRevisionRecord(directDir, ...)` (a DIFFERENT directory) producing `directWrite`, and
-  line 289 asserts `built.revisionWrite` deep-equals `directWrite`, whose `.path` is
-  `revisionRecordPath(directDir, UNIT_ID, runId)` — i.e. the write must be under `directDir`. …
-  The test's own surrounding comment … together with the adjacent content-only check at lines
-  284-288 (`assert.equal(rawFromBuild, rawFromDirect, ...)`, which DOES pass) show the intended check
-  was that the WRITTEN CONTENT matches byte-for-byte across a direct call with the same result…"
-- **The spine's observation:** exit code 1 from the declared bun proof, over that one failing test.
+- **Attempt 1** (run `real-mu1zabhu`) failed closed at CONFIRM_GREEN with a standing IMPLEMENT
+  escalation (`unsatisfiable-test`). Its authored test deep-equalled `built.revisionWrite` against a
+  write into a second temp directory, `assert.deepEqual(built.revisionWrite, directWrite)`, so the two
+  paths could never match. Four of its five tests passed.
+- **Attempt 2** (run `real-mu1zy9xy`) signed PASS as a test revision, with that escalation relayed
+  into this Guidance by hand.
+
+The relay was by hand only because carrying an escalation into a re-run mechanically is the very unit
+this increment builds, which makes attempt 1 the increment's own motivating instance. The outcome, the
+walkthrough and the contract did not change between the two attempts.
 
 Only `buildNodeReal`, `RealBuildArgs` and `RealBuildResult` in `packages/drive/src/node-build.ts`
 change. The record functions they call belong to contract
@@ -138,6 +161,11 @@ contract [`real-brief-carries-test-revision`](real-brief-carries-test-revision.m
   `revisionWrite?: RevisionWrite`, which carries that call's result when it is non-null; otherwise the
   key is absent. The write happens where the walk ends, so both surfaces that share this lifecycle
   reach it, and only a caller that supplies a directory records anything.
+- **As built.** `buildNodeReal` assigns `resolveOptions.testRevision = args.testRevision;` directly
+  after the `resolveOptions` literal. It calls `writeRevisionRecord` once `out` holds the result, any
+  live author and any backstop observations, which is still before `if (!result.ok) return out;`. It
+  sets `out.revisionWrite` only when that call returns non-null. So the key is present only when a
+  directory was supplied and the result carried a returned escalation.
 - **The chain writes nothing.** `packages/drive/src/story-build.ts` and
   `packages/cli/src/gate-build-driver.ts` pass neither field and are unchanged, because a chain
   renders no escalation and a record it wrote would be one nobody was told about (ADR-0571 D2). They
@@ -162,7 +190,8 @@ contract [`real-brief-carries-test-revision`](real-brief-carries-test-revision.m
   - `parseAuthoringEscalation` from `@storytree/agent`;
   - `fixtureRepo` and `fixtureStories` from `./real-chain-fixture.js`.
 
-**Declared, not observed by this test.**
+**Declared, not observed by this test.** The as-built paragraph under `## Proof walkthrough` lists
+what the signed test does not exercise. Beyond that:
 
 - That `story-build.ts` and `gate-build-driver.ts` pass neither field is confirmed by reading.
 - The IMPLEMENT brief's independence from the revision is observed by contract
@@ -173,4 +202,4 @@ contract [`real-brief-carries-test-revision`](real-brief-carries-test-revision.m
 1. **`build-node-real-threads-the-revision-and-records-the-escalation`** — the single-node REAL lifecycle hands a supplied revision to the AUTHOR_TEST brief and records a returned escalation where its caller asked.
    - **asserts —** over a real fixture worktree and a recording author, `buildNodeReal` given `testRevision` hands the AUTHOR_TEST leaf a prompt carrying the revision's run id, statement and assertion, and without it hands a prompt carrying none of them. Given `escalationsDir`, a walk whose AUTHOR_TEST escalation the gate returned yields `revisionWrite` deep-equal to `{ written: true, path }` at `revisionRecordPath(escalationsDir, unitId, runId)`, and the record reads back with an escalation deep-equal to the result's. A result carries no `revisionWrite` key when no directory was supplied, when the failure carried no escalation, or when the walk only recorded an authoring error, and no file is written.
    - **covers —** `buildNodeReal`, `RealBuildArgs.testRevision`, `RealBuildArgs.escalationsDir` and `RealBuildResult.revisionWrite` (`packages/drive/src/node-build.ts`).
-   - **proven by —** a new `packages/drive/src/build-node-real-revision.test.ts`, over `real-chain-fixture.ts` worktrees and a recording author, through the declared focused bun REAL proof; the `@storytree/drive` typecheck and package suite remain pre-signature backstops.
+   - **proven by —** `packages/drive/src/build-node-real-revision.test.ts`, over `real-chain-fixture.ts` worktrees and a recording author, through the declared focused bun REAL proof. It signed PASS on attempt 2 (run `real-mu1zy9xy`) as an ADR-0563 D6 test revision, after attempt 1 (run `real-mu1zabhu`) ended in a standing IMPLEMENT escalation. The `@storytree/drive` typecheck and package suite were pre-signature backstops, and `check:mutation-diff` passes with these lines included. Not exercised by that proof: the walk without `testRevision`, the assertion clause, a failure carrying no escalation with a directory set, and a read-back through `readTestRevision`, for which byte equality with a direct write stands in.
