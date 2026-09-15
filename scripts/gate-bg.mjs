@@ -1,6 +1,6 @@
 // `pnpm gate:bg` entry point — DETACH the run, print its dispatch handle, and return at once.
 //
-// TWO THINGS THIS FILE DOES, AND THE SECOND IS NEW.
+// THREE THINGS THIS FILE DOES, AND THE THIRD IS NEW.
 //
 // (1) It resolves the bash that can actually run this checkout's scripts. `"gate:bg": "bash
 //     scripts/gate-bg.sh"` named a shell it did not pin: on Windows with WSL installed, bare `bash`
@@ -23,13 +23,18 @@
 //     rather than inherited, and this launcher exits immediately whatever its own stdout is attached
 //     to. Piping it is now simply fine.
 //
-// WHAT THIS LAUNCHER'S EXIT CODE MEANS NOW — READ THIS BEFORE TRUSTING IT. It reports THE LAUNCH,
-// not the gate: 0 = dispatched, 1 = failed to dispatch. It cannot report the gate's verdict, because
-// it returns before the gate has one. That verdict lives where it always did — in `<log>.exit`,
-// written by scripts/gate-bg.sh from `${PIPESTATUS[0]}` — and is read with:
+// (3) It prints a verdict command that RUNS, and refuses a flag it would otherwise run as a program
+//     (`verification-integrity-arc`, increment `gate-bg-prints-a-runnable-verdict-command`). Both
+//     defects turned following this launcher's own output into a verdict the gate never gave. Each
+//     is explained where it is fixed, below.
 //
-//   storytree dispatch <handle>          # once, honest about "not yet"
-//   storytree dispatch <handle> --wait   # block until it settles, exit with THE GATE's own status
+// WHAT THIS LAUNCHER'S EXIT CODE MEANS NOW — READ THIS BEFORE TRUSTING IT. It reports THE LAUNCH,
+// not the gate: 0 = dispatched, 1 = failed or refused to dispatch. It cannot report the gate's
+// verdict, because it returns before the gate has one. That verdict lives where it always did — in
+// `<log>.exit`, written by scripts/gate-bg.sh from `${PIPESTATUS[0]}` — and is read with:
+//
+//   pnpm storytree dispatch <handle>          # once, honest about "not yet"
+//   pnpm storytree dispatch <handle> --wait   # block until it settles, exit with THE GATE's own status
 //
 // The false-green this replaces cannot recur: a launcher that returns in under a second, printing
 // "dispatched", is not something a reader mistakes for a ten-minute gate's verdict. The old shape —
@@ -50,6 +55,44 @@ const repoRoot = path.join(here, "..");
 
 const cmd = process.argv.slice(2);
 const describedCmd = cmd.length > 0 ? cmd.join(" ") : "pnpm gate";
+
+/**
+ * One argument, spelled so that a shell handed it back returns it unchanged.
+ *
+ * A word made only of characters neither bash nor PowerShell treats specially is printed bare.
+ * Anything else is single-quoted, which both read literally; that covers a Windows path, whose
+ * backslashes bash strips when they are unquoted. An embedded apostrophe takes bash's `'\''` form,
+ * because bash is the shell this launcher pins. PowerShell misreads that one spelling — measured
+ * 2026-09-16, a wrong handle and exit 1 rather than the job's own code — which is the accepted cost
+ * of an apostrophe in a log path.
+ */
+function shellWord(word) {
+  return /^[\w+=:./-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
+}
+
+// A LEADING FLAG IS REFUSED, NEVER RUN. Everything after `gate:bg` is a COMMAND that replaces
+// `pnpm gate` (the `<cmd> [args...]` form gate-bg.sh documents and the launcher tests drive), so
+// `pnpm gate:bg --rerun-failed` used to dispatch `--rerun-failed` AS A PROGRAM: the launch exited 0
+// under the ordinary banner, and the sentinel held 127 for a gate that never ran. The refusal comes
+// before the log directory and the spawn, so it leaves nothing behind that reads as a handle.
+// Forwarding the flag to `pnpm gate` was the alternative. It is not taken because nothing could
+// prove it short of a test that dispatches a real gate, and the refusal names the spelling that works.
+if (cmd[0]?.startsWith("-")) {
+  const rows = [
+    ["pnpm gate:bg", "dispatches `pnpm gate`"],
+    [`pnpm gate:bg pnpm gate ${cmd.map(shellWord).join(" ")}`, "hands these flags to the gate"],
+  ];
+  const width = Math.max(...rows.map(([command]) => command.length)) + 4;
+  console.error(
+    [
+      `gate:bg: REFUSED — ${shellWord(cmd[0])} is a flag, and gate:bg runs its arguments AS A COMMAND ` +
+        "in place of `pnpm gate`.",
+      "Nothing was dispatched. To background the gate:",
+      ...rows.map(([command, what]) => `  ${command.padEnd(width)}# ${what}`),
+    ].join("\n"),
+  );
+  process.exit(1);
+}
 
 /**
  * The log path, chosen HERE rather than inside the shell script.
@@ -114,6 +157,16 @@ child.on("error", (err) => {
 
 child.unref();
 
+// THE VERDICT LINES ARE COMMANDS, AND THEY MUST RUN EXACTLY AS PRINTED: each one's exit code IS the
+// gate's verdict, read at the one step where a swallowed failure passes for GREEN. The old lines
+// failed that three ways, all measured. A bare `storytree` is on no PATH and exits 127, which a
+// `| tail` turns into 0 (friction `friction-gate-bg-bare-storytree-verdict-command`). Under Git Bash
+// an unquoted Windows path loses every backslash, so `--wait` watched a handle that could never
+// settle for its whole bound and then exited 75. And a `(…)` description is a syntax error to a shell
+// handed the whole line, where `#` is a comment to bash and PowerShell alike. `pnpm storytree` keeps
+// the codes that matter intact — measured 2026-09-16, 0, 3, 4 and 75 pass through unchanged, and only
+// a job's own 127 arrives as 1.
+const handle = shellWord(log);
 process.stdout.write(
   [
     `gate:bg dispatched:  ${describedCmd}`,
@@ -123,8 +176,8 @@ process.stdout.write(
     "",
     "This is a DISPATCH, not a verdict — the gate is still running and this command's exit code",
     "reports only that it started. Read the result with:",
-    `  storytree dispatch ${log} --wait     (blocks, exits with the GATE's own status)`,
-    `  storytree dispatch ${log}            (reads once, says RUNNING if it is not done)`,
+    `  pnpm storytree dispatch ${handle} --wait     # blocks, exits with the GATE's own status`,
+    `  pnpm storytree dispatch ${handle}            # reads once, says RUNNING if it is not done`,
     "",
   ].join("\n"),
 );

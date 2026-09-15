@@ -23,6 +23,11 @@
 //    happened, so it is asserted directly rather than inferred from the spawn options.
 //  - The exit code is the LAUNCH's, not the job's. A launcher cannot report a verdict it returns
 //    before hearing; the verdict lives in `<log>.exit` and is read with `storytree dispatch`.
+//  - The VERDICT LINES RUN AS PRINTED. Handed to bash whole, each one runs `pnpm storytree dispatch`
+//    on the exact handle. Their exit code is the gate's verdict, so a line that cannot run — bare
+//    `storytree` exits 127, and `| tail` turns that into 0 — reads a verdict the gate never gave.
+//  - A LEADING FLAG IS REFUSED before anything is created. gate:bg's arguments are a command, so
+//    `pnpm gate:bg --rerun-failed` used to dispatch its flag as a program under an ordinary banner.
 //  - A structural fence on the spawn options, read from CODE and never from comments. The
 //    behavioural tests above would still pass under `stdio: "inherit"` on this box — the child
 //    simply inherits handles it does not need — and the failure that reintroduces is a run coupled
@@ -238,6 +243,103 @@ test("a PIPE on the launcher's stdout no longer holds the run — the measured r
     );
   });
 });
+
+// ---------- what the banner PRINTS, and what the launcher REFUSES ----------
+
+/**
+ * The arguments bash would run if handed `line` VERBATIM — the whole printed line, description and
+ * all — returned NUL-split, so a space or an apostrophe inside one argument cannot hide.
+ *
+ * This asserts what a verdict line owes its reader rather than what it looks like: the unanchored
+ * `/storytree dispatch .* --wait/` above stayed green for the whole life of a line that exited 127.
+ * The line travels in an environment variable rather than argv, so no layer between node and bash
+ * re-quotes it. It needs no pnpm and no tsx, and it waits on nothing.
+ */
+function argvBashRuns(line: string): string[] {
+  const res = spawnSync(bash, ["-c", `eval "set -- $PRINTED_LINE" && printf '%s\\0' "$@"`], {
+    encoding: "utf8",
+    env: { ...process.env, PRINTED_LINE: line },
+  });
+  assert.equal(res.status, 0, `bash cannot run this printed line verbatim:\n${line}\n${res.stderr}`);
+  return res.stdout.split("\0").slice(0, -1);
+}
+
+test("the verdict lines RUN as printed: bash, handed either whole line, reads this exact handle", async () => {
+  // THE MEASURED FAILURE (friction `friction-gate-bg-bare-storytree-verdict-command`). The banner
+  // printed `storytree dispatch <log> --wait`, and `storytree` is on no PATH: the line exits 127,
+  // and piped through `| tail` — how a long banner gets read — the pipeline exits 0, at the one
+  // step whose exit code IS the gate's verdict. Measured 2026-09-16 under Git Bash, the same line
+  // failed two more ways: its unquoted Windows path lost every backslash, so `--wait` watched a
+  // handle that could never settle for its whole bound and then exited 75; and the `(…)`
+  // description after the command is a syntax error to a shell handed the whole line.
+  //
+  // The space and the apostrophe in the log's name are deliberate. They make the quoting witnessed
+  // on every platform, not only on the one whose paths carry backslashes.
+  await withTempDir(async (dir) => {
+    const log = path.join(dir, "it's a gate run.log");
+    const res = spawnSync(nodeExecutable(), [launcher, "sh", "-c", "exit 0"], {
+      encoding: "utf8",
+      env: { ...process.env, GATE_BG_LOG: log },
+      cwd: repoRoot,
+    });
+    assert.equal(res.status, 0, `the dispatch itself failed:\n${res.stdout}${res.stderr}`);
+    const lines = res.stdout.split(/\r?\n/);
+    assert.deepEqual(
+      lines.filter((line) => /^\s*storytree dispatch\b/.test(line)),
+      [],
+      "no line may begin with the bare verb: `storytree` is on no PATH, so that line exits 127",
+    );
+    assert.deepEqual(
+      lines.filter((line) => /\bstorytree dispatch\b/.test(line)).map(argvBashRuns),
+      [
+        ["pnpm", "storytree", "dispatch", log, "--wait"],
+        ["pnpm", "storytree", "dispatch", log],
+      ],
+      "each verdict line, run exactly as printed, runs `pnpm storytree dispatch` on THIS handle",
+    );
+    // Not an assertion: the job writes into `dir`, so it must finish before `withTempDir` removes it.
+    await awaitSentinel(`${log}.exit`);
+  });
+});
+
+for (const flags of [["--rerun-failed"], ["--only", "check:agents"]]) {
+  test(`a leading FLAG is refused before anything exists: \`pnpm gate:bg ${flags.join(" ")}\` runs no program`, async () => {
+    // THE MEASURED FAILURE. gate:bg's arguments are a COMMAND that replaces `pnpm gate`, so
+    // `pnpm gate:bg --rerun-failed` dispatched `--rerun-failed` AS A PROGRAM: it printed
+    // `gate:bg dispatched:  --rerun-failed` under the ordinary banner, exited 0 (a successful
+    // launch, ADR-0397 D2), and left 127 in the sentinel for a gate that never ran.
+    //
+    // "Nothing was dispatched" is read from the filesystem, never from the clock. The launcher
+    // creates the log's directory BEFORE it spawns, so a directory that does not exist once it has
+    // returned belongs to a launch that never reached the spawn, however loaded the box is. The
+    // positive control is the `sh -c "exit 7"` dispatch above: a flag AFTER the command is an
+    // ordinary argument, and that launch still runs.
+    await withTempDir((dir) => {
+      const log = path.join(dir, "never-created", "run.log");
+      const res = spawnSync(nodeExecutable(), [launcher, ...flags], {
+        encoding: "utf8",
+        env: { ...process.env, GATE_BG_LOG: log },
+        cwd: repoRoot,
+      });
+      const out = `${res.stdout}${res.stderr}`;
+      assert.equal(res.status, 1, `a refusal is a FAILED dispatch (ADR-0397 D2):\n${out}`);
+      assert.doesNotMatch(
+        out,
+        /gate:bg (dispatched|pid|log|exit-file):/,
+        "it prints nothing that reads as a handle",
+      );
+      assert.equal(
+        existsSync(path.dirname(log)),
+        false,
+        "and creates nothing: the launch never reached the spawn",
+      );
+      assert.ok(
+        out.includes(`pnpm gate:bg pnpm gate ${flags.join(" ")}`),
+        `and names the spelling that hands these flags to the gate:\n${out}`,
+      );
+    });
+  });
+}
 
 // ---------- the structural fence, read from CODE and never from comments ----------
 
