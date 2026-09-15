@@ -126,6 +126,13 @@ export interface NodeSpec {
   /** The `## Guidance` section's prose, when the body carries one (feeds prompt assembly). */
   guidance: string | undefined;
   /**
+   * The `## Proof walkthrough` section's prose, when the body carries one: the acceptance setup the unit's
+   * test must build (`brief-carries-the-units-proof-walkthrough`), carried into both real phase briefs
+   * after the guidance. ABSENT, never `undefined`, when the spec has none, so every spec literal a test or
+   * a registry builds stays assignable unchanged.
+   */
+  proofWalkthrough?: string;
+  /**
    * The story's UAT prose parsed into addressable test units (ADR-0044 `uat-test-units`): one per
    * `## UAT Test Criteria` numbered item, with an authored opaque id, content revision, and witness
    * kind. `[]` for a capability/contract spec (no Story UAT section).
@@ -177,7 +184,7 @@ export function loadNodeSpec(file: string): NodeSpec {
       throw new Error(`${file}: invalid 'proof:' block — ${(e as Error).message}`);
     }
   }
-  return {
+  const spec: NodeSpec = {
     id: fm.id,
     tier: fm.tier,
     title: fm.title,
@@ -203,11 +210,30 @@ export function loadNodeSpec(file: string): NodeSpec {
     contracts: parseContracts(body),
     file,
   };
+  // Set only when present — absent-not-undefined, so a spec without a walkthrough loads exactly as before.
+  const proofWalkthrough = proofWalkthroughSection(body);
+  if (proofWalkthrough !== undefined) spec.proofWalkthrough = proofWalkthrough;
+  return spec;
 }
 
 /** Extract the `## Guidance` section's prose (up to the next `##` heading), or undefined. */
 function guidanceSection(body: string): string | undefined {
   const heading = /^## Guidance[^\n]*\n/m.exec(body);
+  if (heading === null) return undefined;
+  const rest = body.slice(heading.index + heading[0].length);
+  const next = rest.search(/^## /m);
+  const text = (next >= 0 ? rest.slice(0, next) : rest).trim();
+  return text.length > 0 ? text : undefined;
+}
+
+/**
+ * Extract the `## Proof walkthrough` section's prose (up to the next `##` heading), or undefined. Matched on
+ * the heading's PREFIX, so every spelling the corpus uses reads — `## Proof walkthrough`, `… first`,
+ * `… (written first)`, `… — contract-test` — while a bare `## Proof` (a story's statement of how it is
+ * proven) does not. Its own `###` subheadings stay inside it.
+ */
+function proofWalkthroughSection(body: string): string | undefined {
+  const heading = /^## Proof walkthrough\b[^\n]*\n/m.exec(body);
   if (heading === null) return undefined;
   const rest = body.slice(heading.index + heading[0].length);
   const next = rest.search(/^## /m);

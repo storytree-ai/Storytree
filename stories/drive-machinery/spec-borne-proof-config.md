@@ -89,7 +89,7 @@ registry is no longer required to make a node buildable. Mirror `prove-spec-reso
 walks (dry-run glue + the REAL-mode worktree walk via the `authorOverride` seam), keyed off a spec's
 own proof config rather than the hand-map.
 
-## Contracts (7)
+## Contracts (8)
 
 1. **`spec-proof-block-parses`** — the loader reads + zod-validates an optional `proof:` block off a node spec
    - **asserts —** a well-formed block yields a typed build config; a malformed block is LOUD (`.strict()` rejects a typo'd key, an empty glob, an empty command, `install:true` without `typecheck`); absent = not buildable (fail-closed).
@@ -119,3 +119,7 @@ own proof config rather than the hand-map.
    - **asserts —** `real.cluster` parses as two or more contract ids and round-trips, and stays absent when undeclared; it is LOUD on a unit that does not declare `editsExisting` (net-new, or `refactorForTests`), with fewer than two ids, and with an id listed twice.
    - **covers —** `packages/orchestrator/src/proof-config.ts` (the `cluster` field, its two refines and `buildReal`)
    - **proven by —** `packages/orchestrator/src/proof-config.test.ts` (session-authored; no signed verdict)
+8. **`spec-proof-walkthrough-is-read`** — the loader reads a spec's proof walkthrough beside its guidance
+   - **asserts —** a body section whose heading begins `## Proof walkthrough` (the `first`, `(written first)` and `— contract-test` spellings included) loads as `proofWalkthrough`, up to the next `##` heading with its own `###` subheadings kept, while the guidance and contracts around it parse unchanged; a bare `## Proof` heading, or no such section, leaves the key absent.
+   - **covers —** `packages/orchestrator/src/node-spec.ts` (`NodeSpec.proofWalkthrough`, `proofWalkthroughSection` and `loadNodeSpec`)
+   - **proven by —** `packages/orchestrator/src/resolve-prove-spec.walkthrough.test.ts` (session-authored; no signed verdict)
