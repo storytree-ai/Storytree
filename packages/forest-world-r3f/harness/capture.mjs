@@ -32,12 +32,16 @@
 //
 // HOW IT EXITS. 0 when every claim held. 75 when the allowance ran out while the dev server was still
 // holding the page's module requests — a cold start, so run it again against the SAME server. 1 for
-// every other refusal, a broken page included.
+// every other refusal, a broken page and a server serving some other tree included.
 //
-// ⚠ START THE DEV SERVER FROM THE WORKTREE YOU ARE TESTING. A harness left running by another
-// worktree answers on the same port and this script will photograph ITS tree perfectly happily,
-// which is a green that says nothing about your change. `vite harness --port <free port>` and
-// point `ST_HARNESS_URL` at it.
+// ⚠ IT PHOTOGRAPHS ONLY ITS OWN TREE. Every worktree's harness pins the same port, so a harness left
+// running by another worktree answers this script's default URL — and until 2026-09-16 this script
+// photographed ITS tree perfectly happily, a green that said nothing about your change (friction
+// `capture-default-url-is-a-port-a-sibling-worktree-may-own`). The harness server now stamps the
+// directory it serves on every response, and this script refuses, before it forms any verdict about
+// the page, unless that directory is its own; `served-tree.ts` says why the directory alone decides.
+// When it refuses, start the dev server from THIS worktree — `vite harness --port <free port>
+// --strictPort` — and point `ST_HARNESS_URL` at it.
 
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -94,8 +98,16 @@ import {
   parseNavigationAllowance,
   watchNavigation,
 } from './capture-navigation.js';
+// THE SERVED TREE — which checkout the server answering the URL is serving, read off the stamp the
+// harness config's server sets on every response, and the refusal when it is not this one. Its own
+// module for the same reason, and because the SERVER half of the rule lives there too: the header the
+// server writes and the header this script reads are one constant, not two copies.
+import { canonicalDirectory, checkServedTree, describeServer, watchServedTree } from './served-tree.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// THE ONLY TREE THIS SCRIPT CAN JUDGE: the directory its palette, prop and spread declarations were
+// imported from. A page served from anywhere else is refused before a pixel of it is read.
+const OWN_HARNESS = canonicalDirectory(HERE);
 // The output directory is overridable so one capture script serves both evidence pages
 // (the plant row and the island) without a second copy of the readback + refusal logic —
 // this arc already carries three ~700-line compositor copies and a fork detector it had to
@@ -125,6 +137,8 @@ page.on('pageerror', (e) => consoleErrors.push(String(e)));
 // Subscribed BEFORE the navigation, or the requests a cold server holds first — the document and
 // the first modules — are exactly the ones never seen.
 const network = watchNavigation(page);
+// ...and the served-tree stamp on the document response, for the same reason: it is the first to arrive.
+const stamp = watchServedTree(page);
 
 // THE NAVIGATION RUNS UNDER A STATED, BOUNDED ALLOWANCE, never Playwright's unstated 30 s default.
 // A vite serving this page for the first time answers nothing until it has scanned, pre-bundled and
@@ -136,6 +150,15 @@ const network = watchNavigation(page);
 try {
   await page.goto(URL, { waitUntil: 'load', timeout: allowance.ms });
 } catch (error) {
+  // WHICH TREE ANSWERED IS JUDGED BEFORE WHAT WENT WRONG WITH IT. A cold, broken or stalled verdict
+  // about a sibling worktree's page sends the operator off to debug code that is not theirs, so when
+  // the document answered at all, its stamp is checked first. No document means no tree to judge, and
+  // the network explanation below then stands alone.
+  const observation = stamp.observation();
+  if (observation.observed) {
+    const tree = checkServedTree({ url: URL, observation, ownDirectory: OWN_HARNESS, platform: process.platform });
+    if (!tree.ok) fail(tree.message);
+  }
   const refusal = explainNavigationFailure({
     url: URL,
     phase: 'navigation',
@@ -146,6 +169,19 @@ try {
   });
   fail(refusal.message, refusal.exitCode);
 }
+// THE TREE, BEFORE ANYTHING ON THE PAGE IS BELIEVED. Every worktree's harness answers on the same port,
+// so a page that loaded proves only that SOME harness served it. The stamp says which, and anything but
+// this script's own directory is refused here — before the page is judged broken, settled or drawn —
+// because every verdict below applies this tree's declarations to the pixels of whichever tree served
+// the page. `served-tree.ts` holds the rule, and why the directory alone decides.
+const servedTree = checkServedTree({
+  url: URL,
+  observation: stamp.observation(),
+  ownDirectory: OWN_HARNESS,
+  platform: process.platform,
+});
+if (!servedTree.ok) fail(servedTree.message);
+
 // A page `load` has already shown to be broken is refused NOW. The settled wait below could only end
 // in a refusal for it, thirty seconds later and with less to say about why.
 const brokenAtLoad = explainLoadedPage(URL, network.snapshot(), consoleErrors);
@@ -781,6 +817,7 @@ writeFileSync(join(OUT, 'capture-report.json'), JSON.stringify(report, null, 2) 
 
 await browser.close();
 
+console.log(`served     : this checkout's harness — ${describeServer(servedTree.tree)}`);
 console.log(`WebGL      : ${renderer.version} via ${renderer.renderer}`);
 console.log(`software   : ${report.webgl.isSoftware}`);
 console.log(`canvases   : ${delivered.length}`);

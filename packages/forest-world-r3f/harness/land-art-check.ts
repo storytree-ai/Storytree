@@ -23,7 +23,10 @@
 //     none of them could ever be a rung. It also addresses a recorded friction: `vite.config.ts`
 //     pins `strictPort: 5184` for EVERY worktree, so a sibling worktree's harness left running on
 //     the default port means you measure ITS tree and report the number as yours
-//     (`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured 2026-08-22).
+//     (`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured 2026-08-22). Since
+//     2026-09-16 `capture.mjs` also refuses, on its own, any page whose server stamps a directory
+//     other than its own (`served-tree.ts`), so a squatter now costs a refusal rather than a false
+//     green — and starting a server here keeps it from costing even that.
 //
 //     ⚠ AND `port: 0` DOES NOT MEAN WHAT IT MEANS EVERYWHERE ELSE — measured, because the first
 //     draft of this file asserted otherwise in its own comment. Vite does not hand `0` to the OS

@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { servedTreeStamp } from './served-tree.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -61,6 +63,9 @@ function researchRenders(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), researchRenders()],
+  // THE SERVED-TREE STAMP GOES FIRST, so its middleware runs ahead of vite's own and the document and
+  // every module carry it. The port below is the same for every worktree's harness — which is exactly
+  // why `capture.mjs` refuses a page whose stamp names any directory but its own (`served-tree.ts`).
+  plugins: [servedTreeStamp(), react(), researchRenders()],
   server: { port: 5184, strictPort: true },
 });
