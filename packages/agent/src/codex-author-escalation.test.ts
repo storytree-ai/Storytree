@@ -20,6 +20,12 @@
  * variable and returns or throws exactly as the scenario requires, and the test asserts on that
  * capture AFTER `author()` has settled — never inside the callback, where a thrown assertion would
  * be caught and turned into a graceful error result instead of a failing test.
+ *
+ * The two endpoint-level tests at the end of this file call `openCodexFeedbackEndpoint` directly.
+ * That export predates this contract, so the import is not a missing-export red. They go direct for
+ * two reasons. An author always hands its endpoint `recordEscalation`, so only a direct call reaches
+ * an endpoint opened without one. And only a direct exchange can compare a WHOLE JSON-RPC response,
+ * its `jsonrpc` and `id` included.
  */
 import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
@@ -34,8 +40,9 @@ import type {
   CodexPhaseAuthorArgs,
   CodexRunner,
 } from "./codex-author.js";
+import { openCodexFeedbackEndpoint } from "./codex-feedback-endpoint.js";
 import type { CodexFeedbackCommand } from "./codex-feedback-endpoint.js";
-import type { AuthorResult } from "./phase-author.js";
+import type { AuthoringEscalation, AuthorResult } from "./phase-author.js";
 
 const WRITE_GLOBS = {
   AUTHOR_TEST: ["packages/widget/src/**/*.test.ts"],
@@ -142,25 +149,58 @@ interface JsonRpcToolListResponse {
   result?: { tools?: { name: string; description: string; inputSchema: unknown }[] };
 }
 
+/** One listed tool, as a whole-response comparison reads it. */
+interface ListedToolEntry {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+}
+
+/** A `tools/list` response, read whole so its tools can be put in name order before comparing. */
+interface ToolListEnvelope {
+  jsonrpc: unknown;
+  id: unknown;
+  result: { tools: ListedToolEntry[] };
+}
+
+/** One JSON-RPC 2.0 request as these tests send it: `params` is left off entirely when not given. */
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id: number;
+  method: string;
+  params?: unknown;
+}
+
+/** One request's own id beside the WHOLE parsed response, so a test can compare that response exactly. */
+interface RpcExchange {
+  id: number;
+  response: unknown;
+}
+
 let nextRequestId = 1;
 
-async function postRpc<T>(endpoint: McpEndpoint, method: string, params?: unknown): Promise<T> {
-  const id = nextRequestId;
+async function exchangeRpc(
+  endpoint: McpEndpoint,
+  method: string,
+  params?: unknown,
+): Promise<RpcExchange> {
+  const request: JsonRpcRequest = { jsonrpc: "2.0", id: nextRequestId, method };
   nextRequestId += 1;
+  if (params !== undefined) request.params = params;
   const res = await within(
     fetch(endpoint.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.token}` },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id,
-        method,
-        ...(params === undefined ? {} : { params }),
-      }),
+      body: JSON.stringify(request),
     }),
     5_000,
   );
-  return (await res.json()) as T;
+  return { id: request.id, response: await within(res.json(), 5_000) };
+}
+
+async function postRpc<T>(endpoint: McpEndpoint, method: string, params?: unknown): Promise<T> {
+  const { response } = await exchangeRpc(endpoint, method, params);
+  return response as T;
 }
 
 async function listTools(
@@ -607,6 +647,87 @@ test(
 );
 
 test(
+  "codex-escalation-ends-the-slice: an armed author whose runner throws WITHOUT escalating returns the ordinary start failure, carrying no escalation",
+  async () => {
+    await withWorkspace(async (root) => {
+      let armedUrl: string | undefined;
+      const runner: CodexRunner = async (command) => {
+        if (command.args[0] === "login") return loginSuccess();
+        armedUrl = configValue(command.args, "mcp_servers.spine.url");
+        throw new Error("injected exec crash without escalating");
+      };
+      const author = new CodexPhaseAuthor({
+        cwd: root,
+        writeGlobs: WRITE_GLOBS,
+        promotionManifests: PROMOTION_MANIFESTS,
+        isWriteAllowed: () => true,
+        runner,
+        feedbackCommands: [runProofCommand()],
+      } satisfies CodexPhaseAuthorArgs);
+
+      const result = await within(author.author("AUTHOR_TEST", "Author the test."));
+
+      assert.notEqual(armedUrl, undefined, "the author was armed: its exec arguments named the spine endpoint");
+      assert.deepEqual(
+        result,
+        { ok: false, error: "Codex exec failed to start: injected exec crash without escalating" },
+        "with nothing recorded, a thrown runner is the ordinary start failure, word for word",
+      );
+      assert.equal("escalation" in result, false, "the result carries no escalation key at all");
+      assert.equal(author.runs.length, 0, "a thrown runner leaves no stream, so no run record is written");
+      assert.equal(
+        await fileExists(root, "packages/widget/src/widget.test.ts"),
+        false,
+        "nothing was promoted",
+      );
+    });
+  },
+);
+
+test(
+  "codex-escalation-ends-the-slice: an armed author whose runner times out WITHOUT escalating returns the ordinary UNVERIFIED timeout, carrying no escalation",
+  async () => {
+    await withWorkspace(async (root) => {
+      let armedUrl: string | undefined;
+      const runner: CodexRunner = async (command) => {
+        if (command.args[0] === "login") return loginSuccess();
+        armedUrl = configValue(command.args, "mcp_servers.spine.url");
+        return { code: null, stdout: "", stderr: "", timedOut: true };
+      };
+      const author = new CodexPhaseAuthor({
+        cwd: root,
+        writeGlobs: WRITE_GLOBS,
+        promotionManifests: PROMOTION_MANIFESTS,
+        isWriteAllowed: () => true,
+        runner,
+        feedbackCommands: [runProofCommand()],
+      } satisfies CodexPhaseAuthorArgs);
+
+      const result = await within(author.author("AUTHOR_TEST", "Author the test."));
+
+      assert.notEqual(armedUrl, undefined, "the author was armed: its exec arguments named the spine endpoint");
+      assert.deepEqual(
+        result,
+        {
+          ok: false,
+          error:
+            "Codex exec did not return within its bound and was killed — UNVERIFIED, not a failed " +
+            "authoring turn. One known cause is an exhausted ChatGPT subscription quota; a timeout alone cannot confirm it.",
+        },
+        "with nothing recorded, a timed-out runner is the ordinary UNVERIFIED timeout, word for word",
+      );
+      assert.equal("escalation" in result, false, "the result carries no escalation key at all");
+      assert.equal(author.runs.length, 0, "a timed-out runner leaves no stream, so no run record is written");
+      assert.equal(
+        await fileExists(root, "packages/widget/src/widget.test.ts"),
+        false,
+        "nothing was promoted",
+      );
+    });
+  },
+);
+
+test(
   "codex-escalation-ends-the-slice: a recorded escalation wins over a non-zero exit, with the run record still written and nothing promoted",
   async () => {
     await withWorkspace(async (root) => {
@@ -809,13 +930,24 @@ test(
         true,
         "the composed stdin of an armed author ends with the escalation closing",
       );
+      assert.equal(
+        armedStdin?.endsWith(
+          "your final response and file-change report are not promotion evidence.\n\n" + ESCALATION_CLOSING,
+        ),
+        true,
+        "the armed stdin ends EXACTLY with the closing, one blank line after the adapter lines, with nothing after it",
+      );
     });
 
     await withWorkspace(async (root) => {
       let unarmedStdin: string | undefined;
+      let unarmedArgs: string[] | undefined;
+      let unarmedHadBound: boolean | undefined;
       const runner: CodexRunner = async (command) => {
         if (command.args[0] === "login") return loginSuccess();
         unarmedStdin = command.stdin;
+        unarmedArgs = command.args;
+        unarmedHadBound = command.bound !== undefined;
         await fs.writeFile(path.join(command.cwd, "packages/widget/src/widget.ts"), "widget after\n");
         return { code: 0, stdout: successJsonl(), stderr: "" };
       };
@@ -840,6 +972,224 @@ test(
         false,
         "an unarmed author's stdin never mentions the escalate tool",
       );
+      assert.equal(
+        unarmedStdin?.endsWith(
+          "\n\nAfter you stop, the spine will observe the complete replica diff and promote only the " +
+            "observed allowed subset. One unlisted change refuses the whole phase; your final response " +
+            "and file-change report are not promotion evidence.",
+        ),
+        true,
+        "an unarmed author's stdin ends EXACTLY at the adapter's promotion-evidence sentence, with nothing after it",
+      );
+      assert.equal(
+        unarmedArgs?.includes("mcp_servers={}"),
+        true,
+        "an unarmed author's exec arguments carry mcp_servers={}",
+      );
+      assert.equal(
+        configValue(unarmedArgs ?? [], "mcp_servers.spine.url"),
+        undefined,
+        "an unarmed author opens no endpoint: its exec arguments name no spine server, so there is no escalate tool to call",
+      );
+      assert.equal(unarmedHadBound, false, "an unarmed author hands the runner no bound to suspend");
     });
+  },
+);
+
+test(
+  "codex-escalation-ends-the-slice: an endpoint opened without recordEscalation lists no escalate tool and answers an escalate call as an unknown tool",
+  async () => {
+    let recordCalls = 0;
+    const endpoint = await within(
+      openCodexFeedbackEndpoint({
+        phase: "AUTHOR_TEST",
+        // No command runs in this test, so the replica root is never touched.
+        replicaRoot: os.tmpdir(),
+        commands: [runProofCommand()],
+        maxRuns: 5,
+        record: () => {
+          recordCalls += 1;
+        },
+      }),
+    );
+    try {
+      const listing = await exchangeRpc(endpoint, "tools/list");
+      assert.deepEqual(
+        listing.response,
+        {
+          jsonrpc: "2.0",
+          id: listing.id,
+          result: {
+            tools: [
+              {
+                name: "run_proof",
+                description: "Run the spine's package proof against the replica.",
+                inputSchema: { type: "object", properties: {}, additionalProperties: false },
+              },
+            ],
+          },
+        },
+        "without recordEscalation, tools/list is the feedback commands alone",
+      );
+
+      const invalid = await exchangeRpc(endpoint, "tools/call", {
+        name: "escalate",
+        arguments: { statement: "   " },
+      });
+      assert.deepEqual(
+        invalid.response,
+        { jsonrpc: "2.0", id: invalid.id, error: { code: -32602, message: "unknown tool: escalate" } },
+        "an escalate call the escalation branch would refuse is answered as an unknown tool instead",
+      );
+
+      const valid = await exchangeRpc(endpoint, "tools/call", {
+        name: "escalate",
+        arguments: { statement: "the contract names no observable" },
+      });
+      assert.deepEqual(
+        valid.response,
+        { jsonrpc: "2.0", id: valid.id, error: { code: -32602, message: "unknown tool: escalate" } },
+        "a valid escalate call is an unknown tool too: there is nothing to record it",
+      );
+      assert.equal(recordCalls, 0, "no escalate call ever reached the feedback record");
+    } finally {
+      await within(endpoint.close());
+    }
+  },
+);
+
+test(
+  "codex-escalation-ends-the-slice: an endpoint opened with recordEscalation lists escalate with its literal description, and answers each escalate outcome — invalid, recorded, refused as a repeat — as an exact JSON-RPC 2.0 text result",
+  async () => {
+    let recordCalls = 0;
+    const escalations: AuthoringEscalation[] = [];
+    const endpoint = await within(
+      openCodexFeedbackEndpoint({
+        phase: "AUTHOR_TEST",
+        // No command runs in this test, so the replica root is never touched.
+        replicaRoot: os.tmpdir(),
+        commands: [runProofCommand()],
+        maxRuns: 5,
+        record: () => {
+          recordCalls += 1;
+        },
+        recordEscalation: (escalation) => {
+          escalations.push(escalation);
+        },
+      }),
+    );
+    try {
+      const listing = await exchangeRpc(endpoint, "tools/list");
+      const envelope = listing.response as ToolListEnvelope;
+      // Name order, because the contract lists the two tools "in any order"; everything else is compared whole.
+      const tools = [...envelope.result.tools].sort((a, b) => a.name.localeCompare(b.name));
+      assert.deepEqual(
+        { ...envelope, result: { ...envelope.result, tools } },
+        {
+          jsonrpc: "2.0",
+          id: listing.id,
+          result: {
+            tools: [
+              {
+                name: "escalate",
+                description:
+                  "Raise a validated, phase-scoped escalation instead of continuing this authoring slice or working around a frozen input you believe is wrong. Ends the slice without a verdict — it never moves the verdict; the spine alone observes red/green out-of-band. AUTHOR_TEST takes { statement }, IMPLEMENT takes { statement, assertion }. Exactly the first valid call in a slice is recorded; every later call is refused.",
+                inputSchema: {
+                  type: "object",
+                  properties: { statement: { type: "string" }, assertion: { type: "string" } },
+                  required: ["statement"],
+                  additionalProperties: false,
+                },
+              },
+              {
+                name: "run_proof",
+                description: "Run the spine's package proof against the replica.",
+                inputSchema: { type: "object", properties: {}, additionalProperties: false },
+              },
+            ],
+          },
+        },
+        "tools/list is a JSON-RPC 2.0 answer carrying run_proof and escalate, escalate with its literal description and schema",
+      );
+
+      const invalid = await exchangeRpc(endpoint, "tools/call", {
+        name: "escalate",
+        arguments: { statement: "   " },
+      });
+      assert.deepEqual(
+        invalid.response,
+        {
+          jsonrpc: "2.0",
+          id: invalid.id,
+          result: {
+            content: [{ type: "text", text: "escalation requires a non-blank statement" }],
+            isError: true,
+          },
+        },
+        "an invalid escalate call is answered with parseAuthoringEscalation's own reason, as an exact isError text result",
+      );
+
+      const noArguments = await exchangeRpc(endpoint, "tools/call", { name: "escalate" });
+      assert.deepEqual(
+        noArguments.response,
+        {
+          jsonrpc: "2.0",
+          id: noArguments.id,
+          result: {
+            content: [{ type: "text", text: "escalation input must be an object" }],
+            isError: true,
+          },
+        },
+        "an escalate call carrying no arguments is refused with parseAuthoringEscalation's non-object reason, not crashed",
+      );
+      assert.deepEqual(escalations, [], "neither refused call recorded an escalation");
+
+      const recorded = await exchangeRpc(endpoint, "tools/call", {
+        name: "escalate",
+        arguments: { statement: "the contract names no observable" },
+      });
+      assert.deepEqual(
+        recorded.response,
+        {
+          jsonrpc: "2.0",
+          id: recorded.id,
+          result: {
+            content: [{ type: "text", text: "escalation recorded; this slice is ending — stop now." }],
+          },
+        },
+        "the first valid escalate call is answered as recorded, as an exact text result carrying no isError",
+      );
+
+      const repeat = await exchangeRpc(endpoint, "tools/call", {
+        name: "escalate",
+        arguments: { statement: "a second reason" },
+      });
+      assert.deepEqual(
+        repeat.response,
+        {
+          jsonrpc: "2.0",
+          id: repeat.id,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: "an escalation was already recorded for this slice; this call is refused (exactly one escalation may be recorded per slice).",
+              },
+            ],
+            isError: true,
+          },
+        },
+        "a later valid escalate call is refused, as an exact isError text result",
+      );
+
+      assert.deepEqual(
+        escalations,
+        [{ phase: "AUTHOR_TEST", kind: "untestable-contract", statement: "the contract names no observable" }],
+        "exactly the first valid call was recorded",
+      );
+      assert.equal(recordCalls, 0, "no escalate call ever reached the feedback record");
+    } finally {
+      await within(endpoint.close());
+    }
   },
 );

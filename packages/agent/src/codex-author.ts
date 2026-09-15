@@ -401,14 +401,19 @@ const FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC = 60;
  * Codex's own MCP tool-call timeout, raised above the longest `timeoutMs` any registered feedback
  * command carries (ADR-0570 D4): `max(900, ceil(longest / 1000) + 60)` seconds, where `longest` is
  * the largest positive finite `timeoutMs` among `commands`, and `900` when none carries one.
+ *
+ * Only NaN and ±Infinity are filtered out, because either would poison the max: NaN propagates
+ * through `Math.max`, and +Infinity would win it. Nothing else needs a guard, because the 900 floor
+ * absorbs it: a list with no finite bound makes `Math.max()` return `-Infinity`, and a zero or
+ * negative finite bound yields at most `ceil(0 / 1000) + 60 = 60` seconds. The outer max returns
+ * 900 for both, as it does for every bound up to 840,000 ms. (That is why this is not a loop with
+ * a `typeof` check, a `>` comparison and a `<= 0` early return: each of those was redundant in
+ * exactly this way, so no input could observe a change to one, and no test could ever prove it.)
  */
 function computeFeedbackToolTimeoutSec(commands: CodexFeedbackCommand[]): number {
-  let longestMs = 0;
-  for (const command of commands) {
-    const ms = command.timeoutMs;
-    if (typeof ms === "number" && Number.isFinite(ms) && ms > longestMs) longestMs = ms;
-  }
-  if (longestMs <= 0) return FEEDBACK_TOOL_TIMEOUT_SEC;
+  const longestMs = Math.max(
+    ...commands.map((command) => command.timeoutMs).filter((ms): ms is number => Number.isFinite(ms)),
+  );
   return Math.max(
     FEEDBACK_TOOL_TIMEOUT_SEC,
     Math.ceil(longestMs / 1000) + FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC,

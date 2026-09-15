@@ -201,6 +201,7 @@ export async function openCodexFeedbackEndpoint(
         sendJson(res, 200, { jsonrpc: "2.0", id, result });
         return;
       }
+      // Stryker disable next-line OptionalChaining: EQUIVALENT — this line is reached only when `params?.name` above read the string "escalate", which a nullish (or non-object) `params` cannot supply, so `?.` here can never short-circuit.
       const rawArguments = (params as { arguments?: unknown } | undefined)?.arguments;
       const parsed = parseAuthoringEscalation(phase, rawArguments);
       if (!parsed.ok) {
