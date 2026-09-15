@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art, palette-transcription, desktop-route-coverage and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ADR-0556, ground-space, land-art, palette-transcription, desktop-route-coverage and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -166,6 +166,10 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // violations of already-adopted rules reached `main` in the two days before it existed
       // (anti-slop-adoption-arc inc-07).
       "pnpm lint",
+      // ADR-0556 D4, added 2026-09-15 (`repo-manifest-aggregate-leaves-git`): the fragment tree is the
+      // manifest's only bytes once the aggregate left Git. It runs before the three rungs that read the
+      // composed manifest, so a refused set is named once, under the manifest's own name.
+      "pnpm check:manifest-fragments",
       "pnpm check:boundaries",
       "pnpm check:ownership-totality",
       // The ADR-0445 D1 camp fence, added 2026-08-26: offline, disk-only and this branch's to fix,
@@ -766,5 +770,29 @@ test("a rung promoted to a merge wall does not keep describing itself as local-o
     step.why,
     /NO LONGER in `DECLARED_LOCAL_ONLY`/,
     "the entry must record that it left the local-only set, since gate-ci-parity's declaration is the thing a reader cross-checks",
+  );
+});
+
+test("the manifest's own rung runs before every rung that reads the manifest — a refused fragment tree is named once, under its own name", () => {
+  // ADR-0556 D4 (`repo-manifest-aggregate-leaves-git`): the committed aggregate left Git, so the fragments are the
+  // manifest's only bytes. Three rungs read the composed manifest and each stands down on a refused set; this one
+  // judges the set itself, so its verdict has to arrive first.
+  const at = (command: string) => GATE_PLAN.findIndex((entry) => entry.command === command);
+  const step = GATE_PLAN[at("pnpm check:manifest-fragments")];
+  assert.ok(step, "check:manifest-fragments must be in the gate plan");
+  assert.deepEqual(
+    { command: step.command, check: step.check, subject: step.subject, cost: step.cost },
+    { command: "pnpm check:manifest-fragments", check: "check:manifest-fragments", subject: "own-work", cost: "seconds" },
+  );
+  for (const reader of ["pnpm check:boundaries", "pnpm check:ownership-totality", "pnpm check:hierarchy-camps"]) {
+    assert.ok(at("pnpm check:manifest-fragments") < at(reader), `the manifest's rung must run before ${reader}`);
+  }
+  assert.ok(
+    PRE_EXPENSIVE_CHECKS.has("check:manifest-fragments"),
+    "it costs seconds and a red there is this branch's, so it runs ahead of the expensive legs",
+  );
+  assert.match(
+    step.why,
+    /does not compose, when a fragment is not written exactly as the composer writes it .*when a `repo-manifest\.json` sits beside the tree \(ADR-0556 D4\)/,
   );
 });

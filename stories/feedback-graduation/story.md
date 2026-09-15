@@ -175,7 +175,8 @@ the accumulated signal warrants.
 > ADR-0068 DISSOLVED — and [`archive-with-reason`](archive-with-reason.md) was the same shape;
 > [`signal-synthesis`](signal-synthesis.md) was explicitly headed "Contracts (would-be)". *(All three
 > are now RETIRED — 2026-08-31 — which is the end-state this observation was pointing at.)* Meanwhile
-> `packages/cli/src/friction.test.ts` is owned at STORY grain — `repo-manifest.json` →
+> `packages/cli/src/friction.test.ts` is owned at STORY grain —
+> `repo-manifest/source-ownership/feedback-graduation.json` →
 > `sourceOwnership.subtrees` maps `packages/cli/src/*friction*.ts` to `feedback-graduation`, not to
 > any capability. So these legs are the ONLY assertion of the landed friction seam anywhere in the
 > hierarchy; deleting them would delete the claim, not relocate it, which is exactly the case

@@ -38,7 +38,8 @@ proposals for operator review.
 Re-scoping would mean rewriting this node to describe what is actually wanted now — but what is
 wanted now is **already delivered, and delivered as an AGENT rather than as a capability**. The
 adjudicator is a live Library artifact of kind `agent`; the mechanism it chairs is code owned at
-STORY grain (`repo-manifest.json` maps `packages/cli/src/*friction*.ts` to `feedback-graduation`);
+STORY grain (`repo-manifest/source-ownership/feedback-graduation.json` maps
+`packages/cli/src/*friction*.ts` to `feedback-graduation`);
 and the judgement it performs is this story's UAT leg 4, deliberately witnessed by a human. Every
 piece of the outcome therefore has a live owner already. A re-scoped capability here would own
 nothing that is not owned, and would re-introduce a node the prove-it gate could never discharge.

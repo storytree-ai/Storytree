@@ -38,7 +38,8 @@ evidence is REQUIRED on every entry (an evidence-free "me too" is refused fail-c
 is the filing branch, and `reinforcedBy.length` is testimony an adjudicator weighs and never a stored
 counter to increment or forge. Built and tested in `packages/cli/src/friction.test.ts` ("reinforce
 appends a reinforcedBy entry (never a twin)", "reinforce without --evidence is refused", "new refuses
-re-filing an existing id"). That code is owned at STORY grain — `repo-manifest.json` maps
+re-filing an existing id"). That code is owned at STORY grain —
+`repo-manifest/source-ownership/feedback-graduation.json` maps
 `packages/cli/src/*friction*.ts` to `feedback-graduation` — so re-scoping this node onto it would
 mint a capability for behaviour the corpus already owns and already proves.
 

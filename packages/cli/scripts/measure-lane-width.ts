@@ -44,6 +44,7 @@ import {
   STRICT,
   attributeChurn,
   forgiveOnly,
+  forwardReading,
   marginalRanking,
   measure as measureWidth,
   storyKeys,
@@ -51,6 +52,7 @@ import {
   type ForgivePolicy,
   type Kind,
   type SurfaceEdit,
+  type SurfaceSplit,
   type Unit,
 } from "../src/lane-width.js";
 
@@ -273,6 +275,23 @@ const DE_REGISTRIED = [
   // the hardcoded REAL-buildable catalogue, derived from the story specs instead (2026-08-10).
   // 127 of the 157 commits that ever touched this file edited that one list.
   "packages/cli/src/node-build.test.ts",
+  // ADR-0556: split into fragment files under `repo-manifest/` (2026-09-15), and the aggregate left Git with
+  // `repo-manifest-aggregate-leaves-git`. Forgiving it HERE is the historical counterfactual; what the split
+  // bought on landings made after it is the separate FORWARD reading below, never folded into this one.
+  "repo-manifest.json",
+];
+
+/**
+ * Surfaces split into a successor directory. Each gets a FORWARD baseline (`forwardReading` in lane-width.ts):
+ * the landings on or after `since`, as they landed beside the same landings folded back into the one file. It is
+ * reported apart from `programme`, which is a counterfactual over history — the two answer different questions.
+ *
+ * The baseline policy is `todayBase` and never `FULL`, deliberately: `FULL` forgives every registry surface, the
+ * split one included, which would forgive the fold and report no difference by construction.
+ */
+const SPLIT: readonly SurfaceSplit[] = [
+  // #1925 moved `sourceOwnership` into `repo-manifest/` on 2026-09-15, and #1931 every other section the same day.
+  { surface: "repo-manifest.json", successor: "repo-manifest/", since: "2026-09-15" },
 ];
 
 const marginal = {
@@ -310,6 +329,15 @@ const marginal = {
       forgiveOnly([...ALREADY_FIXED.filter((f) => REGISTRY.has(f)), ...DE_REGISTRIED]),
     ),
   },
+  /**
+   * The FORWARD baseline per split surface: landings since the split, as landed beside folded back into the one
+   * file. Never added to `programme` above — that is a counterfactual over history, this reads work done after.
+   */
+  forward: SPLIT.map((split) => ({
+    ...split,
+    build: forwardReading(arcsSince(), (k) => k === "build", split, todayBase),
+    all: forwardReading(arcsSince(), () => true, split, todayBase),
+  })),
 };
 
 // ---------------------------------------------------------------- 8. report
@@ -367,5 +395,30 @@ for (const [name, r] of [
 console.log(`\nregistries only (no per-arc records): build ${pct(marginal.registriesOnly.build.shareWavesGe2)}  all ${pct(marginal.registriesOnly.all.shareWavesGe2)}`);
 console.log(`PROGRAMME (counterfactual — surfaces actually de-registried: ${DE_REGISTRIED.join(", ") || "none"})`);
 console.log(`   build ${pct(marginal.build.baseline.shareWavesGe2)} -> ${pct(marginal.programme.build.shareWavesGe2)}   all ${pct(marginal.all.baseline.shareWavesGe2)} -> ${pct(marginal.programme.all.shareWavesGe2)}`);
+
+for (const split of SPLIT) {
+  const historical = marginal.build_since_2026_08_04.surfaces.find((s) => s.surface === split.surface);
+  console.log(
+    `\nHISTORICAL COUNTERFACTUAL — ${split.surface} forgiven alone over post-2026-08-04 build landings: ` +
+      (historical
+        ? `+${pct(historical.deltaShareWavesGe2)} waves>=2 (ADR-0556's 2026-09-08 reading was +3.2%)`
+        : "not a registry surface in this population"),
+  );
+}
+for (const f of marginal.forward) {
+  console.log(
+    `FORWARD BASELINE — ${f.surface} split into ${f.successor} since ${f.since} ` +
+      "(work done after the split, never added to the counterfactual)",
+  );
+  for (const [name, r] of [
+    ["build", f.build],
+    ["all", f.all],
+  ] as const) {
+    console.log(
+      `   ${name}: ${r.landings} landing(s) since, ${r.touching} touching it; waves>=2 as landed ` +
+        `${pct(r.split.shareWavesGe2)}, folded back into the one file ${pct(r.aggregate.shareWavesGe2)}`,
+    );
+  }
+}
 
 console.log(`\nwrote ${outFile}`);

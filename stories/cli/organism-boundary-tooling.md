@@ -153,7 +153,8 @@ The integration test would:
    grandfather register — regardless of any declared edge — so a NEW story cannot squat in a foreign
    building at all (packages-forward)
    - **asserts —** `checkBoundaries` reads one new optional input — `hostedStories` (the frozen grandfather
-     register of currently-hosted story ids, from `repo-manifest.json`) — and, reusing rule 5's evidence
+     register of currently-hosted story ids, from `repo-manifest/hosted-stories/_domain.json`) — and, reusing
+     rule 5's evidence
      (`unitSourceFiles`/`dirOwners`, `buildingDirOf`, the per-`(S, T)` dedup), for each story `S` with a
      mapped foreign-hosting pair `(S, T)` where `S` is NOT registered appends one refusal per `(S, T)` pair
      naming the story, host, building dir, and an example file — **regardless of any declared edge** (a
@@ -165,7 +166,8 @@ The integration test would:
      unmapped buildings, and an ABSENT `hostedStories` are all clean; an EMPTY `[]` register is
      defined-not-absent and fail-closed (every hosted story refused). At adoption (2026-07-13) the
      register held 18 story ids with a mapped foreign-hosting pair, all already carrying a declared host
-     edge (ADR-0192); `repo-manifest.json` is its only source of truth and membership has since moved in
+     edge (ADR-0192); `repo-manifest/hosted-stories/_domain.json` is its only source of truth and membership
+     has since moved in
      both directions under review — see the contract's own `hostedStories` bullet, which deliberately
      does not re-enumerate it. `boundaries.ts` stays import-free so the suite proves offline.
    - **proven by —** `packages/cli/src/boundaries.test.ts` — passing at HEAD against

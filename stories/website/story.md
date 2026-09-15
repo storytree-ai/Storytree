@@ -82,7 +82,8 @@ Decision 3 / ADR-0093
 §3 / ADR-0056
 — the boundary that keeps the private corpus out of the public repo). It is a *separate repo*, not a
 workspace package, so there is **no `package.json` dependency to scan** and the site is **not** listed
-in `repo-manifest.json packageOwnership.surfaces` (which carries `apps/*` apps only — `studio` is the
+in `repo-manifest/package-ownership/_domain.json` → `packageOwnership.surfaces` (which carries
+`apps/*` apps only — `studio` is the
 first). It is a **declared story node** instead, and the cross-repo analog of the package-import scan
 is the **drift gate**: `check:web-engine` is the mechanism that proves the `forest-world` edge is live
 (ADR-0100

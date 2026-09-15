@@ -54,7 +54,8 @@ decisions: [560, 486]
 #
 # ✅ THE BUILDING EXISTS NOW, AND THE `proof:` BLOCK IS RESTORED — 2026-08-31
 # (`prove-unproven-capabilities-arc` inc-28). `packages/ci-cd` was created for this unit and
-# `repo-manifest.json` maps `"@storytree/ci-cd": "ci-cd"` in `packageOwnership.organisms`, so
+# `repo-manifest/package-ownership/_domain.json` maps `"@storytree/ci-cd": "ci-cd"` in
+# `packageOwnership.organisms`, so
 # `readDirOwners` now answers `dirOwners["packages/ci-cd"] === "ci-cd"` and the `real.sourceFile`
 # below sits in this story's OWN building — rules 5 and 6 both skip it (`host === story`) rather than
 # being satisfied by an edge or a register entry. That was PROVED with the real `check:boundaries`

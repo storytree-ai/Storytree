@@ -56,7 +56,8 @@ edges from its units' `proof.real.sourceFile` imports — as a NON-BLOCKING repo
 
 > **The gap this closes (ADR-0115).**
 > The blocking boundary gate (ADR-0074)
-> maps packages→stories via `repo-manifest.json` `packageOwnership`, so it is BLIND to a **virtual
+> maps packages→stories via `packageOwnership` (`repo-manifest/package-ownership/_domain.json`), so
+> it is BLIND to a **virtual
 > story** — one owning no package, its code physically hosted in packages owned by other stories — and
 > to IoC / build-artifact seams. A
 > virtual story's hand-authored `depends_on` can drift with ZERO gate signal — exactly what happened when

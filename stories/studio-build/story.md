@@ -23,7 +23,7 @@ capabilities: [build-run-registry, build-intent-api, ui-build-trigger]
 # WERE compelled: `map-terminal-build` (ADR-0404 D4) and `desktop-build-mount` (ADR-0422 D4) each had
 # capabilities whose `real:` arms bound deleted files, so ADR-0252 D3 left RETIRE as the only
 # sanctioned drain. This story has no `real:` arm on any capability and appears nowhere in
-# `repo-manifest.json`, so it binds no file, breaches no ceiling, and reds no rung —
+# the repo manifest (`repo-manifest/`), so it binds no file, breaches no ceiling, and reds no rung —
 # `contract-binding-drift`, the coverage drain and `check:boundaries` were all silent on it before
 # ADR-0422 and after. That invisibility is exactly why it outlived two decisions that retired its
 # siblings, and exactly why it had to be retired deliberately: it misinforms readers and nothing else.

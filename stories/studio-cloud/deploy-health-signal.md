@@ -249,7 +249,8 @@ session alongside the green unit, NOT proven by a `--real` contract:
   WARN-only tail). Wiring, not behaviour.
 
 Both live OUTSIDE this capability's write scope (`packages/cli/src/deploy-health.{ts,test.ts}` only). The
-session also updates the `hostedStories` register annotation for `studio-cloud` in `repo-manifest.json`
+session also updates the `hostedStories` register annotation for `studio-cloud` in
+`repo-manifest/hosted-stories/_domain.json`
 (currently `"hosted in studio (apps/studio)"`) to record the new `cli` hosting — a human annotation, not a
 gate-read key, and outside `stories/**`.
 

@@ -2,6 +2,7 @@
   "sourceOwnership": {
     "subtrees": {
       "packages/cli/src/*boundaries*.ts": "organism-boundary-tooling",
+      "packages/cli/src/*manifest-fragments*.ts": "organism-boundary-tooling",
       "packages/cli/src/*ownership*.ts": "organism-boundary-tooling",
       "packages/drive/src/manifest-fragments*.ts": "organism-boundary-tooling",
       "packages/drive/src/source-ownership-map.ts": "organism-boundary-tooling",

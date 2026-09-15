@@ -116,7 +116,7 @@ other.
 - This story does NOT depend on `@storytree/drive`. Session identity is resolved by the CALLER and
   passed in (the increment-2 rule, ADR-0241 D9); importing `deriveIdentity()` here would make
   `drive → spawn → drive` a cycle.
-- `repo-manifest.json` → `packageOwnership.organisms` carries
+- `repo-manifest/package-ownership/_domain.json` → `packageOwnership.organisms` carries
   `"@storytree/context-traversal-spawn": "context-traversal-spawn"`. This story is NOT in the
   `hostedStories` register and must never be added to it: every proof-bound source it claims lives
   inside its own package. The drive/CLI-side lines it needs are un-asserted connective glue

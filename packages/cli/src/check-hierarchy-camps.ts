@@ -45,7 +45,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { readRepoManifest, refusalReasons, REPO_MANIFEST } from "@storytree/drive";
+import { readRepoManifest, refusalReasons, REPO_MANIFEST_TREE } from "@storytree/drive";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import {
@@ -93,13 +93,13 @@ function walk(dir: string, out: string[]): void {
 }
 
 function main(): void {
-  const manifestPath = join(repoRoot, REPO_MANIFEST);
-  // Composed with the fragment tree beside it (ADR-0556). An absent aggregate, an unreadable tree and a
-  // malformed set are all refusals, and each is a BLIND CHECK: there is no map to judge against.
-  const composition = readRepoManifest(manifestPath);
+  const manifestTree = join(repoRoot, REPO_MANIFEST_TREE);
+  // The fragment tree, composed (ADR-0556). An absent tree, an unreadable one and a malformed set are all
+  // refusals, and each is a BLIND CHECK: there is no map to judge against.
+  const composition = readRepoManifest(manifestTree);
   if (!composition.ok) {
     console.error(
-      `${TAG} BLIND CHECK — the repo manifest at ${manifestPath} did not compose: ${refusalReasons(composition.faults)}`,
+      `${TAG} BLIND CHECK — the repo manifest at ${manifestTree} did not compose: ${refusalReasons(composition.faults)}`,
     );
     process.exit(1);
   }

@@ -116,7 +116,7 @@ scaffolding, never landlord evidence, so the UAT may spawn the CLI without claim
 statement about what is on disk, so it reads the trace file as text and searches for the canary
 string.
 
-**Landing order.** Land the story's declared edges and the `repo-manifest.json` ownership entry BEFORE
+**Landing order.** Land the story's declared edges and the repo manifest's package-ownership entry BEFORE
 this capability, or `check:boundaries` goes red on the undeclared `cli` → capture-package runtime edge
 rather than on anything in the code. Run `pnpm install` after the package exists or the worktree
 cannot resolve it. Expect `check:surface-coverage` to WARN that the new `traversal` area is an orphan

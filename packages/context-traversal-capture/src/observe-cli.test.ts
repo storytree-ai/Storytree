@@ -586,6 +586,13 @@ test("an area declared to carry no corpus reads observes nothing, and says why",
   }
 });
 
+test("the write-authority area names what the wall is derived from — the manifest's root allow-list, not the aggregate that left Git", () => {
+  assert.equal(
+    AREAS_WITHOUT_CORPUS_READS["write-authority"],
+    "installs the write wall from the repo manifest's root allow-list",
+  );
+});
+
 test("the matcher probes deep enough for the deepest key the table holds", () => {
   // A key longer than the probe would simply never match, and nothing else would say so — the
   // verb would be classified, look classified, and observe nothing. `library tree focus *` is four

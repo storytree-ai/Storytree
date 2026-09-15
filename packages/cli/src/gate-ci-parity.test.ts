@@ -419,6 +419,10 @@ const DECLARED_SHARED_FLOOR = [
   "check:uat-revision-continuity",
   "check:land-art",
   "check:library-dag-acyclic",
+  // ADR-0556 D4, added 2026-09-15 by `repo-manifest-aggregate-leaves-git`: the fragment tree is the manifest's
+  // only bytes once the aggregate left Git, so the proof that it composes and is written in its one form sits on
+  // both the habit and the wall.
+  "check:manifest-fragments",
   "check:mirror-conformance",
   "check:mirror-conformance-live",
   "check:mutation-diff",

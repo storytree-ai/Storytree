@@ -138,7 +138,7 @@ two claims at once, which is the entire point of the split.
 - **Never reach up to add what you need.** If a dressing change wants a new constant in
   `kit-vocabulary` or a new light knob in `light-calibration`, land that upstream as its own unit
   and consume it here. Editing an upstream module from this lane is how the boundary quietly dies,
-  and it is what the ownership fence in `repo-manifest.json` exists to make visible.
+  and it is what the ownership fence in `repo-manifest/source-ownership/` exists to make visible.
 - **Prop art is retunable here; prop TAXONOMY is not.** Adding a new kind of object to the
   vocabulary is a scene-model change (ADR-0475's one-object-per-capability rule is a vocabulary
   rule).

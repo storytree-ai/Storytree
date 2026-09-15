@@ -798,7 +798,8 @@ A next unit that forks to a different workstream/surface, arrives on degraded co
   `~/.claude/settings.json` refuses `Write`/`Edit`/`NotebookEdit` anywhere under `C:\code\storytree`
   itself — you get *"File is in a directory that is denied by your permission settings"*. That is not a
   bug and not yours to route around: work in your worktree. Regenerate the block (never hand-edit it —
-  it is DERIVED from `repo-manifest.json`) with `pnpm storytree write-authority install --write`.
+  it is DERIVED from the repo manifest's root allow-list, `repo-manifest/repo-surface/_domain.json`) with
+  `pnpm storytree write-authority install --write`.
   **Read the scope precisely (ADR-0284):** the wall is that static block and nothing else. It binds
   three file tools; **Bash is not bound**, so a shell write into the lobby still succeeds and is still
   a violation. It is claim-blind, so it permits everything under `.claude/worktrees` — a write into a
