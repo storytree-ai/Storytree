@@ -2575,7 +2575,7 @@ function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourCla
     contractIds: surface.contractIds,
     files: surface.absTestFiles.map((abs) => {
       try {
-        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8")) };
+        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8"), abs) };
       } catch {
         return { file: toRel(abs), observed: [] };
       }
@@ -2628,7 +2628,7 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
       // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
       // reads uncovered. `unreadTitles` rides along so the report can distinguish a contract NO test
       // names from one whose test has a title the static reader could not read.
-      const surface = readTestSurface(readFileSync(f, "utf8"));
+      const surface = readTestSurface(readFileSync(f, "utf8"), f);
       testNames.push(...surface.vouching);
       unreadTitles += surface.unreadTitles;
     } catch {

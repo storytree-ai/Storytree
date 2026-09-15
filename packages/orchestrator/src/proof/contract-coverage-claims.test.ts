@@ -15,8 +15,11 @@ import { analyzeObservedTests, classifyBehaviourClaims } from "./contract-covera
  * title reported as an absent claim.
  */
 
-/** Parse a fixture source into observed tests — the classifier's real input, never a hand-built one. */
-const observe = (src: string): ReturnType<typeof analyzeObservedTests> => analyzeObservedTests(src);
+/**
+ * Parse a fixture source into observed tests — the classifier's real input, never a hand-built one.
+ * The fixtures are plain TypeScript, so each is read as a `.ts` test file (the name selects the parse).
+ */
+const observe = (src: string): ReturnType<typeof analyzeObservedTests> => analyzeObservedTests(src, "fixture.test.ts");
 
 test("classifyBehaviourClaims: a substantive behaviour NO contract names is CONTRACTLESS (the citation gap)", () => {
   const src = `

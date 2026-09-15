@@ -183,7 +183,8 @@ The test would:
 1. Install the scripted `window.desktopTerminal` (spawn → a fresh `sess-N` per call) + `vi.mock` xterm (the
    existing harness). Render `<TerminalDock/>`, expand it, and let the FIRST tab's session resolve (the
    active session — stand-in for the user's Claude Code). Hoist the seed to a `const`
-   (`const seed = { command, token: 1 }`) to avoid the coverage `.tsx` inline-prop trap.
+   (`const seed = { command, token: 1 }`) to avoid the coverage `.tsx` inline-prop trap *(resolved
+   2026-09-15 by `batched-test-authoring-arc-inc-06` — no longer needed; see the edited-test note below)*.
 2. Rerender with `seed` → assert a SECOND `spawn` (a fresh tab), that the new tab is active, and once its
    session resolves `bridge.write(newSessionId, command)` was called — the open-a-fresh-tab + pre-fill
    (`son-seed-opens-a-fresh-tab`).
@@ -258,7 +259,9 @@ REPLACING the five `tds-*` cases.
   test whose assertions follow an INLINE JSX object prop (`<TerminalDock seed={{ command, token }}/>`) can
   read as uncovered — hoist the seed to a `const` before the assertions
   (`const seed = { command, token: 1 }; render(<TerminalDock seed={seed}/>)`), the shape the existing suite
-  already uses.
+  already uses. *[Resolved 2026-09-15 by `batched-test-authoring-arc-inc-06`: the static read now parses a
+  `.tsx` test file as TSX, so an inline JSX prop no longer hides a test from `storytree coverage` or from the
+  per-test join (ADR-0573 D1), and the hoist is no longer needed.]*
 - **The RED the spine observes —** the new cases render `<TerminalDock seed={…}/>` WITH a pre-existing
   active session and assert (1) a FRESH session was spawned + switched-to + pre-filled and (2) the active
   session's `bridge.write` was NOT called with the command; against the write-to-active behaviour

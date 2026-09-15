@@ -127,9 +127,12 @@ interface EnclosingDeclaration {
  * PURE: the LEAF tests a test file declares, read with ADR-0126's production parser. A container — a
  * suite, or a test holding tests — is not itself a test; nor is an empty suite, which no runner reports
  * as a test row. A leaf under a runtime-titled or `.each` suite inherits that suite's unbindability.
+ * `testFile` is the file's own path, and it selects the parse: read as plain TypeScript, a `.tsx` file
+ * loses the suite around a test that follows JSX, and the join then refuses a correct test
+ * ({@link analyzeObservedTests}).
  */
-export function declaredTestsOf(testSource: string): DeclaredTest[] {
-  const observed = analyzeObservedTests(testSource);
+export function declaredTestsOf(testSource: string, testFile: string): DeclaredTest[] {
+  const observed = analyzeObservedTests(testSource, testFile);
   const enclosing = new Map<string, EnclosingDeclaration>();
   for (const t of observed) {
     for (let depth = 1; depth <= t.ancestors.length; depth += 1) {
@@ -549,7 +552,7 @@ type DeclaredRead = { ok: true; tests: DeclaredTest[] } | { ok: false; reason: s
 function readDeclaredTests(testFile: string): DeclaredRead {
   if (!existsSync(testFile)) return { ok: true, tests: [] };
   try {
-    return { ok: true, tests: declaredTestsOf(readFileSync(testFile, "utf8")) };
+    return { ok: true, tests: declaredTestsOf(readFileSync(testFile, "utf8"), testFile) };
   } catch (error) {
     return { ok: false, reason: `the test file ${testFile} could not be read: ${String(error)}` };
   }
