@@ -381,6 +381,25 @@ the now-settled modeling call.
 - [`node-build-escalation-envelope`](node-build-escalation-envelope.md) — contract grain, spec-borne,
   edit-existing proof over the drive envelope, proposed (ADR-0569). It renders a returned escalation
   with its unit, run and test id, and names an overruled one, without adding a command path.
+- [`real-brief-carries-test-revision`](real-brief-carries-test-revision.md) — contract grain,
+  spec-borne, edit-existing proof over `realPrompts`, proposed (ADR-0571). A REAL build handed a test
+  revision briefs its AUTHOR_TEST leaf with the prior run's escalation and the spine's observation
+  behind it, and leaves the IMPLEMENT brief unchanged. It builds after
+  `gate-routes-authoring-escalation`.
+- [`revision-record-round-trip`](revision-record-round-trip.md) — contract grain, spec-borne,
+  edit-existing proof over the drive's per-user revision record, proposed (ADR-0571). A failed build's
+  returned escalation round-trips through `~/.storytree/escalations/<unit-id>/<run-id>.json`, and a
+  bad record is refused with its reason. It builds after `real-brief-carries-test-revision` and
+  `node-build-escalation-envelope`.
+- [`build-node-real-threads-revision`](build-node-real-threads-revision.md) — contract grain,
+  spec-borne, edit-existing proof over `buildNodeReal`, proposed (ADR-0571). It hands a supplied
+  revision to the AUTHOR_TEST brief and records a returned escalation where its caller supplies a
+  directory. It builds after `revision-record-round-trip`.
+- [`node-build-revise-test`](node-build-revise-test.md) — contract grain, spec-borne, edit-existing
+  proof over `nodeBuild`, proposed (ADR-0571). `node build --real --revise-test <run-id>` reads the
+  record before any spend, refuses a missing or foreign one, and names the record a failed build
+  leaves together with the command that revises against it. It builds after
+  `build-node-real-threads-revision`.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
