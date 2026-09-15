@@ -102,6 +102,36 @@ the renderers' returned lines. The test file is NEW:
 `packages/drive/src/node-build-revise-test.test.ts`. The existing `packages/cli/src/node-build.test.ts`
 is not in this contract's write scope.
 
+**As built (signed PASS on the first attempt, run `real-mu20lsxo`, merged non-squash at `78e9aadd`).**
+The signed test has eleven tests and differs from the walkthrough above in these ways:
+
+- **No stage is ever recorded.** Every `nodeBuild` call runs on `silentBuildProgress()` or the default
+  progress, and the `ensureDb` spy only counts its calls. So none of these is exercised:
+  - "no stage recorded" in steps 1–3;
+  - step 4's two ordered stages;
+  - `ensureDb` running inside the second stage.
+- **Step 1** is checked for both `--dry-run` and `--live`.
+  - Each envelope deep-equals the exact refusal, whose `next` is
+    `storytree node build <unitId> --real --revise-test <runId>`. It is not empty.
+  - The unit id resolves to no spec, and the body never mentions "no node spec". That shows the check
+    precedes spec lookup.
+  - An `actor` is supplied, so precedence over the signer is not shown.
+  - A second test shows that a `--real` build is never refused by the mode check.
+- **Step 2** passes no `runtime`. The envelope deep-equals
+  `{ ok: false, body: <readTestRevision's own reason>, next: [] }`, and `ensureDb` is never called.
+- **Step 3's record is a minimal hand-written `{ unitId: <another unit>, runId }`**, not a copy of
+  another unit's valid record. `readTestRevision`'s reason names both unit ids. The envelope
+  deep-equals `{ ok: false, body: that reason, next: [] }`, and `ensureDb` is never called.
+- **Step 4's record** is written by `writeRevisionRecord` from a real `proveUnit` AUTHOR_TEST
+  escalation walk. It passes the read, `ensureDb` is called exactly once, and the body is exactly the
+  build's own DB-preflight refusal carrying the marker.
+- **Step 5 pins every line exactly:**
+  - `renderRevisingLine` for an AUTHOR_TEST revision from a real walk, and for an IMPLEMENT revision
+    built with `parseAuthoringEscalation`;
+  - `renderRevisionRecord` with no write (`[]`);
+  - a written record under `codex`, `claude` and `pi`;
+  - an unwritten record, which names no command.
+
 ## Guidance
 
 **Leaf test acceptance (prompt-exposed).** AUTHOR_TEST and IMPLEMENT both read this whole file —
@@ -118,6 +148,12 @@ Only `nodeBuild`, `NodeBuildOpts` and two new renderers in `packages/drive/src/n
 - **The mode check (ADR-0571 D3).** A `reviseTest` without `real` is refused beside the existing
   `--runtime` mode checks, before the signer resolves or the spec loads. The body names
   `--revise-test` and `--real`.
+
+  As built, the body reads `--revise-test is valid only with --real: it hands a prior attempt's
+  returned escalation to the AUTHOR_TEST leaf as this REAL build's revision brief, and neither
+  --dry-run nor --live authors at real repo paths (ADR-0571 D3).`. Its `next` is
+  `storytree node build <unitId> --real --revise-test <runId>`. Only the two record-read refusals
+  return an empty `next`.
 - **The read, before any spend (ADR-0571 D3).** It runs after the REAL prechecks and the
   `dbProofEnv` and add-deps resolution, and before the leaf-prompt rendering, the DB preflight, the
   claim and the worktree:
@@ -135,6 +171,10 @@ Only `nodeBuild`, `NodeBuildOpts` and two new renderers in `packages/drive/src/n
   `escalationsDir`. `let revisionWrite: RevisionWrite | undefined;` is declared beside
   `let promotion`, and `revisionWrite = built.revisionWrite;` is assigned beside
   `promotion = built.promotion;`.
+
+  As built, the two fields are plain assignments after the `realArgs` literal's optional fields:
+  `realArgs.testRevision = testRevision;` and `realArgs.escalationsDir = escalationsDir;`. They
+  still carry no mutable expression.
 - **The renderers.** Both are exported and pure.
   - `renderRevisingLine(revision: TestRevision | undefined): string[]` returns `[]`, or one line naming
     the prior run id, the raising phase and the test id, and saying this build is an ADR-0563 D6 test
@@ -145,6 +185,11 @@ Only `nodeBuild`, `NodeBuildOpts` and two new renderers in `packages/drive/src/n
     The command carries the runtime the failed build ran, so running it as printed does not switch
     leaves (ADR-0571 D3). An unwritten record gives one line naming the path and the reason, and saying
     the escalation block above must be relayed by hand. It names no command.
+  - **As built, the three lines read:**
+    - `` revising:    run <runId> (<phase> escalation, test <testId>) — this build is an ADR-0563 D6 test revision: one D4 attempt, `revised-test`. ``,
+      where `<phase>` is the raised escalation's own phase literal;
+    - `revision:    written to <path> — re-run with: storytree node build <unitId> --real --runtime <runtime> --revise-test <runId>`;
+    - `revision:    NOT written (<path>): <reason> — relay the escalation block above to the owner by hand`.
 - **The call sites (ADR-0571 D2, extending ADR-0569 D5).** The header spreads
   `...renderRevisingLine(testRevision)` directly after its `runtime:` line. The failure body spreads
   `...renderRevisionRecord(spec.id, runId, runtime, revisionWrite)` directly after
@@ -177,16 +222,23 @@ Only `nodeBuild`, `NodeBuildOpts` and two new renderers in `packages/drive/src/n
   - `loadFixtureCorpus` from `@storytree/library/fixture`;
   - `parseAuthoringEscalation` from `@storytree/agent`;
   - `fixtureRepo` and `fixtureStories` from `./real-chain-fixture.js`.
-- **Outside this contract.** `story build` stays as it is, and so do the CLI's argument table and
-  help text in `packages/cli/src/commands.ts` and the gate build driver.
+- **Outside this contract.** The CLI wiring lives in `packages/cli/src/commands.ts`, where
+  `nodeStoryBuildOpts` maps `--revise-test` onto `NodeBuildOpts.reviseTest` and
+  `storyBuildFromValues` refuses the flag. Its tests are in `packages/cli/src/node-build.test.ts`,
+  `story-build.test.ts`, `build.test.ts` and `at-path.test.ts`. The gate build driver is unchanged.
 
-**Declared, not observed by this test.** The REAL arm's pass-through is confirmed by reading and is
-not observed: the two `realArgs` fields, the `revisionWrite` declaration and copy, and the two spread
-call sites.
+**Declared, not observed by this test.** The as-built paragraph under `## Proof walkthrough` names
+what the signed test checks in place of each step. Beyond that:
+
+- The REAL arm's pass-through is confirmed by reading, not observed: the two `realArgs` assignments,
+  the `revisionWrite` declaration and copy, and the two spread call sites.
+- Nothing observes a progress stage. So "before any stage" and the prompt-render-then-preflight order
+  are confirmed by the source's order, not by the test.
+- The mode check's precedence over the signer is confirmed by reading.
 
 ## Contracts (1)
 
 1. **`node-build-takes-a-revision-and-names-the-record-it-leaves`** — node build reads a named revision record before any spend, refuses a bad one, and names the record a failed build leaves with the command that revises against it.
    - **asserts —** `nodeBuild` given `reviseTest` without `real` refuses with a body naming `--revise-test` and `--real`, before any stage. With `real`, a missing record refuses with a body naming `revisionRecordPath(escalationsDir, unitId, runId)`, and a record for another unit refuses naming both ids, each with an empty `next`, before the leaf prompts render and before `ensureDb` is called. A valid record passes the read and the build reaches the prompt stage and the DB preflight. `renderRevisingLine` returns `[]` without a revision, and one line with its run id, phase, test id, `ADR-0563` and `revised-test` with one. `renderRevisionRecord` returns `[]` without a write. For a written record it returns one `revision:` line with the path and `storytree node build <unitId> --real --runtime <runtime> --revise-test <runId>`. For an unwritten one it returns one line with the path and the reason and no command.
    - **covers —** `nodeBuild`'s `reviseTest` mode check and pre-spend revision read, `NodeBuildOpts.reviseTest` and `NodeBuildOpts.escalationsDir`, `renderRevisingLine`, `renderRevisionRecord`, and their header and failure-envelope call sites (`packages/drive/src/node-build.ts`).
-   - **proven by —** a new `packages/drive/src/node-build-revise-test.test.ts`, over `real-chain-fixture.ts` fixtures, an injected `ensureDb` and `progress`, and records written from real `proveUnit` walks, through the declared focused bun REAL proof; the `@storytree/drive` typecheck and package suite remain pre-signature backstops. The REAL worktree arm's pass-through is confirmed by reading.
+   - **proven by —** `packages/drive/src/node-build-revise-test.test.ts`, over `real-chain-fixture.ts` fixtures, an injected counting `ensureDb`, and a record written from a real `proveUnit` walk, through the declared focused bun REAL proof, signed PASS on the first attempt (run `real-mu20lsxo`); the `@storytree/drive` typecheck and package suite were pre-signature backstops. Not exercised by that proof: any progress stage (every build runs on `silentBuildProgress()`), so "before any stage" and the prompt-render-then-preflight order are unobserved; the mode check's precedence over the signer; and the REAL worktree arm's pass-through, which is confirmed by reading.
