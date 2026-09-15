@@ -301,18 +301,27 @@ export function stageDelta(land: StageSplit, control: StageSplit): readonly Stag
  * taken off.
  */
 export function moduleOf(url: string): string {
-  const bare = url.split(/[?#]/, 1)[0] ?? '';
-  const path = bare.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '').replaceAll('\\', '/');
+  // ⚠ STRING OPERATIONS AND `!== -1`, NOT ANCHORED REGEXES AND `>= 0`. Both of those spellings carry
+  // mutants no input can tell apart — an anchor dropped from a pattern that only ever matches at the
+  // start, a `>= 0` whose zero case the fallback already answers identically — and a mutant nothing
+  // can kill is a permanent red on the mutation rung, not a gap a test can close.
+  const path = (URL.canParse(url) ? new URL(url).pathname : url).replaceAll('\\', '/');
   const underModules = path.lastIndexOf('node_modules/');
-  if (underModules >= 0) {
+  if (underModules !== -1) {
     const rest = path.slice(underModules + 'node_modules/'.length);
     return rest.startsWith('@storytree/') ? `packages/${rest.slice('@storytree/'.length)}` : `node_modules/${rest}`;
   }
-  const underPackages = path.lastIndexOf('packages/');
-  if (underPackages >= 0) return path.slice(underPackages);
-  const underApps = path.lastIndexOf('apps/');
-  if (underApps >= 0) return path.slice(underApps);
-  return path.replace(/^(?:\.\.\/)+/, '').replace(/^\/@fs\//, '').replace(/^\/+/, '');
+  const workspace = Math.max(path.lastIndexOf('packages/'), path.lastIndexOf('apps/'));
+  return workspace === -1 ? servedPath(path) : path.slice(workspace);
+}
+
+/** A path with no workspace anchor, with what a server or a map puts in front of it taken off — `../`
+ *  hops, vite's `/@fs/` prefix, and leading slashes. Recursive rather than a loop, so a mutant that
+ *  stops the prefix shrinking overflows the stack and fails fast instead of hanging the rung. */
+function servedPath(path: string): string {
+  if (path.startsWith('../')) return servedPath(path.slice('../'.length));
+  if (path.startsWith('/@fs/')) return path.slice('/@fs/'.length);
+  return path.startsWith('/') ? servedPath(path.slice(1)) : path;
 }
 
 /** One file's self time. */
@@ -454,22 +463,25 @@ export function sourceLocator(map: SourceMapV3): SourceLocator {
   return (line, at) => {
     const segments = lines[line];
     if (segments === undefined) return null;
-    // The last segment starting at or before the column — the columns are ascending within a line.
-    let low = 0;
-    let high = segments.columns.length - 1;
-    let found = -1;
-    while (low <= high) {
-      const mid = (low + high) >> 1;
-      if ((segments.columns[mid] ?? 0) <= at) {
-        found = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-    const index = segments.sources[found] ?? -1;
+    const index = segments.sources[lastAtOrBefore(segments.columns, at, 0, segments.columns.length - 1)] ?? -1;
     return index < 0 ? null : (map.sources[index] ?? null);
   };
+}
+
+/**
+ * The index of the last column at or before `at`, or -1: a binary search over a line's ascending
+ * segment columns.
+ *
+ * ⚠ RECURSIVE ON PURPOSE. As a `while` loop, a mutant that stops `low` or `high` moving spins forever,
+ * and the mutation rung scores a hang as unproven rather than killed; recursing, the same mutant
+ * overflows the stack and fails in milliseconds. The depth is the log of a line's segment count.
+ */
+function lastAtOrBefore(columns: readonly number[], at: number, low: number, high: number): number {
+  if (low > high) return high;
+  const mid = (low + high) >> 1;
+  return (columns[mid] ?? 0) <= at
+    ? lastAtOrBefore(columns, at, mid + 1, high)
+    : lastAtOrBefore(columns, at, low, mid - 1);
 }
 
 /**
@@ -483,8 +495,10 @@ export function sourceLocator(map: SourceMapV3): SourceLocator {
 export function locatorFromSourceMaps(maps: ReadonlyMap<string, SourceLocator>): Locate {
   return (frame) => {
     const locate = maps.get(frame.url);
-    if (locate === undefined || frame.lineNumber === undefined || frame.columnNumber === undefined) return frame.url;
-    const source = locate(frame.lineNumber, frame.columnNumber);
+    // ⚠ NO GUARD FOR A MISSING POSITION. -1 names no line and no column, so the locator answers null by
+    // its own arithmetic — and a guard in front of it would be a branch no input can separate from its
+    // absence, which the mutation rung reports as a survivor for ever.
+    const source = locate === undefined ? null : locate(frame.lineNumber ?? -1, frame.columnNumber ?? -1);
     return source === null ? frame.url : new URL(source, frame.url).href;
   };
 }

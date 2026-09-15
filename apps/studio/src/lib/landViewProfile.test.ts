@@ -477,6 +477,12 @@ describe('sourceLocator', () => {
     // A character past the 7-bit table is refused, not read as some digit.
     expect(() => sourceLocator({ sources: ['a.ts'], mappings: 'AAéA' })).toThrow(/not base64 VLQ at character 2/);
   });
+
+  it('an empty segment names nothing, and does not shadow the real one before it', () => {
+    // Two stray commas after a real segment: were each recorded as a sourceless segment at the same
+    // column, the search would land on the last of them and answer null for a column the map names.
+    expect(sourceLocator({ sources: ['a.ts'], mappings: 'AAAA,,' })(0, 0)).toBe('a.ts');
+  });
 });
 
 describe('locatorFromSourceMaps', () => {
@@ -510,6 +516,17 @@ describe('locatorFromSourceMaps', () => {
     expect(locate({ functionName: 'e', url: chunk, lineNumber: 0 })).toBe(chunk);
     expect(locate({ functionName: 'f', url: chunk, columnNumber: 12 })).toBe(chunk);
     expect(locate({ functionName: 'g', url: chunk, lineNumber: 0, columnNumber: 2 })).toBe(chunk);
+  });
+
+  it('reads a missing half of the position as NO position — never as line or column one', () => {
+    // This map answers at line 1 from column 0 and at line 0 from column 1, so a missing line read as
+    // 1, or a missing column read as 1, would name a module the frame never gave a position in.
+    const lazy = 'http://h/assets/lazy-D1.js';
+    const locateLazy = locatorFromSourceMaps(new Map([[lazy, sourceLocator({ sources: ['x.ts'], mappings: 'CAAA;AACA' })]]));
+    expect(locateLazy({ functionName: 'h', url: lazy, columnNumber: 0 })).toBe(lazy);
+    expect(locateLazy({ functionName: 'i', url: lazy, lineNumber: 0 })).toBe(lazy);
+    expect(locateLazy({ functionName: 'j', url: lazy, lineNumber: 1, columnNumber: 0 })).toBe('http://h/assets/x.ts');
+    expect(locateLazy({ functionName: 'k', url: lazy, lineNumber: 0, columnNumber: 3 })).toBe('http://h/assets/x.ts');
   });
 
   it('turns the withheld production table into a reportable one — the same samples, placed', () => {
