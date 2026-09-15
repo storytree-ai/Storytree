@@ -16,15 +16,29 @@ import type { Envelope } from "./envelope.js";
  * `check:adr-health` is the backstop that makes any slip un-mergeable.
  *
  *   storytree adr new --title "..." [--supersedes 42] [--depends-on 42,43] --pg
- *   storytree adr next --pg                          reserve a number only (author the decision later)
  *
- * BOTH VERBS REQUIRE --pg, and there is no offline path left. The old `max-on-disk + 1` fallback read
+ * IT REQUIRES --pg, and there is no offline path left. The old `max-on-disk + 1` fallback read
  * `docs/decisions/`, which no longer exists; it is deliberately NOT replaced by a store-backed
  * equivalent, because a session that cannot reach the store cannot write the decision either, and a
  * number reserved but never written is a number burned for nothing.
+ *
+ * THERE IS NO RESERVE-ONLY VERB. `adr next` held a number for a hand-authored decision FILE; once
+ * decisions became rows that consumer was gone, and nothing could write the number it held — `adr
+ * new` always allocates afresh, and `adr push` refuses a row that does not exist. Both reservations
+ * it ever made (ADR-0420, ADR-0480) are permanent holes, so it was retired (2026-09-15, friction
+ * `adr-next-burns-the-number-it-says-it-holds`) rather than taught to hand its number on: `adr new`
+ * already reserves and writes in one step. The verb still ANSWERS, with a refusal that says so
+ * ({@link adrNextRetired}), because its name outlives it in decision records, memories and transcripts.
  */
 
-/** The store seam — `PgAdrStore.allocate` when --pg; null offline. */
+/** One allocation-ledger row as the heads-up reads it: the number, and the branch it was recorded against. */
+export interface AdrLedgerEntryLike {
+  number: number;
+  /** `null` where the ledger row carries no branch. */
+  branch: string | null;
+}
+
+/** The store seam — `PgAdrStore` when --pg; null offline. */
 export interface AdrAllocatorLike {
   allocate(a: {
     localMax: number;
@@ -32,6 +46,11 @@ export interface AdrAllocatorLike {
     branch: string;
     actor: string;
   }): Promise<{ number: number }>;
+  /**
+   * The ledger rows strictly between two numbers, ascending (`PgAdrStore.allocationsBetween`). Read
+   * only once a reservation has left a gap, to say whose each number in it is.
+   */
+  allocationsBetween(after: number, before: number): Promise<AdrLedgerEntryLike[]>;
 }
 
 export interface AdrCommandDeps {
@@ -47,8 +66,8 @@ export interface AdrCommandDeps {
    * The store-backed half (ADR-0403 dec 9): what `adr pull` / `adr push` need. OPTIONAL only as a
    * TYPE — every subcommand here now needs it, because the decisions are rows and nothing is left
    * on disk to read. Absent, each verb REFUSES with the reason rather than degrading: `list` says
-   * the offline read it used to advertise is ADR-0403's named accepted cost, and `new` / `next`
-   * refuse to reserve a number they could not then write.
+   * the offline read it used to advertise is ADR-0403's named accepted cost, and `new` refuses to
+   * reserve a number it could not then write.
    */
   roundTrip?: AdrRoundTripDeps | undefined;
   /**
@@ -183,7 +202,7 @@ export { kebabSlug };
  * is NOT replaced by a store-backed equivalent, deliberately — it existed to unblock a session with
  * no database, and under ADR-0302 D2's online-or-nothing posture a session with no database cannot
  * write the decision either. Reserving a number it could not then use would be a number burned for
- * nothing. `adr new` / `adr next` refuse without `--pg` and say so.
+ * nothing. `adr new` refuses without `--pg` and says so.
  */
 
 
@@ -239,46 +258,110 @@ export function parallelAllocations(localMax: number, reserved: number): number[
 /** Enumerate at most this many numbers inline; a very stale checkout gets a count, not a wall. */
 const MAX_LISTED_PARALLEL = 8;
 
+/**
+ * Branch names `currentBranch()` records when git names no branch: a detached HEAD, or a failed read.
+ * EVERY session that hits one records the same string, so a ledger row carrying it names nobody —
+ * least of all this branch, even when this run is detached too.
+ */
+const UNATTRIBUTABLE_BRANCHES: ReadonlySet<string> = new Set(["HEAD", "unknown"]);
+
+/** A gap ({@link parallelAllocations}) split by who holds each number, as the allocation ledger recorded it. */
+export interface GapAttribution {
+  /** Numbers the ledger records against THIS branch: its own reservations, never written. */
+  ours: number[];
+  /** Every other number in the gap, in the gap's own ascending order. */
+  others: number[];
+  /**
+   * How many of `others` nothing could attribute — no ledger row, a row with no branch, or a
+   * placeholder branch. Zero means every one of them is recorded against another, named branch.
+   */
+  unattributed: number;
+}
+
+/**
+ * PURE: split a gap by the branch the allocation ledger recorded for each number (`holders`, built
+ * from `PgAdrStore.allocationsBetween`). The friction it answers, `adr-next-burns-the-number-it-says-
+ * it-holds`: ADR-0420 was reserved on a branch and never written, and that branch's next `adr new`
+ * reported it as another session's decision to go and read. A number is "ours" only on a positive
+ * match with a real branch name; anything the ledger cannot vouch for is left unattributed, never
+ * guessed in either direction.
+ */
+export function attributeGap(
+  missing: readonly number[],
+  holders: ReadonlyMap<number, string | null>,
+  branch: string,
+): GapAttribution {
+  const gap: GapAttribution = { ours: [], others: [], unattributed: 0 };
+  for (const n of missing) {
+    const recorded = holders.get(n);
+    if (recorded === branch && !UNATTRIBUTABLE_BRANCHES.has(branch)) {
+      gap.ours.push(n);
+      continue;
+    }
+    gap.others.push(n);
+    if (recorded === undefined || recorded === null || UNATTRIBUTABLE_BRANCHES.has(recorded)) gap.unattributed += 1;
+  }
+  return gap;
+}
+
 export interface ParallelAllocationNoteResult {
   lines: string[];
   next: string[];
 }
 
+/** `0335, 0336` — at most {@link MAX_LISTED_PARALLEL} numbers inline, then a count. */
+function listNumbers(numbers: readonly number[]): string {
+  const listed = numbers.slice(0, MAX_LISTED_PARALLEL).map(pad).join(", ");
+  return numbers.length > MAX_LISTED_PARALLEL ? `${listed}, +${numbers.length - MAX_LISTED_PARALLEL} more` : listed;
+}
+
 /**
- * PURE: render {@link parallelAllocations} as envelope lines + `next:` steps. Empty in, empty out —
- * FAIL QUIET (a session whose checkout is current sees nothing at all, and this never reddens
- * anything). Guidance at the point of use, in the tool's own output rather than in any agent prompt:
- * the ADR-0023 pull model, the shape ADR-0239 D4 chose for its closure hint, whose stated virtue is
- * zero context cost for every session that is not doing this.
+ * PURE: render an attributed gap as envelope lines + `next:` steps. Empty in, empty out — FAIL QUIET
+ * (a session whose checkout is current sees nothing at all, and this never reddens anything).
+ * Guidance at the point of use, in the tool's own output rather than in any agent prompt: the
+ * ADR-0023 pull model, the shape ADR-0239 D4 chose for its closure hint, whose stated virtue is zero
+ * context cost for every session that is not doing this.
  *
- * The `next:` steps fetch rather than assume: the contradicting ADR is typically NOT on `origin/main`
- * yet (that is exactly why the ordinary merge missed it), so they look across ALL fetched refs — the
- * sibling session's branch included.
+ * This branch's own numbers come first and carry no read step: a hole of our own is not a decision
+ * anybody wrote. Every other number keeps the contradiction warning and a step that READS the row —
+ * and is called "another session's" only when the ledger named another branch for every one of them.
  */
-export function parallelAllocationNote(missing: readonly number[]): ParallelAllocationNoteResult {
-  const first = missing[0];
-  if (first === undefined) return { lines: [], next: [] };
-  const listed = missing.slice(0, MAX_LISTED_PARALLEL).map(pad).join(", ");
-  const more = missing.length > MAX_LISTED_PARALLEL ? `, +${missing.length - MAX_LISTED_PARALLEL} more` : "";
-  const one = missing.length === 1;
-  return {
-    lines: [
+export function parallelAllocationNote(gap: GapAttribution): ParallelAllocationNoteResult {
+  const lines: string[] = [];
+  const next: string[] = [];
+  if (gap.ours.length > 0) {
+    lines.push(
       "",
-      one
-        ? `⚠️  ADR-${listed} was allocated by another session.`
-        : `⚠️  ADR-${listed}${more} were allocated by other sessions.`,
-      `    A decision written in parallel can CONTRADICT yours. If ${one ? "it touches" : "any of them touches"} your area,`,
-      "    READ it BEFORE you write your Decision.",
-      "",
-      "    Since ADR-0403 dec 1 they are ROWS, so reading one is immediate and needs no archaeology —",
-      "    a sibling's decision is visible the moment they write it, where it used to sit on their",
-      "    branch until merge and surface as a conflict whose hunks silently overrode an accepted",
-      "    decision. What survives is the GAP: a number can be reserved and not yet written.",
-    ],
-    next: [
-      `storytree library artifact ${adrDocId(first)}   (an empty answer means reserved, not yet written)`,
-    ],
-  };
+      gap.ours.length === 1
+        ? `ADR-${listNumbers(gap.ours)} is this branch's own reservation, never written — a hole in the numbering, not another session's decision.`
+        : `ADR-${listNumbers(gap.ours)} are this branch's own reservations, never written — holes in the numbering, not other sessions' decisions.`,
+    );
+  }
+  const first = gap.others[0];
+  if (first === undefined) return { lines, next };
+  const one = gap.others.length === 1;
+  const listed = listNumbers(gap.others);
+  let owner: string;
+  if (gap.unattributed > 0) {
+    owner = one
+      ? `⚠️  ADR-${listed} has no decision row yet, and the allocation ledger could not say who reserved it.`
+      : `⚠️  ADR-${listed} have no decision rows yet, and the allocation ledger could not say who reserved them all.`;
+  } else {
+    owner = one ? `⚠️  ADR-${listed} was allocated by another session.` : `⚠️  ADR-${listed} were allocated by other sessions.`;
+  }
+  lines.push(
+    "",
+    owner,
+    `    A decision written in parallel can CONTRADICT yours. If ${one ? "it touches" : "any of them touches"} your area,`,
+    "    READ it BEFORE you write your Decision.",
+    "",
+    "    Since ADR-0403 dec 1 they are ROWS, so reading one is immediate and needs no archaeology —",
+    "    a sibling's decision is visible the moment they write it, where it used to sit on their",
+    "    branch until merge and surface as a conflict whose hunks silently overrode an accepted",
+    "    decision. What survives is the GAP: a number can be reserved and not yet written.",
+  );
+  next.push(`storytree library artifact ${adrDocId(first)}   (an empty answer means reserved, not yet written)`);
+  return { lines, next };
 }
 
 /**
@@ -481,7 +564,7 @@ async function storeMaxAdrNumber(deps: AdrCommandDeps): Promise<number | null> {
   return adrs.reduce((max, a) => (a.number > max ? a.number : max), 0);
 }
 
-/** The refusal shared by both allocating verbs when the decision log could not be read at all. */
+/** The refusal the allocating verb gives when the decision log could not be read at all. */
 function unreadableLog(verb: string): Envelope {
   return {
     ok: false,
@@ -497,7 +580,7 @@ function unreadableLog(verb: string): Envelope {
   };
 }
 
-/** The refusal both allocating verbs share once there is no offline path left to fall back to. */
+/** The refusal the allocating verb gives once there is no offline path left to fall back to. */
 function needsPg(verb: string): Envelope {
   return {
     ok: false,
@@ -600,53 +683,60 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
     `  storytree adr pull ${String(n)} --out ${id}.md`,
     `  storytree adr push ${String(n)} --file ${id}.md --pg`,
   ];
-  const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
-  lines.push(...parallel.lines);
+  const next = [`storytree adr pull ${String(n)} --out ${id}.md`];
+  const gap = parallelAllocations(localMax, n);
+  if (gap.length > 0) {
+    // The ledger is read ONLY once there is a gap to attribute, so a current checkout pays no second
+    // query — and the read can never cost the decision just written (see `readLedger`).
+    const note = parallelAllocationNote(
+      attributeGap(gap, await readLedger(deps.allocator, localMax, n), deps.branch),
+    );
+    lines.push(...note.lines);
+    next.push(...note.next);
+  }
   return {
     ok: true,
     body: lines.join("\n"),
-    next: [`storytree adr pull ${String(n)} --out ${id}.md`, ...parallel.next],
+    next,
   };
 }
 
-async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
-  if (!deps.allocator) return needsPg("next");
-  const localMax = await storeMaxAdrNumber(deps);
-  if (localMax === null) return unreadableLog("next");
-
-  // THE TRY COVERS `allocate` AND NOTHING ELSE, matching `adrNew`. It used to wrap the note-building
-  // and the success return as well, while the catch said flatly "couldn't reserve an ADR number" — so
-  // a throw from anything AFTER a successful reservation would have reported a number that WAS
-  // reserved as not reserved, and the reader would take the next one and burn this one for nothing.
-  // No input is known that reaches it; this is the two sibling verbs agreeing, not a demonstrated bug.
-  let reserved: number;
+/**
+ * Who holds each number strictly between `after` and `before`, from the allocation ledger — or NOBODY
+ * when the read fails. It runs after the decision is written, and a heads-up must never fail a
+ * written decision, so an unreadable ledger degrades to an empty lookup: {@link attributeGap} then
+ * names no owner for any number, and nothing throws past the write.
+ */
+async function readLedger(
+  allocator: AdrAllocatorLike,
+  after: number,
+  before: number,
+): Promise<ReadonlyMap<number, string | null>> {
   try {
-    const r = await deps.allocator.allocate({
-      localMax,
-      slug: "(reserved via adr next)",
-      branch: deps.branch,
-      actor: deps.actor,
-    });
-    reserved = r.number;
-  } catch (e) {
-    return {
-      ok: false,
-      body: `couldn't reserve an ADR number from the DB: ${(e as Error).message}`,
-      next: ["pnpm db:up", "storytree adr next --pg"],
-    };
+    const rows = await allocator.allocationsBetween(after, before);
+    return new Map(rows.map((row): [number, string | null] => [row.number, row.branch]));
+  } catch {
+    return new Map();
   }
+}
 
-  // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
-  // exactly the position the note is for: about to write prose against numbers it cannot see.
-  const parallel = parallelAllocationNote(parallelAllocations(localMax, reserved));
+/**
+ * `storytree adr next` — RETIRED, and it refuses rather than vanishing. Its name outlives it in
+ * decision records, memories and months of transcripts, so a session reaching for it is told why and
+ * what to run instead, where a bare "unknown adr command" would tell it neither. It reserves nothing.
+ */
+function adrNextRetired(): Envelope {
   return {
-    ok: true,
+    ok: false,
     body: [
-      `ADR-${pad(reserved)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
-        `decision at ${adrDocId(reserved)}; this verb only holds the number.`,
-      ...parallel.lines,
+      "storytree adr next is retired, and reserves nothing.",
+      "",
+      "It held a number for a decision to be written later, and nothing could then write that number:",
+      "`adr new` always allocates afresh, and `adr push` refuses a row that does not exist. Both numbers",
+      'it ever reserved (ADR-0420, ADR-0480) are permanent holes. `adr new --title "..." --pg` reserves',
+      "the number and writes the decision in one step.",
     ].join("\n"),
-    next: ['storytree adr new --title "..." --pg', ...parallel.next],
+    next: ['storytree adr new --title "..." --pg'],
   };
 }
 
@@ -1183,7 +1273,6 @@ export function adrHelp(): Envelope {
       "  storytree adr list [--current | --load-bearing | --status <s> | --basis <b>]   the searchable current-state view",
       '  storytree adr new --title "..." [--decided --owner-said <text|@file>] [--basis <b>] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
-      "  storytree adr next --pg                                                  reserve a number only",
       "",
       "  storytree adr pull <n> --out <path>                the decision as an ordinary markdown document",
       "  storytree adr push <n> --file <path> --pg          the edited document, written back",
@@ -1310,20 +1399,21 @@ export function adrHelp(): Envelope {
       "                   rows that are mechanically classifiable and leaves the rest alone rather",
       "                   than guessing). The view prints how many are unstamped for that reason.",
       "",
-      "new/next BOTH need --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
+      "`new` needs --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
       "number is reserved transactionally and the decision is a row, so a session that cannot reach the",
       "store cannot write the decision either — reserving a number it could not use would burn it.",
       "",
-      "A reserved number more than one above the highest decision this run saw means other sessions",
-      "allocated the numbers in between — `new`/`next` name them, because a decision written in",
-      "parallel can CONTRADICT yours. Read it with `storytree library artifact adr-NNNN` (an empty",
-      "answer means reserved, not yet written). A heads-up, never a gate.",
+      "A reserved number more than one above the highest decision this run saw means numbers were",
+      "allocated in between, and `new` names each by the branch the allocation ledger recorded: this",
+      "branch's own reservation that was never written is a hole with nothing to read, while another",
+      "session's can be a decision that CONTRADICTS yours — read it with `storytree library artifact",
+      "adr-NNNN` (an empty answer means reserved, not yet written). A heads-up, never a gate.",
     ].join("\n"),
     next: ["storytree adr list --load-bearing", 'storytree adr new --title "..." --pg'],
   };
 }
 
-/** Dispatch the `adr` area: `new` (reserve + scaffold) | `next` (reserve only) | help. */
+/** Dispatch the `adr` area: `list` | `new` (reserve + scaffold) | the retired `next`, which refuses | the store-backed verbs below | help. */
 export async function adrCommand(
   sub: string | undefined,
   opts: AdrCommandOpts,
@@ -1332,7 +1422,7 @@ export async function adrCommand(
   if (sub === undefined || sub === "help") return adrHelp();
   if (sub === "list") return await adrList(opts, deps);
   if (sub === "new") return adrNew(opts, deps);
-  if (sub === "next") return adrNext(deps);
+  if (sub === "next") return adrNextRetired();
   // The round trip (ADR-0403 dec 9). Both legs need the STORE, which the file-reading subcommands
   // above do not — so they are refused with the reason rather than crashing on an absent dep, which
   // is what a partially-wired composition root would otherwise produce.

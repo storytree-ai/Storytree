@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   adrCommand,
+  adrHelp,
+  attributeGap,
   kebabSlug,
   parseEdges,
   parallelAllocations,
@@ -15,6 +17,7 @@ import {
   loadAdrListings,
   type AdrListing,
   type AdrAllocatorLike,
+  type AdrLedgerEntryLike,
   type AdrCommandDeps,
 } from "./adr.js";
 import type { AdrMeta } from "@storytree/drive";
@@ -438,21 +441,35 @@ test("renderAdrList dedupes + sorts both derived back-edges (two dependants, one
   assert.match(lines, /superseded by 0330$/m);
 });
 
-// ---- adr new / next ------------------------------------------------------------------------
+// ---- adr new -------------------------------------------------------------------------------
 
-interface FakeAllocatorResult { allocator: AdrAllocatorLike; seen: Parameters<AdrAllocatorLike["allocate"]>[0][] }
+interface FakeAllocatorResult {
+  allocator: AdrAllocatorLike;
+  seen: Parameters<AdrAllocatorLike["allocate"]>[0][];
+  /** Every ledger read, as the `[after, before]` it asked about. */
+  ledgerReads: [number, number][];
+}
 
-/** A fake allocator that always returns a fixed number and records what it was asked. */
-function fakeAllocator(number: number): FakeAllocatorResult {
+/**
+ * A fake allocator: returns a fixed number, answers ledger reads from `ledger` with the same
+ * strictly-between filter the real query applies, and records both kinds of call.
+ */
+function fakeAllocator(number: number, ledger: AdrLedgerEntryLike[] = []): FakeAllocatorResult {
   const seen: Parameters<AdrAllocatorLike["allocate"]>[0][] = [];
+  const ledgerReads: [number, number][] = [];
   return {
     allocator: {
       allocate: async (a) => {
         seen.push(a);
         return { number };
       },
+      allocationsBetween: async (after, before) => {
+        ledgerReads.push([after, before]);
+        return ledger.filter((row) => row.number > after && row.number < before);
+      },
     },
     seen,
+    ledgerReads,
   };
 }
 
@@ -558,6 +575,7 @@ test("adr new surfaces an allocator failure as a clear error (db down)", async (
     allocate: async () => {
       throw new Error("connection terminated");
     },
+    allocationsBetween: async () => [],
   };
   const env = await adrCommand("new", { title: "X" }, depsFor(failing));
   assert.equal(env.ok, false);
@@ -565,20 +583,41 @@ test("adr new surfaces an allocator failure as a clear error (db down)", async (
   assert.match(env.body, /connection terminated/);
 });
 
-test("adr next --pg reserves a number; without it there is nothing left to peek AT", async () => {
+test("adr new without --pg refuses: a number it could not then write would be burned", async () => {
+  // The offline `max-on-disk + 1` path went with the directory it read (ADR-0403 dec 1), and is
+  // NOT replaced: a session that cannot write the decision must not burn a number reserving one.
+  const env = await adrCommand("new", { title: "Offline" }, depsFor(null));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /needs --pg/);
+  assert.match(env.body, /reserving a number a session cannot then write would burn it/);
+});
+
+test("adr next is retired: it reserves nothing, because a number it held could never be written", async () => {
+  // Friction `adr-next-burns-the-number-it-says-it-holds`: `adr next` held a number no verb could then
+  // write — `adr new` always allocates afresh, and `adr push` refuses a row that does not exist.
+  // Measured against the ledger 2026-09-15: both of its reservations ever, ADR-0420 and ADR-0480,
+  // are still holes. `adr new` reserves and writes in one step, so nothing needs a reserve-only verb.
   const store = new InMemoryStore();
   await seedDecision(store, 46, "A prior decision");
-  const { allocator } = fakeAllocator(47);
-  const reserved = await adrCommand("next", {}, depsFor(allocator, store));
-  assert.equal(reserved.ok, true);
-  assert.match(reserved.body, /ADR-0047 reserved/);
-
-  // The offline `max-on-disk + 1` peek went with the directory it read (ADR-0403 dec 1), and is
-  // NOT replaced: a session that cannot write the decision must not burn a number reserving one.
-  const peek = await adrCommand("next", {}, depsFor(null));
-  assert.equal(peek.ok, false);
-  assert.match(peek.body, /needs --pg/);
-  assert.match(peek.body, /reserving a number a session cannot then write would burn it/);
+  const { allocator, seen } = fakeAllocator(47);
+  const env = await adrCommand("next", {}, depsFor(allocator, store));
+  assert.equal(env.ok, false);
+  // It REFUSES by name rather than vanishing: `adr next` is in decision records, memories and months of
+  // transcripts, so a session reaching for it is told why, and what to run instead.
+  assert.equal(
+    env.body,
+    [
+      "storytree adr next is retired, and reserves nothing.",
+      "",
+      "It held a number for a decision to be written later, and nothing could then write that number:",
+      "`adr new` always allocates afresh, and `adr push` refuses a row that does not exist. Both numbers",
+      'it ever reserved (ADR-0420, ADR-0480) are permanent holes. `adr new --title "..." --pg` reserves',
+      "the number and writes the decision in one step.",
+    ].join("\n"),
+  );
+  assert.deepEqual(env.next, ['storytree adr new --title "..." --pg']);
+  assert.equal(seen.length, 0, "no number was reserved");
+  assert.equal((await store.getDoc("adr-0047"))?.doc, undefined);
 });
 
 // ---- the parallel-allocation heads-up ------------------------------------------------------
@@ -602,59 +641,184 @@ test("parallelAllocations is the exact gap between the local max and the reserve
   assert.deepEqual(parallelAllocations(0, 50), []);
 });
 
-test("parallelAllocationNote is empty for an empty gap and caps a very stale checkout", () => {
-  assert.deepEqual(parallelAllocationNote([]), { lines: [], next: [] });
+test("attributeGap splits a gap by the branch the ledger recorded, and attributes nothing it cannot prove", () => {
+  // Who holds each number, as `adr new` builds it from `PgAdrStore.allocationsBetween`.
+  const ledger = new Map<number, string | null>([
+    [401, "claude/me"],
+    [402, "claude/sibling"],
+    [403, null],
+    [404, "HEAD"],
+    [405, "unknown"],
+    [407, "claude/me"],
+    [409, "claude/me"], // outside the gap, so it attributes nothing
+  ]);
+  // 406 has no ledger row at all. The gap's own ascending order is kept, never re-sorted.
+  assert.deepEqual(attributeGap([401, 402, 403, 404, 405, 406, 407], ledger, "claude/me"), {
+    ours: [401, 407],
+    others: [402, 403, 404, 405, 406],
+    unattributed: 4,
+  });
+  // A detached run records `HEAD`, and a failed git read `unknown` — on EVERY session that hits it —
+  // so a placeholder never matches itself into "ours": it names no branch at all.
+  assert.deepEqual(attributeGap([404], ledger, "HEAD"), { ours: [], others: [404], unattributed: 1 });
+  assert.deepEqual(attributeGap([405], ledger, "unknown"), { ours: [], others: [405], unattributed: 1 });
+  // Another branch's row is ATTRIBUTED, not merely listed.
+  assert.deepEqual(attributeGap([402], ledger, "claude/me"), { ours: [], others: [402], unattributed: 0 });
+  assert.deepEqual(attributeGap([], ledger, "claude/me"), { ours: [], others: [], unattributed: 0 });
+});
 
-  // Singular reads as singular — one number is "another session", not "other sessions".
-  const one = parallelAllocationNote([335]).lines.join("\n");
-  assert.match(one, /ADR-0335 was allocated by another session/);
-  assert.match(one, /If it touches your area/);
+/** The rows-era tail every heads-up about another session's number carries, verbatim. */
+const PARALLEL_WARNING_TAIL = [
+  "    READ it BEFORE you write your Decision.",
+  "",
+  "    Since ADR-0403 dec 1 they are ROWS, so reading one is immediate and needs no archaeology —",
+  "    a sibling's decision is visible the moment they write it, where it used to sit on their",
+  "    branch until merge and surface as a conflict whose hunks silently overrode an accepted",
+  "    decision. What survives is the GAP: a number can be reserved and not yet written.",
+];
 
-  const many = parallelAllocationNote([301, 302, 303, 304, 305, 306, 307, 308, 309, 310]);
-  const body = many.lines.join("\n");
-  assert.match(body, /ADR-0301, 0302, 0303, 0304, 0305, 0306, 0307, 0308, \+2 more were allocated/);
-  assert.doesNotMatch(body, /0309/, "the tail is a count, not a wall of numbers");
+test("parallelAllocationNote says nothing for an empty gap", () => {
+  assert.deepEqual(parallelAllocationNote({ ours: [], others: [], unattributed: 0 }), { lines: [], next: [] });
+});
+
+test("parallelAllocationNote names another session's number with the contradiction warning and a read step", () => {
+  assert.deepEqual(parallelAllocationNote({ ours: [], others: [335], unattributed: 0 }), {
+    lines: [
+      "",
+      "⚠️  ADR-0335 was allocated by another session.",
+      "    A decision written in parallel can CONTRADICT yours. If it touches your area,",
+      ...PARALLEL_WARNING_TAIL,
+    ],
+    next: ["storytree library artifact adr-0335   (an empty answer means reserved, not yet written)"],
+  });
+  // Exactly at the cap every number is listed; past it, a very stale checkout gets a count.
+  const eight = parallelAllocationNote({ ours: [], others: [301, 302, 303, 304, 305, 306, 307, 308], unattributed: 0 });
+  assert.deepEqual(eight.lines.slice(0, 3), [
+    "",
+    "⚠️  ADR-0301, 0302, 0303, 0304, 0305, 0306, 0307, 0308 were allocated by other sessions.",
+    "    A decision written in parallel can CONTRADICT yours. If any of them touches your area,",
+  ]);
+  const ten = parallelAllocationNote({
+    ours: [],
+    others: [301, 302, 303, 304, 305, 306, 307, 308, 309, 310],
+    unattributed: 0,
+  });
+  assert.equal(
+    ten.lines[1],
+    "⚠️  ADR-0301, 0302, 0303, 0304, 0305, 0306, 0307, 0308, +2 more were allocated by other sessions.",
+  );
+});
+
+test("parallelAllocationNote names this branch's own reservations as holes, with nothing to read", () => {
+  assert.deepEqual(parallelAllocationNote({ ours: [420], others: [], unattributed: 0 }), {
+    lines: [
+      "",
+      "ADR-0420 is this branch's own reservation, never written — a hole in the numbering, not another session's decision.",
+    ],
+    next: [],
+  });
+  assert.deepEqual(parallelAllocationNote({ ours: [420, 480], others: [], unattributed: 0 }).lines, [
+    "",
+    "ADR-0420, 0480 are this branch's own reservations, never written — holes in the numbering, not other sessions' decisions.",
+  ]);
+});
+
+test("parallelAllocationNote claims no owner for a number the ledger could not attribute", () => {
+  assert.deepEqual(parallelAllocationNote({ ours: [], others: [335], unattributed: 1 }).lines.slice(0, 3), [
+    "",
+    "⚠️  ADR-0335 has no decision row yet, and the allocation ledger could not say who reserved it.",
+    "    A decision written in parallel can CONTRADICT yours. If it touches your area,",
+  ]);
+  // This branch's holes first, then the rest — and ONE unattributed number withholds "another session".
+  assert.deepEqual(parallelAllocationNote({ ours: [334], others: [335, 336], unattributed: 1 }), {
+    lines: [
+      "",
+      "ADR-0334 is this branch's own reservation, never written — a hole in the numbering, not another session's decision.",
+      "",
+      "⚠️  ADR-0335, 0336 have no decision rows yet, and the allocation ledger could not say who reserved them all.",
+      "    A decision written in parallel can CONTRADICT yours. If any of them touches your area,",
+      ...PARALLEL_WARNING_TAIL,
+    ],
+    next: ["storytree library artifact adr-0335   (an empty answer means reserved, not yet written)"],
+  });
 });
 
 test("adr new --pg names the numbers other sessions allocated, and points across ALL refs", async () => {
   const store = new InMemoryStore();
   await seedDecision(store, 334, "A prior decision");
-  const { allocator } = fakeAllocator(337);
+  const { allocator, ledgerReads } = fakeAllocator(337, [
+    { number: 335, branch: "claude/sibling" },
+    { number: 336, branch: "claude/another-sibling" },
+  ]);
   const env = await adrCommand("new", { title: "Arc reopen verb" }, depsFor(allocator, store));
   assert.equal(env.ok, true);
 
   // It is a HEADS-UP, not a gate: the decision was still written and the envelope is still ok.
   assert.ok(await store.getDoc("adr-0337"), "the decision was still scaffolded");
+  // The ledger is asked about exactly the gap: strictly between the highest row read and the reservation.
+  assert.deepEqual(ledgerReads, [[334, 337]]);
   assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions/);
   assert.match(env.body, /can CONTRADICT yours/);
 
   // The offered step is a READ of the row, not git archaeology across every fetched ref: a
   // sibling's decision is visible the moment they write it now (ADR-0403 dec 1). What survives is
   // the GAP the note is really about — a number reserved and not yet written.
-  const next = (env.next ?? []).join("\n");
-  assert.match(next, /storytree library artifact adr-0335/);
-  assert.doesNotMatch(next, /git fetch/);
+  assert.deepEqual(env.next, [
+    "storytree adr pull 337 --out adr-0337.md",
+    "storytree library artifact adr-0335   (an empty answer means reserved, not yet written)",
+  ]);
 });
 
-test("adr new --pg says NOTHING when the checkout is current (fail quiet)", async () => {
+test("adr new names this branch's own unwritten reservation as a hole, never as another session's decision", async () => {
+  // The friction's own sequence: ADR-0420 was reserved on this branch and never written, `adr new`
+  // then took 0421, and the note told the session 0420 was a parallel decision it should go and read.
   const store = new InMemoryStore();
-  await seedDecision(store, 338, "A prior decision");
-  const { allocator } = fakeAllocator(339);
-  const env = await adrCommand("new", { title: "Next in line" }, depsFor(allocator, store));
+  await seedDecision(store, 419, "A prior decision");
+  const { allocator, ledgerReads } = fakeAllocator(421, [{ number: 420, branch: "claude/test" }]);
+  const env = await adrCommand("new", { title: "The decision after the hole" }, depsFor(allocator, store));
   assert.equal(env.ok, true);
-  assert.doesNotMatch(env.body, /allocated by other sessions/);
-  assert.doesNotMatch((env.next ?? []).join("\n"), /library artifact adr-/);
+  assert.ok(await store.getDoc("adr-0421"), "the decision was still written");
+  assert.deepEqual(ledgerReads, [[419, 421]]);
+  assert.match(
+    env.body,
+    /ADR-0420 is this branch's own reservation, never written — a hole in the numbering, not another session's decision\./,
+  );
+  assert.doesNotMatch(env.body, /allocated by another session|CONTRADICT/);
+  assert.deepEqual(env.next, ["storytree adr pull 421 --out adr-0421.md"], "a hole of our own has nothing to read");
 });
 
-test("adr next --pg carries the same heads-up (its author writes prose too)", async () => {
+test("adr new still writes, and names no owner, when the allocation ledger cannot be read", async () => {
   const store = new InMemoryStore();
   await seedDecision(store, 334, "A prior decision");
-  const { allocator } = fakeAllocator(337);
-  const env = await adrCommand("next", {}, depsFor(allocator, store));
+  const { allocator } = fakeAllocator(336);
+  const unreadable: AdrAllocatorLike = {
+    allocate: allocator.allocate,
+    allocationsBetween: async () => {
+      throw new Error("ledger read failed");
+    },
+  };
+  const env = await adrCommand("new", { title: "Ledger down" }, depsFor(unreadable, store));
+  // A heads-up never fails a decision that is already written.
+  assert.equal(env.ok, true, env.body);
+  assert.ok(await store.getDoc("adr-0336"), "the decision was still written");
+  assert.match(env.body, /ADR-0335 has no decision row yet, and the allocation ledger could not say who reserved it\./);
+  assert.doesNotMatch(env.body, /allocated by another session|this branch's own/);
+  assert.deepEqual(env.next, [
+    "storytree adr pull 336 --out adr-0336.md",
+    "storytree library artifact adr-0335   (an empty answer means reserved, not yet written)",
+  ]);
+});
+
+test("adr new --pg says NOTHING when the checkout is current (fail quiet), and never reads the ledger", async () => {
+  const store = new InMemoryStore();
+  await seedDecision(store, 338, "A prior decision");
+  const { allocator, ledgerReads } = fakeAllocator(339);
+  const env = await adrCommand("new", { title: "Next in line" }, depsFor(allocator, store));
   assert.equal(env.ok, true);
-  assert.match(env.body, /ADR-0337 reserved/);
-  assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions/);
-  assert.match((env.next ?? []).join("\n"), /storytree library artifact adr-0335/);
+  assert.doesNotMatch(env.body, /allocated by|this branch's own|no decision row yet/);
+  assert.deepEqual(env.next, ["storytree adr pull 339 --out adr-0339.md"]);
+  // A contiguous reservation has no gap to attribute, so it pays no second query.
+  assert.deepEqual(ledgerReads, []);
 });
 
 test("adr list reads the decision ROWS and renders them (ADR-0403 dec 1)", async () => {
@@ -721,6 +885,28 @@ test("adr help (no sub) and an unknown sub both return guidance", async () => {
   const unknown = await adrCommand("frobnicate", {}, depsFor(null));
   assert.equal(unknown.ok, false);
   assert.match(unknown.body, /unknown adr command/);
+});
+
+test("adr help offers no reserve-only verb, and says how the heads-up attributes a gap", () => {
+  const body = adrHelp().body;
+  assert.doesNotMatch(body, /adr next/);
+  // The whole paragraph, verbatim: each line is its own literal, so a partial match would let one drift.
+  assert.ok(
+    body.includes(
+      [
+        "`new` needs --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
+        "number is reserved transactionally and the decision is a row, so a session that cannot reach the",
+        "store cannot write the decision either — reserving a number it could not use would burn it.",
+        "",
+        "A reserved number more than one above the highest decision this run saw means numbers were",
+        "allocated in between, and `new` names each by the branch the allocation ledger recorded: this",
+        "branch's own reservation that was never written is a hole with nothing to read, while another",
+        "session's can be a decision that CONTRADICTS yours — read it with `storytree library artifact",
+        "adr-NNNN` (an empty answer means reserved, not yet written). A heads-up, never a gate.",
+      ].join("\n"),
+    ),
+    body,
+  );
 });
 
 test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {

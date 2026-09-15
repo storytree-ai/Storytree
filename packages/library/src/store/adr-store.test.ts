@@ -81,6 +81,26 @@ test("allocate propagates a NON-unique error immediately (no retry, no swallow)"
   assert.equal(calls.length, 1); // surfaced on the first failure, not retried
 });
 
+test("allocationsBetween reads the ledger rows strictly between two numbers, ascending, with the branch each was recorded against", async () => {
+  // node-pg can hand an int column back as a STRING; the number is normalised, and a row that
+  // recorded no branch keeps `null` rather than inventing one.
+  const { client, calls } = scriptedClient([
+    () => ({ rows: [{ number: "420", branch: "claude/machine-uat-sign-inc03" }, { number: 421, branch: null }] }),
+  ]);
+  const store = new PgAdrStore(client);
+  const rows = await store.allocationsBetween(419, 422);
+  assert.deepEqual(rows, [
+    { number: 420, branch: "claude/machine-uat-sign-inc03" },
+    { number: 421, branch: null },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0]?.values, [419, 422]);
+  assert.match(
+    calls[0]?.text ?? "",
+    /^SELECT number, branch\s+FROM events\.adr_number\s+WHERE number > \$1 AND number < \$2\s+ORDER BY number$/,
+  );
+});
+
 // ---- Live-gated: real atomic allocation over Postgres --------------------------------------
 
 if (LIVE) {

@@ -162,7 +162,19 @@ test("adr-round-trip-refuses-without-the-things-it-needs: --out, --file, --pg, a
   // creating push would be a second mint that reserved nothing.
   const missing = await adrPush("999", out, deps);
   assert.equal(missing.ok, false);
-  assert.match(missing.body, /no decision row "adr-0999"/);
+  // The whole refusal, because its second sentence is the one a reader acts on: it must explain a
+  // hole without sending anyone to `adr next`, the retired verb that made most of them.
+  assert.equal(
+    missing.body,
+    [
+      'no decision row "adr-0999" in the store.',
+      "",
+      "either the number is wrong, or ADR-0999 was RESERVED and never written — a reservation spends",
+      "its number even when no decision follows. There is no second source to check: decisions",
+      "are rows and nothing mirrors them on disk (ADR-0403 dec 1), so an empty answer here is the",
+      "whole answer.",
+    ].join("\n"),
+  );
 });
 
 test("adr-round-trip-parses-either-spelling-of-the-argument: `403` and `adr-0403`", () => {

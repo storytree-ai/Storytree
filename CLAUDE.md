@@ -688,8 +688,11 @@ ADR; it is what the librarian works to.
 (ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and writes the
 decision as the row `adr-NNNN`, so parallel sessions can't collide. **There is no offline path any
 more** — the old `max-on-disk + 1` fallback read `docs/decisions/`, which no longer exists, and a
-session that cannot write the decision must not burn a number reserving one; `adr new` / `adr next`
-refuse without `--pg` and say so. ⚠ **`adr-number-unique` is GONE, and its absence is not a hole**
+session that cannot write the decision must not burn a number reserving one; `adr new` refuses
+without `--pg` and says so. **`adr next` is RETIRED and only refuses now** — it reserved a number no
+verb could then write, so both numbers it ever handed out are permanent gaps; `adr new` reserves and
+writes in one step.
+⚠ **`adr-number-unique` is GONE, and its absence is not a hole**
 — two rows cannot share a number, because the id is the primary key, so the question it asked is
 structurally unanswerable and a check asking it would be a permanent vacuous green.
 `check:adr-health` asks the reachable one instead (**`adr-number-identity`**: a row's stored `number`

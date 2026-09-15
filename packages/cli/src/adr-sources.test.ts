@@ -153,7 +153,7 @@ test("adr new writes a row carrying NO anchors key at all — absent, never an e
   const env = await run(["adr", "new", "--title", "A fresh decision", "--pg"], {
     store,
     writable: true,
-    adr: { allocate: async () => ({ number: 900 }) },
+    adr: { allocate: async () => ({ number: 900 }), allocationsBetween: async () => [] },
   });
   assert.equal(env.ok, true, env.body);
   const row = await rowOf(store, "adr-0900");

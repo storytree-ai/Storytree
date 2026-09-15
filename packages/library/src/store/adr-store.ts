@@ -83,4 +83,24 @@ export class PgAdrStore {
         `(${lastErr instanceof Error ? lastErr.message : String(lastErr)})`,
     );
   }
+
+  /**
+   * The ledger rows STRICTLY between two numbers, ascending, each with the branch its allocation was
+   * recorded against (`null` where a row carries none). A READ that reserves nothing: `adr new` asks it
+   * who holds each number its own reservation skipped over, so a gap can be named as this branch's
+   * own unwritten reservation or as another session's (ADR-0339's heads-up) instead of guessing.
+   */
+  async allocationsBetween(after: number, before: number): Promise<{ number: number; branch: string | null }[]> {
+    const res = await this.#client.query(
+      `SELECT number, branch
+       FROM events.adr_number
+       WHERE number > $1 AND number < $2
+       ORDER BY number`,
+      [after, before],
+    );
+    return (res.rows as { number: string | number; branch: string | null }[]).map((row) => ({
+      number: Number(row.number),
+      branch: row.branch,
+    }));
+  }
 }
