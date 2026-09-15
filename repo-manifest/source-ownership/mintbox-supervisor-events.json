@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/mintbox-supervisor*.ts": "mintbox-supervisor-events"
+    }
+  }
+}

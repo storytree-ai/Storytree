@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/LibraryOverview.tsx": "library-overview",
+      "apps/studio/src/lib/overviewConstellation.ts": "library-overview",
+      "apps/studio/src/lib/stressLayout.ts": "library-overview"
+    }
+  }
+}

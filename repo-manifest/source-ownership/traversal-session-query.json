@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/traversal.ts": "traversal-session-query",
+      "packages/context-traversal-capture/src/query-render.ts": "traversal-session-query"
+    }
+  }
+}

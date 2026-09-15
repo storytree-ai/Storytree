@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/scripts": "cli-resident-corpus-tools",
+      "packages/cli/src/probe-decisions.ts": "cli-resident-corpus-tools",
+      "packages/drive/src/adr-*.ts": "cli-resident-corpus-tools"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-transcript/src/transcript-occupancy.ts": "transcript-occupancy-extraction"
+    }
+  }
+}

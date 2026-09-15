@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/contracts.ts": "library-schema-and-write-validation",
+      "packages/library/src/knowledge.ts": "library-schema-and-write-validation",
+      "packages/library/src/library-doc.ts": "library-schema-and-write-validation",
+      "packages/library/src/schema.ts": "library-schema-and-write-validation"
+    }
+  }
+}

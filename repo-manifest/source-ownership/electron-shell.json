@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/electron": "electron-shell",
+      "apps/desktop/src/backend/sidecar-startup.ts": "electron-shell",
+      "apps/desktop/src/keychain": "electron-shell"
+    }
+  }
+}

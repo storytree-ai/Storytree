@@ -16,6 +16,7 @@ import {
   subtreeClaimNote,
   type LibraryDocsReadLike,
 } from "./claim-universe.js";
+import { splitManifest } from "./manifest-fragments.js";
 
 /**
  * Gathering the claim namespace (ADR-0310 D2). The suite is dominated by the FAILURE cases on
@@ -64,17 +65,32 @@ function fakeLibrary(docs: readonly unknown[]): LibraryDocsReadLike {
 }
 
 /**
- * A throwaway `repo-manifest.json` carrying a two-entry `sourceOwnership.subtrees` map — the third
- * source (ADR-0317 D3). Hermetic like the tree fixture: never the real manifest, so this suite does
- * not red when the live map gains a declaration. That the LIVE map's keys all resolve is a separate,
- * deliberate assertion in `source-ownership-map.test.ts`.
+ * A throwaway manifest carrying a two-entry `sourceOwnership.subtrees` map — the third source
+ * (ADR-0317 D3) — laid out as the real one is: `repo-manifest.json` holding every other section, and the
+ * map split into the fragment tree beside it (ADR-0556). Hermetic like the tree fixture: never the real
+ * manifest, so this suite does not red when the live map gains a declaration. That the LIVE map's keys
+ * all resolve is a separate, deliberate assertion in `source-ownership-map.test.ts`.
  */
 function manifest(subtrees: Record<string, string> = FIXTURE_SUBTREES): string {
   const root = mkdtempSync(path.join(tmpdir(), "claim-universe-manifest-"));
   const file = path.join(root, "repo-manifest.json");
-  writeFileSync(file, JSON.stringify({ sourceOwnership: { subtrees } }), "utf8");
+  writeFileSync(file, JSON.stringify(REST_OF_MANIFEST), "utf8");
+  for (const fragment of splitManifest({ sourceOwnership: { subtrees } })) {
+    const out = path.join(root, "repo-manifest", ...fragment.path.split("/"));
+    mkdirSync(path.dirname(out), { recursive: true });
+    writeFileSync(out, fragment.text, "utf8");
+  }
   return file;
 }
+
+/** Every section a composed manifest needs besides the source-ownership map — each empty, which is a legal statement. */
+const REST_OF_MANIFEST = {
+  root: { files: {}, dirs: {} },
+  docs: { allowedDirs: {}, files: {} },
+  packageOwnership: { organisms: {}, foundational: [], surfaces: {} },
+  hierarchyCamps: { readers: {} },
+  hostedStories: { register: {} },
+};
 
 const FIXTURE_SUBTREES = {
   $comment: "prose keys are never declarations",

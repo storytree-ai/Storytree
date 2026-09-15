@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts": "orientation-runner-telemetry",
+      "packages/drive/src/orientation-runner.ts": "orientation-runner-telemetry"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/ArcSurface.tsx": "arc-orientation-lens",
+      "apps/studio/src/components/FloorHealthLamp.tsx": "arc-orientation-lens",
+      "apps/studio/src/lib/arcRollups.ts": "arc-orientation-lens",
+      "apps/studio/src/lib/arcSurface.ts": "arc-orientation-lens",
+      "apps/studio/src/lib/claimBands.ts": "arc-orientation-lens"
+    }
+  }
+}

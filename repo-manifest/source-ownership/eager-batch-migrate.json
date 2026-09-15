@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/knowledge-render.ts": "eager-batch-migrate"
+    }
+  }
+}

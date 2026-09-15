@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/corpusMemo.ts": "map-server-memo"
+    }
+  }
+}

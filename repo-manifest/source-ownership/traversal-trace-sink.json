@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-capture/src/sink.ts": "traversal-trace-sink",
+      "packages/context-traversal-capture/src/store/ship.ts": "traversal-trace-sink",
+      "packages/context-traversal-capture/src/store/traversal-event-store.ts": "traversal-trace-sink",
+      "packages/context-traversal-capture/src/traversal-index-memo.ts": "traversal-trace-sink"
+    }
+  }
+}

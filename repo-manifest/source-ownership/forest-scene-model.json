@@ -1,0 +1,23 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/forest-world-r3f/src/camera-framing.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/cell-ground-geometry.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/coast-clip.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/detail-normal.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/kit-vocabulary.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/land-per-capability.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/land-relief.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/map-texels.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/parcel-cells.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/resting-world-framing.test.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/shade-ladder.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/stepped-skirt.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/texture-convention.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/true-footprint.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/true-ground.test.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/true-ground.ts": "forest-scene-model",
+      "packages/forest-world-r3f/src/world-to-3d.ts": "forest-scene-model"
+    }
+  }
+}

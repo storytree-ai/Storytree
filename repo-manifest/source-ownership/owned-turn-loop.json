@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/run-turn.ts": "owned-turn-loop",
+      "packages/agent/src/step.ts": "owned-turn-loop"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/dev*.ts": "dev-server-persistence-backbone",
+      "apps/studio/src/lib/devStoreOverride.ts": "dev-server-persistence-backbone"
+    }
+  }
+}

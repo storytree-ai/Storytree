@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-transcript/src/ingest-decision-reads.ts": "transcript-decision-read-ingest"
+    }
+  }
+}

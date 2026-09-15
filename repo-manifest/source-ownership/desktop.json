@@ -1,0 +1,14 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/e2e/*.mjs": "desktop",
+      "apps/desktop/scripts/write-build-stamp.mjs": "desktop",
+      "apps/desktop/src/backend/open-link-policy.ts": "desktop",
+      "apps/desktop/src/backend/orchestrator-turns.ts": "desktop",
+      "apps/desktop/src/backend/traversal-routes.ts": "desktop",
+      "packages/cli/src/check-desktop-route-coverage.ts": "desktop",
+      "packages/cli/src/route-surfaces.ts": "desktop",
+      "packages/cli/src/route-tables.ts": "desktop"
+    }
+  }
+}

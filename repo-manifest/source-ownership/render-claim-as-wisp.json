@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/claim-activity.ts": "render-claim-as-wisp",
+      "apps/studio/server/inFlightActivity.ts": "render-claim-as-wisp",
+      "apps/studio/src/lib/sessionClaims.ts": "render-claim-as-wisp",
+      "packages/drive/src/wisp-smoke.ts": "render-claim-as-wisp"
+    }
+  }
+}

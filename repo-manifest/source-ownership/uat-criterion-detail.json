@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/uat-criterion/src/criterion.test-helpers.ts": "uat-criterion-detail",
+      "packages/uat-criterion/src/criterion.ts": "uat-criterion-detail",
+      "packages/uat-criterion/src/index.ts": "uat-criterion-detail"
+    }
+  }
+}

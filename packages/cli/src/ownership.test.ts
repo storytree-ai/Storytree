@@ -65,6 +65,7 @@ test("help states the report-only posture and that it reads neither proof field"
   assert.match(env.body, /REPORT ONLY/);
   assert.match(env.body, /proof\.real\.sourceFile/);
   assert.match(env.body, /write fence/);
+  assert.match(env.body, /`sourceOwnership\.subtrees` in `repo-manifest\/source-ownership\/<owner>\.json`/);
 });
 
 // THE EXTENSION APERTURE (`ownership-walk-extension-aperture`, 2026-08-18). `gatherSourceFiles` does

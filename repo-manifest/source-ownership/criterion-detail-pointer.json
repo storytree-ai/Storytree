@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/uat-criterion/src/criterion-pointer.ts": "criterion-detail-pointer"
+    }
+  }
+}

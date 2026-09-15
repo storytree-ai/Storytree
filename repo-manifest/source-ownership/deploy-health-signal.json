@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/*deploy-health*.ts": "deploy-health-signal"
+    }
+  }
+}

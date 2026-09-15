@@ -1,0 +1,14 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/inbound.ts": "library-cli",
+      "packages/cli/src/repoint.ts": "library-cli",
+      "packages/cli/src/retire.ts": "library-cli",
+      "packages/drive/src/corpus-store.ts": "library-cli",
+      "packages/drive/src/library-dashboard.ts": "library-cli",
+      "packages/library/src/depends-on-edges.ts": "library-cli",
+      "packages/library/src/knowledge-sources.ts": "library-cli",
+      "packages/library/src/loader.ts": "library-cli"
+    }
+  }
+}

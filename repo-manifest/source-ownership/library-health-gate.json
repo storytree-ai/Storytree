@@ -1,0 +1,15 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-definition-adjudication.ts": "library-health-gate",
+      "packages/cli/src/check-process-graph.ts": "library-health-gate",
+      "packages/cli/src/definition-adjudication.ts": "library-health-gate",
+      "packages/cli/src/health.ts": "library-health-gate",
+      "packages/drive/src/health.ts": "library-health-gate",
+      "packages/library/src/gate-command-file-audit.ts": "library-health-gate",
+      "packages/library/src/gate-criterion-audit.ts": "library-health-gate",
+      "packages/library/src/oq-gating.ts": "library-health-gate",
+      "packages/library/src/reliability-gates.ts": "library-health-gate"
+    }
+  }
+}

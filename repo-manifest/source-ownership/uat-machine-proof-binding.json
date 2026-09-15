@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/uat-test-criteria.ts": "uat-machine-proof-binding"
+    }
+  }
+}

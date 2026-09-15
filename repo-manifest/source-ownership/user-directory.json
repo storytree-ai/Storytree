@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/members*.ts": "user-directory",
+      "packages/studio-members/src": "user-directory"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/lifecycle.ts": "library-lifecycle-wire"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/TerminalDock.tsx": "multi-session-tabs",
+      "apps/studio/src/lib/terminalToolkit.ts": "multi-session-tabs"
+    }
+  }
+}

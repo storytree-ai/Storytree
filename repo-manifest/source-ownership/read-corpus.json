@@ -1,0 +1,11 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/DocView.tsx": "read-corpus",
+      "apps/studio/src/components/Markdown.tsx": "read-corpus",
+      "apps/studio/src/lib/diagram.ts": "read-corpus",
+      "apps/studio/src/lib/docsIndex.ts": "read-corpus",
+      "apps/studio/src/lib/markdown.ts": "read-corpus"
+    }
+  }
+}

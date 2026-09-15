@@ -1,0 +1,11 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/load-hierarchy.ts": "work-hierarchy-store-projection",
+      "packages/drive/src/hierarchy-projection.ts": "work-hierarchy-store-projection",
+      "packages/library/src/store/pg-work-hierarchy-store.ts": "work-hierarchy-store-projection",
+      "packages/library/src/work-hierarchy-projection.ts": "work-hierarchy-store-projection",
+      "packages/library/src/work-hierarchy-tree.ts": "work-hierarchy-store-projection"
+    }
+  }
+}

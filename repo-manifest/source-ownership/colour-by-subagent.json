@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/lib/claimColour.ts": "colour-by-subagent",
+      "packages/drive/src/subagent-colour.ts": "colour-by-subagent"
+    }
+  }
+}

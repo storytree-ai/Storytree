@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-capture/src/observe-cli.ts": "terminal-boundary-observations"
+    }
+  }
+}

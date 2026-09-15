@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/proof-binding-outcome.ts": "proof-binding-outcome-contract"
+    }
+  }
+}

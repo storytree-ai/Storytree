@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/*friction*.ts": "feedback-graduation",
+      "packages/cli/src/*resteer*.ts": "feedback-graduation",
+      "packages/library/src/resteer-report.ts": "feedback-graduation"
+    }
+  }
+}

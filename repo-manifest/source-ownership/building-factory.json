@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/procedural-architecture/src/buildings": "building-factory"
+    }
+  }
+}

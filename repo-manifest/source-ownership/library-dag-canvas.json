@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/LibraryFocusGraph.tsx": "library-dag-canvas"
+    }
+  }
+}

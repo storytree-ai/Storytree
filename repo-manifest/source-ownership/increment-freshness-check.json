@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/arc/src/increment.ts": "increment-freshness-check"
+    }
+  }
+}

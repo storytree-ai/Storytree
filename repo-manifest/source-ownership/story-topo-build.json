@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/story-build.ts": "story-topo-build",
+      "packages/orchestrator/src/story-build.ts": "story-topo-build"
+    }
+  }
+}

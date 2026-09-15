@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-capture/src/descend-agent-refs.ts": "agent-ref-descent"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-spawn/src/replay-adapters.ts": "multi-adapter-replay"
+    }
+  }
+}

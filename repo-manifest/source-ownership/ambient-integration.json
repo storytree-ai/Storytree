@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/ambient-presence-entry.ts": "ambient-integration",
+      "packages/drive/src/ambient-presence.ts": "ambient-integration"
+    }
+  }
+}

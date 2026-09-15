@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/claim-release.ts": "ci-clear-on-merge"
+    }
+  }
+}

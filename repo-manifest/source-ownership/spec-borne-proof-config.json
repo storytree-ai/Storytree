@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/orchestrator/src/node-spec.ts": "spec-borne-proof-config",
+      "packages/orchestrator/src/proof-config.ts": "spec-borne-proof-config"
+    }
+  }
+}

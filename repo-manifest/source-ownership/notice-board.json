@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/notice-board/src/index.ts": "notice-board"
+    }
+  }
+}

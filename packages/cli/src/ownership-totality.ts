@@ -307,14 +307,14 @@ export function formatOwnershipTotality(verdict: OwnershipTotalityVerdict): stri
   const dirs = [...new Set(verdict.authored.map((c) => dirOf(c.file)))].sort();
   lines.push(
     "",
-    "Every source file must fall under a `sourceOwnership.subtrees` entry in `repo-manifest.json`.",
+    "Every source file must fall under a `sourceOwnership.subtrees` entry in `repo-manifest/source-ownership/<owner>.json`.",
     "Declare the subtree you are writing, owned by the CAPABILITY you are writing — capability grain",
     "is the grain claims are taken at (ADR-0270 D1), and ADR-0346 D2 retired story-grain work claims,",
     "so a story id here names an owner the claim ledger will not let anyone claim:",
     "",
   );
   for (const dir of dirs) {
-    lines.push(`    { "subtree": "${dir}/<your-files>", "owner": "<capability-id>" },`);
+    lines.push(`    in repo-manifest/source-ownership/<capability-id>.json → "subtrees": { "${dir}/<your-files>": "<capability-id>" }`);
   }
   lines.push(
     "",

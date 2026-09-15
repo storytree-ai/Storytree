@@ -1,0 +1,11 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/uat": "uat-test-units",
+      "packages/cli/src/uat-test-fixtures.ts": "uat-test-units",
+      "packages/cli/src/uat.ts": "uat-test-units",
+      "packages/library/src/burned-ordinal-collision.ts": "uat-test-units",
+      "packages/library/src/uat-witness-census.ts": "uat-test-units"
+    }
+  }
+}

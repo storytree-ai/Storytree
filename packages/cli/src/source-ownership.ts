@@ -610,7 +610,7 @@ export function formatSourceOwnershipReport(
     for (const c of report.contested.slice(0, limit)) {
       lines.push(`  ${c.file}  →  ${c.owners.join(", ")}  (credited to ${c.owners[0]})`);
     }
-    lines.push("  Narrow the overlapping subtrees, or order the specific entry before the broad one.");
+    lines.push("  Narrow one of the overlapping subtrees until no file matches both — declaration order decides nothing.");
   }
 
   if (report.staleDeclarations.length > 0) {

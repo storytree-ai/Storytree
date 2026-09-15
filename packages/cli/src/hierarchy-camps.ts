@@ -54,7 +54,7 @@
  *
  * ## IT FAILS WIDE, AND A BLINDED SWEEP IS NEVER A PASS
  *
- * `parseSourceOwnershipMap`'s neighbour treats an unreadable manifest as a reason to STAND DOWN,
+ * `readSourceOwnershipMap`'s neighbour treats an unreadable manifest as a reason to STAND DOWN,
  * because a false refusal there blocks a session from claiming work it owns. The asymmetry here runs
  * the other way and deliberately so: this is a FENCE, and a fence that goes quiet when it cannot see
  * certifies exactly the thing it was added to catch. An unreadable manifest, an empty declaration

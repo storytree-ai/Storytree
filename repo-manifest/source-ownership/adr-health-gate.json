@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/adr*.ts": "adr-health-gate",
+      "packages/cli/src/check-adr-health.ts": "adr-health-gate"
+    }
+  }
+}
