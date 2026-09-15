@@ -12,8 +12,11 @@ proof_mode: integration-test
 # live-sdk-leaf added 2026-09-15: codex-feedback-endpoint.ts (contract codex-feedback-endpoint,
 # ADR-0570) imports executeFeedback (value) and FeedbackCommand/FeedbackRunOutput/SdkFeedbackRun
 # (type) from ./sdk-author.js. It also imports AuthoringPhase (type) from ./phase-author.js.
+# Still phase-author-seam, no new edge (contract codex-leaf-escalates, ADR-0569): the endpoint also
+# imports parseAuthoringEscalation (value) and AuthoringEscalation (type) from ./phase-author.js, and
+# codex-author.ts adds AuthoringEscalation (type) to its import from the same module.
 depends_on: [phase-author-seam, model-runtime-seam, live-sdk-leaf]
-decisions: [232, 356, 390, 555]
+decisions: [232, 356, 390, 555, 569]
 ---
 
 # The live Codex leaf — CodexPhaseAuthor
@@ -80,9 +83,14 @@ The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
   exit path.
 - **Authoring only, never proof (ADR-0232 D5).** The brief tells the leaf it works in a replica, names
   its allowed and required targets, and says the spine runs every registered proof after it stops.
-  Codex exposes NO feedback tools today — `feedbackToolNames` is `[]` and `feedbackRuns` stays empty —
-  so no `run_proof` or `run_typecheck` reaches it, and its native shell carries no proof-feedback
-  authority in their place. Red/green, promotion and the verdict stay the spine's.
+  No build hands Codex feedback commands yet, so in every build `feedbackToolNames` is `[]` and
+  `feedbackRuns` stays empty — no `run_proof` or `run_typecheck` reaches it, and its native shell carries
+  no proof-feedback authority in their place. Red/green, promotion and the verdict stay the spine's.
+  *(Clarified in place 2026-09-15.)* The adapter itself can already be armed (ADR-0570, proposed). An
+  author given feedback commands exposes them on the spine's loopback endpoint, run against its own
+  replica, with Codex's tool timeout above the longest proof bound the commands carry. The same endpoint
+  carries `escalate` (ADR-0569): the first valid escalation in a slice ends it with nothing promoted.
+  Nothing constructs such an author until builds arm the leaf.
 - **One turn, parsed fail-closed, accounted honestly (ADR-0232 D6).** `parseCodexJsonl` requires exactly
   one `turn.started` and one `turn.completed` carrying readable token usage; a malformed event, a failed
   turn, or a missing or extra turn fails the slice. The run record keeps the model, the single turn,

@@ -23,7 +23,7 @@ import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
+import type { AuthoringEscalation, AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 import type { TokenUsage } from "./model-events.js";
 import { openCodexFeedbackEndpoint } from "./codex-feedback-endpoint.js";
 import type {
@@ -394,8 +394,57 @@ export interface CodexExecFeedbackConfig {
  */
 const FEEDBACK_TOOL_TIMEOUT_SEC = 900;
 
+/** Sixty seconds of headroom for the spine to kill a run, format its output and answer the call. */
+const FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC = 60;
+
+/**
+ * Codex's own MCP tool-call timeout, raised above the longest `timeoutMs` any registered feedback
+ * command carries (ADR-0570 D4): `max(900, ceil(longest / 1000) + 60)` seconds, where `longest` is
+ * the largest positive finite `timeoutMs` among `commands`, and `900` when none carries one.
+ *
+ * Only NaN and ±Infinity are filtered out, because either would poison the max: NaN propagates
+ * through `Math.max`, and +Infinity would win it. Nothing else needs a guard, because the 900 floor
+ * absorbs it: a list with no finite bound makes `Math.max()` return `-Infinity`, and a zero or
+ * negative finite bound yields at most `ceil(0 / 1000) + 60 = 60` seconds. The outer max returns
+ * 900 for both, as it does for every bound up to 840,000 ms. (That is why this is not a loop with
+ * a `typeof` check, a `>` comparison and a `<= 0` early return: each of those was redundant in
+ * exactly this way, so no input could observe a change to one, and no test could ever prove it.)
+ */
+function computeFeedbackToolTimeoutSec(commands: CodexFeedbackCommand[]): number {
+  const longestMs = Math.max(
+    ...commands.map((command) => command.timeoutMs).filter((ms): ms is number => Number.isFinite(ms)),
+  );
+  return Math.max(
+    FEEDBACK_TOOL_TIMEOUT_SEC,
+    Math.ceil(longestMs / 1000) + FEEDBACK_TOOL_TIMEOUT_HEADROOM_SEC,
+  );
+}
+
 /** Per-slice feedback-run cap shared across commands, mirroring the Claude leaf's default (ADR-0570 D5). */
 const DEFAULT_CODEX_MAX_FEEDBACK_RUNS = 5;
+
+/**
+ * The escalation closing (ADR-0569, extended to the Codex leaf): appended to an ARMED author's
+ * composed stdin, after the existing adapter lines, naming the channel, what each authoring phase
+ * may escalate, and that raising one never moves the verdict. An unarmed author (no feedback
+ * commands, so no endpoint and no `escalate` tool) never appends this.
+ */
+const CODEX_ESCALATION_CLOSING =
+  "If a frozen input is itself wrong and the phase is genuinely impossible, raise it through the " +
+  "`escalate` tool on the spine MCP server instead of guessing or working around it: in " +
+  "AUTHOR_TEST you may report the contract itself is untestable; in IMPLEMENT you may report that " +
+  "no correct implementation can satisfy the authored test as written. Raising an escalation ends " +
+  "this slice without a verdict — it never moves the verdict; the spine alone observes red and " +
+  "green, out-of-band, just as it always does.";
+
+/**
+ * The `AuthorResult.error` string for a recorded escalation — the Claude leaf's own format
+ * (`sdk-author.ts`'s `escalationError`), duplicated here rather than imported since `sdk-author.ts`
+ * is out of this contract's write scope and exports no such symbol.
+ */
+function codexEscalationError(escalation: AuthoringEscalation): string {
+  return `${escalation.phase} escalated (${escalation.kind}): ${escalation.statement}`;
+}
 
 function buildFeedbackMcpServersConfigArgs(feedback: CodexExecFeedbackConfig): string[] {
   let parsed: URL;
@@ -1078,6 +1127,10 @@ export class CodexPhaseAuthor implements PhaseAuthor {
   }
 
   async author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult> {
+    // The per-SLICE escalation slot (ADR-0569, extended to the Codex leaf): a fresh, unset variable
+    // per author() call. Only ever set by the endpoint's `recordEscalation` callback, and only when
+    // this phase is armed with feedback commands (see the endpoint open below).
+    let escalation: AuthoringEscalation | undefined;
     if (this.#args.promotionFaults !== undefined && !this.#injectedRunner) {
       return { ok: false, error: "Codex promotion fault injection requires an injected runner" };
     }
@@ -1172,6 +1225,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     const agentBody = this.#args.phasePrompts?.[phase] ?? genericPhasePrompt(phase);
     const renderTargets = (targets: string[]): string =>
       targets.map((target) => `- \`${target}\``).join("\n");
+    const armed = this.#feedbackCommands.length > 0;
     const fullPrompt =
       `${agentBody.trim()}\n\n## Phase brief\n${prompt.trim()}\n\n` +
       "The spine will run all registered proof commands after you stop; their verdict is not yours.\n\n" +
@@ -1180,7 +1234,8 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       `Required outputs:\n${renderTargets(requiredPromptTargets)}\n\n` +
       "After you stop, the spine will observe the complete replica diff and promote only the " +
       "observed allowed subset. One unlisted change refuses the whole phase; your final response " +
-      "and file-change report are not promotion evidence.";
+      "and file-change report are not promotion evidence." +
+      (armed ? `\n\n${CODEX_ESCALATION_CLOSING}` : "");
 
     let feedbackHandle: CodexFeedbackEndpointHandle | undefined;
     const bound: CodexBoundControl = {};
@@ -1188,7 +1243,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       // Opened BEFORE `codex exec` starts, so the leaf can reach it from turn one; closed in the
       // `finally` below, which covers every exit after it opened — success, a refused promotion, and
       // a thrown runner alike.
-      if (this.#feedbackCommands.length > 0) {
+      if (armed) {
         const wrappedFeedbackCommands: CodexFeedbackCommand[] = this.#feedbackCommands.map(
           (command) => ({
             name: command.name,
@@ -1211,6 +1266,9 @@ export class CodexPhaseAuthor implements PhaseAuthor {
           commands: wrappedFeedbackCommands,
           maxRuns: DEFAULT_CODEX_MAX_FEEDBACK_RUNS,
           record: (run) => this.feedbackRuns.push(run),
+          recordEscalation: (recorded) => {
+            escalation = recorded;
+          },
         });
       }
 
@@ -1222,7 +1280,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         execArgsInput.feedback = {
           url: feedbackHandle.url,
           tokenEnvVar: feedbackHandle.tokenEnvVar,
-          toolTimeoutSec: FEEDBACK_TOOL_TIMEOUT_SEC,
+          toolTimeoutSec: computeFeedbackToolTimeoutSec(this.#feedbackCommands),
         };
       }
       // The token VALUE lives only in the exec child's environment, under the endpoint's own
@@ -1246,6 +1304,11 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         // `force` is left off here and in the `finally` below: all it does is turn a replica that is
         // already gone into a success, and the `.catch` absorbs that failure anyway.
         await fs.rm(replicaDir, { recursive: true }).catch(() => undefined);
+        // A recorded escalation wins over a thrown runner (ADR-0569): the leaf raised it before the
+        // spawn itself failed, and no stream was ever produced to write a run record from.
+        if (escalation !== undefined) {
+          return { ok: false, error: codexEscalationError(escalation), escalation };
+        }
         return { ok: false, error: `Codex exec failed to start: ${(error as Error).message}` };
       }
 
@@ -1256,6 +1319,11 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       // rather than a failure: nothing was observed, so nothing failed. It sits inside this `try` so the
       // replica is discarded by the same `finally` as every other exit, not by a copy of it.
       if (execution.timedOut === true) {
+        // A recorded escalation wins over a timed-out runner (ADR-0569): the leaf raised it before
+        // the bound killed the spawn, and a killed child left no stream to write a run record from.
+        if (escalation !== undefined) {
+          return { ok: false, error: codexEscalationError(escalation), escalation };
+        }
         return {
           ok: false,
           error:
@@ -1339,6 +1407,14 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         run.subtype = "error";
         return { ok: false, error };
       };
+
+      // A recorded escalation wins over every other ending from here on (ADR-0569): the run record
+      // above is written first so the slice's token usage stays accounted, then the escalation
+      // returns before the scope, exit-code, stream and required-target checks, and before
+      // promotion. Nothing is promoted on this path.
+      if (escalation !== undefined) {
+        return { ok: false, error: codexEscalationError(escalation), escalation };
+      }
 
       if (phaseViolations.length > 0) {
         return failRun(
