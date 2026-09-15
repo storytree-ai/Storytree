@@ -927,6 +927,40 @@ function formatUsage(u: {
  */
 export const PI_LEAF_ENDPOINT_LABEL = "→ Anthropic on the subscription credential (fresh provider id)";
 
+/**
+ * The shared feedback line for a leaf's `feedbackRuns` (ADR-0570 D5/D6): iteration is the spine's
+ * OWN record of feedback runs per phase, never the leaf's own report of what it did. Shared between
+ * the Claude and Codex branches of {@link liveLeafLines} so the two render byte-identical text and
+ * cannot drift apart.
+ */
+function feedbackRunsLine(runs: readonly { phase: string; tool: string; code: number | null }[]): string {
+  return (
+    `feedback:    ${runs.length} bounded run(s) — ` +
+    `${runs.map((f) => `${f.phase}:${f.tool}=${f.code === 0 ? "green" : `exit ${f.code ?? "none"}`}`).join(", ")} ` +
+    "(feedback only; the spine's own observations decided)"
+  );
+}
+
+/**
+ * The Codex branch's feedback line: the spine's own `feedbackRuns` record when non-empty (rendered
+ * identically to the Claude branch via {@link feedbackRunsLine}), otherwise the leaf's own
+ * `feedbackToolNames` record of what it was armed with (when armed but never called), otherwise
+ * today's unconditional `none` line for a Codex leaf given no feedback tools at all.
+ */
+function codexFeedbackLine(liveAuthor: {
+  feedbackRuns: readonly { phase: string; tool: string; code: number | null }[];
+  feedbackToolNames: readonly string[];
+}): string {
+  if (liveAuthor.feedbackRuns.length > 0) return feedbackRunsLine(liveAuthor.feedbackRuns);
+  if (liveAuthor.feedbackToolNames.length > 0) {
+    const names = liveAuthor.feedbackToolNames
+      .map((name) => name.replace(/^mcp__spine__/, ""))
+      .join(", ");
+    return `feedback:    0 bounded runs — armed with ${names}; the leaf called none (the spine's own observations decided)`;
+  }
+  return "feedback:    none — the spine reruns every registered proof command out of band";
+}
+
 /** The per-node leaf summary lines shared by the node and story envelopes. */
 export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
   if (liveAuthor.runtime === "pi") {
@@ -971,7 +1005,7 @@ export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
           ]
         : []),
       `scope walls: ${liveAuthor.violations.length === 0 ? "no write refusals" : liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
-      "feedback:    none — the spine reruns every registered proof command out of band",
+      codexFeedbackLine(liveAuthor),
     ];
   }
   return [
@@ -989,11 +1023,7 @@ export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
         ]
       : []),
     `scope walls: ${liveAuthor.violations.length === 0 ? "no write refusals" : liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
-    ...(liveAuthor.feedbackRuns.length > 0
-      ? [
-          `feedback:    ${liveAuthor.feedbackRuns.length} bounded run(s) — ${liveAuthor.feedbackRuns.map((f) => `${f.phase}:${f.tool}=${f.code === 0 ? "green" : `exit ${f.code ?? "none"}`}`).join(", ")} (feedback only; the spine's own observations decided)`,
-        ]
-      : []),
+    ...(liveAuthor.feedbackRuns.length > 0 ? [feedbackRunsLine(liveAuthor.feedbackRuns)] : []),
   ];
 }
 
