@@ -86,6 +86,23 @@ export const ContractCoverageAxis = z
 export type ContractCoverageAxis = z.infer<typeof ContractCoverageAxis>;
 
 /**
+ * A NEW test the spine observed PASSING at CONFIRM_RED — before its implementation existed — and
+ * accepted only because every contract it names declares a guard-rail (ADR-0572 D2/D3; ADR-0573 D5).
+ * Such a test was never observed failing, so a verdict names it rather than letting it read like a red.
+ *
+ * `test` is the full title path, outermost suite first; `contracts` are the declared contract ids whose
+ * guard-rail declarations admitted it. Neither may be empty: an acceptance that names no test or no
+ * declaration would be a record that admits nothing.
+ */
+export const AcceptedGuardRail = z
+  .object({
+    test: z.array(z.string()).min(1),
+    contracts: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+export type AcceptedGuardRail = z.infer<typeof AcceptedGuardRail>;
+
+/**
  * A verdict: the prove-it-gate's output (ADR-0020 §4). Pinned to a commit SHA and a
  * resolved signer; the `runId` ties it to the run that produced it.
  *
@@ -168,6 +185,16 @@ const VerdictData = z
      * — a missing scope means "this verdict did not establish a baseline", never "nothing expanded".
      */
     storyBaseline: StoryBaselineScope.optional(),
+    /**
+     * ADR-0573 D5 (recording ADR-0572 D3): every test CONFIRM_RED accepted as a declared guard-rail. Its
+     * PRESENCE says CONFIRM_RED was observed per test, so `[]` reads "observed per test, and no test was
+     * accepted before its implementation existed" — never the same as absent, which says red was not
+     * observed per test (or the verdict predates per-test observation).
+     *
+     * OPTIONAL/additive, as ADR-0127's coverage axis is: every stored verdict round-trips unchanged, and a
+     * reader keys behaviour off presence, never absence.
+     */
+    acceptedGuardRails: z.array(AcceptedGuardRail).optional(),
     evidence: z.array(EvidenceRef).default([]),
     at: z.string(),
   })

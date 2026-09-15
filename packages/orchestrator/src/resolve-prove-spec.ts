@@ -48,7 +48,17 @@ import {
   resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
-import { NODE_BINARY, classifyProofRoute, withOracleGuard, withOracleGuardEnv } from "./proof/proof-route.js";
+import {
+  NODE_BINARY,
+  classifyProofRoute,
+  perTestChannelOf,
+  withOracleGuard,
+  withOracleGuardEnv,
+  withOraclePreload,
+  withPerTestReport,
+} from "./proof/proof-route.js";
+import { allocatePerTestReportPath, perTestReportFile } from "./proof/per-test-report.js";
+import { perTestPolicy } from "./proof/per-test-review.js";
 import type { ProofRoute } from "./proof/proof-route.js";
 import { gitTreeState } from "./prove-it-gate.js";
 import type { EscalationRecord, PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
@@ -731,8 +741,18 @@ function resolveReal(
   if (reportPath !== undefined) proofEnv[PROOF_REPORT_ENV] = reportPath;
   // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
   if (real.db === true && opts.dbProofEnv !== undefined) Object.assign(proofEnv, opts.dbProofEnv);
-  const realProofCmd: ShellCommand =
+  const commandWithEnv: ShellCommand =
     Object.keys(proofEnv).length > 0 ? { ...base.command, env: proofEnv } : base.command;
+  // ADR-0573 D2/D3: a route that runs ONE test file through a runner whose per-test report was measured
+  // carries that report on the same one command — so the spine's observations and the leaf's run_proof
+  // still spawn one object — at a per-build path outside the worktree, allocated once and closed over.
+  const perTestChannel = perTestChannelOf(real, base.route);
+  const perTestReportPath =
+    perTestChannel === undefined ? undefined : allocatePerTestReportPath(opts.runId, spec.id, perTestChannel);
+  const realProofCmd: ShellCommand =
+    perTestChannel === undefined || perTestReportPath === undefined
+      ? commandWithEnv
+      : withPerTestReport(commandWithEnv, perTestChannel, perTestReportPath);
   // ADR-0249: the cross-check is only fail-closed if the report it reads is attributable to the
   // observation that just ran. `reportPath` is ONE fixed path shared by CONFIRM_RED, every leaf
   // feedback run, and CONFIRM_GREEN, and the report body carries no run identity — so the spine CLEARS
@@ -750,10 +770,12 @@ function resolveReal(
   // the pre-existing sibling test always contributes real assertions). The GREEN veto stays meaningful
   // at suite grain (a suite exiting 0 with a genuinely ZERO aggregate is still a hollow run worth
   // refusing); the KIND measurement does not, because it cannot attribute the count to the ONE file
-  // whose red is being classified. Only the two single-explicit-file bases get it.
+  // whose red is being classified. Only the single-explicit-file bases get it: node's two, and bun's.
   const redKindMeasurable =
     base.route.accounting === "oracle" &&
-    (base.route.basis === "default-node-test" || base.route.basis === "custom-node-test-own-file");
+    (base.route.basis === "default-node-test" ||
+      base.route.basis === "custom-node-test-own-file" ||
+      base.route.basis === "bun-test-own-file");
   const resolver: ShellTestResolver = { command: (): ShellCommand => realProofCmd };
   if (reportPath !== undefined) {
     resolver.beforeRun = () => resetOracleReport(reportPath);
@@ -764,6 +786,9 @@ function resolveReal(
     // sentence on its green, not a standing disclaimer — so the verdict records which flavour of
     // "no oracle" this was, and a reader can tell a suite from a foreign runner.
     resolver.unvettedNote = unvettedGreenNote(base.route.disclosure);
+  }
+  if (perTestChannel !== undefined && perTestReportPath !== undefined) {
+    resolver.perTestReport = perTestReportFile(perTestChannel, perTestReportPath);
   }
   const testExecutor = new ShellTestExecutor(resolver);
   const scope = new PathWriteScope(real.scope);
@@ -936,6 +961,16 @@ function resolveReal(
   // ADR-0416 D6: forwarded only when the caller supplied it (a story node). The gate then consults
   // the thunk at GATE, so an aborted walk establishes no baseline.
   if (opts.storyBaseline !== undefined) proveSpec.storyBaseline = opts.storyBaseline;
+  // ADR-0573 D1/D3: the review point, on exactly the routes that carry a per-test channel. CONFIRM_RED is
+  // reviewed per test only for an assertion red (`editsExisting`): a structural red is a file that does
+  // not load, and such a file reports no test on any runner. CONFIRM_GREEN is reviewed on every such route.
+  if (perTestChannel !== undefined) {
+    proveSpec.perTest = perTestPolicy({
+      testFile: path.join(opts.workspace, real.testFile),
+      contracts: spec.contracts,
+      observeRed: declaredExpectedRed(real) === "assertion",
+    });
+  }
   // ADR-0534: the gate's ADR-0016 binding seam gets its first caller. Only on the DEFAULT tree seam
   // (the one that actually commits): the thunk binds the top-level declarations the spine's own
   // scoped commit changed, at GATE, from the attested commit's bytes — see `proof/proved-span.ts`.
@@ -1052,10 +1087,14 @@ export function realProofCommand(
     // process it spawns for the target package's own suite, so that route is wired via `NODE_OPTIONS`
     // instead — guardArgIndex stays null for it, same as the "resolver builds it" default route, and
     // the two are distinguished by `basis`.
+    // ADR-0573 D2: bun takes the same guard through `--preload`.
+    const guardArgIndex = route.accounting === "oracle" ? route.guardArgIndex : null;
     const args =
-      route.accounting === "oracle" && route.guardArgIndex !== null
-        ? withOracleGuard(real.proofCommand.args, route.guardArgIndex, assertOracleGuardUrl())
-        : [...real.proofCommand.args];
+      guardArgIndex === null
+        ? [...real.proofCommand.args]
+        : route.basis === "bun-test-own-file"
+          ? withOraclePreload(real.proofCommand.args, guardArgIndex, assertOracleGuardUrl())
+          : withOracleGuard(real.proofCommand.args, guardArgIndex, assertOracleGuardUrl());
     const command = platformShellCommand({ ...real.proofCommand, args, cwd: workspace });
     const commandWithGuardEnv =
       route.accounting === "oracle" && route.basis === "package-script-node-test-suite"
@@ -1411,6 +1450,23 @@ export function realPrompts(
   const redClose = (reason: string): string =>
     `After writing it, use \`run_proof\` to confirm it fails for ${reason}. The spine observes ` +
     `the official red itself. When the test file is written and checked, stop.`;
+  // ADR-0572, as ADR-0573's Consequences require: on a route observed PER TEST the red author is told
+  // the rules in the same brief — every test reports on its own, and, where red is reviewed per test, a
+  // new test that already passes is refused unless its contract declares a guard-rail. Empty on every
+  // other route, so those briefs keep their exact bytes. Placed before `revisionBlock`, which stays the
+  // brief's last part.
+  const perTestClause =
+    perTestChannelOf(real, classifyProofRoute(real)) === undefined
+      ? ""
+      : ` The spine observes this proof PER TEST: every test in \`${real.testFile}\` reports on its own, ` +
+        `and every one must pass at green. Give each test a literal title (a \`.each\` table or a title ` +
+        `built at runtime is refused), and name the contract it proves in its title or its enclosing ` +
+        `\`describe\`.` +
+        (declaredExpectedRed(real) === "assertion"
+          ? ` Every NEW test you add must FAIL now, on its own, with an assertion: a new test that already ` +
+            `passes before the source changes is refused, unless every contract it names declares a ` +
+            `guard-rail in its story (ADR-0572). Do not add one that passes.`
+          : "");
   // The IMPLEMENT green-iteration close: shared Claude wording for both runtimes (ADR-0570 D1) —
   // Codex now iterates against run_proof/run_typecheck too, exactly as Claude is briefed.
   const greenClose = (verb: string, subject: string): string => {
@@ -1442,7 +1498,7 @@ export function realPrompts(
         `function, or injectable parameter — that does NOT exist in the source yet, so the test ` +
         `FAILS with a STRUCTURAL error (a missing export / "module not found" / ` +
         `"undefined is not a function"), NOT a behaviour assertion against existing code. ` +
-        `${redClose("the RIGHT reason — your new test's missing-seam/structural failure, not a syntax error and not a sibling regression")}${revisionBlock}`,
+        `${redClose("the RIGHT reason — your new test's missing-seam/structural failure, not a syntax error and not a sibling regression")}${perTestClause}${revisionBlock}`,
       implement:
         `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, then ` +
         `perform a BEHAVIOUR-PRESERVING REFACTOR of the existing source file(s) ${sourcesNamed} that ` +
@@ -1464,7 +1520,7 @@ export function realPrompts(
         `author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
         `assertion about what they SHOULD do, NOT a missing-symbol import (the symbols already ` +
         `exist). ` +
-        `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}${revisionBlock}`,
+        `${redClose('the RIGHT reason — a behaviour-assertion failure, not a syntax error and not a "module not found"')}${perTestClause}${revisionBlock}`,
       implement:
         `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
         `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
@@ -1480,7 +1536,7 @@ export function realPrompts(
       `not create it (writes outside the test file are refused in this phase). Author the test ` +
       `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
       `meets the outcome. ` +
-      `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}${revisionBlock}`,
+      `${redClose("the RIGHT reason (a missing-implementation/assertion failure, not a syntax error in the test)")}${perTestClause}${revisionBlock}`,
     implement:
       `${header}\n\n${conventions}${contractsImplement}${guidance}\n\nPhase IMPLEMENT — read ${testsNamed}, ` +
       `then write ONLY ${sourcesNamed} so that test passes. Writes to the test file are ` +

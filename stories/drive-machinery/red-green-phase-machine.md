@@ -54,7 +54,9 @@ At the first-loss boundary, `TestObservation` exposes optional
 shell implementation actually spawned a command. `exitCode: null` preserves a signal-terminated
 child as observed data. The phase machine neither constructs, interprets, persists, nor requires
 that detail. Its transition is still determined only by `result`, the declared expected red, and the
-measured-kind rule; recording doubles and other executors remain valid without it.
+measured-kind rule; recording doubles and other executors remain valid without it. The optional
+`perTest` report (ADR-0573) rides the same way and never changes what `nextPhase` decides;
+[`prove-it-gate`](prove-it-gate.md) is what reviews it.
 
 Enforcement lives elsewhere by design: [`phase-scoped-write-wall`](phase-scoped-write-wall.md)
 wires the predicate into the tool surface; [`shell-test-observer`](shell-test-observer.md) is the

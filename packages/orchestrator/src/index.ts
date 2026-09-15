@@ -315,6 +315,41 @@ export {
   readTestSurface,
   testNameCoversContract,
 } from "./proof/contract-coverage.js";
+// ADR-0573: per-test observation — the runner report readers the observer reads through, and the
+// review point CONFIRM_RED / CONFIRM_GREEN apply beside the exit code. The review can only refuse.
+export type {
+  PerTestChannel,
+  PerTestReport,
+  PerTestReportSource,
+  ReportedOutcome,
+  ReportedTest,
+} from "./proof/per-test-report.js";
+export {
+  allocatePerTestReportPath,
+  nodeTestReporterArgs,
+  perTestReportFile,
+  perTestReporterUrl,
+  readPerTestReportText,
+} from "./proof/per-test-report.js";
+export type {
+  DeclaredTest,
+  PerTestCheck,
+  PerTestFinding,
+  PerTestJudgement,
+  PerTestPolicy,
+  PerTestPolicyArgs,
+} from "./proof/per-test-review.js";
+export {
+  EARLY_PASS_ROUTES,
+  GUARD_RAIL_LABEL,
+  STRUCTURAL_RED_NOT_OBSERVED,
+  declaredTestsOf,
+  declaresGuardRail,
+  describePerTestRefusal,
+  perTestPolicy,
+  reviewConfirmGreen,
+  reviewConfirmRed,
+} from "./proof/per-test-review.js";
 // ADR-0098 Layer 3 (U4): the pre-build batch decision-sweep — the deterministic owner-fork-bar
 // classifier (the d.5 escalate-ownership-not-uncertainty discriminator) + the partition + the
 // fail-closed halt gate the build-tests `--real` drive consults before any spend. Pure, offline; the

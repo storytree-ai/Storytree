@@ -12,6 +12,7 @@
 import { execFile } from "node:child_process";
 
 import type { TestExecutor, TestObservation } from "./phase-machine.js";
+import type { PerTestReportSource } from "./proof/per-test-report.js";
 
 /** The captured outcome of one spawned test command. */
 export interface ShellRunResult {
@@ -158,6 +159,17 @@ export interface ShellTestResolver {
    * carrying both would be declaring a cross-check it also says it does not have.
    */
   unvettedNote?: string;
+  /**
+   * ADR-0573 D2 (optional): the per-test report this proof command writes. The executor CLEARS it before
+   * the spawn — a report that survives the clear makes the observation a fail-closed red without
+   * spawning, exactly as `beforeRun` does (ADR-0249) — and READS it right after, attaching what this run
+   * wrote to the observation as `perTest`, red or green.
+   *
+   * It changes nothing the executor decides: red/green stays the exit code and its cross-checks. The
+   * gate's per-test review is what reads the report, and it can only refuse (ADR-0573 D1). Absent ⇒ the
+   * observation carries no `perTest` (unchanged).
+   */
+  perTestReport?: PerTestReportSource;
 }
 
 /**
@@ -193,6 +205,9 @@ export function defaultClassifyKind(
   return "runtime";
 }
 
+/** What every observation a spawn produces carries: its process result, and its per-test report when one was read. */
+type SpawnedObservation = Pick<TestObservation, "originalProcessResult" | "perTest">;
+
 /**
  * The live {@link TestExecutor}: spawns a resolved command per `testId`, captures stdout/stderr/exit
  * code, and maps `exit 0 => green`, `exit non-zero => red` (with a classified `kind`). Built on
@@ -216,15 +231,25 @@ export class ShellTestExecutor implements TestExecutor {
       return { result: "red", kind: "runtime", testId, note: prepared.reason };
     }
 
+    // ADR-0573 D2, under ADR-0249's rule: the per-test report is cleared before the spawn for the same
+    // reason the oracle report is — a report that survives would be read back as this run's.
+    const perTestCleared = this.resolver.perTestReport?.reset();
+    if (perTestCleared !== undefined && !perTestCleared.ok) {
+      return { result: "red", kind: "runtime", testId, note: perTestCleared.reason };
+    }
+
     const cmd = this.resolver.command(testId);
     const out = await this.spawn(cmd);
-    const originalProcessResult = {
+    // Read what THIS run wrote, before anything else can touch the path.
+    const perTest = this.resolver.perTestReport?.read();
+    const spawned: SpawnedObservation = {
       originalProcessResult: {
         stdout: out.stdout,
         stderr: out.stderr,
         exitCode: out.code,
       },
     };
+    if (perTest !== undefined) spawned.perTest = perTest;
 
     if (out.code === 0) {
       // ADR-0211: a green is trusted only if the assert-oracle actually ran. The source-under-test
@@ -233,7 +258,7 @@ export class ShellTestExecutor implements TestExecutor {
       // the green to a fail-closed red, so the spine never signs a forged pass. Absent ⇒ exit-code only.
       const veto = this.resolver.verifyGreen?.(out);
       if (veto !== undefined && !veto.ok) {
-        return { result: "red", kind: "runtime", testId, note: veto.reason, ...originalProcessResult };
+        return { result: "red", kind: "runtime", testId, note: veto.reason, ...spawned };
       }
       // `oracle-veto-covers-custom-proof-commands`: SAY which kind of green this is. ADR-0211's veto
       // is wired only for the default node:test command, so a custom-`proofCommand` node (package
@@ -245,8 +270,8 @@ export class ShellTestExecutor implements TestExecutor {
       const note =
         veto === undefined ? (this.resolver.unvettedNote ?? UNVETTED_GREEN_NOTE) : veto.note;
       return note === undefined
-        ? { result: "green", testId, ...originalProcessResult }
-        : { result: "green", testId, note, ...originalProcessResult };
+        ? { result: "green", testId, ...spawned }
+        : { result: "green", testId, note, ...spawned };
     }
 
     // `gate-the-right-kind-red`: prefer a MEASURED kind (the assert-oracle count) over the text
@@ -254,14 +279,14 @@ export class ShellTestExecutor implements TestExecutor {
     // basis, so the basis is part of the observation, not a detail of how it was computed.
     const measured = this.resolver.measureRedKind?.(out);
     if (measured !== undefined) {
-      return { result: "red", kind: measured, testId, kindBasis: "oracle-count", ...originalProcessResult };
+      return { result: "red", kind: measured, testId, kindBasis: "oracle-count", ...spawned };
     }
     const classify = this.resolver.classifyKind ?? defaultClassifyKind;
     const kind = classify(out);
     // exactOptionalPropertyTypes: only attach `kind` when it is defined.
     return kind === undefined
-      ? { result: "red", testId, ...originalProcessResult }
-      : { result: "red", kind, testId, kindBasis: "output-text", ...originalProcessResult };
+      ? { result: "red", testId, ...spawned }
+      : { result: "red", kind, testId, kindBasis: "output-text", ...spawned };
   }
 
   /** Spawn via the shared {@link runShellCommand} (env-scrubbed, exit-code-as-data). */

@@ -117,6 +117,13 @@ this fold. That SQL/wiring is operator/integration-observed (the `activityApi` i
 deep-link), NOT the isolatable red→green — it is built by the orchestrator's supplement subagent. Mark it
 done when the pure fold (B1/B2) is green and wired into the live read.
 
+**Per-test observation — one literal test per grade case.** Give each grade case in
+`inFlightActivity.test.ts` its own `it(...)` with a literal title: ADR-0573 D3 refuses a declaration the
+per-test join cannot bind to exactly one reported row, and an `it.each` table expands one declaration
+into several rows. If cases are ever split out of a table, land the split as its own change, never
+inside a build whose red is observed per test: made there, the split titles read as new tests that
+already pass, and ADR-0573 C4 refuses them.
+
 Do NOT touch files outside your write scope. The pure fold is the only `--real` deliverable; keep it
 DB-free so it runs offline exactly like `inFlightBuilds.test.ts`.
 

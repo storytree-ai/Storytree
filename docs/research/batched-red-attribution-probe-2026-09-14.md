@@ -345,6 +345,38 @@ Parked on the arc in the same landing:
 3. **Brief the red author for a cluster and let the green author iterate against it.** It needs item 2,
    and `inner-loop-exit-arc-inc-03`'s feedback tools for the Codex leaf.
 
+## 10. Addendum, 2026-09-15 — the report shapes inc-03's readers were built against
+
+`batched-test-authoring-arc-inc-03` built the readers and the review point ADR-0573 decides
+(`packages/orchestrator/src/proof/per-test-report.ts` and `per-test-review.ts`). Before their tests were
+written, one NEW fixture set ran once per runner: Node 24.15.0 with tsx through the spine's reporter,
+Bun 1.4.0 junit, and vitest 3.2.6 json. This was not a re-run of this probe. The captures are the
+readers' unit-test fixtures (`per-test-report.test.ts`). What they add to §4:
+
+- **node reports every skip as `test:pass`**: `skip: true`, or the reason string for a runtime
+  `t.skip(…)`. A failing todo is `test:fail` with `todo: true`, a passing todo is `test:pass` with
+  `todo: true`, and a suite is `test:pass` with `testType: "suite"`. A reader keyed on the event type
+  would count every skip as a pass.
+- **node's row for a `TypeError` carries no `causeCode`**, so it can never read as `ERR_ASSERTION`.
+- **A `process.exit(0)` reads green on node and bun alike.** node relays ONE synthetic passing row named
+  after the file, exits 0, and drops even the tests that had already passed. bun exits 0 and writes no
+  junit at all.
+- **bun never runs a todo** (`<skipped message="TODO"/>`), where node does: the same file gives node two
+  failing todo rows and bun two skips.
+- **vitest, the shapes this probe did not exercise (ADR-0573 D2).** `test.skip`, the `{ skip: true }`
+  options form and a runtime `ctx.skip()` all read `status: "skipped"`, and `test.todo` reads `"todo"`. A
+  load failure is one file entry with `status: "failed"`, a message, and no test rows. vitest CATCHES
+  `process.exit(0)`: the calling test reads failed (`Error: process.exit unexpectedly called with "0"`),
+  the remaining tests still run, and the json is written. `test.fails` is marked nowhere — its row reads
+  `passed`.
+- **Naming only the spine's reporter emptied node's stdout** (0 bytes); adding
+  `--test-reporter=spec --test-reporter-destination=stdout` restored it (4291 bytes), as ADR-0573's
+  Context fact 2 records.
+
+The review refuses each of these shapes (`per-test-review.test.ts`), and the end-state-5 test drives the
+gate over the real runners, with today's gate as the negative control
+(`packages/orchestrator/src/prove-it-gate.per-test.e2e.test.ts`).
+
 ## Appendix A — reproduce
 
 Paths are shown as `<worktree>` (the checkout the probe ran from) and `<scratch>` (a directory outside

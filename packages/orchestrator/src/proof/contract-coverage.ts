@@ -173,10 +173,29 @@ export interface ObservedTest {
    * {@link classifyBehaviourClaims}, which matches over the ancestry-joined title.
    */
   ancestors: readonly string[];
+  /**
+   * The call that declares it: `describe` (a suite) or `test` / `it`. OPTIONAL only because a hand-built
+   * literal predates it; {@link analyzeObservedTests} always supplies it. The per-test join (ADR-0573)
+   * reads it because an empty suite reports no test row on any runner.
+   */
+  call?: TestCallRoot;
+  /**
+   * TRUE for a table-bound declaration — `it.each(table)(title, fn)` — which ONE declaration the runner
+   * expands into several rows, so no reported row can be bound to it one-to-one (ADR-0573 D3). OPTIONAL
+   * for the same reason as {@link call}.
+   */
+  parameterised?: boolean;
 }
 
+/** A test-runner call root whose first string arg names a test/suite. */
+type TestCallRoot = "describe" | "test" | "it";
+
 /** The test-runner call roots whose first string arg names a test/suite (mirrors `extractTestNames`). */
-const TEST_CALL_ROOTS = new Set(["describe", "test", "it"]);
+const TEST_CALL_ROOTS: ReadonlySet<string> = new Set<TestCallRoot>(["describe", "test", "it"]);
+
+function isTestCallRoot(root: string): root is TestCallRoot {
+  return TEST_CALL_ROOTS.has(root);
+}
 /** Modifiers that mean "named but never runs" — a `.skip`/`.todo` test asserts nothing at runtime. */
 const SKIP_MODIFIERS = new Set(["skip", "todo"]);
 /**
@@ -291,10 +310,10 @@ export function readTestCallTitle(arg: ts.Expression | undefined): ReadTitle | n
  */
 function matchTestCall(
   node: ts.Node,
-): { name: string; ownSkip: boolean; titleFullyStatic: boolean } | null {
+): { name: string; ownSkip: boolean; titleFullyStatic: boolean; call: TestCallRoot; parameterised: boolean } | null {
   if (!ts.isCallExpression(node)) return null;
   const { root, members } = calleeParts(node.expression);
-  if (root === undefined || !TEST_CALL_ROOTS.has(root)) return null;
+  if (root === undefined || !isTestCallRoot(root)) return null;
   if (members.some((m) => EACH_MODIFIERS.has(m)) && !ts.isCallExpression(node.expression)) {
     return null; // the `.each(table)` factory itself — the title lives on the call that invokes it
   }
@@ -304,6 +323,9 @@ function matchTestCall(
     name: title.text,
     ownSkip: members.some((m) => SKIP_MODIFIERS.has(m)),
     titleFullyStatic: title.fullyStatic,
+    call: root,
+    // Only the INVOCATION of a `.each` factory reaches here (the factory itself returned null above).
+    parameterised: members.some((m) => EACH_MODIFIERS.has(m)),
   };
 }
 
@@ -398,6 +420,8 @@ export function analyzeObservedTests(testSource: string): ObservedTest[] {
           skipped: skippedHere,
           vouches: subtreeSubstantive && !skippedHere,
           ancestors: ancestorTitles,
+          call: test.call,
+          parameterised: test.parameterised,
         },
         pos: node.getStart(sf),
       });

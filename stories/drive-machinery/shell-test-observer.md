@@ -53,8 +53,9 @@ with.
 
 **The three optional cross-check seams** (`shell-test-executor.ts:62-98`) are wired together at one
 site by [`prove-spec-resolution`](prove-spec-resolution.md), and only for oracle-accounted proof
-commands (the default `node --import tsx --test` one) — a custom-`proofCommand` node has none of them
-and stays exit-code-only. `beforeRun` (ADR-0249) clears the oracle report before the spawn, so what
+commands (`classifyProofRoute` decides which; the default `node --import tsx --test` one among them) — any
+other command has none of them, and is observed by its exit code plus, where its route is armed, the
+per-test report below. `beforeRun` (ADR-0249) clears the oracle report before the spawn, so what
 is read back can only be THIS run's; `verifyGreen` (ADR-0211) downgrades an `exit 0` that never
 exercised the oracle to a fail-closed red; `measureRedKind` reads the same cleared-then-read report
 for the kind. The third depends on the first for exactly the reason the second does — an uncleared
@@ -97,6 +98,15 @@ attach. This detail neither reaches the leaf nor changes the classification, `ki
 transition, signed evidence, event schema, or stored history; the gate may expose it only on the
 final refused CONFIRM result.
 
+**The per-test report seam (ADR-0573 D1–D2).** `ShellTestResolver.perTestReport` is one more optional
+seam, held to `beforeRun`'s clear-then-read discipline (ADR-0249): the report is cleared before the
+spawn, and a report that survives the clear refuses the observation without spawning; after the run it
+is read and rides on the observation as `TestObservation.perTest`, changing neither `result` nor
+`originalProcessResult`. The readers for node's reporter JSONL, bun junit and vitest json live in
+`packages/orchestrator/src/proof/per-test-report.ts`. [`prove-spec-resolution`](prove-spec-resolution.md) arms it on
+every real proof route that runs ONE test file through node:test, vitest or `bun test` (ADR-0573 D3);
+whole-package suites and other runners are observed exactly as before.
+
 ## Integration test
 
 **Goal —** The observer feeds the real gate: the e2e walk
@@ -104,7 +114,7 @@ final refused CONFIRM result.
 a real authored test file and the spine's CONFIRM_RED/CONFIRM_GREEN decisions ride its
 observations — a genuinely failing then genuinely passing child process, exit codes only.
 
-## Contracts (12)
+## Contracts (14)
 
 1. **`exit-code-is-the-verdict-channel`** — exit 0 observes green; exit 1 observes a runtime red; a compile-shaped message + exit 1 observes a compile red
    - **asserts —** the three observation shapes off real spawned scripts.
@@ -154,3 +164,11 @@ observations — a genuinely failing then genuinely passing child process, exit 
     - **asserts —** ordinary child commands emitting distinct stdout and stderr preserve those exact strings and their exit status for both a green and a red observation, including `exitCode: null` on signal termination; each assertion observes exactly one child spawn. A `beforeRun` veto, ENOENT rejection, and any non-shell executor have no fabricated subprocess payload.
     - **covers —** `ShellTestExecutor.run` and its `ShellRunResult` hand-off (`packages/orchestrator/src/shell-test-executor.ts`)
     - **proven by —** scoped additions to `packages/orchestrator/src/shell-test-executor.test.ts` (ordinary real child processes; pending the capability's normal red→green proof)
+13. **`runner-reports-read-per-test`** — each runner's report reads into one row per leaf test, with its full title path and outcome
+    - **asserts —** node's reporter JSONL (`readNodeTestReport`), bun junit (`readBunJunitReport`) and vitest json (`readVitestJsonReport`) each yield one row per leaf test, carrying its full title path and outcome; a skip or a todo never reads as passed or failed, though node reports a skip as `test:pass` and a failing todo as `test:fail`; suites are containers, never rows; a duplicate title stays two rows; a load failure or an early exit leaves node a single file-level row and vitest a file row; an unnamed vitest status reads `other`; and `nodeTestReporterArgs` names `spec` to stdout beside the spine's reporter.
+    - **covers —** `packages/orchestrator/src/proof/per-test-report.ts`, `packages/orchestrator/src/proof/per-test-reporter.mjs`
+    - **proven by —** `packages/orchestrator/src/proof/per-test-report.test.ts`, over reports captured 2026-09-15 on Node 24.15.0, Bun 1.4.0 and vitest 3.2.6 (session-authored; pending the capability's normal red→green proof)
+14. **`per-test-report-rides-the-observation`** — a resolver's per-test report is cleared before the spawn and read after, and the observation carries what the run wrote
+    - **asserts —** a report that survives the clear refuses the observation without spawning; a stale report never reads as this run's; what the run wrote rides on the observation as `perTest`, red and green, without changing its `result` or its `originalProcessResult`; a `beforeRun` refusal comes first and leaves the report untouched; and a resolver with no `perTestReport` source yields no `perTest`.
+    - **covers —** `ShellTestExecutor.run` and `ShellTestResolver.perTestReport` (`packages/orchestrator/src/shell-test-executor.ts`); `perTestReportFile` (`packages/orchestrator/src/proof/per-test-report.ts`)
+    - **proven by —** `packages/orchestrator/src/shell-test-executor.per-test.test.ts`, and the report-file cases in `packages/orchestrator/src/proof/per-test-report.test.ts` (session-authored; pending the capability's normal red→green proof)

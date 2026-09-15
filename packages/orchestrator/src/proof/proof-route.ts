@@ -22,8 +22,13 @@
  * report is ONE file that each instrumented process OVERWRITES on exit. Under `node --test` with the
  * default process isolation the RUNNER parent outlives its children, so it writes LAST:
  *
- *   node --import guard --test a.test.mjs                → {"assertions":3}   (runs in-process)
+ *   node --import guard --test a.test.mjs                → {"assertions":3}   (the child's count)
  *   node --import guard --test a.test.mjs b.test.mjs     → {"assertions":0}   (parent clobbers)
+ *
+ * *(Corrected in place: the first line said a single file "runs in-process". Re-measured 2026-09-14
+ * (`docs/research/batched-red-attribution-probe-2026-09-14.md` §1), it does not: even one file runs in a
+ * CHILD under `node --test` — `NODE_TEST_CONTEXT=child-v8` inside the test — and only that child wrote an
+ * oracle report.)*
  *
  * So a SUITE-scoped command does not merely dilute the count — it reports ZERO, which
  * {@link import("./oracle-accounting.js").verifyOracleExercised} refuses as a hollow green. Wiring the
@@ -75,8 +80,12 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { RealProofConfig } from "../proof-config.js";
+import type { ShellCommand } from "../shell-test-executor.js";
+import { nodeTestReporterArgs } from "./per-test-report.js";
+import type { PerTestChannel } from "./per-test-report.js";
 
 /** Why a route landed where it did — the vocabulary every consumer of this classifier reads. */
 export type ProofRouteBasis =
@@ -84,6 +93,13 @@ export type ProofRouteBasis =
   | "default-node-test"
   /** A declared `node --test` over exactly this node's own `testFile` — the guard applies verbatim. */
   | "custom-node-test-own-file"
+  /**
+   * A declared `bun test` over exactly this node's own `testFile` (ADR-0573 D2): ONE file in ONE
+   * process, not the opaque package-script suite `bun` otherwise names. The guard applies through
+   * `--preload` ({@link withOraclePreload}), measured to count, freeze and catch both exit vectors under
+   * bun exactly as `--import` does under node (`docs/research/batched-red-attribution-probe-2026-09-14.md` §7).
+   */
+  | "bun-test-own-file"
   /**
    * A declared `node --test` over MORE than this node's own `testFile` (a glob, several files, or no
    * explicit file) — a WHOLE-SUITE node:test invocation, run DIRECTLY (never through a package
@@ -118,11 +134,13 @@ export type ProofRoute =
       basis:
         | "default-node-test"
         | "custom-node-test-own-file"
+        | "bun-test-own-file"
         | "direct-node-test-suite"
         | "package-script-node-test-suite";
       /**
        * Where `--import <guardUrl>` must be spliced into the DECLARED `proofCommand.args` (before the
-       * platform shim). `null` on the default route, whose command the resolver builds itself with the
+       * platform shim) — or, on `bun-test-own-file`, `--preload <guard path>` ({@link withOraclePreload}).
+       * `null` on the default route, whose command the resolver builds itself with the
        * guard already in place, AND on `package-script-node-test-suite`, which is wired via
        * `NODE_OPTIONS` instead (an arg splice on the pnpm invocation never reaches the spawned node
        * process) — the resolver distinguishes the two by `basis`, not by this field alone.
@@ -193,6 +211,25 @@ const NODE_FLAGS_TAKING_A_VALUE = new Set([
   "--test-shard",
   "--test-timeout",
   "--env-file",
+]);
+
+/** `bun test` flags that CONSUME the following token, for the same reason (ADR-0573 D2's bun route). */
+const BUN_TEST_FLAGS_TAKING_A_VALUE = new Set([
+  "--preload",
+  "-r",
+  "--timeout",
+  "--reporter",
+  "--reporter-outfile",
+  "--test-name-pattern",
+  "-t",
+  "--rerun-each",
+  "--coverage-dir",
+  "--coverage-reporter",
+  "--tsconfig-override",
+  "--config",
+  "-c",
+  "--env-file",
+  "--cwd",
 ]);
 
 /** A path spec that can match more than one file — never a single-file run. */
@@ -315,13 +352,17 @@ function isNodeExecutable(token: string): boolean {
  * at. Flag VALUES are skipped so `--import <url>` never reads as a test path, and only tokens with a
  * JS/TS test extension count, so a `--filter @storytree/library` package name cannot masquerade as one.
  */
-function explicitTestPaths(tokens: readonly string[], startIndex: number): string[] {
+function explicitTestPaths(
+  tokens: readonly string[],
+  startIndex: number,
+  flagsTakingAValue: ReadonlySet<string> = NODE_FLAGS_TAKING_A_VALUE,
+): string[] {
   const paths: string[] = [];
   for (let i = startIndex; i < tokens.length; i += 1) {
     const token = tokens[i];
     if (token === undefined) continue;
     if (token.startsWith("-")) {
-      if (NODE_FLAGS_TAKING_A_VALUE.has(token) && !token.includes("=")) i += 1;
+      if (flagsTakingAValue.has(token) && !token.includes("=")) i += 1;
       continue;
     }
     if (/\.(m|c)?[jt]sx?$/.test(token) || isGlob(token)) paths.push(token);
@@ -403,6 +444,20 @@ export function classifyProofRoute(
     }
     // A node command that is neither the test runner nor pointed at one identifiable file: the spine
     // cannot say what it observes, so it cannot say whose red it reports. Fall through to the refusal.
+  }
+
+  // ADR-0573 D2: `bun test <file>` over this node's OWN test file runs one file in one process — the
+  // shape the guard measures — so it is a single-file route, never the package-script suite `bun`
+  // otherwise names. Checked before PACKAGE_MANAGERS, where `bun` also sits. A `bun test` over anything
+  // else (a directory, several files, no file) falls through to that suite branch unchanged.
+  if (executableName(declared.file) === "bun" && declared.args[0] === "test") {
+    const paths = explicitTestPaths(tokens, 2, BUN_TEST_FLAGS_TAKING_A_VALUE);
+    const single = paths.length === 1 ? paths[0] : undefined;
+    if (single !== undefined && !isGlob(single)) {
+      if (!namesTestFile(single, real.testFile)) return unobservableTestFile(single, real);
+      // `--preload <guard>` goes right after `test` (args[0]), which is args index 1.
+      return { accounting: "oracle", basis: "bun-test-own-file", guardArgIndex: 1 };
+    }
   }
 
   if (PACKAGE_MANAGERS.has(executableName(declared.file))) {
@@ -496,4 +551,81 @@ export function withOracleGuard(
 export function withOracleGuardEnv(existing: string | undefined, guardUrl: string): string {
   const importFlag = `--import ${guardUrl}`;
   return existing === undefined || existing.trim() === "" ? importFlag : `${existing} ${importFlag}`;
+}
+
+/**
+ * The `bun-test-own-file` counterpart to {@link withOracleGuard}: splice `--preload <guard path>` into a
+ * declared `bun test` arg vector. Bun preloads a PATH, not a URL. Returns a NEW array, for the same
+ * reason `withOracleGuard` does.
+ */
+export function withOraclePreload(args: readonly string[], guardArgIndex: number, guardUrl: string): string[] {
+  return [...args.slice(0, guardArgIndex), "--preload", fileURLToPath(guardUrl), ...args.slice(guardArgIndex)];
+}
+
+/**
+ * THE PER-TEST CHANNEL a route carries (ADR-0573 D2/D3), decided here beside the accounting posture so
+ * ONE classifier says both what a route's oracle can measure and whether its red and green can be
+ * observed per test. A route gets a channel only when it runs ONE test file — this node's own — through
+ * a runner whose per-test report was measured:
+ *
+ *  - `node-test` — the default `node --import tsx --test <file>`, or a declared node:test command over
+ *    the node's own file that names `--test` (the reporter flags are the test runner's own);
+ *  - `bun-junit` — a declared `bun test <own file>`;
+ *  - `vitest-json` — a declared `vitest run <own file>`, directly or through a package manager.
+ *
+ * Everything else stays observed by its exit code alone, exactly as before: a whole-package or
+ * multi-file suite (attribution was measured over single files only, and a suite reports rows the
+ * unit's static read never declared), and a foreign or unrecognised runner. A command whose single test
+ * path cannot be told apart from a flag value reads as more than one path, and so stays unarmed.
+ */
+export function perTestChannelOf(real: RealProofConfig, route: ProofRoute): PerTestChannel | undefined {
+  if (route.accounting === "oracle") {
+    if (route.basis === "default-node-test") return "node-test";
+    if (route.basis === "custom-node-test-own-file") {
+      return real.proofCommand?.args.includes("--test") === true ? "node-test" : undefined;
+    }
+    return route.basis === "bun-test-own-file" ? "bun-junit" : undefined;
+  }
+  if (route.accounting !== "none" || route.basis !== "foreign-runner" || real.proofCommand === undefined) {
+    return undefined;
+  }
+  const tokens = [real.proofCommand.file, ...real.proofCommand.args];
+  const runnerAt = tokens.findIndex((t) => executableName(t) === "vitest");
+  if (runnerAt === -1) return undefined;
+  const paths = explicitTestPaths(tokens, runnerAt + 1);
+  const single = paths.length === 1 ? paths[0] : undefined;
+  return single !== undefined && !isGlob(single) && namesTestFile(single, real.testFile)
+    ? "vitest-json"
+    : undefined;
+}
+
+/**
+ * Put a per-test report channel onto the ONE resolved proof command (ADR-0573 D2), returning a NEW
+ * command. The spine's CONFIRM observations and the leaf's `run_proof` spawn this same command, so a
+ * feedback run writes the report too — and is never trusted, because the spine clears the report before
+ * every observation it reads (ADR-0249).
+ *
+ *  - `node-test`: the spine's reporter plus `spec` named to stdout, right after `--test`, where node
+ *    still reads them as its own options;
+ *  - `bun-junit`: `--reporter=junit --reporter-outfile=<path>`, right after `test`;
+ *  - `vitest-json`: `--reporter=default --reporter=json --outputFile=<path>`, appended.
+ *
+ * A command with no `--test` / `test` token to anchor on comes back unchanged. {@link perTestChannelOf}
+ * never gives such a command a channel, and if one ever arrived its report would read ABSENT, which the
+ * review refuses (C1) rather than advancing.
+ */
+export function withPerTestReport(command: ShellCommand, channel: PerTestChannel, reportPath: string): ShellCommand {
+  if (channel === "vitest-json") {
+    return {
+      ...command,
+      args: [...command.args, "--reporter=default", "--reporter=json", `--outputFile=${reportPath}`],
+    };
+  }
+  const anchor = command.args.indexOf(channel === "node-test" ? "--test" : "test");
+  if (anchor === -1) return command;
+  const flags =
+    channel === "node-test"
+      ? nodeTestReporterArgs(reportPath)
+      : ["--reporter=junit", `--reporter-outfile=${reportPath}`];
+  return { ...command, args: [...command.args.slice(0, anchor + 1), ...flags, ...command.args.slice(anchor + 1)] };
 }

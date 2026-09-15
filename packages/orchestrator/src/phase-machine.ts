@@ -13,6 +13,8 @@
  * {@link TestExecutor} and {@link WriteScope}, and the 'deferred' note in the build status.
  */
 
+import type { PerTestReport } from "./proof/per-test-report.js";
+
 /**
  * The ordered phases (ADR-0020 §1). The spine advances a unit
  * `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE` and owns every transition.
@@ -62,6 +64,13 @@ export type TestObservation = {
    * offered no kind at all.
    */
   kindBasis?: RedKindBasis;
+  /**
+   * ADR-0573 D2 (optional): the per-test report THIS observation's proof run wrote, read by the observer
+   * right after the run ended — present only where the proof command writes one. It never changes
+   * `result` or `kind`: the gate's per-test review reads it only once {@link nextPhase} would advance, so
+   * it can refuse an observation and never advance one (ADR-0573 D1).
+   */
+  perTest?: PerTestReport;
 };
 
 /** The result of {@link nextPhase}: an allowed transition, or a fail-closed refusal with a reason. */

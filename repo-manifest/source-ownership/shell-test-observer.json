@@ -1,6 +1,8 @@
 {
   "sourceOwnership": {
     "subtrees": {
+      "packages/orchestrator/src/proof/per-test-report.ts": "shell-test-observer",
+      "packages/orchestrator/src/proof/per-test-reporter.mjs": "shell-test-observer",
       "packages/orchestrator/src/shell-test-executor.ts": "shell-test-observer"
     }
   }
