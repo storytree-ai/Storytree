@@ -191,7 +191,8 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
   // be named in the admission record, not silently dropped." This is where that is discharged, and
   // it is discharged by a MECHANISM (printed on every pi build) rather than by whoever writes the
   // admission up remembering. Deleting the clause reds this test.
-  const pi = honestFramingLive(false, "pi", "library-cli");
+  // A SIGNED walk throughout: the refusal wording is pinned in node-build-framing.test.ts.
+  const pi = honestFramingLive(false, { ok: true }, "pi", "library-cli");
   // The WHOLE clause, newlines collapsed — asserted as one sentence rather than three keywords,
   // because a keyword set survives having most of the sentence deleted around it.
   assert.match(
@@ -204,15 +205,15 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
   // The shared tail is still present — the gap is APPENDED to the framing, never a replacement.
   assert.match(pi, /The node's authored status is untouched/);
   assert.match(pi, /the verdict landed in an in-memory store and is gone/);
-  assert.match(honestFramingLive(true, "pi", "library-cli"), /signed verdict PERSISTED/);
+  assert.match(honestFramingLive(true, { ok: true }, "pi", "library-cli"), /signed verdict PERSISTED/);
 
   // The gap clause is pi-SPECIFIC: the other two runtimes do not carry a claim about pi's fence,
   // and each still names its OWN leaf (so "no pi text" is not satisfied by an empty framing).
-  const claude = honestFramingLive(false, "claude", "library-cli");
+  const claude = honestFramingLive(false, { ok: true }, "claude", "library-cli");
   assert.doesNotMatch(claude, /ADR-0449 GAP/);
   assert.doesNotMatch(claude, /pi agent loop/);
   assert.match(claude, /the Claude Agent SDK with subscription authentication/);
-  const codex = honestFramingLive(false, "codex", "library-cli");
+  const codex = honestFramingLive(false, { ok: true }, "codex", "library-cli");
   assert.doesNotMatch(codex, /ADR-0449 GAP/);
   assert.match(codex, /the Codex CLI with saved ChatGPT subscription authentication/);
   // The non-pi framings must end with NOTHING appended — `doesNotMatch(/ADR-0449 GAP/)` alone would
