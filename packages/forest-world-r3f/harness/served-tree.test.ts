@@ -14,8 +14,10 @@
 // commit are illustrative — the filing session recorded none of them, which is part of why the stamp
 // now carries them.
 
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import type { PluginOption } from 'vite';
 
 import {
+  PROCESS_SOURCES,
   SERVED_TREE_HEADER,
   SERVED_TREE_PLUGIN,
   canonicalDirectory,
@@ -253,6 +256,45 @@ test("the server's stamp names the root it was given, and git is asked about tha
   assert.equal(noGit.branchAtStart, null);
   assert.equal(noGit.commitAtStart, null);
   assert.equal(noGit.directory, tree.directory);
+});
+
+test('the REAL sources — this process, the wall clock and real git — describe the checkout they are pointed at', async () => {
+  // Every other test here injects its sources, so without this one the default a real harness server
+  // runs at every start (`PROCESS_SOURCES`) is reached by no test: a runner that misread git's output
+  // would leave every refusal naming a wrong or empty branch and commit, with the suite still green.
+  // A PRIVATE repo, never this checkout: sibling git operations briefly hold this checkout's ref locks,
+  // the flake `apps/studio/server/codeStamp.ts` records for these same two reads.
+  const repo = mkdtempSync(join(tmpdir(), 'served-tree-git-'));
+  try {
+    const git = (...args: string[]): string =>
+      execFileSync(
+        'git',
+        ['-C', repo, '-c', 'user.name=served-tree', '-c', 'user.email=served-tree@example.invalid', '-c', 'commit.gpgsign=false', ...args],
+        { encoding: 'utf8' },
+      ).trim();
+    git('init', '-q', '-b', 'claude/served-tree-probe');
+    git('commit', '-q', '--allow-empty', '-m', 'served-tree probe');
+
+    const before = Date.now();
+    const tree = await readServedTree(repo, PROCESS_SOURCES);
+    const after = Date.now();
+    assert.equal(tree.directory, canonicalDirectory(repo));
+    assert.equal(tree.pid, process.pid);
+    assert.equal(tree.branchAtStart, 'claude/served-tree-probe');
+    assert.equal(tree.commitAtStart, git('rev-parse', 'HEAD'));
+    const startedAt = Date.parse(tree.startedAt);
+    assert.ok(startedAt >= before && startedAt <= after, `${tree.startedAt} is not the moment the tree was read`);
+
+    // Where the real runner cannot run git at all, it answers null rather than throwing — and the
+    // directory, the one field every verdict is taken on, is still stamped.
+    const gone = join(repo, 'no-such-directory');
+    const ungitted = await readServedTree(gone, PROCESS_SOURCES);
+    assert.equal(ungitted.branchAtStart, null);
+    assert.equal(ungitted.commitAtStart, null);
+    assert.ok(sameDirectory(ungitted.directory, gone, process.platform), `${ungitted.directory} is not ${gone}`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test('the server stamps its OWN root on every response, and nothing a request carries can change what it stamps', async () => {
