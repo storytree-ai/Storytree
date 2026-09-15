@@ -77,8 +77,8 @@ function noSuchDecision(id: string, number: number): Envelope {
     body: [
       `no decision row "${id}" in the store.`,
       "",
-      `either the number is wrong, or ADR-${pad(number)} was RESERVED and never written — \`adr next\``,
-      "hands out a number without authoring anything. There is no second source to check: decisions",
+      `either the number is wrong, or ADR-${pad(number)} was RESERVED and never written — a reservation spends`,
+      "its number even when no decision follows. There is no second source to check: decisions",
       "are rows and nothing mirrors them on disk (ADR-0403 dec 1), so an empty answer here is the",
       "whole answer.",
     ].join("\n"),

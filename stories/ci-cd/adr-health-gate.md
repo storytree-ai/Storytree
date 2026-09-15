@@ -13,14 +13,21 @@ depends_on: []
 # `atomic-allocation` — `packages/library/src/store/adr-store.test.ts` proves the reservation retries
 # on a unique violation and reconciles monotonically against localMax; `packages/cli/src/adr.test.ts`
 # proves `adr new --pg` writes the reserved number as the `adr-NNNN` ROW.
-# `allocation-refuses-without-a-store` — the same CLI suite: no `--pg` leaves nothing to peek at, and
-# an allocator failure surfaces as a clear error rather than an on-disk fallback.
-# `parallel-allocations-are-named` — `parallelAllocations` is the exact gap between the local max and
-# the reserved number.
+# `allocation-refuses-without-a-store` — the same CLI suite: `adr new` without `--pg` refuses, there
+# is no reserve-only verb left (`adr next` refuses as retired, points at `adr new`, reserves
+# nothing), and an allocator failure surfaces as a clear error rather than an on-disk fallback.
+# `parallel-allocations-are-named` — in `packages/cli/src/adr.test.ts`, `parallelAllocations` is the
+# exact gap between the local max and the reserved number, `attributeGap` and
+# `parallelAllocationNote` are the attribution and its rendering, and the `adr new` end-to-end tests
+# drive the ledger read: this branch's own hole, another session's number, an unreadable ledger, and
+# no gap meaning no ledger read at all. `packages/library/src/store/adr-store.test.ts` proves
+# `allocationsBetween`'s query.
 # `number-identity-on-the-row`, `decision-binding-health-reddens-pr` and
 # `unreadable-subject-fails-never-skips` — `packages/cli/src/adr-health.test.ts` over every invariant
 # the rung runs, including the fail-closed empty-population arm.
-# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+# NO `real:` arm — the other contracts' code and tests already existed, and contracts 2 and 6 were
+# reworked on 2026-09-15 with their tests written first, by hand, beside the code, so there is still
+# no leaf-authored red to observe (ADR-0465).
 proof:
   command:
     file: pnpm
@@ -55,7 +62,7 @@ read to find the open questions bearing on a story. Nothing on the live `story b
 - **Proof-walkthrough first (integration test, against the real allocator + the real `adr-health`
   suite).** Two wired-together legs: (1) the allocator reserves monotonically and atomically — two
   near-simultaneous `adr new --pg` calls get DISTINCT numbers from `events.adr_number`, and with no
-  reachable store both verbs REFUSE rather than mint a number; (2) the `adr-health` checks
+  reachable store `adr new` REFUSES rather than minting a number; (2) the `adr-health` checks
   ([`adr-health.ts`](../../packages/cli/src/adr-health.ts), fired against the live store by
   [`check-adr-health.ts`](../../packages/cli/src/check-adr-health.ts)) all fail-CLOSED on a
   violation, firing on a PR against the **merge ref**.
@@ -125,11 +132,15 @@ read to find the open questions bearing on a story. Nothing on the live `story b
 - **The allocation envelope carries one thing the gates cannot (ADR-0339).** The allocator catches a
   duplicate NUMBER; nothing catches a parallel DECISION — two ADRs on different branches that
   contradict each other, which reaches CI as a merge conflict long after both designs are settled
-  (the 2026-08-09 ADR-0335 / ADR-0337 near-miss). The allocator already knows: reserving `N` when the
-  highest decision this run observed is `M < N - 1` proves other sessions took `M+1 … N-1`.
-  `adr new` / `adr next` say so. It is a HEADS-UP and deliberately not an eighth gate check — a
-  reported number may be a burned allocation, so the only honest claim is "allocated elsewhere, not
-  seen by this run", and `process:justify-a-gate-rung` has no catch evidence to price a rung on.
+  (the 2026-08-09 ADR-0335 / ADR-0337 near-miss). The allocator already knows part of it: reserving
+  `N` when the highest decision this run observed is `M < N - 1` proves `M+1 … N-1` were allocated
+  unseen, but not by WHOM — so `adr new` attributes each from the allocation ledger
+  `events.adr_number` (`PgAdrStore.allocationsBetween`): this branch's own never-written reservation
+  (a hole, not a sibling's decision — ADR-0420 was misreported as one on 2026-08-23), another
+  session's allocation (read it first), or, where the ledger cannot say, neither. It is a HEADS-UP and
+  deliberately not an eighth gate check — even another session's number may be a burned allocation,
+  so the strongest honest claim is "allocated by another session, not seen by this run", and
+  `process:justify-a-gate-rung` has no catch evidence to price a rung on.
 
 ## Contracts (6)
 
@@ -138,11 +149,15 @@ read to find the open questions bearing on a story. Nothing on the live `story b
      never go backwards; the scaffolded decision is written as the `adr-NNNN` ROW carrying the
      reserved number in its id and its `number` field.
 2. **`allocation-refuses-without-a-store`** — no store yields no number, loudly
-   - **asserts —** `adr new` and `adr next` invoked without `--pg`, and with `--pg` against an
-     unreachable store, both exit non-`ok` with a refusal naming the reason and pointing at
-     `pnpm db:up` — neither mints a number nor falls back to any on-disk maximum. A number reserved
-     by a session that cannot write the decision is a number burned for nothing (ADR-0403 dec 1),
-     so refusing is the contract, not a degraded mode.
+   - **asserts —** `adr new` invoked without `--pg`, and with `--pg` against an unreachable store,
+     exits non-`ok` with a refusal naming the reason and pointing at `pnpm db:up` — it neither mints
+     a number nor falls back to any on-disk maximum. A number reserved by a session that cannot write
+     the decision is a number burned for nothing (ADR-0403 dec 1), so refusing is the contract, not a
+     degraded mode. And there is no reserve-only verb: `adr next` reserves nothing and exits non-`ok`
+     with a refusal that says it is retired, says why, and points at `adr new --title "..." --pg`.
+     Why: no verb could ever write the number it held (`adr new` always allocates afresh), so both
+     reservations `events.adr_number` records for it, ADR-0420 and ADR-0480, were never written and
+     are permanent holes (measured 2026-09-15).
 3. **`number-identity-on-the-row`** — `adr-number-identity` reddens a row whose number drifted
    - **asserts —** a decision row whose stored `number` disagrees with the 4-digit number in its own
      id fails the `adr-number-identity` check (non-zero exit from `pnpm check:adr-health`). This is
@@ -163,10 +178,20 @@ read to find the open questions bearing on a story. Nothing on the live `story b
      `enforcedBy`). Zero is never a clean bill of health here. This is the successor to the deleted
      cross-PR collision script's fail-closed leg: the collision race went with the files, but "a
      check that passes having proven nothing" is the failure mode that outlived it.
-6. **`parallel-allocations-are-named`** — allocation reports the numbers this run did not see
+6. **`parallel-allocations-are-named`** — allocation names each unseen number and who holds it
    - **asserts —** reserving a number more than one above the highest decision this run read from
-     the store makes `adr new` / `adr next` name every number in between as allocated by other
-     sessions, and point at `storytree library artifact adr-NNNN` to read one (an empty answer means
-     reserved, not yet written); a contiguous reservation says NOTHING, and an unreadable log
-     refuses outright rather than reporting a spurious gap; and the envelope stays `ok` with the
-     decision written either way — a heads-up, never a gate (ADR-0339).
+     the store makes `adr new` name every number in between, attributed from that number's row in
+     the allocation ledger `events.adr_number`: one recorded against THIS branch is named as this
+     branch's own reservation that was never written — a hole in the numbering, NOT another
+     session's decision — with no read step offered for it; one recorded against another branch is
+     named as allocated by another session, with the warning that a parallel decision can contradict
+     yours and a `storytree library artifact adr-NNNN` step to read one first (an empty answer means
+     reserved, not yet written); and one the ledger cannot attribute — the ledger read failed, the
+     number has no ledger row at all, or its row names no branch or only a placeholder such as
+     `HEAD` / `unknown` — is named without claiming whose it is. Every number that is not this
+     branch's own is named together, so a single unattributable one withholds "another session" from
+     all of them, which still carry the warning and the read step. A contiguous reservation says
+     NOTHING; an unreadable decision LOG refuses outright rather than reporting a spurious gap, while
+     a failed LEDGER read only loses the attribution; and once a number is reserved the envelope
+     stays `ok` with the decision written, whatever the attribution — a heads-up, never a gate
+     (ADR-0339).

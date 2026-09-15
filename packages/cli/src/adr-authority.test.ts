@@ -37,7 +37,7 @@ import { run } from "./commands.js";
 const OWNER_WORDS = "yes, do it — basis plus my verbatim words";
 
 function fakeAllocator(n: number): AdrAllocatorLike {
-  return { allocate: async () => ({ number: n }) };
+  return { allocate: async () => ({ number: n }), allocationsBetween: async () => [] };
 }
 
 function depsFor(allocator: AdrAllocatorLike | null, store?: InMemoryStore): AdrCommandDeps {
@@ -122,6 +122,7 @@ test("the owner-quote guard runs BEFORE the allocator — a refused stamp spends
       allocated += 1;
       return { number: 523 };
     },
+    allocationsBetween: async () => [],
   };
   const env = await adrCommand(
     "new",
