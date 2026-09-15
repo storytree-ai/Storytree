@@ -784,8 +784,9 @@ export async function fetchJsonFromPage(url: string): Promise<unknown> {
 export async function createRealForestRunner(
   fetchJson: FetchJson = fetchJsonFromPage,
   elevationDeg?: number,
+  scenesRoute: string = REAL_FOREST_SCENES_ROUTE,
 ): Promise<RealForestRunner> {
-  const { manifest, arm } = await loadRealForest(fetchJson);
+  const { manifest, arm } = await loadRealForest(fetchJson, scenesRoute);
   const fitView = twoDView(manifest, 'fit');
   const t0 = performance.now();
   const kit = await loadKit(KIT_ASSET_URL);
@@ -992,9 +993,31 @@ export function parseHarnessElevation(q: URLSearchParams): number | null {
   return v;
 }
 
+/**
+ * `?scenes=<dir>` — WHICH EXPORT UNDER `docs/research/` TO RENDER, defaulting to the committed one.
+ *
+ * It exists because a comparison sheet has to be ONE forest: the 2D half is re-drawn from today's
+ * live corpus, so the 3D half beside it must be the same export rather than a scene committed on
+ * another day from another corpus. The value is a DIRECTORY NAME under `docs/research/`, not a
+ * path: anything carrying a slash, a dot segment or a backslash is refused here as well as by the
+ * harness's own `/reference/` fence, so this flag cannot be talked into reading outside it.
+ */
+export function parseScenesRoute(q: URLSearchParams): string | null {
+  const raw = q.get('scenes');
+  if (raw === null || raw === '') return null;
+  if (!/^[\w.-]+$/.test(raw) || raw.includes('..')) return null;
+  return `/reference/${raw}/scenes`;
+}
+
 export async function mountRealForest(root: HTMLElement): Promise<void> {
-  const asked = parseHarnessElevation(new URLSearchParams(window.location.search));
-  const runner = asked === null ? await createRealForestRunner() : await createRealForestRunner(fetchJsonFromPage, asked);
+  const q = new URLSearchParams(window.location.search);
+  const asked = parseHarnessElevation(q);
+  const scenes = parseScenesRoute(q);
+  const runner = await createRealForestRunner(
+    fetchJsonFromPage,
+    asked === null ? undefined : asked,
+    scenes === null ? REAL_FOREST_SCENES_ROUTE : scenes,
+  );
   window.realForestRunner = runner;
   const id = runner.identity();
   const m = runner.manifest();

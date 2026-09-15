@@ -48,6 +48,9 @@ const COST_BATCH = Number(process.env['ST_REAL_COST_BATCH'] ?? 60);
 /** The owner-look arm: which elevation to photograph the land from. Unset ⇒ the signed shipped
  *  angle, so every existing invocation is unchanged. */
 const ELEV = Number(process.env['ST_REAL_ELEVATION'] ?? RENDER_ELEV_DEG);
+/** Which export under `docs/research/` to render — unset ⇒ the committed one. A comparison sheet has
+ *  to be ONE forest, so the arm that re-draws the 2D half points this at the same fresh export. */
+const SCENES_DIR = process.env['ST_REAL_SCENES_DIR'] ?? '';
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -81,7 +84,8 @@ page.on('console', (m) => {
 });
 // The page reads `?elevation=` itself (`parseHarnessElevation`), so ONE number drives the render and
 // the refusal below: a driver that set the check without setting the page would refuse its own run.
-const pageUrl = ELEV === RENDER_ELEV_DEG ? URL_ : `${URL_}${URL_.includes('?') ? '&' : '?'}elevation=${ELEV}`;
+const query = [ELEV === RENDER_ELEV_DEG ? '' : `elevation=${ELEV}`, SCENES_DIR === '' ? '' : `scenes=${SCENES_DIR}`].filter(Boolean).join('&');
+const pageUrl = query === '' ? URL_ : `${URL_}${URL_.includes('?') ? '&' : '?'}${query}`;
 await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 600000 });
 await page.waitForFunction(() => window.realForestRunner !== undefined, null, { timeout: 600000 });
 if (pageErrors.length > 0) fail(`the page reported errors:\n  ${pageErrors.join('\n  ')}`);

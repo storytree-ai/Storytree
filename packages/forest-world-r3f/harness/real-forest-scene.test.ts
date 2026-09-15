@@ -27,6 +27,7 @@ import {
   rectInFrame,
   syntheticForestStream,
   parseHarnessElevation,
+  parseScenesRoute,
   twoDView,
   validateRealManifest,
   type RealForestManifest,
@@ -254,4 +255,17 @@ test('the harness elevation flag: an angle in (0, 90] is the owner-look arm, abs
   assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=-10')), null);
   assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=120')), null);
   assert.equal(parseHarnessElevation(new URLSearchParams('?elevation=nope')), null);
+});
+
+test('the scenes flag names a directory under docs/research/, never a path out of it', () => {
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=chapter2-shared-elevation-2026-09-15')), '/reference/chapter2-shared-elevation-2026-09-15/scenes');
+  // ABSENT IS THE COMMITTED EXPORT — every existing invocation is unchanged.
+  assert.equal(parseScenesRoute(new URLSearchParams('')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=')), null);
+  // ⚠ A DIRECTORY NAME, NOT A PATH. The harness's own `/reference/` middleware normalises and fences
+  // too, so this is the second of two walls rather than the only one — but a flag that can be talked
+  // into naming a traversal is one a caption could be wrong about even when nothing escapes.
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=../../etc')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=a/b')), null);
+  assert.equal(parseScenesRoute(new URLSearchParams('?scenes=..')), null);
 });
