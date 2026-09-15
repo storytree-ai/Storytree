@@ -7,9 +7,11 @@ import {
   extractTestNames,
   extractVouchingTestNames,
   analyzeObservedTests,
+  findOptionsFormSkips,
   readTestSurface,
   testNameCoversContract,
 } from "./contract-coverage.js";
+import type { ObservedTest } from "./contract-coverage.js";
 
 /**
  * The CONTRACT-COVERAGE classifier (ADR-0020 coverage-honesty follow-on). The headline red→green:
@@ -194,6 +196,181 @@ test("contrast: static name-presence (extractTestNames) counts the hollow test �
   assert.ok(extractTestNames(hollow).some((n) => n.includes("fr-bounded-never-hangs")));
   // The NEW signal: the hollow test does not vouch → the contract is honestly uncovered.
   assert.ok(!extractVouchingTestNames(hollow, TS_FIXTURE).includes("fr-bounded-never-hangs: deadline"));
+});
+
+// ---------------------------------------------------------------------------
+// The OPTIONS-FORM skip — `test(name, { skip: X }, fn)` (ADR-0126's named blind spot)
+//
+// node:test and vitest accept a skip as a SECOND ARGUMENT as well as through a `.skip`/`.todo`
+// modifier. The classifier used to read only the modifier, so a gated test with an asserting body
+// reported `vouches: true` whether or not it ran (friction
+// `an-environment-gated-test-has-no-observable-skip-form`). The VALUE says how certain the skip is: a
+// truthy literal never runs, while an expression (`!DB`) runs or not depending on where the file
+// loads. Coverage withholds credit from both; the per-test review reads the difference (ADR-0573 C6).
+// ---------------------------------------------------------------------------
+
+/** The skip facts one observed test carries, as one comparable value. */
+function skipFacts(t: ObservedTest | undefined) {
+  return {
+    skipped: t?.skipped,
+    conditionallySkipped: t?.conditionallySkipped,
+    substantive: t?.substantive,
+    vouches: t?.vouches,
+  };
+}
+
+test("options-form skip: a truthy LITERAL value is UNCONDITIONAL — skipped, and it never vouches", () => {
+  const src = `
+    test("c-a: skip true", { skip: true }, () => { assert.equal(actual, expected); });
+    test("c-b: skip with a reason", { skip: "needs a GPU" }, () => { assert.equal(actual, expected); });
+    it("c-c: todo true", { todo: true }, () => { assert.ok(result.bounded); });
+  `;
+  const observed = analyzeObservedTests(src, TS_FIXTURE);
+  assert.equal(observed.length, 3);
+  for (const t of observed) {
+    assert.deepEqual(
+      skipFacts(t),
+      { skipped: true, conditionallySkipped: false, substantive: true, vouches: false },
+      t.name,
+    );
+  }
+});
+
+test("options-form skip: an EXPRESSION value is CONDITIONAL — not certain, still substantive, and it never vouches", () => {
+  // The corpus's own shapes: `skip: !DB` on the live-store tests, a ternary on the credential-gated
+  // backend, and the shorthand an author reaches for once the condition has a name.
+  const src = `
+    test("c-a: live-store gate", { skip: !DB }, () => { assert.equal(actual, expected); });
+    test("c-b: credential gate", { skip: liveEnabled ? false : "credential-gated" }, () => { assert.ok(mesh.glb); });
+    const skip = !shellResolves();
+    test("c-c: shorthand", { skip }, () => { assert.equal(code, 0); });
+    it("c-d: a gated todo", { todo: pending }, () => { assert.ok(v); });
+  `;
+  const byName = new Map(analyzeObservedTests(src, TS_FIXTURE).map((t) => [t.name, t]));
+  for (const name of ["c-a: live-store gate", "c-b: credential gate", "c-c: shorthand", "c-d: a gated todo"]) {
+    assert.deepEqual(
+      skipFacts(byName.get(name)),
+      { skipped: false, conditionallySkipped: true, substantive: true, vouches: false },
+      name,
+    );
+  }
+});
+
+test("options-form skip: a FALSY literal skips nothing — the test still vouches", () => {
+  // `nvidia-trellis.test.ts`'s ternary reads `false` on the branch that runs, so a rule keyed on the
+  // key's mere presence would withhold credit from a test that always runs — the false-hollow
+  // ADR-0126's conservative bias exists to prevent.
+  const src = `
+    test("c-a: skip false", { skip: false, concurrency: 2 }, () => { assert.ok(v); });
+    test("c-b: todo false", { todo: false }, () => { assert.ok(v); });
+    test("c-c: an empty reason", { skip: "" }, () => { assert.ok(v); });
+    test("c-d: null and undefined", { skip: null, todo: undefined }, () => { assert.ok(v); });
+    test("c-e: zero", { skip: 0 }, () => { assert.ok(v); });
+  `;
+  const observed = analyzeObservedTests(src, TS_FIXTURE);
+  assert.equal(observed.length, 5);
+  for (const t of observed) {
+    assert.deepEqual(
+      skipFacts(t),
+      { skipped: false, conditionallySkipped: false, substantive: true, vouches: true },
+      t.name,
+    );
+  }
+});
+
+test("options-form skip: a skipped SUITE passes its certainty to every test under it, and the stronger skip wins", () => {
+  const src = `
+    describe("c-live: needs a database", { skip: !DB }, () => {
+      it("round-trips", () => { assert.deepEqual(read, written); });
+      it.skip("already off", () => { assert.ok(v); });
+    });
+    describe("c-off: never runs", { skip: true }, () => {
+      it("inner", { skip: !DB }, () => { assert.ok(v); });
+    });
+  `;
+  const certainty = (t: ObservedTest): string =>
+    t.skipped ? "unconditional" : t.conditionallySkipped ? "conditional" : "none";
+  assert.deepEqual(
+    analyzeObservedTests(src, TS_FIXTURE).map((t) => [t.name, certainty(t), t.vouches]),
+    [
+      ["c-live: needs a database", "conditional", false],
+      ["round-trips", "conditional", false],
+      // A certain skip outranks the suite's conditional one…
+      ["already off", "unconditional", false],
+      ["c-off: never runs", "unconditional", false],
+      // …and a conditional skip never weakens a certain one above it.
+      ["inner", "unconditional", false],
+    ],
+  );
+});
+
+test("RED→GREEN (ADR-0126's options-form blind spot): a contract named ONLY by an options-form-skipped test reads UNCOVERED", () => {
+  // The live instance ADR-0126 measured: `release-claims-by-branch-clears-the-branch`, whose only tests
+  // carry `{ skip: !DB }`, read COVERED offline, credited by tests that did not execute.
+  const contractIds = ["release-claims-by-branch-clears-the-branch"];
+  const coverageOf = (skip: string) =>
+    classifyContractCoverage({
+      unitId: "claim-store-work-time",
+      contractIds,
+      testNames: extractVouchingTestNames(
+        `test("release-claims-by-branch-clears-the-branch: bulk-releases a branch", { skip: ${skip} }, async () => { assert.equal(released.length, 2); });`,
+        TS_FIXTURE,
+      ),
+    });
+  assert.deepEqual(coverageOf("!DB").uncovered, contractIds, "a conditional skip withholds credit");
+  assert.deepEqual(coverageOf("true").uncovered, contractIds, "an unconditional skip withholds credit");
+  assert.deepEqual(coverageOf("false").covered, contractIds, "a falsy literal skips nothing");
+});
+
+test("findOptionsFormSkips: reads the options form on test / it / describe, quoting the gate back", () => {
+  const skips = findOptionsFormSkips(
+    [
+      'test("a runs", () => { assert.ok(x); });',
+      'test("b is gated", { skip: !DB }, () => { assert.ok(x); });',
+      'it("c is gated", { todo: "pending" }, () => { assert.ok(x); });',
+      'describe("d is gated", { skip: true }, () => {});',
+      'test("e is gated", { skip }, () => { assert.ok(x); });',
+    ].join("\n"),
+    TS_FIXTURE,
+  );
+  assert.deepEqual([...skips.keys()], ["b is gated", "c is gated", "d is gated", "e is gated"]);
+  assert.equal(skips.get("b is gated"), "skip: !DB");
+  assert.equal(skips.get("e is gated"), "skip");
+});
+
+test("findOptionsFormSkips: a FALSY literal is no skip, and neither a modifier nor a non-test call is its subject", () => {
+  // The false positive the falsy exclusion prevents: `nvidia-trellis.test.ts` writes
+  // `skip: liveEnabled ? false : "…"`, so a rule keyed on the key's presence would flag a test that runs.
+  const skips = findOptionsFormSkips(
+    [
+      'test("always runs", { skip: false, concurrency: 2 }, () => { assert.ok(x); });',
+      'test.skip("modifier", () => { assert.ok(x); });',
+      'it.todo("todo modifier");',
+      'request("/api/x", { skip: true }, () => {});',
+      'configure("y", { skip: !DB });',
+    ].join("\n"),
+    TS_FIXTURE,
+  );
+  assert.deepEqual([...skips.keys()], []);
+});
+
+test("findOptionsFormSkips and analyzeObservedTests apply ONE rule: nothing the first reads as gated does the second credit", () => {
+  // The coupling the `vacuous-proof` instrument rests on. Each shape either reader treats specially is
+  // here, so a rule that drifted in one of them would put a name on both sides of that instrument's join.
+  const src = `
+    test("c-cond", { skip: !DB }, () => { assert.ok(v); });
+    test("c-lit", { skip: "why" }, () => { assert.ok(v); });
+    test("c-short", { skip }, () => { assert.ok(v); });
+    test("c-todo", { todo: pending }, () => { assert.ok(v); });
+    test("c-false", { skip: false }, () => { assert.ok(v); });
+    test("c-concat" + " title", { skip: !DB }, () => { assert.ok(v); });
+    describe("c-suite", { skip: !DB }, () => { it("c-inner", () => { assert.ok(v); }); });
+  `;
+  const gated = [...findOptionsFormSkips(src, TS_FIXTURE).keys()];
+  assert.deepEqual(gated, ["c-cond", "c-lit", "c-short", "c-todo", "c-concat title", "c-suite"]);
+  const vouching = new Set(extractVouchingTestNames(src, TS_FIXTURE));
+  assert.deepEqual(gated.filter((name) => vouching.has(name)), []);
+  assert.deepEqual([...vouching], ["c-false"], "only the falsy literal still vouches");
 });
 
 // ---------------------------------------------------------------------------

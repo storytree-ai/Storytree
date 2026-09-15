@@ -236,11 +236,20 @@ test("the ADR-0353 sweep: every capability whose contract tests live outside its
       // asserted (the kind lands on `role` now, and `intent` carries the caller's prose), so crediting
       // it would have stamped `covered` beside an assertion the code deliberately no longer satisfies.
       // The story-author edit that note called for has landed — the `asserts —` clause states the post-D3
-      // behaviour and the three tests carry the id — so the remainder is EMPTY, and an entry reappearing
-      // here means the spec drifted back or a test name lost the id.
+      // behaviour and the three tests carry the id — so that entry is gone, and it reappearing here means
+      // the spec drifted back or a test name lost the id.
+      //
+      // `release-claims-by-branch-clears-the-branch` joined the remainder on 2026-09-16, and it is the one
+      // entry here that is uncovered by DESIGN rather than by a binding fault. Its only tests are the
+      // db-backed arm's own, and both carry `{ skip: !DB }`: ADR-0126's classifier now reads that
+      // options-form skip, and a test that may not run vouches for nothing on a static read. It was
+      // measured in advance as exactly this one contract (ADR-0126, 2026-07-28) and re-measured the day
+      // the classifier learned the form. It leaves this list only if an offline test comes to name it —
+      // the parked `coverage-counts-a-gated-test-apart-from-an-absent-one` would label it gated, not
+      // credit it. Any OTHER entry appearing here still means a binding or a test name regressed.
       unitId: "claim-store-work-time",
       surface: "packages/notice-board/src/claim.test.ts",
-      remainder: [],
+      remainder: ["release-claims-by-branch-clears-the-branch"],
     },
   ];
 

@@ -40,15 +40,16 @@
  *   blind-instrument class only, and a signal that merely sits unexamined escalates nothing.
  * - `mirror-pair-drift` locates unregistered pairs; it does NOT repair any. Registering a pair means
  *   authoring a probe on each surface and a `MIRRORS` row, which is a separate increment per payload.
- * - `vacuous-proof` locates options-form-skipped tests; it repairs none, and it does NOT close the
- *   underlying gap. The one-line fix — teach ADR-0126's `analyzeObservedTests` to parse the options
- *   form — is still a call about the WORK rather than about this sweep, but its cost is no longer
- *   unmeasured: it moves exactly ONE contract into `check:coverage`'s backlog
- *   (`release-claims-by-branch-clears-the-branch`), because only one of the 7 located files is a
- *   scanned capability's registered `real.testFile`. `coverage-drain.ts` records that number as the
- *   one sanctioned re-baseline of its ceiling. (This bullet read "it would move every contract those
- *   tests vouch for" until 2026-07-28; that estimate was never measured and it deferred bounding
- *   `check:coverage` behind three other increments. ADR-0126 carries the same correction.)
+ * - `vacuous-proof` is DRAINED BY CONSTRUCTION since 2026-09-16, and its ceiling is 0. The fix it
+ *   waited on — teach ADR-0126's `analyzeObservedTests` to read the options form — landed with the skip
+ *   rule shared between the classifier and this instrument's input, so an options-form-skipped test can
+ *   no longer vouch; what can still land is a gated declaration sharing its title with a test that
+ *   runs. It cost what was measured in advance, re-measured that day on the surviving coverage sweep
+ *   (`check-coverage.ts`, retired from the gate by ADR-0311 D2): exactly ONE contract left the covered
+ *   set, `release-claims-by-branch-clears-the-branch` on `claim-store-work-time`, taking that sweep's
+ *   WARN list from 36 capabilities / 105 contracts to 37 / 106. (This bullet read "it would move every
+ *   contract those tests vouch for" until 2026-07-28; that estimate was never measured and it deferred
+ *   bounding `check:coverage` behind three other increments. ADR-0126 carries the same correction.)
  * - `warn-list-hygiene` locates advisory worklists that no exit code bounds, and ALL SIX are now
  *   bounded — `check:graduation-worklist` (`graduation-drain.ts`), `check:surface-coverage`
  *   (`surface-coverage-drain.ts`), `check:corpus-content` (`corpus-content-drain.ts`), `check:coverage`
@@ -92,7 +93,7 @@ import { fileURLToPath } from "node:url";
 
 import type { ChangeEvent } from "@storytree/proof-protocol";
 import { closePool, createPool, PgLibraryStore } from "@storytree/library/store";
-import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
+import { extractVouchingTestNames, findOptionsFormSkips, loadNodeSpec } from "@storytree/orchestrator";
 
 import { attributeDecayFindings, type DecayAttributionEvidence } from "./decay-attribution.js";
 import {
@@ -119,7 +120,6 @@ import {
   extractSeamDefaults,
   findContractBindingDrift,
   findMirrorPairDrift,
-  findOptionsFormSkips,
   findUnprovenSeamDefault,
   findVacuousProof,
   findWarnListHygiene,
@@ -317,10 +317,21 @@ const CEILINGS = {
   /**
    * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
    * observed tests — each holding one or more options-form-skipped tests the repo's own classifier
-   * reports as running and asserting. Make a file's skip VISIBLE (the `store.test.ts` idiom), lower
-   * this number.
+   * reported as running and asserting.
+   *
+   * TIGHTENED 7 → 0 on 2026-09-16 (`classifier-reads-the-options-form-skip`), and ZERO MEANS DRAINED,
+   * NOT DISABLED. ADR-0126's classifier now reads the options form through the same rule this
+   * instrument's input is built from (`findOptionsFormSkips` and `analyzeObservedTests` share
+   * `readOptionsFormSkip`), so an options-form-skipped test never vouches and the join locates nothing
+   * BY CONSTRUCTION. Measured with this binary on the real tree, before and after the change: 7 located
+   * files, then 0. It still sweeps every test file on every run, and a name that is both options-skipped
+   * and vouching (a gated declaration sharing its title with a test that runs, or the two readers split
+   * apart again) reds its author's gate on first appearance. The remedy this comment named until then,
+   * "make a file's skip VISIBLE (the `store.test.ts` idiom)", is withdrawn: that `if (LIVE)` idiom
+   * credits the live branch's tests whether or not they run (ADR-0126, corrected in place 2026-09-15),
+   * and the options form is now the sanctioned visible shape.
    */
-  [VACUOUS_PROOF]: 7,
+  [VACUOUS_PROOF]: 0,
   /**
    * Baselined 2026-07-27 at the 6 advisory gate checks that sweep located across the 21 `check:*`
    * steps `pnpm gate` runs — each printing a per-item WARN worklist that no exit code bounds. Bound a
@@ -1304,16 +1315,17 @@ async function main(): Promise<void> {
       name: VACUOUS_PROOF,
       ceiling: CEILINGS[VACUOUS_PROOF],
       locates:
-        "a test SKIPPED BY THE OPTIONS FORM (`test(name, { skip: !DB }, fn)`) that the repo's own " +
-        "classifier — `analyzeObservedTests`, which `check:coverage` reads — reports as running and " +
-        "substantively asserting, because it parses only the `.skip`/`.todo` MODIFIER. A proof that " +
-        "cannot fail is not a proof (ADR-0211/0249), and here nothing can tell that it did not run. " +
-        "FALSE POSITIVE: an invisible skip only misleads something if something reads it — a test " +
-        "whose name matches no declared contract makes nothing read covered, and this deliberately " +
-        "does not consult the story corpus, so it over-reports there; and skipping offline is usually " +
-        "CORRECT (these are mostly live-DB tests), so the finding is never `this should not skip`. " +
-        "BLIND TO: an imperative runtime skip in the body (`t.skip(…)`) and a skip value built " +
-        "outside the options literal.",
+        "a test name SKIPPED BY THE OPTIONS FORM (`test(name, { skip: !DB }, fn)`) that the repo's own " +
+        "classifier — `analyzeObservedTests`, which coverage reads — still reports as running and " +
+        "substantively asserting. The classifier reads the options form through the same rule this " +
+        "instrument's input comes from, so this is drained by construction; what can still land is a " +
+        "gated declaration sharing its title with a test that runs (the join is by name), or the two " +
+        "readers split apart again. A proof that cannot fail is not a proof (ADR-0211/0249). " +
+        "FALSE POSITIVE: the same-titled running sibling may be a genuine proof, and a name that matches " +
+        "no declared contract makes nothing read covered — this does not consult the story corpus, so " +
+        "it over-reports there. BLIND TO: an imperative runtime skip in the body (`t.skip(…)`), an " +
+        "options object built outside the call's literal, and a test declared inside an `if` on the " +
+        "environment, which the classifier credits whether or not it runs.",
       run: () => findVacuousProof(loadTestFileFacts(repoRoot)),
     },
     {

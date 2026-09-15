@@ -32,16 +32,18 @@ import type { ContractDecl } from "@storytree/library";
  * the first slice (ADR-0122) counted a test NAMED for a contract even if it was HOLLOW (`assert(true)`
  * under the right name). That is now closed at the EXTRACTION step: {@link extractVouchingTestNames}
  * parses the test source (the TypeScript compiler AST) and feeds the classifier only the names of tests
- * that actually VOUCH — a test that runs (not `.skip`/`.todo`) AND asserts something SUBSTANTIVE (an
+ * that actually VOUCH — a test that is not skipped (by a `.skip`/`.todo` modifier, or by an options-form
+ * `skip`/`todo` whose value is anything but a falsy literal) AND asserts something SUBSTANTIVE (an
  * `assert`/`expect` call with ≥1 argument that is not a trivially-constant literal). A hollow test is
  * simply absent from the observed names, so its contract reads UNCOVERED. Still STATIC and offline —
  * no execution, no `t.assert` plan-counting (this codebase asserts via `node:assert/strict`, which a
  * runtime reporter never counts), aligning with ADR-0020 §4's "no `assert(true)` / skipped-test" guards
  * as a lint-shaped rule.
  *
- * TWO AXES, TWO FOLDS — they point in OPPOSITE directions, and each is honest only when read against
- * its own axis (corrected 2026-08-06; the module previously stated both as unscoped global claims,
- * which read as a contradiction and let the second one quietly deliver the outcome the first forbids):
+ * THE AXES AND THEIR FOLDS — they do not all point the same way, and each is honest only when read
+ * against its own axis (corrected 2026-08-06; the module previously stated the first two as unscoped
+ * global claims, which read as a contradiction and let the second quietly deliver the outcome the first
+ * forbids):
  *
  *  - **HOLLOWNESS — folds toward "COVERED" (ADR-0126).** Detection is CONSERVATIVE: it flags only a
  *    clearly-hollow test (no assertion, a constant-only assertion, or a skip), never a real test. The
@@ -59,6 +61,14 @@ import type { ContractDecl } from "@storytree/library";
  *    exists to prevent. That is not hypothetical — it was live until 2026-08-06 (see
  *    {@link readTestCallTitle}), when a `+`-concatenated title stamped `coverage 0/6` onto a signed
  *    `--real` verdict whose six tests all existed, named their contracts verbatim, and passed.
+ *  - **EXECUTABILITY — folds toward "UNCOVERED" (2026-09-16).** A test skipped by the options form
+ *    under a CONDITION (`{ skip: !DB }`) may or may not run, and a static read cannot know where the
+ *    file loads, so it vouches for nothing: a run nobody can show happened proves nothing. The cost is
+ *    stated rather than hidden. Such a test DOES run where its condition holds (a `--real` build forces
+ *    the database a `!DB` gate reads), so a contract proven only there reads uncovered on every surface
+ *    that takes the vouching names, the signed verdict's coverage axis included, and unlike an unread
+ *    title it is not yet counted apart from an absent test. The per-test review, which also holds the
+ *    runner's report, reads the difference ({@link ObservedTest.conditionallySkipped}; ADR-0573 C6).
  *
  * Because the two folds disagree, an UNREAD title and an ABSENT test must never share a bucket: "I
  * could not read six titles" and "six tests are missing" are different claims, and a report that
@@ -151,13 +161,31 @@ export interface ObservedTest {
    * {@link readTestSurface} so a `0/N` report can say WHICH of the two things it means.
    */
   titleFullyStatic: boolean;
-  /** Skipped — `.skip`/`.todo` on the call, OR nested under one. A skipped test never runs, so it cannot vouch. */
+  /**
+   * Skipped for CERTAIN: a `.skip`/`.todo` modifier, an options-form `skip`/`todo` whose value is a
+   * truthy literal (`{ skip: true }`, `{ skip: "reason" }`), or nested under either. It never runs (a
+   * `todo` runs but cannot fail the run), so it cannot vouch.
+   */
   skipped: boolean;
   /**
-   * VOUCHES for its name iff it is NOT skipped AND its lexical region contains ≥1 SUBSTANTIVE
-   * assertion — an `assert`/`expect` call with ≥1 argument that is not a trivially-constant literal.
-   * A hollow `assert(true)` (or no assertion at all) does NOT vouch. Only vouching names reach the
-   * coverage classifier (so a hollow test's contract reads UNCOVERED).
+   * Skipped UNDER A CONDITION: an options-form `skip`/`todo` whose value is not a literal
+   * (`{ skip: !DB }`, a ternary, a shorthand `{ skip }`), on this call or an enclosing one. Whether it
+   * runs depends on the environment the file loads in, which a static read cannot know. Never true
+   * together with {@link skipped}: a certain skip anywhere above or on the call outranks it.
+   */
+  conditionallySkipped: boolean;
+  /**
+   * Its lexical region, nested tests included, holds ≥1 SUBSTANTIVE assertion (an `assert`/`expect`
+   * call with ≥1 argument that is not a trivially-constant literal), read whether or not it is skipped.
+   * The substance half of {@link vouches}, exposed on its own for a consumer whose policy on a
+   * conditional skip is not coverage's (ADR-0573 C6).
+   */
+  substantive: boolean;
+  /**
+   * VOUCHES for its name iff it is {@link substantive} AND skipped in NEITHER form. A hollow
+   * `assert(true)` (or no assertion at all) does NOT vouch, and neither does a test that may not have
+   * run. Only vouching names reach the coverage classifier, so a hollow or gated test's contract reads
+   * UNCOVERED.
    */
   vouches: boolean;
   /**
@@ -289,9 +317,100 @@ export function readTestCallTitle(arg: ts.Expression | undefined): ReadTitle | n
   return { text: "", fullyStatic: false }; // built at runtime — readable text: none
 }
 
+/** Options keys that mean "this declaration cannot fail the run": the options-form twins of {@link SKIP_MODIFIERS}. */
+const SKIP_OPTION_KEYS: ReadonlySet<string> = new Set(["skip", "todo"]);
+
+/** How certainly a declaration is skipped, as far as a static read can tell. */
+type SkipCertainty = "none" | "conditional" | "unconditional";
+
+/** Weakest first: a declaration's own skip combines with an enclosing one by taking the stronger. */
+const SKIP_STRENGTH = { none: 0, conditional: 1, unconditional: 2 } as const satisfies Record<SkipCertainty, number>;
+
+/** The stronger of two skips: a certain skip is never weakened by a conditional one, above or below it. */
+function strongerSkip(a: SkipCertainty, b: SkipCertainty): SkipCertainty {
+  return SKIP_STRENGTH[b] > SKIP_STRENGTH[a] ? b : a;
+}
+
+/** An options-form skip read off one declaration: how certain it is, and the property as written. */
+interface OptionsFormSkip {
+  certainty: Exclude<SkipCertainty, "none">;
+  /** The property verbatim, whitespace collapsed: what a report quotes back (`skip: !DB`). */
+  text: string;
+}
+
+/** Is a property name one of {@link SKIP_OPTION_KEYS}, written as an identifier or a string? */
+function isSkipOptionKey(name: ts.PropertyName): boolean {
+  return (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && SKIP_OPTION_KEYS.has(name.text);
+}
+
 /**
- * Is this node a `describe`/`test`/`it` call? Returns its read title + own skip/todo modifier, or
- * null when it is not a test call at all. A test call whose title could NOT be read is still
+ * The truthiness of a skip value that is a LITERAL, or `undefined` for any other expression. That
+ * `undefined` is the whole line between a certain skip and a conditional one: nothing is evaluated, so
+ * an identifier, a call, a `!DB` or a ternary all read as "depends on where the file loads".
+ */
+function literalTruthiness(value: ts.Expression): boolean | undefined {
+  let e: ts.Expression = value;
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  if (e.kind === ts.SyntaxKind.TrueKeyword) return true;
+  if (e.kind === ts.SyntaxKind.FalseKeyword || e.kind === ts.SyntaxKind.NullKeyword) return false;
+  if (ts.isStringLiteralLike(e)) return e.text.length > 0;
+  if (ts.isNumericLiteral(e)) return Number(e.text) !== 0;
+  if (ts.isIdentifier(e) && e.text === "undefined") return false;
+  return undefined;
+}
+
+/**
+ * THE OPTIONS-FORM SKIP RULE, and the only implementation of it in the repo: {@link analyzeObservedTests}
+ * and {@link findOptionsFormSkips} both read a declaration's skip through here, so the classifier and
+ * the `vacuous-proof` instrument cannot disagree about one. `node:test` and vitest take a skip as a
+ * declaration's SECOND argument (`test(name, { skip: !DB }, fn)`) as well as through a modifier, and
+ * the value decides how certain it is:
+ *  - a FALSY literal (`false`, `""`, `0`, `null`, `undefined`) skips nothing, so it is no skip at all.
+ *    Reading the key's mere presence would withhold credit from a test that always runs;
+ *  - a TRUTHY literal (`true`, a reason string) never runs: UNCONDITIONAL;
+ *  - anything else (`!DB`, `live ? false : "gated"`, a shorthand `{ skip }`) is CONDITIONAL.
+ * Across `skip` and `todo` the stronger wins. Returns null when the argument is not an object literal or
+ * carries neither key. An options object built somewhere else (a variable, a spread) is not read.
+ */
+function readOptionsFormSkip(options: ts.Expression | undefined, sf: ts.SourceFile): OptionsFormSkip | null {
+  if (options === undefined || !ts.isObjectLiteralExpression(options)) return null;
+  let found: OptionsFormSkip | null = null;
+  for (const prop of options.properties) {
+    let value: ts.Expression;
+    if (ts.isPropertyAssignment(prop) && isSkipOptionKey(prop.name)) {
+      value = prop.initializer;
+    } else if (ts.isShorthandPropertyAssignment(prop) && SKIP_OPTION_KEYS.has(prop.name.text)) {
+      // A shorthand `{ skip }` reads as its own name: an identifier, never a literal, so conditional.
+      value = prop.name;
+    } else {
+      continue;
+    }
+    const truthy = literalTruthiness(value);
+    if (truthy === false) continue; // a falsy literal skips nothing
+    const certainty = truthy === true ? "unconditional" : "conditional";
+    if (found === null || strongerSkip(found.certainty, certainty) !== found.certainty) {
+      found = { certainty, text: prop.getText(sf).replace(/\s+/g, " ") };
+    }
+  }
+  return found;
+}
+
+/** A matched test declaration: what {@link analyzeObservedTests} and {@link findOptionsFormSkips} both read. */
+interface MatchedTestCall {
+  name: string;
+  /** Its OWN skip (the modifier, else the options form), before any enclosing skip is combined in. */
+  ownSkip: SkipCertainty;
+  /** The options-form skip alone, as written. A modifier is not recorded here. */
+  optionsSkip: OptionsFormSkip | null;
+  titleFullyStatic: boolean;
+  call: TestCallRoot;
+  parameterised: boolean;
+}
+
+/**
+ * Is this node a `describe`/`test`/`it` call? Returns its read title and its OWN skip, whether a
+ * `.skip`/`.todo` modifier or the options form ({@link readOptionsFormSkip}), or null when it is not a
+ * test call at all. A test call whose title could NOT be read is still
  * MATCHED (with empty text and `titleFullyStatic: false`) — dropping it would erase the difference
  * between "this checker could not read the title" and "no such test exists".
  *
@@ -308,9 +427,7 @@ export function readTestCallTitle(arg: ts.Expression | undefined): ReadTitle | n
  * declaration. Nothing here changes how a title FOLDS (ADR-0126's literals-only rule is untouched);
  * it changes only which nodes are test declarations at all.
  */
-function matchTestCall(
-  node: ts.Node,
-): { name: string; ownSkip: boolean; titleFullyStatic: boolean; call: TestCallRoot; parameterised: boolean } | null {
+function matchTestCall(node: ts.Node, sf: ts.SourceFile): MatchedTestCall | null {
   if (!ts.isCallExpression(node)) return null;
   const { root, members } = calleeParts(node.expression);
   if (root === undefined || !isTestCallRoot(root)) return null;
@@ -319,9 +436,11 @@ function matchTestCall(
   }
   const title = readTestCallTitle(node.arguments[0]);
   if (title === null) return null;
+  const optionsSkip = readOptionsFormSkip(node.arguments[1], sf);
   return {
     name: title.text,
-    ownSkip: members.some((m) => SKIP_MODIFIERS.has(m)),
+    ownSkip: members.some((m) => SKIP_MODIFIERS.has(m)) ? "unconditional" : (optionsSkip?.certainty ?? "none"),
+    optionsSkip,
     titleFullyStatic: title.fullyStatic,
     call: root,
     // Only the INVOCATION of a `.each` factory reaches here (the factory itself returned null above).
@@ -387,9 +506,10 @@ function isSubstantiveAssertion(node: ts.Node): boolean {
 /**
  * PURE: parse a test file's SOURCE (the TypeScript compiler AST) into the {@link ObservedTest}s it
  * declares — each `describe`/`test`/`it` call with its read name, whether that name was FULLY static
- * ({@link ObservedTest.titleFullyStatic}), whether it is skipped (own or inherited from a skipped
- * ancestor), and whether it VOUCHES (runs AND has a substantive assertion anywhere in its region,
- * including nested tests). Source-ordered, deterministic, offline — no execution.
+ * ({@link ObservedTest.titleFullyStatic}), how certainly it is skipped (its own skip or an
+ * ancestor's, by a modifier or the options form — {@link readOptionsFormSkip}), whether its region holds
+ * a substantive assertion (nested tests included), and whether it VOUCHES: substantive, and skipped in
+ * neither form. Source-ordered, deterministic, offline — no execution.
  *
  * THE FILE NAME SELECTS THE PARSE, which is why every caller must pass it. `testFile` is the test
  * file's own path, and the parse follows its extension exactly as TypeScript's own does: a `.tsx` file
@@ -410,29 +530,31 @@ function isSubstantiveAssertion(node: ts.Node): boolean {
  */
 export function analyzeObservedTests(testSource: string, testFile: string): ObservedTest[] {
   // No explicit script kind: `createSourceFile` derives it from the name, as the repo's other static
-  // readers of a source file already let it — `findOptionsFormSkips` among them, whose names are
-  // joined against this read's, so the two now parse any test file the same way.
+  // readers of a source file already let it — `findOptionsFormSkips` among them, which reads the same
+  // declarations through the same matcher, so the two parse any test file the same way.
   const sf = ts.createSourceFile(testFile, testSource, ts.ScriptTarget.Latest, true);
   const collected: { test: ObservedTest; pos: number }[] = [];
   /** Post-order: returns whether `node`'s subtree holds a substantive assertion. Skip flows top-down. */
-  function visit(node: ts.Node, ancestorSkipped: boolean, ancestorTitles: readonly string[]): boolean {
-    const test = matchTestCall(node);
-    const skippedHere = ancestorSkipped || (test !== null && test.ownSkip);
+  function visit(node: ts.Node, ancestorSkip: SkipCertainty, ancestorTitles: readonly string[]): boolean {
+    const test = matchTestCall(node, sf);
+    const skipHere = test === null ? ancestorSkip : strongerSkip(ancestorSkip, test.ownSkip);
     // The ancestry every DESCENDANT sees — this node's own title appended once it is a test call.
     const childTitles = test !== null ? [...ancestorTitles, test.name] : ancestorTitles;
     // A test-call node is not itself an assertion; otherwise check this node directly.
     let subtreeSubstantive = test === null && isSubstantiveAssertion(node);
     ts.forEachChild(node, (child) => {
       // NB: forEachChild short-circuits on a TRUTHY return — keep this callback returning void.
-      if (visit(child, skippedHere, childTitles)) subtreeSubstantive = true;
+      if (visit(child, skipHere, childTitles)) subtreeSubstantive = true;
     });
     if (test !== null) {
       collected.push({
         test: {
           name: test.name,
           titleFullyStatic: test.titleFullyStatic,
-          skipped: skippedHere,
-          vouches: subtreeSubstantive && !skippedHere,
+          skipped: skipHere === "unconditional",
+          conditionallySkipped: skipHere === "conditional",
+          substantive: subtreeSubstantive,
+          vouches: subtreeSubstantive && skipHere === "none",
           ancestors: ancestorTitles,
           call: test.call,
           parameterised: test.parameterised,
@@ -443,10 +565,38 @@ export function analyzeObservedTests(testSource: string, testFile: string): Obse
     return subtreeSubstantive;
   }
   ts.forEachChild(sf, (child) => {
-    visit(child, false, []);
+    visit(child, "none", []);
   });
   collected.sort((a, b) => a.pos - b.pos);
   return collected.map((c) => c.test);
+}
+
+/**
+ * PURE: every OPTIONS-FORM skip declared in one test file's SOURCE (`test(name, { skip: <expr> }, fn)`),
+ * as declared name → the skip property verbatim, so a report can quote back what gates the test. It is
+ * the input of the `vacuous-proof` instrument (`packages/cli/src/verification-decay.ts`), and it lives
+ * HERE for the reason {@link readTestCallTitle} does: that instrument joins these names against
+ * {@link extractVouchingTestNames}'s, so both sides must recognise the same declarations, spell the same
+ * titles and apply the same skip rule. They share the matcher and {@link readOptionsFormSkip} outright,
+ * so the agreement is structural instead of remembered.
+ *
+ * Only the options form is recorded; a `.skip`/`.todo` modifier is not this function's subject. A
+ * falsy literal (`skip: false`) is no skip and never appears. A title with no readable static text
+ * cannot join against anything, so it contributes no entry, and where a name repeats, the first
+ * declaration's property is kept. Static: it reads the source, never executes it.
+ */
+export function findOptionsFormSkips(testSource: string, testFile: string): Map<string, string> {
+  const found = new Map<string, string>();
+  const sf = ts.createSourceFile(testFile, testSource, ts.ScriptTarget.Latest, true);
+  const visit = (node: ts.Node): void => {
+    const test = matchTestCall(node, sf);
+    if (test !== null && test.optionsSkip !== null && test.name.length > 0 && !found.has(test.name)) {
+      found.set(test.name, test.optionsSkip.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
 }
 
 /** What one read of a test source yields: the classifier's input, plus what could NOT be read. */
