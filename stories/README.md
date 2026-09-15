@@ -66,6 +66,51 @@ The proof ladder follows ADR-0010
 | **Integration tests** | body | capability | prove the capability against **real in-story collaborators** (no stubs within the organism) | ADR-0010 §2/§5 |
 | **Contracts** | body | capability → contract | the unit-test-proven leaf behaviours | glossary *contract* / *contract test* |
 | `asserts` / `covers` | per contract | contract | the single isolated assertion + the real code it tests | ADR-0002, glossary *contract test* |
+| `guard-rail` | per contract, optional | contract | declares the contract a guard-rail, so a new test naming it may pass before its implementation exists — see *Declaring a guard-rail* below | ADR-0572 D2, ADR-0573 D1 (C4) |
+
+### Declaring a guard-rail
+
+ADR-0572 decides that a NEW test which already passes before the implementation it proves exists is
+refused at CONFIRM_RED, unless the test names at least one contract (ADR-0122) and every contract it
+names declares a **guard-rail**: a property the finished code must keep, which an implementation that
+does nothing already satisfies. The refusal is live on a real build whose proof route runs ONE test
+file through node:test (the default command, or a declared command over the node's own file), vitest,
+or `bun test` (ADR-0573 D3):
+
+- **CONFIRM_RED is observed per test only for `editsExisting` units**, so only they meet the early-pass
+  refusal. A net-new unit's red is a file that does not load yet, and such a file reports no test.
+- **CONFIRM_GREEN completeness applies to every unit on those routes:** each declared test must report,
+  and pass, individually.
+- **Whole-package suites and other runners are unchanged**, and never read the declaration.
+
+The declaration is one labelled bullet under the contract, and it has exactly one spelling:
+
+```markdown
+1. **`parse-port-accepts-a-valid-port`** — a well-formed port never throws.
+   - **asserts —** `parsePort("8080")` returns without throwing.
+   - **covers —** `src/parse-port.ts`
+   - **guard-rail —** a `parsePort` that does nothing never throws, so this passes before
+     implementation; a `parsePort` that throws on every input would fail it.
+```
+
+- **The label is the declaration.** The gate reads the label `guard-rail` and requires text after it,
+  but never interprets that text. An empty `guard-rail` bullet declares nothing, and neither do
+  `guardrail`, `guard rail` or `guard-rails`, which are other labels; the refusal says which it found
+  (unhyphenated, `guardrail` is also a Library kind with an unrelated meaning).
+- **The text is for the reviewer, in one sentence:** why an implementation that does nothing already
+  satisfies the `asserts` sentence, and a plausible WRONG implementation that would fail it. That wrong
+  implementation is the guard-rail's real red (ADR-0573 D7); if no plausible wrong implementation
+  fails the test, it checks nothing and is not a guard-rail.
+- **Write it before the build that tests the contract.** It is the story writer's call, reviewed in a
+  pull request (ADR-0572 D2); a build never declares one for its own test.
+- **Indent it under its own contract, and nowhere else in `## Contracts`.** The parser attaches every
+  bold-led bullet to the numbered item above it, so a stray `guard-rail` bullet after the last contract
+  declares that contract.
+- **It excuses one thing:** a new test naming the contract that passes at red. The signed verdict
+  records every test admitted this way as never observed failing (ADR-0572 D3). A test names every
+  contract whose id appears in its title path, `describe` titles included, so a test inside a block
+  named for a contract that is not a guard-rail gets no exception: give a guard-rail its own test,
+  outside any such block.
 
 ### The proof-mode boundary (the rule that tiers a unit)
 

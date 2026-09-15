@@ -148,6 +148,12 @@ import { InMemoryStore, changeStoreParitySuite } from "./store.js";
 changeStoreParitySuite("InMemoryStore", () => new InMemoryStore());
 ```
 
+**Per-test observation refuses this file as written (ADR-0573 D3).** It declares its tests by calling the
+imported `changeStoreParitySuite(...)`, so the static read of the file itself finds ZERO tests, and no
+reported row can be bound to a declaration. Its route is the default node:test command over that one
+file, so per-test observation is armed for it: this unit refuses on its next build until its tests are
+declared in `change-event-store.test.ts` itself, or its proof route becomes a suite.
+
 ## Contract
 
 1. **`change-store-parity-holds-for-inmemory`** — the `ChangeStore` contract (append + read, filter,

@@ -16,6 +16,11 @@ proof:
     testGlobs:
       - "packages/cli/src/codex-leaf-prompt.test.ts"
     sourceGlobs: ["packages/orchestrator/src/resolve-prove-spec.ts"]
+  # ADR-0353: the READ-ONLY coverage surface. Contracts 14 and 15 are named by their own test file;
+  # the route and both write scopes are unchanged.
+  coverage:
+    testGlobs:
+      - "packages/orchestrator/src/resolve-prove-spec.per-test.test.ts"
   real:
     testFile: "packages/cli/src/codex-leaf-prompt.test.ts"
     sourceFile: "packages/orchestrator/src/resolve-prove-spec.ts"
@@ -100,7 +105,7 @@ capability split, and safe downstream fan-out.
 > or a brief naming no feedback tool no longer hold. The shell-feedback prohibition this revision
 > introduced still does (ADR-0232 D5). Contracts 9, 10 and 13 below carry the current assertions.
 
-Retain all eleven contracts, IDs, titles, commands and fences. The read-only resolver suite remains
+Retain all fifteen contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
 and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
 shared fixture and assertion, especially the signed `0bf`, `aaf966f`, `5ba4b553`, and `fccb80df`
@@ -215,6 +220,15 @@ spec-borne contract, [`real-brief-carries-test-revision`](real-brief-carries-tes
 contract's proof block and write scope are its own. The authored-source paragraph below describes
 this capability's proof, not that contract's.
 
+**Per-test observation and its brief (contracts 14 and 15, ADR-0573).** `resolveReal` arms per-test
+observation (D2, D3) on exactly the routes that run the node's own test file through node:test, vitest
+or `bun test`: it adds the runner's report flags to the ONE resolved proof command, wires
+`ShellTestResolver.perTestReport` with a per-build report file, and hands the gate a `perTestPolicy`
+that reviews CONFIRM_RED per test only for an `editsExisting` unit and CONFIRM_GREEN on every armed
+route. Every other route is observed as before. On an armed route `realPrompts` states the per-test
+rules in the AUTHOR_TEST brief — the brief ADR-0573's Consequences call for — before the ADR-0571
+revision section, which stays last.
+
 **Authored source and proof ownership.** IMPLEMENT may edit only
 `packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
 `packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
@@ -277,6 +291,8 @@ rather than requiring the tool name's erasure.
 - **`briefs-name-the-declared-contract-ids`** — `assemblePrompts` and all three `realPrompts` arms enumerate every declared id in BOTH phases and carry the ADR-0122 naming rule in AUTHOR_TEST; the ids arrive even when the spec's own `## Guidance` names none; a unit declaring no contracts gets no block (brief parity); the live-smoke brief carries none by design.
 - **`test-revision-reaches-only-the-author-test-brief`** — a supplied `TestRevision` reaches the AUTHOR_TEST brief after its unchanged text, in all three REAL arms and both runtimes, carrying the escalation and a tail-bounded observation. The IMPLEMENT brief is byte-identical with or without it, and real-mode `resolveProveSpec` threads it into the AUTHOR_TEST brief only.
 - **`codex-feedback-runs-in-the-replica`** — `retargetShellCommand` moves `cwd` and every absolute argument at or inside the worktree into the replica, judged by path and not by string prefix, and keeps everything else; `codexFeedbackCommandsFor` builds `run_proof`, and `run_typecheck` when one is registered, from the spine's own command objects with their own bound, each run spawning the retargeted command.
+- **`real-routes-arm-per-test-observation`** — contract 14's full assertion.
+- **`real-author-test-brief-states-the-per-test-rules`** — contract 15's full assertion.
 
 ## Integration test
 
@@ -296,7 +312,7 @@ walks remain offline tests of machinery; they are not a substitute author or sig
 repair. The declared REAL proof runs both test files, and promotion retains both package suites
 and typechecks as the regression floor.
 
-## Contracts (13)
+## Contracts (15)
 
 1. **`spec-files-locate-and-load`** — capability and story specs are found and parse to typed NodeSpecs with guidance prose
    - **asserts —** `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
@@ -350,3 +366,11 @@ and typechecks as the regression floor.
     - **asserts —** `retargetShellCommand` moves a command's `cwd` and every absolute argument at or inside the workspace to the same relative location under the replica root, judged by path and not by string prefix, and keeps `file`, every other argument, `env` and `timeoutMs` unchanged, returning a new object without mutating its input. `codexFeedbackCommandsFor` returns `run_proof`, plus `run_typecheck` only when a typecheck command is given; each carries its command's own `timeoutMs` or `DEFAULT_PROOF_TIMEOUT_MS` and a description naming the replica, and each `run(replicaRoot)` spawns the retargeted command and returns its exit code as data, while the command object the spine observes still names the workspace.
     - **covers —** `retargetShellCommand` and `codexFeedbackCommandsFor` (`packages/orchestrator/src/resolve-prove-spec.ts`)
     - **proven by —** `packages/orchestrator/src/resolve-prove-spec.codex-feedback.test.ts` through contract [`codex-feedback-commands-run-in-the-replica`](codex-feedback-commands-run-in-the-replica.md), signed PASS on the first attempt (run `real-mu23r803`), with the `@storytree/orchestrator` suite and typecheck as pre-signature backstops. No mutation rung reaches `packages/orchestrator` (ADR-0563 D3), so its test's strength is unscored.
+14. **`real-routes-arm-per-test-observation`** — the resolver arms per-test observation on exactly the routes that run the node's OWN test file through a runner whose per-test report was measured
+    - **asserts —** the default node:test route, a declared node:test command over the own file that names `--test`, `vitest run <own file>` directly or through a package manager, and `bun test <own file>` are armed, while whole-package or multi-file suites, a node command without `--test`, and foreign or unrecognised runners stay unarmed and are observed as before; the flags ride the ONE resolved command, so the CONFIRM observations and `run_proof` still spawn one object — node gets the spine's reporter with `spec` to stdout right after `--test`, bun gets `--reporter=junit` right after `test`, and vitest gets `--reporter=json` appended; `realProofCommand`'s preview is unchanged, so the default command stays byte-identical; the observer is wired with the per-build report file; the gate gets a per-test policy that reviews CONFIRM_RED per test only for `editsExisting` and CONFIRM_GREEN on every armed route; a `bun test <own file>` route is classified `bun-test-own-file`, not a package-manager suite, carries the assert-oracle guard through `--preload` and has its red kind measured, while a single bun test file that is not the node's own is refused at resolve; and end to end, a real build on the default route refuses a hollow test per test and signs a clean one.
+    - **covers —** `resolveReal` and `realProofCommand` (`packages/orchestrator/src/resolve-prove-spec.ts`); `perTestChannelOf`, `withPerTestReport`, `withOraclePreload` and `classifyProofRoute`'s bun branch (`packages/orchestrator/src/proof/proof-route.ts`)
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
+15. **`real-author-test-brief-states-the-per-test-rules`** — on an armed route, the AUTHOR_TEST brief states the per-test rules
+    - **asserts —** on an armed route, the AUTHOR_TEST brief from `realPrompts` says every test in the test file reports on its own and must pass at green, and to give each test a literal title, because a `.each` table or a runtime-built title is refused, naming its contract in the title or the enclosing describe; for an `editsExisting` unit it adds that every NEW test must fail now with an assertion, and that an early pass is refused unless every contract it names declares a guard-rail; an unarmed route's brief carries none of this; and the clause sits before the ADR-0571 revision block, which stays the brief's last part.
+    - **covers —** `realPrompts` (`packages/orchestrator/src/resolve-prove-spec.ts`)
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)

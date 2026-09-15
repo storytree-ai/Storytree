@@ -64,7 +64,7 @@ author-agnostic by design. See the story's "The PhaseAuthor seam is consumed, no
 spine-owned `originalProcessResult`, copied verbatim. The phase is the result's own `failedAt`, and
 the payload carries no test id. `exitCode: null` remains a real
 signal-termination observation. CONFIRM_RED includes an unexpected green and a measured wrong-kind
-red; an ordinary non-zero red still advances. The gate does not rerun a command, change the transition
+red; an ordinary non-zero red still advances unless a per-test review refuses it (ADR-0573). The gate does not rerun a command, change the transition
 decision, sign or promote a refusal, expose output to the author, or add it to evidence/history.
 Authoring, GATE, and backstop refusals have no such payload, as does every pass.
 
@@ -90,6 +90,16 @@ mismatch reason names both phases (contract
 signed PASS run `real-mu1njft0`). It matters because `story build`'s chain summary and the gate build
 driver print the reason alone.
 
+**Per-test review (ADR-0573).** The optional `ProveSpec.perTest` policy reads its baseline before
+AUTHOR_TEST is handed out, then reviews each CONFIRM observation's per-test report only after
+`nextPhase` would advance, so it can refuse and never advance: a refused review fails closed at that
+phase with `perTestFindings` and no signing row. Whenever red was reviewed per test,
+`verdict.acceptedGuardRails` records every test accepted as a declared guard-rail, `[]` when none
+(ADR-0572 D3); with no policy the walk signs exactly as before. [`prove-spec-resolution`](prove-spec-resolution.md)
+supplies the policy on every real proof route that runs ONE test file through node:test, vitest or
+`bun test` (ADR-0573 D3), reviewing red per test only for an `editsExisting` unit, whose file loads at
+red; whole-package suites and other runners sign exactly as before.
+
 ## Integration test
 
 **Goal —** The full honesty loop against real in-story collaborators, nothing stubbed in the
@@ -100,7 +110,7 @@ the genuine green, and the gate signs exactly one row
 (`packages/orchestrator/src/prove-it-gate.e2e.test.ts:160`). The negative twin plants a broken
 impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate.e2e.test.ts:214`).
 
-## Contracts (11)
+## Contracts (15)
 
 1. **`happy-path-signs-exactly-once`** — red then green, clean tree, signer present → a signed pass and exactly one signing row
    - **asserts —** `ok:true`, the verdict's fields pinned, one `kind:"signing"` event.
@@ -146,3 +156,19 @@ impl: still red at CONFIRM_GREEN → fail-closed, NO signing row (`prove-it-gate
     - **asserts —** a standing IMPLEMENT escalation refuses at CONFIRM_GREEN with a reason that begins byte for byte with the same walk's reason without it — the CONFIRM_GREEN refusal, then any oracle or raise-the-ceiling note — and continues with the kind and the statement verbatim, while `failedAt`, `failedObservation`, the record and the zero signing rows stay as contract 10 specifies them; an AUTHOR_TEST escalation's reason carries the kind and the statement; each phase-mismatch reason names both phases; a walk with no escalation refuses with exactly today's CONFIRM_GREEN text, and the GATE refusal after an overrule gives exactly the reason the same walk gives without the escalation.
     - **covers —** the refusal reasons on `proveUnit`'s escalation paths (`packages/orchestrator/src/prove-it-gate.ts`)
     - **proven by —** `packages/orchestrator/src/prove-it-gate.escalation-reason.test.ts` over ordinary `ShellTestExecutor` child commands, through contract [`confirm-green-refusal-names-standing-escalation`](confirm-green-refusal-names-standing-escalation.md), signed PASS (run `real-mu1njft0`)
+12. **`per-test-red-review-refuses-hollow-tests`** — at CONFIRM_RED, a hollow test beside real reds does not advance, on node and on bun
+    - **asserts —** `reviewConfirmRed` requires every declared test (`declaredTestsOf`) to be reported exactly once and to have run, and every NEW test — one absent from the file before AUTHOR_TEST — to have failed with an assertion red and to vouch; pre-existing tests carry no outcome rule at red; `.each` tables and runtime-built titles refuse as unbindable; on node and on bun a hollow test beside real reds does not advance CONFIRM_RED, where the same walk without a per-test policy signs it; and a clean cluster advances.
+    - **covers —** `reviewConfirmRed` and `declaredTestsOf` (`packages/orchestrator/src/proof/per-test-review.ts`)
+    - **proven by —** `packages/orchestrator/src/proof/per-test-review.test.ts` and `packages/orchestrator/src/prove-it-gate.per-test.e2e.test.ts` (session-authored; no signed verdict)
+13. **`early-pass-refused-unless-its-contract-declares-a-guard-rail`** — a NEW test that passes before its implementation exists is refused unless every contract it names declares a guard-rail
+    - **asserts —** a NEW test that passes at CONFIRM_RED is accepted only when its title path names at least one contract and every contract it names carries a `guard-rail` obligation with non-empty text (`declaresGuardRail`); otherwise the refusal `describePerTestRefusal` writes names the test, the contracts it names, and ADR-0572's three routes; an empty `guard-rail` bullet or a near-miss label declares nothing, and the refusal says so; an accepted test is recorded on `verdict.acceptedGuardRails`; and the probe's legitimate guard-rail fixture G1 (`docs/research/batched-red-attribution-probe-2026-09-14.md` §5.5) is refused without a declaration and accepted with one, on node and on bun.
+    - **covers —** `reviewConfirmRed`'s early-pass branch, `declaresGuardRail` and `describePerTestRefusal` (`packages/orchestrator/src/proof/per-test-review.ts`); `Verdict.acceptedGuardRails` (`packages/proof-protocol/src/proof.ts`)
+    - **proven by —** `packages/orchestrator/src/proof/per-test-review.test.ts`, `packages/orchestrator/src/prove-it-gate.per-test.e2e.test.ts` and `packages/proof-protocol/src/accepted-guard-rails.test.ts` (session-authored; no signed verdict)
+14. **`per-test-green-requires-every-declared-test`** — at CONFIRM_GREEN, every declared test must report individually green
+    - **asserts —** `reviewConfirmGreen` requires every declared test, new and pre-existing, to be reported once and to have passed; a dummy assertion followed by `process.exit(0)` is refused, on node through its single file-level row and on bun through its missing report, where the same walk without a per-test policy signs it.
+    - **covers —** `reviewConfirmGreen` (`packages/orchestrator/src/proof/per-test-review.ts`)
+    - **proven by —** `packages/orchestrator/src/proof/per-test-review.test.ts` and `packages/orchestrator/src/prove-it-gate.per-test.e2e.test.ts` (session-authored; no signed verdict)
+15. **`per-test-review-only-refuses`** — the gate consults the per-test review in sequence, and the review can refuse but never advance
+    - **asserts —** `proveUnit` reads the policy's baseline before AUTHOR_TEST is handed out; each review runs only after `nextPhase` would advance, and never rescues an observation `nextPhase` refused; a refused review fails closed at its CONFIRM phase with `perTestFindings` and no signing row; `verdict.acceptedGuardRails` is stamped exactly when red was reviewed per test, `[]` included; the evidence notes disclose whether each observation was per test; and a unit with no policy signs exactly as before.
+    - **covers —** `proveUnit`'s per-test sequencing, `ProveSpec.perTest`, `ProveResult.perTestFindings` and `toEvidence` (`packages/orchestrator/src/prove-it-gate.ts`)
+    - **proven by —** `packages/orchestrator/src/prove-it-gate.per-test.test.ts` (session-authored; no signed verdict)
