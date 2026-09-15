@@ -243,8 +243,9 @@ test("the forward baseline reads only landings on or after the split, as landed 
         // Before the split, both on the aggregate itself. History: the forward reading must not see them.
         dated("a", 1, "2026-09-10", ["x.ts", "M.json"]),
         dated("a", 2, "2026-09-14", ["y.ts", "M.json"]),
-        // The split's own landing, on the day, touching the aggregate AND a fragment.
-        dated("a", 3, "2026-09-15", ["z.ts", "M.json", "M/c.json"]),
+        // On the day of the split, a landing that still edited the aggregate itself and no fragment:
+        // it touches the surface, by its old name alone.
+        dated("a", 3, "2026-09-15", ["z.ts", "M.json"]),
         // After it: two owners' changes in two fragments, and one landing touching neither.
         dated("a", 4, "2026-09-16", ["p.ts", "M/a.json"]),
         dated("a", 5, "2026-09-17", ["q.ts", "M/b.json"]),
@@ -255,7 +256,7 @@ test("the forward baseline reads only landings on or after the split, as landed 
   const r = forwardReading(arcs, all, SPLIT, STRICT);
   assert.equal(r.since, "2026-09-15");
   assert.equal(r.landings, 4, "the split's own day and the three after it");
-  assert.equal(r.touching, 3, "the landing on the aggregate and a fragment, and the two fragment-only landings");
+  assert.equal(r.touching, 3, "the landing on the aggregate alone, and the two fragment-only landings");
   // As landed, the four are file-disjoint: one wave of four.
   assert.deepEqual(r.split.dist, [[4, 1]]);
   // Folded back, landings 3, 4 and 5 all touch the one file, each closing the wave before it: 1, 1, then 5 with 6.
