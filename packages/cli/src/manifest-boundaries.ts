@@ -107,10 +107,12 @@ const SPAWNERS: ReadonlySet<string> = new Set(["execFileSync", "execSync", "spaw
 /** The calls that turn a path into another path to the same file. */
 const PATH_BUILDERS: ReadonlySet<string> = new Set(["join", "resolve", "fileURLToPath", "URL"]);
 
-/** The bindings that carry the path: this module's own, and those exported by any module. */
-interface Carriers {
-  readonly local: ReadonlySet<string>;
-  readonly shared: ReadonlySet<string>;
+/** One module parsed once: its syntax tree, its variables, and what it imports under which local name. */
+interface Analysis {
+  readonly source: ts.SourceFile;
+  readonly declarations: readonly Declaration[];
+  /** Local name → the name it was imported as. */
+  readonly imports: ReadonlyMap<string, string>;
 }
 
 interface Declaration {
@@ -119,11 +121,19 @@ interface Declaration {
   readonly exported: boolean;
 }
 
+/** The bindings that carry the path: this module's own, and those exported by any module. */
+interface Carriers {
+  readonly local: ReadonlySet<string>;
+  readonly shared: ReadonlySet<string>;
+}
+
 /** Every direct read of the aggregate in `modules`. */
 export function findMonolithReads(modules: readonly SourceModule[]): MonolithReadScan {
-  const shared = sharedCarriers(modules, new Set());
+  const analyses = new Map<SourceModule, Analysis>();
+  const analysisOf = (module: SourceModule): Analysis => analyses.get(module) ?? analyse(module, analyses);
+  const shared = sharedCarriers(modules, analysisOf, new Set());
   const examined = examinable(modules, shared);
-  return { reads: examined.flatMap((module) => readsIn(module, shared)), examined: examined.length };
+  return { reads: examined.flatMap((module) => readsIn(module, analysisOf(module), shared)), examined: examined.length };
 }
 
 /**
@@ -158,31 +168,49 @@ function examinable(modules: readonly SourceModule[], shared: ReadonlySet<string
   return modules.filter((module) => [MONOLITH, ...shared].some((name) => module.text.includes(name)));
 }
 
-/** Every exported carrying binding, found until a pass finds no more. */
-function sharedCarriers(modules: readonly SourceModule[], shared: ReadonlySet<string>): ReadonlySet<string> {
-  const found = examinable(modules, shared)
-    .flatMap((module) => exportedCarriers(parse(module), shared))
-    .filter((name) => !shared.has(name));
-  return found.length === 0 ? shared : sharedCarriers(modules, new Set([...shared, ...found]));
+/** Parse `module` once and remember it, so every pass over it after the first costs no parse. */
+function analyse(module: SourceModule, analyses: Map<SourceModule, Analysis>): Analysis {
+  const source = ts.createSourceFile(module.path, module.text, ts.ScriptTarget.Latest, true);
+  const imports = new Map<string, string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportSpecifier(node)) imports.set(node.name.text, (node.propertyName ?? node.name).text);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const analysis: Analysis = { source, declarations: declarationsIn(source), imports };
+  analyses.set(module, analysis);
+  return analysis;
 }
 
-function exportedCarriers(source: ts.SourceFile, shared: ReadonlySet<string>): string[] {
-  const local = localCarriers(source, shared);
-  return declarationsIn(source)
+/**
+ * Every exported carrying binding, found until a pass finds no more.
+ *
+ * Neither this recursion nor {@link grow}'s is a tail call, and that is deliberate. JavaScriptCore — Bun's
+ * engine — eliminates tail calls, so a pass that stopped converging would spin forever instead of overflowing
+ * the stack: a mutation breaking convergence would then time out, which proves nothing, rather than fail.
+ */
+function sharedCarriers(
+  modules: readonly SourceModule[],
+  analysisOf: (module: SourceModule) => Analysis,
+  shared: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const found = examinable(modules, shared)
+    .flatMap((module) => exportedCarriers(analysisOf(module), shared))
+    .filter((name) => !shared.has(name));
+  return found.length === 0 ? shared : new Set(sharedCarriers(modules, analysisOf, new Set([...shared, ...found])));
+}
+
+function exportedCarriers(analysis: Analysis, shared: ReadonlySet<string>): string[] {
+  const local = localCarriers(analysis, shared);
+  return analysis.declarations
     .filter((declaration) => declaration.exported && local.has(declaration.name))
     .map((declaration) => declaration.name);
 }
 
 /** The module's carrying bindings: what it imports that carries the path, and what it binds to one. */
-function localCarriers(source: ts.SourceFile, shared: ReadonlySet<string>): ReadonlySet<string> {
-  const imported = source.statements
-    .filter(ts.isImportDeclaration)
-    .map((statement) => statement.importClause?.namedBindings)
-    .filter((bindings): bindings is ts.NamedImports => bindings !== undefined && ts.isNamedImports(bindings))
-    .flatMap((bindings) => bindings.elements)
-    .filter((element) => shared.has((element.propertyName ?? element.name).text))
-    .map((element) => element.name.text);
-  return grow(declarationsIn(source), new Set(imported), shared);
+function localCarriers(analysis: Analysis, shared: ReadonlySet<string>): ReadonlySet<string> {
+  const imported = [...analysis.imports].filter(([, name]) => shared.has(name)).map(([local]) => local);
+  return grow(analysis.declarations, new Set(imported), shared);
 }
 
 /** `local`, plus every binding whose initializer carries the path — until a pass binds nothing new. */
@@ -190,7 +218,7 @@ function grow(declarations: readonly Declaration[], local: ReadonlySet<string>, 
   const added = declarations
     .filter((declaration) => !local.has(declaration.name) && carries(declaration.initializer, { local, shared }))
     .map((declaration) => declaration.name);
-  return added.length === 0 ? local : grow(declarations, new Set([...local, ...added]), shared);
+  return added.length === 0 ? local : new Set(grow(declarations, new Set([...local, ...added]), shared));
 }
 
 /** Every variable declared with an initializer, at any depth. A destructuring pattern's name is its text. */
@@ -210,9 +238,9 @@ function declarationsIn(source: ts.SourceFile): Declaration[] {
   return found;
 }
 
-function readsIn(module: SourceModule, shared: ReadonlySet<string>): MonolithRead[] {
-  const source = parse(module);
-  const carriers: Carriers = { local: localCarriers(source, shared), shared };
+function readsIn(module: SourceModule, analysis: Analysis, shared: ReadonlySet<string>): MonolithRead[] {
+  const { source } = analysis;
+  const carriers: Carriers = { local: localCarriers(analysis, shared), shared };
   const reads: MonolithRead[] = [];
   const visit = (node: ts.Node): void => {
     const call = readerOf(node, carriers);
@@ -274,8 +302,4 @@ function literalParts(node: ts.Node): readonly { readonly text: string }[] {
 /** A call's name: the property it calls, or the callee as written — `import` for a dynamic import. */
 function calleeName(call: ts.CallExpression | ts.NewExpression): string {
   return ts.isPropertyAccessExpression(call.expression) ? call.expression.name.text : call.expression.getText();
-}
-
-function parse(module: SourceModule): ts.SourceFile {
-  return ts.createSourceFile(module.path, module.text, ts.ScriptTarget.Latest, true);
 }

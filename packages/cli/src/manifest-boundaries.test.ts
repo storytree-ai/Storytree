@@ -113,10 +113,13 @@ test("a mention, a seam call, and a value computed from one are not reads", () =
     'console.log("run git show HEAD:repo-manifest.json to see it");',
     'execFileSync("git", ["shown", "repo-manifest.json"]);',
     "readFileSync(`${root}/repo-manifest/${domain}.json`);",
+    // An operator or a choice passes the path through only when one of its sides is the path.
+    'readFileSync(root + "/package.json");',
+    'readFileSync(local ? "a.json" : "b.json");',
   ];
   assert.deepEqual(readsOf(source("tools/seam.ts", ...lines)), []);
   // Not vacuous: the same module reads, the moment what it hands a reader is the path itself.
-  assert.deepEqual(readsOf(source("tools/seam.ts", ...lines, "readFileSync(LIVE);")), [at("tools/seam.ts", 13, "readFileSync")]);
+  assert.deepEqual(readsOf(source("tools/seam.ts", ...lines, "readFileSync(LIVE);")), [at("tools/seam.ts", 15, "readFileSync")]);
 });
 
 test("a binding carries the path when its initializer does — however many bindings away, in any declaration order", () => {
