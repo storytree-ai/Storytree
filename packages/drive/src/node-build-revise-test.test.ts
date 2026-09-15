@@ -232,6 +232,20 @@ describe("node-build-takes-a-revision-and-names-the-record-it-leaves: node build
     assert.doesNotMatch(dryRun.body, /no node spec/);
   });
 
+  test("without --revise-test a non-real build is never refused by the mode check — it reaches the spec load", async () => {
+    // The mode check's `reviseTest !== undefined` half: every other case here either supplies the
+    // flag or runs --real, so without this one a mode check that refused EVERY non-real build would
+    // pass the file. An unknown unit id keeps it instant — the spec-load refusal is the next gate.
+    const env = await NodeBuildModule.nodeBuild("node-build-revise-test-no-such-unit", {
+      dryRun: true,
+      actor: "tester@example.com",
+      progress: silentBuildProgress(),
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /^no node spec "node-build-revise-test-no-such-unit" under /);
+    assert.doesNotMatch(env.body, /--revise-test/);
+  });
+
   test("--revise-test WITH --real is never refused by the mode check — it falls through to the revision read", async () => {
     const { ensureDb } = spyingEnsureDb();
     const built = await NodeBuildModule.nodeBuild(FIXTURE_UNIT_ID, {
