@@ -311,6 +311,7 @@ export {
   extractTestNames,
   extractVouchingTestNames,
   analyzeObservedTests,
+  findOptionsFormSkips,
   readTestCallTitle,
   readTestSurface,
   testNameCoversContract,

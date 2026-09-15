@@ -236,10 +236,56 @@ test("add-sums: one", () => { assert.ok(true); });
   assert.match(c2[0]?.detail ?? "", /2 declared tests share this title path/);
 });
 
-test("per-test-red-review-refuses-hollow-tests: C3 refuses a skipped or todo test, even one the static read vouches for", () => {
-  // The options-form skip VOUCHES statically (ADR-0126's known blind spot); only the runtime report sees it.
+test("per-test-red-review-refuses-hollow-tests: C6 refuses a new test skipped for CERTAIN by the options form, exactly as it refuses the `.skip` modifier", () => {
+  // A truthy literal never runs, so the static read can say so: ADR-0126 withholds its vouching, and
+  // C6 refuses it beside C3's runtime refusal, the same pair a `.skip` modifier has always drawn.
   const source = `test("add-sums: runs", () => { assert.equal(add(2, 3), 5); });
 test("clamp-bounds: skipped by options", { skip: true }, () => { assert.equal(clamp(15, 0, 10), 10); });
+test.skip("parse-port-refuses-garbage: skipped by modifier", () => { assert.throws(() => parsePort("abc")); });
+`;
+  const declared = declaredTestsOf(source, FIXTURE_FILE);
+  assert.deepEqual(
+    declared.map((t) => t.vouches),
+    [true, false, false],
+  );
+  const skippedRow = (title: string): ReportedTest => ({ path: [title], outcome: "skipped", message: "" });
+  const judgement = reviewConfirmRed({
+    declared,
+    before: [],
+    report: report([
+      assertionRed(["add-sums: runs"]),
+      skippedRow("clamp-bounds: skipped by options"),
+      skippedRow("parse-port-refuses-garbage: skipped by modifier"),
+    ]),
+    contracts: CLUSTER_CONTRACTS,
+  });
+  assert.deepEqual(keyed(judgement), [
+    "C3 clamp-bounds: skipped by options",
+    "C3 parse-port-refuses-garbage: skipped by modifier",
+    "C6 clamp-bounds: skipped by options",
+    "C6 parse-port-refuses-garbage: skipped by modifier",
+  ]);
+});
+
+test("per-test-red-review-refuses-hollow-tests: a CONDITIONAL options-form skip that RAN is judged like any new test — C6 and C7 leave it to C3", () => {
+  // Under `--real` the spine forces the environment a `{ skip: !DB }` gate reads (ADR-0064), so the test
+  // runs and asserts. Coverage withholds its credit, because a static read cannot know where the file
+  // loads (ADR-0126); refusing it HERE would refuse a proof the runner's own report watched run.
+  const title = "add-sums: the live round-trip";
+  const source = `test("${title}", { skip: !DB }, async () => { assert.equal(await add(2, 3), 5); });\n`;
+  const declared = declaredTestsOf(source, FIXTURE_FILE);
+  assert.deepEqual(declared, [{ path: [title], vouches: true }]);
+  const ran = { declared, before: [], report: report([assertionRed([title])]), contracts: CLUSTER_CONTRACTS };
+  assert.deepEqual(reviewConfirmRed(ran), { ok: true, declaredTests: 1, acceptedGuardRails: [] });
+  // C7 reads the same substance: a cluster brief's contract is named by this new test.
+  assert.equal(reviewConfirmRed({ ...ran, briefContracts: ["add-sums"] }).ok, true);
+});
+
+test("per-test-red-review-refuses-hollow-tests: C3 refuses a skipped or todo test, even one the static read vouches for", () => {
+  // A CONDITIONAL options-form skip still vouches for C6 (its body asserts, and whether it ran is not the
+  // static read's to say), so only the runtime report sees that this one did not run.
+  const source = `test("add-sums: runs", () => { assert.equal(add(2, 3), 5); });
+test("clamp-bounds: skipped by options", { skip: !DB }, () => { assert.equal(clamp(15, 0, 10), 10); });
 `;
   const declared = declaredTestsOf(source, FIXTURE_FILE);
   assert.equal(declared[1]?.vouches, true);
@@ -293,6 +339,7 @@ test.fails("fails-modifier", () => { expect(add(1, 1)).toBe(3); });
     "C3 todo-modifier",
     "C4 fails-modifier",
     "C6 skip-modifier",
+    "C6 skip-options",
     "C6 todo-modifier",
   ].sort());
 });
