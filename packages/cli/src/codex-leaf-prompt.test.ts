@@ -12,7 +12,6 @@ import {
   CodexPhaseAuthor,
   FileToolExecutor,
   FILE_WRITE_TOOLS,
-  buildCodexExecArgs,
 } from "@storytree/agent";
 import type { CodexCommand, CodexCommandResult, CodexRunner, CodexPromotionManifest } from "@storytree/agent";
 import { renderLeafPhasePrompts } from "@storytree/drive";
@@ -57,14 +56,17 @@ import type {
 import { codexPromotionManifest } from "../../orchestrator/src/resolve-prove-spec.js";
 
 /**
- * `prove-spec-resolution`'s runtime amendment (contracts 9 and 10): the phase briefs `resolveReal`
- * assembles are NOT runtime-aware — `realPrompts(spec, real, proofDisplay)` and `liveSmokePrompts`
- * are the SAME text regardless of whether Codex or Claude was selected, and that text is written for
- * Claude ("You cannot run shell commands.", "the `run_proof` feedback tool"). Codex genuinely CAN
- * author with native shell/`apply_patch` and genuinely has NO `run_proof`/`run_typecheck` feedback
- * tool (`CodexPhaseAuthor.feedbackToolNames` is always `[]`), so a Codex-selected build is briefed
- * with two false claims. The tests below pin this alongside the unchanged (contracts 1-8, 11)
- * resolver behaviour this file is also the coverage home for.
+ * `codex-builds-arm-feedback` (ADR-0570 D1): a REAL build and the live smoke now hand the Codex leaf
+ * the SAME `run_proof`/`run_typecheck` feedback commands the Claude leaf gets — the exact command
+ * objects the spine's own CONFIRM observations spawn, retargeted into Codex's disposable replica via
+ * `codexFeedbackCommandsFor` — and the rendered briefs tell it to run and iterate against them exactly
+ * as Claude is told to. `CodexPhaseAuthor.feedbackToolNames` is therefore no longer always `[]`: it
+ * carries `mcp__spine__run_proof`, plus `mcp__spine__run_typecheck` when the node installs
+ * dependencies and registers a typecheck. ADR-0232 D5 is NOT narrowed — the brief still says plainly
+ * that running a proof/test/typecheck/build command itself through Codex's own shell is not a
+ * substitute for the spine's registered observations, and no Codex claim moves the phase machine. The
+ * tests below pin this alongside the unchanged (contracts 1-8, 11) resolver behaviour this file is
+ * also the coverage home for.
  */
 
 // ── shared fixtures ────────────────────────────────────────────────────────────────────────────
@@ -628,7 +630,7 @@ test("briefs-name-the-declared-contract-ids: assemblePrompts and realPrompts enu
 
 // ── prompts-brief-the-real-constraints / feedback-tools-spawn-the-same-oracle (the amendment) ──────
 
-test("prompts-brief-the-real-constraints: default and explicit Codex REAL builds never claim run_proof or deny native shell authoring, across net-new/edit-existing/refactor-for-testability and with/without installed deps", () => {
+test("prompts-brief-the-real-constraints: default and explicit Codex REAL builds arm run_proof (and run_typecheck when the node installs dependencies) and brief native shell authoring as a non-substitute, across net-new/edit-existing/refactor-for-testability and with/without installed deps, while briefing everything outside the tooling sentence exactly as Claude is", () => {
   for (const real of CODEX_TRUTHFULNESS_FIXTURES) {
     for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
       const result = resolveRealFor(real, runtimeOpt);
@@ -638,23 +640,66 @@ test("prompts-brief-the-real-constraints: default and explicit Codex REAL builds
         result.liveAuthor instanceof CodexPhaseAuthor,
         "omitted runtime defaults to Codex, and explicit codex selects it too",
       );
+      const expectedTools =
+        real.install === true
+          ? ["mcp__spine__run_proof", "mcp__spine__run_typecheck"]
+          : ["mcp__spine__run_proof"];
+      assert.deepEqual(
+        result.liveAuthor.feedbackToolNames,
+        expectedTools,
+        "Codex is armed with run_proof, plus run_typecheck exactly when the node installs deps",
+      );
+
       for (const text of [result.spec.prompts.authorTest, result.spec.prompts.implement]) {
-        assert.doesNotMatch(
-          text,
-          /run_proof/,
-          "Codex has no run_proof feedback tool — the brief must not promise it",
-        );
+        assert.match(text, /run_proof/, "Codex is now told it can run_proof against its replica");
+        assert.match(text, /native shell\/apply_patch access/);
+        assert.match(text, /not a substitute for the spine's registered observations/);
+        assert.match(text, /spine alone observes the official red\/green/);
         assert.doesNotMatch(
           text,
           /cannot run shell commands/i,
           "Codex authors with native shell/apply_patch — the brief must not deny it",
         );
+        assert.doesNotMatch(text, /no automated feedback tool/i);
+        assert.doesNotMatch(text, /no MCP tools/i);
+        if (real.install === true) {
+          assert.match(text, /run_typecheck/);
+        } else {
+          assert.doesNotMatch(text, /run_typecheck/, "NET_NEW_REAL installs nothing and registers no typecheck");
+        }
+      }
+    }
+
+    // Walkthrough step 3: outside the tooling sentence, Codex is briefed exactly as Claude is.
+    const codexResult = resolveRealFor(real, { runtime: "codex" });
+    const claudeResult = resolveRealFor(real, { runtime: "claude" });
+    assert.equal(codexResult.ok, true);
+    assert.equal(claudeResult.ok, true);
+    if (!codexResult.ok || !claudeResult.ok) continue;
+    const sliceFrom = (text: string, marker: string): string => {
+      const idx = text.indexOf(marker);
+      assert.ok(idx >= 0, `"${marker}" is present in the brief`);
+      return text.slice(idx);
+    };
+    assert.equal(
+      sliceFrom(codexResult.spec.prompts.authorTest, "Phase AUTHOR_TEST"),
+      sliceFrom(claudeResult.spec.prompts.authorTest, "Phase AUTHOR_TEST"),
+      "outside the tooling sentence, Codex's AUTHOR_TEST brief matches Claude's",
+    );
+    assert.equal(
+      sliceFrom(codexResult.spec.prompts.implement, "Phase IMPLEMENT"),
+      sliceFrom(claudeResult.spec.prompts.implement, "Phase IMPLEMENT"),
+      "outside the tooling sentence, Codex's IMPLEMENT brief matches Claude's",
+    );
+    if (real.install === true) {
+      for (const text of [codexResult.spec.prompts.authorTest, claudeResult.spec.prompts.authorTest]) {
+        assert.match(text, /Use the `run_typecheck` feedback tool before stopping\./);
       }
     }
   }
 });
 
-test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never claims run_proof or denies native shell authoring", async () => {
+test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief arms run_proof and briefs native shell authoring as a non-substitute, briefing everything outside the tooling sentence exactly as Claude is", async () => {
   const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
   for (const runtimeOpt of [{}, { runtime: "codex" as const }]) {
     const result = resolveProveSpec(spec, {
@@ -668,15 +713,67 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
     assert.equal(result.ok, true);
     if (!result.ok) continue;
     assert.ok(result.liveAuthor instanceof CodexPhaseAuthor);
+    assert.deepEqual(
+      result.liveAuthor.feedbackToolNames,
+      ["mcp__spine__run_proof"],
+      "the live smoke arms run_proof over the synthetic pair (no typecheck is registered)",
+    );
     for (const text of [result.spec.prompts.authorTest, result.spec.prompts.implement]) {
-      assert.doesNotMatch(text, /run_proof/);
+      assert.match(text, /run_proof/);
+      assert.match(text, /native shell\/apply_patch access/);
+      assert.match(text, /not a substitute for the spine's registered observations/);
+      assert.match(text, /spine alone observes the official red\/green/);
+      assert.match(
+        text,
+        /do not run (?:a )?shell (?:proof, test, typecheck, or build|command) .*feedback/i,
+        "shell access must not become a proof-feedback substitute",
+      );
       assert.doesNotMatch(text, /cannot run shell commands/i);
+      assert.doesNotMatch(text, /no automated feedback tool/i);
     }
   }
 
+  // Walkthrough step 4's identical-outside-tooling-sentence comparison against explicit Claude.
+  const codexSmoke = resolveProveSpec(spec, {
+    mode: "live-smoke",
+    runtime: "codex",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-smoke-codex-cmp",
+    signerInputs: TESTER,
+  });
+  const claudeSmoke = resolveProveSpec(spec, {
+    mode: "live-smoke",
+    runtime: "claude",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-smoke-claude-cmp",
+    signerInputs: TESTER,
+  });
+  assert.equal(codexSmoke.ok, true);
+  assert.equal(claudeSmoke.ok, true);
+  if (codexSmoke.ok && claudeSmoke.ok) {
+    const sliceFrom = (text: string, marker: string): string => {
+      const idx = text.indexOf(marker);
+      assert.ok(idx >= 0, `"${marker}" is present in the brief`);
+      return text.slice(idx);
+    };
+    assert.equal(
+      sliceFrom(codexSmoke.spec.prompts.authorTest, "Phase AUTHOR_TEST"),
+      sliceFrom(claudeSmoke.spec.prompts.authorTest, "Phase AUTHOR_TEST"),
+      "outside the tooling sentence, Codex's live-smoke AUTHOR_TEST brief matches Claude's",
+    );
+    assert.equal(
+      sliceFrom(codexSmoke.spec.prompts.implement, "Phase IMPLEMENT"),
+      sliceFrom(claudeSmoke.spec.prompts.implement, "Phase IMPLEMENT"),
+      "outside the tooling sentence, Codex's live-smoke IMPLEMENT brief matches Claude's",
+    );
+  }
+
   // Capture the final adapter-composed input for the synthetic live-smoke pair, not merely the
-  // resolver's intermediate prompt. The selected default runtime must retain native authoring,
-  // no feedback/MCP authority, and the spine-owned observation/stopping boundary in BOTH phases.
+  // resolver's intermediate prompt. The selected default runtime must retain native authoring, now
+  // promise run_proof against its replica, and preserve the spine-owned observation/stopping
+  // boundary in BOTH phases.
   const smokeReal: RealProofConfig = {
     testFile: "unit.test.cjs",
     sourceFile: "impl.cjs",
@@ -704,9 +801,20 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
     for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
       const launch = launches[phase];
       assert.ok(launch.args.includes("gpt-5.6-terra"), `${phase}: the selected default model launches`);
-      assert.ok(launch.args.includes("mcp_servers={}"), `${phase}: MCP remains disabled`);
-      assert.deepEqual(launch.feedbackToolNames, [], `${phase}: no feedback tools are advertised`);
+      // This capture helper builds its own CodexPhaseAuthor from a fixture cwd with no feedback
+      // commands attached (`captureCodexFinalLaunches` stays deliberately unarmed) — these two
+      // assertions describe THAT local author, not a resolved build's own arming (see step 1 above).
+      assert.ok(
+        launch.args.includes("mcp_servers={}"),
+        `${phase}: this capture helper's own author carries no feedback commands`,
+      );
+      assert.deepEqual(
+        launch.feedbackToolNames,
+        [],
+        `${phase}: this capture helper's own author advertises no feedback tools`,
+      );
       assert.match(launch.stdin, /native shell\/apply_patch access/);
+      assert.match(launch.stdin, /run_proof/, `${phase}: the brief now promises run_proof against the replica`);
       assert.match(launch.stdin, /spine alone observes the official (?:red|green)/i);
       assert.match(launch.stdin, /stop/i);
       assert.match(
@@ -714,6 +822,7 @@ test("prompts-brief-the-real-constraints: default Codex LIVE-SMOKE brief never c
         /do not run (?:a )?shell (?:proof, test, typecheck, or build|command) .*feedback/i,
         `${phase}: shell access must not become a proof-feedback substitute`,
       );
+      assert.doesNotMatch(launch.stdin, /cannot run shell commands/i);
     }
   };
 
@@ -939,18 +1048,26 @@ test("prompts-brief-the-real-constraints: wildcard-only zero-literal authority n
   assert.equal(result.ok, true, result.ok ? "" : result.reason);
   if (!result.ok) return;
   assert.ok(result.liveAuthor instanceof CodexPhaseAuthor, "omitted runtime selects Codex");
-  assert.deepEqual(result.liveAuthor.feedbackToolNames, [], "Codex advertises no proof feedback tools");
+  assert.deepEqual(
+    result.liveAuthor.feedbackToolNames,
+    ["mcp__spine__run_proof"],
+    "the resolved Codex author is armed with run_proof (this fixture registers no typecheck)",
+  );
 
   const launches = await captureCodexFinalLaunches(real, result.spec.prompts, rendered.prompts);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
     const launch = launches[phase];
     assert.ok(launch.args.includes("gpt-5.6-terra"), `${phase}: the default Codex model is launched`);
-    assert.ok(launch.args.includes("mcp_servers={}"), `${phase}: MCP remains disabled`);
-    assert.deepEqual(launch.feedbackToolNames, [], `${phase}: no pseudo-feedback is advertised`);
+    // This capture helper's own author is built with no feedback commands attached (it stays
+    // deliberately unarmed) — these two assertions describe THAT local author, not the resolved one.
+    assert.ok(launch.args.includes("mcp_servers={}"), `${phase}: this capture helper's own author carries no feedback commands`);
+    assert.deepEqual(launch.feedbackToolNames, [], `${phase}: this capture helper's own author advertises no feedback tools`);
     assert.match(launch.stdin, /Neutral AUTHOR_TEST role|Neutral IMPLEMENT role/);
     assert.match(launch.stdin, /wildcard-only scope grants only its required spotlight/);
     assert.match(launch.stdin, /prompts-brief-the-real-constraints/);
-    assert.doesNotMatch(launch.stdin, /run_proof|run_typecheck|cannot run shell commands/i);
+    assert.match(launch.stdin, /run_proof/, `${phase}: the brief now promises run_proof`);
+    assert.doesNotMatch(launch.stdin, /run_typecheck/, `${phase}: this fixture registers no typecheck`);
+    assert.doesNotMatch(launch.stdin, /cannot run shell commands/i);
   }
 
   const phaseAction = (stdin: string, phase: "AUTHOR_TEST" | "IMPLEMENT"): string => {
@@ -970,7 +1087,7 @@ test("prompts-brief-the-real-constraints: wildcard-only zero-literal authority n
   assert.ok(!implementAction.includes("other source files in your scope"));
 });
 
-test("prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor never instructs run_proof/run_typecheck or denies native authoring, while the rendered role and phase brief survive composition", async () => {
+test("prompts-brief-the-real-constraints: the actual final Codex stdin composed by CodexPhaseAuthor instructs run_proof and run_typecheck (an install-bearing node) and does not deny native authoring, while the rendered role and phase brief survive composition", async () => {
   const role: LeafPhasePrompts = {
     AUTHOR_TEST: "You are the red-builder. Write the single failing test, then stop.",
     IMPLEMENT: "You are the green-builder. Write the minimum source to pass, then stop.",
@@ -983,8 +1100,12 @@ test("prompts-brief-the-real-constraints: the actual final Codex stdin composed 
     const text = finalStdin[phase];
     assert.match(text, /red-builder|green-builder/, `${phase}: the rendered role survives composition`);
     assert.match(text, /Phase brief/, `${phase}: the phase-brief section header survives composition`);
-    assert.doesNotMatch(text, /run_proof/, `${phase}: Codex's final stdin must not promise run_proof`);
-    assert.doesNotMatch(text, /run_typecheck/, `${phase}: Codex's final stdin must not promise run_typecheck`);
+    assert.match(text, /run_proof/, `${phase}: Codex's final stdin now promises run_proof`);
+    assert.match(
+      text,
+      /run_typecheck/,
+      `${phase}: Codex's final stdin now promises run_typecheck (INSTALL_REAL registers a typecheck)`,
+    );
     assert.doesNotMatch(
       text,
       /cannot run shell commands/i,
@@ -1035,7 +1156,7 @@ test("prompts-brief-the-real-constraints: an offline rendered role (renderLeafPh
   const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
     assert.match(finalStdin[phase], /red-builder|green-builder/, `${phase}: the fixture role survives composition`);
-    assert.doesNotMatch(finalStdin[phase], /run_proof/, `${phase}: Codex must not be told about run_proof`);
+    assert.match(finalStdin[phase], /run_proof/, `${phase}: Codex is now told about run_proof`);
     assert.doesNotMatch(
       finalStdin[phase],
       /cannot run shell commands/i,
@@ -1053,7 +1174,7 @@ async function currentLiveRolesComposeTruthfullyForCodex(): Promise<void> {
   if (!result.ok) return;
   const finalStdin = await captureCodexFinalStdin(INSTALL_REAL, result.spec.prompts, rendered.prompts);
   for (const phase of ["AUTHOR_TEST", "IMPLEMENT"] as const) {
-    assert.doesNotMatch(finalStdin[phase], /run_proof/);
+    assert.match(finalStdin[phase], /run_proof/);
     assert.doesNotMatch(finalStdin[phase], /cannot run shell commands/i);
   }
 }
@@ -1152,7 +1273,7 @@ test("feedback-tools-spawn-the-same-oracle: explicit Claude REAL install-node ar
   ]);
 });
 
-test("feedback-tools-spawn-the-same-oracle: Codex's actual feedbackToolNames stays empty and MCP stays disabled in both REAL and live-smoke", () => {
+test("feedback-tools-spawn-the-same-oracle: Codex is armed with run_proof (and, for tree-view's install-bearing node, run_typecheck) in both REAL and live-smoke, matching the Claude leaf's oracle", () => {
   for (const mode of ["real", "live-smoke"] as const) {
     const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
     const result = resolveProveSpec(spec, {
@@ -1165,12 +1286,22 @@ test("feedback-tools-spawn-the-same-oracle: Codex's actual feedbackToolNames sta
     assert.equal(result.ok, true);
     if (!result.ok) continue;
     assert.ok(result.liveAuthor instanceof CodexPhaseAuthor);
-    assert.deepEqual(result.liveAuthor.feedbackToolNames, []);
+    assert.ok(
+      result.liveAuthor.feedbackToolNames.includes("mcp__spine__run_proof"),
+      `${mode}: Codex is armed with run_proof`,
+    );
     for (const text of [result.spec.prompts.authorTest, result.spec.prompts.implement]) {
-      assert.doesNotMatch(text, /run_proof/);
-      assert.doesNotMatch(text, /run_typecheck/);
+      assert.match(text, /run_proof/, `${mode}: the brief names run_proof`);
+    }
+    if (mode === "real") {
+      // tree-view installs dependencies and registers a typecheck (see real-walls-really-wall above).
+      assert.ok(
+        result.liveAuthor.feedbackToolNames.includes("mcp__spine__run_typecheck"),
+        "tree-view is install-bearing and registers a typecheck: run_typecheck is armed too",
+      );
+      for (const text of [result.spec.prompts.authorTest, result.spec.prompts.implement]) {
+        assert.match(text, /run_typecheck/, "the REAL brief names run_typecheck");
+      }
     }
   }
-  const args = buildCodexExecArgs({ model: "gpt-5.6-terra", cwd: "/tmp/codex-leaf-prompt" });
-  assert.ok(args.includes("mcp_servers={}"), "Codex's launch config disables MCP");
 });
