@@ -539,22 +539,36 @@ describe('sourceLocator', () => {
     // column, the scan would land on the last of them and answer null for a column the map names.
     expect(sourceLocator({ sources: ['a.ts'], mappings: 'AAAA,,' })(0, 0)).toBe('a.ts');
   });
+
+  it('a sourceless segment still takes its place in the line, so the segments after it keep theirs', () => {
+    // "AAAA" names a.ts from column 0; "K" is one field at column 5 and names nothing; "KCAA" names b.ts
+    // from column 10. Were the sourceless segment's column kept without its empty source, every source
+    // after it would shift one segment early.
+    const at = sourceLocator({ sources: ['a.ts', 'b.ts'], mappings: 'AAAA,K,KCAA' });
+    expect(at(0, 4)).toBe('a.ts');
+    expect(at(0, 5)).toBeNull();
+    expect(at(0, 10)).toBe('b.ts');
+  });
 });
 
 describe('locatorFromSourceMaps', () => {
   const chunk = 'http://h/assets/index-C5.js';
   // "KAAA": column 5 names the studio module; "KCAA": column 10 names the engine module.
-  const locate = locatorFromSourceMaps(
-    new Map([
-      [
-        chunk,
-        sourceLocator({
-          sources: ['../../src/lib/landView.ts', '../../packages/forest-world-r3f/src/world-to-3d.ts'],
-          mappings: 'KAAA,KCAA',
-        }),
-      ],
-    ]),
-  );
+  // ⚠ BUILT INSIDE EACH CALL, NEVER AT DESCRIBE SCOPE. Decoding a map while the file is being COLLECTED
+  // runs the decoder outside any test, so a mutant that breaks it throws before a test exists to fail —
+  // and the mutation rung scored fifteen such mutants as survivors that no test was ever handed.
+  const locate: ReturnType<typeof locatorFromSourceMaps> = (frame) =>
+    locatorFromSourceMaps(
+      new Map([
+        [
+          chunk,
+          sourceLocator({
+            sources: ['../../src/lib/landView.ts', '../../packages/forest-world-r3f/src/world-to-3d.ts'],
+            mappings: 'KAAA,KCAA',
+          }),
+        ],
+      ]),
+    )(frame);
 
   it('names a production frame through its chunk map, resolved against the chunk url', () => {
     expect(locate({ functionName: 'a', url: chunk, lineNumber: 0, columnNumber: 12 })).toBe(
