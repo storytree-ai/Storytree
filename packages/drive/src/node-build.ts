@@ -2431,7 +2431,9 @@ export function readTestRevision(
   }
   let raw: string;
   try {
-    raw = readFileSync(filePath, "utf8");
+    // Decoded by Buffer#toString, which is UTF-8 — the same decoding an explicit "utf8" asks for, and
+    // with no encoding literal whose emptied mutant JSON.parse would decode identically anyway.
+    raw = readFileSync(filePath).toString();
   } catch (e) {
     return {
       ok: false,

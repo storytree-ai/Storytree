@@ -865,4 +865,407 @@ describe("a-returned-escalation-round-trips-through-its-revision-record: writes 
     assert.equal(typeof wrongUnit.reason, "string");
     assert.ok(wrongUnit.reason.length > 0);
   });
+
+  // ── Exact refusals and exact shapes: each case below is one the weakened reader answers differently ──
+
+  /** Asserts `outcome` is a refusal and returns its reason, so a case can pin the reason exactly. */
+  function mustRefuse(outcome: ParseTestRevisionOutcome | ReadTestRevisionOutcome, label: string): string {
+    assert.equal(outcome.ok, false, `expected a refusal: ${label}`);
+    if (outcome.ok) throw new Error(`unreachable: ${label}`);
+    return outcome.reason;
+  }
+
+  /** Asserts `outcome` is an acceptance and returns its revision; a refusal fails naming its reason. */
+  function mustAcceptParse(outcome: ParseTestRevisionOutcome, label: string): TestRevision {
+    if (!outcome.ok) assert.fail(`expected an acceptance: ${label} — refused: ${outcome.reason}`);
+    return outcome.revision;
+  }
+
+  /** A copy of `record` whose `escalation` carries `patch` over its own fields. */
+  function withEscalationFields(record: Record<string, unknown>, patch: Record<string, unknown>) {
+    const escalation = record.escalation as Record<string, unknown>;
+    return { ...record, escalation: { ...escalation, ...patch } };
+  }
+
+  /** A copy of `record` whose `escalation.raised` carries `patch` over its own fields. */
+  function withRaisedFields(record: Record<string, unknown>, patch: Record<string, unknown>) {
+    const escalation = record.escalation as Record<string, unknown>;
+    const raised = escalation.raised as Record<string, unknown>;
+    return { ...record, escalation: { ...escalation, raised: { ...raised, ...patch } } };
+  }
+
+  test("parseTestRevision refuses every non-object input — null, a string, a number, undefined, a boolean, an array — with the exact object-shape reason", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    for (const bad of [null, "a string", 42, undefined, true, [], [validAuthorTestRecord()]]) {
+      assert.equal(
+        mustRefuse(parseTestRevision(bad, UNIT_ID), `input ${String(JSON.stringify(bad))}`),
+        "a test revision record must be an object",
+      );
+    }
+  });
+
+  test("parseTestRevision's unitId refusal names the stored id and the expected id, exactly", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    assert.equal(
+      mustRefuse(parseTestRevision({ ...validAuthorTestRecord(), unitId: "a-different-unit" }, UNIT_ID), "a different unitId"),
+      `a test revision record's unitId "a-different-unit" does not match the expected unitId "${UNIT_ID}"`,
+    );
+  });
+
+  test("parseTestRevision's runId refusal is exact for a blank, a whitespace-only, a non-string, a null and a missing runId", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    for (const badRunId of ["", "   ", 123, null, undefined]) {
+      assert.equal(
+        mustRefuse(parseTestRevision({ ...validAuthorTestRecord(), runId: badRunId }, UNIT_ID), `runId ${String(badRunId)}`),
+        "a test revision record's runId must be a non-blank string",
+      );
+    }
+  });
+
+  test("parseTestRevision refuses an escalation that is not an object — null, missing, a string, a number, an array — with the exact escalation-shape reason", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    for (const badEscalation of [null, undefined, "an escalation", 7, []]) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision({ ...validAuthorTestRecord(), escalation: badEscalation }, UNIT_ID),
+          `escalation ${String(JSON.stringify(badEscalation))}`,
+        ),
+        "a test revision record's escalation must be an object",
+      );
+    }
+  });
+
+  test("parseTestRevision's escalation.testId refusal is exact for a blank, a whitespace-only, a non-string, a null and a missing testId", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    for (const badTestId of ["", "   ", 42, null, undefined]) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision(withEscalationFields(validAuthorTestRecord(), { testId: badTestId }), UNIT_ID),
+          `testId ${String(badTestId)}`,
+        ),
+        "a test revision record's escalation.testId must be a non-blank string",
+      );
+    }
+  });
+
+  test("parseTestRevision refuses an escalation.raised that is not an object — null, missing, a string, a number, an array — with the exact raised-shape reason", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    for (const badRaised of [null, undefined, "raised", 3, []]) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision(withEscalationFields(validAuthorTestRecord(), { raised: badRaised }), UNIT_ID),
+          `raised ${String(JSON.stringify(badRaised))}`,
+        ),
+        "a test revision record's escalation.raised must be an object",
+      );
+    }
+  });
+
+  test("parseTestRevision's declared-phase refusal names the phase exactly, and refuses a GATE phase even where the kind, statement and assertion would otherwise satisfy an IMPLEMENT escalation", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    // On the AUTHOR_TEST record a phase-blind reader would reach the KIND check and refuse there instead.
+    assert.equal(
+      mustRefuse(parseTestRevision(withRaisedFields(validAuthorTestRecord(), { phase: "GATE" }), UNIT_ID), "GATE on AUTHOR_TEST"),
+      `a test revision record's declared phase "GATE" must be AUTHOR_TEST or IMPLEMENT`,
+    );
+    // On the IMPLEMENT record the kind is "unsatisfiable-test" and an assertion is present, so a phase-blind
+    // reader would ACCEPT it outright.
+    assert.equal(
+      mustRefuse(parseTestRevision(withRaisedFields(validImplementRecord(), { phase: "GATE" }), UNIT_ID), "GATE on IMPLEMENT"),
+      `a test revision record's declared phase "GATE" must be AUTHOR_TEST or IMPLEMENT`,
+    );
+    for (const badPhase of [undefined, 42, "implement", "author_test", ""]) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision(withRaisedFields(validImplementRecord(), { phase: badPhase }), UNIT_ID),
+          `phase ${String(badPhase)}`,
+        ),
+        `a test revision record's declared phase "${String(badPhase)}" must be AUTHOR_TEST or IMPLEMENT`,
+      );
+    }
+  });
+
+  test("parseTestRevision's kind refusal names the phase, the kind that phase produces and the stored kind, exactly — for both phases", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    assert.equal(
+      mustRefuse(
+        parseTestRevision(withRaisedFields(validAuthorTestRecord(), { kind: "unsatisfiable-test" }), UNIT_ID),
+        "AUTHOR_TEST with the IMPLEMENT kind",
+      ),
+      `a AUTHOR_TEST escalation's kind must be "untestable-contract", not "unsatisfiable-test"`,
+    );
+    assert.equal(
+      mustRefuse(
+        parseTestRevision(withRaisedFields(validImplementRecord(), { kind: "untestable-contract" }), UNIT_ID),
+        "IMPLEMENT with the AUTHOR_TEST kind",
+      ),
+      `a IMPLEMENT escalation's kind must be "unsatisfiable-test", not "untestable-contract"`,
+    );
+    assert.equal(
+      mustRefuse(parseTestRevision(withRaisedFields(validImplementRecord(), { kind: undefined }), UNIT_ID), "IMPLEMENT with no kind"),
+      `a IMPLEMENT escalation's kind must be "unsatisfiable-test", not "undefined"`,
+    );
+  });
+
+  test("parseTestRevision hands parseAuthoringEscalation's own refusal reason through unchanged", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+
+    const authorRecord = validAuthorTestRecord();
+    const authorEscalation = authorRecord.escalation as Record<string, unknown>;
+    const blankStatement = { ...(authorEscalation.raised as Record<string, unknown>), statement: "   " };
+    const blankRefusal = parseAuthoringEscalation("AUTHOR_TEST", blankStatement);
+    assert.equal(blankRefusal.ok, false, "ground truth: parseAuthoringEscalation refuses a blank statement");
+    if (blankRefusal.ok) return;
+    assert.equal(
+      mustRefuse(
+        parseTestRevision({ ...authorRecord, escalation: { ...authorEscalation, raised: blankStatement } }, UNIT_ID),
+        "a blank statement",
+      ),
+      blankRefusal.reason,
+    );
+
+    const implementRecord = validImplementRecord();
+    const implementEscalation = implementRecord.escalation as Record<string, unknown>;
+    const implementRaised = implementEscalation.raised as Record<string, unknown>;
+    const noAssertion = { phase: implementRaised.phase, kind: implementRaised.kind, statement: implementRaised.statement };
+    const noAssertionRefusal = parseAuthoringEscalation("IMPLEMENT", noAssertion);
+    assert.equal(noAssertionRefusal.ok, false, "ground truth: parseAuthoringEscalation refuses an IMPLEMENT escalation with no assertion");
+    if (noAssertionRefusal.ok) return;
+    assert.equal(
+      mustRefuse(
+        parseTestRevision({ ...implementRecord, escalation: { ...implementEscalation, raised: noAssertion } }, UNIT_ID),
+        "an IMPLEMENT escalation with no assertion",
+      ),
+      noAssertionRefusal.reason,
+    );
+  });
+
+  test("parseTestRevision's cross-phase refusals are exact — an IMPLEMENT record carrying escalation.observation, an AUTHOR_TEST record carrying failedObservation — whether the carried observation is well-formed, malformed or null", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    const carried = [
+      { stdout: "x", stderr: "y", exitCode: 0 },
+      { stdout: 1, stderr: 2, exitCode: "3" },
+      null,
+    ];
+    for (const observation of carried) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision(withEscalationFields(validImplementRecord(), { observation }), UNIT_ID),
+          `IMPLEMENT carrying observation ${JSON.stringify(observation)}`,
+        ),
+        "an IMPLEMENT-kind escalation must not carry escalation.observation",
+      );
+      assert.equal(
+        mustRefuse(
+          parseTestRevision({ ...validAuthorTestRecord(), failedObservation: observation }, UNIT_ID),
+          `AUTHOR_TEST carrying failedObservation ${JSON.stringify(observation)}`,
+        ),
+        "an AUTHOR_TEST-kind record must not carry a top-level failedObservation",
+      );
+    }
+  });
+
+  test("parseTestRevision refuses a malformed observation with its exact reason — null, a string, a number, an array, a non-string stdout, a non-string stderr, a non-number exitCode, a missing exitCode — for both escalation.observation and failedObservation", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    const malformed = [
+      null,
+      "an observation",
+      0,
+      [],
+      { stdout: 123, stderr: "y", exitCode: 0 },
+      { stdout: "x", stderr: 42, exitCode: 0 },
+      { stdout: "x", stderr: "y", exitCode: "0" },
+      { stdout: "x", stderr: "y" },
+    ];
+    for (const observation of malformed) {
+      assert.equal(
+        mustRefuse(
+          parseTestRevision(withEscalationFields(validAuthorTestRecord(), { observation }), UNIT_ID),
+          `escalation.observation ${JSON.stringify(observation)}`,
+        ),
+        "escalation.observation must be { stdout: string; stderr: string; exitCode: number | null }",
+      );
+      assert.equal(
+        mustRefuse(
+          parseTestRevision({ ...validImplementRecord(), failedObservation: observation }, UNIT_ID),
+          `failedObservation ${JSON.stringify(observation)}`,
+        ),
+        "failedObservation must be { stdout: string; stderr: string; exitCode: number | null }",
+      );
+    }
+  });
+
+  test("parseTestRevision accepts an observation whose exitCode is null (a signalled child) and hands it back unchanged, for both escalation.observation and failedObservation", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+    const signalled = { stdout: "partial stdout", stderr: "terminated by a signal", exitCode: null };
+
+    const author = mustAcceptParse(
+      parseTestRevision(withEscalationFields(validAuthorTestRecord(), { observation: signalled }), UNIT_ID),
+      "an AUTHOR_TEST record whose observation has a null exitCode",
+    );
+    assert.deepEqual(author.escalation.observation, signalled);
+
+    const implement = mustAcceptParse(
+      parseTestRevision({ ...validImplementRecord(), failedObservation: signalled }, UNIT_ID),
+      "an IMPLEMENT record whose failedObservation has a null exitCode",
+    );
+    assert.deepEqual(implement.failedObservation, signalled);
+  });
+
+  test("parseTestRevision hands back exactly the keys the record carries — the AUTHOR_TEST observation deep-equal, no failedObservation key without one, no escalation.observation key without one", () => {
+    const parseTestRevision = mustGetParseTestRevision();
+
+    const authorResult = fixtures.authorEscalation.result;
+    assert.equal(authorResult.ok, false, "ground truth");
+    if (authorResult.ok) return;
+    const authorEscalation = authorResult.escalation;
+    assert.notEqual(authorEscalation, undefined, "ground truth: fixture 1 carries a returned escalation");
+    if (authorEscalation === undefined) return;
+    assert.notEqual(authorEscalation.observation, undefined, "ground truth: fixture 1's escalation carries its one spine observation");
+
+    const author = mustAcceptParse(parseTestRevision(validAuthorTestRecord(), UNIT_ID), "the AUTHOR_TEST record");
+    assert.deepEqual(author, {
+      unitId: UNIT_ID,
+      runId: "run-author-escalation",
+      escalation: {
+        raised: authorEscalation.raised,
+        testId: authorEscalation.testId,
+        observation: authorEscalation.observation,
+      },
+    });
+    assert.deepEqual(Object.keys(author).sort(), ["escalation", "runId", "unitId"]);
+    assert.equal("failedObservation" in author, false, "an AUTHOR_TEST revision carries no failedObservation key at all");
+    assert.deepEqual(Object.keys(author.escalation).sort(), ["observation", "raised", "testId"]);
+
+    const implementResult = fixtures.implementEscalationRed.result;
+    assert.equal(implementResult.ok, false, "ground truth");
+    if (implementResult.ok) return;
+    const implementEscalation = implementResult.escalation;
+    assert.notEqual(implementEscalation, undefined, "ground truth: fixture 2 carries a returned escalation");
+    if (implementEscalation === undefined) return;
+
+    const implement = mustAcceptParse(parseTestRevision(validImplementRecord(), UNIT_ID), "the IMPLEMENT record");
+    assert.deepEqual(implement, {
+      unitId: UNIT_ID,
+      runId: "run-implement-escalation-red",
+      escalation: { raised: implementEscalation.raised, testId: implementEscalation.testId },
+      failedObservation: implementResult.failedObservation,
+    });
+    assert.deepEqual(Object.keys(implement.escalation).sort(), ["raised", "testId"]);
+    assert.equal("observation" in implement.escalation, false, "an IMPLEMENT escalation carries no observation key at all");
+
+    const stored = validImplementRecord();
+    const bare = mustAcceptParse(
+      parseTestRevision({ unitId: stored.unitId, runId: stored.runId, escalation: stored.escalation }, UNIT_ID),
+      "an IMPLEMENT record storing no failedObservation",
+    );
+    assert.deepEqual(Object.keys(bare).sort(), ["escalation", "runId", "unitId"]);
+    assert.equal("failedObservation" in bare, false, "no failedObservation stored means no failedObservation key read back");
+  });
+
+  test("readTestRevision refuses a runId that is not a single path segment even when a record naming that very runId sits at the path it would resolve to, with the exact reason", async () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const parseTestRevision = mustGetParseTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    const backslash = String.fromCharCode(92);
+    for (const [index, badRunId] of ["", ".", "..", "foo/bar", `foo${backslash}bar`].entries()) {
+      // Planted through revisionRecordPath itself, so the record sits exactly where a guard-skipping read
+      // would look on THIS platform (a backslash is a separator on Windows and a filename character on Linux).
+      const dir = path.join(tmpRoot, `read-planted-invalid-run-id-${index}`);
+      const plantedPath = revisionRecordPath(dir, UNIT_ID, badRunId);
+      await fsp.mkdir(path.dirname(plantedPath), { recursive: true });
+      await fsp.writeFile(plantedPath, JSON.stringify({ ...validImplementRecord(), runId: badRunId }), "utf8");
+      assert.equal(existsSync(plantedPath), true, `ground truth: a record is planted where runId ${JSON.stringify(badRunId)} resolves`);
+      // Non-vacuity: every planted record but the blank one would PARSE, so a read that skipped the guard
+      // would hand it back rather than refuse.
+      const planted = parseTestRevision(JSON.parse(await fsp.readFile(plantedPath, "utf8")), UNIT_ID);
+      assert.equal(planted.ok, badRunId.length > 0, `ground truth: the record planted for ${JSON.stringify(badRunId)}`);
+
+      assert.equal(
+        mustRefuse(readTestRevision(dir, UNIT_ID, badRunId), `runId ${JSON.stringify(badRunId)}`),
+        `runId "${badRunId}" is not a single path segment — it must name one run, not a path`,
+      );
+    }
+  });
+
+  test("readTestRevision accepts a single-segment runId that merely contains dots", async () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    for (const [index, runId] of ["run.1", "..run"].entries()) {
+      const dir = path.join(tmpRoot, `read-dotted-run-id-${index}`);
+      const filePath = revisionRecordPath(dir, UNIT_ID, runId);
+      assert.equal(path.dirname(filePath), path.join(dir, UNIT_ID), "ground truth: a dotted single segment stays in the unit's directory");
+      await fsp.mkdir(path.dirname(filePath), { recursive: true });
+      await fsp.writeFile(filePath, JSON.stringify({ ...validImplementRecord(), runId }), "utf8");
+
+      const result = readTestRevision(dir, UNIT_ID, runId);
+      assert.equal(result.ok, true, `expected runId ${JSON.stringify(runId)} to be read back`);
+      if (!result.ok) continue;
+      assert.equal(result.revision?.runId, runId);
+    }
+  });
+
+  test("readTestRevision's missing-record refusal is exactly `no revision record found at <path>`", () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    const dir = path.join(tmpRoot, "read-missing-file-exact-dir");
+    assert.equal(
+      mustRefuse(readTestRevision(dir, UNIT_ID, "nonexistent-run"), "a missing record"),
+      `no revision record found at ${revisionRecordPath(dir, UNIT_ID, "nonexistent-run")}`,
+    );
+  });
+
+  test("readTestRevision refuses a record path that exists but cannot be read (a directory stands where the file should be), naming the path before the filesystem's own message", async () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    const dir = path.join(tmpRoot, "read-unreadable-record-dir");
+    const runId = "run-unreadable";
+    const filePath = revisionRecordPath(dir, UNIT_ID, runId);
+    await fsp.mkdir(filePath, { recursive: true });
+    assert.equal(existsSync(filePath), true, "ground truth: something exists at the record path, so the read itself is what fails");
+
+    const reason = mustRefuse(readTestRevision(dir, UNIT_ID, runId), "a directory at the record path");
+    const prefix = `could not read the revision record at ${filePath}: `;
+    assert.ok(reason.startsWith(prefix), `expected the reason to start ${JSON.stringify(prefix)}, got ${JSON.stringify(reason)}`);
+    assert.ok(reason.length > prefix.length, "the reason must carry the filesystem's own message after the path");
+  });
+
+  test("readTestRevision's invalid-JSON refusal names the path and then carries the parser's own message", async () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    const dir = path.join(tmpRoot, "read-invalid-json-exact-dir");
+    const runId = "bad-json-run";
+    const filePath = revisionRecordPath(dir, UNIT_ID, runId);
+    const content = "{ this is not json";
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, content, "utf8");
+
+    const reason = mustRefuse(readTestRevision(dir, UNIT_ID, runId), "invalid JSON");
+    const prefix = `the revision record at ${filePath} is not valid JSON: `;
+    assert.ok(reason.startsWith(prefix), `expected the reason to start ${JSON.stringify(prefix)}, got ${JSON.stringify(reason)}`);
+    let parserMessage = "";
+    try {
+      JSON.parse(content);
+    } catch (e) {
+      parserMessage = (e as Error).message;
+    }
+    assert.ok(parserMessage.length > 0, "ground truth: the content really is invalid JSON");
+    assert.equal(reason, `${prefix}${parserMessage}`);
+  });
+
+  test("readTestRevision's run-id-mismatch refusal names the path, the stored runId and the requested runId, exactly", async () => {
+    const readTestRevision = mustGetReadTestRevision();
+    const revisionRecordPath = mustGetRevisionRecordPath();
+    const dir = path.join(tmpRoot, "read-run-id-mismatch-exact-dir");
+    const askedFor = "run-asked-for";
+    const filePath = revisionRecordPath(dir, UNIT_ID, askedFor);
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    await fsp.writeFile(filePath, JSON.stringify({ ...validAuthorTestRecord(), runId: "run-originally-written-under" }), "utf8");
+
+    assert.equal(
+      mustRefuse(readTestRevision(dir, UNIT_ID, askedFor), "a run id mismatch"),
+      `the revision record at ${filePath} was written under runId "run-originally-written-under", ` +
+        `not the requested runId "run-asked-for"`,
+    );
+  });
 });
