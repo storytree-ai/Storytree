@@ -1095,6 +1095,45 @@ export function renderEscalation(unitId: string, runId: string, result: ProveRes
   return overruled === undefined ? [] : renderOverruledLine(overruled);
 }
 
+/**
+ * `[]` for an undefined revision, or one exact line naming the prior run id, the raising phase and
+ * the test id (ADR-0571 D3/D6): this build is a test revision — one D4 attempt, kind `revised-test`.
+ * A pure reader of the {@link TestRevision} the revision read already resolved; it never itself reads
+ * the escalation store or invents a phase.
+ */
+export function renderRevisingLine(revision: TestRevision | undefined): string[] {
+  if (revision === undefined) return [];
+  const { runId, escalation } = revision;
+  return [
+    `revising:    run ${runId} (${escalation.raised.phase} escalation, test ${escalation.testId}) — ` +
+      "this build is an ADR-0563 D6 test revision: one D4 attempt, `revised-test`.",
+  ];
+}
+
+/**
+ * `[]` when there is no {@link RevisionWrite} (`escalationsDir` was never supplied, or nothing this
+ * attempt returned was written). A successful write names the path and the exact re-run command,
+ * carrying the SAME `runtime` this attempt ran under — so running it as printed never switches leaves
+ * (ADR-0571 D3). An unwritten record names the path and the reason, and never a command: there is
+ * nothing on disk to revise against, so the escalation block above must be relayed by hand.
+ */
+export function renderRevisionRecord(
+  unitId: string,
+  runId: string,
+  runtime: LiveRuntime,
+  write: RevisionWrite | undefined,
+): string[] {
+  if (write === undefined) return [];
+  if (write.written) {
+    return [
+      `revision:    written to ${write.path} — re-run with: storytree node build ${unitId} --real --runtime ${runtime} --revise-test ${runId}`,
+    ];
+  }
+  return [
+    `revision:    NOT written (${write.path}): ${write.reason} — relay the escalation block above to the owner by hand`,
+  ];
+}
+
 // ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
 
 /**
@@ -1476,6 +1515,17 @@ export interface NodeBuildOpts {
    * envelope rather than the chatter.
    */
   progress?: BuildProgress;
+  /**
+   * `--revise-test <runId>` (ADR-0571 D3): the run id whose revision record this `--real` build
+   * revises against. A LITERAL run id, never `@path` content — the orchestrator names which
+   * escalation and never handles its text. Valid only with `--real`.
+   */
+  reviseTest?: string | undefined;
+  /**
+   * Test seam for {@link resolveEscalationsDir} (ADR-0571 D2/D3). Production omits it and gets the
+   * default house per-user directory.
+   */
+  escalationsDir?: string | undefined;
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -1585,6 +1635,18 @@ export async function nodeBuild(
       next: [`storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex`],
     };
   }
+  // ADR-0571 D3: --revise-test hands a prior attempt's returned escalation to the AUTHOR_TEST leaf
+  // as this build's revision brief — only --real authors at real repo paths, so it is real-only.
+  if (opts.reviseTest !== undefined && !real) {
+    return {
+      ok: false,
+      body:
+        "--revise-test is valid only with --real: it hands a prior attempt's returned escalation to " +
+        "the AUTHOR_TEST leaf as this REAL build's revision brief, and neither --dry-run nor --live " +
+        "authors at real repo paths (ADR-0571 D3).",
+      next: [`storytree node build ${unitId} --real --revise-test ${opts.reviseTest}`],
+    };
+  }
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -1687,6 +1749,15 @@ export async function nodeBuild(
     if (!resolvedDeps.ok) return resolvedDeps.refusal;
     addDepsGroup = resolvedDeps.group;
   }
+
+  // ADR-0571 D3: read the named revision record before any spend — before the leaf-prompt render,
+  // the DB preflight, the claim and the worktree. `readTestRevision` returns no revision (and never
+  // touches the filesystem) when `opts.reviseTest` is undefined, so a dry-run/live-smoke walk (where
+  // the mode check above already refused a supplied --revise-test) passes through untouched.
+  const escalationsDir = resolveEscalationsDir(opts.escalationsDir);
+  const revisionRead = await readTestRevision(escalationsDir, spec.id, opts.reviseTest);
+  if (!revisionRead.ok) return { ok: false, body: revisionRead.reason, next: [] };
+  const testRevision = revisionRead.revision;
 
   // ADR-0051 §4: the live SDK leaf's per-phase system prompt IS the rendered Library agent
   // (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Assemble it offline and fail-loud on a
@@ -1801,6 +1872,7 @@ export async function nodeBuild(
     let liveAuthor: LiveAuthor | undefined;
     let worktree: BuildWorktree | undefined;
     let promotion: PromotionResult | undefined;
+    let revisionWrite: RevisionWrite | undefined;
     let promotionSkipped: string | undefined;
     let regression: "green" | "red" | undefined;
     let typecheck: "green" | "red" | undefined;
@@ -1846,6 +1918,8 @@ export async function nodeBuild(
         if (opts.model !== undefined) realArgs.model = opts.model;
         if (opts.budgetUsd !== undefined) realArgs.budgetUsd = opts.budgetUsd;
         if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
+        realArgs.testRevision = testRevision;
+        realArgs.escalationsDir = escalationsDir;
         const built = await progress.stage(
           "gate (the leaf authors, the spine observes red -> green)",
           () => buildNodeReal(realArgs),
@@ -1853,6 +1927,7 @@ export async function nodeBuild(
         result = built.result;
         liveAuthor = built.liveAuthor;
         promotion = built.promotion;
+        revisionWrite = built.revisionWrite;
         promotionSkipped = built.promotionSkipped;
         regression = built.regression;
         typecheck = built.typecheck;
@@ -1906,6 +1981,7 @@ export async function nodeBuild(
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
       ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
+      ...renderRevisingLine(testRevision),
       ...(real && worktree !== undefined && realConfig !== undefined
         ? [
             `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
@@ -1964,6 +2040,7 @@ export async function nodeBuild(
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
           ...renderEscalation(spec.id, runId, result),
+          ...renderRevisionRecord(spec.id, runId, runtime, revisionWrite),
           ...renderFailedConfirmObservation(spec.id, runId, result.failedObservation),
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
