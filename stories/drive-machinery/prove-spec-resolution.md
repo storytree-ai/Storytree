@@ -16,11 +16,12 @@ proof:
     testGlobs:
       - "packages/cli/src/codex-leaf-prompt.test.ts"
     sourceGlobs: ["packages/orchestrator/src/resolve-prove-spec.ts"]
-  # ADR-0353: the READ-ONLY coverage surface. Contracts 14 and 15 are named by their own test file;
-  # the route and both write scopes are unchanged.
+  # ADR-0353: the READ-ONLY coverage surface. Contracts 14-17 and contract 18 are named by their own test
+  # files; the route and both write scopes are unchanged.
   coverage:
     testGlobs:
       - "packages/orchestrator/src/resolve-prove-spec.per-test.test.ts"
+      - "packages/orchestrator/src/resolve-prove-spec.walkthrough.test.ts"
   real:
     testFile: "packages/cli/src/codex-leaf-prompt.test.ts"
     sourceFile: "packages/orchestrator/src/resolve-prove-spec.ts"
@@ -105,7 +106,7 @@ capability split, and safe downstream fan-out.
 > or a brief naming no feedback tool no longer hold. The shell-feedback prohibition this revision
 > introduced still does (ADR-0232 D5). Contracts 9, 10 and 13 below carry the current assertions.
 
-Retain all seventeen contracts, IDs, titles, commands and fences. The read-only resolver suite remains
+Retain all eighteen contracts, IDs, titles, commands and fences. The read-only resolver suite remains
 the substantive executed baseline for C1–8, C10's original Claude oracle/typecheck composition,
 and C11; existing parent CLI corroboration remains frozen. Preserve every existing CLI body,
 shared fixture and assertion, especially the signed `0bf`, `aaf966f`, `5ba4b553`, and `fccb80df`
@@ -241,6 +242,16 @@ at least one NEW failing test per contract in the one test file, and says a rewr
 not count; IMPLEMENT asks for every test of the cluster green, iterating against `run_proof`. A unit
 without a cluster, and a cluster on any route where it could not be held, briefs byte for byte as before.
 
+**Proof walkthrough in the briefs (contract 18, `brief-carries-the-units-proof-walkthrough`).**
+`loadNodeSpec` reads a unit's proof walkthrough — the body section under any heading that begins
+`## Proof walkthrough` — onto `NodeSpec.proofWalkthrough`. `realPrompts` (every arm) and `assemblePrompts`
+splice it into both phase briefs right after the guidance. AUTHOR_TEST is told it is the acceptance setup
+the test must build, with no double or shortcut it rules out; IMPLEMENT is told it is the setup the test
+builds. It is the leaf's INPUT and never a judge of the authored test (ADR-0447; ADR-0563 D1). A unit
+without a walkthrough briefs byte for byte as before. Measured when it landed: 56 specs carried one, from 5
+to 211 lines (median 20), and none of that text had reached a leaf — so a guidance line telling both phases
+to read "this whole file" named a file the brief never gave.
+
 **Authored source and proof ownership.** IMPLEMENT may edit only
 `packages/orchestrator/src/resolve-prove-spec.ts`. AUTHOR_TEST edits only the existing
 `packages/cli/src/codex-leaf-prompt.test.ts`, the single declared test spotlight and required
@@ -307,6 +318,7 @@ rather than requiring the tool name's erasure.
 - **`real-author-test-brief-states-the-per-test-rules`** — contract 15's full assertion.
 - **`real-cluster-is-admitted-only-where-red-is-observed-per-test`** — contract 16's full assertion.
 - **`real-cluster-brief-names-the-cluster-in-both-phases`** — contract 17's full assertion.
+- **`briefs-carry-the-proof-walkthrough`** — contract 18's full assertion.
 
 ## Integration test
 
@@ -326,7 +338,7 @@ walks remain offline tests of machinery; they are not a substitute author or sig
 repair. The declared REAL proof runs both test files, and promotion retains both package suites
 and typechecks as the regression floor.
 
-## Contracts (17)
+## Contracts (18)
 
 1. **`spec-files-locate-and-load`** — capability and story specs are found and parse to typed NodeSpecs with guidance prose
    - **asserts —** `findNodeSpecFile` resolves both layouts; real library specs load; no frontmatter is LOUD.
@@ -396,3 +408,7 @@ and typechecks as the regression floor.
     - **asserts —** for an `editsExisting` unit on an armed route declaring a cluster, the AUTHOR_TEST brief names exactly the cluster's contracts, with titles and in their declared order, asks for a CLUSTER of regression tests in one slice with at least one NEW failing test per contract, says a rewritten existing test does not count and that C7 refuses a contract left without a new test, and still carries the per-test rules; the IMPLEMENT brief names the same contracts and asks for every test of the cluster green together, iterating against `run_proof`; a unit without a cluster keeps the one-test brief, and a cluster on a structural red or an unarmed route briefs byte for byte as it would without one.
     - **covers —** `realPrompts` (`packages/orchestrator/src/resolve-prove-spec.ts`)
     - **proven by —** `packages/orchestrator/src/resolve-prove-spec.per-test.test.ts` (session-authored; no signed verdict)
+18. **`briefs-carry-the-proof-walkthrough`** — both phase briefs carry the unit's own proof walkthrough, right after its guidance
+    - **asserts —** for a spec whose body carries a proof walkthrough, every `realPrompts` arm — net-new, edits-existing, a cluster and refactor-for-tests — places it right after the guidance in BOTH briefs, led in AUTHOR_TEST as the acceptance setup the test must build with no double or shortcut it rules out, and in IMPLEMENT as the setup the test builds; removing that block leaves exactly the brief the same spec gets without a walkthrough; `assemblePrompts` appends the same two blocks; and a real spec's walkthrough reaches both of its briefs verbatim.
+    - **covers —** `realPrompts`, `assemblePrompts` and `proofWalkthroughBrief` (`packages/orchestrator/src/resolve-prove-spec.ts`)
+    - **proven by —** `packages/orchestrator/src/resolve-prove-spec.walkthrough.test.ts` (session-authored; no signed verdict)

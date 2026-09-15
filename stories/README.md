@@ -68,6 +68,7 @@ The proof ladder follows ADR-0010
 | `asserts` / `covers` | per contract | contract | the single isolated assertion + the real code it tests | ADR-0002, glossary *contract test* |
 | `guard-rail` | per contract, optional | contract | declares the contract a guard-rail, so a new test naming it may pass before its implementation exists — see *Declaring a guard-rail* below | ADR-0572 D2, ADR-0573 D1 (C4) |
 | `real.cluster` | frontmatter (`proof.real`), optional | any real-buildable unit | two or more of the unit's own contract ids briefed as ONE cluster — their tests written in one slice and implemented together — only on an `editsExisting` unit whose route reports per test; see *Briefing a cluster* below | ADR-0573 D3 (C7) |
+| **Proof walkthrough** | body, optional | capability, contract | the acceptance setup the unit's test must build — its real collaborators, planted records and the doubles it rules out. Any heading beginning `## Proof walkthrough` reads, a bare `## Proof` does not, and the section reaches both real phase briefs verbatim, right after `## Guidance` | `brief-carries-the-units-proof-walkthrough` |
 
 ### Declaring a guard-rail
 
