@@ -328,6 +328,19 @@ describe('the boundaries', () => {
     expect(n.canvasChunkBytes).toBe(0);
   });
 
+  it('recognises the production canvas and kit chunks by the names a build gives them', () => {
+    // ⚠ MEASURED: the first production run counted both chunks as "everything else" and reported
+    // the land view's own payload as zero, because a built chunk carries its entry module's name.
+    const n = networkSplit([
+      { name: 'http://h/assets/ForestWorldCanvas-CLGCjs9e.js', durationMs: 40, transferSizeBytes: 3000 },
+      { name: 'http://h/assets/kit-BkNhlUTR.js', durationMs: 20, transferSizeBytes: 1000 },
+      { name: 'http://h/assets/index-GWkh9kn4.js', durationMs: 5, transferSizeBytes: 700 },
+    ]);
+    expect(n.canvasChunkBytes).toBe(4000);
+    expect(n.canvasChunkMs).toBe(60);
+    expect(n.otherBytes).toBe(700);
+  });
+
   it('a .gltf is recognised by its ENDING, which is the only place an extension can be', () => {
     const n = networkSplit([{ name: 'http://x/assets/kit.gltf', durationMs: 3, transferSizeBytes: 42 }]);
     expect(n.canvasChunkBytes).toBe(42);

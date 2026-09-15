@@ -746,9 +746,15 @@ export function networkSplit(entries: readonly ResourceTiming[]): NetworkSplit {
   return { storePayloadMs, storePayloadBytes, canvasChunkMs, canvasChunkBytes, otherMs, otherBytes };
 }
 
-/** What only a land-view viewer pays for: the 3D stack and the bought kit's assets. */
+/** What only a land-view viewer pays for: the 3D stack and the bought kit's assets.
+ *
+ *  ⚠ A BUILT CHUNK IS NAMED FOR ITS ENTRY MODULE, NOT ITS PACKAGE. The first production run on the RTX
+ *  box counted the lazy canvas chunk (`ForestWorldCanvas-<hash>.js`, 3.48 MB) and the kit chunk
+ *  (`kit-<hash>.js`, 1.11 MB) as "everything else" and reported the land view's own payload as zero. */
 function isCanvasPayload(name: string): boolean {
   return (
+    name.includes('/ForestWorldCanvas-') ||
+    name.includes('/kit-') ||
     name.includes('three') ||
     name.includes('@react-three') ||
     name.includes('drei') ||

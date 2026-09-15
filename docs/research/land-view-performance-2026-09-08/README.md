@@ -2,6 +2,16 @@
 
 `the-land-view-loads-and-runs-fast-enough` on `mount-the-land-on-a-real-surface-arc`.
 
+> ⚠ **SUPERSEDED IN PART — read `../land-view-performance-2026-09-15/` for the diagnosis.** The
+> re-measurement found four things this run could not see: (1) its CPU profile stopped the moment the
+> canvas had a size, so the tail after it — most of the wait — was never attributed; (2) its
+> `land-stream` bucket included the shared 2D trail routing (`packages/forest-world/src/routing.ts`),
+> which the map pays without the flag; (3) its "not laggy" reading came from six-second windows that
+> fell between rebuilds — at rest the land view rebuilds its whole ground on studio re-renders, about
+> every thirty seconds, freezing the page for about two seconds each time; (4) the production
+> report's `arm` line says "vite dev" because the label was a constant. The figures below are kept as
+> this run measured them.
+
 The owner signed the look and reported two things in one sentence, plus a cause he marked as a
 guess:
 
