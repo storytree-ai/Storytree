@@ -175,6 +175,7 @@ function readArgs(argv) {
     allowSoftware: values.get('allow-software') === '1',
     sourcemaps: values.get('sourcemaps') === '1',
     keepProfiles: values.get('keep-profiles') === '1',
+    warm: values.get('warm') === '1',
   };
 }
 
@@ -270,6 +271,28 @@ const browser = await chromium.launch({
   headless: true,
   args: ['--use-gl=angle', `--use-angle=${args.angle}`, '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
+
+// ---- ⚠ AN OPTIONAL WARM-UP, FOR A DEV SERVER. Vite transforms each module the first time any browser
+// asks for it, so a cold dev server charges its own compilation to whichever arm loads first — a cost
+// the owner's long-running server had already paid. `--warm 1` loads the land view once in a
+// throwaway page first. Every page below still opens its own browser context, so each arm's browser
+// cache stays cold; only the server is warmed. A production arm should not use it: a member's first
+// visit is the question there. Say which in `--arm`.
+if (args.warm) {
+  const warmPage = await browser.newPage({ viewport: VIEWPORT });
+  await warmPage.goto(landViewUrl(args.base, true), { waitUntil: 'domcontentloaded', timeout: 300000 });
+  await warmPage
+    .waitForFunction(
+      () => {
+        const canvas = document.querySelector('[data-testid="land-view"] canvas');
+        return canvas instanceof HTMLCanvasElement && canvas.width > 0 && canvas.height > 0;
+      },
+      null,
+      { timeout: 300000 },
+    )
+    .catch(() => fail('the warm-up load never produced a sized canvas'));
+  await warmPage.close();
+}
 
 // ---- THE FLOOR, FIRST: the renderer this browser got, and the frame rate a blank page reaches in it.
 const floorPage = await browser.newPage({ viewport: VIEWPORT });
