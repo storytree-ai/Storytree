@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/headless-orchestrator.ts": "headless-session-runner"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/SceneView.tsx": "studio-app-surface-adapter"
+    }
+  }
+}

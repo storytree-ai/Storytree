@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/attest.ts": "attestation-signals",
+      "packages/orchestrator/src/proof/attestations.ts": "attestation-signals",
+      "packages/orchestrator/src/store/attestation-store.ts": "attestation-signals"
+    }
+  }
+}

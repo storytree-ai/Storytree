@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/art-authoring/src/*.ts": "blocking-substrate-adapter",
+      "packages/art-authoring/src/backends": "blocking-substrate-adapter"
+    }
+  }
+}

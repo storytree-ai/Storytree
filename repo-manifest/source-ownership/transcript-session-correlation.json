@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-transcript/src/correlate-transcripts.ts": "transcript-session-correlation"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/phase-author.ts": "phase-author-seam"
+    }
+  }
+}

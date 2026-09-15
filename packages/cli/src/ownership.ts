@@ -135,7 +135,8 @@ export interface GatherDeclarationsResult {
 }
 
 /**
- * The declared map, read from `repo-manifest.json` `sourceOwnership.subtrees`.
+ * The declared map, `sourceOwnership.subtrees` — one fragment per owner under
+ * `repo-manifest/source-ownership/`, composed with `repo-manifest.json` beside it (ADR-0556).
  *
  * DELEGATED, not re-implemented: `readSourceOwnershipMap` in `@storytree/drive` is the ONE reader of
  * this block, because the claim namespace turns the same declarations into claimable objects
@@ -295,7 +296,7 @@ export function ownershipHelp(): Envelope {
       "  storytree ownership <package-path>   narrow to one workspace package",
       "",
       "REPORT ONLY — it names what is undeclared and fails nothing. The map is",
-      "`repo-manifest.json` → `sourceOwnership.subtrees` (globs permitted; it binds no verdict).",
+      "`sourceOwnership.subtrees` in `repo-manifest/source-ownership/<owner>.json` (globs permitted; it binds no verdict).",
       "It does NOT read `proof.real.sourceFile` or `scope.sourceGlobs`, which are a build target",
       "and a write fence — not ownership (ADR-0317 D1).",
       "",

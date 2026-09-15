@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-spawn/src/observe-leaf-slices.ts": "leaf-slice-spawn-observations"
+    }
+  }
+}

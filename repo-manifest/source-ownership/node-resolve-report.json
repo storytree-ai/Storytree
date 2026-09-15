@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/resolve-report.ts": "node-resolve-report"
+    }
+  }
+}

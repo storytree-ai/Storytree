@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/scripts/capture-unwatched-regrow.mjs": "act2-intro-cursor",
+      "apps/studio/src/components/Act2IntroControl.tsx": "act2-intro-cursor",
+      "apps/studio/src/components/act2Intro.ts": "act2-intro-cursor"
+    }
+  }
+}

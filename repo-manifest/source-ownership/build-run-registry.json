@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/inFlightBuilds.ts": "build-run-registry",
+      "apps/studio/src/lib/buildActivity.ts": "build-run-registry"
+    }
+  }
+}

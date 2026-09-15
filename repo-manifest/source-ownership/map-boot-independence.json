@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/App.tsx": "map-boot-independence"
+    }
+  }
+}

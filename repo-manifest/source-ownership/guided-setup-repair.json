@@ -1,0 +1,10 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/doctor*.ts": "guided-setup-repair",
+      "packages/cli/src/escalation-blob.ts": "guided-setup-repair",
+      "packages/cli/src/guide*.ts": "guided-setup-repair",
+      "packages/cli/src/repair-planner.ts": "guided-setup-repair"
+    }
+  }
+}

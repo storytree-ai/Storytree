@@ -1,0 +1,25 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/storeDoorApi.ts": "event-sourced-store-seam",
+      "packages/drive/src/store-door.ts": "event-sourced-store-seam",
+      "packages/library/src/store/adr-store.ts": "event-sourced-store-seam",
+      "packages/library/src/store/batch-migrate.ts": "event-sourced-store-seam",
+      "packages/library/src/store/cloud-sql-admin-adc.ts": "event-sourced-store-seam",
+      "packages/library/src/store/cloud-sql-admin.ts": "event-sourced-store-seam",
+      "packages/library/src/store/connection.ts": "event-sourced-store-seam",
+      "packages/library/src/store/data-plane.ts": "event-sourced-store-seam",
+      "packages/library/src/store/db-credential.ts": "event-sourced-store-seam",
+      "packages/library/src/store/index.ts": "event-sourced-store-seam",
+      "packages/library/src/store/load-corpus.ts": "event-sourced-store-seam",
+      "packages/library/src/store/migrate.ts": "event-sourced-store-seam",
+      "packages/library/src/store/pg-comment-store.ts": "event-sourced-store-seam",
+      "packages/library/src/store/pg-store.ts": "event-sourced-store-seam",
+      "packages/library/src/store/pg-suggestion-store.ts": "event-sourced-store-seam",
+      "packages/library/src/store/render-agent.ts": "event-sourced-store-seam",
+      "packages/library/src/store/render-doc.ts": "event-sourced-store-seam",
+      "packages/library/src/store/render-process.ts": "event-sourced-store-seam",
+      "packages/library/src/store/test-db.ts": "event-sourced-store-seam"
+    }
+  }
+}

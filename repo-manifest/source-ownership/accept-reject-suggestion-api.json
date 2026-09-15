@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/suggestionApi.ts": "accept-reject-suggestion-api"
+    }
+  }
+}

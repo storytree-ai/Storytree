@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/storage-protocol/src": "storage-protocol"
+    }
+  }
+}

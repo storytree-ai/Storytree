@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/chat-reset-route.ts": "backend-chat-reset-route"
+    }
+  }
+}

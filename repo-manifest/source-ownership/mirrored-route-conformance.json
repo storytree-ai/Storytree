@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/*-mirror-probe.ts": "mirrored-route-conformance",
+      "apps/studio/server/*MirrorProbe.ts": "mirrored-route-conformance",
+      "packages/cli/src/*mirror-conformance*.ts": "mirrored-route-conformance"
+    }
+  }
+}

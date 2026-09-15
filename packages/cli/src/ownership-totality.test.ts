@@ -246,8 +246,8 @@ test("a failing report names the file, the repair, and the GRAIN the owner must 
   assert.match(body, /✗ ownership totality/);
   assert.match(body, /packages\/cli\/src\/gate-aperture\.ts/);
   assert.match(body, /sourceOwnership\.subtrees/);
-  // The pasteable repair, keyed to the offending file's own directory.
-  assert.match(body, /"subtree": "packages\/cli\/src\/</);
+  // The pasteable repair, keyed to the offending file's own directory, in the fragment it belongs in.
+  assert.match(body, /in repo-manifest\/source-ownership\/<capability-id>\.json → "subtrees": \{ "packages\/cli\/src\/<your-files>": "<capability-id>" \}/);
   // ADR-0346 D2 is the whole reason a story id is the wrong answer here — say so at the point of
   // writing the declaration, not in a curation pass six weeks later.
   assert.match(body, /ADR-0346 D2/);

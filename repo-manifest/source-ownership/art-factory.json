@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/art-authoring/scripts/*.mts": "art-factory",
+      "packages/art-authoring/src/sprite": "art-factory"
+    }
+  }
+}

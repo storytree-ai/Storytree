@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-hierarchy-drift.ts": "work-hierarchy-drift-gate",
+      "packages/cli/src/hierarchy-drift.ts": "work-hierarchy-drift-gate",
+      "packages/cli/src/hierarchy-git.ts": "work-hierarchy-drift-gate"
+    }
+  }
+}

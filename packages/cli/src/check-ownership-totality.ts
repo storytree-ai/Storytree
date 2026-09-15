@@ -27,7 +27,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
-import { parseSourceOwnershipMap, readSourceOwnershipMap } from "@storytree/drive";
+import { readSourceOwnershipMap, readSourceOwnershipMapAt } from "@storytree/drive";
 
 import { gatherSourceFiles } from "./ownership.js";
 import { judgeSourceOwnership } from "./source-ownership.js";
@@ -129,15 +129,21 @@ function main(): void {
   console.log(`${TAG} charging against ${base.ref} — ${base.because}`);
   const baseFiles = pathLines(git(["ls-tree", "-r", "--name-only", base.ref]));
 
-  // The BASE map, read from the same parser the current map went through — never a second parser, or
-  // the two reads could disagree about what is declared and present it as an ownership change nobody
-  // made. A `git show` that fails yields text the parser reports as unread, which the judge's
+  // The BASE map, read through the same composition seam the current map went through — never a second
+  // reader, or the two reads could disagree about what is declared and present it as an ownership change
+  // nobody made. A base that cannot be read comes back UNREAD with no subtrees, which the judge's
   // `baseDeclarationCount === 0` guard turns into a BLIND CHECK rather than a red.
-  const baseManifestText = git(["show", `${base.ref}:${MANIFEST}`]);
-  const baseMap =
-    baseManifestText === null
-      ? { subtrees: [] as { subtree: string; owner: string }[] }
-      : parseSourceOwnershipMap(baseManifestText, "the merge-base repo manifest");
+  const baseMap = readSourceOwnershipMapAt(
+    {
+      show: (ref, file) => git(["show", `${ref}:${file}`]),
+      list: (ref, dir) => {
+        const listed = git(["ls-tree", "-r", "--name-only", ref, "--", dir]);
+        return listed === null ? null : [...pathLines(listed)];
+      },
+    },
+    base.ref,
+    "the merge-base repo manifest",
+  );
 
   // Judged over only the files that EXISTED at the base: asking whether a file that did not exist was
   // owned is a question with no honest answer, and the judge never consults this set for those files.

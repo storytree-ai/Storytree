@@ -8,11 +8,13 @@
  * `sourceOwnership`, so otherwise independent work queues behind one file. The arc replaces the file
  * with FRAGMENTS cut at the grain claims are taken at, composed by one fail-closed local seam.
  *
- * THIS MODULE IS THAT SEAM, AND ONLY THE SEAM. ADR-0556 D5 lands "a pure composer and fault-seeded
- * tests" before authority moves: no reader goes through this yet and no fragment is committed, so the
- * aggregate is still the source of truth. What is settled here is what a fragment is, where it lives,
- * and how a set of them composes into the manifest's one semantic view. It needs no database and no
- * CI — claim declaration and every gate will call it on a laptop, before a pull request exists.
+ * THIS MODULE IS THAT SEAM, AND ONLY THE SEAM. ADR-0556 D5 landed "a pure composer and fault-seeded
+ * tests" before authority moved. Since `repo-manifest-source-ownership-fragments`, `sourceOwnership` is
+ * authored as fragments under `repo-manifest/`, and every reader of it composes them with the aggregate
+ * through {@link composeRepoManifest}; the other domains are still read from the aggregate until they
+ * move. What is settled here is what a fragment is, where it lives, and how a set of them composes into
+ * the manifest's one semantic view. It needs no database and no CI — claim declaration and every gate
+ * call it on a laptop, before a pull request exists.
  *
  * ## The layout
  *
@@ -236,6 +238,81 @@ export function composeManifest(sources: readonly ManifestFragmentSource[]): Man
   ];
   if (faults.length > 0) return { ok: false, faults: inOrder(faults) };
   return { ok: true, manifest: assemble(supplies, contributions) };
+}
+
+// ---------------------------------------------------------------------------
+// The repository's manifest — the aggregate and the fragment tree beside it
+// ---------------------------------------------------------------------------
+
+/** The committed aggregate, as fault messages name it. */
+export const REPO_MANIFEST = "repo-manifest.json";
+
+/** The fragment tree beside it: named for it, and the directory every fragment path is relative to. */
+export const REPO_MANIFEST_TREE = "repo-manifest";
+
+/**
+ * What a reader of the repository's manifest found, before any judgement: the committed aggregate and
+ * the fragment tree beside it.
+ *
+ * THE MIGRATION'S SHAPE. ADR-0556 D5 moves authority one domain at a time, so for a while the manifest
+ * is part aggregate and part fragments — `sourceOwnership` in the tree, every other section still in
+ * `repo-manifest.json`. The aggregate is split exactly as {@link splitManifest} splits it and set beside
+ * the tree's files, and the one composer judges the whole set, so no reader can tell, or needs to, which
+ * half a section came from.
+ */
+export interface RepoManifestSources {
+  /** The aggregate's text — or why it could not be read. */
+  readonly aggregate: { readonly text: string } | { readonly unread: string };
+  /** The fragment tree beside the aggregate, as it was read — `null` where there is none. */
+  readonly tree: { readonly fragments: readonly ManifestFragmentSource[]; readonly unread: readonly string[] } | null;
+}
+
+/**
+ * Compose the repository's manifest from the aggregate and the fragment tree beside it — or refuse it,
+ * with every reason, exactly as {@link composeManifest} refuses a fragment set.
+ *
+ * ONE HOME PER SECTION. A section whose domain has fragments in the tree may not also sit in the
+ * aggregate: two homes compose into duplicate declarations at best and a silently shadowed one at worst,
+ * and the aggregate is the half that is leaving (ADR-0556 D1). So it is refused, naming the move — which
+ * is also what turns a declaration written to the aggregate AFTER its section moved into a refusal
+ * rather than a quiet second source.
+ */
+export function composeRepoManifest(sources: RepoManifestSources): ManifestComposition {
+  if ("unread" in sources.aggregate) {
+    return refused([fault("unreadable-fragment-set", [], [], `${REPO_MANIFEST}: ${sources.aggregate.unread}`)]);
+  }
+  const aggregate = parseObject(sources.aggregate.text);
+  if (typeof aggregate === "string") {
+    return refused([fault("malformed-fragment", [REPO_MANIFEST], [], `${REPO_MANIFEST}: ${aggregate}`)]);
+  }
+  const tree = sources.tree ?? { fragments: [], unread: [] };
+  if (tree.unread.length > 0) {
+    return refused(tree.unread.map((message) => fault("unreadable-fragment-set", [], [], message)));
+  }
+  const inTree = new Set(tree.fragments.map((f) => f.path.split("/")[0]));
+  const twoHomes = Object.keys(aggregate)
+    .filter((key) => inTree.has(domainOf(key)))
+    .map((key) =>
+      fault(
+        "misplaced-declaration",
+        [REPO_MANIFEST],
+        [key],
+        `${REPO_MANIFEST}: ${label([key])} belongs to the ${domainOf(key)} domain, whose fragments live in ` +
+          `${REPO_MANIFEST_TREE}/${domainOf(key)}/ — a section has one home, so move what it declares into ` +
+          `those fragments and delete it here`,
+      ),
+    );
+  if (twoHomes.length > 0) return refused(twoHomes);
+  return composeManifest([...splitManifest(aggregate), ...tree.fragments]);
+}
+
+function refused(faults: readonly ManifestCompositionFault[]): ManifestComposition {
+  return { ok: false, faults: inOrder(faults) };
+}
+
+/** The domain directory a top-level key is filed under — its own name where no domain claims it. */
+function domainOf(key: string): string {
+  return key.startsWith("$") ? TOP_LEVEL_NOTES : (DOMAIN_OF.get(key) ?? key);
 }
 
 function readFragment(source: ManifestFragmentSource): FragmentReading {
@@ -552,7 +629,8 @@ function canonicalObject(value: ManifestObject): ManifestObject {
 
 /**
  * The fragments an aggregate manifest breaks into at the claim grain — the inverse of
- * {@link composeManifest}, and the migration the arc's next increment runs.
+ * {@link composeManifest}, the migration `repo-manifest-source-ownership-fragments` ran for
+ * `sourceOwnership`, and how {@link composeRepoManifest} reads the sections still in the aggregate.
  *
  * TOTAL, and deliberately dumb: every key lands somewhere, and anything the contract would not accept
  * lands where composition will refuse it by name — a section no domain owns goes under a directory
@@ -567,7 +645,7 @@ export function splitManifest(manifest: ManifestObject): ManifestFragmentSource[
   };
   const domainShard = (dir: string): string => `${dir}/${DOMAIN_SHARD}.json`;
   for (const [key, value] of Object.entries(manifest)) {
-    const dir = key.startsWith("$") ? TOP_LEVEL_NOTES : (DOMAIN_OF.get(key) ?? key);
+    const dir = domainOf(key);
     if (dir !== OWNER_SHARDED || !isObject(value)) {
       into(domainShard(dir), []).set(key, value);
       continue;

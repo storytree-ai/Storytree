@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/uat-criterion/src/story-author-scope.ts": "story-author-detail-authority"
+    }
+  }
+}

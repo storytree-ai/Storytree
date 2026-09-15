@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/forestSnapshot*.ts": "web-experience-sync",
+      "packages/cli/src/web-engine*.ts": "web-experience-sync"
+    }
+  }
+}

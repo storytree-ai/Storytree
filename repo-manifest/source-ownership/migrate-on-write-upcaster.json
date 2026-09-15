@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/depends-on.ts": "migrate-on-write-upcaster",
+      "packages/library/src/migrations.ts": "migrate-on-write-upcaster"
+    }
+  }
+}

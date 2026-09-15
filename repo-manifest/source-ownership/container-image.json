@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/check-gcloudignore-mirror.ts": "container-image",
+      "packages/cli/src/gcloudignore-mirror.ts": "container-image"
+    }
+  }
+}

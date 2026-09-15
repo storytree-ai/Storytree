@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/pty-session-manager.ts": "pty-session-manager"
+    }
+  }
+}

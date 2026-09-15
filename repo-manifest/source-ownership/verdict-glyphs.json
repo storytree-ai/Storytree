@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/tree-verdicts.ts": "verdict-glyphs",
+      "packages/cli/src/tree-verdicts.ts": "verdict-glyphs",
+      "packages/drive/src/tree-verdicts.ts": "verdict-glyphs"
+    }
+  }
+}

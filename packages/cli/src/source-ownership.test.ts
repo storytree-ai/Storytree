@@ -397,3 +397,15 @@ test("contested and stale sections appear only when they have something to say",
   assert.doesNotMatch(clean, /CONTESTED/);
   assert.doesNotMatch(clean, /STALE/);
 });
+
+test("a contested file's repair is to narrow — declaration order decides nothing", () => {
+  const body = formatSourceOwnershipReport(
+    judgeSourceOwnership({
+      files: ["packages/cli/src/gate-boundaries.ts"],
+      declarations: [decl("packages/cli/src/gate*.ts", "gate-ci-parity"), decl("packages/cli/src/*boundaries*.ts", "organism-boundary-tooling")],
+      knownUnitIds: ["gate-ci-parity", "organism-boundary-tooling"],
+    }),
+  );
+  assert.match(body, /CONTESTED — 1 file\(s\) matched by more than one declaration/);
+  assert.match(body, /Narrow one of the overlapping subtrees until no file matches both — declaration order decides nothing\./);
+});

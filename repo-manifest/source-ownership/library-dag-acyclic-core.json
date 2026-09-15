@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/knowledge-dag.ts": "library-dag-acyclic-core"
+    }
+  }
+}

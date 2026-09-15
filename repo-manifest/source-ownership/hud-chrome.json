@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/components/Hud.tsx": "hud-chrome"
+    }
+  }
+}

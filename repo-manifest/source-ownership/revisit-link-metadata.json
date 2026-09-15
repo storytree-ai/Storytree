@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-capture/src/revisit-links.ts": "revisit-link-metadata"
+    }
+  }
+}

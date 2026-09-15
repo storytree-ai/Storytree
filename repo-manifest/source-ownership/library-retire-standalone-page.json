@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/src/lib/route.ts": "library-retire-standalone-page"
+    }
+  }
+}

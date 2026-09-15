@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/noticeboard*.ts": "noticeboard-cli"
+    }
+  }
+}

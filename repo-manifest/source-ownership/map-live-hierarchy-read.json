@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/studio/server/hierarchySource.ts": "map-live-hierarchy-read",
+      "apps/studio/src/lib/worldStatus.ts": "map-live-hierarchy-read"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/spawn-write-scoped.ts": "glue-worker-spawn"
+    }
+  }
+}

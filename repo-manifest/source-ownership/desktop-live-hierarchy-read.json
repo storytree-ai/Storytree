@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/hierarchy-live.ts": "desktop-live-hierarchy-read"
+    }
+  }
+}

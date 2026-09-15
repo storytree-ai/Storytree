@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-telemetry/src/traversal-*.ts": "traversal-event-vocabulary"
+    }
+  }
+}

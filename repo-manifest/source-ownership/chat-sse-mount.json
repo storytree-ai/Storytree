@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/chat-sse-mount.ts": "chat-sse-mount"
+    }
+  }
+}

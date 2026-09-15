@@ -1,5 +1,5 @@
 /**
- * THE ONE READER of `repo-manifest.json` → `sourceOwnership` (ADR-0317 D2).
+ * THE ONE READER of the declared source-ownership map, `sourceOwnership` (ADR-0317 D2).
  *
  * Two surfaces consume the declared subtree map and neither may read it its own way:
  *
@@ -10,7 +10,16 @@
  *
  * It lives in `drive` because `cli` may import `drive` and `drive` may never import `cli`. The
  * gatherer in `cli` keeps its name and signature and delegates here, so there is still exactly one
- * place that knows the manifest's shape.
+ * place that knows the map's shape.
+ *
+ * ## It reads the COMPOSED manifest
+ *
+ * The map is no longer a block of `repo-manifest.json`: it is one fragment per owner under
+ * `repo-manifest/source-ownership/`, composed with the aggregate beside it through the one fail-closed
+ * seam every reader uses (ADR-0556 D3, `manifest-fragments.ts`). A set the composer refuses — a malformed
+ * fragment, a key declared twice, one declaration covering another, a section with two homes — is
+ * UNREAD here, never a partial map: a declaration silently skipped would present as an unowned file, or
+ * as a claim id that names nothing.
  *
  * ## Reading FAILURE is the interesting return value
  *
@@ -26,7 +35,8 @@
  * map — and reads clean with zero entries.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { composeRepoManifest, REPO_MANIFEST, REPO_MANIFEST_TREE, type ManifestComposition } from "./manifest-fragments.js";
+import { readManifestFragmentTreeAt, readRepoManifest, type GitTreeReader } from "./manifest-fragments-read.js";
 
 /** One entry of the declared map: a subtree (path or glob), and the addressable object owning it. */
 export interface SubtreeOwnershipEntry {
@@ -56,7 +66,8 @@ function fail(why: string): SourceOwnershipMapRead {
 }
 
 /**
- * Read the declared subtree map from a manifest path.
+ * Read the declared subtree map for the manifest at `manifestPath` — the aggregate composed with the
+ * fragment tree beside it.
  *
  * `null` means no caller composed one, which is NOT the same as "there are no subtrees": it is a
  * source that could not be read, and it is reported as such so the caller stands down rather than
@@ -66,58 +77,87 @@ export function readSourceOwnershipMap(manifestPath: string | null): SourceOwner
   if (manifestPath === null) {
     return fail("no repo manifest was supplied, so declared subtrees are unknown");
   }
-  if (!existsSync(manifestPath)) return fail(`the repo manifest at ${manifestPath} is absent`);
-  return parseSourceOwnershipMap(readFileSync(manifestPath, "utf8"), `the repo manifest`);
+  return sourceOwnershipOf(readRepoManifest(manifestPath), "the repo manifest");
 }
 
 /**
- * The PURE half of {@link readSourceOwnershipMap} — the map read out of manifest TEXT.
+ * The map as it stood at a commit — what `check:ownership-totality` charges a branch against.
  *
- * EXTRACTED RATHER THAN CLONED, which is the whole reason it is exported. `check:ownership-totality`
- * has to ask the same question of the manifest as it stood at `git merge-base origin/main HEAD` — was
- * this file owned BEFORE this branch? — and that text arrives from `git show`, never from a path. A
- * second parser at the call site would be a second place that knows the manifest's shape, in a check
- * whose entire verdict is a comparison between two reads of it: the two could disagree about what is
- * declared, and the disagreement would present as a phantom ownership change nobody made. Sharing the
- * parse makes the two reads structurally identical.
+ * It asks git for exactly what the working-tree read gets from the disk and composes it through the same
+ * seam, so the two reads cannot disagree about what is declared: in a check whose entire verdict is a
+ * comparison between them, a disagreement would present as an ownership change nobody made. `source`
+ * names the read, so a failure says which one broke.
  *
- * `source` names where the text came from, so a failure says which read broke — "the repo manifest"
- * and "the merge-base repo manifest" are very different repairs.
+ * THE ONE COMPATIBILITY PATH, and it is explicit. A commit from before the map moved into fragments has
+ * no tree, and history is not migrated: its aggregate is read by {@link parseLegacySourceOwnershipMap},
+ * the parser it was always read by — which also tolerates the covered declarations that map carried
+ * until `repo-manifest-covered-declarations-resolved`, so a branch whose merge base predates that
+ * landing is charged against its base rather than blinded by it. Delete this path, and that parser,
+ * when the aggregate leaves Git (`repo-manifest-aggregate-leaves-git`).
  */
-export function parseSourceOwnershipMap(text: string, source: string): SourceOwnershipMapRead {
-  let manifest: Record<string, unknown>;
+export function readSourceOwnershipMapAt(git: GitTreeReader, ref: string, source: string): SourceOwnershipMapRead {
+  const tree = readManifestFragmentTreeAt(git, ref, REPO_MANIFEST_TREE);
+  const text = git.show(ref, REPO_MANIFEST);
+  if (tree === null) {
+    return text === null ? fail(`${source} could not be read at ${ref}`) : parseLegacySourceOwnershipMap(text, source);
+  }
+  const aggregate = text === null ? { unread: `could not be read at ${ref}` } : { text };
+  return sourceOwnershipOf(composeRepoManifest({ aggregate, tree }), source);
+}
+
+/** The map out of a composition — UNREAD, carrying every reason the composer gave, when there is none. */
+export function sourceOwnershipOf(composition: ManifestComposition, source: string): SourceOwnershipMapRead {
+  if (!composition.ok) {
+    return fail(`${source} did not compose — ${composition.faults.map((f) => f.message).join("; ")}`);
+  }
+  return sourceOwnershipIn(composition.manifest, source);
+}
+
+/**
+ * The map out of an aggregate's TEXT, read the way it was before the map moved into fragments — kept
+ * ONLY for commits from before that move ({@link readSourceOwnershipMapAt}). It skips an entry the
+ * composer would refuse, which is right for history and wrong for anything a session can still edit.
+ */
+export function parseLegacySourceOwnershipMap(text: string, source: string): SourceOwnershipMapRead {
+  let manifest: unknown;
   try {
-    manifest = JSON.parse(text) as Record<string, unknown>;
+    manifest = JSON.parse(text);
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err);
     return fail(`${source} is unreadable (${why})`);
   }
+  return sourceOwnershipIn(manifest, source);
+}
 
-  const block = manifest["sourceOwnership"];
-  if (block === null || typeof block !== "object") {
+function sourceOwnershipIn(manifest: unknown, source: string): SourceOwnershipMapRead {
+  const block = isRecord(manifest) ? manifest["sourceOwnership"] : undefined;
+  if (!isRecord(block)) {
     return fail(`${source} declares no \`sourceOwnership\` block`);
   }
-  const raw = (block as Record<string, unknown>)["subtrees"];
-  if (raw === null || typeof raw !== "object") {
+  const raw = block["subtrees"];
+  if (!isRecord(raw)) {
     return fail(`${source} declares no \`sourceOwnership.subtrees\` map`);
   }
 
   const subtrees: SubtreeOwnershipEntry[] = [];
-  for (const [subtree, owner] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [subtree, owner] of Object.entries(raw)) {
     // `$`-prefixed keys are the map's own prose ($comment, $section_*) — never declarations.
     if (subtree.startsWith("$") || typeof owner !== "string") continue;
     subtrees.push({ subtree, owner });
   }
 
-  return { subtrees, baseline: readBaseline(block as Record<string, unknown>), unread: [] };
+  return { subtrees, baseline: readBaseline(block), unread: [] };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
 }
 
 /** A malformed baseline is DROPPED, not an unread source: the trend is cosmetic, the map is not. */
 function readBaseline(block: Record<string, unknown>): SourceOwnershipBaseline | undefined {
   const raw = block["baseline"];
-  if (raw === null || typeof raw !== "object") return undefined;
-  const b = raw as Record<string, unknown>;
-  const { date, files, unowned } = b;
+  if (!isRecord(raw)) return undefined;
+  const { date, files, unowned } = raw;
   if (typeof date !== "string" || typeof files !== "number" || typeof unowned !== "number") {
     return undefined;
   }

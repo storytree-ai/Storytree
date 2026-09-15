@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/tree.ts": "tree-view",
+      "packages/drive/src/tree.ts": "tree-view"
+    }
+  }
+}

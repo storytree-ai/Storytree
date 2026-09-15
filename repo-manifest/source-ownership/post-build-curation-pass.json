@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/curate.ts": "post-build-curation-pass"
+    }
+  }
+}

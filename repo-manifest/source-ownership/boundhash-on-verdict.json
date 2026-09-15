@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/orchestrator/src/proof/anchor-compute.ts": "boundhash-on-verdict",
+      "packages/orchestrator/src/proof/proved-span*.ts": "boundhash-on-verdict"
+    }
+  }
+}

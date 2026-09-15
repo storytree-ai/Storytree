@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/drive/src/phase-activity.ts": "phase-activity-write"
+    }
+  }
+}

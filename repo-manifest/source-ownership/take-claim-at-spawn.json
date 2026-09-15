@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/agent/src/spawn-claim.ts": "take-claim-at-spawn"
+    }
+  }
+}

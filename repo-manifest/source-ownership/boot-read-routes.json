@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "apps/desktop/src/backend/boot-read-routes.ts": "boot-read-routes"
+    }
+  }
+}

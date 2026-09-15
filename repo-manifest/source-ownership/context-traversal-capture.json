@@ -1,0 +1,9 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/context-traversal-capture/src/index.ts": "context-traversal-capture",
+      "packages/context-traversal-capture/src/node-executable.test-helpers.ts": "context-traversal-capture",
+      "packages/context-traversal-capture/src/store/index.ts": "context-traversal-capture"
+    }
+  }
+}

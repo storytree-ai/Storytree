@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/cli/src/*decay*.ts": "verification-decay-instruments"
+    }
+  }
+}

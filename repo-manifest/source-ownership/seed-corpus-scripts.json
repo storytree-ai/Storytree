@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/library/src/fixture": "seed-corpus-scripts"
+    }
+  }
+}
