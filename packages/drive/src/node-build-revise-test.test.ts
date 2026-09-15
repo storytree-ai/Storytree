@@ -171,10 +171,7 @@ async function teardownRealFixture(fx: RealFixture): Promise<void> {
 }
 
 /** A spy `ensureDb`: refuses immediately, and counts every call it received. */
-function spyingEnsureDb(): {
-  ensureDb: (log: (message: string) => void) => Promise<EnsureDbResult>;
-  calls: { count: number };
-} {
+function spyingEnsureDb() {
   const calls = { count: 0 };
   return {
     calls,
