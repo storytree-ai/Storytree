@@ -202,17 +202,17 @@ test("the map at a commit is composed from that commit's tree — the seam the w
 test("nothing at a commit is read but its tree — an aggregate beside it is never consulted", () => {
   // The compatibility read left Git with the aggregate. A commit between the fragment tree's arrival and the
   // aggregate's departure carries both, and what the aggregate says must reach no answer.
-  const files = {
-    ...committed({ subtrees: { "packages/cli/src/gate*.ts": "gate-ci-parity" } }),
-    "repo-manifest.json": JSON.stringify({ sourceOwnership: { subtrees: { "packages/elsewhere/src": "elsewhere" } } }),
-  };
+  const files = new Map([
+    ...Object.entries(committed({ subtrees: { "packages/cli/src/gate*.ts": "gate-ci-parity" } })),
+    ["repo-manifest.json", JSON.stringify({ sourceOwnership: { subtrees: { "packages/elsewhere/src": "elsewhere" } } })],
+  ]);
   const asked: string[] = [];
   const git: GitTreeReader = {
     show: (_ref, file) => {
       asked.push(file);
-      return files[file] ?? null;
+      return files.get(file) ?? null;
     },
-    list: (_ref, dir) => Object.keys(files).filter((file) => file.startsWith(`${dir}/`)),
+    list: (_ref, dir) => [...files.keys()].filter((file) => file.startsWith(`${dir}/`)),
   };
   assert.deepEqual(readSourceOwnershipMapAt(git, "both", SOURCE).subtrees, [
     { subtree: "packages/cli/src/gate*.ts", owner: "gate-ci-parity" },
