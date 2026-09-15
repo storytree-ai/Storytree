@@ -132,8 +132,10 @@ export function findMonolithReads(modules: readonly SourceModule[]): MonolithRea
   const analyses = new Map<SourceModule, Analysis>();
   const analysisOf = (module: SourceModule): Analysis => analyses.get(module) ?? analyse(module, analyses);
   const shared = sharedCarriers(modules, analysisOf, new Set());
-  const examined = examinable(modules, shared);
-  return { reads: examined.flatMap((module) => readsIn(module, analysisOf(module), shared)), examined: examined.length };
+  const reads = examinable(modules, shared).flatMap((module) => readsIn(module, analysisOf(module), shared));
+  // The carrying names only grow, so every module examinable in an earlier pass is examinable in the last one:
+  // what was parsed is exactly what was examined, and it is counted where the parsing happened.
+  return { reads, examined: analyses.size };
 }
 
 /**
