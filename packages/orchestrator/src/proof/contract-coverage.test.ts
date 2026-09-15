@@ -275,6 +275,25 @@ test("readTestSurface: a parameterised `it.each(table)(title, …)` is ONE test,
   assert.equal(analyzeObservedTests(src).length, 2, "the factories are not extra tests");
 });
 
+test("analyzeObservedTests: records the declaring call, and whether a `.each` table expands it (ADR-0573 D3)", () => {
+  // The per-test join reads both: an empty suite reports no row on any runner, and a table-bound
+  // declaration expands into several runtime rows that no single declaration can be bound to.
+  const src = `
+    describe("c-suite: a suite", () => { it("c-a: a test", () => { assert.ok(v); }); });
+    it.each(['a', 'b'] as const)('c-each: carries %s', (v) => { assert.ok(v); });
+    test("c-plain: a plain test", () => { assert.ok(v); });
+  `;
+  assert.deepEqual(
+    analyzeObservedTests(src).map((t) => [t.name, t.call, t.parameterised]),
+    [
+      ["c-suite: a suite", "describe", false],
+      ["c-a: a test", "it", false],
+      ["c-each: carries %s", "it", true],
+      ["c-plain: a plain test", "test", false],
+    ],
+  );
+});
+
 test("readTestSurface: the `.each` exception is STRUCTURAL — a genuinely runtime title still reads unread", () => {
   // The fix drops the FACTORY, never a title. The outer call still owns the title, so an unreadable
   // one is on the record exactly as before — the readability fold is unchanged, only de-duplicated.

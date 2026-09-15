@@ -30,6 +30,12 @@ import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
 
 import { advancePhase, nextPhase } from "./phase-machine.js";
+import {
+  describePerTestRefusal,
+  greenEvidenceDisclosure,
+  redEvidenceDisclosure,
+} from "./proof/per-test-review.js";
+import type { PerTestFinding, PerTestPolicy } from "./proof/per-test-review.js";
 import type {
   ExpectedRed,
   Phase,
@@ -172,6 +178,18 @@ export interface ProveSpec {
    * installed worktree carry no backstop, and a gate with nothing to observe must not invent one.
    */
   backstop?: () => Promise<BackstopOutcome>;
+  /**
+   * ADR-0573 (optional): observe CONFIRM_RED and CONFIRM_GREEN PER TEST, with the review point between
+   * them. The gate owns the sequence: the policy reads the test file before AUTHOR_TEST is handed out,
+   * which is what makes a test NEW, and each review runs only AFTER `nextPhase` would advance, so a
+   * review can refuse an observation and never advance one (D1). A test accepted as a declared
+   * guard-rail is recorded on the signed verdict (ADR-0572 D3), and each observation's evidence discloses
+   * whether it was observed per test (D5).
+   *
+   * DEFAULT-ABSENT ⇒ zero behaviour change: a route with no per-test channel carries no policy, and its
+   * verdict reads exactly as before.
+   */
+  perTest?: PerTestPolicy;
 }
 
 /**
@@ -236,6 +254,12 @@ export type ProveResult =
        * survives past CONFIRM_GREEN into that later refusal. Mutually exclusive with `escalation`.
        */
       overruledEscalation?: EscalationRecord;
+      /**
+       * ADR-0573 D6: present when THIS refusal is a per-test review's — every finding, each naming the
+       * test and the check it failed. `reason` renders the same findings; this is the structured copy,
+       * for a caller that routes on them (an early pass's named contracts, ADR-0572 D4).
+       */
+      perTestFindings?: readonly PerTestFinding[];
     };
 
 /** The store `kind` for the signed promotion event. */
@@ -258,6 +282,8 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // The leaf may write the TEST only. On a successful authoring step we advance to CONFIRM_RED.
   visited.push("AUTHOR_TEST");
   await spec.onPhase?.("AUTHOR_TEST");
+  // ADR-0573 D1: the test file as it stood BEFORE the slice is handed out — what makes a test NEW.
+  spec.perTest?.beforeAuthorTest();
   const authored = await spec.author.author("AUTHOR_TEST", spec.prompts.authorTest);
   // ADR-0569 D1/D4: an escalation can end the walk without a verdict, but it never advances a phase
   // and never gates anything. A phase mismatch is malformed and fails closed with no record at all
@@ -314,6 +340,17 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       { failedObservation: redObs.originalProcessResult },
     );
   }
+  // ADR-0573 D1: the review point between red and green, consulted only now that the exit code and its
+  // kind check would advance — so it can refuse this red, and can never rescue a refused one.
+  const redReview = spec.perTest?.confirmRed?.(redObs);
+  if (redReview !== undefined && !redReview.ok) {
+    return fail(
+      "CONFIRM_RED",
+      describePerTestRefusal("CONFIRM_RED", redReview.findings) + exhaustionNote(authorExhaustion, "a red test"),
+      visited,
+      { failedObservation: redObs.originalProcessResult, perTestFindings: redReview.findings },
+    );
+  }
 
   // ── Phase 3: IMPLEMENT ──────────────────────────────────────────────────
   // The leaf may write SOURCE only (never the test it must satisfy). Advance to CONFIRM_GREEN.
@@ -368,6 +405,26 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green") + escalationSuffix,
       visited,
       { failedObservation: greenObs.originalProcessResult, escalation: implementEscalation },
+    );
+  }
+  // ADR-0573 D1: completeness at green — every declared test reported once and individually passed —
+  // consulted only once the exit code and the oracle floor would advance. A refusal here leaves an
+  // IMPLEMENT escalation STANDING (no green observation overruled it), exactly as a red does.
+  const greenReview = spec.perTest?.confirmGreen(greenObs);
+  if (greenReview !== undefined && !greenReview.ok) {
+    const escalationSuffix =
+      implementEscalation !== undefined ? describeEscalation(implementEscalation.raised) : "";
+    return fail(
+      "CONFIRM_GREEN",
+      describePerTestRefusal("CONFIRM_GREEN", greenReview.findings) +
+        exhaustionNote(implementExhaustion, "green") +
+        escalationSuffix,
+      visited,
+      {
+        failedObservation: greenObs.originalProcessResult,
+        escalation: implementEscalation,
+        perTestFindings: greenReview.findings,
+      },
     );
   }
   // ADR-0569 D3: a GREEN CONFIRM_GREEN observation OVERRULES a pending IMPLEMENT escalation — the
@@ -434,7 +491,10 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     // ADR-0068 §3: the verdict-data output-format version. The gate stamps the current `v1`
     // explicitly (the contract's Verdict OUTPUT type requires it; the default applies only on parse).
     outputVersion: "v1",
-    evidence: [toEvidence(redObs), toEvidence(greenObs)],
+    evidence: [
+      toEvidence(redObs, redEvidenceDisclosure(spec.perTest, redReview)),
+      toEvidence(greenObs, greenEvidenceDisclosure(greenReview)),
+    ],
     at: spec.now(),
   };
   if (binding !== undefined) {
@@ -443,6 +503,14 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   }
   if (coverage !== undefined) verdict.contractCoverage = coverage;
   if (baseline !== undefined) verdict.storyBaseline = baseline;
+  // ADR-0573 D5 / ADR-0572 D3: every test accepted as a declared guard-rail, enumerated — stamped whenever
+  // red WAS observed per test, `[]` included, so its presence rather than its length says it was.
+  if (redReview !== undefined && redReview.ok) {
+    verdict.acceptedGuardRails = redReview.acceptedGuardRails.map((g) => ({
+      test: [...g.test],
+      contracts: [...g.contracts],
+    }));
+  }
 
   // The signed promotion event: healthy/proven is reachable ONLY through this append (never authored).
   await spec.store.appendEvent({
@@ -497,6 +565,7 @@ interface FailExtras {
   failedObservation?: TestObservation["originalProcessResult"] | undefined;
   escalation?: EscalationRecord | undefined;
   overruledEscalation?: EscalationRecord | undefined;
+  perTestFindings?: readonly PerTestFinding[] | undefined;
 }
 
 /**
@@ -514,6 +583,7 @@ function fail(
   if (extras.failedObservation !== undefined) result.failedObservation = extras.failedObservation;
   if (extras.escalation !== undefined) result.escalation = extras.escalation;
   if (extras.overruledEscalation !== undefined) result.overruledEscalation = extras.overruledEscalation;
+  if (extras.perTestFindings !== undefined) result.perTestFindings = extras.perTestFindings;
   return result;
 }
 
@@ -549,7 +619,7 @@ function describeEscalation(escalation: AuthoringEscalation): string {
 }
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */
-function toEvidence(obs: TestObservation): EvidenceRef {
+function toEvidence(obs: TestObservation, disclosure?: string): EvidenceRef {
   const base = obs.kind === undefined
     ? `observed ${obs.result}`
     : `observed ${obs.result} (${obs.kind})`;
@@ -557,7 +627,9 @@ function toEvidence(obs: TestObservation): EvidenceRef {
   // verdict. `note` is where the spine records WHY an observation reads as it does — ADR-0211's
   // downgrade reason, and now whether a green was cross-checked by the assert oracle at all. Without
   // this the distinction dies at the gate and every signed green looks equally vetted.
-  const note = obs.note === undefined ? base : `${base} — ${obs.note}`;
+  const noted = obs.note === undefined ? base : `${base} — ${obs.note}`;
+  // ADR-0573 D5: whether this observation was per test rides the same channel, after the note.
+  const note = disclosure === undefined ? noted : `${noted} — ${disclosure}`;
   return { kind: `observation:${obs.result}`, ref: obs.testId, note };
 }
 

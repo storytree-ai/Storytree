@@ -22,8 +22,13 @@
  * report is ONE file that each instrumented process OVERWRITES on exit. Under `node --test` with the
  * default process isolation the RUNNER parent outlives its children, so it writes LAST:
  *
- *   node --import guard --test a.test.mjs                → {"assertions":3}   (runs in-process)
+ *   node --import guard --test a.test.mjs                → {"assertions":3}   (the child's count)
  *   node --import guard --test a.test.mjs b.test.mjs     → {"assertions":0}   (parent clobbers)
+ *
+ * *(Corrected in place: the first line said a single file "runs in-process". Re-measured 2026-09-14
+ * (`docs/research/batched-red-attribution-probe-2026-09-14.md` §1), it does not: even one file runs in a
+ * CHILD under `node --test` — `NODE_TEST_CONTEXT=child-v8` inside the test — and only that child wrote an
+ * oracle report.)*
  *
  * So a SUITE-scoped command does not merely dilute the count — it reports ZERO, which
  * {@link import("./oracle-accounting.js").verifyOracleExercised} refuses as a hollow green. Wiring the
