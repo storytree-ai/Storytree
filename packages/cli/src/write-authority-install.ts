@@ -35,16 +35,22 @@ import {
   installWallSettings,
   lobbyDenyRules,
   locateWorktree,
+  readRepoManifest,
+  refusalReasons,
+  REPO_MANIFEST,
   repoRoot,
+  rootSliceOf,
   rulesDenyingWorktrees,
   type ClaudeSettings,
-  type ManifestRootSlice,
+  type ManifestComposition,
 } from "@storytree/drive";
 
 import type { Envelope } from "./envelope.js";
 
 /** File I/O, injected so the whole command is provable without touching a real home directory. */
 export interface WallInstallIo {
+  /** The repo manifest under a checkout root: the aggregate composed with the fragment tree beside it (ADR-0556). */
+  readonly readManifest: (root: string) => ManifestComposition;
   readonly readFile: (p: string) => string | null;
   readonly writeFile: (p: string, body: string) => void;
   readonly homeDir: () => string;
@@ -53,6 +59,7 @@ export interface WallInstallIo {
 }
 
 export const defaultWallInstallIo: WallInstallIo = {
+  readManifest: (root) => readRepoManifest(path.join(root, REPO_MANIFEST)),
   readFile: (p) => {
     try {
       return readFileSync(p, "utf8");
@@ -79,16 +86,6 @@ export function userSettingsPath(homeDir: string): string {
 export function protectedRoot(io: WallInstallIo): string {
   const located = locateWorktree(io.cwd());
   return located !== null ? located.primaryRoot : io.repoRoot();
-}
-
-function readManifest(io: WallInstallIo, root: string): ManifestRootSlice | null {
-  const raw = io.readFile(path.join(root, "repo-manifest.json"));
-  if (raw === null) return null;
-  try {
-    return JSON.parse(raw) as ManifestRootSlice;
-  } catch {
-    return null;
-  }
 }
 
 const HELP_NEXT = [
@@ -139,17 +136,18 @@ export function writeAuthorityCommand(
   }
 
   const root = protectedRoot(io);
-  const manifest = readManifest(io, io.repoRoot());
-  if (manifest === null) {
+  const composition = io.readManifest(io.repoRoot());
+  if (!composition.ok) {
     return {
       ok: false,
       body:
-        `could not read repo-manifest.json under ${io.repoRoot()} — the deny block is DERIVED from ` +
-        "it and must never be hand-written, so nothing was generated.",
+        `the repo manifest under ${io.repoRoot()} did not compose — ${refusalReasons(composition.faults)}. ` +
+        "The deny block is DERIVED from it and must never be hand-written, so nothing was generated.",
       next: HELP_NEXT,
     };
   }
 
+  const manifest = rootSliceOf(composition.manifest);
   const rules = lobbyDenyRules(manifest, root);
 
   // The guard that must never trip: a rule covering `.claude/worktrees` would freeze every session

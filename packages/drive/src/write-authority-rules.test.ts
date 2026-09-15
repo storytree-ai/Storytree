@@ -25,15 +25,21 @@ import {
   installWallSettings,
   lobbyDenyRules,
   locateWorktree,
+  rootSliceOf,
   rulesDenyingWorktrees,
   toPermissionPath,
   type ManifestRootSlice,
 } from "./write-authority-rules.js";
+import { refusalReasons, REPO_MANIFEST } from "./manifest-fragments.js";
+import { readRepoManifest } from "./manifest-fragments-read.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
+/** The live manifest as every reader gets it: composed with its fragment tree (ADR-0556), never the aggregate's bytes. */
 function readManifest(): ManifestRootSlice {
-  return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "repo-manifest.json"), "utf8")) as ManifestRootSlice;
+  const composition = readRepoManifest(path.join(REPO_ROOT, REPO_MANIFEST));
+  if (!composition.ok) assert.fail(`the live manifest did not compose — ${refusalReasons(composition.faults)}`);
+  return rootSliceOf(composition.manifest);
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +59,28 @@ test("toPermissionPath lower-cases the Windows drive letter and normalises separ
 
 test("toPermissionPath strips a trailing separator so rules never contain a doubled slash", () => {
   assert.equal(toPermissionPath("C:\\code\\storytree\\"), "//c/code/storytree");
+});
+
+// ---------------------------------------------------------------------------
+// rootSliceOf — the slice a composed manifest hands the generator
+// ---------------------------------------------------------------------------
+
+test("rootSliceOf hands over root.files and root.dirs, and THROWS on a manifest without both as objects", () => {
+  const files = { "README.md": "front door" };
+  const dirs = { packages: "code" };
+  assert.deepEqual(rootSliceOf({ root: { files, dirs }, docs: {} }), { root: { files, dirs } });
+  // Each of these would otherwise generate a block from nothing — one that installs cleanly and protects nothing.
+  for (const broken of [
+    {},
+    { root: null },
+    { root: { files } },
+    { root: { dirs } },
+    { root: { files: "not an object", dirs } },
+    { root: { files: null, dirs } },
+    { root: { files: [], dirs } },
+  ]) {
+    assert.throws(() => rootSliceOf(broken), /carries `root\.files` and `root\.dirs` as objects/, JSON.stringify(broken));
+  }
 });
 
 // ---------------------------------------------------------------------------

@@ -53,6 +53,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadNodeSpec } from "@storytree/orchestrator";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
+import { readRepoManifest, refusalReasons, REPO_MANIFEST } from "@storytree/drive";
 
 import {
   checkBoundaries,
@@ -168,8 +169,19 @@ function readSourceImports(): SourceImport[] {
   return imports;
 }
 
+/**
+ * The repo manifest as every reader of it gets it: `repo-manifest.json` composed with the fragment tree beside
+ * it (ADR-0556). A set the composer refuses THROWS, carrying the composer's own reasons — the gate must never
+ * judge boundaries against a partial view, which is what reading either half alone would give it.
+ */
+function readManifest(): Record<string, unknown> {
+  const composition = readRepoManifest(join(repoRoot, REPO_MANIFEST));
+  if (!composition.ok) throw new Error(`the repo manifest did not compose — ${refusalReasons(composition.faults)}`);
+  return composition.manifest;
+}
+
 function readOwnership(): Ownership {
-  const manifest = readJson(join(repoRoot, "repo-manifest.json"));
+  const manifest = readManifest();
   const po = (manifest.packageOwnership ?? {}) as Record<string, unknown>;
   return {
     organisms: (po.organisms ?? {}) as Record<string, string>,
@@ -246,7 +258,7 @@ function isGlobPattern(s: string): boolean {
  * which is the loud failure that points at the register; `undefined` would silently disarm the rule).
  */
 function readHostedStories(): string[] {
-  const manifest = readJson(join(repoRoot, "repo-manifest.json"));
+  const manifest = readManifest();
   const hs = (manifest.hostedStories ?? {}) as Record<string, unknown>;
   const register = hs.register;
   if (register === null || typeof register !== "object" || Array.isArray(register)) return [];

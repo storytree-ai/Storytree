@@ -116,6 +116,25 @@ export interface ManifestRootSlice {
 }
 
 /**
+ * The `root` slice of a COMPOSED manifest (ADR-0556). The composer has already held `root.files` and `root.dirs`
+ * to text maps, so a manifest without both as objects is a broken invariant rather than an input to handle: it
+ * throws, because the alternative is a block generated from nothing, which installs cleanly and protects nothing.
+ */
+export function rootSliceOf(manifest: Readonly<Record<string, unknown>>): ManifestRootSlice {
+  const root = manifest["root"];
+  const files = isPlainObject(root) ? root["files"] : undefined;
+  const dirs = isPlainObject(root) ? root["dirs"] : undefined;
+  if (!isPlainObject(files) || !isPlainObject(dirs)) {
+    throw new Error("a composed manifest carries `root.files` and `root.dirs` as objects, and this one does not");
+  }
+  return { root: { files, dirs } };
+}
+
+function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
  * PURE: the `permissions.deny` entries that make `primaryRoot` a read-only lobby for the file tools.
  *
  * Directories become `<path>/**`; entries in `root.files` get BOTH an exact path AND a `/**` tree

@@ -17,6 +17,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { composeRepoManifest, REPO_MANIFEST } from "@storytree/drive";
+
 import {
   defaultWallInstallIo,
   protectedRoot,
@@ -25,8 +27,17 @@ import {
   type WallInstallIo,
 } from "./write-authority-install.js";
 
+/**
+ * A COMPLETE manifest, because the command reads it through the composer (ADR-0556), which refuses a set missing
+ * any section — and refuses an empty justification, so every entry carries one.
+ */
 const MANIFEST = JSON.stringify({
-  root: { dirs: { packages: "", docs: "", ".claude": "" }, files: { "README.md": "" } },
+  root: { dirs: { packages: "code", docs: "docs", ".claude": "harness" }, files: { "README.md": "front door" } },
+  docs: { allowedDirs: {}, files: {} },
+  packageOwnership: { organisms: {}, foundational: [], surfaces: {} },
+  sourceOwnership: { subtrees: {} },
+  hierarchyCamps: { readers: {} },
+  hostedStories: { register: {} },
 });
 
 /**
@@ -65,6 +76,11 @@ function harness(
     files,
     writes,
     io: {
+      // The real composer over the injected files, so a fixture reads exactly as a checkout with no fragment tree.
+      readManifest: (root) => {
+        const text = files.get(path.join(root, REPO_MANIFEST));
+        return composeRepoManifest({ aggregate: text === undefined ? { unread: "absent" } : { text }, tree: null });
+      },
       readFile: (p) => files.get(p) ?? null,
       writeFile: (p, body) => {
         writes.push(p);
@@ -142,14 +158,25 @@ test("a corrupt settings file is REFUSED, not overwritten", () => {
   assert.deepEqual(h.writes, []);
 });
 
-test("a missing repo-manifest.json refuses rather than emitting an empty block", () => {
+test("a manifest that does not compose refuses rather than emitting an empty block, naming every reason", () => {
   // An empty deny block is the most dangerous possible output: it installs cleanly, reports success,
-  // and protects nothing.
-  const h = harness({ manifest: null });
-  const got = writeAuthorityCommand("install", { write: true }, h.io);
-  assert.equal(got.ok, false);
-  assert.match(got.body, /repo-manifest\.json/);
-  assert.deepEqual(h.writes, []);
+  // and protects nothing. An absent manifest is one refusal; one missing its sections is several, and
+  // each repair is named in its own clause.
+  const absent = harness({ manifest: null });
+  const gone = writeAuthorityCommand("install", { write: true }, absent.io);
+  assert.equal(gone.ok, false);
+  assert.equal(
+    gone.body,
+    `the repo manifest under ${PRIMARY} did not compose — repo-manifest.json: absent. ` +
+      "The deny block is DERIVED from it and must never be hand-written, so nothing was generated.",
+  );
+  assert.deepEqual(absent.writes, []);
+
+  const hollow = harness({ manifest: "{}" });
+  const refused = writeAuthorityCommand("install", { write: true }, hollow.io);
+  assert.equal(refused.ok, false);
+  assert.match(refused.body, /did not compose — [^;]+; [^;]+/);
+  assert.deepEqual(hollow.writes, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -288,6 +315,15 @@ test("defaultWallInstallIo: real file IO round-trips, and a missing file reads a
 
     // A directory is unreadable-as-a-file on every platform — the same `null`, not a throw.
     assert.equal(defaultWallInstallIo.readFile(dir), null);
+
+    // The manifest goes through the real composer, from the root it is handed: a root with no manifest is a
+    // refusal naming where it looked — never a throw, and never an empty manifest.
+    const refused = defaultWallInstallIo.readManifest(dir);
+    if (refused.ok) assert.fail("a directory with no manifest composed one");
+    assert.deepEqual(
+      refused.faults.map((f) => f.message),
+      [`${REPO_MANIFEST}: absent at ${path.join(dir, REPO_MANIFEST)}`],
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
