@@ -35,7 +35,7 @@
  * map — and reads clean with zero entries.
  */
 
-import { composeRepoManifest, refusalReasons, REPO_MANIFEST, REPO_MANIFEST_TREE, type ManifestComposition } from "./manifest-fragments.js";
+import { composeRepoManifest, REPO_MANIFEST, REPO_MANIFEST_TREE, type ManifestComposition } from "./manifest-fragments.js";
 import { readManifestFragmentTreeAt, readRepoManifest, type GitTreeReader } from "./manifest-fragments-read.js";
 
 /** One entry of the declared map: a subtree (path or glob), and the addressable object owning it. */
@@ -108,7 +108,7 @@ export function readSourceOwnershipMapAt(git: GitTreeReader, ref: string, source
 /** The map out of a composition — UNREAD, carrying every reason the composer gave, when there is none. */
 export function sourceOwnershipOf(composition: ManifestComposition, source: string): SourceOwnershipMapRead {
   if (!composition.ok) {
-    return fail(`${source} did not compose — ${refusalReasons(composition.faults)}`);
+    return fail(`${source} did not compose — ${composition.faults.map((f) => f.message).join("; ")}`);
   }
   return sourceOwnershipIn(composition.manifest, source);
 }
