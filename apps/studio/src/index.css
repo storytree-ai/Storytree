@@ -6254,26 +6254,40 @@ button.legend-tile:hover {
 }
 /* THE GUTTER IS RESERVED ON EVERY ROW, gated or not, so that every arc title starts at the same x.
    Insetting only the rows that HAVE a caret would break the column exactly where a reader's eye is
-   scanning, and it would do it on the rows worth noticing. */
+   scanning, and it would do it on the rows worth noticing. It widened from 18px to 30px when the caret
+   grew (2026-09-15, below) — on every row at once, so the column stays exactly as straight — and the
+   6px top inset centres the 26px button on the title line (the lane's 8px inset, plus half its 22px
+   title line, minus half the button). */
 .arc-lane-caret-slot {
-  flex: 0 0 18px;
+  flex: 0 0 30px;
   display: flex;
   justify-content: center;
-  padding-top: 8px;
+  padding-top: 6px;
 }
 /* "this has a queue", and nothing more (owner, 2026-09-07). No count rides beside it: the question
    the always-visible part answers is whether anything is lined up here, which its presence answers
-   on its own — the number is on the accessible name, for a reader who has decided to ask. */
+   on its own — the number is on the accessible name, for a reader who has decided to ask.
+
+   BIG ENOUGH TO FIND (owner, 2026-09-15). It shipped as a 0.72em glyph padded 2px — a 13x15px target —
+   and the owner, looking for the five arcs queued behind one lane, could not see it: "found it, and
+   the arrow, we should make this arrow bigger". So the glyph draws at 1.3em, centred in a button at
+   least 26px each way — over WCAG 2.2's 24px minimum target (SC 2.5.8). Size is the whole change:
+   still no count, still collapsed by default, the same nesting. */
 .arc-lane-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
   border: none;
   background: transparent;
   color: var(--lp-clay);
   cursor: pointer;
   font: inherit;
-  font-size: 0.72em;
+  font-size: 1.3em;
   line-height: 1;
-  padding: 2px;
-  border-radius: 4px;
+  padding: 0;
+  border-radius: 6px;
 }
 .arc-lane-caret:hover {
   background: color-mix(in srgb, var(--lp-clay) 14%, transparent);
@@ -6282,13 +6296,15 @@ button.legend-tile:hover {
    otherwise), so inc-05's density property survives twice over: an ungated arc — most of the 134,
    and every one of the 121 closed — costs no third line at all, and a gated-but-unopened one costs
    none either. It sits INSIDE the row's own left inset rather than under a nested spine, because
-   these are pointers to sibling arcs, not children of this one. */
+   these are pointers to sibling arcs, not children of this one. The 47px left inset is the 30px caret
+   gutter plus the lane's 3px rule and 14px padding, so the run starts exactly where the title's state
+   chip does — it moves whenever the gutter does. */
 .arc-lane-queue {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 0 14px 9px 35px;
+  padding: 0 14px 9px 47px;
 }
 /* the connector — an arrow into the run, and between chips only where the run is a real chain (the
    component picks the glyph; this only styles it). Muted, so a run of chips reads as the content
@@ -6347,7 +6363,7 @@ button.legend-tile:hover {
 .arc-lane {
   display: block;
   /* a flex child of `.arc-lane-line` now, beside the caret gutter — `flex: 1` is what keeps the
-     title's full-width claim (the thing inc-07 bought) intact next to a fixed 18px sibling. */
+     title's full-width claim (the thing inc-07 bought) intact next to a fixed 30px sibling. */
   flex: 1 1 auto;
   min-width: 0;
   border: none;
