@@ -2229,6 +2229,17 @@ export type RevisionWrite =
 type StoredObservation = { stdout: string; stderr: string; exitCode: number | null };
 
 /**
+ * What {@link writeRevisionRecord} reads off a result: every {@link ProveResult} satisfies it. Only a
+ * refusal ever carries `escalation`, so reading that key directly needs no `ok` guard — and a guard
+ * would be a mutant no test can kill, because a pass has no `escalation` to write either way.
+ */
+type RevisionSource = {
+  ok: boolean;
+  escalation?: EscalationRecord | undefined;
+  failedObservation?: Extract<ProveResult, { ok: false }>["failedObservation"];
+};
+
+/**
  * Write a failed REAL build's RETURNED escalation to its per-user revision record (ADR-0571 D2).
  * Returns `null` — writing nothing, creating no directory — when `dir` is undefined or `result` is
  * not a returned escalation: an `overruledEscalation`, or a result carrying neither key, both count
@@ -2240,17 +2251,16 @@ export async function writeRevisionRecord(
   dir: string | undefined,
   unitId: string,
   runId: string,
-  result: ProveResult,
+  result: RevisionSource,
 ): Promise<RevisionWrite | null> {
-  if (dir === undefined) return null;
-  if (result.ok) return null;
-  if (result.escalation === undefined) return null;
+  if (dir === undefined || result.escalation === undefined) return null;
   const filePath = revisionRecordPath(dir, unitId, runId);
-  const record: Record<string, unknown> = { unitId, runId, escalation: result.escalation };
-  if (result.failedObservation !== undefined) record.failedObservation = result.failedObservation;
+  // JSON.stringify omits a key whose value is undefined, so a result carrying no failedObservation
+  // writes no such key: the record holds exactly what the result carries, with no branch to get wrong.
+  const record = { unitId, runId, escalation: result.escalation, failedObservation: result.failedObservation };
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(record), "utf8");
+    await fs.writeFile(filePath, JSON.stringify(record));
     return { written: true, path: filePath };
   } catch (e) {
     return { written: false, path: filePath, reason: (e as Error).message };
