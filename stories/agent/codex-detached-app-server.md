@@ -67,54 +67,63 @@ stand-in child for the production process-composition cases. No test spends a Co
 database, or reaches the network. Each numbered leg below is one independently coverable contract and
 has its own required test-title prefix; no single broad happy-path title satisfies another leg.
 
-1. **`production-defaults-authenticate-before-detached-spawn`.** Exercise the production defaults,
-   omitting the public high-level `authRunner`, app-server
-   `spawn`, ownership observer and tree terminator overrides. Put a deterministic stand-in beneath the
-   production command/process seam: its `login status` mode reports the exact ChatGPT-managed result;
-   its `app-server --stdio` mode stays alive, speaks the required JSONL, and starts a descendant that
-   also stays alive. Observe that the default path really runs the bounded login process, then spawns
-   one detached app-server with a positive OS pid. It must not return an `unavailable` placeholder or
-   acquire ownership through a no-op. Terminate it and independently observe both root and descendant
-   dead before the test exits.
-2. **`staged-protocol-returns-response-produced-identity`.** Keep the existing staged happy path and
-   make the order exact: auth completes before spawn;
-   initialize -> initialized -> ephemeral thread/start occurs; no turn/start occurs during open; and
-   response model/effort deliberately differ from the request. Assert identity from the response,
-   not merely truthiness, and assert the spawned pid and owner root are the same positive safe integer.
-3. **`platform-owner-distinguishes-posix-group-from-windows-tree`.** Exercise both ownership branches.
-   The POSIX branch owns and terminates the exact process group; the
-   Windows branch owns and terminates the exact rooted process tree (the low-level command is scoped
-   to that root and includes descendants). Production chooses the branch from the actual OS — caller
-   input cannot relabel it. Assert literal discriminants, the exact target, and confirmed death. A
-   Windows root pid is never returned or acted on as a POSIX pgid, and neither branch broad-kills by
-   executable name.
-4. **`invalid-protocol-identity-and-turn-fail-closed`.** Table-drive invalid configuration, staged
-   identity and turn start. An absent, zero, negative, fractional,
-   non-finite or unsafe pid refuses; a missing owner, wrong root, wrong platform variant or blank owner
-   token refuses; and a missing/non-object thread, blank thread id/model/reasoning effort, wrong-shaped
-   initialize/thread response, RPC error, malformed/non-object JSONL, wrong response id, write error,
-   spawn error, timeout or early exit refuses. A zero, negative, `NaN` or infinite timeout never
-   disables the bound: it resolves to the safe positive default and the injected clock observes that
-   bound fire. Auth refusal still spawns nothing; every case after spawn performs exact bounded cleanup
-   and independently confirms death before rejecting. For `startTurn`, blank input, write failure, RPC
-   error, malformed result, wrong/missing turn id or status, timeout and process exit each reject. No
-   case starts a second app-server. Every failed
-   start after the staged process exists closes the protocol, terminates the exact owner once, waits
-   for observed death, and leaves later `probe` unable to claim the lane is live.
-5. **`probe-reads-os-liveness-and-same-app-server-limits`.** Make `probe` obtain liveness from the
-   current OS ownership observation, not from the absence of a
-   local `terminate()` call. Before termination, return live only while that exact owner is observed
-   alive and read rate limits through the same initialized app-server. Simulate/observe spontaneous
-   process exit without calling `terminate`; the next probe returns not-live (and does not manufacture
-   a successful rate-limit read). An unavailable or failed liveness observation is typed unavailable,
-   never guessed live.
-6. **`termination-reaps-the-exact-owned-tree-and-confirms-death`.** Call `terminate` twice concurrently
-   and again after it settles. Production termination must close
-   protocol I/O, invoke the real platform terminator, and wait within its bound until the exact owner
-   is observed dead. A default no-op terminator is forbidden. All calls share one terminal result; a
-   termination command failure, timeout, or still-live postcondition rejects fail-closed rather than
-   reporting successful cleanup.
-Across all six legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
+1. **`auth-refusal-and-timeout-never-spawn`.** Table-drive the production authentication preflight's
+   refusal observations: nonzero/ambiguous output, non-ChatGPT-managed login, explicit timeout and
+   thrown runner failure. Each case rejects before command resolution or spawn; the exact managed
+   success is the only result that advances.
+2. **`pinned-command-scrubs-env-and-spawns-detached`.** Put a recording low-level process seam beneath
+   the production defaults. Assert the repo-pinned executable (or validated absolute override), exact
+   `app-server --stdio` argv, requested cwd, case-insensitive metered-credential scrub, retained benign
+   environment and actual-host detached-spawn options. Exactly one positive-pid child is created after
+   successful auth; a relative override, resolution failure or spawn failure rejects before ownership
+   or protocol work and never starts a second child.
+3. **`posix-group-owner-is-observed-probed-and-terminated`.** Through a deterministic POSIX OS seam,
+   assert acquisition and liveness probe the negative child pid as a process group, publish the literal
+   `posix-process-group` owner rooted at that child, and terminate that same negative group with the
+   bounded signal. Never target a bare pid, executable name or another group.
+4. **`windows-tree-owner-is-observed-probed-and-terminated`.** Through a deterministic Windows OS
+   seam, assert acquisition and liveness inspect the exact root, publish the literal
+   `windows-process-tree` owner, and terminate with a rooted descendant-inclusive tree command. Never
+   reinterpret the root as a POSIX group or broad-kill an image name.
+5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`.** Table-drive every owner boundary:
+   absent, zero, negative, fractional, non-finite and unsafe pid; missing owner; wrong root; host-wrong
+   discriminant; caller platform assertion contradicting the host; blank/whitespace token. Every row
+   rejects, cleans only the just-created child, and never returns a controller.
+6. **`ownership-acquisition-failure-reaps-spawned-child`.** Make production ownership observation
+   return unavailable, throw and exceed its bound after spawn. Each path closes protocol I/O, reaps the
+   just-spawned root and descendants through its platform-honest emergency path, independently confirms
+   death, and then rejects; inability to acquire the public owner never licenses an orphan.
+7. **`initialize-notification-thread-order-returns-response-identity`.** Assert auth -> spawn ->
+   initialize request -> initialized notification -> ephemeral thread/start, with no turn/start during
+   open. Make the returned thread id, model and effort deliberately contradict the request and assert
+   the response values verbatim beside the exact pid/owner. Table-drive non-object initialize results
+   plus missing/non-object thread and blank id/model/effort; every invalid row cleans up and rejects.
+8. **`jsonl-fragments-and-correlates-responses`.** Split one JSON object across chunks, coalesce several
+   newline-delimited objects in another chunk, and exercise correlated numeric ids while a request is
+   pending. The parser retains only the incomplete suffix, resolves each request exactly once from its
+   own id, ignores blank lines, and exposes no raw transcript.
+9. **`jsonl-rpc-write-and-exit-faults-clean-up`.** Table-drive malformed JSON, non-object messages,
+   missing/non-safe/wrong response ids, RPC error responses, request and notification write failures,
+   process error and early exit. Every row rejects the affected operation, settles all pending work,
+   closes I/O, reaps the exact owner once, confirms death and retains only bounded diagnostics.
+10. **`request-timeouts-use-safe-bound-and-clean-up`.** Drive initialize, thread/start, turn/start and
+    rate-limit reads past their request bound. Undefined uses the safe positive default; zero, negative,
+    `NaN` and infinite inputs cannot disable or corrupt it. Each expiry removes its pending
+    correlation, reaps the exact owner, confirms death and rejects without a second process.
+11. **`turn-prompt-and-response-failures-clean-up`.** Table-drive blank/whitespace prompts and missing,
+    non-object, blank-id or blank-status turn results, then prove one valid turn/start carries the staged
+    thread id and exact prompt and returns response identity. Every invalid start reaps and confirms the
+    owner dead; a later probe cannot report it live.
+12. **`probe-tristate-and-same-channel-rate-limits`.** At call time, make exact-owner liveness report
+    live, dead and unavailable/error. Live alone sends bounded `account/rateLimits/read` through the
+    already-initialized app-server and returns its observation; dead starts no request; unavailable is
+    preserved as typed unavailable rather than collapsed to dead or guessed live. No case starts a
+    thread, turn or second process.
+13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
+    again after settlement. They share one terminal operation, close protocol I/O and invoke one exact
+    platform terminator, then poll within a positive finite bound until observed dead. Terminator error,
+    liveness error, bound expiry and a still-live postcondition reject rather than report cleanup.
+Across all thirteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
 
@@ -176,16 +185,19 @@ the existing source minimally until the new assertions and every old one pass. `
 the implementation and barrel, and the package suite remains the explicit `proofCommand` over that
 public surface.
 
-**The changed-line mutation rung is a binary ship gate, not a percentage target.** Against the current
-signed source and test pair, `pnpm check:mutation-diff` counted 455 mutants: 201 killed, 138 survived,
-115 had no coverage, and one timed out. A signed contract-test verdict does not override that red. The
-next real drive is complete only when the command exits zero: every mutant in this branch's changed
-lines is killed by this branch's tests, or the exact source line carries a narrowly scoped Stryker
-equivalence annotation naming the precise mutator class and explaining why no possible input or
-observable can distinguish the mutant from the original. A timeout is unproven, not a pass. Reachable,
-merely uncovered, expensive, or inconvenient behaviour is not equivalent; do not disable it, do not
-use a blanket `all` annotation, and remove a redundant branch instead of annotating it when deletion
-preserves the contract.
+**The changed-line mutation rung is a binary ship gate, not a percentage target.** The first gated
+reading counted 455 mutants: 201 killed, 138 survived, 115 with no coverage and one timed out. The
+mutation-bound re-drive then signed `real-mu4pozsf` at `206ecd7`, but it added only one blank-prompt
+cleanup test and five implementation lines; the resulting 456-mutant run had no new production-path
+or parser matrix capable of changing the verdict and was stopped rather than mistaken for progress.
+A signed contract-test verdict does not override that red. The next real drive is complete only when
+`pnpm check:mutation-diff` exits zero: every mutant in this branch's changed lines is killed by this
+branch's tests, or the exact source line carries a narrowly scoped Stryker equivalence annotation
+naming the precise mutator class and explaining why no possible input or observable can distinguish
+the mutant from the original. A timeout is unproven, not a pass. Reachable, merely uncovered,
+expensive, or inconvenient behaviour is not equivalent; do not disable it, do not use a blanket `all`
+annotation, and remove a redundant branch instead of annotating it when deletion preserves the
+contract.
 
 The hardening must exercise the production defaults and their branches directly, not infer them from
 high-level injected substitutes: bounded authentication and credential scrubbing, pinned detached
@@ -196,95 +208,133 @@ while keeping the public barrel narrow and role-neutral. The remaining protocol,
 failure-cleanup, idempotence, and same-app-server branches are subject to the same per-mutant rule.
 Strengthen or simplify source together with substantive assertions until the mutation command passes;
 an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
-that some input could distinguish does not satisfy any of the six contracts.
+that some input could distinguish does not satisfy any of the thirteen contracts.
 
 **Tests.** Use `node:test` and `node:assert/strict`, with every await bounded and every fake settling
 deterministically. Retain the signed tests, then add at least one substantive runtime test for EACH of
-the six exact ids below. Its title begins with that id verbatim; sharing the former broad prefix or
-naming several ids in one title does not cover the missing lines. Literal protocol method names and
-platform discriminants appear in assertions rather than being read back from production constants.
-Use focused table-driven cases inside the owning test where useful, plus one real-child production-
-composition test. Every spawned stand-in/root/descendant is reaped in `finally`, even when an
-assertion fails.
+the thirteen exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
+prefix, naming several ids in one title, or keeping an old title without the new prefix covers none of
+the new lines. For a line that names a matrix, every named row needs an assertion under that line's
+prefix — one representative case is incomplete. Literal protocol methods, command argv and platform
+discriminants appear in assertions rather than being read back from production constants. Use focused
+table-driven cases plus one real-child production-composition test. Every spawned stand-in/root/
+descendant is reaped in `finally`, even when an assertion fails.
 
-## Contracts (6)
+## Contracts (13)
 
-1. **`production-defaults-authenticate-before-detached-spawn`** — production defaults perform the bounded subscription-auth probe before starting one real detached app-server.
-   - **asserts —** calling `openPinnedCodexDetachedThread` without high-level auth/spawn/ownership/
-     termination overrides runs the real bounded `codex login status` adapter with metered credentials
-     scrubbed, admits only the exact ChatGPT-managed result, and only then spawns exactly one detached
-     repo-pinned `app-server --stdio` with a positive OS pid; auth refusal or timeout spawns nothing;
-     the defaults never return a canned `unavailable`/logged-out result and never substitute a no-op
-     spawn or owner adapter. A deterministic stand-in beneath the production process seam proves this
-     without a subscription turn.
-   - **covers —** the production auth and detached-spawn composition used by
-     `openPinnedCodexDetachedThread` in `packages/agent/src/codex-detached-app-server.ts`, reached through
-     `packages/agent/src/index.ts`.
-   - **proven by —** a substantive
-     `production-defaults-authenticate-before-detached-spawn: ...` test in
-     `packages/agent/src/codex-detached-app-server.test.ts` that omits every high-level override and
-     observes the stand-in login process before the detached app-server process.
-2. **`staged-protocol-returns-response-produced-identity`** — opening stages an ephemeral thread without work and returns only the app-server response's identity.
-   - **asserts —** the one app-server receives initialize -> initialized -> ephemeral thread/start and
-     no turn/start during open; a response whose thread id/model/reasoning effort deliberately differ
-     from requested values is returned verbatim beside the spawned positive pid; requested defaults,
-     argv, exit status and caller prose are never accepted as identity; and neither the public result
-     nor a bounded error contains stdout/stderr or a raw protocol transcript.
-   - **covers —** request ordering/correlation and `ThreadStartResponse` parsing in
-     `packages/agent/src/codex-detached-app-server.ts` plus the public return shape in
-     `packages/agent/src/index.ts`.
-   - **proven by —** a substantive
-     `staged-protocol-returns-response-produced-identity: ...` test in
-     `packages/agent/src/codex-detached-app-server.test.ts` whose response intentionally contradicts
-     its request and whose protocol log asserts the exact pre-turn order.
-3. **`platform-owner-distinguishes-posix-group-from-windows-tree`** — process ownership is selected from the OS and never confuses a POSIX group with a Windows tree.
-   - **asserts —** a positive safe child pid on POSIX yields an observed opaque
-     `posix-process-group` rooted at that pid, while Windows yields an observed opaque
-     `windows-process-tree` rooted at that pid; production selects the branch from the actual OS rather
-     than caller input; missing ownership, a blank token, wrong root, wrong discriminant, or an absent/
-     zero/negative/fractional/non-finite/unsafe pid refuses and cleans up; a Windows root is never
-     surfaced or terminated as a pgid, and neither branch broad-kills by executable name.
-   - **covers —** pid validation, platform selection and owner acquisition/validation in
+1. **`auth-refusal-and-timeout-never-spawn`** — only a bounded exact ChatGPT-managed authentication result may reach process creation.
+   - **asserts —** `openPinnedCodexDetachedThread` runs `login status` first and rejects every
+     nonzero/ambiguous result, non-ChatGPT-managed login, explicit timeout and runner error before
+     resolving or spawning the app-server; the exact managed success is the only advancing row.
+   - **covers —** authentication admission and the pre-spawn branch in
      `packages/agent/src/codex-detached-app-server.ts`.
-   - **proven by —** distinct substantive
-     `platform-owner-distinguishes-posix-group-from-windows-tree: ...` POSIX and Windows cases in
-     `packages/agent/src/codex-detached-app-server.test.ts`, including the invalid pid/owner table.
-4. **`invalid-protocol-identity-and-turn-fail-closed`** — malformed staging or turn-start observations reject and clean up the owned process instead of guessing success.
-   - **asserts —** malformed/non-object JSONL, wrong response id, initialize/thread/start/turn/start RPC
-     errors, wrong-shaped or blank thread identity, blank turn prompt, wrong/missing turn id or status,
-     write/spawn error, invalid timeout, request timeout and early exit each refuse; invalid timeout
-     input cannot disable the safe positive bound; auth refusal remains pre-spawn; and every failure
-     after spawn closes protocol I/O, invokes cleanup for only the exact acquired owner, waits for
-     independently observed death, and leaves no later path able to report that process live.
-   - **covers —** timeout normalization, JSONL/RPC dispatch, identity validation, `startTurn`, and all
-     post-spawn failure exits in `packages/agent/src/codex-detached-app-server.ts`.
-   - **proven by —** one or more table-driven
-     `invalid-protocol-identity-and-turn-fail-closed: ...` tests in
-     `packages/agent/src/codex-detached-app-server.test.ts` covering every named refusal class and its
-     exact cleanup/death postcondition.
-5. **`probe-reads-os-liveness-and-same-app-server-limits`** — probe reports current owner liveness and account limits from the existing app-server, never local intent.
-   - **asserts —** each probe observes the exact OS owner at call time and reports live only when that
-     observation says live; spontaneous exit without any `terminate()` call therefore yields not-live,
-     while unavailable/failed liveness is typed unavailable rather than guessed live; only a live
-     owner receives bounded `account/rateLimits/read` on the already-initialized app-server; probe
-     starts no thread, turn or second process and does not manufacture a successful limit result for a
-     dead/unobservable owner.
-   - **covers —** `CodexDetachedThread.probe` and its liveness/rate-limit request path in
+   - **proven by —** table-driven `auth-refusal-and-timeout-never-spawn: ...` tests that assert zero
+     command-resolution/spawn calls for every named refusal row and one advancing managed-login row.
+2. **`pinned-command-scrubs-env-and-spawns-detached`** — the production command path creates exactly one scrubbed repo-pinned detached app-server.
+   - **asserts —** after auth, production resolves the pinned Codex executable or a validated absolute
+     override, passes exact `app-server --stdio` argv and cwd, strips metered credentials regardless of
+     key casing while preserving benign environment, and asks the actual host for one hidden detached
+     child with piped protocol I/O and a positive safe pid; a relative override, resolution failure or
+     spawn failure rejects before owner/protocol work and never creates a replacement child.
+   - **covers —** pinned command composition and the production spawn adapter in
+     `packages/agent/src/codex-detached-app-server.ts`, reached through the public barrel.
+   - **proven by —** `pinned-command-scrubs-env-and-spawns-detached: ...` tests over a recording
+     low-level process seam, its named failure rows, and the bounded real-child stand-in composition
+     case.
+3. **`posix-group-owner-is-observed-probed-and-terminated`** — the POSIX production path owns, observes and terminates the exact detached process group.
+   - **asserts —** a positive child pid is observed as negative pgid, yields opaque
+     `posix-process-group` ownership rooted at that child, is probed with the same negative target and
+     is terminated with the bounded group signal; no bare pid, other group or image name is targeted.
+   - **covers —** POSIX arms of production ownership acquisition, liveness and termination in
      `packages/agent/src/codex-detached-app-server.ts`.
-   - **proven by —** a substantive
-     `probe-reads-os-liveness-and-same-app-server-limits: ...` test in
-     `packages/agent/src/codex-detached-app-server.test.ts` that changes OS liveness without calling
-     terminate and asserts both the dead and unavailable cases plus the one-process protocol log.
-6. **`termination-reaps-the-exact-owned-tree-and-confirms-death`** — termination is concurrent-safe, idempotent, bounded, exact-tree, and successful only after observed death.
-   - **asserts —** concurrent and repeated terminate calls share one terminal operation; production
-     closes protocol I/O, invokes the real OS terminator exactly once for the returned POSIX group or
-     Windows rooted tree including descendants, and waits within a positive finite bound until that
-     owner is independently observed dead; it never broad-kills or targets another pid; a missing/no-op
-     default, termination command failure, timeout, or still-live postcondition rejects fail-closed
-     rather than reporting successful cleanup.
-   - **covers —** `CodexDetachedThread.terminate`, production POSIX/Windows termination, idempotence,
-     and death confirmation in `packages/agent/src/codex-detached-app-server.ts`.
-   - **proven by —** a substantive
-     `termination-reaps-the-exact-owned-tree-and-confirms-death: ...` test in
-     `packages/agent/src/codex-detached-app-server.test.ts` that races repeated calls, observes one
-     exact termination, and separately covers terminator failure, bound expiry and still-live refusal.
+   - **proven by —** `posix-group-owner-is-observed-probed-and-terminated: ...` tests whose recording
+     OS seam asserts literal owner discriminant, signed target, probe and termination signal.
+4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path owns, observes and terminates the exact rooted process tree.
+   - **asserts —** a positive child pid is inspected as the exact Windows root, yields opaque
+     `windows-process-tree` ownership, is re-observed at probe time and is terminated by a root-scoped
+     descendant-inclusive `/PID <root> /T /F` operation; it is never treated as a pgid or image name.
+   - **covers —** Windows arms of production ownership acquisition, liveness and termination in
+     `packages/agent/src/codex-detached-app-server.ts`.
+   - **proven by —** `windows-tree-owner-is-observed-probed-and-terminated: ...` tests whose recording
+     OS seam asserts literal discriminant and exact task-list/task-kill command composition.
+5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`** — no invalid or mismatched process identity can become the controller's owner.
+   - **asserts —** absent, zero, negative, fractional, non-finite and unsafe pids plus missing owner,
+     wrong root, host-wrong kind, caller platform assertion contradicting the host, and blank/whitespace
+     token each reject; every post-spawn row cleans the just-created child, confirms death and returns
+     no controller.
+   - **covers —** pid and exact-owner validation before protocol staging in
+     `packages/agent/src/codex-detached-app-server.ts`.
+   - **proven by —** an exhaustive `owner-validation-rejects-invalid-pid-root-kind-and-token: ...`
+     table with one named case and cleanup/death assertion for every listed value class.
+6. **`ownership-acquisition-failure-reaps-spawned-child`** — failure to acquire public ownership cannot orphan the child created immediately before it.
+   - **asserts —** unavailable, thrown and bounded-out production ownership observations close I/O,
+     reap only the new root and descendants through a platform-honest emergency path, independently
+     observe death and then reject; no path returns an unowned bare pid or silently skips cleanup.
+   - **covers —** post-spawn/pre-owner failure handling and emergency cleanup in
+     `packages/agent/src/codex-detached-app-server.ts`.
+   - **proven by —** `ownership-acquisition-failure-reaps-spawned-child: ...` tests for unavailable,
+     error and timeout rows, each observing the exact root/descendant dead before rejection settles.
+7. **`initialize-notification-thread-order-returns-response-identity`** — opening stages one response-identified thread without starting work.
+   - **asserts —** the one child observes auth -> spawn -> `initialize` request -> `initialized`
+     notification -> ephemeral `thread/start`, and no `turn/start`; thread id, model and effort that
+     deliberately differ from the request are returned verbatim beside the spawned pid and owner;
+     non-object initialize plus missing/non-object thread and blank id/model/effort each clean up and
+     reject rather than borrowing identity from the request.
+   - **covers —** staged request ordering and thread response validation in
+     `packages/agent/src/codex-detached-app-server.ts` plus the public return in `index.ts`.
+   - **proven by —** `initialize-notification-thread-order-returns-response-identity: ...` tests with
+     a literal protocol log, a response contradicting all requested identity fields, and one asserted
+     cleanup/death row for every invalid initialize/thread shape.
+8. **`jsonl-fragments-and-correlates-responses`** — the app-server reader frames chunked JSONL and resolves only the request named by each response id.
+   - **asserts —** a response split across chunks, several lines coalesced in one chunk and blank lines
+     preserve the incomplete suffix and parse exactly once; safe numeric ids correlate the right
+     pending request without exposing transcript text or resolving any other request.
+   - **covers —** buffer framing, JSON parsing and pending-request correlation in
+     `packages/agent/src/codex-detached-app-server.ts`.
+   - **proven by —** `jsonl-fragments-and-correlates-responses: ...` tests that feed fragments,
+     coalesced lines and distinguishable correlated responses under the exact prefix.
+9. **`jsonl-rpc-write-and-exit-faults-clean-up`** — protocol and process faults reject pending work and clean up the exact owner.
+   - **asserts —** malformed JSON, non-object messages, missing/non-safe/wrong ids, RPC errors, request
+     and notification write errors, process error and early exit each reject the affected operation,
+     settle all pending requests, close I/O, reap the exact owner once and confirm death with bounded
+     diagnostics only.
+   - **covers —** JSONL fault dispatch, RPC rejection, write catches and process event handlers in
+     `packages/agent/src/codex-detached-app-server.ts`.
+   - **proven by —** a `jsonl-rpc-write-and-exit-faults-clean-up: ...` matrix with one asserted row for
+     every named fault and its pending-settlement plus cleanup/death postcondition.
+10. **`request-timeouts-use-safe-bound-and-clean-up`** — every request family has a positive finite timeout whose expiry reaps the owner.
+    - **asserts —** initialize, thread/start, turn/start and rate-limit reads expire through the injected
+      clock; undefined selects the safe default while zero, negative, `NaN` and infinite
+      inputs cannot disable or corrupt it; expiry deletes correlation, reaps and confirms the exact
+      owner dead, rejects and starts no replacement process.
+    - **covers —** timeout normalization and per-request timer cleanup in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** `request-timeouts-use-safe-bound-and-clean-up: ...` tables spanning every timeout
+      input class and request family, with observed bound, correlation removal and exact cleanup.
+11. **`turn-prompt-and-response-failures-clean-up`** — a staged controller starts only a valid response-identified turn and cleans up every invalid attempt.
+    - **asserts —** blank/whitespace prompt and missing, non-object, blank-id or blank-status turn result
+      reject and confirm the owner dead; one valid request carries the staged thread id and exact prompt
+      and returns response-produced id/status; no case starts another app-server and failed start leaves
+      probe unable to report live.
+    - **covers —** `CodexDetachedThread.startTurn`, turn response validation and its cleanup path in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** a `turn-prompt-and-response-failures-clean-up: ...` matrix covering every prompt/
+      result row plus one contradictory valid response and its literal `turn/start` params.
+12. **`probe-tristate-and-same-channel-rate-limits`** — probe preserves live/dead/unavailable ownership truth and reads limits only on the existing live channel.
+    - **asserts —** exact-owner observation at call time yields distinguishable live, dead and typed
+      unavailable/error results; only live sends bounded `account/rateLimits/read` through the staged
+      app-server and returns that response, while dead/unavailable start no request, process, thread or
+      turn and never manufacture limits.
+    - **covers —** `CodexDetachedThread.probe`, production liveness and same-channel rate-limit dispatch
+      in `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
+      states plus a spontaneous exit and a literal one-channel protocol log.
+13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination succeeds once for all callers and only after bounded observed death.
+    - **asserts —** concurrent calls and a later repeat share one terminal operation, close I/O and
+      invoke one exact platform terminator, then poll within a positive finite bound until dead;
+      terminator error, liveness error, bound expiry and still-live postcondition reject rather than
+      report cleanup, without targeting another owner.
+    - **covers —** `CodexDetachedThread.terminate`, concurrency/idempotence, bounded death observation
+      and terminal error retention in `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** `termination-is-idempotent-bounded-and-confirms-death: ...` tests racing calls and
+      separately asserting terminator error, observation error, timeout and still-live rows.
