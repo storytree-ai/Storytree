@@ -1682,33 +1682,29 @@ const DISPOSITION_WITHOUT_PR = [
 ];
 
 /**
- * Read `--disposition` into ADR-0564 D1's three values, or REFUSE the value by name.
+ * Read `--disposition` into ADR-0564 D1's three values — `undefined` when none was given — or return
+ * the REFUSAL (an `Envelope`, so `typeof … === "object"`) for a value outside them.
  *
  * Blank reads as ABSENT rather than as a value: a shell expanding `--disposition "$VAR"` with `VAR`
  * unset must not store `""`, which the schema's enum would reject on the row's next write. An
  * unrecognised word is refused rather than dropped, because an absence reads downstream as "nobody
  * said" and would quietly discard the judgement the caller took the trouble to make.
  */
-function parseDisposition(
-  raw: string | undefined,
-  next: string[],
-): { disposition: IncrementDisposition | undefined } | { error: Envelope } {
+function parseDisposition(raw: string | undefined, next: string[]): IncrementDisposition | undefined | Envelope {
   const value = raw?.trim();
-  if (value === undefined || value === "") return { disposition: undefined };
+  if (value === undefined || value === "") return undefined;
   const parsed = IncrementDisposition.safeParse(value);
-  if (parsed.success) return { disposition: parsed.data };
+  if (parsed.success) return parsed.data;
   return {
-    error: {
-      ok: false,
-      body: [
-        `--disposition takes "landed", "failed" or "withdrawn" (got "${value}").`,
-        "ADR-0564 D1: it records what the close MEANT, which the board paints as the bar's tone.",
-        "`withdrawn` is NOT a softer `failed` (D3) — it is a duplicate, a superseded plan, or a",
-        "unit that should never have been parked: work that stopped rather than work that lost.",
-        "Omit it only beside --pr, which derives `landed`; with no --pr it is REQUIRED.",
-      ].join("\n"),
-      next,
-    },
+    ok: false,
+    body: [
+      `--disposition takes "landed", "failed" or "withdrawn" (got "${value}").`,
+      "ADR-0564 D1: it records what the close MEANT, which the board paints as the bar's tone.",
+      "`withdrawn` is NOT a softer `failed` (D3) — it is a duplicate, a superseded plan, or a",
+      "unit that should never have been parked: work that stopped rather than work that lost.",
+      "Omit it only beside --pr, which derives `landed`; with no --pr it is REQUIRED.",
+    ].join("\n"),
+    next,
   };
 }
 
@@ -1812,8 +1808,8 @@ async function recordClosedIncrement(
   const outcomeText = opts.outcome?.trim();
   const pr = opts.pr?.trim();
   const hasPr = pr !== undefined && pr !== "";
-  const parsed = parseDisposition(opts.disposition, [`storytree arc show ${arcId} --pg`]);
-  if ("error" in parsed) return parsed.error;
+  const disposition = parseDisposition(opts.disposition, [`storytree arc show ${arcId} --pg`]);
+  if (typeof disposition === "object") return disposition;
   if (!hasPr && kind === "work") {
     const refused = refuseUnrecordedClose(
       "add",
@@ -1822,7 +1818,7 @@ async function recordClosedIncrement(
         given: outcomeText !== undefined && outcomeText !== "",
         why: ["--outcome <text|@file> says what landed / halted / was re-planned (long prose: --outcome @path)."],
       },
-      parsed.disposition !== undefined,
+      disposition !== undefined,
       [`storytree arc show ${arcId} --pg`],
     );
     if (refused !== undefined) return refused;
@@ -1861,7 +1857,7 @@ async function recordClosedIncrement(
   const outcome: IncrementOutcome = pr !== undefined && pr !== "" ? { date, pr } : { date };
   // Written ONLY when given, exactly as `arc increment close` does: beside a PR the reading is
   // derived downstream, and stamping one nobody chose would assert a judgement nobody made.
-  if (parsed.disposition !== undefined) outcome.disposition = parsed.disposition;
+  if (disposition !== undefined) outcome.disposition = disposition;
   const doc: IncrementDraft = {
     kind: "increment",
     id,
@@ -2293,9 +2289,8 @@ export async function arcIncrementClose(
   const note = opts.note?.trim();
 
   // ADR-0564 D1 — the orchestrator's own call about what this close MEANT.
-  const parsed = parseDisposition(opts.disposition, [`storytree library artifact ${id} --pg`]);
-  if ("error" in parsed) return parsed.error;
-  const { disposition } = parsed;
+  const disposition = parseDisposition(opts.disposition, [`storytree library artifact ${id} --pg`]);
+  if (typeof disposition === "object") return disposition;
 
   if (pr === undefined || pr === "") {
     const refused = refuseUnrecordedClose(
