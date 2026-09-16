@@ -121,7 +121,9 @@ export async function coverageCommand(
     unitId: id,
     contractIds: unit.contractIds,
     testNames: unit.testNames,
-    gatedTestNames: unit.gatedTestNames ?? [],
+    // Passed straight through, undefined and all: the classifier owns the "not measured means nothing
+    // gated" default, and a second one here would be a branch no input could distinguish.
+    gatedTestNames: unit.gatedTestNames,
   });
   const total = report.contracts.length;
   const lines: string[] = [
@@ -170,6 +172,18 @@ export async function coverageCommand(
       "  UNCOVERED above may be a limit of the READER rather than a missing test. A title is read statically:",
       "  a `${…}` substitution or a runtime-built name is elided, while concatenated string literals ARE read",
       "  (folded), as are parenthesised ones — so the usual fix is to make the dynamic part a plain literal.",
+    );
+  }
+
+  // What the SURFACE carried, beside what MATCHED. Without it the report states only the gated
+  // contracts, so a gate that names nothing declared — five skipped tests matching no `## Contracts`
+  // id — is indistinguishable from a surface with no gate at all, and the reader cannot tell a
+  // separation that found nothing from one that was never collected.
+  const gatedSeen = unit.gatedTestNames ?? [];
+  if (gatedSeen.length > 0) {
+    lines.push(
+      "",
+      `conditionally skipped test(s) on this surface: ${gatedSeen.length} — they leave ${report.gated.length} declared contract(s) GATED rather than absent.`,
     );
   }
 

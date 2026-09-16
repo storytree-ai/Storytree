@@ -744,7 +744,7 @@ export interface ContractCoverageSpec {
    * matched with the same {@link testNameCoversContract} the covering names use, purely to say which
    * uncovered contract is gated.
    */
-  gatedTestNames?: readonly string[];
+  gatedTestNames?: readonly string[] | undefined;
 }
 
 /**
