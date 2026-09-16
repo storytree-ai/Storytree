@@ -194,14 +194,23 @@ export async function openPinnedCodexDetachedThread(args: OpenPinnedCodexDetache
     }
     return await productionLiveness(owner);
   };
+  const waitForObservedDeath = async (): Promise<void> => {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (await liveness() === false) return;
+      if (Date.now() >= deadline) {
+        throw new Error("Codex app-server ownership did not become dead after termination");
+      }
+      await new Promise<void>((resolve) => { setTimeout(resolve, Math.min(10, deadline - Date.now())); });
+    }
+  };
   const terminate = (): Promise<void> => terminal ??= (async () => {
     closed = true;
     failPending(new Error("Codex app-server terminated"));
     try { child?.end(); } catch { /* close cannot weaken exact tree cleanup */ }
     if (owner === undefined) return;
     await (args.terminateOwnedTree ?? terminateProductionTree)(owner);
-    const alive = await liveness();
-    if (alive !== false) throw new Error("Codex app-server ownership did not become dead after termination");
+    await waitForObservedDeath();
   })();
   const request = (method: string, params: unknown, notification = false): Promise<unknown> => {
     if (child === undefined || closed || exited) return Promise.reject(new Error("Codex app-server is unavailable"));
