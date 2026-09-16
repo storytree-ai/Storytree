@@ -43,3 +43,27 @@ export type {
   MintboxSupervisorRuntime,
 } from "./mintbox-supervisor-adapter.js";
 export { FileMintboxSupervisorAdapter } from "./mintbox-supervisor-adapter.js";
+
+export type {
+  MintboxCoordinatorLaunchContext,
+  MintboxLaneClaimExpectation,
+  MintboxLaneCommand,
+  MintboxLaneLaunchDecision,
+  MintboxLaneLauncherPorts,
+  MintboxLaneLaunchRequest,
+  MintboxLaneOccupancySnapshot,
+  MintboxLaneWorkload,
+  MintboxObservedLaneOccupant,
+  MintboxObservedLaneProcess,
+  MintboxObservedLiveClaim,
+  MintboxRegisteredWorktree,
+  MintboxTerraEffort,
+  MintboxTerraLaunchIntent,
+  MintboxVerifiedCoordinatorPolicy,
+  MintboxVerifiedLaneHandle,
+} from "./mintbox-lane-launcher.js";
+export {
+  MINTBOX_ASTRA_COORDINATOR_MODEL,
+  MINTBOX_TERRA_LANE_MODEL,
+  launchMintboxTerraLane,
+} from "./mintbox-lane-launcher.js";
