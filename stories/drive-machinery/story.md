@@ -413,6 +413,10 @@ the now-settled modeling call.
   grain, spec-borne, edit-existing proof over `liveLeafLines`, proposed (ADR-0570 D5). The envelope
   reports an armed Codex leaf's feedback runs from the spine's own record. It builds after
   `codex-builds-arm-feedback`, and the two ship in one landing.
+- [`attempt-count-follows-the-unit`](attempt-count-follows-the-unit.md) — contract grain, spec-borne,
+  edit-existing proof over `foldInnerLoopLedger`, proposed (ADR-0575 D2). The attempt ledger reads a
+  unit's consecutive failures and pending landing obligation across every increment it was filed
+  under, and a landed pass starts a fresh count instead of closing the unit forever.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention

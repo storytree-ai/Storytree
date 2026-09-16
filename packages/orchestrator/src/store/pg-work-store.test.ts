@@ -253,8 +253,8 @@ test("a fresh PgWorkStore folds all four event families in durable seq order des
   assert.ok(readBack.every((row) => row.kind === "inner-loop" && row.type === "created"));
   assert.ok(readBack.every((row) => row.actor === "first-writer"));
   assert.deepEqual(
-    await readInnerLoopLedger(fresh, "u1", "inc"),
-    foldInnerLoopLedger(written, "u1", "inc"),
+    await readInnerLoopLedger(fresh, "u1"),
+    foldInnerLoopLedger(written, "u1"),
   );
 });
 

@@ -12,17 +12,29 @@ import {
   readInnerLoopLedger,
 } from "./inner-loop-ledger.js";
 
-const scope = { unitId: "unit", incrementId: "increment" } as const;
+const unitId = "unit";
+const INC = "increment";
 type AttemptEvent = Extract<InnerLoopEventDoc, { event: "attempt" }>;
 type GrantEvent = Extract<InnerLoopEventDoc, { event: "grant" }>;
 type SignedPassEvent = Extract<InnerLoopEventDoc, { event: "signed-pass" }>;
 type AdjudicationEvent = Extract<InnerLoopEventDoc, { event: "adjudication" }>;
 
-const attempt = (runId: string): AttemptEvent => ({ event: "attempt", ...scope, runId });
-const pass = (runId: string): SignedPassEvent => ({ event: "signed-pass", ...scope, runId });
-const grant = (runId: string, attempts = 1): GrantEvent => ({
+const attempt = (runId: string, incrementId: string): AttemptEvent => ({
+  event: "attempt",
+  unitId,
+  incrementId,
+  runId,
+});
+const pass = (runId: string, incrementId: string): SignedPassEvent => ({
+  event: "signed-pass",
+  unitId,
+  incrementId,
+  runId,
+});
+const grant = (runId: string, incrementId: string, attempts = 1): GrantEvent => ({
   event: "grant",
-  ...scope,
+  unitId,
+  incrementId,
   runId,
   attempts,
   kind: "fixed-defect",
@@ -31,10 +43,12 @@ const grant = (runId: string, attempts = 1): GrantEvent => ({
 const adjudication = (
   runId: string,
   disposition: "land" | "land-and-measure" | "land-and-declare-gap" | "rework" | "refuse",
+  incrementId: string,
 ): AdjudicationEvent => {
   const event: AdjudicationEvent = {
     event: "adjudication",
-    ...scope,
+    unitId,
+    incrementId,
     runId,
     disposition,
     mayRefuse: disposition === "rework" || disposition === "refuse",
@@ -56,14 +70,14 @@ const stored = (doc: InnerLoopEventDoc, seq: number, overrides: Partial<StoreEve
 
 test("fold orders by durable sequence and scopes one unit and increment", () => {
   const elsewhere = { event: "attempt", unitId: "elsewhere", incrementId: "other", runId: "x" } as const;
-  const events = [stored(attempt("r3"), 3), stored(attempt("r1"), 1), stored(elsewhere, 4), stored(attempt("r2"), 2)];
+  const events = [stored(attempt("r3", INC), 3), stored(attempt("r1", INC), 1), stored(elsewhere, 4), stored(attempt("r2", INC), 2)];
 
-  const ledger = foldInnerLoopLedger(events, scope.unitId, scope.incrementId);
+  const ledger = foldInnerLoopLedger(events, unitId);
 
   assert.deepEqual(ledger.attempts, [
-    { runId: "r1", signed: false },
-    { runId: "r2", signed: false },
-    { runId: "r3", signed: false },
+    { runId: "r1", incrementId: INC, signed: false },
+    { runId: "r2", incrementId: INC, signed: false },
+    { runId: "r3", incrementId: INC, signed: false },
   ]);
   assert.equal(ledger.consecutiveFailures, 3);
   assert.equal(ledger.policy.disposition, "stop-and-decide");
@@ -73,58 +87,56 @@ test("fold ignores malformed inner-loop rows whose loose scope is elsewhere", ()
   const malformedElsewhere = { event: "unknown", unitId: "elsewhere", incrementId: "other" };
 
   const ledger = foldInnerLoopLedger(
-    [stored(attempt("r1"), 1), stored(attempt("other"), 2, { doc: malformedElsewhere })],
-    scope.unitId,
-    scope.incrementId,
+    [stored(attempt("r1", INC), 1), stored(attempt("other", INC), 2, { doc: malformedElsewhere })],
+    unitId,
   );
 
-  assert.deepEqual(ledger.attempts, [{ runId: "r1", signed: false }]);
+  assert.deepEqual(ledger.attempts, [{ runId: "r1", incrementId: INC, signed: false }]);
 });
 
 test("fold rejects malformed selected or ambiguous-scope inner-loop rows", () => {
-  const malformedSelected = { event: "unknown", ...scope };
-  const malformedAmbiguous = { event: "attempt", unitId: scope.unitId };
+  const malformedSelected = { event: "unknown", unitId, incrementId: INC };
+  const malformedAmbiguous = { event: "attempt", unitId };
   const blankScope = { event: "attempt", unitId: "   ", incrementId: "other", runId: "x" };
 
   assert.throws(
-    () => foldInnerLoopLedger([stored(attempt("r1"), 1, { doc: malformedSelected })], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([stored(attempt("r1", INC), 1, { doc: malformedSelected })], unitId),
   );
   assert.throws(
-    () => foldInnerLoopLedger([stored(attempt("r1"), 1, { doc: malformedAmbiguous })], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([stored(attempt("r1", INC), 1, { doc: malformedAmbiguous })], unitId),
   );
   assert.throws(
-    () => foldInnerLoopLedger([stored(attempt("r1"), 1, { doc: blankScope })], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([stored(attempt("r1", INC), 1, { doc: blankScope })], unitId),
   );
 });
 
 test("fold requires created envelopes only for the selected scope", () => {
   for (const type of ["updated", "deleted"] as const) {
     assert.throws(
-      () => foldInnerLoopLedger([stored(attempt("r1"), 1, { type })], scope.unitId, scope.incrementId),
+      () => foldInnerLoopLedger([stored(attempt("r1", INC), 1, { type })], unitId),
       new RegExp(`must be created: ${type}`),
     );
   }
 
   const elsewhere = { event: "attempt", unitId: "elsewhere", incrementId: "other", runId: "x" } as const;
   const ledger = foldInnerLoopLedger(
-    [stored(attempt("r1"), 1), stored(elsewhere, 2, { type: "updated" })],
-    scope.unitId,
-    scope.incrementId,
+    [stored(attempt("r1", INC), 1), stored(elsewhere, 2, { type: "updated" })],
+    unitId,
   );
 
-  assert.deepEqual(ledger.attempts, [{ runId: "r1", signed: false }]);
+  assert.deepEqual(ledger.attempts, [{ runId: "r1", incrementId: INC, signed: false }]);
 });
 
 test("a grant binds the latest failed run and exposes only its unused allowance", () => {
   const events = [
-    stored(attempt("r1"), 1),
-    stored(attempt("r2"), 2),
-    stored(attempt("r3"), 3),
-    stored(grant("r3", 2), 4),
-    stored(attempt("r4"), 5),
+    stored(attempt("r1", INC), 1),
+    stored(attempt("r2", INC), 2),
+    stored(attempt("r3", INC), 3),
+    stored(grant("r3", INC, 2), 4),
+    stored(attempt("r4", INC), 5),
   ];
 
-  const ledger = foldInnerLoopLedger(events, scope.unitId, scope.incrementId);
+  const ledger = foldInnerLoopLedger(events, unitId);
 
   assert.equal(ledger.remainingGrantCount, 1);
   assert.equal(ledger.consecutiveFailures, 4);
@@ -136,17 +148,17 @@ test("a grant binds the latest failed run and exposes only its unused allowance"
 
 test("a signed pass resets failures, extinguishes a grant, and remains unresolved", () => {
   const events = [
-    stored(attempt("r1"), 1),
-    stored(attempt("r2"), 2),
-    stored(attempt("r3"), 3),
-    stored(grant("r3", 2), 4),
-    stored(attempt("r4"), 5),
-    stored(pass("r4"), 6),
+    stored(attempt("r1", INC), 1),
+    stored(attempt("r2", INC), 2),
+    stored(attempt("r3", INC), 3),
+    stored(grant("r3", INC, 2), 4),
+    stored(attempt("r4", INC), 5),
+    stored(pass("r4", INC), 6),
   ];
 
-  const ledger = foldInnerLoopLedger(events, scope.unitId, scope.incrementId);
+  const ledger = foldInnerLoopLedger(events, unitId);
 
-  assert.deepEqual(ledger.attempts.at(-1), { runId: "r4", signed: true });
+  assert.deepEqual(ledger.attempts.at(-1), { runId: "r4", incrementId: INC, signed: true });
   assert.equal(ledger.consecutiveFailures, 0);
   assert.equal(ledger.remainingGrantCount, 0);
   assert.deepEqual(ledger.unresolvedSignedRuns, ["r4"]);
@@ -156,13 +168,12 @@ test("a signed pass resets failures, extinguishes a grant, and remains unresolve
 test("landing resolves a signed pass while refusal and rework reopen the attempt policy", () => {
   for (const disposition of ["land", "refuse", "rework"] as const) {
     const ledger = foldInnerLoopLedger(
-      [stored(attempt("r1"), 1), stored(pass("r1"), 2), stored(adjudication("r1", disposition), 3)],
-      scope.unitId,
-      scope.incrementId,
+      [stored(attempt("r1", INC), 1), stored(pass("r1", INC), 2), stored(adjudication("r1", disposition, INC), 3)],
+      unitId,
     );
 
     assert.deepEqual(ledger.unresolvedSignedRuns, []);
-    assert.deepEqual(ledger.adjudications, [adjudication("r1", disposition)]);
+    assert.deepEqual(ledger.adjudications, [adjudication("r1", disposition, INC)]);
     assert.equal(ledger.policy.disposition, disposition === "land" ? "signed" : "proceed");
   }
 });
@@ -170,9 +181,8 @@ test("landing resolves a signed pass while refusal and rework reopen the attempt
 test("an unresolved signed pass blocks another attempt", () => {
   assert.throws(
     () => foldInnerLoopLedger(
-      [stored(attempt("r1"), 1), stored(pass("r1"), 2), stored(attempt("r2"), 3)],
-      scope.unitId,
-      scope.incrementId,
+      [stored(attempt("r1", INC), 1), stored(pass("r1", INC), 2), stored(attempt("r2", INC), 3)],
+      unitId,
     ),
     /unresolved signed pass r1 blocks another attempt/,
   );
@@ -180,104 +190,114 @@ test("an unresolved signed pass blocks another attempt", () => {
 
 test("an admissible refusal lets the next attempt start a fresh failure count", () => {
   const ledger = foldInnerLoopLedger([
-    stored(attempt("r1"), 1),
-    stored(pass("r1"), 2),
-    stored(adjudication("r1", "refuse"), 3),
-    stored(attempt("r2"), 4),
-  ], scope.unitId, scope.incrementId);
+    stored(attempt("r1", INC), 1),
+    stored(pass("r1", INC), 2),
+    stored(adjudication("r1", "refuse", INC), 3),
+    stored(attempt("r2", INC), 4),
+  ], unitId);
 
   assert.equal(ledger.consecutiveFailures, 1);
   assert.equal(ledger.policy.disposition, "proceed");
   assert.deepEqual(ledger.unresolvedSignedRuns, []);
 });
 
-test("a landing adjudication closes the loop instead of silently reopening it", () => {
-  for (const disposition of ["land", "land-and-measure", "land-and-declare-gap"] as const) {
-    assert.throws(
-      () => foldInnerLoopLedger([
-        stored(attempt("r1"), 1),
-        stored(pass("r1"), 2),
-        stored(adjudication("r1", disposition), 3),
-        stored(attempt("r2"), 4),
-      ], scope.unitId, scope.incrementId),
-      /landed signed pass r1 closes the attempt loop/,
-    );
-  }
+test("a-landed-pass-starts-a-fresh-count: a landing adjudication closes the loop, and a later attempt under any increment starts a fresh count", () => {
+  const landed = foldInnerLoopLedger(
+    [stored(attempt("r1", "A"), 1), stored(pass("r1", "A"), 2), stored(adjudication("r1", "land", "A"), 3)],
+    unitId,
+  );
+  assert.equal(landed.policy.disposition, "signed");
+
+  const ledger = foldInnerLoopLedger(
+    [
+      stored(attempt("r1", "A"), 1),
+      stored(pass("r1", "A"), 2),
+      stored(adjudication("r1", "land", "A"), 3),
+      stored(attempt("r2", "B"), 4),
+      stored(attempt("r3", "B"), 5),
+    ],
+    unitId,
+  );
+
+  assert.equal(ledger.consecutiveFailures, 2);
+  assert.equal(ledger.policy.disposition, "proceed");
+  assert.equal(ledger.policy.mintedPerAttempt, false);
+  assert.deepEqual(ledger.unresolvedSignedRuns, []);
 });
 
 test("grants reject the wrong run, an early decision, overlap, and the owner ceiling", () => {
-  const three = [stored(attempt("r1"), 1), stored(attempt("r2"), 2), stored(attempt("r3"), 3)];
-  assert.throws(() => foldInnerLoopLedger([...three, stored(grant("r2"), 4)], scope.unitId, scope.incrementId), /latest failed run/);
+  const three = [stored(attempt("r1", INC), 1), stored(attempt("r2", INC), 2), stored(attempt("r3", INC), 3)];
+  assert.throws(() => foldInnerLoopLedger([...three, stored(grant("r2", INC), 4)], unitId), /latest failed run/);
   assert.throws(
-    () => foldInnerLoopLedger([stored(attempt("r1"), 1), stored(attempt("r2"), 2), stored(grant("r2"), 3)], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([stored(attempt("r1", INC), 1), stored(attempt("r2", INC), 2), stored(grant("r2", INC), 3)], unitId),
     /early/,
   );
   assert.throws(
-    () => foldInnerLoopLedger([...three, stored(grant("r3", 2), 4), stored(attempt("r4"), 5), stored(grant("r4"), 6)], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([...three, stored(grant("r3", INC, 2), 4), stored(attempt("r4", INC), 5), stored(grant("r4", INC), 6)], unitId),
     /overlaps/,
   );
-  const six = Array.from({ length: 6 }, (_, index) => stored(attempt(`r${index + 1}`), index + 1));
-  assert.throws(() => foldInnerLoopLedger([...six, stored(grant("r6"), 7)], scope.unitId, scope.incrementId), /ceiling/);
+  const six = Array.from({ length: 6 }, (_, index) => stored(attempt(`r${index + 1}`, INC), index + 1));
+  assert.throws(() => foldInnerLoopLedger([...six, stored(grant("r6", INC), 7)], unitId), /ceiling/);
 });
 
 test("fold collapses exact replay and refuses conflicting or noncanonical identity", () => {
-  const first = stored(attempt("r1"), 1);
-  assert.equal(foldInnerLoopLedger([first, { ...first, seq: 2 }], scope.unitId, scope.incrementId).attempts.length, 1);
+  const first = stored(attempt("r1", INC), 1);
+  assert.equal(foldInnerLoopLedger([first, { ...first, seq: 2 }], unitId).attempts.length, 1);
   assert.throws(
-    () => foldInnerLoopLedger([{ ...first, id: "inner-loop:attempt:not-the-doc" }], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([{ ...first, id: "inner-loop:attempt:not-the-doc" }], unitId),
     /noncanonical/,
   );
   assert.throws(
     () => foldInnerLoopLedger([
-      stored(attempt("r1"), 1),
-      stored(attempt("r2"), 2),
-      stored(attempt("r3"), 3),
-      stored(grant("r3"), 4),
-      stored({ ...grant("r3"), difference: "a different alleged fix" }, 5),
-    ], scope.unitId, scope.incrementId),
+      stored(attempt("r1", INC), 1),
+      stored(attempt("r2", INC), 2),
+      stored(attempt("r3", INC), 3),
+      stored(grant("r3", INC), 4),
+      stored({ ...grant("r3", INC), difference: "a different alleged fix" }, 5),
+    ], unitId),
     /conflicting/,
   );
 });
 
 test("pass and adjudication require their own recorded predecessor", () => {
-  assert.throws(() => foldInnerLoopLedger([stored(pass("r1"), 1)], scope.unitId, scope.incrementId), /no recorded attempt/);
+  assert.throws(() => foldInnerLoopLedger([stored(pass("r1", INC), 1)], unitId), /no recorded attempt/);
   assert.throws(
     () => foldInnerLoopLedger([
-      stored(attempt("r1"), 1),
-      stored(attempt("r2"), 2),
-      stored(pass("r1"), 3),
-    ], scope.unitId, scope.incrementId),
+      stored(attempt("r1", INC), 1),
+      stored(attempt("r2", INC), 2),
+      stored(pass("r1", INC), 3),
+    ], unitId),
     /signed pass must bind the latest attempt/,
   );
   assert.throws(
-    () => foldInnerLoopLedger([stored(attempt("r1"), 1), stored(adjudication("r1", "land"), 2)], scope.unitId, scope.incrementId),
+    () => foldInnerLoopLedger([stored(attempt("r1", INC), 1), stored(adjudication("r1", "land", INC), 2)], unitId),
     /signed pass/,
   );
 });
 
 test("generic Store helper is idempotent and a fresh reader folds persisted history", async () => {
   const store = new InMemoryStore();
-  const first = await appendInnerLoopEvent(store, attempt("r1"), "original");
-  const replay = await appendInnerLoopEvent(store, attempt("r1"), "replayer");
-  await appendInnerLoopEvent(store, pass("r1"));
+  const first = await appendInnerLoopEvent(store, attempt("r1", INC), "original");
+  const replay = await appendInnerLoopEvent(store, attempt("r1", INC), "replayer");
+  await appendInnerLoopEvent(store, pass("r1", INC));
 
   assert.equal(first.seq, replay.seq);
   assert.equal(replay.actor, "original");
   assert.equal((await store.readEvents()).length, 2);
   assert.deepEqual(
-    await readInnerLoopLedger(store, scope.unitId, scope.incrementId),
-    foldInnerLoopLedger(await store.readEvents(), scope.unitId, scope.incrementId),
+    await readInnerLoopLedger(store, unitId),
+    foldInnerLoopLedger(await store.readEvents(), unitId),
   );
 });
 
 test("generic Store helper validates runtime input, ignores other kinds, and rejects conflict", async () => {
   const store = new InMemoryStore();
   await assert.rejects(
-    () => appendInnerLoopEvent(store, { ...attempt("r1"), unitId: "   " } as never),
+    () => appendInnerLoopEvent(store, { ...attempt("r1", INC), unitId: "   " } as never),
     /unitId/,
   );
 
-  const doc = grant("r3");
+  const doc = grant("r3", INC);
   await store.appendEvent({ id: innerLoopEventId(doc), kind: "other-kind", type: "created", doc });
   const appended = await appendInnerLoopEvent(store, doc);
   assert.equal(appended.kind, INNER_LOOP_EVENT_KIND);
@@ -296,4 +316,75 @@ test("generic Store helper validates runtime input, ignores other kinds, and rej
     doc: { ...doc, difference: "a conflicting stored replay" },
   });
   await assert.rejects(() => appendInnerLoopEvent(corrupt, doc), /conflicting/);
+});
+
+test("a-relabelled-retry-keeps-the-count: consecutive failures and the owner ceiling read across every increment a unit's attempts were filed under", () => {
+  const events = [
+    stored(attempt("r1", "A"), 1),
+    stored(attempt("r2", "A"), 2),
+    stored(attempt("r3", "A"), 3),
+    stored(attempt("r4", "B"), 4),
+  ];
+
+  const ledger = foldInnerLoopLedger(events, unitId);
+
+  assert.equal(ledger.consecutiveFailures, 4);
+  assert.equal(ledger.policy.disposition, "stop-and-decide");
+  assert.equal(ledger.policy.mintedPerAttempt, true);
+  assert.deepEqual(ledger.policy.increments, ["A", "B"]);
+
+  const alternating = [
+    stored(attempt("r1", "A"), 1),
+    stored(attempt("r2", "B"), 2),
+    stored(attempt("r3", "A"), 3),
+    stored(attempt("r4", "B"), 4),
+    stored(attempt("r5", "A"), 5),
+    stored(attempt("r6", "B"), 6),
+  ];
+  assert.throws(
+    () => foldInnerLoopLedger([...alternating, stored(grant("r6", "B"), 7)], unitId),
+    /ceiling/,
+  );
+});
+
+test("a-landing-obligation-follows-the-unit: an unresolved signed pass blocks another attempt whichever increment the attempt is filed under", () => {
+  assert.throws(
+    () => foldInnerLoopLedger(
+      [stored(attempt("r1", "A"), 1), stored(pass("r1", "A"), 2), stored(attempt("r2", "B"), 3)],
+      unitId,
+    ),
+    /unresolved signed pass r1 blocks another attempt/,
+  );
+});
+
+test("every-ledger-event-keeps-its-own-increment: each attempt reports the increment it was filed under, and an event that binds a run must carry that run's increment", () => {
+  const ledger = foldInnerLoopLedger(
+    [stored(attempt("r1", "A"), 1), stored(attempt("r2", "B"), 2)],
+    unitId,
+  );
+  assert.deepEqual(ledger.attempts, [
+    { runId: "r1", incrementId: "A", signed: false },
+    { runId: "r2", incrementId: "B", signed: false },
+  ]);
+
+  assert.throws(
+    () => foldInnerLoopLedger(
+      [stored(attempt("r1", "A"), 1), stored(pass("r1", "B"), 2)],
+      unitId,
+    ),
+    /filed under increment/,
+  );
+
+  const three = [stored(attempt("r1", "A"), 1), stored(attempt("r2", "A"), 2), stored(attempt("r3", "A"), 3)];
+  assert.throws(
+    () => foldInnerLoopLedger([...three, stored(grant("r3", "B", 2), 4)], unitId),
+    /filed under increment/,
+  );
+  assert.throws(
+    () => foldInnerLoopLedger(
+      [stored(attempt("r1", "A"), 1), stored(pass("r1", "A"), 2), stored(adjudication("r1", "land", "B"), 3)],
+      unitId,
+    ),
+    /filed under increment/,
+  );
 });
