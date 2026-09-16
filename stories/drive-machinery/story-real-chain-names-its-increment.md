@@ -166,6 +166,19 @@ step passes.
 `## Proof walkthrough` and the full assertion under `## Contracts (5)` — before writing. The
 contract-id briefing in the phase prompt is an index, never a substitute for that reading.
 
+Attempt 1 (run real-mu4lboaj) failed closed at CONFIRM_RED on per-test review: two new tests went red through a throwing ensureDb spy rather than a failed assertion (C5); attempt 2 states the recording-spy rule — the contract is unchanged.
+
+**Every test double is a RECORDING spy, and it never throws.** A spy counts its calls and returns a
+value. For `ensureDb` that is a recorded call plus the refusal result the walkthrough names
+(`{ ok: false, reason: "STORY_INCREMENT_TEST_DB_MARKER" }`), or a no-op result. It never throws to say
+"I should not have been called". Each new test reaches its red through a failed `assert` on what its
+spies recorded, for example `assert.equal(ensureDbCalls, 0)`. The per-test review refuses a red that
+arrives as a thrown `Error` (C5, the declared kind), which is exactly what refused two tests on run
+`real-mu4lboaj`: before the change the chain has no preflight, so it called the throwing spy, and the
+throw ended each test before any `assert` ran. Also, `packages/drive/src/story-build.ts` is outside
+AUTHOR_TEST's write scope. Attempt 1's test author tried to edit it, and the write fence refused;
+AUTHOR_TEST writes only the test files in the test globs.
+
 **Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
 quoted text if they have moved.
 - `packages/drive/src/story-build.ts`:
