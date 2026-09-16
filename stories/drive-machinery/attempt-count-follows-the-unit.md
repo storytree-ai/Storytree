@@ -111,7 +111,13 @@ under two increments.
 
 **Existing tests to update (they are in your write scope).** Every call in
 `inner-loop-ledger.test.ts` moves to the two-argument form, and `ledger.attempts` assertions gain
-`incrementId`. The test titled `a landing adjudication closes the loop instead of silently reopening
+`incrementId`. **Keep every existing test's title byte-for-byte, even where its wording could be
+tightened — change only its body.** This proof is observed per test, and a test counts as NEW exactly
+when its title was not in the file before you started; a new test that already passes before the
+source changes is refused (ADR-0572 D1). The first attempt (run `real-mu40l2p8`) failed closed at
+CONFIRM_RED on exactly that: it renamed `fold rejects malformed selected or ambiguous-scope
+inner-loop rows`, whose assertions still pass against the current source, and the renamed test was
+refused as an early pass. A pre-existing test may pass or fail at red; only green holds it. The test titled `a landing adjudication closes the loop instead of silently reopening
 it` asserts the behaviour this contract reverses: replace it with the step-4 test rather than keeping
 both. In `packages/orchestrator/src/store/pg-work-store.test.ts`, the two calls
 `readInnerLoopLedger(fresh, "u1", "inc")` and `foldInnerLoopLedger(written, "u1", "inc")` move to the
