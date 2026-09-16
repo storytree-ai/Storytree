@@ -437,6 +437,12 @@ the now-settled modeling call.
   ledger verbs through `run`, refuse a missing unit or flag and any write without the live store, and
   record a grant or adjudication with the strength signal read from the unit's own package. It builds
   after `orchestrator-records-its-calls` and `build-entry-refuses-before-spend`.
+- [`node-build-names-its-increment`](node-build-names-its-increment.md) — contract grain, spec-borne,
+  edit-existing proof over `nodeBuild` and its CLI threading, proposed (ADR-0576 D1/D2/D4/D5/D6/D8).
+  `node build --real` refuses before any spend unless it names a live increment and its unit passes
+  the attempt policy, records the attempt under that increment, renders every outcome through the one
+  entry state, and prints REAL commands that name the increment. It builds after
+  `real-lifecycle-records-its-attempt` and `node-verbs-dispatch`.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
