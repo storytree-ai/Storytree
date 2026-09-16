@@ -1,6 +1,7 @@
 name = "planner"
 description = "The plan author (ADR-0183 D5): expensive-tier planning intelligence that reads an arc and the current tree and writes ONE git-anchored, disposable plan for the next increment — it choreographs, and never decides or defines work: design forks exit to an ADR, hierarchy changes route to story-author."
-# Storytree model policy: inherit; no Codex model is pinned (Library model tier: opus, Claude-only).
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
 developer_instructions = """
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
 

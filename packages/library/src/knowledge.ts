@@ -943,11 +943,12 @@ export type AgentStepRef = z.infer<typeof AgentStepRef>;
 /**
  * The model TIER a delegatable agent runs on when a harness spawns it (ADR-0182, amending ADR-0178 §3
  * which fixed every subagent at `inherit`). A tier, NOT a raw model id — so it survives model-version
- * bumps and maps cleanly onto both harness frontmatter contracts (`.claude/agents` and `.cursor/agents`
- * both accept these `model:` values). `inherit` keeps the ADR-0178 default (the spawning session's
- * model); `sonnet`/`opus` pin the workhorse/judgment split (leverage Sonnet as the workhorse, Opus for
- * judgment-heavy roles). Like `stepRefs` this is structured schema metadata the renderer reads into
- * frontmatter, never a KIND_SPECS body section — it does not round-trip through the markdown body.
+ * bumps and maps cleanly onto Claude/Cursor frontmatter plus Codex's native bounded-effort policy.
+ * `inherit` keeps the ADR-0178 default on Claude/Cursor; `sonnet`/`opus` pin the
+ * workhorse/judgment split (leverage Sonnet as the workhorse, Opus for judgment-heavy roles), and
+ * Codex maps that same split to medium/high reasoning on Terra. Like `stepRefs` this is structured
+ * schema metadata the renderer reads, never a KIND_SPECS body section — it does not round-trip
+ * through the markdown body.
  */
 export const AgentModel = z.enum(["inherit", "sonnet", "opus"]);
 export type AgentModel = z.infer<typeof AgentModel>;

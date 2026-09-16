@@ -357,7 +357,7 @@ test("a real agent id beats an alias that collides with it (ADR-0325 D4)", async
   );
 });
 
-test("renderCodexAgentFile makes model inheritance explicit without pinning an untiered role", async () => {
+test("renderCodexAgentFile pins an untiered specialist to Terra at bounded workhorse effort", async () => {
   const store = await seeded();
   const res = await renderCodexAgentFile(store, "clean-agent");
   assert.equal(res.ok, true);
@@ -365,28 +365,30 @@ test("renderCodexAgentFile makes model inheritance explicit without pinning an u
 
   assert.match(
     res.content,
-    /^name = "clean-agent"\ndescription = "a role whose refs all resolve"\n# Storytree model policy: inherit; no Codex model is pinned \(Library model tier: unset\)\.\n/,
+    /^name = "clean-agent"\ndescription = "a role whose refs all resolve"\nmodel = "gpt-5\.6-terra"\nmodel_reasoning_effort = "medium"\n/,
   );
   assert.match(res.content, /developer_instructions = """\n/);
   assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
   assert.match(res.content, /The clean agent does one thing\./);
-  assert.doesNotMatch(res.content, /^model(?:_reasoning_effort)?\s*=/m);
   assert.ok(res.content.endsWith("\n"));
   assert.deepEqual(res.missingRefs, []);
 });
 
-test("a Claude model tier stays visible as foreign metadata but never becomes a Codex pin", async () => {
+test("Codex maps the Library workhorse/judgment tiers to bounded medium/high effort", async () => {
   const store = await seeded();
-  await seedAliasAgent(store, undefined, "opus");
-  const res = await renderCodexAgentFile(store, "alias-agent");
-  assert.equal(res.ok, true);
-  if (!res.ok) return;
+  for (const [tier, effort] of [
+    ["sonnet", "medium"],
+    ["opus", "high"],
+  ] as const) {
+    await seedAliasAgent(store, undefined, tier);
+    const res = await renderCodexAgentFile(store, "alias-agent");
+    assert.equal(res.ok, true);
+    if (!res.ok) continue;
 
-  assert.match(
-    res.content,
-    /^# Storytree model policy: inherit; no Codex model is pinned \(Library model tier: opus, Claude-only\)\.$/m,
-  );
-  assert.doesNotMatch(res.content, /^model(?:_reasoning_effort)?\s*=/m);
+    assert.match(res.content, /^model = "gpt-5\.6-terra"$/m);
+    assert.match(res.content, new RegExp(`^model_reasoning_effort = "${effort}"$`, "m"));
+    assert.doesNotMatch(res.content, /^model_reasoning_effort = "(?:xhigh|max|ultra)"$/m);
+  }
 });
 
 test("Codex adapts Claude-only tool vocabulary and memory assumptions without changing other harnesses", async () => {
