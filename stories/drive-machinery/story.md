@@ -417,6 +417,11 @@ the now-settled modeling call.
   edit-existing proof over `foldInnerLoopLedger`, proposed (ADR-0575 D2). The attempt ledger reads a
   unit's consecutive failures and pending landing obligation across every increment it was filed
   under, and a landed pass starts a fresh count instead of closing the unit forever.
+- [`orchestrator-records-its-calls`](orchestrator-records-its-calls.md) — contract grain, spec-borne,
+  net-new pure verbs module in `@storytree/cli`, proposed (ADR-0576 D3). The orchestrator's grant and
+  adjudication reach the attempt ledger only when the attempt policy and the landing ruler admit them,
+  bound to the run and increment the ledger holds, and a unit's fold reads back as lines. The `node`
+  dispatch that reaches it is a later unit.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
