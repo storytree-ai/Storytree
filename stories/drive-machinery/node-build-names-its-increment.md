@@ -186,6 +186,20 @@ passes.
 `## Proof walkthrough` and the full assertion under `## Contracts (6)` — before writing. The
 contract-id briefing in the phase prompt is an index, never a substitute for that reading.
 
+Attempt 1 (run real-mu4a1gxh) failed closed at GATE: the drive regression suite was red on one existing revise-test test the test author left un-updated; attempt 2 adds that observation — the contract is unchanged.
+
+**What attempt 1's authored implementation broke, as measured at its preserved commit `a4e3dc5`.**
+Exactly one existing test failed. It is
+`a genuinely written, matching revision is never refused by the revision read — the build proceeds to the DB preflight`,
+inside `node-build-takes-a-revision-and-names-the-record-it-leaves` in
+`packages/drive/src/node-build-revise-test.test.ts`. Its assertion
+`assert.equal(calls.count, 1, "a valid, matching revision must fall through the revision read into the DB preflight")`
+failed `0 !== 1`: its `nodeBuild` call was never given `increment` or `innerLoopReads`, so the new
+preflight refused before the DB preflight ran. The test author must pass `increment` and
+`innerLoopReads` in that call, keeping the title byte-for-byte and changing the body only. Nothing else
+attempt 1 authored broke anything. At `a4e3dc5` the `@storytree/cli` suite was fully green (4212 pass,
+0 fail), and that one test was the `@storytree/drive` suite's only failure (1145 pass, 1 fail).
+
 **Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
 quoted text if they have moved.
 - `packages/drive/src/node-build.ts`:
