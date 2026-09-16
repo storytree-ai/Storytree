@@ -443,6 +443,12 @@ the now-settled modeling call.
   the attempt policy, records the attempt under that increment, renders every outcome through the one
   entry state, and prints REAL commands that name the increment. It builds after
   `real-lifecycle-records-its-attempt` and `node-verbs-dispatch`.
+- [`story-real-chain-names-its-increment`](story-real-chain-names-its-increment.md) — contract grain,
+  spec-borne, edit-existing proof over `storyBuild`, proposed (ADR-0576 D7 with D1/D2/D5/D8). A REAL
+  story chain is one unit on the attempt ledger: it refuses before the database starts unless it names
+  a live increment and the story and every driven member pass the attempt policy, records one attempt
+  for the story and a signed pass only when the chain passed and its push was not withheld, and renders
+  every outcome through the one entry state. It builds after `node-build-names-its-increment`.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
