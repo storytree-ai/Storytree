@@ -227,6 +227,75 @@ test("arc list summarises every arc by landed count AND open count", async () =>
 });
 
 // ---------------------------------------------------------------------------
+// ADR-0564 D2 AT WORKLIST ALTITUDE — this row counts LANDINGS, not closures.
+//
+// The decision took the false green off the studio's lane strip and left this row saying
+// "88 landed" where 69 had landed (`verification-integrity-arc`, live store, 2026-09-16): the same
+// closure-is-a-landing rule, on the surface a session actually reads when it picks work up. The two
+// surfaces now resolve through the one function, so they cannot answer differently for one arc.
+// ---------------------------------------------------------------------------
+
+test("arc list counts landings, splits the terminal rows that are not landings, and dates the last LANDING", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    const w = writeDeps(store);
+    // A landing with a PR — the DERIVED reading every historical row has.
+    await arcIncrementAdd(w, "map-arc", { outcome: "items 1-3 landed", pr: "#640", date: "2026-07-01" });
+    // A RECORDED failure and a RECORDED withdrawal. ADR-0564 D3 forbids reporting one as the other,
+    // so they are counted apart here and asserted as separate words.
+    await arcIncrementNew(w, "map-arc", { id: "flop", title: "A unit that lost", objective: "o", body: "b" });
+    await arcIncrementClose(w, "flop", {
+      note: "the spec could not be proved",
+      disposition: "failed",
+      date: "2026-07-02",
+    });
+    await arcIncrementNew(w, "map-arc", { id: "dupe", title: "A duplicate", objective: "o", body: "b" });
+    await arcIncrementClose(w, "dupe", {
+      note: "the same work is on another row",
+      disposition: "withdrawn",
+      date: "2026-07-03",
+    });
+    // Closed with NEITHER a pr NOR a recorded call: UNRECORDED — not green (D2), and not `failed`,
+    // because the derivation answers "nobody said" (D3 requires the orchestrator's recorded call).
+    await arcIncrementAdd(w, "map-arc", { outcome: "closed with the reason in its body", date: "2026-07-04" });
+    // A landing carrying NO pr — a decision, an arc edit, knowledge. ADR-0564's context is the
+    // owner's own correction that landings are not only merges, so this MUST read as a landing.
+    await arcIncrementNew(w, "map-arc", { id: "decided", title: "A decision landed", objective: "o", body: "b" });
+    await arcIncrementClose(w, "decided", { note: "recorded as a decision", disposition: "landed", date: "2026-07-05" });
+
+    const res = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(res.ok, true);
+    assert.match(res.body, /map-arc {2}2 landed, 1 failed, 1 withdrawn, 1 unrecorded, 1 open, last 2026-07-05/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc list says 0 landed — and no landing DATE — for an arc whose closed rows record none", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    const w = writeDeps(store);
+    await arcIncrementAdd(w, "map-arc", { outcome: "a plan that was overtaken", date: "2026-07-02" });
+    await arcIncrementAdd(w, "map-arc", { outcome: "a second, also recording no landing", date: "2026-07-03" });
+
+    const res = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(res.ok, true);
+    // "no landings yet" is the honest answer: the work is over and none of it landed. Before this,
+    // the row read "2 landed, last 2026-07-03" — a DATE ON WHICH NOTHING LANDED, which is the
+    // misreading at its sharpest, since a reader takes it for the arc's most recent delivery.
+    assert.match(res.body, /map-arc {2}0 landed, 2 unrecorded, 1 open, no landings yet/);
+    // ZERO BUCKETS STAY OFF THE ROW — the density ADR-0314 D2 bought is what makes this surface
+    // readable, and a row reading `0 landed, 0 failed, 0 withdrawn, 2 unrecorded` spends it for
+    // nothing. (The common arc's whole shape is pinned by the test above this block.)
+    assert.doesNotMatch(res.body, /0 failed|0 withdrawn/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // ADR-0239 D3 — `arc list` is a WORKLIST: active by default, widened by --all / --closed.
 // This is what makes the rot self-correcting: an arc nobody closed keeps showing up.
 // ---------------------------------------------------------------------------
