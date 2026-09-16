@@ -199,6 +199,9 @@ function arc(
         const d = inc.outcome?.disposition ?? (inc.outcome?.pr ? 'landed' : undefined);
         if (d !== undefined) row.disposition = d;
       }
+      // ADR-0574 — copied, as `summariseArcRollup` copies it: the full row already carries the
+      // server's resolved reading, so there is no rule here to transcribe.
+      if (inc.waitingOn !== undefined) row.waitingOn = inc.waitingOn;
       return row;
     }),
   };
@@ -293,6 +296,102 @@ describe('ArcSurface — bars are units, not time (ADR-0314 D2)', () => {
     expect(lane.textContent).toContain('2 queued');
   });
 });
+
+describe('ArcSurface — work waiting on the owner’s answer reads YELLOW (ADR-0574)', () => {
+  it('draws the held increment as a `waiting` bar whose tooltip names the question, beside ordinary grey', async () => {
+    const heldArc = arc({
+      id: 'held-arc',
+      increments: [
+        parked('free-work', '2026-09-01'),
+        increment({ id: 'stopped-to-ask', title: 'Stopped to ask', status: 'active', waitingOn: ['oq-which-way'] }),
+      ],
+    });
+    render(<ArcSurface readArc={readArc} arcs={[heldArc]} now={NOW} />);
+    await settle();
+    const lane = screen.getByTestId('arc-lane:held-arc');
+    const waiting = lane.querySelectorAll('[data-bar-tone="waiting"]');
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]?.classList.contains('arc-bar-waiting')).toBe(true);
+    // Hovering the yellow answers "waiting on what?" — the question may live on another arc.
+    expect(waiting[0]?.getAttribute('title')).toBe('Stopped to ask — active · waiting on your answer to oq-which-way');
+    // The neighbour is untouched, and no new count appears beside the bars (ADR-0574).
+    expect(lane.querySelectorAll('[data-bar-tone="queued"]')).toHaveLength(1);
+    expect(lane.textContent).toContain('2 queued');
+  });
+
+  it('the yellow stays clearly apart from grey, green, red, withdrawn and gated — measured, not eyeballed', () => {
+    // jsdom resolves no stylesheet, so the COLOURS are bound to the rules themselves (the caret-size
+    // idiom above). Each bar tone is resolved from its own rule and the drawer's palette tokens, then
+    // compared in CIELAB, where distance tracks what a reader sees. The owner chose the colour in
+    // words; whether it READS as yellow on screen stays his look (ADR-0070). What this holds is the
+    // floor: a later re-tune that slid it toward a neighbour reds here.
+    //
+    // ⚠ ONE THEME. The arc lens is drawn on the drawer's single light "seed-packet" palette; the
+    // studio has no dark theme to hold a second measurement against.
+    const css = readStylesheet();
+    const tokens = new Map(
+      [...ruleBody(css, '.library-drawer').matchAll(/--lp-([a-z0-9-]+):\s*(#[0-9a-f]{6})\s*;/gi)].map(
+        (m) => [m[1] ?? '', m[2] ?? ''] as const,
+      ),
+    );
+    const lab = (tone: string): [number, number, number] => toLab(resolveBackground(ruleBody(css, `.arc-bar-${tone}`), tokens));
+
+    const waiting = lab('waiting');
+    // It reads YELLOW: a saturated colour in the yellow sector of CIELAB hue, far from the greys'
+    // chroma (~20) and outside the clay family's orange (withdrawn sits near 57°).
+    const hue = (Math.atan2(waiting[2], waiting[1]) * 180) / Math.PI;
+    expect(hue).toBeGreaterThanOrEqual(65);
+    expect(hue).toBeLessThanOrEqual(105);
+    expect(Math.hypot(waiting[1], waiting[2])).toBeGreaterThanOrEqual(45);
+
+    // And it is FAR from every tone a reader must not confuse it with. ΔE76 25 is ten times a just
+    // noticeable difference, chosen for 6x8px bars, where small patches blur colour; measured at
+    // landing, the nearest neighbour (gated) sits at 34.
+    for (const other of ['queued', 'unrecorded', 'landed', 'failed', 'withdrawn', 'gated']) {
+      const o = lab(other);
+      const deltaE = Math.hypot(waiting[0] - o[0], waiting[1] - o[1], waiting[2] - o[2]);
+      expect(deltaE, `waiting vs ${other}`).toBeGreaterThanOrEqual(25);
+    }
+  });
+});
+
+/**
+ * One `.arc-bar-*` rule's `background`, resolved to sRGB 0–255 against the drawer's palette: a bare
+ * `var(--lp-*)`, or a two-stop `color-mix(in srgb, …)`, which mixes the gamma-encoded channels
+ * linearly — the only two shapes the bar tones use. Anything else fails by name rather than guessing.
+ */
+function resolveBackground(body: string, tokens: ReadonlyMap<string, string>): [number, number, number] {
+  const value = /(?:^|[;\s])background:\s*([^;]+);/.exec(body)?.[1]?.trim() ?? '';
+  const colour = (term: string): [number, number, number] => {
+    const token = /^var\(--lp-([a-z0-9-]+)\)$/.exec(term.trim())?.[1];
+    const hex = token === undefined ? term.trim() : (tokens.get(token) ?? '');
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    expect(m, `cannot resolve \`${term}\` to a #rrggbb colour`).not.toBeNull();
+    return [parseInt(m?.[1] ?? '0', 16), parseInt(m?.[2] ?? '0', 16), parseInt(m?.[3] ?? '0', 16)];
+  };
+  const mix = /^color-mix\(in srgb,\s*(.+?)\s+(\d+)%\s*,\s*(.+?)(?:\s+(\d+)%)?\s*\)$/.exec(value);
+  if (mix === null) return colour(value);
+  const p = Number(mix[2]);
+  const q = mix[4] === undefined ? 100 - p : Number(mix[4]);
+  const a = colour(mix[1] ?? '');
+  const b = colour(mix[3] ?? '');
+  return [0, 1, 2].map((i) => (a[i]! * p + b[i]! * q) / (p + q)) as [number, number, number];
+}
+
+/** sRGB 0–255 → CIELAB (D65), the standard transform, so a distance here is a perceptual one. */
+function toLab([r, g, b]: [number, number, number]): [number, number, number] {
+  const linear = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const [lr, lg, lb] = [linear(r), linear(g), linear(b)];
+  const x = (0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.95047;
+  const y = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+  const z = (0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.08883;
+  const f = (t: number): number => (t > 216 / 24389 ? Math.cbrt(t) : ((24389 / 27) * t + 16) / 116);
+  const [fx, fy, fz] = [f(x), f(y), f(z)];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
 
 describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3)', () => {
   const WAITING_ARC = arc({

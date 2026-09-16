@@ -6485,6 +6485,15 @@ button.legend-tile:hover {
 .arc-bar-queued {
   background: color-mix(in srgb, var(--lp-border) 80%, var(--lp-ink-soft) 20%);
 }
+/* ADR-0574 D1 (the owner's call: "color it yellow"): OPEN work held on his unanswered question. Grey
+   said "nobody has touched this" and "this stopped to ask you something" in one colour, so every
+   escalation read as ordinary not-yet-done work and the rest of the arc did not read as safe to take.
+   The palette's own yellow, at full strength — `--lp-sun` already marks the `open` lifecycle in the
+   Library lens, which is what an unanswered question is. It must stay clear of grey, the green, the
+   red, the clay-family withdrawn and gated tones; `ArcSurface.test.tsx` holds that distance. */
+.arc-bar-waiting {
+  background: var(--lp-sun);
+}
 /* ADR-0523 / inc-05: not-yet-landed work behind a SHUT gate — grey means not done yet, this means
    not startable at all. Clay-tinted rather than plain grey, tying it to the same "stuck" visual
    language as `.arc-state-blocked` without reusing `.arc-bar-queued`'s own reading (one extra bar

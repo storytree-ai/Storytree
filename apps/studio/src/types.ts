@@ -1411,6 +1411,13 @@ export interface ArcRollupIncrement {
    */
   danglingCites?: string[];
   /**
+   * The unsettled questions this OPEN increment is waiting on the owner to answer (ADR-0574), as
+   * bare ids. RESOLVED SERVER-SIDE by `incrementWaitingOn` (`packages/arc/src/arc-rollup.ts`) and
+   * absent when nothing holds the work — this surface reads it and never re-derives it, and never
+   * sees the stored `waitsOn` link at all (which outlives the answer where this does not).
+   */
+  waitingOn?: string[];
+  /**
    * Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5).
    *
    * `disposition` (ADR-0564 D1) is what the orchestrator RECORDED the close to mean. Absent on every
@@ -1523,6 +1530,12 @@ export interface ArcRollupSummaryIncrement {
    * `status`: reading `status === 'closed'` as landed is the exact defect ADR-0564 was written for.
    */
   disposition?: 'landed' | 'failed' | 'withdrawn';
+  /**
+   * The questions this open increment is WAITING ON THE OWNER to answer (ADR-0574) — the bar's
+   * YELLOW. Absent when nothing holds it. Resolved by the server for the reason `disposition` is:
+   * this wire carries no question lifecycles, so the lane could not derive it and must not try.
+   */
+  waitingOn?: string[];
   /** When it was parked (ISO), on a not-yet-closed entry. */
   parked?: string;
   /** The typed work-hierarchy pointers (ADR-0306 D2) — the `claimed` lane state's join. */
