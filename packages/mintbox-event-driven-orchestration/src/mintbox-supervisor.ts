@@ -67,6 +67,25 @@ export interface MintboxSupervisorState {
   readonly facts: MintboxProgrammeFacts;
   readonly lastWeeklyUsagePercent?: number;
   readonly lastReportAt?: string;
+  /** The adapter's latest durable compact operational report. */
+  readonly lastProgressReport?: MintboxCompactProgressReport;
+}
+
+export type MintboxCompactWeeklyUsage =
+  | { readonly status: "available"; readonly percent: number; readonly delta: number | null }
+  | { readonly status: "unavailable"; readonly reason: string };
+
+/** The compact on-box report deliberately keeps account usage separate from lanes and workers. */
+export interface MintboxCompactProgressReport {
+  readonly at: string;
+  readonly coordinator: { readonly health: MintboxHandleHealth | "none"; readonly model: string | null; readonly effort: string | null };
+  readonly workerHealth: readonly MintboxWorkerSummary[];
+  readonly lanes: { readonly ready3d: readonly string[]; readonly blocked3d: readonly string[] };
+  readonly lastOutcome: string | null;
+  readonly rendererBlocker: string | null;
+  readonly parallelSessionCount: number;
+  readonly weeklyUsage: MintboxCompactWeeklyUsage;
+  readonly action: string;
 }
 
 export interface MintboxSupervisorEvent {

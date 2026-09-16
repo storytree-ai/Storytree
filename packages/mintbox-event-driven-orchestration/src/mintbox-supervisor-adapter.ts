@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import type { CodexRateLimitSnapshot } from "@storytree/agent";
 import {
   MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   MINTBOX_COORDINATOR_MODEL,
@@ -16,6 +17,8 @@ import {
   type MintboxDetachedHandle,
   type MintboxHandleHealth,
   type MintboxProgrammeFacts,
+  type MintboxCompactProgressReport,
+  type MintboxCompactWeeklyUsage,
   type MintboxSupervisorEvent,
   type MintboxSupervisorState,
   type MintboxWakeRequest,
@@ -123,6 +126,43 @@ export class FileMintboxSupervisorAdapter {
       const next = { ...envelope, state };
       await this.#save(next);
       return next;
+    });
+  }
+
+  /** Persist the small operational report without attributing account usage to programme work. */
+  recordProgressReport(input: {
+    readonly at: string;
+    readonly rateLimitSnapshot: CodexRateLimitSnapshot;
+    readonly action: string;
+  }): Promise<MintboxCompactProgressReport> {
+    return this.#serialize(async () => {
+      if (!Number.isFinite(Date.parse(input.at))) throw new Error("report at must be an ISO-compatible timestamp");
+      if (input.action.trim() === "") throw new Error("Mintbox progress report needs an action");
+      const envelope = await this.#prepare();
+      const weeklyUsage = compactWeeklyUsage(envelope.state, input.rateLimitSnapshot);
+      const coordinator = latestCoordinator(envelope.state.handles);
+      const report: MintboxCompactProgressReport = {
+        at: input.at,
+        coordinator: coordinator === undefined
+          ? { health: "none", model: null, effort: null }
+          : { health: coordinator.health, model: coordinator.model, effort: coordinator.effort },
+        workerHealth: envelope.state.handles.filter((handle) => handle.role === "worker").map(workerSummary),
+        lanes: { ready3d: envelope.state.facts.ready3dLanes, blocked3d: envelope.state.facts.blocked3dLanes },
+        lastOutcome: envelope.state.facts.lastOutcome ?? null,
+        rendererBlocker: envelope.state.facts.rendererBlocker ?? null,
+        parallelSessionCount: envelope.state.facts.parallelSessionCount,
+        weeklyUsage,
+        action: input.action.slice(0, MINTBOX_DIGEST_TEXT_LIMIT),
+      };
+      const numericUsage = weeklyUsage.status === "available" ? weeklyUsage.percent : undefined;
+      const state = {
+        ...envelope.state,
+        lastReportAt: input.at,
+        ...(numericUsage === undefined ? {} : { lastWeeklyUsagePercent: numericUsage }),
+        lastProgressReport: report,
+      };
+      await this.#save({ ...envelope, state });
+      return report;
     });
   }
 
@@ -269,6 +309,35 @@ function releaseOrRefreshProtection(
   return { handleId: current.handleId, terminal: evidence.terminal, claim: evidence.claim };
 }
 
+function latestCoordinator(handles: readonly MintboxDetachedHandle[]): MintboxDetachedHandle | undefined {
+  return [...handles].reverse().find((handle) => handle.role === "coordinator");
+}
+
+function workerSummary(handle: MintboxDetachedHandle): {
+  readonly id: string;
+  readonly health: MintboxHandleHealth;
+  readonly model: string;
+  readonly effort: string;
+  readonly lane?: string;
+} {
+  const summary = { id: handle.id, health: handle.health, model: handle.model, effort: handle.effort };
+  return handle.lane === undefined ? summary : { ...summary, lane: handle.lane };
+}
+
+function compactWeeklyUsage(
+  state: MintboxSupervisorState,
+  snapshot: CodexRateLimitSnapshot,
+): MintboxCompactWeeklyUsage {
+  if (snapshot.status === "unavailable") return { status: "unavailable", reason: snapshot.reason };
+  if (snapshot.weekly.status === "unavailable") return { status: "unavailable", reason: snapshot.weekly.reason };
+  const percent = snapshot.weekly.usedPercent;
+  return {
+    status: "available",
+    percent,
+    delta: state.lastWeeklyUsagePercent === undefined ? null : percent - state.lastWeeklyUsagePercent,
+  };
+}
+
 const isoDateSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)));
 const healthSchema = z.enum(["running", "finished", "failed", "blocked"]);
 const boundedTextSchema = z.string().max(MINTBOX_DIGEST_TEXT_LIMIT);
@@ -302,6 +371,27 @@ const factsSchema = z.object({
   parallelSessionCount: z.number().int().nonnegative(),
   lastOutcome: boundedTextSchema.optional(),
 }).strict();
+const compactWeeklyUsageSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("available"), percent: z.number().min(0).max(100), delta: z.number().nullable() }).strict(),
+  z.object({ status: z.literal("unavailable"), reason: nonBlankTextSchema }).strict(),
+]);
+const compactProgressReportSchema = z.object({
+  at: isoDateSchema,
+  coordinator: z.object({ health: z.union([healthSchema, z.literal("none")]), model: boundedTextSchema.nullable(), effort: boundedTextSchema.nullable() }).strict(),
+  workerHealth: z.array(z.object({
+    id: boundedIdentitySchema,
+    health: healthSchema,
+    model: boundedIdentitySchema,
+    effort: boundedIdentitySchema,
+    lane: boundedTextSchema.optional(),
+  }).strict()).max(MINTBOX_DIGEST_LIST_LIMIT),
+  lanes: z.object({ ready3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT), blocked3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT) }).strict(),
+  lastOutcome: boundedTextSchema.nullable(),
+  rendererBlocker: boundedTextSchema.nullable(),
+  parallelSessionCount: z.number().int().nonnegative(),
+  weeklyUsage: compactWeeklyUsageSchema,
+  action: boundedTextSchema,
+}).strict();
 const supervisorStateSchema = z.object({
   version: z.literal(1),
   handles: z.array(handleSchema),
@@ -309,6 +399,7 @@ const supervisorStateSchema = z.object({
   facts: factsSchema,
   lastWeeklyUsagePercent: z.number().min(0).max(100).optional(),
   lastReportAt: isoDateSchema.optional(),
+  lastProgressReport: compactProgressReportSchema.optional(),
 }).strict().superRefine((state, context) => {
   if (new Set(state.handles.map((handle) => handle.id)).size !== state.handles.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate handle id" });

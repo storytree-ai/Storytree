@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { readCodexRateLimitSnapshot, type CodexRateLimitSnapshot } from "@storytree/agent";
 import {
   FileMintboxSupervisorAdapter,
   mintboxSupervisorTransitionQueueSize,
@@ -1060,4 +1061,145 @@ test("oversized adapter inputs produce a bounded transcript-free wake and preser
   assert.equal(call.wake.digest.workers[0]?.id.length, 280);
   assert.equal(call.wake.digest.workers[0]?.model.length, 280);
   assert.equal(call.wake.digest.event.occurredAt, "2026-09-16T01:00:00.111Z");
+});
+
+test("mintbox-three-hour-report-carries-delta: durable compact reports retain account-wide usage and the observed coordinator", async (t) => {
+  const { statePath } = await fixture(t);
+  const requests: unknown[][] = [];
+  const readUsage = async (weeklyPercent: number | null): Promise<CodexRateLimitSnapshot> => {
+    const written: string[] = [];
+    let stdout: ((chunk: string | Uint8Array) => void) | undefined;
+    let exited: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
+    const pending = readCodexRateLimitSnapshot({
+      cwd: process.cwd(),
+      spawn: (_command, events) => {
+        stdout = events.stdout;
+        exited = events.exit;
+        return {
+          write: (line) => { written.push(line); },
+          end: () => undefined,
+          kill: () => undefined,
+        };
+      },
+    });
+    assert.ok(stdout, "the public reader must start its injected app-server exchange");
+    stdout(`${JSON.stringify({ id: 1, result: { userAgent: "mintbox-test" } })}\n`);
+    assert.deepEqual(written.map((line) => JSON.parse(line) as unknown), [
+      { id: 1, method: "initialize", params: { clientInfo: { name: "storytree", version: "0.0.0" } } },
+      { method: "initialized" },
+      { id: 2, method: "account/rateLimits/read", params: null },
+    ]);
+    assert.equal(
+      written.some((line) => /thread\/start|turn\/start/.test(line)),
+      false,
+      "the account observation must not start a thread or model turn",
+    );
+    stdout(`${JSON.stringify({
+      id: 2,
+      result: {
+        rateLimits: weeklyPercent === null
+          ? { primary: null, secondary: null }
+          : { primary: { usedPercent: weeklyPercent, windowDurationMins: 10_080, resetsAt: null }, secondary: null },
+        rateLimitsByLimitId: {},
+        rateLimitResetCredits: { availableCount: 0 },
+      },
+    })}\n`);
+    assert.ok(exited, "the fake app-server must receive the reader exit callback");
+    exited(0, null);
+    const snapshot = await pending;
+    requests.push(written.map((line) => JSON.parse(line) as unknown));
+    return snapshot;
+  };
+
+  const firstUsage = await readUsage(32);
+  const secondUsage = await readUsage(37);
+  const unavailableUsage = await readUsage(null);
+  assert.equal(firstUsage.status, "available");
+  assert.equal(secondUsage.status, "available");
+  assert.equal(unavailableUsage.status, "available");
+  if (unavailableUsage.status === "available") {
+    assert.deepEqual(unavailableUsage.weekly, { status: "unavailable", reason: "not-reported" });
+  }
+  assert.equal(requests.length, 3);
+
+  const runtime = new RecordingRuntime();
+  const supervisor = new FileMintboxSupervisorAdapter({
+    statePath,
+    coordinatorCommand: command,
+    initialFacts: {
+      ready3dLanes: ["canopy"],
+      blocked3dLanes: ["shadows"],
+      parallelSessionCount: 3,
+      rendererBlocker: "await renderer green boundary",
+      lastOutcome: "terrain proof landed",
+    },
+    runtime,
+  });
+  await supervisor.recordHandle({
+    id: "worker-report", role: "worker", pid: 801, host: "mintbox", detached: true,
+    startedAt: "2026-09-16T00:01:00.000Z", health: "blocked", model: "gpt-5.6-terra", effort: "high", lane: "shadows",
+  });
+  await supervisor.recordHandle({
+    id: "coordinator-report", role: "coordinator", pid: 803, host: "mintbox", detached: true,
+    startedAt: "2026-09-16T00:02:00.000Z", health: "finished", model: "gpt-6-astra", effort: "xhigh", architecture: true,
+  });
+
+  const recordProgressReport = Reflect.get(supervisor, "recordProgressReport");
+  assert.equal(
+    typeof recordProgressReport,
+    "function",
+    "the durable adapter must expose the story-owned reporting seam",
+  );
+
+  await Reflect.apply(recordProgressReport, supervisor, [{
+    at: "2026-09-16T03:00:00.000Z",
+    rateLimitSnapshot: firstUsage,
+    action: "await renderer green boundary",
+  }]);
+  const secondReport = await Reflect.apply(recordProgressReport, supervisor, [{
+    at: "2026-09-16T06:00:00.000Z",
+    rateLimitSnapshot: secondUsage,
+    action: "wake the compact coordinator",
+  }]);
+  assert.deepEqual(secondReport, {
+    at: "2026-09-16T06:00:00.000Z",
+    coordinator: { health: "finished", model: "gpt-6-astra", effort: "xhigh" },
+    workerHealth: [{ id: "worker-report", health: "blocked", model: "gpt-5.6-terra", effort: "high", lane: "shadows" }],
+    lanes: { ready3d: ["canopy"], blocked3d: ["shadows"] },
+    lastOutcome: "terrain proof landed",
+    rendererBlocker: "await renderer green boundary",
+    parallelSessionCount: 3,
+    weeklyUsage: { status: "available", percent: 37, delta: 5 },
+    action: "wake the compact coordinator",
+  });
+  assert.equal(JSON.stringify(secondReport).includes("delta"), true);
+  assert.equal(JSON.stringify(secondReport.workerHealth[0]).includes("delta"), false, "usage is never attributed to a worker");
+  assert.equal(JSON.stringify(secondReport.workerHealth[0]).includes("usage"), false, "account usage is never attributed to a worker");
+  assert.equal(JSON.stringify(secondReport.lanes).includes("usage"), false, "usage is never attributed to a lane");
+
+  const recovered = await new FileMintboxSupervisorAdapter({
+    statePath,
+    coordinatorCommand: command,
+    initialFacts: facts,
+    runtime: new RecordingRuntime(),
+  }).recover();
+  assert.deepEqual(Reflect.get(recovered.state, "lastProgressReport"), secondReport);
+
+  const unavailableReport = await Reflect.apply(recordProgressReport, supervisor, [{
+    at: "2026-09-16T09:00:00.000Z",
+    rateLimitSnapshot: unavailableUsage,
+    action: "hold until usage is reported",
+  }]);
+  assert.ok(typeof unavailableReport === "object" && unavailableReport !== null, "the reporting seam returns a compact report");
+  assert.deepEqual(Reflect.get(unavailableReport, "weeklyUsage"), { status: "unavailable", reason: "not-reported" });
+  assert.equal(Reflect.get((await supervisor.recover()).state, "lastWeeklyUsagePercent"), 37);
+  assert.deepEqual(
+    Reflect.get((await new FileMintboxSupervisorAdapter({
+      statePath,
+      coordinatorCommand: command,
+      initialFacts: facts,
+      runtime: new RecordingRuntime(),
+    }).recover()).state, "lastProgressReport"),
+    unavailableReport,
+  );
 });
