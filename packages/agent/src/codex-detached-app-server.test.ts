@@ -195,3 +195,97 @@ test("platform-owner-distinguishes-posix-group-from-windows-tree: refuses a call
 
   assert.deepEqual(terminated, [{ kind: contradictoryKind, rootPid: 433, token: "host-mismatch" }]);
 });
+
+test("production-defaults-authenticate-before-detached-spawn: an authentication refusal creates no app-server", async () => {
+  let spawns = 0;
+
+  await assert.rejects(
+    openPinnedCodexDetachedThread({
+      cwd: process.cwd(),
+      model: "requested-model",
+      reasoningEffort: "requested-effort",
+      platform: process.platform === "win32" ? "windows" : "posix",
+      authRunner: async () => ({ code: 0, stdout: "Logged in using an API key\n", stderr: "" }),
+      spawn: () => {
+        spawns += 1;
+        throw new Error("an unauthenticated open must not spawn");
+      },
+    }),
+    /not authenticated/,
+  );
+
+  assert.equal(spawns, 0);
+});
+
+test("probe-reads-os-liveness-and-same-app-server-limits: re-observes the exact owner rather than treating local intent as liveness", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const owner = {
+    kind: platform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const,
+    rootPid: 434,
+    token: "exact-owner",
+  };
+  let ownershipObservations = 0;
+  let events: { stdout(chunk: string): void } | undefined;
+
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(),
+    model: "requested-model",
+    reasoningEffort: "requested-effort",
+    platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, nextEvents) => {
+      events = nextEvents;
+      return {
+        pid: 434,
+        write: (line) => {
+          const message = JSON.parse(line) as { id?: number; method?: string };
+          if (message.method === "initialize") nextEvents.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+          if (message.method === "thread/start") nextEvents.stdout(`${JSON.stringify({ id: message.id, result: { thread: { id: "thread", model: "resolved", reasoningEffort: "high" } } })}\n`);
+          if (message.method === "account/rateLimits/read") nextEvents.stdout(`${JSON.stringify({ id: message.id, result: { rateLimits: { primary: null } } })}\n`);
+        },
+        end: () => undefined,
+      };
+    },
+    observeOwnership: async () => {
+      ownershipObservations += 1;
+      return owner;
+    },
+    terminateOwnedTree: async () => undefined,
+  });
+
+  assert.deepEqual(await thread.probe(), { live: true, rateLimits: { primary: null } });
+  assert.equal(ownershipObservations, 2, "probe must observe the owner again on the OS, not infer it from local state");
+  await thread.terminate();
+  events = undefined;
+});
+
+test("termination-reaps-the-exact-owned-tree-and-confirms-death: concurrent termination shares one exact-tree command", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const owner = {
+    kind: platform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const,
+    rootPid: 435,
+    token: "owned-tree",
+  };
+  const terminated: unknown[] = [];
+
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "requested-model", reasoningEffort: "requested-effort", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({
+      pid: 435,
+      write: (line) => {
+        const message = JSON.parse(line) as { id?: number; method?: string };
+        if (message.method === "initialize") events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+        if (message.method === "thread/start") events.stdout(`${JSON.stringify({ id: message.id, result: { thread: { id: "thread", model: "resolved", reasoningEffort: "high" } } })}\n`);
+      },
+      end: () => undefined,
+    }),
+    observeOwnership: async () => owner,
+    observeLiveness: async () => false,
+    terminateOwnedTree: async (observedOwner) => { terminated.push(observedOwner); },
+  });
+
+  await Promise.all([thread.terminate(), thread.terminate()]);
+  await thread.terminate();
+  assert.deepEqual(terminated, [owner]);
+});
