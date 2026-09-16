@@ -144,3 +144,22 @@ test("the gate `--store memory` refusal's retry names the increment a paid gate 
     "storytree gate run <story>#gate-<n> --real --increment <increment-id> --pg   (a --real gate build persists by default)",
   ]);
 });
+
+test("the build help puts --increment on the paid gate form and names it as required with --real", async () => {
+  const env = await run(["build"], { store: await seeded() });
+  const lines = env.body.split("\n");
+  assert.ok(
+    lines.includes(
+      "  storytree build gate <story>#gate-<n> --real --increment <id>   earn a build-tests gate by a real red→green (was `gate run --real`)",
+    ),
+    env.body,
+  );
+  const at = lines.indexOf(
+    "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+  );
+  assert.deepEqual(lines.slice(at, at + 3), [
+    "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+    "       --increment <id> (REQUIRED with --real, refused without it) — the arc increment a paid attempt is filed under (ADR-0576)",
+    "",
+  ]);
+});

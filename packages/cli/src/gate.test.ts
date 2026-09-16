@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { ReliabilityGate } from "@storytree/library";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
-import { gateCommand } from "./gate.js";
+import { gateCommand, gateHelp } from "./gate.js";
 import type { GateDeps, GateVerdictStoreLike } from "./gate.js";
 
 // ── doubles ────────────────────────────────────────────────────────────────
@@ -370,4 +370,17 @@ test("every paid `gate run --real` command the gate surface prints names the inc
       ),
     list.body,
   );
+});
+
+test("gate help puts --increment on the paid --real form and closes by saying a --real run is refused without it", () => {
+  const lines = gateHelp().body.split("\n");
+  assert.ok(
+    lines.includes("  storytree gate run  <story>#gate-<n> --real --increment <id> --pg    drive a `build-tests` gate's red→green"),
+    gateHelp().body,
+  );
+  assert.deepEqual(lines.slice(-3), [
+    "offline store. gate ids come from: storytree gate list <id> --pg.",
+    "A `--real` run REQUIRES `--increment <id>` and is refused without it: the arc increment its attempt is",
+    "filed under, with the gate id as its unit on the attempt ledger, read before any spend (ADR-0576).",
+  ]);
 });

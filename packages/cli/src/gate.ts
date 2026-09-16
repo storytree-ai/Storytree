@@ -130,7 +130,7 @@ export function gateHelp(): Envelope {
       "",
       "  storytree gate list <story-id> [--pg]               a story's gates, kind + PROVEN state",
       "  storytree gate run  <story>#gate-<n> --pg           observe-and-sign an `observe` gate",
-      "  storytree gate run  <story>#gate-<n> --real --pg    drive a `build-tests` gate's red→green",
+      "  storytree gate run  <story>#gate-<n> --real --increment <id> --pg    drive a `build-tests` gate's red→green",
       "",
       "An `observe` run mints an 'adopted' verdict in events.verdict (a real gate verdict). A",
       "`build-tests` run (--real, ADR-0098) DRIVES the referenced `(build: <node-id>)` node's real",
@@ -138,6 +138,8 @@ export function gateHelp(): Envelope {
       "capability the gate `(covers:)`. run refuses a gate with no declared command (observe), a",
       "build-tests gate with no `(build:)` ref, a red command/walk, a dirty tree, a blank signer, and the",
       "offline store. gate ids come from: storytree gate list <id> --pg.",
+      "A `--real` run REQUIRES `--increment <id>` and is refused without it: the arc increment its attempt is",
+      "filed under, with the gate id as its unit on the attempt ledger, read before any spend (ADR-0576).",
     ].join("\n"),
     next: ["storytree gate list proof-protocol --pg", "storytree tree proof-protocol --pg"],
   };

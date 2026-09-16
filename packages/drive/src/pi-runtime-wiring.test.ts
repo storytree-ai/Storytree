@@ -120,6 +120,44 @@ test("Codex-default help and invalid-runtime recovery are visible on both build 
   );
 });
 
+test("the node and story help put --increment on the paid --real form, say it is required, and list the node ledger verbs one line each", () => {
+  const node = nodeHelp().body.split("\n");
+  assert.ok(
+    node.includes(
+      "  storytree node build <id> --real --increment <id> [--runtime claude|codex] [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
+    ),
+    nodeHelp().body,
+  );
+  const nodeAt = node.indexOf(
+    "      --increment <id> is REQUIRED with --real and refused without it: the arc increment the attempt",
+  );
+  assert.deepEqual(node.slice(nodeAt, nodeAt + 8), [
+    "      --increment <id> is REQUIRED with --real and refused without it: the arc increment the attempt",
+    "      is filed under. The unit's attempt ledger is read before any spend and can refuse the build (ADR-0576).",
+    "",
+    "  storytree node attempts <id> --pg                read a unit's attempt ledger and the entry state it leaves",
+    "  storytree node grant <id> --attempts <n> --kind <kind> --difference <text|@file> --pg   record further attempts past the decision point",
+    "  storytree node adjudicate <id> --run <run-id> [--objection <kind> --statement <text|@file>] --pg   rule on a run's signed pass",
+    "",
+    "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it",
+  ]);
+
+  const story = storyHelp().body.split("\n");
+  assert.ok(
+    story.includes(
+      "  storytree story build <story-id> --real --increment <id> [--runtime claude|codex] [--budget <usd>] [--model <id>] [--max-turns <n>] [--actor <email>]",
+    ),
+    storyHelp().body,
+  );
+  const storyAt = story.indexOf("      refuses a fake USD cap.");
+  assert.deepEqual(story.slice(storyAt, storyAt + 4), [
+    "      refuses a fake USD cap.",
+    "      --increment <id> is REQUIRED with --real and refused without it: the whole chain is ONE unit on",
+    "      the attempt ledger, the story id, preflighted with every driven member before any spend (ADR-0576 D7).",
+    "",
+  ]);
+});
+
 test("the build verbs' argument refusals print every paid --real retry with the increment it must name, and no --live retry with one", async () => {
   // ADR-0576 D1: a paid REAL build names `--increment <id>` or is refused as written, so a refusal
   // that suggests one prints the flag; a `--live` or `--dry-run` suggestion never carries it.
