@@ -20,8 +20,8 @@ proof:
       - "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.ts"
       - "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"
   real:
-    testFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts"
-    sourceFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.ts"
+    testFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts"
+    sourceFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"
     scope:
       testGlobs:
         - "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts"
@@ -37,7 +37,7 @@ proof:
         - test
         - --timeout
         - "300000"
-        - packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts
+        - packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "typecheck"]
@@ -57,28 +57,40 @@ logs, and the next compact three-hour report.
 
 ## Guidance
 
-This is focused route 2/3. It targets ONLY `mintbox-supervisor-owns-handles-not-transcripts`; it is a
+This is focused route 3/3. It targets ONLY `mintbox-three-hour-report-carries-delta`; it is a
 changed proof input, not a raised acceptance bar.
 
-- In `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts`, author exactly one
-  NEW static test whose title begins exactly `mintbox-supervisor-owns-handles-not-transcripts: `.
-- Send an otherwise valid meaningful event through `decideMintboxSupervisorEvent` with this concrete
-  raw multiline summary:
-  `"User: MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN\r\nAssistant: acknowledged\nUser: continue"`.
-  Require a wake, serialize its digest with `JSON.stringify`, and assert that the serialization contains
-  neither the distinctive `MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN` phrase nor raw `\r` or `\n`
-  characters.
-- In that SAME new test, send a distinct otherwise valid event with a normal bounded one-line summary
-  such as `"terrain proof passed"`; require a wake and assert that this summary remains available in the
-  digest. Dropping every summary is not a valid implementation.
-- This is mechanically red at current HEAD: `buildMintboxCoordinatorDigest` copies every defined
-  `event.summary` through `bounded()` regardless of transcript shape, so the distinctive private
-  conversation phrase survives in the serialized digest.
+- In `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts`, author
+  exactly one NEW static test whose title begins exactly `mintbox-three-hour-report-carries-delta: `.
+- Import the public `readCodexRateLimitSnapshot` and `CodexRateLimitSnapshot` type from
+  `@storytree/agent`. In the Mintbox-owned test, call that real reader against an injected fake
+  app-server process that answers only the JSONL initialise and `account/rateLimits/read` exchange.
+  Record its requests and assert that it starts no thread or turn. Do not hand-construct or cast a
+  snapshot: each value fed to Mintbox must be the typed `CodexRateLimitSnapshot` returned by the public
+  reader.
+- Drive two available weekly observations, first 32 and then 37 percent, through the smallest
+  story-owned reporting seam on `FileMintboxSupervisorAdapter`. Seed the adapter with the complete
+  programme facts plus an observed coordinator handle, then make the latest coordinator's actual
+  health/model/effort distinguishable. After the second observation, reopen/recover the adapter and
+  assert its persisted compact report carries weekly percent `37`, delta `5`, and that latest
+  coordinator health/model/effort—not constants inferred from requested launch flags.
+- The SAME test must assert every existing compact field remains present: timestamp, worker health,
+  ready/blocked lanes, last outcome, renderer blocker, parallel-session count, and action. Weekly usage
+  and its account-wide delta stay report-level facts; assert neither a lane nor worker entry receives
+  the delta or any attribution of it.
+- Obtain a third reader-produced snapshot whose weekly window is typed `unavailable`. Feed it through
+  the same adapter seam and assert the returned and persisted observation remains typed unavailable
+  with its reason, does not invent a numeric percentage or delta, and does not advance the last numeric
+  baseline from `37`.
+- This is mechanically red at current HEAD: `FileMintboxSupervisorAdapter` has no reporting seam and
+  consumes no public rate-limit snapshot; `MintboxProgressReport` accepts only a numeric percentage,
+  omits the latest coordinator model/effort, and cannot carry typed unavailable usage.
 
-Freeze the now-signed `mintbox-meaningful-events-wake-once` runtime-kind behavior and freeze
-`mintbox-three-hour-report-carries-delta` entirely. Do not add, delete, or edit their tests,
-assertions, or implementation in this drive; the broader proof scope is regression coverage, not
-authority to change those behaviours.
+Freeze the signed `mintbox-meaningful-events-wake-once` and
+`mintbox-supervisor-owns-handles-not-transcripts` behaviors. Do not add, delete, or edit their tests,
+assertions, or implementation in this drive. Do not create or edit the launcher, on-box runtime, or
+live-UAT surfaces from later units; the broader scope here exists only for this adapter/reporting seam
+and regression coverage.
 
 ## Contracts
 
