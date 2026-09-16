@@ -121,6 +121,32 @@ test("repeated handle observation refreshes health and every digest string remai
   assert.equal(JSON.stringify(digest).includes("transcript"), false);
 });
 
+test("mintbox-supervisor-owns-handles-not-transcripts: coordinator digests exclude transcript-shaped summaries while retaining bounded operational summaries", () => {
+  const state = createMintboxSupervisorState(facts);
+  const privateConversation = decideMintboxSupervisorEvent(state, {
+    kind: "completion",
+    subject: "terrain",
+    deliveryId: "private-conversation-72",
+    occurredAt: "2026-09-09T01:00:00.000Z",
+    summary: "User: MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN\r\nAssistant: acknowledged\nUser: continue",
+  });
+  assert.ok(privateConversation.wake);
+  const serializedPrivateDigest = JSON.stringify(privateConversation.wake.digest);
+  assert.equal(serializedPrivateDigest.includes("MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN"), false);
+  assert.equal(serializedPrivateDigest.includes("\r"), false);
+  assert.equal(serializedPrivateDigest.includes("\n"), false);
+
+  const operationalEvent = decideMintboxSupervisorEvent(privateConversation.state, {
+    kind: "completion",
+    subject: "terrain",
+    deliveryId: "operational-summary-73",
+    occurredAt: "2026-09-09T01:01:00.000Z",
+    summary: "terrain proof passed",
+  });
+  assert.ok(operationalEvent.wake);
+  assert.equal(operationalEvent.wake.digest.event.summary, "terrain proof passed");
+});
+
 test("renderer release requires matching terminal-green and claim-release evidence without changing wake identity", () => {
   const protectedId = "renderer-1";
   assert.equal(isMintboxRendererReleased({ rendererId: protectedId, terminal: "failure", claim: "released" }, protectedId), false);

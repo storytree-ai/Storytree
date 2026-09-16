@@ -245,7 +245,9 @@ export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, eve
     subject: bounded(event.subject),
     occurredAt: new Date(event.occurredAt).toISOString(),
   };
-  if (event.summary !== undefined) digestEvent.summary = bounded(event.summary);
+  if (event.summary !== undefined && !isTranscriptShapedSummary(event.summary)) {
+    digestEvent.summary = bounded(event.summary);
+  }
   if (event.rendererEvidence !== undefined) {
     digestEvent.rendererEvidence = {
       ...event.rendererEvidence,
@@ -350,6 +352,7 @@ function bounded(value: string): string {
     return code < 0x20 || (code >= 0xd800 && code <= 0xdfff) ? "�" : character;
   }).join("");
 }
+function isTranscriptShapedSummary(value: string): boolean { return value.includes("\r") || value.includes("\n"); }
 function encodeDedupePart(value: string): string { return value.replaceAll("%", "%25").replaceAll(":", "%3A"); }
 function assertSameHandleIdentity(existing: MintboxDetachedHandle, incoming: MintboxDetachedHandle): void {
   if (existing.role !== incoming.role
