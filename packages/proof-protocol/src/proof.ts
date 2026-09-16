@@ -52,14 +52,15 @@ export type VerdictOutputVersion = z.infer<typeof VerdictOutputVersion>;
  * `uncovered` is the unit's declared contract set at sign time; `uncovered` non-empty means the green
  * over-claims those contracts. Both lists are `[]` for a unit that declares no contracts.
  *
- * Plus ONE honesty qualifier on those lists — `unreadTitles` (2026-08-06). It is not a richer record
- * of the kind the owner's minimal choice ruled out (that was about freezing covering test NAMES,
- * verbosity with no honesty payoff); it is what makes `uncovered` mean one thing instead of two.
- * ADR-0126's two folds point in OPPOSITE directions: hollowness folds toward covered, readability
- * folds toward UNCOVERED — so without this count, "no test names this contract" and "I could not read
- * that test's title" arrive at a reader identically, and frozen on a signature. That is not
- * hypothetical: it is the failure ADR-0127 already records (PR #1172 stamped `coverage 0/6` over six
- * tests that all existed and passed).
+ * Plus TWO honesty qualifiers on those lists — `unreadTitles` (2026-08-06) and `gated` (2026-09-16).
+ * Neither is a richer record of the kind the owner's minimal choice ruled out (that was about freezing
+ * covering test NAMES, verbosity with no honesty payoff); each is what keeps `uncovered` meaning ONE
+ * thing instead of several. ADR-0126 folds three ways and only the first folds toward covered:
+ * hollowness folds toward COVERED, while readability and executability both fold toward UNCOVERED — so
+ * without these qualifiers "no test names this contract", "I could not read that test's title" and
+ * "a test names it but may not have run" all arrive at a reader identically, and frozen on a signature.
+ * That is not hypothetical: it is the failure ADR-0127 already records (PR #1172 stamped `coverage 0/6`
+ * over six tests that all existed and passed).
  */
 export const ContractCoverageAxis = z
   .object({
@@ -81,6 +82,32 @@ export const ContractCoverageAxis = z
      * always populates it. Never a gate signal on its own — it qualifies a claim, it does not make one.
      */
     unreadTitles: z.number().int().nonnegative().optional(),
+    /**
+     * The GATED declared contract ids — a SUBSET of {@link uncovered}: named by no vouching test, but
+     * named by a SUBSTANTIVE one carrying an options-form skip whose value is an expression
+     * (`{ skip: !DB }`), which a static read cannot evaluate. The second honesty qualifier, and the
+     * same discipline as `unreadTitles` in THREE states, which is why the producer stamps the empty
+     * list:
+     *  - **absent** — signed before this field existed, or by a producer that does not measure
+     *    executability: `uncovered` carries the old ambiguity and cannot be resolved after the fact;
+     *  - **`[]`** — measured clean: nothing on the surface is gated, so `uncovered` is a claim about
+     *    MISSING tests;
+     *  - **non-empty** — measured: these contracts DO have a substantive test, and whether it ran
+     *    depends on the environment the file loaded in.
+     *
+     * **Separation, never credit.** A gated id stays in `uncovered`, so no gate signal and no ceiling
+     * moves. It is deliberately not credited even where the spine forces the environment (a
+     * `real.db: true` unit's `--real` build does start the database its `{ skip: !DB }` tests read):
+     * the static read sees an EXPRESSION, not which condition it tests, and `!DB` is the same shape as
+     * a credential gate nothing forces. Crediting on shape would over-claim for the second — the
+     * direction ADR-0127's PR #1172 incident went wrong in.
+     *
+     * IDS rather than a count, unlike `unreadTitles`, because an unread title is unattributable BY
+     * CONSTRUCTION while a gated test's title read perfectly. A count here would leave a reader of a
+     * signed verdict unable to say WHICH of the uncovered contracts it qualifies, on an axis that
+     * otherwise speaks entirely in contract ids.
+     */
+    gated: z.array(z.string()).optional(),
   })
   .strict();
 export type ContractCoverageAxis = z.infer<typeof ContractCoverageAxis>;

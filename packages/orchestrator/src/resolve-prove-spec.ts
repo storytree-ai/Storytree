@@ -1107,6 +1107,15 @@ function realClusterRefusal(
  * the coverage fact for the readable majority to flag a minority caveat, and measurement is against
  * it — across all 123 real-build surfaces in this repo the only unread title was a phantom, and that
  * rule would have deleted a correct 2/3 axis on the strength of it.
+ *
+ * `gated` (2026-09-16) rides along on exactly the same terms, for ADR-0126's THIRD fold: a contract
+ * named only by a substantive test carrying `{ skip: <expr> }` is separated from one no test names,
+ * and the empty list is stamped for the same three-state reason the zero is. It does NOT credit, and
+ * the temptation is specific enough to name: this seam runs on the `--real` path, where a `real.db:
+ * true` unit's build DOES force the database such a test reads, so it can look as though the gate
+ * knows the test ran. It does not — the static read sees an EXPRESSION, and `!DB` is the same shape
+ * as a credential gate nothing forces. Crediting on that shape would stamp a green over a test that
+ * never ran, which is the direction the PR #1172 incident above went wrong in.
  */
 function computeContractCoverage(
   spec: NodeSpec,
@@ -1122,11 +1131,17 @@ function computeContractCoverage(
   } catch {
     return undefined;
   }
-  const report = classifyDeclaredCoverage(spec.id, spec.contracts, surface.vouching);
+  const report = classifyDeclaredCoverage(
+    spec.id,
+    spec.contracts,
+    surface.vouching,
+    surface.gatedNames,
+  );
   return {
     covered: report.covered,
     uncovered: report.uncovered,
     unreadTitles: surface.unreadTitles,
+    gated: report.gated,
   };
 }
 

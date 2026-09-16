@@ -2622,15 +2622,18 @@ export function loadCoverageUnit(storiesDir: string, root: string, unitId: strin
   ].filter((candidate, index, files) => files.indexOf(candidate) === index);
   const existing = absFiles.filter((f) => existsSync(f));
   const testNames: string[] = [];
+  const gatedTestNames: string[] = [];
   let unreadTitles = 0;
   for (const f of existing) {
     try {
       // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
-      // reads uncovered. `unreadTitles` rides along so the report can distinguish a contract NO test
-      // names from one whose test has a title the static reader could not read.
+      // reads uncovered. Both qualifiers ride along so the report can distinguish a contract NO test
+      // names from one whose test has a title the static reader could not read (`unreadTitles`), and
+      // from one whose test is substantive but conditionally skipped (`gatedTestNames`).
       const surface = readTestSurface(readFileSync(f, "utf8"), f);
       testNames.push(...surface.vouching);
       unreadTitles += surface.unreadTitles;
+      gatedTestNames.push(...surface.gatedNames);
     } catch {
       // An unreadable test file contributes no names (fail-closed toward "uncovered").
     }
@@ -2641,6 +2644,7 @@ export function loadCoverageUnit(storiesDir: string, root: string, unitId: strin
     testNames,
     testFiles: existing.map((f) => path.relative(root, f).replace(/\\/g, "/")),
     unreadTitles,
+    gatedTestNames,
   };
 }
 

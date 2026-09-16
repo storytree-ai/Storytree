@@ -22,6 +22,14 @@ import type { Verdict } from "@storytree/proof-protocol";
  * tests. Rendered only when non-zero — a `0` is the axis saying it measured and found nothing unread,
  * which the unqualified clause already conveys — and the clause is byte-identical to before for every
  * verdict whose titles all read.
+ *
+ * A non-empty `gated` (2026-09-16) appends `⚠ gated: <ids>` as a further note in the same parenthetical.
+ * It NAMES the subset of `uncovered` that a substantive test does cover, behind an options-form skip
+ * whose value a static read cannot evaluate — so a reader stops seeing "no test covers it" where the
+ * honest claim is "a test covers it and may not have run". The ids are restated rather than marked
+ * inside the `uncovered` list so that list stays byte-identical, exactly as the unread caveat does.
+ * Rendered only when non-empty: an empty `gated` is the axis saying it measured executability and found
+ * nothing gated, so every clean verdict — and every verdict signed before the field — renders unchanged.
  */
 export function verdictLine(verdict: Verdict): string {
   const shortSha = verdict.commitSha.slice(0, 7);
@@ -33,6 +41,9 @@ export function verdictLine(verdict: Verdict): string {
   if (cov.uncovered.length > 0) notes.push(`⚠ uncovered: ${cov.uncovered.join(", ")}`);
   if (cov.unreadTitles !== undefined && cov.unreadTitles > 0) {
     notes.push(`⚠ ${cov.unreadTitles} title(s) unread`);
+  }
+  if (cov.gated !== undefined && cov.gated.length > 0) {
+    notes.push(`⚠ gated: ${cov.gated.join(", ")}`);
   }
   const suffix = notes.length > 0 ? ` (${notes.join("; ")})` : "";
   return `${base} — coverage ${cov.covered.length}/${total} contracts${suffix}`;

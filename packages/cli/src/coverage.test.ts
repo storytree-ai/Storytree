@@ -79,6 +79,113 @@ test("a loader that does not measure unread titles adds no caveat (absent ≠ ze
   assert.ok(!/could NOT be read/.test(env.body));
 });
 
+test("an UNCOVERED report says whether the test is ABSENT or only GATED, per contract", async () => {
+  // The live instance (`claim-store-work-time`, 2026-09-16): two substantive tests NAME the contract
+  // and both carry `{ skip: !DB }`, so the report told the author "no substantive test covers it" —
+  // the same words it uses for a contract nobody ever wrote a test for.
+  const env = await coverageCommand(
+    "u",
+    deps({
+      loadUnit: () => ({
+        ...FOREST_UNIT,
+        gatedTestNames: ["fr-bounded-never-hangs: only against the live broker"],
+      }),
+    }),
+  );
+  // The per-contract line is the one that was lying, so it is the one pinned — WHOLE, because a
+  // containment check passes just as happily over a blanked reason or a lost separator.
+  assert.ok(
+    env.body.includes(
+      "  ◐ fr-bounded-never-hangs                         GATED      " +
+        'by "fr-bounded-never-hangs: only against the live broker" — conditionally skipped, so it may not have run',
+    ),
+    env.body,
+  );
+  // …and the contract nobody named still reads exactly as before.
+  assert.match(env.body, /fr-write-brokers-not-direct\s+UNCOVERED\s+no substantive test covers it/);
+  // SEPARATION, NEVER CREDIT: the gated contract is still counted uncovered, and the check still fails.
+  assert.equal(env.ok, false);
+  assert.match(env.body, /contracts: 4\s+\(1 covered, 3 uncovered\)/);
+  assert.match(env.body, /1 of those GATED, not absent: fr-bounded-never-hangs/);
+});
+
+test("the GATED block is pinned WHOLE, including the id separator and every line of its guidance", async () => {
+  // Pinned line-for-line rather than matched. The guidance is the POINT of this block — it is what
+  // stops an author writing a second test — and a containment check on the header survives every line
+  // under it being blanked. Two gated ids, so the `", "` that joins them is exercised too: with one id
+  // the separator never runs, and a report that lost it would read `a, b` as a single name.
+  const env = await coverageCommand(
+    "u",
+    deps({
+      loadUnit: () => ({
+        ...FOREST_UNIT,
+        gatedTestNames: [
+          "fr-fails-closed-with-guidance-when-unbrokered: refuses when the broker is absent",
+          "fr-bounded-never-hangs: only against the live broker",
+        ],
+      }),
+    }),
+  );
+  assert.ok(
+    env.body.includes(
+      [
+        // Anchored to the LAST line of the uncovered block above it, so the blank separator between
+        // the two is pinned as a blank: without the anchor, text injected there still leaves the
+        // "\n⚠ …" the assertion looks for intact, and the block can grow a line nobody notices.
+        "  or split/retire the contract if it is not a real obligation.",
+        "",
+        "⚠ 2 of those GATED, not absent: fr-fails-closed-with-guidance-when-unbrokered, fr-bounded-never-hangs",
+        "  A SUBSTANTIVE test names each, but it carries an options-form skip whose value is an expression",
+        "  (`{ skip: !DB }`), so whether it ran depends on the environment the file loaded in. It is NOT",
+        "  credited: this reader sees the expression, not which condition it tests, so a live-DB gate the",
+        "  spine forces and a credential gate nothing forces look identical here. Do not write a second",
+        "  test — either run the suite in the environment that ungates it, or move the assertion behind a",
+        "  seam an offline test can drive.",
+      ].join("\n"),
+    ),
+    env.body,
+  );
+  // Still 3 uncovered, still failing — two of the three now carry a reason, none carries credit.
+  assert.equal(env.ok, false);
+  assert.match(env.body, /contracts: 4\s+\(1 covered, 3 uncovered\)/);
+});
+
+test("a loader that measures no gated tests adds no gated block, and a clean surface raises none", async () => {
+  // Absent (the loader never asked) and `[]` (asked, nothing gated) both render silently — there is
+  // nothing to say about a surface with no gate. The DIFFERENCE between them lives on the signed axis,
+  // where a later auditor cannot re-ask; this report is re-run on demand.
+  const unmeasured = await coverageCommand("u", deps({ loadUnit: () => FOREST_UNIT }));
+  assert.ok(!/GATED/.test(unmeasured.body));
+  const measuredClean = await coverageCommand(
+    "u",
+    deps({ loadUnit: () => ({ ...FOREST_UNIT, gatedTestNames: [] }) }),
+  );
+  assert.equal(measuredClean.body, unmeasured.body);
+});
+
+test("a gated test beside a COVERING one changes nothing — nothing is being withheld", async () => {
+  const env = await coverageCommand(
+    "u",
+    deps({
+      loadUnit: () => ({
+        ...FOREST_UNIT,
+        gatedTestNames: ["fr-ready-when-broker-accepts-builder: also exercised against the live broker"],
+      }),
+    }),
+  );
+  assert.match(env.body, /fr-ready-when-broker-accepts-builder\s+COVERED/);
+  assert.ok(!/\s+GATED\s+by /.test(env.body), "an already-covered contract gets no GATED classification line");
+  assert.ok(!/of those GATED, not absent/.test(env.body), "…and no gated block: nothing is being withheld");
+  // The surface still SAYS what it carried, and the two numbers come apart here — which is the case
+  // that proves they count different things rather than being one number rendered twice.
+  assert.ok(
+    env.body.includes(
+      "conditionally skipped test(s) on this surface: 1 — they leave 0 declared contract(s) GATED rather than absent.",
+    ),
+    env.body,
+  );
+});
+
 test("GREEN: a unit whose every contract is named by a test PASSES the check", async () => {
   const env = await coverageCommand(
     "deploy-health-signal",
@@ -137,6 +244,45 @@ test("end-to-end over the REAL corpus: deploy-health-signal's three contracts ar
   assert.match(env.body, /contracts: 3\s+\(3 covered, 0 uncovered\)/);
   assert.match(env.body, /deploy-health-red-run-classifies-loud\s+COVERED/);
   assert.match(env.body, /scanned 1 test file\(s\).*deploy-health\.test\.ts/);
+});
+
+test("end-to-end over the REAL corpus: claim-store-work-time's live-DB contract reads GATED, not absent", async () => {
+  // The instance this separation was built for, driven through the REAL disk loader — which is the
+  // only thing that proves the loader COLLECTS gated names at all. The fixture-loader tests above hand
+  // `gatedTestNames` to the renderer ready-made, so they would all stay green if the loader silently
+  // gathered none, and the surface would go back to telling the author a test is missing.
+  //
+  // `release-claims-by-branch-clears-the-branch` is named only by the two `{ skip: !DB }` tests in
+  // `claim-store-release-by-branch.live.test.ts`. Before this landed, this command printed it
+  // `UNCOVERED  no substantive test covers it` (ADR-0126, 2026-09-16).
+  const env = await run(["coverage", "claim-store-work-time"], { store: new InMemoryStore() });
+  assert.match(env.body, /release-claims-by-branch-clears-the-branch\s+GATED\s+by "release-claims-by-branch-clears-the-branch: /);
+  assert.match(env.body, /1 of those GATED, not absent: release-claims-by-branch-clears-the-branch/);
+  // SEPARATION, NEVER CREDIT — asserted against the real corpus, because this is the count a drain
+  // ceiling and the ADR-0353 sweep remainder both key off. The qualifier may never move it.
+  assert.match(env.body, /contracts: 4\s+\(3 covered, 1 uncovered\)/);
+  assert.equal(env.ok, false, "a gated contract is still uncovered — the check still refuses to pass");
+  assert.match(env.body, /1 UNCOVERED contract\(s\): release-claims-by-branch-clears-the-branch/);
+  // What the loader COLLECTED, not just what matched — the only assertion here that fails if the
+  // loader gathers the wrong gated names rather than none at all. Both numbers are pinned because
+  // they answer different questions: the first is about the surface, the second about the contracts.
+  // What the loader COLLECTED, beside what matched — the only assertion here that fails if the loader
+  // gathers the wrong gated names rather than none at all. The two numbers count different things and
+  // are measured, not assumed: this surface carries TWO `{ skip: !DB }` tests and they both name the
+  // same single contract, so 2 → 1 is the honest reading, not an off-by-one.
+  assert.ok(
+    env.body.includes(
+      [
+        // Anchored to the gated block's last line for the same reason that block is anchored to the
+        // uncovered block's: a bare `includes` of the count leaves the blank separator above it free
+        // to grow a line, and this footer's whole job is to sit apart from the block it qualifies.
+        "  seam an offline test can drive.",
+        "",
+        "conditionally skipped test(s) on this surface: 2 — they leave 1 declared contract(s) GATED rather than absent.",
+      ].join("\n"),
+    ),
+    env.body,
+  );
 });
 
 test("end-to-end: coverage unions real.testFile with the extra real scope test globs", async () => {
