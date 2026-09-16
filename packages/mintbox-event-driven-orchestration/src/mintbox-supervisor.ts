@@ -201,6 +201,9 @@ export function decideMintboxSupervisorEvent(
   state: MintboxSupervisorState,
   event: MintboxSupervisorEvent,
 ): MintboxEventDecision {
+  // Events can cross this boundary from an untyped durable/runtime producer.  Ignore an
+  // unrecognised kind before deriving or persisting a key so it cannot consume a wake.
+  if (!isMintboxEventKind(event.kind)) return { state, wake: null };
   validateEvent(event);
   const dedupeKey = mintboxEventDedupeKey(event);
   if (state.wakeKeys.includes(dedupeKey)) return { state, wake: null };
@@ -367,6 +370,13 @@ function refreshHandleObservation(existing: MintboxDetachedHandle, incoming: Min
 }
 function latestHandle(handles: readonly MintboxDetachedHandle[], role: MintboxHandleRole): MintboxDetachedHandle | undefined { return [...handles].reverse().find((handle) => handle.role === role); }
 function asCoordinatorEffort(effort: string): CoordinatorEffort { if (effort === "high" || effort === "xhigh") return effort; throw new Error(`invalid Mintbox coordinator effort: ${effort}`); }
+function isMintboxEventKind(kind: string): kind is MintboxEventKind {
+  return kind === "completion"
+    || kind === "failure"
+    || kind === "dependency-release"
+    || kind === "empty-ready-worker"
+    || kind === "owner-attestation-gate";
+}
 function assertDate(value: string, label: string): void { if (!Number.isFinite(Date.parse(value))) throw new Error(`${label} must be an ISO-compatible timestamp`); }
 function assertPercent(value: number): void { if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("weekly usage percent must be between 0 and 100"); }
 function validateEvent(event: MintboxSupervisorEvent): void { if (event.subject.trim() === "" || event.deliveryId.trim() === "") throw new Error("Mintbox event subject and deliveryId are required"); assertDate(event.occurredAt, "event occurredAt"); if (event.rendererEvidence !== undefined && event.rendererEvidence.rendererId.trim() === "") throw new Error("Mintbox renderer evidence needs a rendererId"); }

@@ -44,6 +44,17 @@ test("each meaningful event wakes exactly once across retry and supervisor recov
   }
 });
 
+test("mintbox-meaningful-events-wake-once: ignores an unrecognised runtime event kind without consuming its wake key", () => {
+  const initial = createMintboxSupervisorState(facts);
+  const runtimeEvent = { ...event } satisfies Parameters<typeof decideMintboxSupervisorEvent>[1];
+  Reflect.set(runtimeEvent, "kind", "conversation-message");
+
+  const decision = decideMintboxSupervisorEvent(initial, runtimeEvent);
+
+  assert.equal(decision.wake, null);
+  assert.deepEqual(decision.state, initial);
+});
+
 test("state owns detached handles and digest carries bounded facts rather than raw transcripts", () => {
   const renderer = { id: "renderer-1", role: "renderer" as const, pid: 12, host: "mint", detached: true as const, startedAt: "2026-09-09T00:00:00.000Z", health: "running" as const, model: "existing-renderer", effort: "n/a" };
   const worker = { id: "worker-1", role: "worker" as const, pid: 13, host: "mint", detached: true as const, startedAt: "2026-09-09T00:01:00.000Z", health: "running" as const, model: "gpt-5.6-terra", effort: "high", lane: "canopy" };
