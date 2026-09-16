@@ -1751,7 +1751,7 @@ export function assertIncrementInvariants(doc: Increment): void {
       `increment "${doc.id}" is status "closed" but carries no \`outcome\`. ` +
         "A closed increment IS the arc's landing-log entry (ADR-0305 D3/D5) — closing one without " +
         "recording what happened deletes the residue the fold exists to keep. Use `arc increment " +
-        "close <id> --pr <ref> --pg`, or `--note` when it closed for any other reason.",
+        "close <id> --pr <ref> --pg`, or `--note` AND `--disposition` when it closed any other way.",
     );
   }
   if (
