@@ -427,6 +427,11 @@ the now-settled modeling call.
   resolves a paid build's increment and preflights the units it will drive against the attempt ledger
   from injected read handles, before any database, worktree or leaf spend, and owns the one entry state
   every paid REAL entry renders. The entries that call it are later units.
+- [`real-lifecycle-records-its-attempt`](real-lifecycle-records-its-attempt.md) — contract grain,
+  spec-borne, edit-existing proof over `buildNodeReal`, proposed (ADR-0576 D5). Given an increment, it
+  records one attempt immediately before the gate walk and one signed pass after a signed result,
+  refuses the walk when the attempt cannot be recorded, and records nothing without an increment, so
+  story-chain members (ADR-0576 D7) are unaffected.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
