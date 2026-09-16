@@ -16,6 +16,7 @@ import { parseAuthoringEscalation } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
+  appendInnerLoopEvent,
   createBuildWorktree,
   findNodeSpecFile,
   loadNodeSpec,
@@ -1482,11 +1483,43 @@ export interface RealBuildArgs {
    * regardless, because a verdict must never out-run the observation that backs it.
    */
   promote?: boolean;
+  /**
+   * ADR-0576 D5: the arc increment this attempt is filed under. Present, a durable attempt is
+   * appended to the inner-loop attempt ledger immediately before the gate walk, and a signed pass is
+   * appended after a signed result. Absent (including every story-chain member, ADR-0576 D7's own
+   * walk), nothing is recorded at all.
+   */
+  incrementId?: string | undefined;
+}
+
+/**
+ * The outcome of ONE append to the durable inner-loop attempt ledger (ADR-0576 D5): recorded, or
+ * refused with the reason the store gave.
+ */
+export type InnerLoopAppend =
+  | { readonly recorded: true }
+  | { readonly recorded: false; readonly reason: string };
+
+/**
+ * What {@link buildNodeReal} recorded on the durable inner-loop attempt ledger for this walk
+ * (ADR-0576 D5) — never a grant, never an adjudication: a paid build records only what the spine
+ * observed.
+ */
+export interface InnerLoopRecording {
+  readonly incrementId: string;
+  readonly attempt: InnerLoopAppend;
+  readonly signedPass?: InnerLoopAppend;
 }
 
 /** Outcome of {@link buildNodeReal}: the gate result plus the promotion/backstop facts (when promoting). */
 export interface RealBuildResult {
   result: ProveResult;
+  /**
+   * Present exactly when an attempt append was made (ADR-0576 D5) — absent when no `incrementId` was
+   * supplied, or when the walk was refused before the gate (e.g. a resolution refusal). Never set to
+   * `undefined`.
+   */
+  innerLoop?: InnerLoopRecording;
   liveAuthor?: LiveAuthor;
   /** The verdict's commit (= the new worktree HEAD) on a pass that authored; undefined otherwise. */
   commitSha?: string;
@@ -1617,8 +1650,49 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
       return { ok: true };
     };
   }
+  // ADR-0576 D5: a durable attempt is recorded on the inner-loop ledger immediately before the gate
+  // walk — Trap 6, the only FAIL-CLOSED append in this function: a build that could not record its
+  // attempt must never spend on a walk the ledger will never count. Nothing before this point is an
+  // attempt at the unit — not the `building` event above, not resolution.
+  let innerLoop: InnerLoopRecording | undefined;
+  if (args.incrementId !== undefined) {
+    const incrementId = args.incrementId;
+    try {
+      await appendInnerLoopEvent(store, { event: "attempt", unitId: spec.id, incrementId, runId }, signer);
+      innerLoop = { incrementId, attempt: { recorded: true } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        result: {
+          ok: false,
+          failedAt: "AUTHOR_TEST",
+          reason:
+            `inner-loop attempt for ${spec.id} (run ${runId}, increment ${incrementId}) could not be ` +
+            `recorded: ${message} — the walk is refused before the leaf (ADR-0576 D5)`,
+          phasesVisited: [],
+        },
+        innerLoop: { incrementId, attempt: { recorded: false, reason: message } },
+      };
+    }
+  }
   // A build run never writes session presence (ADR-0199) — work-events + the claim only.
   const result = await proveUnit(resolved.spec);
+  // ADR-0576 D5: one signed pass appended after a signed result — advisory in the sense that a throw
+  // here never overturns the verdict (it is already signed), but never swallowed either: reported on
+  // `innerLoop.signedPass` so an unrecordable pass is visible rather than silently lost.
+  if (innerLoop !== undefined && result.ok) {
+    try {
+      await appendInnerLoopEvent(
+        store,
+        { event: "signed-pass", unitId: spec.id, incrementId: innerLoop.incrementId, runId },
+        signer,
+      );
+      innerLoop = { ...innerLoop, signedPass: { recorded: true } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      innerLoop = { ...innerLoop, signedPass: { recorded: false, reason: message } };
+    }
+  }
   // Per-slice token accounting (advisory): what each authoring slice consumed, persisted to the
   // run's store — events.usage_event under --store pg. Appended for PASS and FAIL alike (a red
   // slice billed too); never proof, and a failed write never fails the build.
@@ -1650,6 +1724,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     forensicPreservation = await promoteRealPass(preservationRequest);
   }
   const out: RealBuildResult = { result };
+  if (innerLoop !== undefined) out.innerLoop = innerLoop;
   if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
   // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
   // alike, so the report can say WHICH observation refused the verdict.
