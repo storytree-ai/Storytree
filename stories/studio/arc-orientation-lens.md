@@ -233,7 +233,7 @@ two: still-loading, read-never-answered, store-absent and store-empty each rende
 The authored rung remains `proposed` until current signed proof exists. The `GET /api/arcs` seam and the live
 poll cadence are exercised nowhere in this scope — the stated gaps recorded above, not claimed here.
 
-## Contracts (10)
+## Contracts (11)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Every contract here has a REAL passing test (`proven by`).
@@ -403,3 +403,18 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
     - **covers —** `apps/studio/src/lib/floorHealth.ts`
     - **proven by —** `apps/studio/src/lib/floorHealth.test.ts:51`, `:68`, `:81`, `:87`, `:97`,
       `:101`, `:109`, `:114`, `:139`, `:146`, `:161`, `:171`, `:181`, `:204`, `:212` (REAL, passing)
+11. **`work-waiting-on-the-owner-reads-yellow`** — the owner's colour for work that stopped to ask him
+      something (ADR-0574 D1)
+    - **asserts —** `laneBars` paints an open increment the server resolved as waiting (`waitingOn`)
+      with the `waiting` tone, drawn in the palette's yellow (`.arc-bar-waiting`, `--lp-sun`), while
+      every other bar on the arc keeps its own tone; `waiting` outranks `gated`, so a gate never buries
+      a question; a closed row is never painted waiting whatever it carries, because waiting is a
+      reading of open work and not a fourth disposition; the bar's tooltip names the question it waits
+      on, since that question may live on another arc; no count is added beside the bars (held work
+      stays inside `queued`); and the yellow sits at least 25 CIELAB units from the grey, green, red,
+      withdrawn and gated tones. The reading is the server's (`incrementWaitingOn` in
+      `packages/arc`) — this surface paints it and never re-derives it.
+    - **covers —** `apps/studio/src/lib/arcSurface.ts` (`laneBars`, `laneBarTitle`),
+      `apps/studio/src/components/ArcSurface.tsx`, `apps/studio/src/index.css` (`.arc-bar-waiting`)
+    - **proven by —** `apps/studio/src/lib/arcSurface.test.ts`, the ADR-0574 `laneBars` group; and
+      `apps/studio/src/components/ArcSurface.test.tsx`, the ADR-0574 group (REAL, passing)
