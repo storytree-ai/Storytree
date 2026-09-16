@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { PhaseAuthor } from "@storytree/agent";
+import type { LiveRuntime, PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
 import type { Store } from "@storytree/storage-protocol";
@@ -231,13 +231,25 @@ export function honestFramingStoryLive(
   persisted: boolean,
   run: ChainRun,
   driveOrder: readonly unknown[],
+  runtime: LiveRuntime,
 ): string {
+  // The leaf and its WRITE FENCE are both runtime-specific, and naming either as a literal was the
+  // defect: `resolveLiveRuntime` DEFAULTS TO CODEX, so a bare `story build --live` named the Claude
+  // Agent SDK while the envelope's own `runtime:` line, a few lines above, said `codex`. Each arm
+  // cites the decision that admitted THAT leaf, not ADR-0030 for all three.
+  const leaf =
+    runtime === "codex"
+      ? "the Codex CLI on saved ChatGPT subscription authentication (ADR-0232/0555, the DEFAULT leaf),\nauthoring in a disposable replica the spine promotes the exact phase manifest from"
+      : runtime === "pi"
+        ? "the pi agent loop against Anthropic on the subscription credential (ADR-0449), under pi's\nin-process tool_call fence"
+        : "the Claude Agent SDK on subscription authentication (ADR-0030), under a fail-closed PreToolUse\nwrite hook";
   return (
-    "honest framing: a live story build proves the CHAIN with a REAL Claude Agent SDK leaf per node\n" +
-    "(ADR-0030, subscription-funded; no USD ceiling by default — the turn cap is the brake, ADR-0130)\n" +
-    "— genuine authoring, hook-held write walls, spine-observed red→green per node. The TASK per node\n" +
-    "is still the synthetic add(2,3) pair in a temp workspace (`node build --real` is the per-node real\n" +
-    "path; chaining REAL builds is later work). Authored statuses are untouched.\n" +
+    "honest framing: a live story build proves the CHAIN with a REAL subscription leaf per node —\n" +
+    `${leaf}.\n` +
+    "No USD ceiling by default; the turn cap is the brake (ADR-0130). Genuine authoring and\n" +
+    "spine-observed red→green per node. The TASK per node is still the synthetic add(2,3) pair in a\n" +
+    "temp workspace (`node build --real` is the per-node real path; chaining REAL builds is later\n" +
+    "work). Authored statuses are untouched.\n" +
     chainVerdictFate(run, driveOrder, persisted)
   );
 }
@@ -248,6 +260,7 @@ export function honestFramingStoryReal(
   run: ChainRun,
   driveOrder: readonly unknown[],
   promotion: PromotionResult | undefined,
+  runtime: LiveRuntime,
 ): string {
   const landing =
     promotion === undefined
@@ -259,16 +272,28 @@ export function honestFramingStoryReal(
   // claim is made only about members that actually signed: the spine commits a node's authored files
   // only after that node's gate passes (`commitSha` is set iff `result.ok`), so a chain that signed
   // nothing committed nothing either, and `promotionSkipped` says as much on its own line.
+  // Two arms, not three, because `--real` REFUSES pi (`resolveProveSpec` — ADR-0449 authorised a
+  // live-smoke trial, never a promotion path), so the pi text would pin a shape no run can reach.
+  // `node build`'s real framing makes the same two-arm split for the same reason.
+  const leaf =
+    runtime === "codex"
+      ? "the ChatGPT-subscription Codex leaf, authoring in a\ndisposable replica the spine promoted the exact phase manifest from"
+      : "the Claude Agent SDK leaf, under a fail-closed PreToolUse\nwrite hook";
+  // The leaf goes at the END of its sentence rather than mid-clause, so each arm wraps on its own
+  // length instead of leaving a ragged stub wherever the interpolation happens to land.
   const walked =
     run.outcomes.length === 0
       ? "NO member completed that gate: no node's red→green was ever observed and nothing was\ncommitted"
-      : "Each member that SIGNED completed it for real — the leaf authored its REAL test/impl at real\npaths under hook-enforced write scope, the spine observed the genuine red→green, and the spine\ncommitted the authored files";
+      : "Each member that SIGNED completed it for real — the leaf authored its REAL test/impl at their\nreal repo paths, the spine observed the genuine red→green, and the spine committed the authored\nfiles";
+  // A chain that signed nothing attributes the authoring to NO leaf: there is no authoring to
+  // attribute, and naming one would be the same pass-shaped narration this framing exists to avoid.
+  const leafSentence = run.outcomes.length === 0 ? "" : `\nThat leaf was ${leaf}.`;
   return (
     "honest framing: a REAL story build (ADR-0057 §3 expansion D). Each node is driven through the\n" +
     "FULL prove-it-gate for real, in ONE shared worktree in dependency order, so each node builds on\n" +
     "the committed result of the nodes before it (the story grows). Halt-is-never-a-pass holds: a node\n" +
     "failing closed halts the chain and later nodes never run.\n" +
-    `${walked}; ${landing}.\n` +
+    `${walked}; ${landing}.${leafSentence}\n` +
     chainVerdictFate(run, driveOrder, persisted)
   );
 }
@@ -1103,9 +1128,9 @@ export async function storyBuild(
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real
-      ? honestFramingStoryReal(persisted, run, driveOrder, promotion)
+      ? honestFramingStoryReal(persisted, run, driveOrder, promotion, runtime)
       : live
-        ? honestFramingStoryLive(persisted, run, driveOrder)
+        ? honestFramingStoryLive(persisted, run, driveOrder, runtime)
         : honestFramingStoryDry(run, driveOrder);
 
     if (!run.passed) {
