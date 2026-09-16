@@ -196,6 +196,52 @@ step says "contains".
 `## Proof walkthrough` and the full assertion under `## Contracts (6)` — before writing. The
 contract-id briefing in the phase prompt is an index, never a substitute for that reading.
 
+Attempt 1 (run real-mu46sjol) exhausted 60 IMPLEMENT turns navigating commands.ts without running the proof; attempt 2 changes the turn budget (120) and adds these anchors — the contract is unchanged.
+
+**Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
+quoted text if they have moved.
+- `packages/cli/src/commands.ts`:
+  - the `@storytree/orchestrator` import block at ~49, which already imports `loadNodeSpec` and
+    `findNodeSpecFile`; the `@storytree/drive` imports around
+    `import { loadWorkHierarchyIndex } from "@storytree/drive";` at ~266; `type Envelope` from
+    `./envelope.js` at ~244; the local `repoRoot()` at ~519;
+  - `RunDeps` at ~2193, with its `uatStore` field (the seam precedent) at ~2323;
+  - `refuseMemoryStore` at ~2713, which ends just above the `// build workflow` banner at ~2731.
+    Module-scope helpers belong there, near `nodeStoryBuildOpts` at ~2761;
+  - `CLI_OPTIONS` at ~3088, with `"revise-test": { type: "string" },` at ~3132;
+  - `run` at ~3397, its `const [area, sub, third, fourth] = positionals;` at ~3462, and the
+    `if (area === "node") {` arm at ~3509;
+  - **the sibling verb to copy is `node log`**, `if (sub === "log") {` at ~3515: a node sub-verb that
+    refuses without a unit id, refuses when its store seam (`deps.workLog`) is null, then reads and
+    renders;
+  - `node walls` at ~3548, then `if (sub !== "build") {` (the unknown-node-command refusal) at ~3583.
+- `packages/cli/src/main.ts`: `buildStore` at ~85, with its return type's
+  `uatStore: UatVerdictStoreLike | null;` at ~92, `uatStore: work,` in the `--pg` branch at ~134, and
+  `uatStore: null,` in the door branch at ~168 and the lazy branch at ~209; then `main`'s destructure
+  (`uatStore,` at ~508) and its `deps` bag (`uatStore,` at ~527). `type Store` is already imported at
+  ~7.
+- `packages/cli/src/at-path.ts`: `PROSE_FLAGS` at ~48, with `"evidence",` at ~97; `LITERAL_FLAGS` at
+  ~116, with `"revise-test",` at ~184.
+- **Signatures attempt 1 had to look up:**
+  - `resolveBuildConfig(spec)` returns `{ config: NodeBuildConfig; source } | null`
+    (`packages/orchestrator/src/resolve-prove-spec.ts` ~503). `NodeBuildConfig.real?` is a
+    `RealProofConfig` carrying `sourceFile` (`packages/orchestrator/src/proof-config.ts` ~23, ~92).
+  - `findNodeSpecFile(storiesDir, unitId): string | null` (~249) and `loadNodeSpec(file)` (~164), in
+    `packages/orchestrator/src/node-spec.ts`.
+  - `InnerLoopLedger` (~19) and `appendInnerLoopEvent` (~206), in
+    `packages/orchestrator/src/proof/inner-loop-ledger.ts`.
+  - `LandingObjection` (~66), `AdjudicateLandingSpec` (~84), `LandingAdjudication` (~116) and
+    `adjudicateLanding` (~150), in `packages/orchestrator/src/proof/inner-loop-exit.ts`.
+  - `recordNodeGrant` (~109), `recordNodeAdjudication` (~219), `readNodeAttempts` (~281) and
+    `strengthSignalFromTestScript` (~316), in `packages/cli/src/inner-loop-verbs.ts`;
+    `renderInnerLoopEntryState` (~320), in `packages/drive/src/inner-loop-entry.ts`.
+  - `Envelope` is `{ ok, body, next, doctrine? }` (`packages/drive/src/envelope.ts` ~8). `Store` (~110)
+    and `InMemoryStore` (~214) are in `packages/storage-protocol/src/store.ts`. `capSpec` (~65) and
+    `fixtureStories` (~98) are in `packages/drive/src/real-chain-fixture.ts`.
+- **Order of work.** Make the first compiling edit (the flags in `CLI_OPTIONS` and `at-path.ts`), then
+  call `run_proof` at once and iterate against its failures, one verb at a time. Add the `RunDeps`
+  seam and its `main.ts` wiring in the same pass, because no test reaches `main.ts`.
+
 **Decided by ADR-0576 D3** (`storytree library artifact adr-0576`): the orchestrator's grant and
 adjudication are recorded by `node`-area verbs, and `node attempts` reads the fold and the entry state
 D8 renders. The pure verbs already exist in `packages/cli/src/inner-loop-verbs.ts` (built by
