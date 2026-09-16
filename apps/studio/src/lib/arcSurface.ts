@@ -82,14 +82,22 @@ export function hasLanded(inc: ArcRollupIncrement): boolean {
 export const PROPOSAL_STATUS = 'proposal';
 
 /**
- * A bar's tone — ADR-0314 D2's model, plus `gated` (ADR-0523 / inc-05) and ADR-0564's three
- * terminal readings.
+ * A bar's tone — ADR-0314 D2's model, plus `gated` (ADR-0523 / inc-05), ADR-0564's three terminal
+ * readings, and ADR-0574's `waiting`.
  *
  * Two FAMILIES, and the split is what the reader is actually asking:
  *   - **TERMINAL** — `landed` (green: something landed), `failed` (red: the orchestrator recorded a
  *     failure), `withdrawn` (stopped rather than lost — a duplicate, a superseded plan), and
  *     `unrecorded` (closed, with no recorded call and no PR to derive one from).
- *   - **NOT YET** — `queued` (grey: not done), `gated` (not STARTABLE — ADR-0523's one extra tone).
+ *   - **NOT YET** — `queued` (grey: not done), `waiting` (yellow: held on the owner's unanswered
+ *     question), `gated` (not STARTABLE — ADR-0523's one extra tone).
+ *
+ * ⚠ `waiting` IS NOT A FOURTH TERMINAL READING (ADR-0574). It is a reading of OPEN work, and it
+ * exists because grey said two things at once: *nobody has touched this* and *this stopped to ask you
+ * something*. The owner's own reason for the yellow is that the second read as the first — "the
+ * increment doesnt color grey giving the false impression of incompleted work" — and that every
+ * OTHER bar on the arc stays visibly safe to take. It is resolved by the server
+ * (`ArcRollupSummaryIncrement.waitingOn`) and only painted here.
  *
  * ⚠ `unrecorded` IS THE ONE THAT LOOKS REDUNDANT AND IS NOT. Every increment closed before ADR-0564
  * existed is in it: 71 of the 77 on the arc that exposed this. It cannot be `landed` (D2: never
@@ -101,7 +109,7 @@ export const PROPOSAL_STATUS = 'proposal';
  * ⚠ `withdrawn` IS NOT A SHADE OF `failed` (D3, in terms): it "must not be reported as one". They
  * are separate values so that collapsing them costs a deliberate edit and reds a test.
  */
-export type LaneBarTone = 'landed' | 'failed' | 'withdrawn' | 'unrecorded' | 'queued' | 'gated';
+export type LaneBarTone = 'landed' | 'failed' | 'withdrawn' | 'unrecorded' | 'queued' | 'waiting' | 'gated';
 
 /** One bar of one lane: an increment, drawn as a unit rather than as a point in time. */
 export interface LaneBar {
@@ -110,6 +118,11 @@ export interface LaneBar {
   /** The stored `IncrementStatus` (or `"?"`), kept so a tooltip can say WHICH grey this is. */
   status: string;
   tone: LaneBarTone;
+  /**
+   * The questions a `waiting` bar is held on (ADR-0574) — present exactly when the tone is
+   * `waiting`, so {@link laneBarTitle} can name what the yellow is waiting FOR.
+   */
+  waitingOn?: string[];
 }
 
 /**
@@ -132,24 +145,50 @@ export interface LaneBar {
  * two answers differed on 71 of 77 rows. The split below is still HISTORY vs FUTURE — so every
  * terminal reading, failures included, stays in the first run: a reader who saw a failure among the
  * queued bars would take finished work for work still to come.
+ *
+ * WAITING (ADR-0574) is painted from the server's resolved `waitingOn`, never re-derived, and it
+ * OUTRANKS `gated` for the reason `waiting` outranks `blocked` on the lane's own chip: a gate must
+ * never bury a question the owner can answer. It is read on OPEN rows only — the server never sends it
+ * on a closed one, and reading it only where it can mean something keeps a malformed row from ever
+ * painting history yellow.
  */
 export function laneBars(rollup: ArcRollupSummary, gated = false): LaneBar[] {
-  const bar = (inc: ArcRollupSummaryIncrement): LaneBar => ({
-    id: inc.id,
-    title: inc.title,
-    status: inc.status,
-    tone:
-      inc.status === CLOSED_STATUS
+  const bar = (inc: ArcRollupSummaryIncrement): LaneBar => {
+    const terminal = inc.status === CLOSED_STATUS;
+    const waitingOn = terminal ? undefined : inc.waitingOn;
+    const row: LaneBar = {
+      id: inc.id,
+      title: inc.title,
+      status: inc.status,
+      tone: terminal
         ? // An absent `disposition` on a closed row is the server saying NOBODY RECORDED ONE and no
           // PR derived one — not that it failed. See `LaneBarTone` for why that needs its own value.
           (inc.disposition ?? 'unrecorded')
-        : gated
-          ? 'gated'
-          : 'queued',
-  });
+        : waitingOn !== undefined
+          ? 'waiting'
+          : gated
+            ? 'gated'
+            : 'queued',
+    };
+    if (waitingOn !== undefined) row.waitingOn = waitingOn;
+    return row;
+  };
   const terminal = rollup.increments.filter((i) => i.status === CLOSED_STATUS).map(bar);
   const open = rollup.increments.filter((i) => i.status !== CLOSED_STATUS).map(bar);
   return [...terminal, ...open];
+}
+
+/**
+ * One bar's tooltip — the increment's name and stored status, and for a `waiting` bar the question it
+ * is held on (ADR-0574).
+ *
+ * The question is NAMED rather than left to the colour, because it need not live on this arc: work can
+ * wait on a question homed on another initiative, so this lane's own briefing may not list it, and
+ * hovering the yellow is exactly where the owner asks "waiting on what?".
+ */
+export function laneBarTitle(bar: LaneBar): string {
+  const base = `${bar.title || bar.id} — ${bar.status}`;
+  return bar.waitingOn === undefined ? base : `${base} · waiting on your answer to ${bar.waitingOn.join(', ')}`;
 }
 
 /**
@@ -169,7 +208,15 @@ export interface LaneCounts {
   withdrawn: number;
   /** Closed with no recorded call and no PR to derive one from — every pre-ADR-0564 non-merge row. */
   unrecorded: number;
-  /** Not yet terminal — `proposal` / `ready` / `active`, and any unrecognised status. */
+  /**
+   * Not yet terminal — `proposal` / `ready` / `active`, and any unrecognised status.
+   *
+   * Work WAITING ON THE OWNER (ADR-0574) is counted here too and deliberately gains no bucket of its
+   * own: the decision is "one colour, one link, nothing else … no new count beside the bars", and the
+   * yellow bar is the whole signal on this strip. That leaves no false count behind it, because
+   * `queued` has only ever meant not-yet-terminal here, never takeable. Held work is counted APART
+   * on the surface a session picks work up from (`storytree arc list`), which is where D4 binds.
+   */
   queued: number;
 }
 

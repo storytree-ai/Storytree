@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { STORY_REF_PREFIX, type IncrementDisposition } from "@storytree/library";
+import { ASSET_REF_PREFIX, STORY_REF_PREFIX, type IncrementDisposition } from "@storytree/library";
 
 // Use the narrow subpaths instead of the `@storytree/drive` barrel: this module needs only ADR metadata
 // and claim-universe helpers, not the drive package's build/orchestrate runtime.
@@ -74,6 +74,16 @@ export interface ArcRollupIncrement {
    * ref naming a story that exists only on another branch is legal and this is how it says so.
    */
   danglingCites?: string[];
+  /**
+   * The unsettled questions this OPEN increment is waiting on the owner to answer (ADR-0574), as
+   * bare ids in the order the row names them — {@link incrementWaitingOn}'s reading, resolved here so
+   * no surface ever re-derives it.
+   *
+   * ABSENT when nothing holds the work, and that includes every CLOSED increment whatever its stored
+   * link says: waiting is a reading of work still to do, never a fourth disposition. It is a READING,
+   * not the stored `waitsOn` link — the link outlives the answer, this does not.
+   */
+  waitingOn?: string[];
   /** Present ⇔ `status` is `closed`: what happened, and why (ADR-0305 D5 / ADR-0564 D1). */
   outcome?: { date?: string; pr?: string; note?: string; disposition?: IncrementDisposition };
 }
@@ -270,6 +280,16 @@ export interface ArcRollupSummaryIncrement {
    * this is one short enum, not the object.
    */
   disposition?: IncrementDisposition;
+  /**
+   * The questions this open increment is WAITING ON THE OWNER to answer (ADR-0574) — the bar's yellow.
+   * Absent when nothing holds it.
+   *
+   * COPIED from {@link ArcRollupIncrement.waitingOn}, never re-derived: the list wire carries no
+   * question lifecycles, so a lane could not run {@link incrementWaitingOn} for itself — the same
+   * forced resolution `disposition` beside it makes. Ids and not the question objects, so it costs a
+   * few bytes on the rare held row and nothing on every other (ADR-0564 D4's byte discipline).
+   */
+  waitingOn?: string[];
   /** When it was parked — half of the lane's most-recent-activity sort. */
   parked?: string;
   /**
@@ -333,6 +353,52 @@ export function incrementDisposition(
   // hand untyped rows, and an empty string deriving `landed` would be exactly the false green.
   if (outcome?.pr !== undefined && outcome.pr !== "") return "landed";
   return undefined;
+}
+
+/**
+ * WORK WAITING ON THE OWNER'S ANSWER (ADR-0574) — the ONE reading of an open increment held on an
+ * unanswered question, and the only place the rule lives. The arc rollup resolves it per increment,
+ * `arc list` / `arc show` count and mark from that, and the studio lane strip paints its yellow bar
+ * from the projected result: nobody else re-derives it.
+ *
+ * The answer is the bare ids of the questions still holding the work, in the order the row names
+ * them; EMPTY means not waiting. One rule, three conditions, all required:
+ *   1. **The increment is OPEN** ({@link isForwardLooking}). Closed work is untouched whatever its
+ *      stored link says — ADR-0564's three dispositions stay three, and a closed record cannot
+ *      honestly read as waiting on anybody (D3).
+ *   2. **It LINKS the question** through `waitsOn` (D2: a machine-readable link, never prose).
+ *   3. **That question is UNSETTLED** — `lifecycle` reads `open` in `questionLifecycles`, which is
+ *      EVERY question in the corpus rather than this arc's, because work can wait on a question homed
+ *      on another initiative.
+ *
+ * ⚠ A LINK NAMING NO KNOWN QUESTION HOLDS NOTHING, AND THAT IS THE DECISION'S OWN WORDING. D2 holds
+ * the reading "exactly while that question is unsettled"; a question that does not exist is not
+ * waiting for an answer, and reading the link as a hold anyway would take the work off every worklist
+ * (D4) behind an ask nobody can answer — the false wait ADR-0434 removed from the question tier. The
+ * way such a link normally arises is already fenced: the retire wall refuses to retire a question
+ * while work still names it. Every OTHER lifecycle normalisation is inherited unchanged — a stored
+ * question counts as unsettled unless it literally reads `settled` ({@link questionLifecycleOf}).
+ *
+ * `waitsOn` is taken as the raw stored value because this is a pure function other callers hand
+ * untyped rows: a non-array, a non-string entry or a non-`asset:` pointer reads as no link. A
+ * question named twice is reported once.
+ *
+ * Pure, total and side-effect-free, so settling a question releases the work on the very next read
+ * with no write to the increment (D2).
+ */
+export function incrementWaitingOn(
+  status: string,
+  waitsOn: unknown,
+  questionLifecycles: ReadonlyMap<string, ArcRollupQuestion["lifecycle"]>,
+): string[] {
+  if (!isForwardLooking(status) || !Array.isArray(waitsOn)) return [];
+  const waiting = new Set<string>();
+  for (const ref of waitsOn) {
+    if (typeof ref !== "string" || !ref.startsWith(ASSET_REF_PREFIX)) continue;
+    const questionId = ref.slice(ASSET_REF_PREFIX.length);
+    if (questionLifecycles.get(questionId) === "open") waiting.add(questionId);
+  }
+  return [...waiting];
 }
 
 /**
@@ -454,6 +520,9 @@ export function summariseArcRollup(rollup: ArcRollup): ArcRollupSummary {
       // honest "nobody said", and is deliberately not spelled as a value.
       const disposition = incrementDisposition(inc.status, inc.outcome);
       if (disposition !== undefined) row.disposition = disposition;
+      // ADR-0574 — the reading the full row already resolved, carried rather than re-derived: this is
+      // a projection, and the list wire has no question lifecycles to derive it from.
+      if (inc.waitingOn !== undefined) row.waitingOn = inc.waitingOn;
       return row;
     }),
   };
@@ -482,6 +551,19 @@ export function bagOf(stored: StoredDoc): Record<string, unknown> {
   return typeof stored.doc === "object" && stored.doc !== null
     ? (stored.doc as Record<string, unknown>)
     : {};
+}
+
+/**
+ * PURE: an open question's lifecycle, normalised ONCE (ADR-0434 D1) — absent, unreadable or
+ * unexpected all read `open`, and only the literal `settled` is settled.
+ *
+ * Shared by the arc's own question rows and by the corpus-wide lookup {@link incrementWaitingOn}
+ * reads, so the two can never disagree about whether one question is still waiting. Failing toward
+ * `open` is the direction ADR-0434 chose: under-reporting a settlement is recoverable by settling
+ * again, whereas inventing one silently drops a live question off the surface built to show it.
+ */
+function questionLifecycleOf(stored: StoredDoc): ArcRollupQuestion["lifecycle"] {
+  return strOpt(bagOf(stored), "lifecycle") === "settled" ? "settled" : "open";
 }
 
 /**
@@ -843,6 +925,11 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
   const doc = bagOf(arc);
   const id = arc.id;
 
+  // EVERY question's lifecycle, not only this arc's (ADR-0574): an increment can be held on a
+  // question homed on another initiative, so the lookup is corpus-wide while the `questions` leg
+  // below stays filtered to this arc.
+  const questionLifecycles = new Map(input.questionDocs.map((q) => [q.id, questionLifecycleOf(q)]));
+
   const increments = input.incrementDocs
     .filter((p) => arcRefOf(p) === id)
     .map((p): ArcRollupIncrement => {
@@ -881,6 +968,10 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
       if (typeof outcome === "object" && outcome !== null) {
         row.outcome = outcome as NonNullable<ArcRollupIncrement["outcome"]>;
       }
+      // ADR-0574 — resolved once, here, for every surface. Absent rather than `[]` when nothing holds
+      // the work, the same absent-is-silence shape `danglingCites` uses.
+      const waitingOn = incrementWaitingOn(row.status, pd["waitsOn"], questionLifecycles);
+      if (waitingOn.length > 0) row.waitingOn = waitingOn;
       return row;
     })
     .sort(compareIncrements);
@@ -898,11 +989,10 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
         title: str(qd, "title"),
         description: str(qd, "description"),
         stakes: str(qd, "stakes"),
-        // ADR-0434 D1 — absent means open, resolved ONCE here. Anything that is not the literal
-        // `settled` is open, so an unreadable or unexpected value fails toward "still waiting on the
-        // owner": under-reporting a settlement is recoverable by settling again, whereas inventing
-        // one silently drops a live question off the surface built to surface it.
-        lifecycle: strOpt(qd, "lifecycle") === "settled" ? "settled" : "open",
+        // ADR-0434 D1 — absent means open, resolved ONCE, through the same normaliser the
+        // corpus-wide lookup above uses, so this row and a held increment's reading of the same
+        // question cannot disagree.
+        lifecycle: questionLifecycleOf(q),
       };
       if (verifiedAt !== undefined) row.verifiedAt = verifiedAt;
       if (leaseDays !== undefined) row.leaseDays = leaseDays;

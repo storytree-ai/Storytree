@@ -25,6 +25,7 @@ import {
   findLane,
   isGated,
   laneBars,
+  laneBarTitle,
   dispositionOf,
   hasLanded,
   laneCounts,
@@ -213,6 +214,9 @@ function lane(
         const d = inc.outcome?.disposition ?? (inc.outcome?.pr ? 'landed' : undefined);
         if (d !== undefined) row.disposition = d;
       }
+      // ADR-0574 — COPIED, exactly as `summariseArcRollup` copies it: the full rollup row already
+      // carries the server's resolved reading, so there is no rule here to transcribe at all.
+      if (inc.waitingOn !== undefined) row.waitingOn = inc.waitingOn;
       return row;
     }),
   };
@@ -404,6 +408,83 @@ describe('laneBars — green requires a LANDING, and red is terminal (ADR-0564 D
       increments: [failedInc('f1', '2026-08-01'), closedUnrecorded('u1', '2026-08-02'), parked('p1', '2026-09-01')],
     });
     expect(laneBars(rollup, true).map((b) => b.tone)).toEqual(['failed', 'unrecorded', 'gated']);
+  });
+});
+
+describe('laneBars — work waiting on the owner’s answer reads YELLOW, and only open work can (ADR-0574)', () => {
+  /** An OPEN increment the server resolved as held on `questionIds` — the reading, never the link. */
+  function waitingInc(id: string, status: string, ...questionIds: string[]): ArcRollupIncrement {
+    return increment({ id, status, parked: '2026-09-16', waitingOn: questionIds });
+  }
+
+  it('paints the held increment `waiting` and leaves every other bar on the arc exactly as it was', () => {
+    // The owner's reason for the colour, as data: the held row stops reading as ordinary grey, and its
+    // neighbours keep the tones that say they are safe to take.
+    const rollup = lane({
+      id: 'a',
+      increments: [parked('p1', '2026-09-01'), waitingInc('held', 'ready', 'oq-which'), landed('c1', '2026-08-01')],
+    });
+    const bars = laneBars(rollup);
+    expect(bars.map((b) => [b.id, b.tone])).toEqual([
+      ['c1', 'landed'],
+      ['p1', 'queued'],
+      ['held', 'waiting'],
+    ]);
+    // The question rides the bar so the tooltip can name it — and ONLY the waiting bar carries it.
+    expect(bars.find((b) => b.id === 'held')?.waitingOn).toEqual(['oq-which']);
+    expect(bars.filter((b) => Object.hasOwn(b, 'waitingOn')).map((b) => b.id)).toEqual(['held']);
+  });
+
+  it('paints every OPEN status waiting when the server says so — the lifecycle is not the reading', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: ['proposal', 'ready', 'active', '?'].map((status) => waitingInc(`w-${status}`, status, 'oq-x')),
+    });
+    expect(laneBars(rollup).map((b) => b.tone)).toEqual(['waiting', 'waiting', 'waiting', 'waiting']);
+  });
+
+  it('`waiting` outranks `gated` — a gate must never bury a question the owner can answer', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: [parked('p1', '2026-09-01'), waitingInc('held', 'proposal', 'oq-which')],
+    });
+    expect(laneBars(rollup, true).map((b) => b.tone)).toEqual(['gated', 'waiting']);
+  });
+
+  it('never paints a CLOSED row waiting, and never lets one carry the question — history is not held', () => {
+    // The server never sends `waitingOn` on a closed row; a lane that honoured one anyway would paint
+    // finished work yellow on the strength of a malformed row. Yellow is not a fourth disposition.
+    const rollup = lane({
+      id: 'a',
+      increments: [
+        { ...landed('c1', '2026-08-01'), waitingOn: ['oq-which'] },
+        { ...closedUnrecorded('u1', '2026-08-02'), waitingOn: ['oq-which'] },
+      ],
+    });
+    const bars = laneBars(rollup);
+    expect(bars.map((b) => b.tone)).toEqual(['landed', 'unrecorded']);
+    expect(bars.some((b) => Object.hasOwn(b, 'waitingOn'))).toBe(false);
+  });
+
+  it('adds NO count beside the bars — held work stays inside `queued` (ADR-0574: "no new count")', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: [parked('p1', '2026-09-01'), waitingInc('held', 'ready', 'oq-which')],
+    });
+    const counts = laneCounts(rollup);
+    expect(counts).toEqual({ landed: 0, failed: 0, withdrawn: 0, unrecorded: 0, queued: 2 });
+    expect(laneCountsLabel(counts)).toBe('2 queued');
+  });
+
+  it('the bar tooltip names the question a waiting bar is held on; every other bar keeps its plain one', () => {
+    expect(laneBarTitle({ id: 'p1', title: 'Parked thing', status: 'proposal', tone: 'queued' })).toBe(
+      'Parked thing — proposal',
+    );
+    // An untitled row falls back to its id rather than rendering an empty name.
+    expect(laneBarTitle({ id: 'p1', title: '', status: 'proposal', tone: 'queued' })).toBe('p1 — proposal');
+    expect(
+      laneBarTitle({ id: 'h', title: 'Held thing', status: 'ready', tone: 'waiting', waitingOn: ['oq-a', 'oq-b'] }),
+    ).toBe('Held thing — ready · waiting on your answer to oq-a, oq-b');
   });
 });
 

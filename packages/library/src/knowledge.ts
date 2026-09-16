@@ -1577,7 +1577,7 @@ export const Arc = buildKindSchema("arc").extend({
   gateReasons: z.record(z.string().min(1)).optional(),
 });
 // The `increment` kind (ADR-0183 D2/D3, folded by ADR-0305 D1) — ONE unit of arc work, from the
-// moment it is decided through to the moment it closes. It carries seven structured fields beyond its
+// moment it is decided through to the moment it closes. It carries eight structured fields beyond its
 // KIND_SPECS body table:
 //
 // - `arcRef` is REQUIRED — an increment is born citing its arc (ADR-0183 D3: the containment edge
@@ -1595,6 +1595,8 @@ export const Arc = buildKindSchema("arc").extend({
 //   and the guidance it stands on, as pointers that RESOLVE rather than the prose ids
 //   `decomposition` carried. Optional and legitimately empty; a dangling ref is reported on read,
 //   never refused on write.
+// - `waitsOn` names the open questions this work is held on (ADR-0574 D2) — a SCHEDULE edge, kept
+//   out of `cites` for the reason `Arc.gatedBy` is kept out of `dependsOn`. See the field.
 // - `outcome` is the closing record (ADR-0305 D5).
 //
 // Ephemeral (see EPHEMERAL_KINDS): live-store-only. Read that as its LIFECYCLE, not as an exemption —
@@ -1640,6 +1642,36 @@ export const Increment = buildKindSchema("increment").extend({
    * `library --check`'s referential-integrity leg lists them as a WARN.
    */
   cites: z.array(CiteRef).optional(),
+  /**
+   * The `open-question`s this work is HELD ON (ADR-0574 D2) — the machine-readable link an escalating
+   * session writes when it stops to ask the owner, so the board can say the work is waiting on his
+   * answer instead of drawing it as ordinary not-yet-done grey.
+   *
+   * A LINK, NEVER A READING. Nothing here says the work IS waiting: that is derived at read time from
+   * this field plus each named question's own `lifecycle` (`incrementWaitingOn` in `@storytree/arc`),
+   * so settling the question releases the work with no write to this row — D2's reason for refusing a
+   * stored stamp, which would still say "waiting" long after the answer. The pointer therefore stays
+   * after settlement, as the record of what the work once waited on.
+   *
+   * WHY NOT `cites`, which already admits `asset:` pointers and would have needed no schema change.
+   * That is the `Arc.gatedBy`-versus-`dependsOn` fork ADR-0523 decided, met again one tier down:
+   * `cites` means *touches / stands on*, the knowledge-depth instruments walk its `asset:` pointers as
+   * support edges, and an increment may legitimately cite a question it SERVES (gathering the evidence
+   * the owner needs to answer it). Reading every such citation as a hold would take that work off
+   * every worklist (D4) while the owner waits on it. A hold is a schedule, and the two graphs draw the
+   * same picture — which is the argument for keeping them apart.
+   *
+   * ON THE HELD WORK, POINTING AT THE QUESTION — `gatedBy`'s and `arcRef`'s direction. A question
+   * names none of the work queued behind it, so holding a second increment on an existing question
+   * touches one row, and the retire wall (which walks every stored `asset:` value) refuses to retire a
+   * question while work still names it.
+   *
+   * OPTIONAL, absent-by-default, and never a KIND_SPECS body section: every increment authored before
+   * the field validates unchanged and reads as held on nothing, so there is NO `CURRENT_SCHEMA_VERSION`
+   * bump. `AssetRef` fences the shape (a `doc:` or bare id fails closed); whether the target is really
+   * an unsettled question is the read's to answer, not this schema's.
+   */
+  waitsOn: z.array(AssetRef).optional(),
   /** The landing (or other terminal event) that closed it — absent until it does (ADR-0305 D5). */
   outcome: IncrementOutcome.optional(),
 });
