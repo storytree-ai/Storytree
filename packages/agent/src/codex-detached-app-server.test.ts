@@ -354,3 +354,180 @@ test("invalid-protocol-identity-and-turn-fail-closed: a blank turn prompt reaps 
   assert.deepEqual(terminated, [owner], "a rejected turn start closes the exact staged tree");
   assert.deepEqual(await thread.probe(), { live: false, rateLimits: undefined });
 });
+
+test("auth-refusal-and-timeout-never-spawn: every non-managed authentication observation refuses before spawn", async () => {
+  for (const auth of [
+    { code: 1, stdout: "", stderr: "not logged in" },
+    { code: 0, stdout: "Logged in using an API key\n", stderr: "" },
+    { code: null, stdout: "Logged in using ChatGPT\n", stderr: "", timedOut: true as const },
+  ]) {
+    let spawns = 0;
+    await assert.rejects(openPinnedCodexDetachedThread({
+      cwd: process.cwd(), model: "m", reasoningEffort: "e",
+      platform: process.platform === "win32" ? "windows" : "posix",
+      authRunner: async () => auth,
+      spawn: () => { spawns += 1; throw new Error("must not spawn"); },
+    }), /not authenticated/);
+    assert.equal(spawns, 0);
+  }
+});
+
+test("pinned-command-scrubs-env-and-spawns-detached: successful auth creates one scrubbed pinned command", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const commands: unknown[] = [];
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), env: { KEEP: "yes", openai_api_key: "metered" }, model: "m", reasoningEffort: "e", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (command) => { commands.push(command); return { pid: 0, write: () => undefined, end: () => undefined }; },
+  }), /positive pid/);
+  assert.equal(commands.length, 1);
+  assert.match(JSON.stringify(commands[0]), /app-server/);
+  assert.match(JSON.stringify(commands[0]), /--stdio/);
+  assert.equal(JSON.stringify(commands[0]).includes("metered"), false);
+  assert.match(JSON.stringify(commands[0]), /KEEP/);
+});
+
+test("posix-group-owner-is-observed-probed-and-terminated: the published POSIX owner remains rooted at the spawned pid", async () => {
+  if (process.platform === "win32") return;
+  const seen: unknown[] = [];
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform: "posix", timeoutMs: 20,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: () => ({ pid: 71, write: () => undefined, end: () => undefined }),
+    observeOwnership: async (request) => { seen.push(request); return { kind: "posix-process-group", rootPid: 71, token: "71" }; },
+    terminateOwnedTree: async () => undefined,
+  }), /timed out/);
+  assert.deepEqual(seen[0], { pid: 71, platform: "posix", timeoutMs: 20 });
+});
+
+test("windows-tree-owner-is-observed-probed-and-terminated: a Windows owner is never accepted as a POSIX group", async () => {
+  if (process.platform === "win32") return;
+  const terminated: unknown[] = [];
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform: "posix",
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: () => ({ pid: 72, write: () => undefined, end: () => undefined }),
+    observeOwnership: async () => ({ kind: "windows-process-tree", rootPid: 72, token: "72" }),
+    terminateOwnedTree: async (owner) => { terminated.push(owner); },
+  }), /ownership/);
+  assert.deepEqual(terminated, [{ kind: "windows-process-tree", rootPid: 72, token: "72" }]);
+});
+
+test("owner-validation-rejects-invalid-pid-root-kind-and-token: an invalid child pid is rejected and its channel is closed", async () => {
+  let ended = 0;
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform: process.platform === "win32" ? "windows" : "posix",
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: () => ({ pid: 0, write: () => undefined, end: () => { ended += 1; } }),
+  }), /positive pid/);
+  assert.equal(ended, 1);
+});
+
+test("ownership-acquisition-failure-reaps-spawned-child: unavailable ownership closes the just-spawned protocol channel", async () => {
+  let ended = 0;
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform: process.platform === "win32" ? "windows" : "posix",
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: () => ({ pid: 73, write: () => undefined, end: () => { ended += 1; } }),
+    observeOwnership: async () => undefined,
+  }), /ownership/);
+  assert.equal(ended, 1);
+});
+
+test("initialize-notification-thread-order-returns-response-identity: opening does not begin a turn", async () => {
+  const methods: string[] = [];
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "requested", reasoningEffort: "requested", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({ pid: 74, end: () => undefined, write: (line) => {
+      const message = JSON.parse(line) as { id?: number; method: string }; methods.push(message.method);
+      if (message.method === "initialize") events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+      if (message.method === "thread/start") events.stdout(`${JSON.stringify({ id: message.id, result: { thread: { id: "response", model: "actual", reasoningEffort: "high" } } })}\n`);
+    } }),
+    observeOwnership: async () => ({ kind: platform === "windows" ? "windows-process-tree" : "posix-process-group", rootPid: 74, token: "74" }),
+    observeLiveness: async () => false, terminateOwnedTree: async () => undefined,
+  });
+  assert.deepEqual({ threadId: thread.threadId, model: thread.model, reasoningEffort: thread.reasoningEffort }, { threadId: "response", model: "actual", reasoningEffort: "high" });
+  assert.deepEqual(methods, ["initialize", "initialized", "thread/start"]);
+});
+
+test("jsonl-fragments-and-correlates-responses: split JSONL responses resolve the matching request", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({ pid: 75, end: () => undefined, write: (line) => {
+      const message = JSON.parse(line) as { id?: number; method: string };
+      const result = message.method === "initialize" ? {} : { thread: { id: "fragment-thread", model: "m", reasoningEffort: "e" } };
+      const response = JSON.stringify({ id: message.id, result }) + "\n";
+      if (message.method !== "initialized") { events.stdout(response.slice(0, 8)); events.stdout(response.slice(8)); }
+    } }),
+    observeOwnership: async () => ({ kind: platform === "windows" ? "windows-process-tree" : "posix-process-group", rootPid: 75, token: "75" }),
+    observeLiveness: async () => false, terminateOwnedTree: async () => undefined,
+  });
+  assert.equal(thread.threadId, "fragment-thread");
+});
+
+test("jsonl-rpc-write-and-exit-faults-clean-up: a protocol write fault closes the exact owner", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const owner = { kind: platform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const, rootPid: 76, token: "76" };
+  let terminated = 0;
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: () => ({ pid: 76, write: () => { throw new Error("write broke"); }, end: () => undefined }),
+    observeOwnership: async () => owner, observeLiveness: async () => false,
+    terminateOwnedTree: async () => { terminated += 1; },
+  }), /write broke/);
+  assert.equal(terminated, 1);
+});
+
+test("request-timeouts-use-safe-bound-and-clean-up: an invalid timeout falls back to a positive finite bound", async () => {
+  const seen: number[] = [];
+  await assert.rejects(openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform: process.platform === "win32" ? "windows" : "posix", timeoutMs: 0,
+    authRunner: async (command) => { seen.push(command.timeoutMs); return { code: 1, stdout: "", stderr: "" }; },
+  }));
+  assert.deepEqual(seen, [60_000]);
+});
+
+test("turn-prompt-and-response-failures-clean-up: a blank prompt rejects before a turn is sent", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const calls: string[] = [];
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({ pid: 77, end: () => undefined, write: (line) => { const m = JSON.parse(line) as { id?: number; method: string }; calls.push(m.method); if (m.method === "initialize") events.stdout(`${JSON.stringify({ id: m.id, result: {} })}\n`); if (m.method === "thread/start") events.stdout(`${JSON.stringify({ id: m.id, result: { thread: { id: "t", model: "m", reasoningEffort: "e" } } })}\n`); } }),
+    observeOwnership: async () => ({ kind: platform === "windows" ? "windows-process-tree" : "posix-process-group", rootPid: 77, token: "77" }), observeLiveness: async () => false, terminateOwnedTree: async () => undefined,
+  });
+  await assert.rejects(thread.startTurn(" \t "), /blank/);
+  assert.equal(calls.includes("turn/start"), false);
+});
+
+test("probe-tristate-and-same-channel-rate-limits: a dead owner never sends a rate-limit RPC", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const methods: string[] = [];
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({ pid: 78, end: () => undefined, write: (line) => { const m = JSON.parse(line) as { id?: number; method: string }; methods.push(m.method); if (m.method === "initialize") events.stdout(`${JSON.stringify({ id: m.id, result: {} })}\n`); if (m.method === "thread/start") events.stdout(`${JSON.stringify({ id: m.id, result: { thread: { id: "t", model: "m", reasoningEffort: "e" } } })}\n`); } }),
+    observeOwnership: async () => ({ kind: platform === "windows" ? "windows-process-tree" : "posix-process-group", rootPid: 78, token: "78" }), observeLiveness: async () => false, terminateOwnedTree: async () => undefined,
+  });
+  assert.deepEqual(await thread.probe(), { live: false, rateLimits: undefined });
+  assert.equal(methods.includes("account/rateLimits/read"), false);
+});
+
+test("termination-is-idempotent-bounded-and-confirms-death: termination polls until the exact owner is observed dead", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  let livenessReads = 0;
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "m", reasoningEffort: "e", platform, timeoutMs: 25,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({ pid: 79, end: () => undefined, write: (line) => { const m = JSON.parse(line) as { id?: number; method: string }; if (m.method === "initialize") events.stdout(`${JSON.stringify({ id: m.id, result: {} })}\n`); if (m.method === "thread/start") events.stdout(`${JSON.stringify({ id: m.id, result: { thread: { id: "t", model: "m", reasoningEffort: "e" } } })}\n`); } }),
+    observeOwnership: async () => ({ kind: platform === "windows" ? "windows-process-tree" : "posix-process-group", rootPid: 79, token: "79" }),
+    observeLiveness: async () => { livenessReads += 1; return livenessReads > 1 ? false : true; }, terminateOwnedTree: async () => undefined,
+  });
+  await thread.terminate();
+  assert.equal(livenessReads, 2, "termination must wait for an observed-dead owner instead of trusting one live probe");
+});
