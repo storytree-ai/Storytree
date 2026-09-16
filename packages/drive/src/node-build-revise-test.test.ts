@@ -162,6 +162,16 @@ async function setupRealFixture(): Promise<RealFixture> {
   const storiesDir = await fixtureStories([{ id: FIXTURE_UNIT_ID, dependsOn: [] }]);
   const corpusStore = new InMemoryStore();
   await loadFixtureCorpus(corpusStore);
+  // ADR-0576 D1: a REAL build now preflights an --increment before any spend. This fixture's own
+  // tests never exercise that preflight (each one dies at an earlier refusal, or at the injected
+  // DB-preflight spy), but the one test that DOES fall through to the DB preflight now needs a live
+  // increment to resolve against.
+  await corpusStore.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  await corpusStore.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
   return { repoRoot: repo.root, storiesDir, corpusStore };
 }
 
@@ -207,7 +217,7 @@ describe("node-build-takes-a-revision-and-names-the-record-it-leaves: node build
         "--revise-test is valid only with --real: it hands a prior attempt's returned escalation to " +
         "the AUTHOR_TEST leaf as this REAL build's revision brief, and neither --dry-run nor --live " +
         "authors at real repo paths (ADR-0571 D3).",
-      next: [`storytree node build ${unitId} --real --revise-test ${runId}`],
+      next: [`storytree node build ${unitId} --real --increment <increment-id> --revise-test ${runId}`],
     };
 
     const dryRun = await NodeBuildModule.nodeBuild(unitId, {
@@ -382,6 +392,8 @@ describe("node-build-takes-a-revision-and-names-the-record-it-leaves: node build
       progress: silentBuildProgress(),
       reviseTest: runId,
       escalationsDir,
+      increment: "inc-live",
+      innerLoopReads: { corpus: realFixture.corpusStore, ledger: new InMemoryStore() },
       ensureDb,
     });
 

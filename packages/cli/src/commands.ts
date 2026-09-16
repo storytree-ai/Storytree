@@ -2764,6 +2764,7 @@ interface BuildValues {
   budget?: string;
   "max-turns"?: string;
   "revise-test"?: string;
+  increment?: string;
   actor?: string;
   store?: string;
   signer?: string;
@@ -2794,6 +2795,9 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
   // ADR-0571 D3: unguarded, because `reviseTest` admits undefined — a guard here would be a mutant
   // no test could kill. `story build` never sees it: `storyBuildFromValues` refuses the flag first.
   opts.reviseTest = values["revise-test"];
+  // ADR-0575 D1: unguarded for the same reason — `increment` admits undefined, and `nodeBuild`
+  // itself refuses a REAL-only flag supplied without --real.
+  opts.increment = values.increment;
   if (values.actor !== undefined) opts.actor = values.actor;
   if (values.store !== undefined) opts.verdictStore = values.store;
   opts.onLeafSlices = captureBuildLeafSlices;
@@ -2816,7 +2820,7 @@ export async function storyBuildFromValues(
       body:
         "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
         "(ADR-0571 D3): a story chain has no single unit to revise.",
-      next: [`storytree node build <unit-id> --real --revise-test ${revision}`],
+      next: [`storytree node build <unit-id> --real --increment <increment-id> --revise-test ${revision}`],
     };
   }
   return storyBuild(storyId, nodeStoryBuildOpts(values));
@@ -3352,6 +3356,9 @@ export const CLI_OPTIONS = {
   objection: { type: "string" },
   decision: { type: "string" },
   survivors: { type: "string" },
+  // `node build <id> --real --increment <id>` (ADR-0575 D1): the arc increment a paid attempt is
+  // filed under on the attempt ledger.
+  increment: { type: "string" },
   actor: { type: "string" },
   store: { type: "string" },
   "working-on": { type: "string" },

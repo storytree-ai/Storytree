@@ -185,6 +185,9 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // the orchestrator names WHICH escalation and never handles its text, so `@path` here would bring
   // back exactly the hand relay the flag exists to remove.
   "revise-test",
+  // `node build <id> --real --increment <id>` (ADR-0575 D1): the arc increment a paid attempt is
+  // filed under on the attempt ledger. An identity, never a durable prose record.
+  "increment",
   "actor",
   "store",
   "node",

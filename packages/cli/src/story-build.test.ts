@@ -342,7 +342,11 @@ test("story build REFUSES --revise-test on every route to the chain — no singl
     const env = await run(argv, deps);
     assert.equal(env.ok, false, argv.join(" "));
     assert.equal(env.body, body, argv.join(" "));
-    assert.deepEqual(env.next, ["storytree node build <unit-id> --real --revise-test real-abc123"], argv.join(" "));
+    assert.deepEqual(
+      env.next,
+      ["storytree node build <unit-id> --real --increment <increment-id> --revise-test real-abc123"],
+      argv.join(" "),
+    );
   }
 });
 
