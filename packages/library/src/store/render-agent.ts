@@ -792,16 +792,26 @@ function codexNativePrompt(prompt: string): string {
   return `${adapted.trimEnd()}\n\n${runtime.join("\n")}`;
 }
 
+/** The repository-default model for bounded Codex specialists (ADR-0182 / ADR-0561 D1). */
+const CODEX_SPECIALIST_MODEL = "gpt-5.6-terra";
+
 /**
- * Codex deliberately INHERITS model + reasoning selection. A Library tier is still rendered as a
- * comment so the omission of `model` cannot be mistaken for a forgotten pin: `sonnet`/`opus` are
- * Claude-only tier labels and no ADR maps them to an OpenAI model. Comments are inert config, unlike
- * an invented metadata key that Codex could reject as unknown.
+ * Map the Library's existing workhorse/judgment tier onto Codex-native execution policy.
+ *
+ * The model never varies: the owner's 2026-09-09 re-steer keeps Astra at the outer coordinator and
+ * puts every delegated inner worker on Terra. The role tier still matters as a bounded reasoning
+ * distinction: `opus` is the judgment seat and receives `high`; `sonnet`, `inherit`, and an absent
+ * tier receive the safe workhorse default `medium`. Keeping the return type closed over those two
+ * values makes it impossible for this renderer to grow an `xhigh`, `max`, or `ultra` worker by
+ * inheritance or typo.
  */
-function codexModelPolicy(stored: StoredDoc | null): string {
+function codexModelPolicy(stored: StoredDoc | null): readonly [string, string] {
   const raw = stored ? (stored.doc as Record<string, unknown>)["model"] : undefined;
-  const tier = raw === "sonnet" || raw === "opus" ? `${raw}, Claude-only` : "unset";
-  return `# Storytree model policy: inherit; no Codex model is pinned (Library model tier: ${tier}).`;
+  const effort: "medium" | "high" = raw === "opus" ? "high" : "medium";
+  return [
+    `model = ${tomlBasicString(CODEX_SPECIALIST_MODEL)}`,
+    `model_reasoning_effort = ${tomlBasicString(effort)}`,
+  ];
 }
 
 export type RenderAgentFileResult =
@@ -971,11 +981,13 @@ export async function renderOpencodeAgentFile(
 
 /**
  * Render the committed `.codex/agents/<id>.toml` view of a Library agent. Codex custom agents
- * require a name, description, and developer instructions. Model + reasoning selection deliberately
- * inherit from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not
- * Codex model identifiers; the deterministic policy comment makes that omission explicit per role.
- * The developer prompt also translates legacy Claude tool labels to capability prose and refuses to
- * redirect Claude agent-memory mechanics onto Codex's incompatible generated memory state.
+ * require a name, description, developer instructions, and explicit execution policy here: every
+ * delegatable specialist pins Terra while the Library's workhorse/judgment tier derives a bounded
+ * medium/high reasoning effort (ADR-0182 corrected by ADR-0561 D1 and the owner's outer-only Astra
+ * re-steer). Dedicated-surface roles never reach this renderer, so neither the top-level coordinator
+ * nor SDK build leaves are changed. The developer prompt also translates legacy Claude tool labels
+ * to capability prose and refuses to redirect Claude agent-memory mechanics onto Codex's
+ * incompatible generated memory state.
  */
 export async function renderCodexAgentFile(
   store: Store,
@@ -994,7 +1006,7 @@ export async function renderCodexAgentFile(
     content: [
       `name = ${tomlBasicString(agent.name)}`,
       `description = ${tomlBasicString(agentDescriptionFrontmatter(stored, agent.description))}`,
-      codexModelPolicy(stored),
+      ...codexModelPolicy(stored),
       `developer_instructions = ${tomlMultilineBasicString(
         `${GENERATED_AGENT_MARKER}\n\n${codexNativePrompt(agent.prompt)}`,
       )}`,

@@ -175,11 +175,8 @@ test("build:agents checks Codex TOML content for essentials prompt violations", 
   assert.equal(rendered.ok, true);
   if (!rendered.ok) return;
   assert.match(rendered.content, /^name = "codex-agent"/);
-  assert.match(
-    rendered.content,
-    /^# Storytree model policy: inherit; no Codex model is pinned \(Library model tier: unset\)\.$/m,
-  );
-  assert.doesNotMatch(rendered.content, /^model(?:_reasoning_effort)?\s*=/m);
+  assert.match(rendered.content, /^model = "gpt-5\.6-terra"$/m);
+  assert.match(rendered.content, /^model_reasoning_effort = "medium"$/m);
   assert.match(rendered.content, /^## Codex runtime$/m);
   assert.match(rendered.content, /^### Leaked Principle  \[principle\]$/m);
 
