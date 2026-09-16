@@ -266,6 +266,83 @@ test("promoteRealPass pushes to origin when one exists; push:false withholds but
   }
 });
 
+test("unsigned backstop forensics cannot collide with the same run's signed-prefix branch", async () => {
+  const fixture = await fixtureRepo();
+  const bare = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-forensics-origin-"));
+  try {
+    await git(["init", "--bare", "-b", "main"], bare);
+    await git(["remote", "add", "origin", bare], fixture.root);
+    await fs.writeFile(path.join(fixture.root, "failed-head.txt"), "authored before refusal\n");
+    await git(["add", "failed-head.txt"], fixture.root);
+    await git(["commit", "-m", "fixture: failing authored head"], fixture.root);
+    const failedHead = (await git(["rev-parse", "HEAD"], fixture.root)).trim();
+
+    const forensic = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "story-a",
+      runId: "same-run",
+      commitSha: failedHead,
+      purpose: "unsigned-forensics",
+      push: false,
+    });
+    const prefix = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "story-a",
+      runId: "same-run",
+      commitSha: fixture.sha,
+      push: false,
+    });
+
+    assert.equal(forensic.branch, "claude/real-forensics/story-a-same-run");
+    assert.equal(prefix.branch, "claude/real/story-a-same-run");
+    assert.equal((await git(["rev-parse", forensic.branch], fixture.root)).trim(), failedHead);
+    assert.equal((await git(["rev-parse", prefix.branch], fixture.root)).trim(), fixture.sha);
+    await assert.rejects(git(["rev-parse", `refs/heads/${forensic.branch}`], bare));
+    await assert.rejects(git(["rev-parse", `refs/heads/${prefix.branch}`], bare));
+
+    await assert.rejects(
+      promoteRealPass({
+        repoRoot: fixture.root,
+        unitId: "story-b",
+        runId: "unsafe-run",
+        commitSha: failedHead,
+        purpose: "unsigned-forensics",
+      }),
+      /requires push:false and cannot open a PR/,
+    );
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+    await fs.rm(bare, { recursive: true, force: true });
+  }
+});
+
+test("unsigned backstop forensics reject a PR even when push is explicitly withheld", async () => {
+  const fixture = await fixtureRepo();
+  try {
+    await assert.rejects(
+      promoteRealPass({
+        repoRoot: fixture.root,
+        unitId: "story-pr-guard",
+        runId: "unsafe-pr-run",
+        commitSha: fixture.sha,
+        purpose: "unsigned-forensics",
+        push: false,
+        openPr: true,
+      }),
+      /requires push:false and cannot open a PR/,
+    );
+    await assert.rejects(
+      git(
+        ["rev-parse", "refs/heads/claude/real-forensics/story-pr-guard-unsafe-pr-run"],
+        fixture.root,
+      ),
+      "the rejected request must not create even a local forensic branch",
+    );
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("promoteRealPass openPr: a pushed branch opens a non-draft PR (gh injected) and reports the URL; a gh failure degrades without losing the push", async () => {
   const fixture = await fixtureRepo();
   const bare = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-promote-origin-pr-"));
@@ -423,7 +500,7 @@ test("teardown drops ONLY its own registration — never a repo-global sweep tha
   }
 });
 
-test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", async () => {
+test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", { timeout: 120_000 }, async () => {
   // The same honest observation the gate makes — exit 0 is the only green channel. Offline by
   // construction: the command IS the seam (any file+argv), so a `node -e` stands in for tsc/pnpm.
   const cmd = (script: string) => ({
@@ -433,27 +510,55 @@ test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code o
 
   const tcGreen = await runWorktreeTypecheck({ command: cmd("process.exit(0)"), cwd: os.tmpdir() });
   assert.equal(tcGreen.result, "green");
+  assert.equal(tcGreen.originalProcessResult.exitCode, 0);
+  assert.ok(tcGreen.timeoutMs > 0, "the implicit spine timeout is made explicit in the observation");
   // The declare-presence lesson: a type error is a RED (exit non-zero), never an exception — the
   // caller turns it into push-withheld, not a crash.
   const tcRed = await runWorktreeTypecheck({
-    command: cmd("console.error('error TS2375: exactOptionalPropertyTypes'); process.exit(2)"),
+    command: {
+      ...cmd(
+        "console.log('TYPECHECK-STDOUT-MARKER'); console.error('TYPECHECK-STDERR-MARKER'); process.exit(2)",
+      ),
+      timeoutMs: 60_000,
+    },
     cwd: os.tmpdir(),
   });
   assert.equal(tcRed.result, "red");
+  assert.deepEqual(tcRed.originalProcessResult, {
+    stdout: "TYPECHECK-STDOUT-MARKER\n",
+    stderr: "TYPECHECK-STDERR-MARKER\n",
+    exitCode: 2,
+  });
+  assert.equal(tcRed.timeoutMs, 60_000);
 
   const suiteGreen = await runRegressionSuite({ command: cmd("process.exit(0)"), cwd: os.tmpdir() });
   assert.equal(suiteGreen.result, "green");
-  const suiteRed = await runRegressionSuite({ command: cmd("process.exit(1)"), cwd: os.tmpdir() });
+  const suiteRed = await runRegressionSuite({
+    command: cmd(
+      "console.log('REGRESSION-STDOUT-MARKER'); console.error('REGRESSION-STDERR-MARKER'); process.exit(3)",
+    ),
+    cwd: os.tmpdir(),
+  });
   assert.equal(suiteRed.result, "red");
+  assert.match(suiteRed.originalProcessResult.stdout, /REGRESSION-STDOUT-MARKER/);
+  assert.match(suiteRed.originalProcessResult.stderr, /REGRESSION-STDERR-MARKER/);
+  assert.equal(suiteRed.originalProcessResult.exitCode, 3);
+
 });
 
 test("platformShellCommand wraps pnpm via cmd.exe on win32 and passes everything else through", () => {
-  const pnpm = { file: "pnpm", args: ["--filter", "@storytree/core", "test"], cwd: "/x" };
+  const pnpm = {
+    file: "pnpm",
+    args: ["--filter", "@storytree/core", "test"],
+    cwd: "/x",
+    timeoutMs: 1_234,
+  };
   const onWin = platformShellCommand(pnpm, "win32");
   assert.notEqual(onWin.file, "pnpm");
   assert.match(onWin.file, /cmd/i);
   assert.deepEqual(onWin.args, ["/d", "/s", "/c", "pnpm", "--filter", "@storytree/core", "test"]);
   assert.equal(onWin.cwd, "/x");
+  assert.equal(onWin.timeoutMs, 1_234);
 
   const onLinux = platformShellCommand(pnpm, "linux");
   assert.deepEqual(onLinux, pnpm);

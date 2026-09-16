@@ -12,6 +12,7 @@ type LedgerEvent = Pick<StoreEvent, "doc" | "id" | "kind" | "seq" | "type">;
 
 export interface InnerLoopAttempt {
   readonly runId: string;
+  readonly incrementId: string;
   readonly signed: boolean;
 }
 
@@ -40,10 +41,9 @@ export function innerLoopEventId(doc: InnerLoopEvent): string {
 export function foldInnerLoopLedger(
   events: readonly LedgerEvent[],
   unitId: string,
-  incrementId: string,
 ): InnerLoopLedger {
-  const docs = parseLedgerEvents(events, unitId, incrementId);
-  const attempts: Array<{ runId: string; signed: boolean }> = [];
+  const docs = parseLedgerEvents(events, unitId);
+  const attempts: Array<{ runId: string; incrementId: string; signed: boolean }> = [];
   const attemptIndex = new Map<string, number>();
   const signed = new Set<string>();
   const settled = new Set<string>();
@@ -57,7 +57,14 @@ export function foldInnerLoopLedger(
   for (const { doc } of docs) {
     if (doc.event === "attempt") {
       if (terminalRun !== undefined) {
-        throw new Error(`landed signed pass ${terminalRun} closes the attempt loop`);
+        // A landing adjudication closes the loop, but does not block the unit forever: the very
+        // next attempt on this unit — whichever increment it is filed under — opens a fresh loop
+        // starting from here (ADR-0563 D5 / ADR-0575 D2).
+        latestReopenedAttempt = attemptIndex.get(terminalRun)!;
+        terminalRun = undefined;
+        consecutiveFailures = 0;
+        remainingGrantCount = 0;
+        activeGrant = undefined;
       }
       const unresolved = [...signed].find((runId) => !settled.has(runId));
       if (unresolved !== undefined) {
@@ -65,7 +72,7 @@ export function foldInnerLoopLedger(
       }
       if (attemptIndex.has(doc.runId)) throw new Error(`duplicate attempt run: ${doc.runId}`);
       attemptIndex.set(doc.runId, attempts.length);
-      attempts.push({ runId: doc.runId, signed: false });
+      attempts.push({ runId: doc.runId, incrementId: doc.incrementId, signed: false });
       consecutiveFailures++;
       if (remainingGrantCount > 0) {
         remainingGrantCount--;
@@ -76,13 +83,19 @@ export function foldInnerLoopLedger(
 
     const index = attemptIndex.get(doc.runId);
     if (index === undefined) throw new Error(`${doc.event} references no recorded attempt: ${doc.runId}`);
+    const boundAttempt = attempts[index]!;
+    if (doc.incrementId !== boundAttempt.incrementId) {
+      throw new Error(
+        `${doc.event} for run ${doc.runId} was filed under increment ${doc.incrementId}, but its attempt was filed under increment ${boundAttempt.incrementId}`,
+      );
+    }
 
     if (doc.event === "signed-pass") {
       if (attempts.at(-1)?.runId !== doc.runId) {
         throw new Error(`signed pass must bind the latest attempt: ${doc.runId}`);
       }
       signed.add(doc.runId);
-      attempts[index] = { runId: doc.runId, signed: true };
+      attempts[index] = { ...boundAttempt, signed: true };
       consecutiveFailures = 0;
       remainingGrantCount = 0;
       activeGrant = undefined;
@@ -114,7 +127,7 @@ export function foldInnerLoopLedger(
   }
 
   const policyAttempts = attempts.slice(latestReopenedAttempt + 1);
-  const policyHistory = policyAttempts.map(({ signed: attemptSigned }) => ({
+  const policyHistory = policyAttempts.map(({ incrementId, signed: attemptSigned }) => ({
     incrementId,
     signed: attemptSigned,
   }));
@@ -144,11 +157,7 @@ export function foldInnerLoopLedger(
   };
 }
 
-function parseLedgerEvents(
-  events: readonly LedgerEvent[],
-  unitId: string,
-  incrementId: string,
-): ParsedLedgerEvent[] {
+function parseLedgerEvents(events: readonly LedgerEvent[], unitId: string): ParsedLedgerEvent[] {
   const seen = new Map<string, string>();
   const parsed: ParsedLedgerEvent[] = [];
   const ordered = events
@@ -157,7 +166,7 @@ function parseLedgerEvents(
 
   for (const event of ordered) {
     const scope = looseLedgerScope(event.doc);
-    if (scope !== undefined && (scope.unitId !== unitId || scope.incrementId !== incrementId)) {
+    if (scope !== undefined && scope.unitId !== unitId) {
       continue;
     }
     const doc = InnerLoopEventDoc.parse(event.doc);
@@ -182,21 +191,16 @@ function parseLedgerEvents(
 }
 
 /**
- * Scope before strict parsing so corrupt history for another unit cannot poison this ledger.
- * A missing or non-string scope is deliberately ambiguous and reaches the strict validator.
+ * Scope before strict parsing so corrupt history for another unit cannot poison this ledger. Scoped
+ * by unit alone — the ledger folds a unit's whole history across every increment it was filed under
+ * (ADR-0575 D2). A missing or non-string unit is deliberately ambiguous and reaches the strict
+ * validator, and so does a row for THIS unit whose incrementId is missing or blank.
  */
-function looseLedgerScope(doc: unknown): { unitId: string; incrementId: string } | undefined {
+function looseLedgerScope(doc: unknown): { unitId: string } | undefined {
   if (typeof doc !== "object" || doc === null || Array.isArray(doc)) return undefined;
-  const { unitId, incrementId } = doc as Record<string, unknown>;
-  if (
-    typeof unitId !== "string" ||
-    unitId.trim().length === 0 ||
-    typeof incrementId !== "string" ||
-    incrementId.trim().length === 0
-  ) {
-    return undefined;
-  }
-  return { unitId, incrementId };
+  const { unitId } = doc as Record<string, unknown>;
+  if (typeof unitId !== "string" || unitId.trim().length === 0) return undefined;
+  return { unitId };
 }
 
 export async function appendInnerLoopEvent(
@@ -229,10 +233,6 @@ export async function appendInnerLoopEvent(
   return store.appendEvent({ id, kind: INNER_LOOP_EVENT_KIND, type: "created", doc, actor });
 }
 
-export async function readInnerLoopLedger(
-  store: Store,
-  unitId: string,
-  incrementId: string,
-): Promise<InnerLoopLedger> {
-  return foldInnerLoopLedger(await store.readEvents(), unitId, incrementId);
+export async function readInnerLoopLedger(store: Store, unitId: string): Promise<InnerLoopLedger> {
+  return foldInnerLoopLedger(await store.readEvents(), unitId);
 }

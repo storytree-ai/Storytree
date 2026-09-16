@@ -60,6 +60,15 @@ in `packages/orchestrator/src/store/` — once split across the since-dissolved 
   baseline remains `healthy` with the outstanding obligation separately visible; only an explicit
   auditable ground-up reset clears the established baseline back to pre-green `proposed`.
 
+- **The inner-loop attempt ledger** (`packages/orchestrator/src/proof/inner-loop-ledger.ts`, routed by
+  `PgWorkStore` to `events.inner_loop_event`): ADR-0563's attempts, grants, signed passes and landing
+  adjudications, one idempotent row per event, unit, increment and run. `foldInnerLoopLedger(events,
+  unitId)` reads a unit's WHOLE history across every increment it was filed under (ADR-0575 D2), so a
+  retry filed under a new increment neither resets the consecutive-failure count nor hides a pending
+  landing obligation; each attempt keeps its own increment id, which is what lets `decideAttempt`
+  report a relabelled retry. A landing adjudication closes the loop, and later work on the unit starts
+  a fresh count. Contract: [`attempt-count-follows-the-unit`](attempt-count-follows-the-unit.md).
+
 Every writer that can make a story green consumes this same transition. Whole-story build already
 stamps its story verdict; completing the final current UAT criterion or reliability gate must also
 establish the identical baseline rather than leaving green as a reader-only coincidence. A bounded

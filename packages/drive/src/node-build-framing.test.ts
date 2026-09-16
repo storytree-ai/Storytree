@@ -229,6 +229,12 @@ const GOLDENS = [
       "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo. The walk then refused, and which phase it\nreached was not recorded — so nothing about the authoring, the observations or the commit is\nclaimed here. no commit was made, so there was nothing to promote; and neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them.\nNo verdict was signed: this run's own events landed in an in-memory store and are gone.",
   },
   {
+    name: "real, REFUSED on the shared store by typecheck before the suite",
+    render: () => honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, "red", "claude"),
+    expected:
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, the node's declared REAL proof\ncommand run by the spine for both red and green, a spine-side commit of the authored files,\nand a GATE that read genuine `git status` off that worktree — and refused. the authored commit was not promoted (see the promotion line above); and the node's proof command ran AND the package typecheck was observed RED\nin the installed worktree BEFORE the gate ruled; the package suite did not run because the first red\nbackstop is the actionable refusal.\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+  },
+  {
     name: "real, SIGNED on the shared store, promoted, both backstops green",
     render: () => honestFramingReal(PERSISTED, SIGNED, PROMOTED, "green", "green", "codex"),
     expected:
