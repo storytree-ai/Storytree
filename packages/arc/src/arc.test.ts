@@ -259,7 +259,8 @@ test("arc list counts landings, splits the terminal rows that are not landings, 
     });
     // Closed with NEITHER a pr NOR a recorded call: UNRECORDED — not green (D2), and not `failed`,
     // because the derivation answers "nobody said" (D3 requires the orchestrator's recorded call).
-    await arcIncrementAdd(w, "map-arc", { outcome: "closed with the reason in its body", date: "2026-07-04" });
+    // No verb writes this shape any more, so it is a HISTORICAL row, seeded as the store holds one.
+    await seedHistoricalClose(store, "map-arc", "closed-before-the-rule", "closed with the reason in its body", "2026-07-04");
     // A landing carrying NO pr — a decision, an arc edit, knowledge. ADR-0564's context is the
     // owner's own correction that landings are not only merges, so this MUST read as a landing.
     await arcIncrementNew(w, "map-arc", { id: "decided", title: "A decision landed", objective: "o", body: "b" });
@@ -277,9 +278,8 @@ test("arc list says 0 landed — and no landing DATE — for an arc whose closed
   const fx = diskFixture();
   try {
     const store = await seededStore();
-    const w = writeDeps(store);
-    await arcIncrementAdd(w, "map-arc", { outcome: "a plan that was overtaken", date: "2026-07-02" });
-    await arcIncrementAdd(w, "map-arc", { outcome: "a second, also recording no landing", date: "2026-07-03" });
+    await seedHistoricalClose(store, "map-arc", "overtaken-plan", "a plan that was overtaken", "2026-07-02");
+    await seedHistoricalClose(store, "map-arc", "no-landing-either", "a second, also recording no landing", "2026-07-03");
 
     const res = await arcCommand("list", undefined, depsFor(store, fx));
     assert.equal(res.ok, true);
@@ -300,6 +300,32 @@ test("arc list says 0 landed — and no landing DATE — for an arc whose closed
 // ADR-0239 D3 — `arc list` is a WORKLIST: active by default, widened by --all / --closed.
 // This is what makes the rot self-correcting: an arc nobody closed keeps showing up.
 // ---------------------------------------------------------------------------
+
+/**
+ * One close recorded BEFORE a close with no PR had to record its reading: no `pr`, no `disposition`.
+ * The verbs refuse that shape now, and the rows already in the store are deliberately NOT backfilled
+ * (the owner's standing call on historical grey, 2026-09-16) — so the readers must keep reading them as
+ * UNRECORDED, and the only way to seed one is straight into the store, as history.
+ */
+async function seedHistoricalClose(store: InMemoryStore, arcId: string, id: string, body: string, date: string): Promise<void> {
+  await store.upsertDoc({
+    id,
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id,
+      title: body,
+      description: body,
+      objective: body,
+      body,
+      arcRef: `asset:${arcId}`,
+      status: "closed",
+      outcome: { date },
+      createdAt: `${date}T00:00:00.000Z`,
+      updatedAt: `${date}T00:00:00.000Z`,
+    },
+  });
+}
 
 /** Add one already-closed arc to the seeded store (the shape the D5 backfill produces). */
 async function withClosedArc(store: InMemoryStore): Promise<InMemoryStore> {
@@ -761,7 +787,7 @@ test("arc increment add RECORDS a landing as its own closed increment row (ADR-0
 
 test("arc increment add defaults the date to today, and writes a PR-less landing's prose ONCE (ADR-0322)", async () => {
   const store = await seededStore();
-  const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "an owner-attested halt" });
+  const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "an owner-attested halt", disposition: "withdrawn" });
   assert.equal(res.ok, true);
   const written = (await store.queryDocs({ kind: "increment" })).find((d) => d.id.startsWith("map-arc-inc-"));
   const doc = written?.doc as Record<string, unknown>;
@@ -775,7 +801,7 @@ test("arc increment add defaults the date to today, and writes a PR-less landing
   // the object schema), so an ADR-0139 correction half-applied and the row disagreed with itself.
   assert.equal(outcome["note"], undefined, "the prose is NOT duplicated into the outcome");
   assert.equal(doc["body"], "an owner-attested halt", "`body` is the one home for it");
-  assert.deepEqual(outcome, { date: "2026-07-20" }, "the outcome carries only what body cannot");
+  assert.deepEqual(outcome, { date: "2026-07-20", disposition: "withdrawn" }, "the outcome carries only what body cannot");
 
   // And it is still a LEGAL closed increment: the row is born closed with no `parked`, which is the
   // discriminator `assertIncrementInvariants` now reads — its `body` is the terminal prose by
@@ -790,6 +816,7 @@ test("arc increment add's landing no longer floods `arc show` with the whole bod
   const store = await seededStore();
   await arcIncrementAdd(writeDeps(store), "map-arc", {
     outcome: "The halt. A second sentence that must not reach the arc's log.",
+    disposition: "withdrawn",
   });
   const fx = diskFixture();
   try {
@@ -808,8 +835,8 @@ test("arc increment add's landing no longer floods `arc show` with the whole bod
 test("arc increment add mints a FRESH id per landing — a re-run never overwrites one", async () => {
   const store = await seededStore();
   const deps = writeDeps(store);
-  await arcIncrementAdd(deps, "map-arc", { outcome: "first landing" });
-  await arcIncrementAdd(deps, "map-arc", { outcome: "second landing" });
+  await arcIncrementAdd(deps, "map-arc", { outcome: "first landing", disposition: "landed" });
+  await arcIncrementAdd(deps, "map-arc", { outcome: "second landing", disposition: "landed" });
   const ids = (await store.queryDocs({ kind: "increment" }))
     .filter((d) => d.id.startsWith("map-arc-inc-"))
     .map((d) => d.id)
@@ -824,11 +851,13 @@ test("arc increment add refuses offline, without --outcome, and on a wrong kind"
   assert.equal(offline.ok, false);
   assert.match(offline.body, /writes to the shared store/);
 
-  const noOutcome = await arcIncrementAdd(writeDeps(store), "map-arc", {});
+  // Beside a PR the one requirement left is the outcome itself (the PR-less shape, which also owes a
+  // reading, is pinned by its own test below).
+  const noOutcome = await arcIncrementAdd(writeDeps(store), "map-arc", { pr: "#1" });
   assert.equal(noOutcome.ok, false);
   assert.match(noOutcome.body, /needs --outcome/);
 
-  const wrongKind = await arcIncrementAdd(writeDeps(store), "map-arc-plan-1", { outcome: "x" });
+  const wrongKind = await arcIncrementAdd(writeDeps(store), "map-arc-plan-1", { outcome: "x", pr: "#1" });
   assert.equal(wrongKind.ok, false);
   assert.match(wrongKind.body, /is a increment, not an arc/);
 });
@@ -853,13 +882,17 @@ test("arc increment add echoes the arc's end state and offers the DRAIN as a nex
   // actually works — draw the open work down, and the last closure closes the arc itself.
   const drainNext = (res.next ?? []).find((n) => n.startsWith("storytree arc increment close"));
   assert.ok(drainNext, "the drain is offered at the point of use");
-  assert.match(drainNext, /the last one closes the arc/);
+  // Whole line: the offer carries the reading a PR-less close owes, or pasting it would be refused.
+  assert.equal(
+    drainNext,
+    'storytree arc increment close <id> --note "…" --disposition <landed|failed|withdrawn> --pg  (end state met? draw the open work down — the last one closes the arc, ADR-0347)',
+  );
   assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no dead-end close offer");
 });
 
 test("arc increment add on an ALREADY-closed arc offers no close hint", async () => {
   const store = await withClosedArc(await seededStore());
-  const res = await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote" });
+  const res = await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote", disposition: "landed" });
   assert.equal(res.ok, true, "appending to a closed arc still works — closure is not a write lock");
   assert.doesNotMatch(res.body, /this arc's end state/);
   assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no close hint on a closed arc");
@@ -1014,7 +1047,10 @@ test("ADR-0335: recording a LANDING on a closed arc does NOT reopen it — the r
   // `arc increment add` always mints a CLOSED increment (a past landing), so it is never itself the
   // forward-looking row that would flip an arc back open — the recompute correctly leaves it closed.
   const store = await withClosedArc(await seededStore());
-  await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote" });
+  const res = await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote", disposition: "landed" });
+  // Asserted, because a REFUSED write leaves the arc closed too — without it this test cannot tell
+  // "the recompute left it closed" from "nothing was written".
+  assert.equal(res.ok, true, res.body);
   const arc = (await store.getDoc("done-arc"))?.doc as Record<string, unknown>;
   assert.equal(arc["lifecycle"], "closed");
 });
@@ -1042,8 +1078,14 @@ test("ADR-0347: arc close REFUSES over open increments and names every one of th
   // Named, not merely counted — the operator has to be able to act on them without a second read.
   assert.match(close.body, /forced-arc-inc-01/);
   assert.match(close.body, /still-wanted/);
-  // And the drain is printed ready to paste (D2: no override, because this record is the better one).
-  assert.match(close.body, /storytree arc increment close still-wanted --note/);
+  // And the drain is printed ready to paste (D2: no override, because this record is the better one) —
+  // carrying the reading a PR-less close now owes, so the pasted command is not itself refused.
+  assert.match(
+    close.body,
+    /^ {2}storytree arc increment close still-wanted --note "<why>" --disposition <landed\|failed\|withdrawn> --pg$/m,
+  );
+  // The optional terminal statement is a LANDING of the arc's end state, and says so.
+  assert.match(close.body, /^ {2}storytree arc increment add forced-arc --outcome "…" --disposition landed --pg$/m);
 
   // THE REFUSAL IS TOTAL — neither half of `arc close`'s two writes landed. The terminal increment
   // goes FIRST in the success path, so a partial refusal would leave a spare closing row behind.
@@ -1075,13 +1117,13 @@ test("ADR-0347: draining the increments is the closing act — the last one clos
   await arcNew(deps, "drain-arc", { title: "Drain", intent: "i", endState: "e", ...FIRST_INC });
   await arcIncrementNew(deps, "drain-arc", { id: "drain-two", title: "Second", ...FIRST_INC });
 
-  const first = await arcIncrementClose(deps, "drain-two", { note: "folded into the sibling" });
+  const first = await arcIncrementClose(deps, "drain-two", { note: "folded into the sibling", disposition: "withdrawn" });
   assert.equal(first.ok, true);
   assert.doesNotMatch(first.body, /auto-closed/, "a sibling is still open");
   // Still refused with one left — the rule is about ANY open work, not about how much.
   assert.equal((await arcClose(deps, "drain-arc", { outcome: "x" })).ok, false);
 
-  const last = await arcIncrementClose(deps, "drain-arc-inc-01", { note: "decided against" });
+  const last = await arcIncrementClose(deps, "drain-arc-inc-01", { note: "decided against", disposition: "withdrawn" });
   assert.equal(last.ok, true);
   assert.match(last.body, /arc drain-arc auto-closed — no open increments remain/);
   assert.equal(((await store.getDoc("drain-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
@@ -1165,7 +1207,8 @@ test("arc close records the terminal increment AND flips lifecycle, increment fi
   assert.ok(terminal, "the terminal increment is its own row");
   const bag = terminal.doc as Record<string, unknown>;
   assert.equal(bag["status"], "closed");
-  assert.deepEqual(bag["outcome"], { date: "2026-07-20", pr: "#1012" });
+  // `landed` is recorded beside the PR too: `arc close` asserts the end state was met, whatever merged.
+  assert.deepEqual(bag["outcome"], { date: "2026-07-20", pr: "#1012", disposition: "landed" });
   assert.equal(bag["body"], "the owner sees pathways on the map — the end state is met");
 });
 
@@ -1182,6 +1225,9 @@ test("arc close defaults the date to today and works without a PR", async () => 
   // the closing prose is written once, into `body`, never also copied into `outcome.note`.
   assert.equal(outcome["note"], undefined);
   assert.equal(bag["body"], "delivered, attested by the owner");
+  // …and it inherits the no-PR rule too, which the verb meets ITSELF: its whole assertion is that the
+  // end state was MET, a recorded landing of an arc (ADR-0564 D2) — so the row reads green, not grey.
+  assert.equal(outcome["disposition"], "landed");
 });
 
 test("arc close REFUSES without --outcome — no closure without the prose that justifies it", async () => {
@@ -1311,6 +1357,11 @@ test("arc reopen refuses offline, on a missing id, on a wrong kind, and on an al
   assert.equal(alreadyOpen.ok, false);
   assert.match(alreadyOpen.body, /already active/);
   assert.match(alreadyOpen.body, /storytree arc increment add map-arc --outcome/);
+  // The pasteable offer names the landing ref as the body does — a PR-less `add` would be refused.
+  assert.deepEqual(alreadyOpen.next, [
+    "storytree arc show map-arc --pg",
+    'storytree arc increment add map-arc --outcome "…" --pr <ref> --pg',
+  ]);
 });
 
 test("close → reopen → close round-trips, and every transition leaves its own durable increment", async () => {
@@ -1420,7 +1471,7 @@ test("THE FENCE: a later increment write does NOT un-park the arc (ADR-0374 D2)"
     (d) => (d.doc as { arcRef?: string }).arcRef === "asset:map-arc",
   )) {
     if ((row.doc as { status?: string }).status !== "closed") {
-      await arcIncrementClose(writeDeps(store), row.id, { note: "drained" });
+      await arcIncrementClose(writeDeps(store), row.id, { note: "drained", disposition: "withdrawn" });
     }
   }
   assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "parked");
@@ -1449,7 +1500,7 @@ test("arc reopen is the way back off the parked shelf, and marks the log UN-PARK
     (d) => (d.doc as { arcRef?: string }).arcRef === "asset:map-arc",
   )) {
     if ((row.doc as { status?: string }).status !== "closed") {
-      await arcIncrementClose(writeDeps(store), row.id, { note: "drained" });
+      await arcIncrementClose(writeDeps(store), row.id, { note: "drained", disposition: "withdrawn" });
     }
   }
   assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
@@ -1639,25 +1690,173 @@ test("arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's
   const deps = writeDeps(store);
   await arcIncrementNew(deps, "map-arc", { id: "wrong-entry", title: "A duplicate", ...BODY });
 
-  // This is the case `arc proposal realize` could not express: an entry that is not LANDING.
+  // This is the case `arc proposal realize` could not express: an entry that is not LANDING. A bare
+  // close owes BOTH halves, and one refusal names both (the whole message is pinned by the test below).
   const bare = await arcIncrementClose(deps, "wrong-entry", {});
   assert.equal(bare.ok, false);
-  assert.match(bare.body, /needs --pr <ref> or --note <text\|@file>/);
+  assert.match(bare.body, /^arc increment close with no --pr needs --note AND --disposition — missing: --note, --disposition\.$/m);
   assert.match(bare.body, /was a REASON, not a state/);
   assert.equal(((await store.getDoc("wrong-entry"))?.doc as Record<string, unknown>)["status"], "proposal");
 
-  // With a note it closes HONESTLY — not marked as a landing that never happened.
+  // With a note AND its reading it closes HONESTLY — not marked as a landing that never happened.
   const withNote = await arcIncrementClose(deps, "wrong-entry", {
     note: "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
+    disposition: "withdrawn",
   });
   assert.equal(withNote.ok, true);
   const doc = (await store.getDoc("wrong-entry"))?.doc as Record<string, unknown>;
   assert.equal(doc["status"], "closed");
+  assert.deepEqual(doc["outcome"], {
+    date: "2026-07-20",
+    note: "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
+    disposition: "withdrawn",
+  });
+});
+
+/** The reason half of `arc increment close`'s no-PR refusal, as it prints. */
+const CLOSE_NOTE_WHY = [
+  "--note <text|@file> says WHY it closed. ADR-0305 D2 removed `superseded` and `retired` as",
+  "states because the difference between them was a REASON, not a state — so write it down:",
+  "discharged by a deletion, duplicated by a sibling, decided against (long prose: --note @path).",
+];
+
+/** The reading half both no-PR refusals print — one copy in the source, so one copy here. */
+const NO_PR_DISPOSITION_WHY = [
+  "--disposition says what the close MEANT, which the board paints (ADR-0564 D1):",
+  "  landed     something landed without a PR — a decision, an arc edit, knowledge artifacts",
+  "  failed     the work was attempted and did not land",
+  "  withdrawn  a duplicate, a superseded plan, a unit that should never have been parked",
+  "A PR derives `landed` by itself. Nothing else does, so a close with neither reads grey for good.",
+];
+
+test("arc increment close with no --pr REFUSES without --disposition, naming everything missing in ONE message", async () => {
+  // `a-close-without-a-pr-records-its-reading`, extending ADR-0564 D1. Of 48 closes since 2026-09-13
+  // the only 2 drawn grey were no-PR closes that never said what they meant — and nothing revisits a
+  // closed row, so a close that omits the reading omits it for good.
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  await arcIncrementNew(deps, "map-arc", { id: "unsaid", title: "t", ...BODY });
+
+  // Everything missing: BOTH are named at once, so the session learns both from one round trip.
+  const bare = await arcIncrementClose(deps, "unsaid", {});
   assert.equal(
-    (doc["outcome"] as Record<string, unknown>)["note"],
-    "discharged by deletion: the verb it names was removed by ADR-0302 D4.",
+    bare.body,
+    [
+      "arc increment close with no --pr needs --note AND --disposition — missing: --note, --disposition.",
+      ...CLOSE_NOTE_WHY,
+      ...NO_PR_DISPOSITION_WHY,
+    ].join("\n"),
   );
-  assert.equal((doc["outcome"] as Record<string, unknown>)["pr"], undefined);
+  assert.deepEqual(bare.next, ["storytree library artifact unsaid --pg"]);
+
+  // A note alone is no longer enough — the reading is the half that was leaking.
+  const noteOnly = await arcIncrementClose(deps, "unsaid", { note: "decided against" });
+  assert.equal(
+    noteOnly.body,
+    [
+      "arc increment close with no --pr needs --note AND --disposition — missing: --disposition.",
+      ...CLOSE_NOTE_WHY,
+      ...NO_PR_DISPOSITION_WHY,
+    ].join("\n"),
+  );
+
+  // …and a reading alone is not enough either: ADR-0305 D2's reason is still owed.
+  const readingOnly = await arcIncrementClose(deps, "unsaid", { disposition: "withdrawn", note: "   " });
+  assert.equal(
+    readingOnly.body,
+    [
+      "arc increment close with no --pr needs --note AND --disposition — missing: --note.",
+      ...CLOSE_NOTE_WHY,
+      ...NO_PR_DISPOSITION_WHY,
+    ].join("\n"),
+  );
+
+  // A BLANK --pr is no PR: a shell expanding `--pr "$REF"` with REF unset must not slip past the rule.
+  const blankPr = await arcIncrementClose(deps, "unsaid", { pr: "  ", note: "decided against" });
+  assert.equal(blankPr.ok, false);
+  assert.match(blankPr.body, /missing: --disposition\.$/m);
+
+  // Every refusal came BEFORE the write.
+  for (const refusal of [bare, noteOnly, readingOnly, blankPr]) assert.equal(refusal.ok, false);
+  assert.equal(await fieldOf(store, "unsaid", "status"), "proposal", "nothing was written by any refusal");
+
+  // Beside a PR neither is owed — the PR derives `landed`, and the verb records nothing it was not told.
+  const merged = await arcIncrementClose(deps, "unsaid", { pr: "#1962" });
+  assert.equal(merged.ok, true, merged.body);
+  assert.deepEqual(await fieldOf(store, "unsaid", "outcome"), { date: "2026-07-20", pr: "#1962" });
+});
+
+test("arc increment add with no --pr REFUSES without --disposition, and records the reading it is given", async () => {
+  // The same rule on the verb that mints a row ALREADY closed — so the moment it is written is the only
+  // moment its reading can be recorded. `--outcome` is the reason half here: a born-closed row's body
+  // IS its outcome (ADR-0322), where a parked row's body is the intention and owes a `--note`.
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  const outcomeOf = async (id: string): Promise<unknown> => fieldOf(store, id, "outcome");
+  const OUTCOME_WHY = "--outcome <text|@file> says what landed / halted / was re-planned (long prose: --outcome @path).";
+  const refusal = (missing: string): string =>
+    [`arc increment add with no --pr needs --outcome AND --disposition — missing: ${missing}.`, OUTCOME_WHY, ...NO_PR_DISPOSITION_WHY].join("\n");
+
+  const unsaid = await arcIncrementAdd(deps, "map-arc", { outcome: "a decision landed" });
+  assert.equal(unsaid.body, refusal("--disposition"));
+  assert.deepEqual(unsaid.next, ["storytree arc show map-arc --pg"]);
+  // Both omitted: both named, in one message.
+  const bare = await arcIncrementAdd(deps, "map-arc", {});
+  assert.equal(bare.body, refusal("--outcome, --disposition"));
+  const blankOutcome = await arcIncrementAdd(deps, "map-arc", { outcome: "   ", disposition: "landed" });
+  assert.equal(blankOutcome.body, refusal("--outcome"));
+  // A blank --pr is no PR.
+  const blankPr = await arcIncrementAdd(deps, "map-arc", { outcome: "a decision landed", pr: "  " });
+  assert.equal(blankPr.body, refusal("--disposition"));
+  // A word outside the three is refused by name, pointing back at the arc.
+  const typo = await arcIncrementAdd(deps, "map-arc", { outcome: "a decision landed", disposition: "merged" });
+  assert.match(typo.body, /^--disposition takes "landed", "failed" or "withdrawn" \(got "merged"\)\.$/m);
+  assert.deepEqual(typo.next, ["storytree arc show map-arc --pg"]);
+
+  for (const refused of [unsaid, bare, blankOutcome, blankPr, typo]) assert.equal(refused.ok, false);
+  const minted = (await store.queryDocs({ kind: "increment" })).filter((d) => d.id.startsWith("map-arc-inc-"));
+  assert.equal(minted.length, 0, "every refusal came before the write");
+
+  // RECORDED when given: a decision that landed with no merge reads green, not grey.
+  const decided = await arcIncrementAdd(deps, "map-arc", { outcome: "a decision landed", disposition: " landed ", id: "decided" });
+  assert.equal(decided.ok, true, decided.body);
+  assert.deepEqual(await outcomeOf("decided"), { date: "2026-07-20", disposition: "landed" });
+  // Beside a PR it stays OPTIONAL — the reading is derived downstream and nothing is stamped…
+  await arcIncrementAdd(deps, "map-arc", { outcome: "it merged", pr: "#1962", id: "merged" });
+  assert.deepEqual(await outcomeOf("merged"), { date: "2026-07-20", pr: "#1962" });
+  // …and a call recorded beside a PR is kept, because work can merge and still be judged a failure.
+  await arcIncrementAdd(deps, "map-arc", { outcome: "it merged and lost", pr: "#1963", disposition: "failed", id: "lost" });
+  assert.deepEqual(await outcomeOf("lost"), { date: "2026-07-20", pr: "#1963", disposition: "failed" });
+});
+
+test("arc increment add's missing-arc refusal prints a usage line that would not itself be refused", async () => {
+  const res = await arcIncrementAdd(writeDeps(await seededStore()), undefined, { outcome: "x" });
+  assert.equal(res.ok, false);
+  assert.equal(
+    res.body,
+    "arc increment add needs an arc id:  storytree arc increment add <arc-id> --outcome <text|@file> --pr <ref> --pg",
+  );
+});
+
+test("arc park and arc reopen write their LIFECYCLE MARKER with no PR, and record no reading on it", async () => {
+  // EXEMPT from the no-PR rule, and on purpose: ADR-0564's three readings say what a unit of WORK's
+  // close meant, and shelving or reopening an arc is not one. `landed` would count it as a landing on
+  // `arc list` and the board; `failed` or `withdrawn` would report work that never existed. A marker
+  // row is honestly unrecorded — and refusing it would break both verbs, which pass no --pr.
+  const store = await seededStore();
+  assert.equal((await arcPark(writeDeps(store), "map-arc", { reason: "descoped for now" })).ok, true);
+  assert.equal((await arcReopen(writeDeps(store), "map-arc", { reason: "the owner wants it after all" })).ok, true);
+
+  const markers = (await store.queryDocs({ kind: "increment" }))
+    .filter((d) => d.id.startsWith("map-arc-inc-"))
+    .map((d) => d.doc as { body?: string; status?: string; outcome?: unknown });
+  assert.deepEqual(
+    markers.map((m) => ({ marker: m.body?.split(" — ")[0], status: m.status, outcome: m.outcome })),
+    [
+      { marker: "PARKED", status: "closed", outcome: { date: "2026-07-20" } },
+      { marker: "UN-PARKED", status: "closed", outcome: { date: "2026-07-20" } },
+    ],
+  );
 });
 
 test("arc increment close RECORDS what the close meant (ADR-0564 D1), and records nothing when unasked", async () => {
@@ -1736,8 +1935,9 @@ test("arc increment close RECORDS what the close meant (ADR-0564 D1), and record
   // `withdrawn` is work that STOPPED, not a milder failure (D3).
   assert.match(bad.body, /`withdrawn` is NOT a softer `failed`/);
   assert.match(bad.body, /work that stopped rather than work that lost/);
-  // ...and says the flag is optional, so nobody reads the refusal as "you must classify every close".
-  assert.match(bad.body, /Omit it and the reading is derived from --pr/);
+  // ...and says WHEN the flag may be omitted — only beside a PR, which derives the reading — so nobody
+  // reads the refusal as "you must classify every close", nor as "you never have to".
+  assert.match(bad.body, /^Omit it only beside --pr, which derives `landed`; with no --pr it is REQUIRED\.$/m);
   // ...and it arrives as five SEPARATE LINES in a terminal, not as one run-on paragraph. Asserted
   // because the body is a `join`, and a joiner that loses its newline still satisfies every
   // substring match above while rendering an unreadable wall — which is the one thing a refusal
@@ -1762,6 +1962,10 @@ test("arc help documents --disposition, so the flag is discoverable without read
   // The flag, its three values, what it drives, and where the argument lives — all on the USAGE
   // line, carrying no explanatory prose of its own.
   assert.match(body, /\[--disposition landed\|failed\|withdrawn: what the BOARD paints, ADR-0564\]/);
+  // The no-PR RULE, on both verbs, riding lines that already existed rather than new prose (see below).
+  assert.match(body, /^ {8}\[--cites <ref>\]\.\.\. \[--disposition landed\|failed\|withdrawn: REQUIRED with no --pr\] --pg$/m);
+  assert.match(body, /^ {8}Mark one increment TERMINAL — for ANY reason, not only a landing\. `--note` AND `--disposition`$/m);
+  assert.match(body, /^ {8}are REQUIRED when there is no `--pr`: ADR-0305 D2 dropped `superseded`\/`retired` because the$/m);
 
   // ⚠ THE ABSENCE IS DELIBERATE AND IT IS NOT A SHORTCUT. Five lines of ADR-0564 rationale lived
   // here first; every one is a string literal the mutation rung must attribute, and on CI that
@@ -3824,7 +4028,7 @@ test("closing the LAST increment does not auto-close an arc whose question is un
   const store = await drainedArc(new InMemoryStore());
   await questionOn(store, "drained-arc", "oq-still-open");
   // Re-close the increment through the verb so the real write-time trigger runs.
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
   assert.equal(arc["lifecycle"] ?? "active", "active", "the arc stays on the worklist");
@@ -3836,7 +4040,7 @@ test("closing the LAST increment does not auto-close an arc whose question is un
 test("the same closure DOES auto-close the arc once the question is settled", async () => {
   const store = await drainedArc(new InMemoryStore());
   await questionOn(store, "drained-arc", "oq-answered", true);
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
   assert.equal(arc["lifecycle"], "closed");
@@ -3847,7 +4051,7 @@ test("a question on ANOTHER arc never holds this one open", async () => {
   const store = await drainedArc(new InMemoryStore());
   await drainedArc(store, "other-arc");
   await questionOn(store, "other-arc", "oq-elsewhere");
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
 });
@@ -3860,7 +4064,7 @@ test("a question with NO lifecycle field reads as OPEN — the safe direction", 
   await questionOn(store, "drained-arc", "oq-legacy");
   const legacy = (await store.getDoc("oq-legacy"))?.doc as Record<string, unknown>;
   assert.equal(legacy["lifecycle"], undefined, "the fixture really does omit the field");
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(
     ((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active",
     "active",
@@ -3874,7 +4078,7 @@ test("a PARKED arc is untouched by the question input — the curated fence stil
   const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
   await store.upsertDoc({ id: "drained-arc", kind: "arc", doc: { ...arc, lifecycle: "parked" } });
   await questionOn(store, "drained-arc", "oq-open-on-parked");
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "parked");
   assert.match(res.body, /stays parked/);
@@ -3886,7 +4090,7 @@ test("a malformed question row never breaks the lifecycle read", async () => {
   // either would throw and take the whole increment write down with it.
   await store.upsertDoc({ id: "oq-null", kind: "open-question", doc: null as never });
   await store.upsertDoc({ id: "oq-string", kind: "open-question", doc: "not an object" as never });
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   // Neither carries an `arcRef`, so neither is this arc's — the arc closes.
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
@@ -3913,7 +4117,7 @@ test("the held-open message needs BOTH halves — a question alone does not prod
     },
   });
   await questionOn(store, "drained-arc", "oq-open-with-work");
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /did NOT auto-close/, "open WORK is why it is active, not the question");
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
@@ -3921,7 +4125,7 @@ test("the held-open message needs BOTH halves — a question alone does not prod
 
 test("nor does a drained log alone produce it — with no question the arc simply closes", async () => {
   const store = await drainedArc(new InMemoryStore());
-  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /did NOT auto-close/);
   assert.match(res.body, /auto-closed/);
@@ -3988,7 +4192,7 @@ test("settling the LAST question on a drained arc auto-closes it, and says so (A
   const store = await drainedArc(new InMemoryStore());
   await questionOn(store, "drained-arc", "oq-last");
   // Drain the work first — the arc stays open on the question alone.
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
 
   const res = await questionSettle(writeDeps(store), "oq-last", { answer: "decided" });
@@ -4009,7 +4213,7 @@ test("settling one of TWO questions leaves the arc open, and prints no lifecycle
   const store = await drainedArc(new InMemoryStore());
   await questionOn(store, "drained-arc", "oq-one");
   await questionOn(store, "drained-arc", "oq-two");
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   const res = await questionSettle(writeDeps(store), "oq-one", { answer: "decided" });
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /auto-closed/);
@@ -4024,9 +4228,9 @@ test("recording a landing on an ALREADY-closed arc with no questions says nothin
   // question COUNT would print "did NOT auto-close — 0 question(s) still wait on you" here, which is
   // both false and alarming.
   const store = await drainedArc(new InMemoryStore());
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
-  const res = await arcIncrementAdd(writeDeps(store), "drained-arc", { outcome: "another landing." });
+  const res = await arcIncrementAdd(writeDeps(store), "drained-arc", { outcome: "another landing.", disposition: "landed" });
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /did NOT auto-close/);
   assert.doesNotMatch(res.body, /question\(s\) still wait/);
@@ -4055,7 +4259,7 @@ test("question new on an ACTIVE arc prints no lifecycle line — nothing changed
 
 test("question new on a CLOSED arc REOPENS it and says so (ADR-0526 D4's mirror)", async () => {
   const store = await drainedArc(new InMemoryStore());
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
 
   const res = await questionNew(writeDeps(store), undefined, {
@@ -4098,7 +4302,7 @@ test("settling a question on an arc with OPEN WORK prints no lifecycle line at a
 
 test("question new on a CLOSED arc separates its reopen note from the header and the title", async () => {
   const store = await drainedArc(new InMemoryStore());
-  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed", disposition: "landed" });
   const res = await questionNew(writeDeps(store), undefined, {
     arc: "drained-arc",
     title: "Which way now",
