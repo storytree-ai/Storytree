@@ -2050,6 +2050,11 @@ test("arc reconcile: the BARE verb is read-only — it reports drift and changes
     assert.equal(out.ok, true);
     assert.match(out.body, /drained-arc/);
     assert.match(out.body, /active → closed/);
+    // THE COUNTS SAY CLOSED, NOT "LANDED" (ADR-0564 D2, and D5's rename applied to this field).
+    // Both of this arc's terminal increments are closures carrying no landing, so a row claiming
+    // "2 landed" — which is what it printed until 2026-09-16 — asserts two deliveries that never
+    // happened, in the one report whose whole job is to describe an arc's state accurately.
+    assert.match(out.body, /\(2 closed, 0 open\)/);
     assert.match(out.body, /read-only\. Re-run with --write to apply\./);
     // The store is untouched: the flag is the whole gate on a bulk write to shared live state.
     const arc = await store.getDoc("drained-arc");

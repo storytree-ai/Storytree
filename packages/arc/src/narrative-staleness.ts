@@ -3,7 +3,7 @@ import type { StoreEvent } from "@storytree/storage-protocol";
 import type { ArcRollupIncrement } from "./arc-rollup.js";
 
 /**
- * THE ARC NARRATIVE STALENESS SIGNAL — does an arc's authored prose predate its own landings?
+ * THE ARC NARRATIVE STALENESS SIGNAL — does an arc's authored prose predate its own closed work?
  * (`arc-narrative-staleness-signal` on `session-ambition-arc`, from the friction
  * `arc-narrative-fields-have-no-staleness-signal`.)
  *
@@ -25,8 +25,8 @@ import type { ArcRollupIncrement } from "./arc-rollup.js";
  * ## What it claims, and what it refuses to claim
  *
  * It compares DATES, never MEANING. The claim is exactly: *this field was last written on day D, and
- * these increments landed after D* — a mechanical fact with a mechanical refutation. It does not
- * decide that a landing contradicts the prose, because nothing here can read prose; it names the
+ * these increments CLOSED after D* — a mechanical fact with a mechanical refutation. It does not
+ * decide that a closure contradicts the prose, because nothing here can read prose; it names the
  * candidates and leaves the reading to the reader. That is the {@link ../cli/src/artifact-history}
  * discipline applied again: report the sizes and the actor, render no verdict, because a signal that
  * cries wolf is one the reader learns to skim past.
@@ -37,11 +37,11 @@ import type { ArcRollupIncrement } from "./arc-rollup.js";
  *
  * ## Why the ARC DOC'S OWN `updatedAt` IS NOT THE SOURCE
  *
- * The obvious cheap answer — compare `arc.updatedAt` against the landings — is a false-negative
+ * The obvious cheap answer — compare `arc.updatedAt` against the closures — is a false-negative
  * machine, and would have been quietly wrong forever. `recomputeArcLifecycle` (`arc.ts`) patches
  * `{ lifecycle, updatedAt }` on the ARC every time an increment write changes the derived lifecycle
- * (ADR-0335). So the very landings this signal is looking for are the events that refresh the stamp
- * it would be reading: the more an arc lands, the fresher its narrative would look. The source is
+ * (ADR-0335). So the very closures this signal is looking for are the events that refresh the stamp
+ * it would be reading: the more an arc closes, the fresher its narrative would look. The source is
  * therefore the append-only history (`Store.readEvents`), folded to *the last write whose value for
  * this field DIFFERED from the previous one* — the same fold `library artifact history --field` reads
  * (ADR-0361 D6). `narrative-staleness.test.ts` pins that distinction with a lifecycle-only patch that
@@ -49,7 +49,7 @@ import type { ArcRollupIncrement } from "./arc-rollup.js";
  *
  * ## The population is a QUERY, and the edge only points one way
  *
- * The landings compared against are the arc's own increments as {@link deriveArcRollup} derived them
+ * The closures compared against are the arc's own increments as {@link deriveArcRollup} derived them
  * — i.e. every increment whose OWN `arcRef` names this arc (ADR-0183 D3 puts every containment edge
  * on the child). Nothing here reads a list authored on the ARC, and there is none to read. That
  * matters because the arc graph's edges genuinely do point one way: a fence lives on the arc that
@@ -62,10 +62,10 @@ import type { ArcRollupIncrement } from "./arc-rollup.js";
  *
  * Swept over all 91 live arcs on 2026-08-22, the day this landed. On the population that matters —
  * the ACTIVE worklist a session orients on — it fires on **2 of 12**: 6 arcs come back explicitly
- * current and 4 have no landings to be stale against. So it DISCRIMINATES; a signal that fired on
+ * current and 4 have nothing closed to be stale against. So it DISCRIMINATES; a signal that fired on
  * everything would be a banner, and one that fired on nothing would be the repo's commonest fault.
  * The two it names are the long-running multi-increment arcs the friction predicted would rot
- * (`linked-session-context-arc`, 24 of 26 landings unseen; `uat-journey-surgery-arc`, 53 of 55).
+ * (`linked-session-context-arc`, 24 of 26 closures unseen; `uat-journey-surgery-arc`, 53 of 55).
  *
  * CLOSED arcs fire at 56 of 76 and PARKED at 3 of 3, and neither is filtered out. A lifecycle filter
  * was considered and declined: ADR-0239 D3 already has `arc show` render any arc and say which it
@@ -91,13 +91,22 @@ export type NarrativeField = (typeof NARRATIVE_FIELDS)[number];
 /** How each field is spelled to a reader (`endState` is the schema key, not the English). */
 const FIELD_LABEL = { intent: "intent", endState: "end state" } as const satisfies Record<NarrativeField, string>;
 
-/** One landing recorded after the narrative was last written — a candidate the prose has not seen. */
-export interface UnseenLanding {
+/**
+ * One CLOSURE recorded after the narrative was last written — a candidate the prose has not seen.
+ *
+ * ⚠ NOT "landing", and the distinction is ADR-0564's: a closed increment is a LANDING only where its
+ * outcome records one (or carries a `pr` to derive one from). This signal counts every closure on
+ * purpose — a unit that failed or was withdrawn overtakes the prose exactly as a delivered one does
+ * — so the population is closures and the name has to say so. Naming it `landing` is what let the
+ * render below report closures to the owner as deliveries; ADR-0564 D5 made the same correction one
+ * tier up by renaming `landedOn` to `closedOn` rather than documenting it.
+ */
+export interface UnseenClosure {
   readonly id: string;
   readonly title: string;
-  /** The authored landing date (`outcome.date`, `YYYY-MM-DD`) — always set by `increment close`. */
+  /** The authored closing date (`outcome.date`, `YYYY-MM-DD`) — always set by `increment close`. */
   readonly date: string;
-  /** The landing ref when the closure carried one; absent for a closure explained by `--note`. */
+  /** The pr ref when the closure carried one; absent for a closure explained by `--note`. */
   readonly pr?: string;
 }
 
@@ -109,8 +118,8 @@ export interface NarrativeFieldStaleness {
    * not say — a store with no events for this arc, never "it is current".
    */
   readonly lastWrittenAt?: string;
-  /** Landings strictly after {@link lastWrittenAt}'s DAY, newest first. Empty when up to date. */
-  readonly unseen: readonly UnseenLanding[];
+  /** Closures strictly after {@link lastWrittenAt}'s DAY, newest first. Empty when up to date. */
+  readonly unseen: readonly UnseenClosure[];
 }
 
 /** The whole signal for one arc. */
@@ -121,17 +130,17 @@ export interface ArcNarrativeStaleness {
    */
   readonly fields: readonly NarrativeFieldStaleness[];
   /** Every closed increment on the arc, newest first — the population the fields are compared against. */
-  readonly landings: readonly UnseenLanding[];
+  readonly closures: readonly UnseenClosure[];
   /**
    * Closed increments carrying no `outcome.date`, by id. They cannot enter the comparison, so they
-   * are NAMED rather than dropped (ADR-0095's no-silent-caps rule): a landing excluded in silence is
+   * are NAMED rather than dropped (ADR-0095's no-silent-caps rule): a closure excluded in silence is
    * indistinguishable from one that was checked and cleared.
    */
-  readonly undatedLandings: readonly string[];
-  /** At least one field has an unseen landing — the report fires. */
+  readonly undatedClosures: readonly string[];
+  /** At least one field has an unseen closure — the report fires. */
   readonly stale: boolean;
   /**
-   * There are landings to compare against, but NO field could be dated at all. The honest third
+   * There are closures to compare against, but NO field could be dated at all. The honest third
    * state: unknown is not fresh, and a surface that rendered nothing here would say "fresh" by
    * omission.
    */
@@ -177,23 +186,24 @@ function day(iso: string): string {
 }
 
 /**
- * The closed increments split by whether a landing DATE could be read off them — the two halves
+ * The closed increments split by whether a closing DATE could be read off them — the two halves
  * every staleness verdict below is computed from.
  */
-interface ArcLandings {
-  /** Landings carrying a readable date, newest first. */
-  dated: UnseenLanding[];
+interface ArcClosures {
+  /** Closures carrying a readable date, newest first. */
+  dated: UnseenClosure[];
   /** Increment ids that closed with no datable field at all — the honest third answer. */
   undated: string[];
 }
 
-/** The closed increments, newest first, as landing rows. */
-function landingsOf(increments: readonly ArcRollupIncrement[]): ArcLandings {
-  const dated: UnseenLanding[] = [];
+/** The closed increments, newest first, as closure rows. */
+function closuresOf(increments: readonly ArcRollupIncrement[]): ArcClosures {
+  const dated: UnseenClosure[] = [];
   const undated: string[] = [];
   for (const i of increments) {
     // `closed` is the ONLY terminal status (ADR-0305 D2 collapsed the lifecycle to
-    // proposal → ready → active → closed), so a landing is exactly a closed row. Forward-looking
+    // proposal → ready → active → closed), so the population is exactly the closed rows —
+    // whether or not any of them landed. Forward-looking
     // entries are intentions and can never be something the prose failed to notice.
     if (i.status !== "closed") continue;
     const date = i.outcome?.date;
@@ -217,11 +227,11 @@ function landingsOf(increments: readonly ArcRollupIncrement[]): ArcLandings {
  *
  * ## The comparison is at DAY granularity, and the same day is quiet
  *
- * A landing carries an authored `YYYY-MM-DD` (`increment close`'s `--date`, defaulted to the closing
+ * A closure carries an authored `YYYY-MM-DD` (`increment close`'s `--date`, defaulted to the closing
  * day); a narrative write carries a full ISO instant. There is no honest way to order two events
- * inside the same day across those, so `>` on the day string is the comparison and a landing recorded
+ * inside the same day across those, so `>` on the day string is the comparison and a closure recorded
  * on the very day the prose was written does NOT fire. That is the conservative direction on purpose:
- * on the same day the prose plausibly already accounts for the landing, and a signal whose first
+ * on the same day the prose plausibly already accounts for it, and a signal whose first
  * impression is a false positive is one the next reader disables.
  */
 export function deriveArcNarrativeStaleness(input: {
@@ -230,7 +240,7 @@ export function deriveArcNarrativeStaleness(input: {
   readonly increments: readonly ArcRollupIncrement[];
   readonly events: readonly StoreEvent[];
 }): ArcNarrativeStaleness {
-  const { dated, undated } = landingsOf(input.increments);
+  const { dated, undated } = closuresOf(input.increments);
   const fields: NarrativeFieldStaleness[] = [];
   for (const field of NARRATIVE_FIELDS) {
     const prose = field === "intent" ? input.intent : input.endState;
@@ -242,18 +252,18 @@ export function deriveArcNarrativeStaleness(input: {
   const datable = fields.filter((f) => f.lastWrittenAt !== undefined);
   return {
     fields,
-    landings: dated,
-    undatedLandings: undated,
+    closures: dated,
+    undatedClosures: undated,
     stale: fields.some((f) => f.unseen.length > 0),
     // "Undatable" is only a claim worth making when there is something to be stale AGAINST. An arc
-    // with no landings at all is neither stale nor unknown — it is simply young, and saying anything
+    // with nothing closed at all is neither stale nor unknown — it is simply young, and saying anything
     // there would train the reader to ignore the block.
     undatable: fields.length > 0 && datable.length === 0 && (dated.length > 0 || undated.length > 0),
   };
 }
 
-/** How many landings are named inline before the block defers to the log below it. */
-export const NAMED_LANDING_CAP = 5;
+/** How many closures are named inline before the block defers to the log below it. */
+export const NAMED_CLOSURE_CAP = 5;
 
 /**
  * PURE: the `arc show` block — `[]` when there is nothing honest to say.
@@ -274,9 +284,9 @@ export function renderNarrativeStaleness(
   opts: { readonly noLog?: boolean } = {},
 ): string[] {
   if (s.undatable) {
-    const landings = s.landings.length + s.undatedLandings.length;
+    const closed = s.closures.length + s.undatedClosures.length;
     return [
-      `⚠ NARRATIVE FRESHNESS UNKNOWN — this arc has ${landings} landing${landings === 1 ? "" : "s"} on its increment log,`,
+      `⚠ NARRATIVE FRESHNESS UNKNOWN — this arc has ${closed} closed increment${closed === 1 ? "" : "s"} on its log,`,
       "  but its write history holds no record of when the prose was last written, so whether the prose",
       "  predates them could not be established. UNKNOWN IS NOT FRESH — read the log before trusting it" +
         (opts.noLog === true ? " (drop --no-log to see it)." : "."),
@@ -286,12 +296,12 @@ export function renderNarrativeStaleness(
   if (!s.stale) return [];
 
   const lines: string[] = [
-    "⚠ NARRATIVE STALENESS — the prose below was last written BEFORE landings on this arc's own log.",
+    "⚠ NARRATIVE STALENESS — the prose below was last written BEFORE closures on this arc's own log.",
   ];
   // The two fields' unseen sets OVERLAP almost always — whichever prose was written later has a
-  // subset of the other's landings — so rendering both in full repeats up to five identical rows on
+  // subset of the other's closures — so rendering both in full repeats up to five identical rows on
   // the surface whose SIZE is already a measured cost (the reason `--no-log` exists). A field whose
-  // landings are entirely among ones already named says so in one line and points at that list.
+  // closures are entirely among ones already named says so in one line and points at that list.
   // Naming the count is what keeps this a narrowing rather than a silent drop: the reader still
   // learns that this field is stale and by how much.
   const covered = new Set<string>();
@@ -300,7 +310,7 @@ export function renderNarrativeStaleness(
     if (f.unseen.length === 0) continue;
     const n = f.unseen.length;
     const written = day(f.lastWrittenAt ?? "");
-    const lead = `  ${FIELD_LABEL[f.field]}: last written ${written} — ${n} increment${n === 1 ? "" : "s"} landed since`;
+    const lead = `  ${FIELD_LABEL[f.field]}: last written ${written} — ${n} increment${n === 1 ? "" : "s"} closed since`;
     if (coveredBy !== undefined && f.unseen.every((l) => covered.has(l.id))) {
       // "among the intent's 24 above" refers to the COUNTED set, not to the five rows printed — the
       // overflow line under that set already says where the rest are.
@@ -310,29 +320,29 @@ export function renderNarrativeStaleness(
     lines.push(`${lead}:`);
     coveredBy ??= { field: f.field, count: n };
     for (const l of f.unseen) covered.add(l.id);
-    for (const l of f.unseen.slice(0, NAMED_LANDING_CAP)) {
+    for (const l of f.unseen.slice(0, NAMED_CLOSURE_CAP)) {
       // The SAME row shape the increment log below uses (`date  pr  id  — title`), deliberately: a
       // reader scanning both blocks on one screen is matching rows between them, and two spellings
-      // of one landing is friction for nothing.
+      // of one row is friction for nothing.
       lines.push(`    - ${l.date}${l.pr === undefined ? "" : `  ${l.pr}`}  ${l.id}  — ${l.title}`.trimEnd());
     }
     // Never a silent cap (ADR-0095): the overflow says how many it did not name and where they are.
-    if (n > NAMED_LANDING_CAP) {
+    if (n > NAMED_CLOSURE_CAP) {
       lines.push(
-        `    … and ${n - NAMED_LANDING_CAP} more — ` +
+        `    … and ${n - NAMED_CLOSURE_CAP} more — ` +
           (opts.noLog === true
             ? "drop --no-log to read the full increment log below."
-            : "every landing is in the increment log below."),
+            : "every one is in the increment log below."),
       );
     }
   }
-  if (s.undatedLandings.length > 0) {
+  if (s.undatedClosures.length > 0) {
     lines.push(
-      `  not compared (closed with no date): ${s.undatedLandings.join(", ")} — they may be newer than the prose too.`,
+      `  not compared (closed with no date): ${s.undatedClosures.join(", ")} — they may be newer than the prose too.`,
     );
   }
   lines.push(
-    "  This compares DATES, not meaning: a named landing may well be consistent with the prose. Read them",
+    "  This compares DATES, not meaning: a named closure may well be consistent with the prose. Read them",
     "  against each other, then correct the prose in place if it no longer holds (ADR-0139):",
     `    storytree arc edit ${arcId} --intent @intent.txt --end-state @end-state.txt --pg`,
     "",

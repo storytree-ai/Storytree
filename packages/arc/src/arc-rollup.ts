@@ -613,7 +613,12 @@ export interface ArcLifecycleDrift {
   /** `close` when a drained arc still reads active; `reopen` when open work sits on a closed arc. */
   action: "close" | "reopen";
   open: number;
-  landed: number;
+  /**
+   * The TERMINAL increments — closed, whatever each closure MEANT. It was called `landed` until
+   * 2026-09-16, and it never counted landings: this is the same closure-is-a-landing naming ADR-0564
+   * D5 corrected one tier up (`landedOn` → `closedOn`), on the second field that carried it.
+   */
+  closed: number;
 }
 
 /** An arc whose increment log derives nothing — see {@link deriveArcLifecycle}'s `null` branch. */
@@ -694,7 +699,7 @@ export function reconcileArcLifecycles(
       derived,
       action: derived === "closed" ? "close" : "reopen",
       open,
-      landed: arc.increments.length - open,
+      closed: arc.increments.length - open,
     });
   }
   return { drift, noSignal, agreed, curated };

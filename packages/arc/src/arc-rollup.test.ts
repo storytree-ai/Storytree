@@ -1007,7 +1007,7 @@ test("reconcileArcLifecycles: reports a drained-but-active arc as `close`, with 
       derived: "closed",
       action: "close",
       open: 0,
-      landed: 2,
+      closed: 2,
     },
   );
 });
@@ -1020,7 +1020,7 @@ test("reconcileArcLifecycles: is SYMMETRIC — open work on a closed arc reports
   assert.equal(found.drift[0]?.action, "reopen");
   assert.equal(found.drift[0]?.derived, "active");
   assert.equal(found.drift[0]?.open, 1);
-  assert.equal(found.drift[0]?.landed, 1);
+  assert.equal(found.drift[0]?.closed, 1);
 });
 
 test("reconcileArcLifecycles: an arc already in agreement is COUNTED, never reported as drift", () => {
