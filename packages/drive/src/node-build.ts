@@ -43,6 +43,7 @@ import type {
   LiveSmokeResolveOptions,
   NodeBuildConfig,
   NodeSpec,
+  Phase,
   PromotionResult,
   ProveResult,
   RealProofConfig,
@@ -210,6 +211,67 @@ function isCodexMultifileRuntimeSeam(unitId: string): boolean {
  */
 interface WalkOutcome {
   readonly ok: boolean;
+  /**
+   * WHERE THE WALK DIED, on a refusal — present on `ProveResult`'s failing arm and absent on its
+   * passing one, so passing the result straight through is all a call site has to do.
+   *
+   * It is what makes a truthful OPENING possible. The phases are ordered
+   * `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE` (ADR-0020), so the one that
+   * refused says exactly how far the walk got, and everything after it did not happen.
+   *
+   * ⚠ Absent on a refusal means UNRECORDED, never "reached everything" — the renderers fall back to
+   * saying so rather than narrating a walk they cannot vouch for.
+   */
+  readonly failedAt?: Phase;
+}
+
+/**
+ * WHAT THE LIVE WALK ACTUALLY REACHED — the live sibling of {@link realWalkReached}, over the same
+ * ordered phases. The live smoke has no repo worktree and no commit, so its arms speak only of the
+ * authoring and the spine's observations; everything after the refusing phase is withheld rather
+ * than narrated.
+ */
+function liveWalkReached(outcome: WalkOutcome): string {
+  if (outcome.ok) {
+    return (
+      "genuinely authored the test and impl under phase-enforced write\n" +
+      "scope, and the spine observed the genuine red→green those writes caused."
+    );
+  }
+  switch (outcome.failedAt) {
+    case "AUTHOR_TEST":
+      return (
+        "was asked to author the test under phase-enforced write\n" +
+        "scope, and the walk stopped there — no implementation, and no red→green to observe."
+      );
+    case "CONFIRM_RED":
+      return (
+        "genuinely authored the test under phase-enforced write\n" +
+        "scope, and the spine did not observe the required red. No implementation was authored."
+      );
+    case "IMPLEMENT":
+      return (
+        "genuinely authored the test under phase-enforced write\n" +
+        "scope, the spine observed the genuine RED, and the walk stopped at the implementation."
+      );
+    case "CONFIRM_GREEN":
+      return (
+        "genuinely authored the test and impl under phase-enforced write\n" +
+        "scope, and the spine did not observe the green."
+      );
+    case "GATE":
+      return (
+        "genuinely authored the test and impl under phase-enforced write\n" +
+        "scope and the spine observed the genuine red→green those writes caused — and the GATE\n" +
+        "refused after."
+      );
+    default:
+      return (
+        "ran under phase-enforced write scope and then refused;\n" +
+        "which phase it reached was not recorded, so nothing about the authoring or the observations\n" +
+        "is claimed here."
+      );
+  }
 }
 
 export function honestFramingLive(
@@ -226,8 +288,7 @@ export function honestFramingLive(
         : "the Claude Agent SDK with subscription authentication";
   return (
     `honest framing: a live smoke proves the LIVE LOOP through the gate — ${leaf}\n` +
-    "(ADR-0030/0232) genuinely authored the test and impl under phase-enforced write\n" +
-    "scope, and the spine observed the genuine red→green those writes caused. The TASK is still " +
+    `(ADR-0030/0232) ${liveWalkReached(outcome)} The TASK is still ` +
     (isCodexMultifileRuntimeSeam(unitId)
       ? "the synthetic exact two-implementation-file fixture in a temp workspace.\n"
       : "the synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n") +
@@ -258,24 +319,37 @@ export function honestFramingReal(
     runtime === "codex"
       ? "the ChatGPT-subscription Codex leaf via exact replica promotion"
       : "the Claude Agent SDK leaf under hook-enforced write scope";
+  // THE COMMIT IS GATE'S OWN FIRST ACT. `commitAuthored` is called by the `treeState` seam
+  // (`resolve-prove-spec.ts`), and GATE is what calls that seam — so a refusal BEFORE gate has no
+  // commit behind it, and "the authored commit was not promoted" would assert one that never existed.
+  const reachedGate = outcome.ok || outcome.failedAt === "GATE";
   const commitFate =
     promotion !== undefined
       ? `the authored commit is PARKED on ${promotion.branch}\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main)`
-      : "the authored commit was not promoted (see the promotion line above)";
+      : reachedGate
+        ? "the authored commit was not promoted (see the promotion line above)"
+        : "no commit was made, so there was nothing to promote";
   // "BEFORE the gate ruled", never "BEFORE the verdict was signed": the same backstops run ahead of a
   // refusal, and a refused build signed nothing.
+  // The proof command is first run in CONFIRM_RED, so a walk that refused at AUTHOR_TEST never ran
+  // it — and the backstops run INSIDE gate, so it ran neither of those either. Saying "only the
+  // node's registered proof command ran" there contradicted the opening in the same sentence.
+  const ranProofCommand =
+    outcome.ok ||
+    outcome.failedAt === "CONFIRM_RED" ||
+    outcome.failedAt === "IMPLEMENT" ||
+    outcome.failedAt === "CONFIRM_GREEN" ||
+    outcome.failedAt === "GATE";
   const suiteClause =
     regression === undefined
-      ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
+      ? ranProofCommand
+        ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
+        : "neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them"
       : typecheck === undefined
         ? `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree BEFORE the gate ruled`
         : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code)`;
   return (
-    "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\n" +
-    `node's REAL test/impl files at their real repo paths authored by ${leaf},\n` +
-    "the node's declared REAL proof command run by the spine for\n" +
-    "both red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
-    `\`git status\` off that worktree. ${commitFate}` +
+    `honest framing: a REAL build (ADR-0031). ${realWalkReached(outcome, leaf)} ${commitFate}` +
     (outcome.ok && !persisted ? "; the verdict\nlanded in an in-memory store and is gone" : "") +
     `; and ${suiteClause}.` +
     (!outcome.ok
@@ -284,6 +358,77 @@ export function honestFramingReal(
       ? "\nWhat DID persist: the signed verdict — events.verdict in the shared store (the rollup can\nderive from it across sessions)."
       : "")
   );
+}
+
+/**
+ * WHAT THE REAL WALK ACTUALLY REACHED, phase by phase.
+ *
+ * The opening used to narrate the PASS path in the past tense whatever happened — "the node's
+ * declared REAL proof command run by the spine for both red and green, a spine-side commit of the
+ * authored files, and a GATE that read genuine `git status`" — printed a few lines above the
+ * envelope's own `verdict: NONE — failed closed at <phase>`, which contradicted it.
+ *
+ * The phases are ORDERED (ADR-0020): `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`.
+ * So the phase that refused says exactly how far the walk got, and NOTHING after it happened. Each
+ * arm below claims only what its phase had already completed.
+ *
+ * The worktree is the one thing every arm may claim: it is cut before the walk starts.
+ */
+function realWalkReached(outcome: WalkOutcome, leaf: string): string {
+  const cut = "What was real: a fresh git worktree of THIS repo";
+  if (outcome.ok) {
+    return (
+      `${cut}, the\n` +
+      `node's REAL test/impl files at their real repo paths authored by ${leaf},\n` +
+      "the node's declared REAL proof command run by the spine for\n" +
+      "both red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
+      "`git status` off that worktree."
+    );
+  }
+  switch (outcome.failedAt) {
+    case "AUTHOR_TEST":
+      return (
+        `${cut}, and ${leaf}\n` +
+        "asked to author the test. The walk stopped there: the spine never ran the proof command,\n" +
+        "nothing was committed, and the GATE never read that worktree."
+      );
+    case "CONFIRM_RED":
+      return (
+        `${cut}, a test authored at its real repo\n` +
+        `path by ${leaf}, and the node's declared REAL proof command run by the\n` +
+        "spine — which did not observe the required red. No implementation was authored, nothing was\n" +
+        "committed, and the GATE never read that worktree."
+      );
+    case "IMPLEMENT":
+      return (
+        `${cut}, a test authored at its real repo\n` +
+        `path by ${leaf}, and a genuine RED observed by the spine. The walk\n` +
+        "stopped at the implementation: the proof command was never re-run for green, nothing was\n" +
+        "committed, and the GATE never read that worktree."
+      );
+    case "CONFIRM_GREEN":
+      return (
+        `${cut}, the node's REAL test/impl files at\n` +
+        `their real repo paths authored by ${leaf}, and the proof command re-run\n` +
+        "by the spine — which did not observe the green. Nothing was committed, and the GATE never\n" +
+        "read that worktree."
+      );
+    case "GATE":
+      return (
+        `${cut}, the node's REAL test/impl files at\n` +
+        `their real repo paths authored by ${leaf}, the node's declared REAL proof\n` +
+        "command run by the spine for both red and green, a spine-side commit of the authored files,\n" +
+        "and a GATE that read genuine `git status` off that worktree — and refused."
+      );
+    default:
+      // ABSENT is UNRECORDED, never "reached everything". Saying so is the only honest arm: the walk
+      // refused, and this renderer cannot vouch for a single phase of it.
+      return (
+        `${cut}. The walk then refused, and which phase it\n` +
+        "reached was not recorded — so nothing about the authoring, the observations or the commit is\n" +
+        "claimed here."
+      );
+  }
 }
 
 /**
