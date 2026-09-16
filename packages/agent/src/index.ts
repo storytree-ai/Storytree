@@ -99,6 +99,30 @@ export {
   runPinnedCodexCli,
 } from "./codex-author.js";
 
+export type {
+  CodexAppServerCommand,
+  CodexAppServerProcess,
+  CodexAppServerProcessEvents,
+  CodexAppServerSpawner,
+  CodexRateLimitBucket,
+  CodexRateLimitBucketAvailable,
+  CodexRateLimitClock,
+  CodexRateLimitField,
+  CodexRateLimitResetCredits,
+  CodexRateLimitSnapshot,
+  CodexRateLimitSnapshotAvailable,
+  CodexRateLimitSnapshotUnavailable,
+  CodexRateLimitsByLimitId,
+  CodexRateLimitUnavailableReason,
+  CodexRateLimitWindow,
+  CodexRateLimitWindowAvailable,
+  ReadCodexRateLimitSnapshotArgs,
+} from "./codex-rate-limits.js";
+export {
+  DEFAULT_CODEX_RATE_LIMIT_TIMEOUT_MS,
+  readCodexRateLimitSnapshot,
+} from "./codex-rate-limits.js";
+
 export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";
 export { runSdkCurator } from "./sdk-curator.js";
 
