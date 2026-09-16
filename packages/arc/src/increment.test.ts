@@ -250,6 +250,8 @@ test("DRIFTED + a closed sibling recording delivery does NOT recommend the plann
   const next = (env.next ?? []).join("\n");
   assert.doesNotMatch(next, /agents planner/, "the measured misdirection: re-planning delivered work");
   assert.match(next, /arc increment close p1/, "closing the record is the honest terminal move");
+  // …pasteable as printed: a PR-less close owes its reading, and delivered work landed or was a duplicate.
+  assert.equal(env.next?.[0], 'storytree arc increment close p1 --note "<why>" --disposition <landed|withdrawn> --pg');
   assert.match(next, /library artifact sib-1/, "and the evidence is one read away");
 });
 
