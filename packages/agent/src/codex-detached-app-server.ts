@@ -54,7 +54,7 @@ export interface CodexDetachedThread {
   readonly pid: number;
   readonly owner: CodexDetachedOwner;
   startTurn(prompt: string): Promise<{ readonly turnId: string; readonly status: string }>;
-  probe(): Promise<{ readonly live: boolean; readonly rateLimits: unknown }>;
+  probe(): Promise<{ readonly live: boolean | "unavailable"; readonly rateLimits: unknown }>;
   terminate(): Promise<void>;
 }
 
@@ -266,7 +266,8 @@ export async function openPinnedCodexDetachedThread(args: OpenPinnedCodexDetache
       },
       probe: async () => {
         const live = await liveness();
-        if (live !== true) return { live: false, rateLimits: undefined };
+        if (live === undefined) return { live: "unavailable", rateLimits: undefined };
+        if (!live) return { live: false, rateLimits: undefined };
         try {
           const result = await request("account/rateLimits/read", null);
           return { live: true, rateLimits: record(result) ? result["rateLimits"] : undefined };
