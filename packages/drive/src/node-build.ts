@@ -1488,6 +1488,12 @@ export function renderIncrementLines(
   return [`increment:   ${incrementId}`, ...warnings.map((w) => `warning:     ${w}`)];
 }
 
+/** What {@link renderInnerLoopOutcome} adds to a paid build's envelope: body lines and next steps. */
+export interface InnerLoopOutcomeLines {
+  lines: string[];
+  next: string[];
+}
+
 /**
  * Render what {@link buildNodeReal} recorded on the inner-loop attempt ledger for this walk, through
  * the one entry-state renderer (ADR-0576 D8). `innerLoop` undefined, or its attempt unrecorded,
@@ -1497,12 +1503,6 @@ export function renderIncrementLines(
  * this unit and renders the `attempt-failed` state — a fold that throws (a corrupt ledger) renders a
  * named line instead of propagating.
  */
-/** What {@link renderInnerLoopOutcome} adds to a paid build's envelope: body lines and next steps. */
-export interface InnerLoopOutcomeLines {
-  lines: string[];
-  next: string[];
-}
-
 export function renderInnerLoopOutcome(
   unitId: string,
   runId: string,

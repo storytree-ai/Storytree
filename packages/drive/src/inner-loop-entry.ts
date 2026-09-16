@@ -319,16 +319,16 @@ function nextForRefusal(r: InnerLoopRefusal): string | undefined {
   }
 }
 
-/**
- * The ONE renderer every {@link InnerLoopEntryState} outcome goes through — the only place these
- * strings live (ADR-0576 D8). Entries never re-type them.
- */
 /** An entry state rendered for an envelope: the body lines and the next-step commands. */
 export interface RenderedInnerLoopEntryState {
   readonly lines: readonly string[];
   readonly next: readonly string[];
 }
 
+/**
+ * The ONE renderer every {@link InnerLoopEntryState} outcome goes through — the only place these
+ * strings live (ADR-0576 D8). Entries never re-type them.
+ */
 export function renderInnerLoopEntryState(state: InnerLoopEntryState): RenderedInnerLoopEntryState {
   switch (state.state) {
     case "refused": {
