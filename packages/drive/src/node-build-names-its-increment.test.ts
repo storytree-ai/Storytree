@@ -386,6 +386,24 @@ test("real-node-build-names-a-live-increment-before-spend: refuses an unreadable
   assert.deepEqual(stages, [PREFLIGHT_STAGE]);
 });
 
+test("real-node-build-names-a-live-increment-before-spend: with no injected read handles, a missing increment is refused by the production preflight without a store read", async () => {
+  // The production handles open LAZILY, and a missing id is refused before any lookup, so this path
+  // is hermetic: nothing opens. The expected state is computed over a corpus that THROWS on a read,
+  // so a preflight that had read anything would have refused as unreadable instead.
+  for (const incrementId of [undefined, "   "]) {
+    const preflight = await NodeBuildModule.preflightPaidBuild({
+      incrementId,
+      unitIds: [UNIT_ID],
+      revise: false,
+      reads: undefined,
+    });
+    const expected = await resolveBuildIncrement(throwingCorpus, incrementId);
+    assert.equal(expected.ok, false, `ground truth: increment=${String(incrementId)} must refuse unread`);
+    if (expected.ok) continue;
+    assert.deepEqual(preflight, { ok: false, state: expected.state }, `increment=${String(incrementId)}`);
+  }
+});
+
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 // real-node-build-preflights-its-unit-before-spend
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
