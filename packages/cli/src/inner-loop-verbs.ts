@@ -179,9 +179,17 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
   return { ok: true, event: candidate, ledger: freshLedger };
 }
 
+/** A {@link LandingObjection} under construction: its optional fields are filled only when given. */
+interface ObjectionDraft {
+  kind: ObjectionKind;
+  statement: string;
+  decision?: string;
+  survivors?: number;
+}
+
 function buildObjection(input: NodeAdjudicateObjectionInput | undefined): LandingObjection | undefined {
   if (input === undefined) return undefined;
-  const objection: { kind: ObjectionKind; statement: string; decision?: string; survivors?: number } = {
+  const objection: ObjectionDraft = {
     kind: input.kind as ObjectionKind,
     statement: input.statement,
   };

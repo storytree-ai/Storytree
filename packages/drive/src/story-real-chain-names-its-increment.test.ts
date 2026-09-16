@@ -54,10 +54,13 @@ async function fixtureCorpus(): Promise<InMemoryStore> {
   return corpus;
 }
 
-function spyEnsureDb(): {
+/** A refusing `ensureDb` plus the running count of its calls. */
+interface EnsureDbSpy {
   calls: { count: number };
   ensureDb: (log: (message: string) => void) => Promise<EnsureDbResult>;
-} {
+}
+
+function spyEnsureDb(): EnsureDbSpy {
   const calls = { count: 0 };
   return {
     calls,
@@ -68,7 +71,13 @@ function spyEnsureDb(): {
   };
 }
 
-function recordingProgress(): { progress: BuildProgress; stages: string[] } {
+/** A progress reporter plus the stage names it recorded, in order. */
+interface RecordingProgress {
+  progress: BuildProgress;
+  stages: string[];
+}
+
+function recordingProgress(): RecordingProgress {
   const stages: string[] = [];
   return {
     stages,
@@ -82,11 +91,14 @@ function recordingProgress(): { progress: BuildProgress; stages: string[] } {
   };
 }
 
-/** Wraps a ledger's `readEvents` and counts how many times the whole call reads it. */
-function countingLedger(inner: Pick<Store, "readEvents">): {
+/** A ledger read handle plus a reader of how many times it was read. */
+interface CountingLedger {
   ledger: Pick<Store, "readEvents">;
   count: () => number;
-} {
+}
+
+/** Wraps a ledger's `readEvents` and counts how many times the whole call reads it. */
+function countingLedger(inner: Pick<Store, "readEvents">): CountingLedger {
   let calls = 0;
   return {
     ledger: {
@@ -99,13 +111,16 @@ function countingLedger(inner: Pick<Store, "readEvents">): {
   };
 }
 
+/** An author override plus the running count of every `.author(...)` call it forwarded. */
+interface CountingAuthorOverride {
+  authorOverride: (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined;
+  calls: { count: number };
+}
+
 /** Wraps `scriptedAuthors`, counting every `.author(...)` call across every resolved node. */
 function countingAuthorOverride(
   scopes: Record<string, { testGlobs: string[]; sourceGlobs: string[] }>,
-): {
-  authorOverride: (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined;
-  calls: { count: number };
-} {
+): CountingAuthorOverride {
   const base = scriptedAuthors(scopes);
   const calls = { count: 0 };
   return {

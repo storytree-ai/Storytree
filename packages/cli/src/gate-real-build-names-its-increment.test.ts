@@ -201,7 +201,13 @@ function routineFork(over: Partial<DecisionFork> = {}): DecisionFork {
 
 // ── helpers new to this file (never assert — they only build data/spies a test drives) ─────────────
 
-function recordingProgress(): { progress: BuildProgress; stages: string[] } {
+/** A progress reporter plus the stage names it recorded, in order. */
+interface RecordingProgress {
+  progress: BuildProgress;
+  stages: string[];
+}
+
+function recordingProgress(): RecordingProgress {
   const stages: string[] = [];
   return {
     stages,
@@ -215,10 +221,13 @@ function recordingProgress(): { progress: BuildProgress; stages: string[] } {
   };
 }
 
-function spyEnsureDb(): {
+/** A refusing `ensureDb` plus the running count of its calls. */
+interface EnsureDbSpy {
   calls: { count: number };
   ensureDb: (log: (message: string) => void) => Promise<EnsureDbResult>;
-} {
+}
+
+function spyEnsureDb(): EnsureDbSpy {
   const calls = { count: 0 };
   return {
     calls,

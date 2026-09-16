@@ -143,10 +143,13 @@ async function seedLedger(...docs: readonly LedgerDoc[]): Promise<InMemoryStore>
 
 // ── ensureDb spy + progress recorder (never assert — only return what a test asserts against) ─────
 
-function spyEnsureDb(): {
+/** A refusing `ensureDb` plus the running count of its calls. */
+interface EnsureDbSpy {
   calls: { count: number };
   ensureDb: (log: (message: string) => void) => Promise<EnsureDbResult>;
-} {
+}
+
+function spyEnsureDb(): EnsureDbSpy {
   const calls = { count: 0 };
   return {
     calls,
@@ -157,7 +160,13 @@ function spyEnsureDb(): {
   };
 }
 
-function recordingProgress(): { progress: BuildProgress; stages: string[] } {
+/** A progress reporter plus the stage names it recorded, in order. */
+interface RecordingProgress {
+  progress: BuildProgress;
+  stages: string[];
+}
+
+function recordingProgress(): RecordingProgress {
   const stages: string[] = [];
   return {
     stages,

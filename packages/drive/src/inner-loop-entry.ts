@@ -54,7 +54,13 @@ export type InnerLoopEntryState =
 
 export type InnerLoopRefusedState = Extract<InnerLoopEntryState, { state: "refused" }>;
 
-function refused(kind: InnerLoopRefusalKind, reason: string): { ok: false; state: InnerLoopRefusedState } {
+/** The `ok: false` arm every pre-spend check returns: the refused entry state it would render. */
+export interface InnerLoopRefusalResult {
+  readonly ok: false;
+  readonly state: InnerLoopRefusedState;
+}
+
+function refused(kind: InnerLoopRefusalKind, reason: string): InnerLoopRefusalResult {
   return { ok: false, state: { state: "refused", refusals: [{ kind, reason }] } };
 }
 
@@ -317,10 +323,13 @@ function nextForRefusal(r: InnerLoopRefusal): string | undefined {
  * The ONE renderer every {@link InnerLoopEntryState} outcome goes through — the only place these
  * strings live (ADR-0576 D8). Entries never re-type them.
  */
-export function renderInnerLoopEntryState(state: InnerLoopEntryState): {
-  lines: readonly string[];
-  next: readonly string[];
-} {
+/** An entry state rendered for an envelope: the body lines and the next-step commands. */
+export interface RenderedInnerLoopEntryState {
+  readonly lines: readonly string[];
+  readonly next: readonly string[];
+}
+
+export function renderInnerLoopEntryState(state: InnerLoopEntryState): RenderedInnerLoopEntryState {
   switch (state.state) {
     case "refused": {
       const lines = state.refusals.map((r) =>

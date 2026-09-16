@@ -1497,12 +1497,18 @@ export function renderIncrementLines(
  * this unit and renders the `attempt-failed` state — a fold that throws (a corrupt ledger) renders a
  * named line instead of propagating.
  */
+/** What {@link renderInnerLoopOutcome} adds to a paid build's envelope: body lines and next steps. */
+export interface InnerLoopOutcomeLines {
+  lines: string[];
+  next: string[];
+}
+
 export function renderInnerLoopOutcome(
   unitId: string,
   runId: string,
   innerLoop: InnerLoopRecording | undefined,
   events: readonly StoreEvent[],
-): { lines: string[]; next: string[] } {
+): InnerLoopOutcomeLines {
   if (innerLoop === undefined || !innerLoop.attempt.recorded) return { lines: [], next: [] };
   if (innerLoop.signedPass?.recorded === true) {
     const rendered = renderInnerLoopEntryState({ state: "signed", unitId, runId });

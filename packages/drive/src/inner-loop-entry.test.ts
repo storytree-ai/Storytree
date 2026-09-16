@@ -126,8 +126,14 @@ async function buildOrphanLedger(): Promise<InMemoryStore> {
   return seedLedger(grantEvt("u1", "inc-a", "r9", 1));
 }
 
+/** A ledger read handle plus the running count of its `readEvents` calls. */
+interface CountingLedger {
+  ledger: Pick<Store, "readEvents">;
+  calls: { count: number };
+}
+
 /** Wraps a store's `readEvents` so a test can count how many times it was actually called. */
-function countingLedger(store: InMemoryStore): { ledger: Pick<Store, "readEvents">; calls: { count: number } } {
+function countingLedger(store: InMemoryStore): CountingLedger {
   const calls = { count: 0 };
   const ledger: Pick<Store, "readEvents"> = {
     readEvents: async (filter?: { id?: string }): Promise<StoreEvent[]> => {
