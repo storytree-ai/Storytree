@@ -8,7 +8,7 @@ proof_mode: UAT
 uat_witness: machine
 arc: mintbox-event-driven-orchestration-arc
 capabilities: [mintbox-supervisor-events, mintbox-protected-driver-transition, mintbox-terra-lane-launch]
-depends_on: [agent, notice-board, arc, drive-machinery]
+depends_on: [agent, notice-board, arc]
 artifact_edges: [notice-board, arc]
 decisions: [561, 505]
 ---
@@ -38,17 +38,37 @@ the whole walkthrough, so the story stays one journey.
 
 ## UAT Test Criteria
 
-1. **A meaningful event wakes one compact coordinator and leaves an auditable digest.** _(witness: machine)_ _(detail: mintbox-event-driven-orchestration#uat-1)_ _(criterion-id: uatc_a6c0e9b10e4f52a8d9160c11)_ _(revision-id: uatr1:00c747f3222ee25b)_
+1. **A meaningful event wakes one compact coordinator and leaves an auditable digest.** _(witness: machine)_ _(proof-gate: mintbox-event-driven-orchestration#gate-1)_ _(detail: mintbox-event-driven-orchestration#uat-1)_ _(criterion-id: uatc_a6c0e9b10e4f52a8d9160c11)_ _(revision-id: uatr1:2102a9171cdc44e9)_ _(previous-revision-id: uatr1:00c747f3222ee25b)_
    Deliver duplicate completion/failure/dependency/empty-ready/owner-gate events to the deterministic
    supervisor. **Success —** one deduplicated coordinator handle is launched per event key; its input
    contains only the bounded programme digest; and its three-hour report records health, actual
    model/effort, lanes, last outcome, blockers, weekly usage, delta, and action.
-2. **The live renderer changes driver only at its safe green boundary.** _(witness: machine)_ _(detail: mintbox-event-driven-orchestration#uat-2)_ _(criterion-id: uatc_b417c89fd2a0e63c5b8a1742)_ _(revision-id: uatr1:45d3ac9f5394f666)_
+2. **The live renderer changes driver only at its safe green boundary.** _(witness: machine)_ _(proof-gate: mintbox-event-driven-orchestration#gate-1)_ _(detail: mintbox-event-driven-orchestration#uat-2)_ _(criterion-id: uatc_b417c89fd2a0e63c5b8a1742)_ _(revision-id: uatr1:b8acd9e5e5c79ee4)_ _(previous-revision-id: uatr1:45d3ac9f5394f666)_
    Observe a live rendering-proof handle before and after its terminal green/release event.
    **Success —** observation never stops, reclaims, or replaces the active handle; only the emitted
    green boundary makes its released work eligible for a new coordinator decision.
-3. **A dispatched lane is a verified Terra driver within the 3D/GPU fence.** _(witness: machine)_ _(detail: mintbox-event-driven-orchestration#uat-3)_ _(criterion-id: uatc_c93d51e7a482b0f6c5d8e309)_ _(revision-id: uatr1:ab5bdd38e739a677)_
+3. **A dispatched lane is a verified Terra driver within the 3D/GPU fence.** _(witness: machine)_ _(proof-gate: mintbox-event-driven-orchestration#gate-1)_ _(detail: mintbox-event-driven-orchestration#uat-3)_ _(criterion-id: uatc_c93d51e7a482b0f6c5d8e309)_ _(revision-id: uatr1:9955742b7989b26d)_ _(previous-revision-id: uatr1:ab5bdd38e739a677)_
    Dispatch ready lanes from a coordinator snapshot containing claims and current 3D/GPU occupancy.
    **Success —** every launched driver records GPT-5.6 Terra and its handle/claim; the coordinator is
    GPT-6 Astra at high unless the recorded decision is architectural; no more than three disjoint 3D
    lanes run, and GPU-intensive lanes serialize.
+
+## Reliability Gates
+
+1. **The live Mintbox event-to-Terra journey is green** _(gate: observe)_
+   `pnpm --filter @storytree/mintbox-event-driven-orchestration exec bun test --timeout 1800000 src/mintbox-live-proof.uat.test.ts`.
+   From a clean committed worktree, this command runs the standing walk at
+   `packages/mintbox-event-driven-orchestration/src/mintbox-live-proof.uat.test.ts`. That one machine
+   walk composes `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts`,
+   `packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts`,
+   `packages/mintbox-event-driven-orchestration/src/mintbox-on-box-runtime.ts`, and the public turn-free
+   rate-limit interface from `@storytree/agent`. It uses a controlled real detached Codex process and
+   fresh linked worktree, verifies process-reported Terra identity plus the live claim before occupancy,
+   exercises duplicate delivery and restart recovery, proves the renderer green-and-release boundary
+   and the 3D/GPU fences, and records the bounded digest and three-hour usage report. The owner-gate
+   event is observed fail-closed; the walk never invents an owner answer and never touches unrelated
+   processes, worktrees, claims, or GPU work.
+
+All three machine criteria bind explicitly to `mintbox-event-driven-orchestration#gate-1`. The gate
+carries no `(covers:)` list: each capability must still earn its own signed `--real` verdict before this
+whole-story observation can sign the UAT revisions.
