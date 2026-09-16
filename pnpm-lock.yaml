@@ -649,6 +649,9 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
+      '@storytree/notice-board':
+        specifier: workspace:*
+        version: link:../notice-board
       zod:
         specifier: ^3.24.1
         version: 3.25.76

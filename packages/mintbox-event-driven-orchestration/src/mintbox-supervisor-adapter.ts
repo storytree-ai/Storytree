@@ -4,6 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { CodexRateLimitSnapshot } from "@storytree/agent";
+import type { PgClaimStore } from "@storytree/notice-board/store";
 import {
   MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   MINTBOX_COORDINATOR_MODEL,
@@ -48,6 +49,16 @@ export interface MintboxProtectedRenderer {
   readonly claim: "held" | "released";
 }
 
+/** The observation-only claim-ledger slice used to verify a renderer's claim transition. */
+export type MintboxClaimLedgerReader = Pick<PgClaimStore, "claimsFor" | "history">;
+
+/** The notice-board claim row that belongs to the protected renderer. */
+export interface MintboxRendererClaimIdentity {
+  readonly unitId: string;
+  readonly sessionId: string;
+  readonly claimedAt?: string;
+}
+
 export interface MintboxSupervisorEnvelope {
   readonly version: 1;
   readonly state: MintboxSupervisorState;
@@ -61,6 +72,10 @@ export interface FileMintboxSupervisorAdapterOptions {
   readonly coordinatorCommand: MintboxCoordinatorCommand;
   readonly initialFacts: MintboxProgrammeFacts;
   readonly runtime: MintboxSupervisorRuntime;
+  /** Optional until callers adopt ledger-backed release evidence; supply with rendererClaimIdentity. */
+  readonly claimLedger?: MintboxClaimLedgerReader;
+  /** Explicit mapping from the protected renderer to its notice-board claim. */
+  readonly rendererClaimIdentity?: MintboxRendererClaimIdentity;
 }
 
 const SQLITE_LOCK_TIMEOUT_MS = 5_000;
@@ -80,6 +95,8 @@ export class FileMintboxSupervisorAdapter {
   readonly #command: MintboxCoordinatorCommand;
   readonly #runtime: MintboxSupervisorRuntime;
   readonly #initialState: MintboxSupervisorState;
+  readonly #claimLedger: MintboxClaimLedgerReader | undefined;
+  readonly #rendererClaimIdentity: MintboxRendererClaimIdentity | undefined;
 
   constructor(options: FileMintboxSupervisorAdapterOptions) {
     if (options.statePath.trim() === "") throw new Error("Mintbox supervisor statePath is required");
@@ -91,6 +108,8 @@ export class FileMintboxSupervisorAdapter {
       : { executable: options.coordinatorCommand.executable, args: [...options.coordinatorCommand.args], cwd: options.coordinatorCommand.cwd };
     this.#runtime = options.runtime;
     this.#initialState = createMintboxSupervisorState(options.initialFacts);
+    this.#claimLedger = options.claimLedger;
+    this.#rendererClaimIdentity = options.rendererClaimIdentity;
   }
 
   handleEvent(event: MintboxSupervisorEvent): Promise<MintboxSupervisorEnvelope> {

@@ -34,9 +34,11 @@ export {
 
 export type {
   FileMintboxSupervisorAdapterOptions,
+  MintboxClaimLedgerReader,
   MintboxCoordinatorCommand,
   MintboxHandleProbe,
   MintboxProtectedRenderer,
+  MintboxRendererClaimIdentity,
   MintboxSupervisorEnvelope,
   MintboxSupervisorRuntime,
 } from "./mintbox-supervisor-adapter.js";
