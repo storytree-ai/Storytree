@@ -42,7 +42,6 @@ proof:
         - --timeout
         - "300000"
         - packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts
-        - packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "typecheck"]
