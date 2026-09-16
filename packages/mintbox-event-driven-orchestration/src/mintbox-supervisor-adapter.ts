@@ -71,11 +71,6 @@ export function mintboxSupervisorTransitionQueueSize(): number {
   return transitionTails.size;
 }
 
-interface HeldMintboxStateLock {
-  readonly path: string;
-  readonly database: DatabaseSync;
-}
-
 /**
  * The crash boundary around the pure supervisor reducer. Every transition is serialized, and a
  * complete pending wake is atomically durable before the injected runtime can act on it.
@@ -173,12 +168,8 @@ export class FileMintboxSupervisorAdapter {
   #serialize<T>(operation: () => Promise<T>): Promise<T> {
     const previous = transitionTails.get(this.#statePath) ?? Promise.resolve();
     const run = async (): Promise<T> => {
-      const lock = await acquireMintboxStateLock(this.#statePath);
-      try {
-        return await operation();
-      } finally {
-        releaseMintboxStateLock(lock);
-      }
+      using _lock = await acquireMintboxStateLock(this.#statePath);
+      return await operation();
     };
     const result = previous.then(run, run);
     const tail = result.then(() => undefined, () => undefined);
@@ -434,7 +425,7 @@ function invalidDurableState(cause: unknown): Error {
   return new Error("Invalid Mintbox supervisor durable state", { cause });
 }
 
-async function acquireMintboxStateLock(statePath: string): Promise<HeldMintboxStateLock> {
+async function acquireMintboxStateLock(statePath: string): Promise<DatabaseSync> {
   const lockPath = `${statePath}.lock.sqlite`;
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   let database: DatabaseSync | undefined;
@@ -442,13 +433,9 @@ async function acquireMintboxStateLock(statePath: string): Promise<HeldMintboxSt
     database = new DatabaseSync(lockPath);
     database.exec(`PRAGMA busy_timeout = ${SQLITE_LOCK_TIMEOUT_MS}`);
     database.exec("BEGIN IMMEDIATE");
-    return { path: lockPath, database };
+    return database;
   } catch (error) {
     database?.close();
     throw new Error(`Unable to acquire Mintbox supervisor lock ${lockPath}`, { cause: error });
   }
-}
-
-function releaseMintboxStateLock(lock: HeldMintboxStateLock): void {
-  lock.database.close();
 }

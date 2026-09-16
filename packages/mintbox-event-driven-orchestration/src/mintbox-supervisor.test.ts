@@ -50,6 +50,7 @@ test("mintbox-supervisor-owns-handles-not-transcripts: retains bounded operation
   const privateSummary = "User: MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN\r\nAssistant: acknowledged\nUser: continue";
   const privateWake = decideMintboxSupervisorEvent(initial, { ...event, deliveryId: "private-summary", summary: privateSummary }).wake;
   assert.ok(privateWake);
+  assert.equal(Object.hasOwn(privateWake.digest.event, "summary"), false, "rejected transcript-shaped input is omitted rather than retained as an undefined field");
   const serializedPrivateDigest = JSON.stringify(privateWake.digest);
   assert.equal(serializedPrivateDigest.includes("MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN"), false);
   assert.equal(serializedPrivateDigest.includes("\\r"), false);
@@ -110,17 +111,15 @@ test("mintbox-three-hour-report-carries-delta: persists reader-produced weekly o
   await supervisor.recordHandle({ id: "worker-actual", role: "worker", pid: 731, host: "mintbox", detached: true, startedAt: event.occurredAt, health: "blocked", model: "worker-observed-model", effort: "xhigh", lane: "shadows" });
   await supervisor.recordHandle({ id: "coordinator-actual", role: "coordinator", pid: 732, host: "mintbox", detached: true, startedAt: event.occurredAt, health: "failed", model: "gpt-6-astra", effort: "high" });
 
-  const reportProgress = Reflect.get(supervisor, "recordProgressReport");
-  assert.equal(typeof reportProgress, "function", "the adapter exposes the story-owned reporting seam");
   const first = await readSnapshot(32);
   const second = await readSnapshot(37);
   assert.deepEqual(requests.map((request) => request.method), ["initialize", "initialized", "account/rateLimits/read", "initialize", "initialized", "account/rateLimits/read"]);
   assert.equal(requests.some((request) => request.method === "thread/start" || request.method === "turn/start"), false);
-  const firstReport = await Reflect.apply(reportProgress as Function, supervisor, [first, { at: "2026-09-09T00:00:00.000Z", action: "wait for renderer green boundary" }]);
-  const secondReport = await Reflect.apply(reportProgress as Function, supervisor, [second, { at: "2026-09-09T03:00:00.000Z", action: "wake coordinator" }]);
+  const firstReport = await supervisor.recordProgressReport(first, { at: "2026-09-09T00:00:00.000Z", action: "wait for renderer green boundary" });
+  const secondReport = await supervisor.recordProgressReport(second, { at: "2026-09-09T03:00:00.000Z", action: "wake coordinator" });
   const recovered = await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
-  const report = (secondReport as { readonly report: Record<string, unknown> }).report;
-  assert.equal((firstReport as { readonly report: Record<string, unknown> }).report.weeklyUsageDelta, null);
+  const report = secondReport.report;
+  assert.equal(firstReport.report.weeklyUsageDelta, null);
   assert.equal(report.weeklyUsagePercent, 37);
   assert.equal(report.weeklyUsageDelta, 5);
   assert.equal(report.coordinatorHealth, "failed");
@@ -130,14 +129,35 @@ test("mintbox-three-hour-report-carries-delta: persists reader-produced weekly o
   assert.equal(report.rendererBlocker, "green boundary pending");
   assert.equal(report.parallelSessionCount, 2);
   assert.equal(report.action, "wake coordinator");
-  assert.deepEqual((recovered as unknown as { readonly latestProgressReport: unknown }).latestProgressReport, report);
+  assert.deepEqual(recovered.latestProgressReport, report);
 
-  const unavailable = await readSnapshot("unavailable");
-  const unavailableReport = await Reflect.apply(reportProgress as Function, supervisor, [unavailable, { at: "2026-09-09T06:00:00.000Z", action: "await account usage" }]);
-  const unavailableUsage = (unavailableReport as { readonly report: { readonly weeklyUsage: unknown } }).report.weeklyUsage;
+  const malformedWeekly = await readSnapshot("unavailable");
+  const unavailableReport = await supervisor.recordProgressReport(malformedWeekly, { at: "2026-09-09T06:00:00.000Z", action: "await account usage" });
+  const unavailableUsage = unavailableReport.report.weeklyUsage;
   assert.deepEqual(unavailableUsage, { status: "unavailable", reason: "malformed" });
-  assert.deepEqual((await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover() as unknown as { readonly latestProgressReport: { readonly weeklyUsage: unknown; readonly weeklyUsageDelta?: unknown } }).latestProgressReport.weeklyUsage, unavailableUsage);
-  assert.equal((await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover() as unknown as { readonly state: { readonly lastWeeklyUsagePercent?: unknown } }).state.lastWeeklyUsagePercent, 37);
+  assert.equal(Object.hasOwn(unavailableReport.report, "weeklyUsagePercent"), false);
+  const recoveredUnavailable = await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
+  assert.deepEqual(recoveredUnavailable.latestProgressReport?.weeklyUsage, unavailableUsage);
+  assert.equal(recoveredUnavailable.state.lastWeeklyUsagePercent, 37);
+
+  const emptyStatePath = path.join(root, "empty-supervisor.json");
+  const emptySupervisor = new FileMintboxSupervisorAdapter({
+    statePath: emptyStatePath,
+    coordinatorCommand: { executable: "codex", args: [] },
+    initialFacts: facts,
+    runtime,
+  });
+  const unavailableSnapshot = { status: "unavailable", reason: "timed-out" } as const satisfies CodexRateLimitSnapshot;
+  const emptyReport = await emptySupervisor.recordProgressReport(unavailableSnapshot, {
+    at: "2026-09-09T09:00:00.000Z",
+    action: "await account usage reader",
+  });
+  assert.equal(emptyReport.report.coordinatorHealth, "none");
+  assert.deepEqual(emptyReport.report.weeklyUsage, { status: "unavailable", reason: "timed-out" });
+  assert.equal(Object.hasOwn(emptyReport.report, "weeklyUsagePercent"), false);
+  const recoveredEmpty = await new FileMintboxSupervisorAdapter({ statePath: emptyStatePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
+  assert.equal(recoveredEmpty.latestProgressReport?.coordinatorHealth, "none");
+  assert.deepEqual(recoveredEmpty.latestProgressReport?.weeklyUsage, { status: "unavailable", reason: "timed-out" });
 });
 
 test("each meaningful event wakes exactly once across retry and supervisor recovery", () => {

@@ -8,26 +8,6 @@ status: proposed
 proof_mode: integration-test
 depends_on: [mintbox-supervisor-events, mintbox-protected-driver-transition]
 decisions: [561, 505]
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "test"]
-  scope:
-    testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
-    sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"]
-  real:
-    testFile: "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"
-    sourceFile: "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"
-    scope:
-      testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
-      sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"]
-    install: true
-    proofCommand:
-      file: bun
-      args: ["test", "--timeout", "300000", "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "typecheck"]
 ---
 
 # Verified Terra lane launch — role policy, claims, and safe Mintbox capacity
@@ -44,11 +24,8 @@ each driver is Terra with a verified handle/claim, at most three 3D lanes run, a
 serialization. Repeat with an architecture-marked decision to confirm only that coordinator can use
 xhigh.
 
-The standing proof file carries three separate cases whose literal titles begin with
-`mintbox-role-model-effort-is-verified`, `mintbox-launch-binds-handle-and-claim`, and
-`mintbox-3d-capacity-and-gpu-serialization-hold`. Its red is structural: the story-owned
-`mintbox-lane-launcher.ts` does not exist yet. Implementation consumes the public pinned Codex
-invocation seam from `@storytree/agent`, but the launcher remains the contract-bearing surface.
+Implementation consumes the public pinned Codex invocation seam from `@storytree/agent`, but the
+launcher remains the contract-bearing surface.
 
 ## Contracts
 

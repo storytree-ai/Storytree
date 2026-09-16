@@ -290,10 +290,13 @@ export function recordMintboxProgressReport(
   const weeklyUsage = "weeklyUsagePercent" in input
     ? availableWeeklyUsage(input.weeklyUsagePercent)
     : input.weeklyUsage;
-  if (weeklyUsage.status === "available") assertPercent(weeklyUsage.percent);
-  const weeklyUsagePercent = weeklyUsage.status === "available" ? weeklyUsage.percent : undefined;
+  let weeklyUsagePercent: number | undefined;
+  if (weeklyUsage.status === "available") {
+    assertPercent(weeklyUsage.percent);
+    weeklyUsagePercent = weeklyUsage.percent;
+  }
   const workers = mintboxWorkerSummaries(state.handles);
-  const report: MintboxProgressReport = {
+  const reportWithoutAvailablePercent: MintboxProgressReport = {
     at: input.at,
     coordinatorHealth: latestHandle(state.handles, "coordinator")?.health ?? "none",
     workerHealth: workers,
@@ -302,18 +305,19 @@ export function recordMintboxProgressReport(
     rendererBlocker: state.facts.rendererBlocker === undefined ? null : bounded(state.facts.rendererBlocker),
     parallelSessionCount: state.facts.parallelSessionCount,
     weeklyUsage,
-    ...(weeklyUsagePercent === undefined ? {} : { weeklyUsagePercent }),
     weeklyUsageDelta: weeklyUsagePercent === undefined || state.lastWeeklyUsagePercent === undefined
       ? null
       : weeklyUsagePercent - state.lastWeeklyUsagePercent,
     action: bounded(input.action),
   };
+  const report = weeklyUsagePercent === undefined
+    ? reportWithoutAvailablePercent
+    : { ...reportWithoutAvailablePercent, weeklyUsagePercent };
+  const nextState: MintboxSupervisorState = weeklyUsagePercent === undefined
+    ? { ...state, lastReportAt: input.at }
+    : { ...state, lastReportAt: input.at, lastWeeklyUsagePercent: weeklyUsagePercent };
   return {
-    state: {
-      ...state,
-      lastReportAt: input.at,
-      ...(weeklyUsagePercent === undefined ? {} : { lastWeeklyUsagePercent: weeklyUsagePercent }),
-    },
+    state: nextState,
     report,
   };
 }
