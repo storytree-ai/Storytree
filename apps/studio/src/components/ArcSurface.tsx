@@ -67,6 +67,7 @@ import {
   claimChipTitle,
   defaultLaneId,
   findLane,
+  laneBarTitle,
   laneCountsLabel,
   parseOptionCards,
   queueRun,
@@ -374,7 +375,7 @@ function ArcLaneRow({
                 key={bar.id}
                 className={`arc-bar arc-bar-${bar.tone}`}
                 data-bar-tone={bar.tone}
-                title={`${bar.title || bar.id} — ${bar.status}`}
+                title={laneBarTitle(bar)}
               />
             ))}
             {/* Counts, never a ratio (ADR-0314 D2): an arc has no denominator, so the surface says

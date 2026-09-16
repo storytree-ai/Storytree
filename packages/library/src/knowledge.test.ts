@@ -551,6 +551,38 @@ test("increment kind (ADR-0564 D1): the outcome records WHAT THE CLOSE MEANT, an
   }
 });
 
+test("increment kind (ADR-0574 D2): `waitsOn` links the questions the work is held on, and stays optional", () => {
+  // ZERO MIGRATION: an increment authored before the field validates unchanged, and validation does
+  // not INVENT the link — an absent key is what "held on nothing" is stored as.
+  const unheld = validateLibraryDoc(minimalDoc("increment")) as Record<string, unknown>;
+  assert.equal(Object.hasOwn(unheld, "waitsOn"), false, "validation must not add a waitsOn nobody wrote");
+
+  // The link itself: `asset:` pointers, carried verbatim and in author order.
+  const held = validateLibraryDoc({
+    ...minimalDoc("increment"),
+    waitsOn: ["asset:oq-which-colour", "asset:oq-which-shape"],
+  }) as { waitsOn?: string[] };
+  assert.deepEqual(held.waitsOn, ["asset:oq-which-colour", "asset:oq-which-shape"]);
+
+  // `[]` is legal — the shape an unlink leaves behind (`--set waitsOn=[]`), and it holds on nothing.
+  assert.doesNotThrow(() => validateLibraryDoc({ ...minimalDoc("increment"), waitsOn: [] }));
+
+  // The SHAPE fails closed: a question is a Library artifact, so a `doc:` pointer or a bare id can
+  // never name one, and storing either would be a link no read could ever follow.
+  for (const bad of [["doc:docs/something.md"], ["oq-which-colour"], [""]]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("increment"), waitsOn: bad }),
+      `waitsOn ${JSON.stringify(bad)} must be refused`,
+    );
+  }
+
+  // Increment-only: the hold is a reading of WORK, so no other kind grows the field.
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("principle"), waitsOn: ["asset:oq-which-colour"] }),
+    "waitsOn on a non-increment kind must be rejected",
+  );
+});
+
 test("increment kind (ADR-0322): `parked` is what decides whether a closure owes its own prose", () => {
   // The rule used to be unconditional, and that is what forced `arc increment add` to COPY its
   // `--outcome` text into `outcome.note` as well as `body` — the duplication that made an ADR-0139

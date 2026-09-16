@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
+import { ASSET_REF_PREFIX, upcastAndValidate } from "@storytree/library";
 import { deriveArcLifecycle, deriveArcRollup } from "./arc-rollup.js";
 import { questionNew, questionSettle } from "./question.js";
 import { seedDecisionRows } from "./decision.test-helpers.js";
@@ -1841,6 +1842,120 @@ test("arc show says so plainly when an arc has nothing at all", async () => {
     assert.match(shown.body, /nothing open — every increment on this arc is closed/);
     assert.match(shown.body, /## Increment log {2}\(0 closed\)/);
     assert.match(shown.body, /\(no landings yet\)/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0574 D4 — work WAITING ON THE OWNER'S ANSWER is held, not offered as work to take.
+//
+// An escalating session keeps its residue on the OPEN increment it was driving and links the
+// question it authored (D3). Every surface a session picks work up from must then count or mark that
+// increment as held — and stop the moment the question is settled, with no write to the increment
+// (D2), because the reading is derived rather than stored.
+// ---------------------------------------------------------------------------
+
+/**
+ * Link an increment to the questions it waits on — exactly what `storytree library artifact edit
+ * <id> --set waitsOn=[…] --pg` writes: a field-scoped patch validated on the MERGED doc, so the schema
+ * accepting the field is part of what these tests exercise.
+ */
+async function linkWaitsOn(store: Store, incrementId: string, questionIds: readonly string[]): Promise<void> {
+  const saved = await store.patchDoc({
+    id: incrementId,
+    fields: { waitsOn: questionIds.map((q) => `${ASSET_REF_PREFIX}${q}`) },
+    actor: "test",
+    validate: (merged) => upcastAndValidate(merged),
+  });
+  assert.ok(saved, `${incrementId} must exist to be linked`);
+}
+
+/** Author one open question on `arc` through the real write verb. */
+async function askOwner(store: InMemoryStore, id: string, arc = "map-arc"): Promise<void> {
+  const res = await questionNew(writeDeps(store), id, {
+    arc,
+    title: `Question ${id}`,
+    stakes: "the work stops until this is answered",
+    statement: "Which way?",
+    context: "c",
+    options: "left or right",
+  });
+  assert.equal(res.ok, true, res.body);
+}
+
+test("arc list counts work WAITING ON THE OWNER apart from open work, and settling releases it (ADR-0574)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    const w = writeDeps(store);
+    // The escalation's shape (D3): the residue stays on an OPEN increment, linked to the question.
+    await arcIncrementNew(w, "map-arc", { id: "asked-owner", title: "Stopped to ask", ...BODY });
+    await askOwner(store, "oq-which-way");
+    await linkWaitsOn(store, "asked-owner", ["oq-which-way"]);
+
+    const held = await arcCommand("list", undefined, depsFor(store, fx));
+    // `map-arc-plan-1` is still ordinary open work; the held increment is NOT counted as open.
+    assert.match(held.body, /map-arc {2}0 landed, 1 open, 1 waiting on the owner, no landings yet/);
+
+    const incrementWrites = (await store.readEvents({ id: "asked-owner" })).length;
+    const settled = await questionSettle(w, "oq-which-way", { answer: "left" });
+    assert.equal(settled.ok, true, settled.body);
+
+    const released = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(released.body, /map-arc {2}0 landed, 2 open, no landings yet/);
+    assert.doesNotMatch(released.body, /\d+ waiting on the owner/);
+    // D2 — DERIVED, NEVER STORED: the release cost the increment no write at all.
+    assert.equal((await store.readEvents({ id: "asked-owner" })).length, incrementWrites);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show marks work waiting on the owner as HELD — counted apart, named, and never offered (ADR-0574)", async () => {
+  const fx = diskFixture();
+  try {
+    const store = await seededStore();
+    const w = writeDeps(store);
+    await askOwner(store, "oq-which-way");
+    await askOwner(store, "oq-how-far");
+    // `map-arc-plan-1` is READY and anchored — exactly the row `arc show` offers a freshness check on.
+    await linkWaitsOn(store, "map-arc-plan-1", ["oq-which-way", "oq-how-far"]);
+    // A neighbour nothing holds, already under way: it must keep its own count and must never be
+    // offered a freshness check (that offer is for `ready` rows only, held or not).
+    await arcIncrementNew(w, "map-arc", { id: "being-built", title: "Being built", ...BODY });
+    await arcIncrementPromote(w, "being-built", "active");
+    const offersCheckFor = (next: readonly string[] | undefined, id: string): boolean =>
+      (next ?? []).some((n) => n.includes(`increment check ${id}`));
+
+    const held = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.equal(held.ok, true);
+    // Out of the takeable counts, into its own — and still LISTED, since it is still this arc's work.
+    assert.match(held.body, /## Work {2}\(0 proposal · 0 ready · 1 active · 1 waiting on the owner\)/);
+    assert.match(held.body, /- map-arc-plan-1 {2}\[ready, anchor abcdef123\]/);
+    assert.match(
+      held.body,
+      /waiting on the owner's answer to oq-which-way, oq-how-far — held, not work to take until that is settled \(ADR-0574\)/,
+    );
+    // Offering the freshness check IS offering the work.
+    assert.equal(offersCheckFor(held.next, "map-arc-plan-1"), false, held.next?.join("\n"));
+    assert.equal(offersCheckFor(held.next, "being-built"), false, held.next?.join("\n"));
+
+    // One answer is not both: the work stays held on the question still open.
+    await questionSettle(w, "oq-which-way", { answer: "left" });
+    const half = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.match(half.body, /waiting on the owner's answer to oq-how-far — held/);
+    assert.doesNotMatch(half.body, /answer to oq-which-way/);
+
+    // Both settled: ordinary ready work again — counted, unmarked, and offered.
+    await questionSettle(w, "oq-how-far", { answer: "far" });
+    const released = await arcCommand("show", "map-arc", depsFor(store, fx));
+    assert.match(released.body, /## Work {2}\(0 proposal · 1 ready · 1 active\)/);
+    assert.equal(offersCheckFor(released.next, "being-built"), false, released.next?.join("\n"));
+    // Precise, not a bare "waiting on the owner": the questions section's own "(none — this arc is
+    // not waiting on the owner)" is correct here and must not be mistaken for a held row.
+    assert.doesNotMatch(released.body, /waiting on the owner's answer|· \d+ waiting on the owner/);
+    assert.equal(offersCheckFor(released.next, "map-arc-plan-1"), true, released.next?.join("\n"));
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

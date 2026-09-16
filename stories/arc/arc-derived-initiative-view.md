@@ -172,6 +172,17 @@ its waiting set by querying `arcRef`, so a question without one is authored into
 difference between those two terminal states was a REASON rather than a state. `--note` is therefore
 REQUIRED when there is no `--pr`, so a closure that is not a landing cannot read as one.
 
+**Work waiting on the owner's answer reads as waiting — derived, never stored (ADR-0574).** An
+escalating session keeps its residue on the OPEN increment it was driving and links the question it
+authored through that increment's `waitsOn` field. `incrementWaitingOn` in `arc-rollup.ts` is the one
+rule: open work whose link names an unsettled question — on any arc — reads waiting; closed work never
+does, and a link to a question the corpus does not hold holds nothing. The rollup carries the reading
+as `waitingOn`; `arc list` counts it apart from open work, and `arc show` takes it out of the
+proposal / ready / active counts, names the question on its row and offers no freshness check on it.
+Settling the question releases the work with no write to the increment. The link is its own field
+rather than a `cites` entry for the reason `gatedBy` is not `dependsOn` (ADR-0523): a hold is a
+schedule, not support.
+
 ## Integration test
 
 **Goal —** Seed a store with an arc, stamp each child surface onto it independently — an increment
@@ -185,7 +196,7 @@ the real `loadArcRollup` runs underneath — and since ADR-0369 it runs from the
 than across a package boundary. `question.test.ts` closes the loop explicitly: it imports `arcCommand`
 and asserts a question authored through the write verb is what `arc show` then reports as waiting.
 
-## Contracts (9)
+## Contracts (10)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Test titles are cited rather than line ranges, which rot.
@@ -230,6 +241,10 @@ heading, so nothing was broken — but a reader counting from the heading would 
    - **asserts —** `arc close` requires `--outcome` and `arc reopen` requires `--reason`; either refusal writes NOTHING on either side; each success records its increment before flipping the flag, so an interrupt leaves the arc in its prior state carrying a visible extra increment rather than a flipped bit with nothing behind it; and close → reopen → close round-trips, leaving three durable rows rather than one mutated in place. Declared for BOTH directions in one contract because the invariant is one invariant — the flip is a projection of the prose that supports it (ADR-0239 D2, extended to the opening direction by ADR-0337, which withdrew D2's owner-only reservation on the grounds that it was never given a verb and so left the transition reachable by nobody).
    - **covers —** `packages/arc/src/arc.ts` (`arcClose`, `arcReopen`)
    - **proven by —** `packages/arc/src/arc.test.ts`, *"arc close REFUSES without --outcome — no closure without the prose that justifies it"*, *"arc reopen refuses without --reason, and writes NOTHING on that refusal"*, *"arc reopen records the increment, flips to active, and returns the arc to the worklist"* and *"close → reopen → close round-trips, and every transition leaves its own durable increment"* (REAL, passing)
+10. **`work-waiting-on-the-owner-is-held-not-offered`** — open work linked to an unanswered question is counted and marked as held until that question is settled (ADR-0574)
+   - **asserts —** `incrementWaitingOn` reads an increment as waiting only when the increment is open, its `waitsOn` names the question, and that question is unsettled on any arc; a closed increment, a settled question and a link to no known question each hold nothing; `arc list` counts held work apart from open work, and `arc show` removes it from the proposal / ready / active counts, names the question on its row and offers no freshness check on it; and settling the question releases the work with no write to the increment.
+   - **covers —** `packages/arc/src/arc-rollup.ts` (`incrementWaitingOn`, `deriveArcRollup`, `summariseArcRollup`), `packages/arc/src/arc.ts` (the `arc list` row, `renderArcRollup`, `arcShowNext`)
+   - **proven by —** `packages/arc/src/arc-rollup.test.ts`, *"incrementWaitingOn (ADR-0574): OPEN work, LINKED to an UNSETTLED question — each of the three is required"*, *"incrementWaitingOn: a link it cannot follow holds NOTHING, and an untyped row never throws"* and *"deriveArcRollup resolves waitingOn against EVERY question, onto OPEN work only, and leaks no question"*; `packages/arc/src/arc.test.ts`, *"arc list counts work WAITING ON THE OWNER apart from open work, and settling releases it (ADR-0574)"* and *"arc show marks work waiting on the owner as HELD — counted apart, named, and never offered (ADR-0574)"* (REAL, passing)
 
 ## The modeling call this capability raised — RESOLVED (2026-08-14)
 
