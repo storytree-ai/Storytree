@@ -4,6 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import type { CodexRateLimitSnapshot } from "@storytree/agent";
+import type { PgClaimStore } from "@storytree/notice-board/store";
 import {
   MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   MINTBOX_COORDINATOR_MODEL,
@@ -48,6 +49,16 @@ export interface MintboxProtectedRenderer {
   readonly claim: "held" | "released";
 }
 
+/** The observation-only claim-ledger slice used to verify a renderer's claim transition. */
+export type MintboxClaimLedgerReader = Pick<PgClaimStore, "claimsFor" | "history">;
+
+/** The notice-board claim row that belongs to the protected renderer. */
+export interface MintboxRendererClaimIdentity {
+  readonly unitId: string;
+  readonly sessionId: string;
+  readonly claimedAt?: string;
+}
+
 export interface MintboxSupervisorEnvelope {
   readonly version: 1;
   readonly state: MintboxSupervisorState;
@@ -61,6 +72,10 @@ export interface FileMintboxSupervisorAdapterOptions {
   readonly coordinatorCommand: MintboxCoordinatorCommand;
   readonly initialFacts: MintboxProgrammeFacts;
   readonly runtime: MintboxSupervisorRuntime;
+  /** Optional until callers adopt ledger-backed release evidence; supply with rendererClaimIdentity. */
+  readonly claimLedger?: MintboxClaimLedgerReader;
+  /** Explicit mapping from the protected renderer to its notice-board claim. */
+  readonly rendererClaimIdentity?: MintboxRendererClaimIdentity;
 }
 
 const SQLITE_LOCK_TIMEOUT_MS = 5_000;
@@ -80,6 +95,8 @@ export class FileMintboxSupervisorAdapter {
   readonly #command: MintboxCoordinatorCommand;
   readonly #runtime: MintboxSupervisorRuntime;
   readonly #initialState: MintboxSupervisorState;
+  readonly #claimLedger: MintboxClaimLedgerReader | undefined;
+  readonly #rendererClaimIdentity: MintboxRendererClaimIdentity | undefined;
 
   constructor(options: FileMintboxSupervisorAdapterOptions) {
     if (options.statePath.trim() === "") throw new Error("Mintbox supervisor statePath is required");
@@ -91,6 +108,8 @@ export class FileMintboxSupervisorAdapter {
       : { executable: options.coordinatorCommand.executable, args: [...options.coordinatorCommand.args], cwd: options.coordinatorCommand.cwd };
     this.#runtime = options.runtime;
     this.#initialState = createMintboxSupervisorState(options.initialFacts);
+    this.#claimLedger = options.claimLedger;
+    this.#rendererClaimIdentity = options.rendererClaimIdentity;
   }
 
   handleEvent(event: MintboxSupervisorEvent): Promise<MintboxSupervisorEnvelope> {
@@ -98,7 +117,11 @@ export class FileMintboxSupervisorAdapter {
       let envelope = await this.#prepare();
       const decision = decideMintboxSupervisorEvent(envelope.state, event);
       if (decision.wake === null) return envelope;
-      const protectedRenderer = releaseOrRefreshProtection(envelope.protectedRenderer, event);
+      const protectedRenderer = releaseOrRefreshProtection(
+        envelope.protectedRenderer,
+        event,
+        this.#claimLedger !== undefined && this.#rendererClaimIdentity !== undefined,
+      );
       envelope = {
         ...envelope,
         state: decision.state,
@@ -194,6 +217,11 @@ export class FileMintboxSupervisorAdapter {
       envelope = reconciled;
       await this.#save(envelope);
     }
+    const claimReconciled = await this.#reconcileRendererClaim(envelope);
+    if (claimReconciled !== envelope) {
+      envelope = claimReconciled;
+      await this.#save(envelope);
+    }
     return this.#drainPending(envelope);
   }
 
@@ -209,6 +237,27 @@ export class FileMintboxSupervisorAdapter {
       }
     }
     return state === envelope.state ? envelope : { ...envelope, state };
+  }
+
+  async #reconcileRendererClaim(envelope: MintboxSupervisorEnvelope): Promise<MintboxSupervisorEnvelope> {
+    const protectedRenderer = envelope.protectedRenderer;
+    const ledger = this.#claimLedger;
+    const identity = this.#rendererClaimIdentity;
+    if (protectedRenderer === null || ledger === undefined || identity === undefined) return envelope;
+    const claims = await ledger.claimsFor(identity.unitId);
+    const held = claims.some((claim) => claim.sessionId === identity.sessionId
+      && (identity.claimedAt === undefined || claim.claimedAt === identity.claimedAt));
+    if (held) {
+      return protectedRenderer.claim === "held"
+        ? envelope
+        : { ...envelope, protectedRenderer: { ...protectedRenderer, claim: "held" } };
+    }
+    const released = (await ledger.history(identity.unitId)).some((event) => isMatchingRendererRelease(event, identity));
+    if (!released) return envelope;
+    if (protectedRenderer.terminal === "green") return { ...envelope, protectedRenderer: null };
+    return protectedRenderer.claim === "released"
+      ? envelope
+      : { ...envelope, protectedRenderer: { ...protectedRenderer, claim: "released" } };
   }
 
   async #drainPending(envelope: MintboxSupervisorEnvelope): Promise<MintboxSupervisorEnvelope> {
@@ -270,13 +319,30 @@ export class FileMintboxSupervisorAdapter {
   }
 }
 
+function isMatchingRendererRelease(
+  event: { readonly type: string; readonly sessionId: string; readonly doc: unknown },
+  identity: MintboxRendererClaimIdentity,
+): boolean {
+  if (event.type !== "released" || event.sessionId !== identity.sessionId || typeof event.doc !== "object" || event.doc === null) {
+    return false;
+  }
+  const doc = event.doc as Record<string, unknown>;
+  return doc.unitId === identity.unitId
+    && doc.sessionId === identity.sessionId
+    && (identity.claimedAt === undefined || doc.claimedAt === identity.claimedAt);
+}
+
 function releaseOrRefreshProtection(
   current: MintboxProtectedRenderer | null,
   event: MintboxSupervisorEvent,
+  ledgerBacked: boolean,
 ): MintboxProtectedRenderer | null {
   const evidence = event.rendererEvidence;
   if (current === null || evidence === undefined || evidence.rendererId !== current.handleId) return current;
-  if (isMintboxRendererReleased(evidence, current.handleId)) return null;
+  if (isMintboxRendererReleased(evidence, current.handleId) && (!ledgerBacked || current.claim === "released")) return null;
+  if (isMintboxRendererReleased(evidence, current.handleId)) {
+    return { handleId: current.handleId, terminal: evidence.terminal, claim: "held" };
+  }
   return { handleId: current.handleId, terminal: evidence.terminal, claim: evidence.claim };
 }
 

@@ -9,7 +9,7 @@ uat_witness: machine
 arc: mintbox-event-driven-orchestration-arc
 capabilities: [mintbox-supervisor-events, mintbox-protected-driver-transition, mintbox-terra-lane-launch]
 depends_on: [agent, notice-board, arc]
-artifact_edges: [notice-board, arc]
+artifact_edges: [arc]
 decisions: [561, 505]
 ---
 

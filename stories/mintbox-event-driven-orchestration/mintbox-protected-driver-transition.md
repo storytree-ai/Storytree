@@ -46,6 +46,15 @@ Start with the protected renderer handle and claim live. Run the supervisor's ob
 pass and verify neither the handle nor claim is changed. Then deliver the proof's terminal green event
 and released claim, and verify one fresh coordinator sees the lane as eligible.
 
+## Guidance
+
+Treat claim history as a lifecycle, not the absence of a live row: no matching live claim is not
+release evidence. Adoption requires an exact matching released audit event from the public notice-board
+history surface for the protected unit and session, also matching `claimedAt` whenever the identity
+supplies it. A release for the wrong session or `claimedAt` cannot unlock adoption; whether release
+arrives before green or green arrives before release, eligibility begins only after the later required
+signal. Reacquisition after release restores the held state until that acquisition is itself released.
+
 ## Contracts
 
 1. **`mintbox-active-proof-is-observe-only`** — architecture transition never interrupts proof
