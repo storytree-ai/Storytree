@@ -2735,7 +2735,7 @@ function refuseMemoryStore(area: "node" | "story" | "gate", id: string | undefin
   // The retry hint mirrors the area's own verb: node/story `build`, a gate `run --real`.
   const retry =
     area === "gate"
-      ? `storytree gate run ${id ?? "<story>#gate-<n>"} --real --pg   (a --real gate build persists by default)`
+      ? `storytree gate run ${id ?? "<story>#gate-<n>"} --real --increment <increment-id> --pg   (a --real gate build persists by default)`
       : `storytree ${area} build ${id ?? "<id>"} --live   (persists by default — no --store needed)`;
   return {
     ok: false,

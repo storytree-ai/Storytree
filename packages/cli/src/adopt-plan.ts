@@ -86,7 +86,7 @@ function proposedGatesLines(gates: ProposedGate[]): string[] {
     "",
     `Recommended reliability gates (${gates.length}) — RECOMMEND-ONLY: paste under the story's`,
     "`## Reliability Gates` and review. Nothing greens until adopted (`observe`) or driven",
-    "(`storytree gate run <story>#gate-<n> --real --pg`, `build-tests`):",
+    "(`storytree gate run <story>#gate-<n> --real --increment <increment-id> --pg`, `build-tests`):",
     "",
   ];
   gates.forEach((g, i) => lines.push(`  ${i + 1}. ${renderProposedGate(g)}`));
@@ -201,7 +201,7 @@ export async function adoptPlanCommand(
       "",
       "RECOMMEND-ONLY (ADR-0097 d.4): this proposal authors nothing and greens nothing. Paste the gates",
       "you accept under the story's `## Reliability Gates`, resolve the escalated forks, then `storytree",
-      "adopt <story> --pg` (observe) / `gate run <gate> --real --pg` (build-tests) earns the green.",
+      "adopt <story> --pg` (observe) / `gate run <gate> --real --increment <increment-id> --pg` (build-tests) earns the green.",
     );
   } else {
     lines.push(
@@ -221,7 +221,7 @@ export async function adoptPlanCommand(
     // covers are a surfaced warning, not a failure (the spec still classifies).
     body: lines.join("\n"),
     next: enriched
-      ? [`storytree adopt ${id} --pg`, `storytree gate run ${id}#gate-1 --real --pg`]
+      ? [`storytree adopt ${id} --pg`, `storytree gate run ${id}#gate-1 --real --increment <increment-id> --pg`]
       : [`storytree gate list ${id} --pg`, `storytree tree ${id} --pg`],
   };
 }

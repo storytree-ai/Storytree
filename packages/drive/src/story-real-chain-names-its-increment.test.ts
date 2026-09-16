@@ -738,3 +738,45 @@ test("story-chain-envelopes-render-the-entry-state: a REAL chain's header, outco
     await rm(haltRepo.root, { recursive: true, force: true });
   }
 });
+
+test("a chain refused an unknown verdict store prints its paid --real retry naming the increment, and its --live retry without one", async () => {
+  // Offline: both refusals land at the verdict-store resolution, after the (injected) preflight and
+  // prompt render and before any pool, claim, worktree or leaf.
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const corpus = await fixtureCorpus();
+  try {
+    const real = await StoryBuildModule.storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      runtime: "claude",
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: stories,
+      corpusStore: corpus,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
+      verdictStore: "surreal",
+      progress: silentBuildProgress(),
+    });
+    assert.equal(real.ok, false, real.body);
+    assert.match(real.body, /^unknown --store "surreal"/);
+    assert.deepEqual(real.next, ["storytree story build fix-story --real --increment <increment-id> --store pg"]);
+
+    const live = await StoryBuildModule.storyBuild("fix-story", {
+      dryRun: false,
+      live: true,
+      runtime: "claude",
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: stories,
+      corpusStore: corpus,
+      verdictStore: "surreal",
+      progress: silentBuildProgress(),
+    });
+    assert.equal(live.ok, false, live.body);
+    assert.match(live.body, /^unknown --store "surreal"/);
+    assert.deepEqual(live.next, ["storytree story build fix-story --live --store pg"]);
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+  }
+});

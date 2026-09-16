@@ -12,6 +12,7 @@ import {
   ShellTestExecutor,
 } from "@storytree/orchestrator";
 import type { AuthorResult, AuthoringPhase, PhaseAuthor } from "@storytree/agent";
+import type { ClaimDocT } from "@storytree/notice-board";
 import type { ProveResult, ProveSpec, TreeState } from "@storytree/orchestrator";
 import { parseAuthoringEscalation } from "@storytree/agent";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
@@ -762,5 +763,72 @@ test("printed-real-commands-name-the-increment: nodeBuild's --revise-test mode-c
   });
   assert.deepEqual(modeCheck.next, [
     `storytree node build ${UNIT_ID} --real --increment <increment-id> --revise-test run-x`,
+  ]);
+});
+
+test("printed-real-commands-name-the-increment: a REAL build refused at its claim points at another unit's paid build under the increment it resolved", async () => {
+  // Offline: the internal in-memory store seam means no database, and the claim refuses before any
+  // worktree or leaf, so the envelope is the whole observable.
+  const held: ClaimDocT = {
+    unitId: UNIT_ID,
+    sessionId: "sibling",
+    branch: "claude/sibling",
+    intent: "real",
+    claimedAt: "2026-09-17T00:00:00.000Z",
+    heartbeatAt: "2026-09-17T00:00:00.000Z",
+  };
+  const { ensureDb, calls } = spyEnsureDb();
+  const { progress } = recordingProgress();
+  const refused = await NodeBuildModule.nodeBuild(UNIT_ID, {
+    ...realOpts({ ledger: new InMemoryStore(), increment: "inc-live", ensureDb, progress }),
+    verdictStore: "memory",
+    claim: { store: { claim: async () => ({ acquired: false, heldBy: held }), release: async () => false } },
+    identity: { sessionId: "mine", branch: "claude/mine" },
+  });
+  assert.equal(refused.ok, false, refused.body);
+  assert.match(refused.body, /is already being built by another live session/);
+  assert.deepEqual(refused.next, [
+    "storytree noticeboard --pg",
+    "storytree node build <other-id> --real --increment inc-live",
+  ]);
+  assert.equal(calls.count, 0, "the in-memory store seam never starts the database");
+});
+
+test("printed-real-commands-name-the-increment: a synthetic walk refused the live store points at the paid build that may persist, naming the increment", async () => {
+  const { progress } = recordingProgress();
+  const refused = await NodeBuildModule.nodeBuild(UNIT_ID, {
+    dryRun: false,
+    live: true,
+    runtime: "claude",
+    actor: "tester@example.com",
+    repoRoot: fx.repoRoot,
+    storiesDir: fx.storiesDir,
+    corpusStore: fx.corpus,
+    verdictStore: "pg",
+    progress,
+  });
+  assert.equal(refused.ok, false, refused.body);
+  assert.match(refused.body, /--store pg is refused for a SYNTHETIC walk/);
+  assert.deepEqual(refused.next, [`storytree node build ${UNIT_ID} --real --increment <increment-id> --store pg`]);
+});
+
+test("printed-real-commands-name-the-increment: a passing dry-run's any-node suggestion carries no increment, and the resolve report's paid suggestion names the placeholder", async () => {
+  const passed = await NodeBuildModule.nodeBuild(UNIT_ID, {
+    dryRun: true,
+    actor: "tester@example.com",
+    repoRoot: fx.repoRoot,
+    storiesDir: fx.storiesDir,
+  });
+  assert.equal(passed.ok, true, passed.body);
+  assert.deepEqual(passed.next, [
+    "storytree node build <id> --dry-run   (any registered node)",
+    `storytree library artifact ${UNIT_ID}   (if it has a Library artifact)`,
+  ]);
+
+  const resolved = NodeBuildModule.nodeResolve(UNIT_ID, { storiesDir: fx.storiesDir, repoRoot: fx.repoRoot });
+  assert.equal(resolved.ok, true, resolved.body);
+  assert.deepEqual(resolved.next, [
+    `storytree node build ${UNIT_ID} --dry-run   (free — prove the glue, scripted walk)`,
+    `storytree node build ${UNIT_ID} --real --increment <increment-id>   (paid — the live leaf authors the node's real proof)`,
   ]);
 });

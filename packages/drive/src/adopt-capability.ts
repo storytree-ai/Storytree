@@ -305,7 +305,7 @@ export async function runAdoptCapability(
         "Adoption records that work ALREADY built and ALREADY serving is accepted on the owner's risk\n" +
         "acceptance. A capability adopted in the same landing that authored it is self-attestation\n" +
         "wearing the brownfield's clothes — freshly written work earns a driven red→green instead.",
-      next: [`storytree node build ${id} --real --store pg`],
+      next: [`storytree node build ${id} --real --increment <increment-id> --store pg`],
     };
   }
 

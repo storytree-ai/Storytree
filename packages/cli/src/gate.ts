@@ -207,7 +207,7 @@ async function gateList(storyId: string | undefined, deps: GateDeps): Promise<En
   lines.push(
     "",
     "PROVEN (✓/✗/–) is the SIGNED verdict (events.verdict). An `observe` gate is proven via",
-    "`storytree gate run <id> --pg`; a `build-tests` gate via `storytree gate run <id> --real --pg`",
+    "`storytree gate run <id> --pg`; a `build-tests` gate via `storytree gate run <id> --real --increment <increment-id> --pg`",
     "(ADR-0098 — it drives the `(build:)` node's red→green and signs for the gate id); an `integrate`",
     "gate when its capability greens. The story CROWN (caps AND uat AND gates) is",
     "`storytree tree " + storyId + " --pg`.",
@@ -380,7 +380,7 @@ async function gateRunBuildTests(
         `through the gate (ADR-0098), not observe-and-sign. Run it with --real (and --pg to persist):\n` +
         `the build authors a brownfield seam (R2) or behaviour fix (R1) and signs a DRIVEN verdict for\n` +
         `the gate id, which greens the capability the gate \`(covers:)\`.`,
-      next: [`storytree gate run ${gate.id} --real --pg`],
+      next: [`storytree gate run ${gate.id} --real --increment <increment-id> --pg`],
     };
   }
   if (gate.buildNode === undefined || gate.buildNode.trim().length === 0) {
@@ -399,7 +399,7 @@ async function gateRunBuildTests(
       body:
         `gate run --real needs the build driver, which is not wired in this context (a read-only /\n` +
         `offline surface). Run it from the CLI with the live DB up (pnpm db:up).`,
-      next: [`storytree gate run ${gate.id} --real --pg`],
+      next: [`storytree gate run ${gate.id} --real --increment <increment-id> --pg`],
     };
   }
   const result = await deps.driveBuildTestsGate(gate, opts.signer);

@@ -87,7 +87,7 @@ export function adoptHelp(): Envelope {
       "`observe` gate, a blank signer, the offline store, and a DIRTY tree (an adopted verdict pins the clean",
       "commit it observed) — then the flip dirties the tree with one `status:` line for YOU to commit. It",
       "GREENS NOTHING on its own: covered capabilities green via coverage; a `build-tests` pocket holds the",
-      "crown at `proposed` until a real red→green earns it (`storytree build gate <story>#gate-<n> --real --pg`,",
+      "crown at `proposed` until a real red→green earns it (`storytree build gate <story>#gate-<n> --real --increment <increment-id> --pg`,",
       "ADR-0098). The signer chain is fail-closed: --signer/--actor → STORYTREE_SIGNER → git email.",
     ].join("\n"),
     next: ["storytree adopt plan <story-id>", "storytree adopt gate <story>#gate-<n> --pg", "storytree adopt <story-id> --pg"],

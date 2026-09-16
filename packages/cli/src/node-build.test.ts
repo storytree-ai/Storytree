@@ -82,8 +82,9 @@ test("resolveVerdictStore: ADR-0099-B refuses --store pg for a SYNTHETIC walk (d
   assert.match(res.refusal.body, /SYNTHETIC walk/);
   assert.match(res.refusal.body, /forged `healthy`/);
   assert.match(res.refusal.body, /Only --real/);
-  // The retry nudge points at --real, never --live (a live smoke can never earn pg).
-  assert.ok(res.refusal.next?.some((n) => /--real --store pg/.test(n)));
+  // The retry nudge points at --real, never --live (a live smoke can never earn pg) — and a paid
+  // --real build names its increment (ADR-0576 D1).
+  assert.ok(res.refusal.next?.some((n) => /--real --increment <increment-id> --store pg/.test(n)));
 });
 
 test("resolveVerdictStore: a synthetic walk still resolves the in-memory stores (undefined / the memory seam)", async () => {

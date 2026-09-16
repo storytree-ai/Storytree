@@ -131,7 +131,8 @@ async function main(): Promise<number> {
   console.error("witnessable-verdict: NO live-build witness for Story UAT leg 3 (ADR-0184):");
   for (const reason of result.reasons) console.error(`  x ${reason}`);
   console.error(
-    "\nRe-mint: run a live `storytree node build <drive-machinery-node> --real --store pg` and land it\n" +
+    // Stryker disable next-line all: NO COVERAGE BY DESIGN — the live check's own failure diagnostic; this entry reads the live store before it can print, which no hermetic test may reach (ADR-0302 D3)
+    "\nRe-mint: run a live `storytree node build <drive-machinery-node> --real --increment <increment-id> --store pg` and land it\n" +
       "non-squash (ADR-0184 d.3 — the live run produces the artifact; this gate only witnesses it).",
   );
   return 1;

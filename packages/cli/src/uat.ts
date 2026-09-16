@@ -196,7 +196,7 @@ export function resolveProvingRoute(
   // A `build-tests` binding is earned by a genuine red→green through the gate, never observe-and-sign.
   const bound = leg.proofGateId === undefined ? undefined : gates.find((g) => g.id === leg.proofGateId);
   if (bound !== undefined && bound.kind === "build-tests") {
-    return { kind: "build-gate", command: `storytree build gate ${bound.id} --real --pg` };
+    return { kind: "build-gate", command: `storytree build gate ${bound.id} --real --increment <increment-id> --pg` };
   }
   return { kind: "unprovable", reason: resolved.reason };
 }

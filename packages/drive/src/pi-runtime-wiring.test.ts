@@ -120,6 +120,96 @@ test("Codex-default help and invalid-runtime recovery are visible on both build 
   );
 });
 
+test("the build verbs' argument refusals print every paid --real retry with the increment it must name, and no --live retry with one", async () => {
+  // ADR-0576 D1: a paid REAL build names `--increment <id>` or is refused as written, so a refusal
+  // that suggests one prints the flag; a `--live` or `--dry-run` suggestion never carries it.
+  const nodeMode = await nodeBuild("verdict-line", { dryRun: false, actor: "t@example.com" });
+  assert.deepEqual(nodeMode.next, [
+    "storytree node build verdict-line --dry-run",
+    "storytree node build verdict-line --live",
+    "storytree node build verdict-line --real --increment <increment-id>",
+  ]);
+  const storyMode = await storyBuild("library", { dryRun: false, actor: "t@example.com" });
+  assert.deepEqual(storyMode.next, [
+    "storytree story build library --dry-run",
+    "storytree story build library --live",
+    "storytree story build library --real --increment <increment-id>",
+  ]);
+  const noStory = await storyBuild(undefined, { dryRun: true, actor: "t@example.com" });
+  assert.deepEqual(noStory, {
+    ok: false,
+    body: "story build needs a story id: storytree story build <story-id> --dry-run | --live | --real --increment <increment-id>",
+    next: ["storytree story build library --dry-run"],
+  });
+
+  // The two Codex refusals (a USD cap, a turn count other than 1), on both verbs, in both paid-leaf modes.
+  const nodeRealBudget = await nodeBuild("verdict-line", {
+    dryRun: false,
+    real: true,
+    runtime: "codex",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(nodeRealBudget.next, ["storytree node build verdict-line --real --increment <increment-id> --runtime codex"]);
+  const nodeLiveBudget = await nodeBuild("verdict-line", {
+    dryRun: false,
+    live: true,
+    runtime: "codex",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(nodeLiveBudget.next, ["storytree node build verdict-line --live --runtime codex"]);
+  const nodeRealTurns = await nodeBuild("verdict-line", {
+    dryRun: false,
+    real: true,
+    runtime: "codex",
+    maxTurns: 2,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(nodeRealTurns.next, ["storytree node build verdict-line --real --increment <increment-id> --runtime codex"]);
+  const nodeLiveTurns = await nodeBuild("verdict-line", {
+    dryRun: false,
+    live: true,
+    runtime: "codex",
+    maxTurns: 2,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(nodeLiveTurns.next, ["storytree node build verdict-line --live --runtime codex"]);
+
+  const storyRealBudget = await storyBuild("library", {
+    dryRun: false,
+    real: true,
+    runtime: "codex",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(storyRealBudget.next, ["storytree story build library --real --increment <increment-id> --runtime codex"]);
+  const storyLiveBudget = await storyBuild("library", {
+    dryRun: false,
+    live: true,
+    runtime: "codex",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(storyLiveBudget.next, ["storytree story build library --live --runtime codex"]);
+  const storyRealTurns = await storyBuild("library", {
+    dryRun: false,
+    real: true,
+    runtime: "codex",
+    maxTurns: 2,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(storyRealTurns.next, ["storytree story build library --real --increment <increment-id> --runtime codex"]);
+  const storyLiveTurns = await storyBuild("library", {
+    dryRun: false,
+    live: true,
+    runtime: "codex",
+    maxTurns: 2,
+    actor: "t@example.com",
+  });
+  assert.deepEqual(storyLiveTurns.next, ["storytree story build library --live --runtime codex"]);
+});
+
 test("the composed endpoint satisfies OUR OWN walls — wall 1 does not have to be widened", () => {
   const composed = composePiSubscriptionEndpoint({
     env: { CLAUDE_CODE_OAUTH_TOKEN: FAKE_SUBSCRIPTION_TOKEN },

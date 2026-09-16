@@ -566,7 +566,7 @@ export async function storyBuild(
   if (storyId === undefined) {
     return {
       ok: false,
-      body: "story build needs a story id: storytree story build <story-id> --dry-run | --live | --real",
+      body: "story build needs a story id: storytree story build <story-id> --dry-run | --live | --real --increment <increment-id>",
       next: ["storytree story build library --dry-run"],
     };
   }
@@ -588,7 +588,7 @@ export async function storyBuild(
       next: [
         `storytree story build ${storyId} --dry-run`,
         `storytree story build ${storyId} --live`,
-        `storytree story build ${storyId} --real`,
+        `storytree story build ${storyId} --real --increment <increment-id>`,
       ],
     };
   }
@@ -634,7 +634,7 @@ export async function storyBuild(
       body:
         "--budget is unavailable with --runtime codex: Codex uses ChatGPT subscription quota and " +
         "reports no honest USD spend. Drop --budget or select --runtime claude.",
-      next: [`storytree story build ${storyId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree story build ${storyId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   if (runtime === "codex" && opts.maxTurns !== undefined && opts.maxTurns !== 1) {
@@ -643,7 +643,7 @@ export async function storyBuild(
       body:
         "--max-turns is fixed at 1 with --runtime codex: each prove-it phase is exactly one " +
         "non-interactive Codex turn. Omit the flag or pass --max-turns 1.",
-      next: [`storytree story build ${storyId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree story build ${storyId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   // ADR-0575 D1 / ADR-0576 D1: --increment names the increment a paid chain attempt is filed under
@@ -817,7 +817,7 @@ export async function storyBuild(
   // `db:up` + wait if down) BEFORE anything that touches it: the verdict store is pg. A SYNTHETIC chain
   // (`--dry-run`, or a `--live` add(2,3) smoke) is untouched (in-memory, never the DB) — a synthetic
   // PASS must never persist a green.
-  const retryCmd = `storytree story build ${story.id} ${real ? "--real" : "--live"}`;
+  const retryCmd = `storytree story build ${story.id} ${real ? "--real --increment <increment-id>" : "--live"}`;
   const effectiveStore = effectiveVerdictStore(opts.verdictStore, mode !== "real");
   // The instance must be up to PERSIST verdicts AND to run any db-backed proof in the chain
   // (ADR-0064: the proof connects to the test DB on this instance), so ensure it for either reason.
@@ -962,7 +962,7 @@ export async function storyBuild(
             "storytree noticeboard --pg",
             // Deliberately not "a member nobody holds": the refusal proves only that THIS unit is
             // claimed, so suggesting another member is a starting point the board confirms.
-            `storytree node build ${acquired.requested.find((u) => u !== acquired.refusedUnit) ?? "<other-id>"} ${real ? "--real" : "--live"}   (another member of this story — check the board above first)`,
+            `storytree node build ${acquired.requested.find((u) => u !== acquired.refusedUnit) ?? "<other-id>"} ${real ? "--real --increment <increment-id>" : "--live"}   (another member of this story — check the board above first)`,
           ],
         };
       }
@@ -1429,7 +1429,7 @@ export async function storyBuild(
                   `gh pr create --head ${promotion.branch} --title "real: ${story.id} capabilities proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
                 ]
               : []),
-          `storytree node build <id> --real   (one node's REAL proof in a fresh worktree)`,
+          `storytree node build <id> --real --increment <increment-id>   (one node's REAL proof in a fresh worktree)`,
         ],
       };
     }
@@ -1455,8 +1455,8 @@ export async function storyBuild(
             : []),
         ...(real
           ? []
-          : [`storytree story build ${story.id} --real   (chain the WHOLE story for real)`]),
-        "storytree node build <id> --real   (one node's REAL proof in a fresh worktree)",
+          : [`storytree story build ${story.id} --real --increment <increment-id>   (chain the WHOLE story for real)`]),
+        "storytree node build <id> --real --increment <increment-id>   (one node's REAL proof in a fresh worktree)",
       ],
     };
   } finally {

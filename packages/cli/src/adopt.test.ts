@@ -129,3 +129,16 @@ test("adopt run refuses a non-brownfield (healthy) story (the wall lives in runA
   assert.equal(env.ok, false);
   assert.match(env.body, /not a brownfield/);
 });
+
+test("adopt help names the increment on the paid build-tests command it points a pocket at", () => {
+  // ADR-0576 D1: a REAL gate build naming no `--increment <id>` is refused as written.
+  const env = adoptHelp();
+  assert.ok(
+    env.body
+      .split("\n")
+      .includes(
+        "crown at `proposed` until a real red→green earns it (`storytree build gate <story>#gate-<n> --real --increment <increment-id> --pg`,",
+      ),
+    env.body,
+  );
+});

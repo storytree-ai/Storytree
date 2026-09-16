@@ -314,3 +314,18 @@ test("durable story health is shared by bare and focused views, while spec issue
   assert.ok(failureLine.includes("cap-broken.md"));
   assert.ok(!failureLine.includes("story.md"));
 });
+
+test("a focused story with a REAL-buildable capability points at its paid build, naming the increment that build must be filed under", async () => {
+  const deps: TreeDeps = {
+    storiesDir: healthyDir,
+    lookupConfig: (id) => (id === "cap-good" ? { real: {} } : null),
+    now: () => NOW,
+  };
+  const focused = await treeCommand("good-story", deps);
+  // A paid `--real` build is refused without `--increment` (ADR-0576 D1), so the suggestion carries it.
+  assert.deepEqual(focused.next, [
+    "storytree noticeboard declare --working-on <prose> --node good-story --pg",
+    "storytree node build cap-good --real --increment <increment-id>",
+    "storytree tree",
+  ]);
+});

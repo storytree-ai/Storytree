@@ -737,7 +737,7 @@ export async function resolveVerdictStore(
           "smoke): its PASS does not come from a real driven red→green, so persisting it would plant a\n" +
           "forged `healthy` in the shared event log (ADR-0020/0099-B — a synthetic smoke must never green\n" +
           "a unit). Only --real (a genuine red→green) persists to pg.",
-        next: [`${retryCmd.replace(/--live\b/, "--real")} --store pg`],
+        next: [`${retryCmd.replace(/--live\b/, "--real --increment <increment-id>")} --store pg`],
       },
     };
   }
@@ -2092,7 +2092,7 @@ export async function nodeBuild(
       next: [
         `storytree node build ${unitId} --dry-run`,
         `storytree node build ${unitId} --live`,
-        `storytree node build ${unitId} --real`,
+        `storytree node build ${unitId} --real --increment <increment-id>`,
       ],
     };
   }
@@ -2137,7 +2137,7 @@ export async function nodeBuild(
       body:
         "--budget is unavailable with --runtime codex: Codex uses ChatGPT subscription quota and " +
         "reports no honest USD spend. Drop --budget or select --runtime claude.",
-      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree node build ${unitId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   if (runtime === "codex" && opts.maxTurns !== undefined && opts.maxTurns !== 1) {
@@ -2146,7 +2146,7 @@ export async function nodeBuild(
       body:
         "--max-turns is fixed at 1 with --runtime codex: each prove-it phase is exactly one " +
         "non-interactive Codex turn. Omit the flag or pass --max-turns 1.",
-      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree node build ${unitId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   if (isCodexMultifileRuntimeSeam(unitId) && real) {
@@ -2429,7 +2429,7 @@ export async function nodeBuild(
             "different unit, coordinate via the notice board, or wait for the claim to be released on",
             "completion (or to age out via stale-reclaim if the holder died).",
           ].join("\n"),
-          next: ["storytree noticeboard --pg", `storytree node build <other-id> ${modeFlag}`],
+          next: ["storytree noticeboard --pg", nodeBuildRetryCommand("<other-id>", modeFlag, incrementId)],
         };
       }
       claimHeld = true;
@@ -2654,7 +2654,7 @@ export async function nodeBuild(
               `storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex --actor <email>   (subscription-backed exact two-file promotion smoke)`,
             ]
           : [
-              `storytree node build <id> ${modeFlag}   (any registered node)`,
+              `${nodeBuildRetryCommand("<id>", modeFlag, incrementId)}   (any registered node)`,
               `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
             ]),
       ],
@@ -2814,7 +2814,7 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
   const next = [`storytree node build ${report.id} --dry-run   (free — prove the glue, scripted walk)`];
   if (report.realBuildable) {
     next.push(
-      `storytree node build ${report.id} --real   (paid — the live leaf authors the node's real proof)`,
+      `storytree node build ${report.id} --real --increment <increment-id>   (paid — the live leaf authors the node's real proof)`,
     );
   }
   return { ok: true, body: lines.join("\n"), next };
