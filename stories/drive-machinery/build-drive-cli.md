@@ -20,15 +20,19 @@ depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-to
 
 **Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md), [`prove-it-gate`](prove-it-gate.md), [`real-build-worktree`](real-build-worktree.md), [`story-topo-build`](story-topo-build.md), [`work-verdict-event-log`](work-verdict-event-log.md)
 
-> **Proof status (honest) — `proposed`, with the live arms still unsigned.** The dry-run
-> walks (single node AND whole story), every mode/refusal branch, and the forged-healthy store
+> **Proof status (honest) — `proposed`, with the live arms and the newly specified backstop-recovery arm still unsigned.** The dry-run
+> walks (single node AND whole story), the pre-existing mode/refusal branches, and the forged-healthy store
 > wall are covered by real, passing, offline suites (`packages/cli/src/node-build.test.ts` +
 > `packages/cli/src/story-build.test.ts`, part of `@storytree/cli` 110/110 — I ran them
 > 2026-06-13). The pockets, all live-attested but not standing tests: the `--live` SDK smoke
 > (Phase D, first signed live pass $0.06), the `--real` worktree build + promotion (Phase F,
 > verdict-line run `real-mq7ky4ck`, landed via non-squash PR), the live `story build --live`
 > chain (Phase E, library 8/8 signed passes $0.48), and the `--store pg` live persistence leg
-> (verified once against the real `events.verdict`).
+> (verified once against the real `events.verdict`). Contract 17 is the repair for a measured REAL
+> package-backstop refusal that discarded both the authored ref and its process diagnostics. Its
+> unsigned proof is split between fast rendering/preservation helpers, the actual `storyBuild`
+> caller regression, and whole-framing tests, named at the contract rather than absorbed into those
+> earlier counts.
 
 ## Guidance
 
@@ -71,7 +75,26 @@ The operator surface over the whole machinery — two commands, one honest-envel
   already returned by the gate: it runs no command and does
   not alter the refusal, evidence, signing, promotion, cleanup, leaf feedback, or stored work
   history. Passes and failures without an eligible command observation retain their current envelope;
-  the REAL typecheck/regression backstop is a separately shaped diagnostic path and is excluded.
+  the REAL typecheck/regression backstop remains a separately shaped diagnostic path described
+  below rather than masquerading as a CONFIRM observation.
+
+- **Pre-signature backstop recovery** (`backstop-report.ts`, `backstop-preservation.ts`,
+  `buildNodeReal` / `nodeBuild`): after the spine commits the
+  authored scope, a RED package typecheck or regression suite still refuses at GATE and writes no
+  signing row. Before the detached worktree is removed, that already-committed authored HEAD is
+  parked with `purpose: "unsigned-forensics"` at
+  `claude/real-forensics/<unit-id>-<run-id>` with push withheld. The signed promotion/proven-prefix
+  namespace remains `claude/real/*`, so both refs may coexist for the same run without one replacing
+  the other. The returned result and CLI envelope call the forensic ref **unsigned preservation**,
+  never promotion: it is local-only, is not a landing candidate, and proves nothing. The same refusal envelope names which backstop command was
+  red and renders its exit code plus stdout/stderr capped at 4,000 characters per stream, retaining
+  both head and tail with a visible truncation marker instead of an unbounded package log. A `null`
+  exit is rendered as no numeric exit (killed or timed out) beside
+  the command's effective timeout, rather than being flattened into the same diagnosis as an
+  assertion failure. This arm requires the backstop observation and a committed authored head that
+  differs from the cut; signer, tree-state, other GATE, and pre-commit refusals create no forensic
+  ref. Rendering consumes the observation already taken by the backstop, executes no diagnostic
+  re-run, and does not change ADR-0104's timeout scope.
 
 - **Escalation rendering** (contract
   [`node-build-escalation-envelope`](node-build-escalation-envelope.md), signed PASS run
@@ -150,7 +173,7 @@ trail + verdict + rollup (`packages/cli/src/node-build.test.ts:17`, `:74`), and 
 library --dry-run` chains every real library node topo-ordered, story last, all signed, over one
 event log (`packages/cli/src/story-build.test.ts:17`).
 
-## Contracts (16)
+## Contracts (17)
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
@@ -216,3 +239,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
     - **asserts —** `liveLeafLines` renders a Codex author that recorded feedback runs with exactly the Claude branch's feedback line, each run as `<phase>:<tool>=green` or `=exit <code>` with a null code as `none`. It renders an armed Codex author with no runs as `0 bounded runs — armed with` its tool names without the `mcp__spine__` prefix, and a Codex author given no feedback commands with today's `none` line. The Claude branch's feedback line is byte-identical to today's, a Claude author with no runs still renders no feedback line, and pi's `none` line is unchanged.
     - **covers —** `liveLeafLines` (`packages/drive/src/node-build.ts`)
     - **proven by —** `packages/drive/src/node-build-codex-feedback.test.ts` through contract [`node-build-renders-codex-feedback-runs`](node-build-renders-codex-feedback-runs.md), signed PASS on the first attempt (run `real-mu25wogv`), with the `@storytree/drive` suite and typecheck as pre-signature backstops. `packages/drive` is inside the mutation rung, which scores this test at the landing's gate.
+17. **`a-red-backstop-preserves-and-diagnoses-the-unsigned-attempt`** — a pre-signature package red leaves an inspectable local authored head and a bounded diagnostic envelope without presenting either as a verdict or promotion
+    - **asserts —** for each install-bearing first-red arm (typecheck, then regression after a green typecheck), when the spine already committed an authored HEAD distinct from the worktree cut, `buildNodeReal` returns a GATE refusal with zero signing rows, leaves ordinary `promotion` undefined, records `forensicPreservation`, and requests `purpose: "unsigned-forensics"`, which parks that HEAD at the run-unique `claude/real-forensics/<unit>-<run>` branch in the driving repo and never pushes it. Signed promotion and a halted chain's proven prefix stay under `claude/real/<unit>-<run>`, so an unsigned story-node attempt and the same run's signed prefix coexist at distinct refs and SHAs. At the actual `storyBuild` caller, a first-node red exposes the forensic ref while saying there is no proven prefix to park, and a later story-node red renders both the signed prefix and the unsigned forensic ref; neither halted-chain ref reaches origin. The same result does not promise forensic preservation for signer, dirty-tree, other GATE, pre-commit, or unchanged-HEAD failures. `nodeBuild` labels a preserved head `forensics: UNSIGNED` rather than `promoted`, names the red backstop, and renders its captured exit code plus stdout and stderr capped at 4,000 characters each, retaining both ends and inserting an explicit truncation marker when a stream exceeds the cap. A `null` exit renders as `none (killed or timed out after <effective timeout>ms)`, distinguishable from a numeric failing exit; reporting the effective timeout changes no timeout policy. For a typecheck-first red, honest framing says the package suite did not run because the first red is actionable and says no verdict was signed. Rendering consumes the observations already taken and spawns no retry; a signed green run keeps the ordinary promotion envelope and carries no forensic-preservation line.
+    - **covers —** `buildNodeReal`'s failed-result path, `honestFramingReal` and the failure-envelope call site in `packages/drive/src/node-build.ts`; forensic propagation, signed-prefix parking and envelope rendering in `packages/drive/src/story-build.ts`; bounded diagnostic and unsigned-ref rendering in `packages/drive/src/backstop-report.ts`; refusal-to-preservation planning and optional result evidence in `packages/drive/src/backstop-preservation.ts`; and purpose-aware local branch parking plus `WorktreeCommandObservation` in `packages/orchestrator/src/build-worktree.ts`.
+    - **proven by —** `packages/drive/src/backstop-report.test.ts` proves the exact 4,000-character head/tail bound, truncation marker, numeric and `null` exit rendering, timeout text, refusal binding, and unsigned forensic label; `packages/drive/src/backstop-preservation.test.ts` proves no-refusal, unchanged-HEAD, distinct-authored-HEAD and optional-evidence shapes; `packages/orchestrator/src/build-worktree.test.ts` proves exact stdout/stderr, exit code and effective-timeout propagation plus the categorical `claude/real-forensics/*` versus `claude/real/*` namespace and its no-push/no-PR guard; `packages/drive/src/story-backstop-forensics.test.ts` drives the public `storyBuild` caller through first-node and later-story-node red lifecycles against real git, proving the honest envelope, collision-free refs, distinct trees, teardown and no remote spread; and `packages/drive/src/node-build-framing.test.ts` pins the typecheck-first refusal framing whole. The earlier `packages/drive/src/backstop-before-signature.test.ts` remains the independent ordering baseline rather than carrying this recovery proof.
