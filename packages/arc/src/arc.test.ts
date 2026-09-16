@@ -1921,18 +1921,25 @@ test("arc show marks work waiting on the owner as HELD — counted apart, named,
     await askOwner(store, "oq-how-far");
     // `map-arc-plan-1` is READY and anchored — exactly the row `arc show` offers a freshness check on.
     await linkWaitsOn(store, "map-arc-plan-1", ["oq-which-way", "oq-how-far"]);
+    // A neighbour nothing holds, already under way: it must keep its own count and must never be
+    // offered a freshness check (that offer is for `ready` rows only, held or not).
+    await arcIncrementNew(w, "map-arc", { id: "being-built", title: "Being built", ...BODY });
+    await arcIncrementPromote(w, "being-built", "active");
+    const offersCheckFor = (next: readonly string[] | undefined, id: string): boolean =>
+      (next ?? []).some((n) => n.includes(`increment check ${id}`));
 
     const held = await arcCommand("show", "map-arc", depsFor(store, fx));
     assert.equal(held.ok, true);
     // Out of the takeable counts, into its own — and still LISTED, since it is still this arc's work.
-    assert.match(held.body, /## Work {2}\(0 proposal · 0 ready · 0 active · 1 waiting on the owner\)/);
+    assert.match(held.body, /## Work {2}\(0 proposal · 0 ready · 1 active · 1 waiting on the owner\)/);
     assert.match(held.body, /- map-arc-plan-1 {2}\[ready, anchor abcdef123\]/);
     assert.match(
       held.body,
       /waiting on the owner's answer to oq-which-way, oq-how-far — held, not work to take until that is settled \(ADR-0574\)/,
     );
     // Offering the freshness check IS offering the work.
-    assert.ok(!(held.next ?? []).some((n) => n.includes("increment check map-arc-plan-1")), held.next?.join("\n"));
+    assert.equal(offersCheckFor(held.next, "map-arc-plan-1"), false, held.next?.join("\n"));
+    assert.equal(offersCheckFor(held.next, "being-built"), false, held.next?.join("\n"));
 
     // One answer is not both: the work stays held on the question still open.
     await questionSettle(w, "oq-which-way", { answer: "left" });
@@ -1943,11 +1950,12 @@ test("arc show marks work waiting on the owner as HELD — counted apart, named,
     // Both settled: ordinary ready work again — counted, unmarked, and offered.
     await questionSettle(w, "oq-how-far", { answer: "far" });
     const released = await arcCommand("show", "map-arc", depsFor(store, fx));
-    assert.match(released.body, /## Work {2}\(0 proposal · 1 ready · 0 active\)/);
+    assert.match(released.body, /## Work {2}\(0 proposal · 1 ready · 1 active\)/);
+    assert.equal(offersCheckFor(released.next, "being-built"), false, released.next?.join("\n"));
     // Precise, not a bare "waiting on the owner": the questions section's own "(none — this arc is
     // not waiting on the owner)" is correct here and must not be mistaken for a held row.
     assert.doesNotMatch(released.body, /waiting on the owner's answer|· \d+ waiting on the owner/);
-    assert.ok((released.next ?? []).some((n) => n.includes("increment check map-arc-plan-1")));
+    assert.equal(offersCheckFor(released.next, "map-arc-plan-1"), true, released.next?.join("\n"));
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
