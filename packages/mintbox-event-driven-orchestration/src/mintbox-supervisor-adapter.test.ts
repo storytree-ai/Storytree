@@ -5,11 +5,15 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import type { ClaimDocT } from "@storytree/notice-board";
+import type { ClaimAuditEvent } from "@storytree/notice-board/store";
 import {
   FileMintboxSupervisorAdapter,
   mintboxSupervisorTransitionQueueSize,
+  type MintboxClaimLedgerReader,
   type MintboxCoordinatorCommand,
   type MintboxHandleProbe,
+  type MintboxRendererClaimIdentity,
   type MintboxSupervisorEnvelope,
   type MintboxSupervisorRuntime,
 } from "./mintbox-supervisor-adapter.js";
@@ -87,6 +91,46 @@ async function fixture(t: { after(callback: () => Promise<void>): void }): Promi
 
 function adapter(statePath: string, runtime: MintboxSupervisorRuntime): FileMintboxSupervisorAdapter {
   return new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: command, initialFacts: facts, runtime });
+}
+
+function adapterWithRendererClaim(
+  statePath: string,
+  runtime: MintboxSupervisorRuntime,
+  claimLedger: MintboxClaimLedgerReader,
+  rendererClaimIdentity: MintboxRendererClaimIdentity,
+): FileMintboxSupervisorAdapter {
+  return new FileMintboxSupervisorAdapter({
+    statePath,
+    coordinatorCommand: command,
+    initialFacts: facts,
+    runtime,
+    claimLedger,
+    rendererClaimIdentity,
+  });
+}
+
+class RecordingClaimLedger implements MintboxClaimLedgerReader {
+  readonly claimReads: string[] = [];
+  readonly historyReads: string[] = [];
+  released = false;
+
+  async claimsFor(unitId: string): Promise<ClaimDocT[]> {
+    this.claimReads.push(unitId);
+    return this.released ? [] : [{
+      unitId,
+      sessionId: "renderer-proof-session",
+      branch: "proof/renderer",
+      intent: "active rendering proof",
+      grade: "work",
+      claimedAt: "2026-09-16T00:00:00.000Z",
+      heartbeatAt: "2026-09-16T00:00:00.000Z",
+    }];
+  }
+
+  async history(unitId: string): Promise<ClaimAuditEvent[]> {
+    this.historyReads.push(unitId);
+    return [];
+  }
 }
 
 async function readEnvelope(statePath: string): Promise<MintboxSupervisorEnvelope> {
@@ -757,6 +801,52 @@ test("renderer remains observe-only through live, unknown, failed, and disappear
     terminal: "green",
     claim: "released",
   });
+});
+
+test("mintbox-active-proof-is-observe-only: recovery observes the live renderer claim without changing its handle", async (t) => {
+  const { statePath } = await fixture(t);
+  const ledger = new RecordingClaimLedger();
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session" };
+  const runtime = new RecordingRuntime();
+  const supervisor = adapterWithRendererClaim(statePath, runtime, ledger, identity);
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 71, host: "mintbox", detached: true,
+    startedAt: "2026-09-16T00:00:00.000Z", health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  await supervisor.observeProtectedRenderer(renderer);
+
+  const recovered = await supervisor.recover();
+
+  assert.deepEqual(ledger.claimReads, [identity.unitId], "recovery observes the renderer claim through the notice-board reader");
+  assert.deepEqual(recovered.protectedRenderer, { handleId: renderer.id, terminal: "active", claim: "held" });
+  assert.deepEqual(recovered.state.handles.find((handle) => handle.id === renderer.id), renderer);
+  assert.equal(runtime.ensureCalls.length, 0, "observation does not replace the protected renderer with a coordinator");
+});
+
+test("mintbox-green-release-is-the-adoption-boundary: a fresh coordinator adopts only after green and released claim evidence", async (t) => {
+  const { statePath } = await fixture(t);
+  const ledger = new RecordingClaimLedger();
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session" };
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 72, host: "mintbox", detached: true,
+    startedAt: "2026-09-16T00:00:00.000Z", health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  await supervisor.observeProtectedRenderer(renderer);
+
+  const greenWhileClaimed = await supervisor.handleEvent({
+    ...event,
+    deliveryId: "renderer-green-before-claim-release",
+    rendererEvidence: { rendererId: renderer.id, terminal: "green", claim: "released" },
+  });
+  assert.deepEqual(greenWhileClaimed.protectedRenderer, { handleId: renderer.id, terminal: "green", claim: "held" });
+
+  ledger.released = true;
+  const freshCoordinator = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  const eligible = await freshCoordinator.recover();
+
+  assert.equal(eligible.protectedRenderer, null, "the fresh coordinator sees the lane only after the ledger confirms release");
+  assert.deepEqual(ledger.claimReads, [identity.unitId, identity.unitId]);
 });
 
 test("renderer evidence is harmless when no renderer is protected", async (t) => {

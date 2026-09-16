@@ -117,7 +117,11 @@ export class FileMintboxSupervisorAdapter {
       let envelope = await this.#prepare();
       const decision = decideMintboxSupervisorEvent(envelope.state, event);
       if (decision.wake === null) return envelope;
-      const protectedRenderer = releaseOrRefreshProtection(envelope.protectedRenderer, event);
+      const protectedRenderer = releaseOrRefreshProtection(
+        envelope.protectedRenderer,
+        event,
+        this.#claimLedger !== undefined && this.#rendererClaimIdentity !== undefined,
+      );
       envelope = {
         ...envelope,
         state: decision.state,
@@ -213,6 +217,11 @@ export class FileMintboxSupervisorAdapter {
       envelope = reconciled;
       await this.#save(envelope);
     }
+    const claimReconciled = await this.#reconcileRendererClaim(envelope);
+    if (claimReconciled !== envelope) {
+      envelope = claimReconciled;
+      await this.#save(envelope);
+    }
     return this.#drainPending(envelope);
   }
 
@@ -228,6 +237,25 @@ export class FileMintboxSupervisorAdapter {
       }
     }
     return state === envelope.state ? envelope : { ...envelope, state };
+  }
+
+  async #reconcileRendererClaim(envelope: MintboxSupervisorEnvelope): Promise<MintboxSupervisorEnvelope> {
+    const protectedRenderer = envelope.protectedRenderer;
+    const ledger = this.#claimLedger;
+    const identity = this.#rendererClaimIdentity;
+    if (protectedRenderer === null || ledger === undefined || identity === undefined) return envelope;
+    const claims = await ledger.claimsFor(identity.unitId);
+    const held = claims.some((claim) => claim.sessionId === identity.sessionId
+      && (identity.claimedAt === undefined || claim.claimedAt === identity.claimedAt));
+    if (held) {
+      return protectedRenderer.claim === "held"
+        ? envelope
+        : { ...envelope, protectedRenderer: { ...protectedRenderer, claim: "held" } };
+    }
+    if (protectedRenderer.terminal === "green") return { ...envelope, protectedRenderer: null };
+    return protectedRenderer.claim === "released"
+      ? envelope
+      : { ...envelope, protectedRenderer: { ...protectedRenderer, claim: "released" } };
   }
 
   async #drainPending(envelope: MintboxSupervisorEnvelope): Promise<MintboxSupervisorEnvelope> {
@@ -292,10 +320,14 @@ export class FileMintboxSupervisorAdapter {
 function releaseOrRefreshProtection(
   current: MintboxProtectedRenderer | null,
   event: MintboxSupervisorEvent,
+  ledgerBacked: boolean,
 ): MintboxProtectedRenderer | null {
   const evidence = event.rendererEvidence;
   if (current === null || evidence === undefined || evidence.rendererId !== current.handleId) return current;
-  if (isMintboxRendererReleased(evidence, current.handleId)) return null;
+  if (isMintboxRendererReleased(evidence, current.handleId) && (!ledgerBacked || current.claim === "released")) return null;
+  if (isMintboxRendererReleased(evidence, current.handleId)) {
+    return { handleId: current.handleId, terminal: evidence.terminal, claim: "held" };
+  }
   return { handleId: current.handleId, terminal: evidence.terminal, claim: evidence.claim };
 }
 
