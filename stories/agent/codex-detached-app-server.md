@@ -176,20 +176,27 @@ the existing source minimally until the new assertions and every old one pass. `
 the implementation and barrel, and the package suite remains the explicit `proofCommand` over that
 public surface.
 
-**The mutation result selects the regressions; it is not a score gate.** Against the signed source and
-test pair, the mutation rung generated 291 mutants: 150 killed, 99 survived and 41 had no coverage
-(51.5% whole-file mutation score, 60.0% among covered mutants, 85.9% reach). No percentage in that
-observation is an acceptance threshold. Its useful evidence is the clustered blind spot: one injected
-POSIX happy path could stay green while production auth returned a canned refusal, production
-ownership/termination were absent or no-op, Windows was unobserved, invalid timeout/pid/owner/identity/
-protocol/RPC/exit/startTurn branches changed, cleanup stopped short of confirmed death, and `probe`
-called any never-terminated handle live. The re-drive adds assertions for those exact behaviours; it
-does not chase equivalent or irrelevant mutants to inflate a number. The first re-drive confirmed the
-contract-line problem rather than resolving it: its signed proof added only one blank-owner-token test,
-moved the whole-file reading from 51.5% to 53.7%, left all 99 survivors, and left 39 mutants without
-coverage. Those figures set no target. They show that one broad contract id let coverage remain 1/1
-while five independent behaviours still had no required test title, which is why this revision splits
-the assertion into six lines.
+**The changed-line mutation rung is a binary ship gate, not a percentage target.** Against the current
+signed source and test pair, `pnpm check:mutation-diff` counted 455 mutants: 201 killed, 138 survived,
+115 had no coverage, and one timed out. A signed contract-test verdict does not override that red. The
+next real drive is complete only when the command exits zero: every mutant in this branch's changed
+lines is killed by this branch's tests, or the exact source line carries a narrowly scoped Stryker
+equivalence annotation naming the precise mutator class and explaining why no possible input or
+observable can distinguish the mutant from the original. A timeout is unproven, not a pass. Reachable,
+merely uncovered, expensive, or inconvenient behaviour is not equivalent; do not disable it, do not
+use a blanket `all` annotation, and remove a redundant branch instead of annotating it when deletion
+preserves the contract.
+
+The hardening must exercise the production defaults and their branches directly, not infer them from
+high-level injected substitutes: bounded authentication and credential scrubbing, pinned detached
+spawn, actual-host owner selection and acquisition, POSIX-group and Windows-tree command composition,
+current-owner liveness, exact-tree termination, and observed-death confirmation. Refactor a hidden
+default behind a deterministic low-level seam when that is needed to make its decisions observable,
+while keeping the public barrel narrow and role-neutral. The remaining protocol, validation, timeout,
+failure-cleanup, idempotence, and same-app-server branches are subject to the same per-mutant rule.
+Strengthen or simplify source together with substantive assertions until the mutation command passes;
+an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
+that some input could distinguish does not satisfy any of the six contracts.
 
 **Tests.** Use `node:test` and `node:assert/strict`, with every await bounded and every fake settling
 deterministically. Retain the signed tests, then add at least one substantive runtime test for EACH of
