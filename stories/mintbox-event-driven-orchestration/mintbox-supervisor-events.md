@@ -8,6 +8,43 @@ status: proposed
 proof_mode: integration-test
 depends_on: []
 decisions: [561, 505]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/agent", "test"]
+  scope:
+    testGlobs:
+      - "packages/agent/src/mintbox-supervisor.test.ts"
+      - "packages/agent/src/mintbox-supervisor-adapter.test.ts"
+      - "packages/agent/src/codex-rate-limits.test.ts"
+    sourceGlobs:
+      - "packages/agent/src/mintbox-supervisor.ts"
+      - "packages/agent/src/mintbox-supervisor-adapter.ts"
+      - "packages/agent/src/codex-rate-limits.ts"
+  real:
+    testFile: "packages/agent/src/mintbox-supervisor.test.ts"
+    sourceFile: "packages/agent/src/mintbox-supervisor.ts"
+    scope:
+      testGlobs:
+        - "packages/agent/src/mintbox-supervisor.test.ts"
+        - "packages/agent/src/mintbox-supervisor-adapter.test.ts"
+        - "packages/agent/src/codex-rate-limits.test.ts"
+      sourceGlobs:
+        - "packages/agent/src/mintbox-supervisor.ts"
+        - "packages/agent/src/mintbox-supervisor-adapter.ts"
+        - "packages/agent/src/codex-rate-limits.ts"
+    install: true
+    editsExisting: true
+    cluster:
+      - mintbox-meaningful-events-wake-once
+      - mintbox-supervisor-owns-handles-not-transcripts
+      - mintbox-three-hour-report-carries-delta
+    proofCommand:
+      file: bun
+      args: ["test", "--timeout", "300000", "packages/agent/src/mintbox-supervisor.test.ts"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/agent", "typecheck"]
 ---
 
 # Deterministic Mintbox supervisor events — deduplicated compact Astra wake-ups and reporting
@@ -25,14 +62,17 @@ logs, and the next compact three-hour report.
 ## Contracts
 
 1. **`mintbox-meaningful-events-wake-once`** — only a deduplicated meaningful event creates a coordinator
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` accepts completion, failure, dependency
-     release, empty ready work, and owner/attestation events as one persisted wake key; repeated delivery
-     and restart recovery retain that key and never create a second live coordinator.
+   - **asserts —** `packages/agent/src/mintbox-supervisor-adapter.ts` persists completion, failure,
+     dependency-release, empty-ready-worker, and owner/attestation-gate events as exact wake keys before
+     effects, then calls its injected coordinator actuator at most once; repeated delivery and restart
+     recovery never request a second live coordinator.
 2. **`mintbox-supervisor-owns-handles-not-transcripts`** — liveness survives without conversation history
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` persists detached handles and bounded
-     programme facts; its coordinator request excludes raw conversation logs and contains only the named
-     digest fields needed to decide.
+   - **asserts —** `packages/agent/src/mintbox-supervisor-adapter.ts` persists detached handles while
+     `packages/agent/src/mintbox-supervisor.ts` reduces only bounded programme facts and supplies the
+     coordinator actuator with that digest, never raw conversation logs.
 3. **`mintbox-three-hour-report-carries-delta`** — the backstop reports compact operational state
-   - **asserts —** `packages/orchestrator/src/proof/usage-event.ts` emits each report with coordinator/worker
+   - **asserts —** `packages/agent/src/codex-rate-limits.ts` reads the turn-free account snapshot and
+     `packages/agent/src/mintbox-supervisor.ts` records each compact report with coordinator/worker
      health, actual model/effort, lanes, last outcome, renderer blocker, ready/blocked 3D lanes,
-     parallel-session count, weekly percentage, delta, and action.
+     parallel-session count, weekly percentage, delta, and action without attributing an account-wide
+     delta to one lane.

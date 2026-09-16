@@ -8,6 +8,32 @@ status: proposed
 proof_mode: integration-test
 depends_on: [mintbox-supervisor-events, mintbox-protected-driver-transition]
 decisions: [561, 505]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/agent", "test"]
+  scope:
+    testGlobs: ["packages/agent/src/mintbox-lane-launcher.test.ts"]
+    sourceGlobs:
+      - "packages/agent/src/mintbox-lane-launcher.ts"
+      - "packages/agent/src/codex-author.ts"
+      - "packages/agent/src/index.ts"
+  real:
+    testFile: "packages/agent/src/mintbox-lane-launcher.test.ts"
+    sourceFile: "packages/agent/src/mintbox-lane-launcher.ts"
+    scope:
+      testGlobs: ["packages/agent/src/mintbox-lane-launcher.test.ts"]
+      sourceGlobs:
+        - "packages/agent/src/mintbox-lane-launcher.ts"
+        - "packages/agent/src/codex-author.ts"
+        - "packages/agent/src/index.ts"
+    install: true
+    proofCommand:
+      file: bun
+      args: ["test", "--timeout", "300000", "packages/agent/src/mintbox-lane-launcher.test.ts"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/agent", "typecheck"]
 ---
 
 # Verified Terra lane launch — role policy, claims, and safe Mintbox capacity
@@ -24,16 +50,25 @@ each driver is Terra with a verified handle/claim, at most three 3D lanes run, a
 serialization. Repeat with an architecture-marked decision to confirm only that coordinator can use
 xhigh.
 
+The standing proof file carries three separate cases whose literal titles begin with
+`mintbox-role-model-effort-is-verified`, `mintbox-launch-binds-handle-and-claim`, and
+`mintbox-3d-capacity-and-gpu-serialization-hold`. Its red is structural: the story-owned
+`mintbox-lane-launcher.ts` does not exist yet. Implementation may narrowly factor the existing Codex
+invocation seam and add the package export, but the launcher remains the contract-bearing surface.
+
 ## Contracts
 
 1. **`mintbox-role-model-effort-is-verified`** — model identity follows the role
-   - **asserts —** routine coordinators record GPT-6 Astra `high`; `xhigh` requires an explicitly
-     recorded architecture decision; every sustained lane driver records GPT-5.6 Terra before work starts.
+   - **asserts —** `packages/agent/src/mintbox-lane-launcher.ts` records routine coordinators as GPT-6
+     Astra `high`, permits `xhigh` only for an explicitly recorded architecture decision, and accepts a
+     sustained lane only after observing GPT-5.6 Terra and its configured effort from the process before
+     work starts.
 2. **`mintbox-launch-binds-handle-and-claim`** — a launched driver is observable and owns its lane
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` persists the detached process handle plus
-     the live claim, verifies both after spawn, and fails/reports rather than declaring a lane occupied when
-     either is absent.
+   - **asserts —** `packages/agent/src/mintbox-lane-launcher.ts` durably records launch intent before
+     spawning in a fresh registered worktree, then persists and verifies the detached process handle plus
+     live claim, failing closed rather than declaring a lane occupied when process-reported identity,
+     worktree, branch, handle, or claim evidence is absent.
 3. **`mintbox-3d-capacity-and-gpu-serialization-hold`** — safe fan-out does not overrun the box
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` dispatches at most three safely disjoint
+   - **asserts —** `packages/agent/src/mintbox-lane-launcher.ts` dispatches at most three safely disjoint
      3D lanes and holds a GPU-intensive lane until conflicting GPU work has ended, regardless of otherwise
      independent claims.
