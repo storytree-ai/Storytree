@@ -488,6 +488,12 @@ test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail cl
     () => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed" }),
     /carries no `outcome`/,
   );
+  // …and the verb it prescribes is pasteable: a close with no PR owes its reading as well as its reason,
+  // or `arc increment close` refuses it (`a-close-without-a-pr-records-its-reading`).
+  assert.throws(
+    () => validateLibraryDoc({ ...minimalDoc("increment"), status: "closed" }),
+    /Use `arc increment close <id> --pr <ref> --pg`, or `--note` AND `--disposition` when it closed any other way\./,
+  );
 
   // 3. ...and a PARKED increment's outcome needs a REF or a REASON. ADR-0305 D2 collapsed
   //    `superseded`/`retired` into `closed` on the grounds that the difference was a reason, not a

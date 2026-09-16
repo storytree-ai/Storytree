@@ -373,6 +373,15 @@ test("claim --grade work QUEUED: ok:FALSE, and the session is told it is fenced 
   assert.doesNotMatch(env.body, /proceed/i);
   assert.match(env.body, /never an owner question/i);
   assert.ok(env.next?.some((n) => n === "storytree noticeboard mine --pg"));
+  // The two exits, pasteable: the residue goes onto the OPEN increment, read out and written back whole
+  // (ADR-0574 D3) — not a closed `arc increment add` row, which with no PR refuses without a reading.
+  assert.deepEqual(env.next, [
+    "storytree noticeboard mine --pg",
+    "storytree noticeboard claims story-x --pg",
+    "storytree library artifact <increment-id> --raw body --out body.md --pg",
+    "storytree library artifact edit <increment-id> --set body=@body.md --pg",
+    "storytree noticeboard done --pg",
+  ]);
 });
 
 test("claim: an unknown grade is refused before any store call", async () => {
