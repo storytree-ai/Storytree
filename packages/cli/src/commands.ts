@@ -3101,11 +3101,42 @@ function makeGateOpts(values: BuildValues): GateOpts {
 }
 
 /**
+ * The seams a hermetic suite may hand {@link makeGateDeps}' composed gate driver: every collaborator
+ * a REAL drive reaches once its argument checks pass — the leaf-prompt corpus, the before-spend read
+ * handles, the liveness reporter, the database preflight, the verdict store, the repository a
+ * worktree is cut from, the leaf author and promotion. Production passes none of them, so each one
+ * falls back to the driver's live default.
+ *
+ * Deliberately NOT the argv-threaded fields (`increment`, `verdictStore`, `model`, `runtime`,
+ * `budgetUsd`, `maxTurns`) nor `storiesDir`: those stay `makeGateDeps`' own threading, so a suite
+ * that supplies seams still proves what the composition wires rather than what the suite substituted.
+ */
+export type GateDriverSeams = Partial<
+  Pick<
+    GateBuildDriverDeps,
+    | "corpusStore"
+    | "innerLoopReads"
+    | "progress"
+    | "ensureDb"
+    | "store"
+    | "repoRoot"
+    | "authorOverride"
+    | "promote"
+  >
+>;
+
+/**
  * Wire the live `gate` seams (verdict store, gate/UAT loaders, git state, the observe runner, the
  * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
  * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
+ * `driverSeams` is for suites only: see {@link GateDriverSeams}.
  */
-export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+export function makeGateDeps(
+  deps: RunDeps,
+  values: BuildValues,
+  storiesDir: string,
+  driverSeams?: GateDriverSeams,
+): GateDeps {
   const store = deps.uatStore ?? null;
   const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
   const gateDeps: GateDeps = {
@@ -3116,7 +3147,7 @@ export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: str
     observe: observeCommand,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     driveBuildTestsGate: (gate, signer) => {
-      const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot() };
+      const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot(), ...driverSeams };
       driverDeps.increment = values.increment;
       if (values.store !== undefined) driverDeps.verdictStore = values.store;
       if (values.model !== undefined) driverDeps.model = values.model;

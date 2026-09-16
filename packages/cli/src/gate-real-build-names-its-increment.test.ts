@@ -31,7 +31,7 @@ import type { BuildProgress, EnsureDbResult } from "@storytree/drive";
 // The module under test, reached only through the namespace (ADR-0057 C): `gateRetryCommand` and the
 // increment/innerLoopReads wiring inside `driveBuildTestsGate` do not exist / are ignored at HEAD.
 import * as GateDriver from "./gate-build-driver.js";
-import { makeGateDeps } from "./commands.js";
+import { makeGateDeps, type GateDriverSeams } from "./commands.js";
 
 /**
  * ADR-0576 — a REAL build-tests gate drive names a live increment and passes the gate's attempt
@@ -604,13 +604,53 @@ test("gate-build-prints-the-increment: every REAL command the gate driver prints
 test("gate-deps-reach-the-increment-check: the CLI's composed gate driver refuses a REAL gate drive that names no increment", async () => {
   const stories = await fixtureStories();
   try {
-    const gateDeps = makeGateDeps({ store: new InMemoryStore() }, { real: true }, stories);
+    // HERMETIC BY CONSTRUCTION. Every collaborator the composed driver can reach once its argument
+    // checks pass is a RECORDING tripwire: it records what was reached and fails the test on the spot.
+    // A regression or a mutant that lets a REAL drive past a missing increment therefore fails HERE,
+    // by assertion, and never reaches what the production defaults open — the live prompt render, the
+    // live increment and ledger reads, the database preflight, the pg verdict store, a worktree of
+    // this repository or a live leaf. Before these existed, a red run of this test wrote
+    // `fix-story#gate-1` events to the shared work log.
+    const reached: string[] = [];
+    const trip = (what: string): never => {
+      reached.push(what);
+      assert.fail(`the composed gate driver reached ${what} for a REAL drive naming no increment`);
+    };
+    const tripwireStore = (name: string): Store => ({
+      upsertDoc: async () => trip(`${name} (upsertDoc)`),
+      patchDoc: async () => trip(`${name} (patchDoc)`),
+      getDoc: async () => trip(`${name} (getDoc)`),
+      queryDocs: async () => trip(`${name} (queryDocs)`),
+      deleteDoc: async () => trip(`${name} (deleteDoc)`),
+      appendEvent: async () => trip(`${name} (appendEvent)`),
+      readEvents: async () => trip(`${name} (readEvents)`),
+    });
+    const seams: GateDriverSeams = {
+      corpusStore: tripwireStore("the leaf-prompt corpus"),
+      innerLoopReads: {
+        corpus: { getDoc: async () => trip("the before-spend increment lookup") },
+        ledger: { readEvents: async () => trip("the before-spend attempt-ledger read") },
+      },
+      progress: {
+        stage: async (name: string) => trip(`the stage "${name}"`),
+        note: (detail: string) => trip(`the leaf phase note "${detail}"`),
+      },
+      ensureDb: async () => trip("the live-store preflight"),
+      store: tripwireStore("the verdict store"),
+      // A path that does not exist, so even a cut that got this far fails before touching any repository.
+      repoRoot: path.join(stories, "no-repository-here"),
+      authorOverride: () => trip("the leaf author"),
+      promote: false,
+    };
+
+    const gateDeps = makeGateDeps({ store: new InMemoryStore() }, { real: true }, stories, seams);
     const drive = gateDeps.driveBuildTestsGate;
     assert.equal(typeof drive, "function", "makeGateDeps must wire a driveBuildTestsGate");
     if (typeof drive !== "function") return;
 
     const env = await drive(buildTestsGate(), "builder@example.com");
 
+    assert.deepEqual(reached, [], "a REAL drive naming no increment must refuse before any collaborator");
     const resolved = await resolveBuildIncrement(new InMemoryStore(), undefined);
     assert.equal(resolved.ok, false, "ground truth: an absent increment must refuse at resolveBuildIncrement");
     if (resolved.ok) return;
