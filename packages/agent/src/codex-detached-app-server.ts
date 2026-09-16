@@ -153,7 +153,18 @@ export async function openPinnedCodexDetachedThread(
     if (typeof spawnedPid !== "number" || !Number.isSafeInteger(spawnedPid) || spawnedPid <= 0) throw new Error("Codex app-server did not expose a positive pid");
     const pid = spawnedPid;
     owner = await (args.observeOwnership ?? (async () => undefined))({ pid, platform: args.platform, timeoutMs });
-    if (owner === undefined || owner.rootPid !== pid || (args.platform === "posix" ? owner.kind !== "posix-process-group" : owner.kind !== "windows-process-tree")) throw new Error("exact Codex process ownership was not acquired");
+    // A root PID alone is not ownership.  The token is the opaque capability acquired by the
+    // platform adapter; admitting an empty one would silently degrade this controller to a bare
+    // PID and make the later cleanup claim untrue.
+    if (
+      owner === undefined ||
+      !Number.isSafeInteger(owner.rootPid) ||
+      owner.rootPid !== pid ||
+      owner.token.trim() === "" ||
+      (args.platform === "posix"
+        ? owner.kind !== "posix-process-group"
+        : owner.kind !== "windows-process-tree")
+    ) throw new Error("exact Codex process ownership was not acquired");
     await request("initialize", { clientInfo: { name: "storytree", version: "0.0.0" } });
     await request("initialized", {}, true);
     const started = responseThread(await request("thread/start", { model: args.model, reasoningEffort: args.reasoningEffort }));
