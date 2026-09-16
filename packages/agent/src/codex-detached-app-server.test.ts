@@ -289,3 +289,35 @@ test("termination-reaps-the-exact-owned-tree-and-confirms-death: concurrent term
   await thread.terminate();
   assert.deepEqual(terminated, [owner]);
 });
+
+test("invalid-protocol-identity-and-turn-fail-closed: a blank turn prompt reaps the staged exact owner and leaves it not live", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const owner = {
+    kind: platform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const,
+    rootPid: 436,
+    token: "blank-turn-owner",
+  };
+  const terminated: unknown[] = [];
+  let live = true;
+
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "requested-model", reasoningEffort: "requested-effort", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({
+      pid: 436,
+      write: (line) => {
+        const message = JSON.parse(line) as { id?: number; method?: string };
+        if (message.method === "initialize") events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+        if (message.method === "thread/start") events.stdout(`${JSON.stringify({ id: message.id, result: { thread: { id: "thread", model: "resolved", reasoningEffort: "high" } } })}\n`);
+      },
+      end: () => undefined,
+    }),
+    observeOwnership: async () => owner,
+    observeLiveness: async () => live,
+    terminateOwnedTree: async (observedOwner) => { terminated.push(observedOwner); live = false; },
+  });
+
+  await assert.rejects(thread.startTurn("   "), /turn prompt must not be blank/);
+  assert.deepEqual(terminated, [owner], "a rejected turn start closes the exact staged tree");
+  assert.deepEqual(await thread.probe(), { live: false, rateLimits: undefined });
+});

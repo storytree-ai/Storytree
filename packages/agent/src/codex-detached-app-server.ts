@@ -254,7 +254,10 @@ export async function openPinnedCodexDetachedThread(args: OpenPinnedCodexDetache
     return {
       ...started, pid, owner,
       startTurn: async (prompt) => {
-        if (prompt.trim() === "") throw new Error("turn prompt must not be blank");
+        if (prompt.trim() === "") {
+          await terminate();
+          throw new Error("turn prompt must not be blank");
+        }
         try {
           const turn = responseTurn(await request("turn/start", { threadId: started.threadId, input: prompt }));
           if (turn === undefined) throw new Error("turn/start returned an invalid result");
