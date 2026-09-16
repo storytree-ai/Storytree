@@ -243,7 +243,12 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     // and every row closed before that decision existed. It is SUBTRACTION over the three named
     // readings rather than a fourth predicate, so the buckets cannot fail to sum to the terminal rows.
     const unrecorded = terminal.length - landed.length - failed - withdrawn;
-    const open = a.increments.length - terminal.length;
+    // ADR-0574 D4 — work WAITING ON THE OWNER'S ANSWER is held, not open for the taking, so it is
+    // counted apart from `open` on the row a session picks work up from. The reading is the rollup's
+    // own (`incrementWaitingOn`), which only ever lights on open work, so the subtraction below can
+    // never reach into the terminal rows.
+    const waiting = a.increments.filter((inc) => inc.waitingOn !== undefined).length;
+    const open = a.increments.length - terminal.length - waiting;
     // The last LANDING, not the last closure: this note answers "when did this arc last deliver", and
     // a later unrecorded row would answer it with a date on which nothing landed.
     const last = landed[landed.length - 1];
@@ -261,6 +266,7 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
       ...(withdrawn > 0 ? [`${withdrawn} withdrawn`] : []),
       ...(unrecorded > 0 ? [`${unrecorded} unrecorded`] : []),
       ...(open > 0 ? [`${open} open`] : []),
+      ...(waiting > 0 ? [`${waiting} waiting on the owner`] : []),
     ].join(", ");
     // The state tag rides every non-active row so `--all` / `--closed` / `--parked` are never the old
     // blind list; under the default scope only active arcs show, so it never appears there.
@@ -467,10 +473,17 @@ export function renderArcRollup(
   const forward = rollup.increments.filter((i) => isForwardLooking(i.status));
   const landed = rollup.increments.filter((i) => !isForwardLooking(i.status));
 
-  const byStatus = (s: string): number => forward.filter((i) => i.status === s).length;
+  // ADR-0574 D4 — work WAITING ON THE OWNER'S ANSWER is held, not ready. It stays listed below (it is
+  // still this arc's open work, and the residue on it is what the next session resumes from), but it
+  // leaves the per-status counts a session reads as takeable and is counted on its own — only when
+  // there is any, so the ordinary arc's heading reads exactly as it did.
+  const waiting = forward.filter((i) => i.waitingOn !== undefined).length;
+  const byStatus = (s: string): number =>
+    forward.filter((i) => i.status === s && i.waitingOn === undefined).length;
   lines.push(
     "",
-    `## Work  (${byStatus("proposal")} proposal · ${byStatus("ready")} ready · ${byStatus("active")} active)`,
+    `## Work  (${byStatus("proposal")} proposal · ${byStatus("ready")} ready · ${byStatus("active")} active` +
+      `${waiting > 0 ? ` · ${waiting} waiting on the owner` : ""})`,
   );
   if (forward.length === 0) {
     lines.push(
@@ -483,6 +496,13 @@ export function renderArcRollup(
     const parked = i.parked === undefined ? "" : `, parked ${i.parked.slice(0, 10)}`;
     const anchor = i.anchorSha === undefined ? "" : `, anchor ${i.anchorSha}`;
     lines.push(`  - ${i.id}  [${i.status}${parked}${anchor}]  — ${i.title}`.trimEnd());
+    // Directly under the row, ahead of the objective: whether the work may be TAKEN is the first thing
+    // a session choosing work needs, and naming the question is what lets it see what releases it.
+    if (i.waitingOn !== undefined) {
+      lines.push(
+        `      waiting on the owner's answer to ${i.waitingOn.join(", ")} — held, not work to take until that is settled (ADR-0574)`,
+      );
+    }
     if (i.objective) lines.push(`      ${i.objective}`);
     // The friction ids are printed because they are what the delivery ceiling joins on (ADR-0298 D3):
     // a reader wondering why an entry went red can follow the edge without querying the store.
@@ -626,11 +646,14 @@ export function renderArcRollup(
  * The ADR-0023 `next:` offers for one arc — the freshness check for its consumable increments, then
  * the arc artifact itself. `ready` only: a `proposal` has no anchor to check yet and an `active` one
  * is past the point where a freshness verdict would change anything.
+ *
+ * And never one WAITING ON THE OWNER (ADR-0574 D4): offering the check is offering the work, and work
+ * held on an unanswered question is not there to be taken.
  */
 function arcShowNext(rollup: ArcRollup, pg: boolean): string[] {
   return [
     ...rollup.increments
-      .filter((i) => i.status === "ready")
+      .filter((i) => i.status === "ready" && i.waitingOn === undefined)
       .slice(0, 2)
       .map((i) => `storytree increment check ${i.id}${pg ? " --pg" : ""}`),
     `storytree library artifact ${rollup.id}${pg ? " --pg" : ""}`,
