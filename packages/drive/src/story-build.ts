@@ -159,43 +159,117 @@ function storyGreenLine(
  * WITHHOLDS the story node: a machine never drives or signs a human-witnessed ceremony.
  */
 
-const HONEST_FRAMING_STORY_DRY =
-  "honest framing: a story dry-run proves the CHAINING — capabilities topo-ordered from depends_on,\n" +
-  "each walked through the gate, the story's UAT node last, halt-is-never-a-pass, per-node rollups\n" +
-  "derived from ONE event log — NOT the nodes' actual proofs: every leaf is scripted and every\n" +
-  "red→green synthetic in a temp workspace. Authored statuses are untouched; the verdicts landed\n" +
-  "in an in-memory store and are gone.";
+/**
+ * HOW MANY MEMBERS SIGNED — the half of a chain's fate that the store cannot report.
+ *
+ * `persisted` is a property of the STORE: it is `true` for every `--store pg` story build before the
+ * walk has driven a single node, and `--real` always persists (ADR-0060/0081). Read as "the chain's
+ * verdicts persisted" it is true only of a run that signed them — and the halted envelope prints
+ * this framing directly under `outcome: HALTED at node N/M`, so a real build that halted at its
+ * FIRST member told its reader the chain's signed verdicts were in the shared store.
+ *
+ * The count is OBSERVED, never inferred from `haltedAt`: `runStoryBuild` appends to `outcomes` only
+ * on the `ok` arm, and that arm's `result` is typed `Extract<ProveResult, { ok: true }>`, so every
+ * entry holds a signed verdict. `haltedAt` is a POSITION — the budget wall halts at the index of a
+ * node that never ran — so it answers "where" and only implies "how many".
+ *
+ * Only `outcomes.length` and the drive order's length are read, so the renderers stay callable
+ * without a walk; `storyBuild` hands both over as bare identifiers.
+ */
+interface ChainRun {
+  /** One entry per member that SIGNED a pass, in drive order — the proven prefix on a halt. */
+  readonly outcomes: readonly unknown[];
+}
 
-function honestFramingStoryLive(persisted: boolean): string {
+/**
+ * WHAT THE CHAIN'S VERDICTS ACTUALLY ARE — none, a proven PREFIX, or the whole chain — and where
+ * they went. The three arms are exclusive and ordered: a run that signed nothing is reported as
+ * having signed nothing whatever its store holds; a run that signed FEWER members than were driven
+ * halted, so what persisted is a prefix and is named as one; only a run that signed every member
+ * may speak of the chain's verdicts.
+ */
+function chainVerdictFate(run: ChainRun, driveOrder: readonly unknown[], persisted: boolean): string {
+  const signed = run.outcomes.length;
+  const members = driveOrder.length;
+  if (signed === 0) {
+    // There is no verdict to place, so the clause names the run's OWN events instead: the `building`
+    // mark every build appends, plus whatever claim, usage and write-fence rows it wrote. The
+    // signing row is appended only after GATE passes (`prove-it-gate.ts`).
+    return persisted
+      ? "No member verdict was signed: the shared store holds only this run's own events (its building\nmarks, and any claim, usage and write-fence rows it wrote), never a verdict."
+      : "No member verdict was signed: this run's own events landed in an in-memory store and are gone.";
+  }
+  if (signed < members) {
+    return persisted
+      ? `${signed} of ${members} members signed before the chain halted; that PROVEN PREFIX persisted to the\nshared store (events.verdict — the rollup derives each node's status across sessions). A prefix is\nnever the chain.`
+      : `${signed} of ${members} members signed before the chain halted; that PROVEN PREFIX landed in an\nin-memory store and is gone. A prefix is never the chain.`;
+  }
+  return persisted
+    ? `All ${members} member verdicts were signed and PERSISTED to the shared store (events.verdict — the\nrollup derives each node's status across sessions).`
+    : `All ${members} member verdicts were signed; they landed in an in-memory store and are gone.`;
+}
+
+/**
+ * A dry-run can never persist: `--store pg` is REFUSED for one, because a scripted PASS persisted
+ * would be a forged healthy. So the in-memory arm is the only reachable one.
+ */
+const DRY_RUN_NEVER_PERSISTS = false;
+
+/** EXPORTED FOR ITS TEST — a dry-run halts too, and its fate clause must follow the run. */
+export function honestFramingStoryDry(run: ChainRun, driveOrder: readonly unknown[]): string {
+  return (
+    "honest framing: a story dry-run proves the CHAINING — capabilities topo-ordered from depends_on,\n" +
+    "each walked through the gate, the story's UAT node last, halt-is-never-a-pass, per-node rollups\n" +
+    "derived from ONE event log — NOT the nodes' actual proofs: every leaf is scripted and every\n" +
+    "red→green synthetic in a temp workspace. Authored statuses are untouched.\n" +
+    chainVerdictFate(run, driveOrder, DRY_RUN_NEVER_PERSISTS)
+  );
+}
+
+/** EXPORTED FOR ITS TEST — `storyBuild`'s live arm is unreachable offline, and this is its framing. */
+export function honestFramingStoryLive(
+  persisted: boolean,
+  run: ChainRun,
+  driveOrder: readonly unknown[],
+): string {
   return (
     "honest framing: a live story build proves the CHAIN with a REAL Claude Agent SDK leaf per node\n" +
     "(ADR-0030, subscription-funded; no USD ceiling by default — the turn cap is the brake, ADR-0130)\n" +
     "— genuine authoring, hook-held write walls, spine-observed red→green per node. The TASK per node\n" +
     "is still the synthetic add(2,3) pair in a temp workspace (`node build --real` is the per-node real\n" +
-    "path; chaining REAL builds is later work). Authored statuses are untouched; " +
-    (persisted
-      ? "the signed verdicts PERSISTED to\nthe shared store (events.verdict)."
-      : "the verdicts landed in an\nin-memory store and are gone.")
+    "path; chaining REAL builds is later work). Authored statuses are untouched.\n" +
+    chainVerdictFate(run, driveOrder, persisted)
   );
 }
 
-function honestFramingStoryReal(persisted: boolean, promotion: PromotionResult | undefined): string {
+/** EXPORTED FOR ITS TEST — `storyBuild`'s `--real` arm is unreachable offline, and this is its framing. */
+export function honestFramingStoryReal(
+  persisted: boolean,
+  run: ChainRun,
+  driveOrder: readonly unknown[],
+  promotion: PromotionResult | undefined,
+): string {
   const landing =
     promotion === undefined
       ? "nothing was promoted (see the promotion line above)"
       : promotion.pushed
         ? `the whole proven chain is PARKED on ${promotion.branch} and pushed — land it via ONE\nNON-SQUASH PR (every node's verdict commit must stay an ancestor of main, ADR-0031)`
         : `the proven chain is PARKED LOCAL-ONLY on ${promotion.branch} (not pushed — ${promotion.detail});\na partial/halted or backstop-red chain is preserved for forensics, never offered as a landing candidate`;
+  // The mode sentence stays PRESENT tense — it says what a real story build DOES. The past-tense
+  // claim is made only about members that actually signed: the spine commits a node's authored files
+  // only after that node's gate passes (`commitSha` is set iff `result.ok`), so a chain that signed
+  // nothing committed nothing either, and `promotionSkipped` says as much on its own line.
+  const walked =
+    run.outcomes.length === 0
+      ? "NO member completed that gate: no node's red→green was ever observed and nothing was\ncommitted"
+      : "Each member that SIGNED completed it for real — the leaf authored its REAL test/impl at real\npaths under hook-enforced write scope, the spine observed the genuine red→green, and the spine\ncommitted the authored files";
   return (
-    "honest framing: a REAL story build (ADR-0057 §3 expansion D). Each node was driven through the\n" +
-    "FULL prove-it-gate for real — the leaf authored its REAL test/impl at real paths under\n" +
-    "hook-enforced write scope, the spine observed the genuine red→green and committed the authored\n" +
-    "files — in ONE shared worktree in dependency order, so each node built on the committed result of\n" +
-    "the nodes before it (the story grows). Halt-is-never-a-pass holds: a node failing closed halts the\n" +
-    `chain and later nodes never run. ${landing}.` +
-    (persisted
-      ? "\nThe signed verdicts PERSISTED to the shared store (events.verdict — the rollup derives each\nnode's status across sessions)."
-      : "\nThe verdicts landed in an in-memory store and are gone.")
+    "honest framing: a REAL story build (ADR-0057 §3 expansion D). Each node is driven through the\n" +
+    "FULL prove-it-gate for real, in ONE shared worktree in dependency order, so each node builds on\n" +
+    "the committed result of the nodes before it (the story grows). Halt-is-never-a-pass holds: a node\n" +
+    "failing closed halts the chain and later nodes never run.\n" +
+    `${walked}; ${landing}.\n` +
+    chainVerdictFate(run, driveOrder, persisted)
   );
 }
 
@@ -1029,10 +1103,10 @@ export async function storyBuild(
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real
-      ? honestFramingStoryReal(persisted, promotion)
+      ? honestFramingStoryReal(persisted, run, driveOrder, promotion)
       : live
-        ? honestFramingStoryLive(persisted)
-        : HONEST_FRAMING_STORY_DRY;
+        ? honestFramingStoryLive(persisted, run, driveOrder)
+        : honestFramingStoryDry(run, driveOrder);
 
     if (!run.passed) {
       return {
