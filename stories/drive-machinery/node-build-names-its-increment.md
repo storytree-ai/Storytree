@@ -12,8 +12,18 @@ depends_on: [build-entry-refuses-before-spend, real-lifecycle-records-its-attemp
 decisions: [576, 575, 563, 571]
 proof:
   command:
-    file: pnpm
-    args: ["--filter", "@storytree/drive", "--filter", "@storytree/cli", "test"]
+    file: bun
+    args:
+      - "test"
+      - "--preload"
+      - "./scripts/tsx-cache-off.mjs"
+      - "--timeout"
+      - "300000"
+      - "./packages/drive/src/node-build-names-its-increment.test.ts"
+      - "./packages/drive/src/node-build-revise-test.test.ts"
+      - "./packages/cli/src/node-build.test.ts"
+      - "./packages/cli/src/story-build.test.ts"
+      - "./packages/cli/src/at-path.test.ts"
   scope:
     testGlobs:
       - "packages/drive/src/node-build-names-its-increment.test.ts"
@@ -234,6 +244,25 @@ Attempt 3 (run real-mu4cxq37) failed closed at GATE: the drive regression suite 
 
 Grant (ADR-0563 D4, recorded at three consecutive failures): 1 further attempt, kind new-observation — the complete breakage set measured across both suites at two authored implementations (a4e3dc5, c63e7f1), replacing the incomplete single-test observation. The contract is unchanged.
 
+Attempt 4 (run real-mu4f7d2f) failed closed at GATE when the two-suite backstop was killed at the spine's 600 s bound; both suites were measured green at its authored commit 58fed16 (drive 1146/1146 in 515 s, cli 4212/4212 in 329 s).
+
+Grant (ADR-0563 D4, recorded at four consecutive failures): 1 further attempt, kind changed-input — the declared regression backstop narrowed to the test files this unit touches (a declared gap re-run in full by the landing gate); the contract, tests and guidance are unchanged.
+
+**The regression backstop is narrowed, and that is a DECLARED gap.** The spec's top-level
+`proof.command` no longer runs both whole package suites. It runs only the five test files this unit
+touches: `node-build-names-its-increment.test.ts` and `node-build-revise-test.test.ts` in
+`packages/drive/src`, and `node-build.test.ts`, `story-build.test.ts` and `at-path.test.ts` in
+`packages/cli/src`. Those are exactly the test files attempt 4's authored commit changed
+(`git diff 6a1748be 58fed16`). The reasons, as measured:
+- both whole suites were green at attempt 4's authored commit `58fed16` (drive 1146/1146, cli
+  4212/4212);
+- the spine's fixed 600 s backstop bound cannot hold them on this box, because together they take
+  844 s;
+- the narrowed command exited 0 at `58fed16` in 36 s (102 tests across the 5 files).
+
+What the build no longer observes before signing — the rest of both suites, and the cli package's
+`validate-corpus.ts` step — the landing gate re-runs in full.
+
 **Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
 quoted text if they have moved.
 - `packages/drive/src/node-build.ts`:
@@ -409,7 +438,8 @@ accepted.
   Titles in those four files follow their files' own convention and carry no contract id.
 - **Traps from the plan, as they bear on this unit.**
   - **Trap 3: the leaf writes only its declared globs.** Every file above is declared. The backstop
-    runs BOTH packages' suites, because a drive-only backstop never runs the CLI tests.
+    runs the touched test files of BOTH packages, because a drive-only backstop never runs the CLI
+    tests (see the declared gap above).
   - **Trap 4: each new refusal sits after every existing cheap refusal**, which is what step 2's
     precedence case pins.
   - **Trap 9: read the work store once** after the walk.
@@ -432,8 +462,8 @@ accepted.
   - `loadFixtureCorpus` from `@storytree/library/fixture`;
   - `parseAuthoringEscalation` from `@storytree/agent`;
   - `fixtureRepo` and `fixtureStories` from `./real-chain-fixture.js`.
-- **Before signing.** The typecheck of both packages and both packages' whole suites run as the
-  backstop.
+- **Before signing.** The typecheck of both packages runs, and the narrowed regression command runs
+  as the backstop over the five touched test files (the declared gap above).
 
 **Declared, not observed by this test.** `nodeBuild` has no author seam (ADR-0243 D4), so no offline
 test reaches the REAL worktree arm or anything after it. These are confirmed by reading, not
