@@ -8,8 +8,10 @@
 export const MINTBOX_COORDINATOR_MODEL = "gpt-6-astra";
 export const MINTBOX_COORDINATOR_DEFAULT_EFFORT = "high";
 export const MINTBOX_PROGRESS_INTERVAL_MS = 3 * 60 * 60 * 1_000;
-const DIGEST_TEXT_LIMIT = 280;
-const DIGEST_LIST_LIMIT = 8;
+export const MINTBOX_DIGEST_TEXT_LIMIT = 280;
+export const MINTBOX_DIGEST_LIST_LIMIT = 8;
+/** A byte ceiling for the complete JSON digest, including worst-case bounded Unicode fields. */
+export const MINTBOX_COORDINATOR_DIGEST_MAX_BYTES = 64 * 1_024;
 
 export type MintboxEventKind =
   | "completion"
@@ -21,6 +23,12 @@ export type MintboxEventKind =
 export type MintboxHandleRole = "coordinator" | "worker" | "renderer";
 export type MintboxHandleHealth = "running" | "finished" | "failed" | "blocked";
 export type CoordinatorEffort = "high" | "xhigh";
+
+export interface MintboxRendererEvidence {
+  readonly rendererId: string;
+  readonly terminal: "green" | "failure" | "disappeared";
+  readonly claim: "held" | "released";
+}
 
 /** A durable, OS-addressable process record.  It deliberately has no log or conversation field. */
 export interface MintboxDetachedHandle {
@@ -71,6 +79,8 @@ export interface MintboxSupervisorEvent {
   readonly summary?: string;
   /** xhigh is a deliberate architecture decision, never a routine default. */
   readonly architecture?: boolean;
+  /** Only matching terminal-green plus claim-release evidence permits renderer adoption. */
+  readonly rendererEvidence?: MintboxRendererEvidence;
 }
 
 export interface MintboxCoordinatorDigest {
@@ -79,6 +89,7 @@ export interface MintboxCoordinatorDigest {
     readonly subject: string;
     readonly occurredAt: string;
     readonly summary?: string;
+    readonly rendererEvidence?: MintboxRendererEvidence;
   };
   readonly coordinatorHealth: MintboxHandleHealth | "none";
   readonly workers: readonly MintboxWorkerSummary[];
@@ -168,8 +179,16 @@ export function recordMintboxDetachedHandle(
     policyInput.architecture = handle.architecture === true;
     verifyMintboxCoordinatorPolicy(policyInput);
   }
-  if (state.handles.some((existing) => existing.id === handle.id)) return state;
-  return { ...state, handles: [...state.handles, boundedHandle(handle)] };
+  const nextHandle = boundedHandle(handle);
+  const existingIndex = state.handles.findIndex((existing) => existing.id === handle.id);
+  if (existingIndex === -1) return { ...state, handles: [...state.handles, nextHandle] };
+  const existing = state.handles[existingIndex]!;
+  assertSameHandleIdentity(existing, nextHandle);
+  const refreshed = refreshHandleObservation(existing, nextHandle);
+  if (existing.health === refreshed.health && existing.outcome === refreshed.outcome) return state;
+  const handles = [...state.handles];
+  handles[existingIndex] = refreshed;
+  return { ...state, handles };
 }
 
 /** Update programme facts without admitting logs or unbounded lists into durable supervisor state. */
@@ -204,7 +223,14 @@ export function decideMintboxSupervisorEvent(
 }
 
 export function mintboxEventDedupeKey(event: Pick<MintboxSupervisorEvent, "kind" | "subject" | "deliveryId">): string {
-  return `${event.kind}:${event.subject}:${event.deliveryId}`;
+  return `${event.kind}:${encodeDedupePart(event.subject)}:${encodeDedupePart(event.deliveryId)}`;
+}
+
+/** Failure or disappearance is an event, never permission to take over an active renderer. */
+export function isMintboxRendererReleased(evidence: MintboxRendererEvidence, protectedRendererId: string): boolean {
+  return evidence.rendererId === protectedRendererId
+    && evidence.terminal === "green"
+    && evidence.claim === "released";
 }
 
 /** A bounded, transcript-free handoff for the compact coordinator. */
@@ -214,9 +240,15 @@ export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, eve
   const digestEvent: MutableDigestEvent = {
     kind: event.kind,
     subject: bounded(event.subject),
-    occurredAt: event.occurredAt,
+    occurredAt: new Date(event.occurredAt).toISOString(),
   };
   if (event.summary !== undefined) digestEvent.summary = bounded(event.summary);
+  if (event.rendererEvidence !== undefined) {
+    digestEvent.rendererEvidence = {
+      ...event.rendererEvidence,
+      rendererId: bounded(event.rendererEvidence.rendererId),
+    };
+  }
   return {
     event: digestEvent,
     coordinatorHealth: coordinator?.health ?? "none",
@@ -226,8 +258,8 @@ export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, eve
       health: state.facts.rendererHealth ?? "unknown",
       blocker: state.facts.rendererBlocker === undefined ? null : bounded(state.facts.rendererBlocker),
     },
-    ready3dLanes: state.facts.ready3dLanes,
-    blocked3dLanes: state.facts.blocked3dLanes,
+    ready3dLanes: boundedList(state.facts.ready3dLanes),
+    blocked3dLanes: boundedList(state.facts.blocked3dLanes),
     parallelSessionCount: state.facts.parallelSessionCount,
     lastOutcome: state.facts.lastOutcome === undefined ? null : bounded(state.facts.lastOutcome),
   };
@@ -280,26 +312,62 @@ function boundedHandle(handle: MintboxDetachedHandle): MintboxDetachedHandle {
   const extras: MintboxHandleExtras = {};
   if (handle.lane !== undefined) extras.lane = bounded(handle.lane);
   if (handle.outcome !== undefined) extras.outcome = bounded(handle.outcome);
-  return { ...handle, ...extras };
+  if (handle.architecture === true) extras.architecture = true;
+  return {
+    id: handle.id,
+    role: handle.role,
+    pid: handle.pid,
+    host: handle.host,
+    detached: true,
+    startedAt: handle.startedAt,
+    health: handle.health,
+    model: handle.model,
+    effort: handle.effort,
+    ...extras,
+  };
 }
 function mintboxWorkerSummaries(handles: readonly MintboxDetachedHandle[]): readonly MintboxWorkerSummary[] {
   const workers: MintboxWorkerSummary[] = [];
   for (const handle of handles) {
     if (handle.role !== "worker") continue;
     const { id, health, model, effort, lane } = handle;
-    workers.push(lane === undefined ? { id, health, model, effort } : { id, health, model, effort, lane });
+    const worker = { id: bounded(id), health, model: bounded(model), effort: bounded(effort) };
+    workers.push(lane === undefined ? worker : { ...worker, lane: bounded(lane) });
   }
-  return workers.slice(-DIGEST_LIST_LIMIT);
+  return workers.slice(-MINTBOX_DIGEST_LIST_LIMIT);
 }
 interface MintboxCoordinatorPolicyInput { model?: string; effort?: CoordinatorEffort; architecture?: boolean }
-interface MutableDigestEvent { kind: MintboxEventKind; subject: string; occurredAt: string; summary?: string }
+interface MutableDigestEvent { kind: MintboxEventKind; subject: string; occurredAt: string; summary?: string; rendererEvidence?: MintboxRendererEvidence }
 interface MutableProgrammeFacts { ready3dLanes: readonly string[]; blocked3dLanes: readonly string[]; parallelSessionCount: number; rendererId?: string; rendererHealth?: MintboxHandleHealth; rendererBlocker?: string; lastOutcome?: string }
-interface MintboxHandleExtras { lane?: string; outcome?: string }
-function boundedList(values: readonly string[]): readonly string[] { return values.slice(0, DIGEST_LIST_LIMIT).map(bounded); }
-function bounded(value: string): string { return value.slice(0, DIGEST_TEXT_LIMIT); }
+interface MintboxHandleExtras { architecture?: true; lane?: string; outcome?: string }
+function boundedList(values: readonly string[]): readonly string[] { return values.slice(0, MINTBOX_DIGEST_LIST_LIMIT).map(bounded); }
+function bounded(value: string): string {
+  return value.slice(0, MINTBOX_DIGEST_TEXT_LIMIT).split("").map((character) => {
+    const code = character.charCodeAt(0);
+    return code < 0x20 || (code >= 0xd800 && code <= 0xdfff) ? "�" : character;
+  }).join("");
+}
+function encodeDedupePart(value: string): string { return value.replaceAll("%", "%25").replaceAll(":", "%3A"); }
+function assertSameHandleIdentity(existing: MintboxDetachedHandle, incoming: MintboxDetachedHandle): void {
+  if (existing.role !== incoming.role
+    || existing.pid !== incoming.pid
+    || existing.host !== incoming.host
+    || existing.startedAt !== incoming.startedAt
+    || existing.model !== incoming.model
+    || existing.effort !== incoming.effort
+    || existing.architecture !== incoming.architecture
+    || existing.lane !== incoming.lane) {
+    throw new Error(`Mintbox handle ${existing.id} cannot change immutable process identity`);
+  }
+}
+function refreshHandleObservation(existing: MintboxDetachedHandle, incoming: MintboxDetachedHandle): MintboxDetachedHandle {
+  return incoming.outcome === undefined
+    ? { ...existing, health: incoming.health }
+    : { ...existing, health: incoming.health, outcome: incoming.outcome };
+}
 function latestHandle(handles: readonly MintboxDetachedHandle[], role: MintboxHandleRole): MintboxDetachedHandle | undefined { return [...handles].reverse().find((handle) => handle.role === role); }
 function asCoordinatorEffort(effort: string): CoordinatorEffort { if (effort === "high" || effort === "xhigh") return effort; throw new Error(`invalid Mintbox coordinator effort: ${effort}`); }
 function assertDate(value: string, label: string): void { if (!Number.isFinite(Date.parse(value))) throw new Error(`${label} must be an ISO-compatible timestamp`); }
 function assertPercent(value: number): void { if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("weekly usage percent must be between 0 and 100"); }
-function validateEvent(event: MintboxSupervisorEvent): void { if (event.subject.trim() === "" || event.deliveryId.trim() === "") throw new Error("Mintbox event subject and deliveryId are required"); assertDate(event.occurredAt, "event occurredAt"); }
+function validateEvent(event: MintboxSupervisorEvent): void { if (event.subject.trim() === "" || event.deliveryId.trim() === "") throw new Error("Mintbox event subject and deliveryId are required"); assertDate(event.occurredAt, "event occurredAt"); if (event.rendererEvidence !== undefined && event.rendererEvidence.rendererId.trim() === "") throw new Error("Mintbox renderer evidence needs a rendererId"); }
 function validateHandle(handle: MintboxDetachedHandle): void { if (!handle.detached || !Number.isInteger(handle.pid) || handle.pid <= 0) throw new Error("Mintbox handle must record a positive detached pid"); if (handle.id.trim() === "" || handle.host.trim() === "" || handle.model.trim() === "" || handle.effort.trim() === "") throw new Error("Mintbox handle identity is required"); assertDate(handle.startedAt, "handle startedAt"); }
