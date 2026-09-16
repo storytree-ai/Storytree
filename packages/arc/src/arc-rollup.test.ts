@@ -17,6 +17,7 @@ import {
   loadArcRollup,
   loadArcRollups,
   incrementDisposition,
+  incrementWaitingOn,
   loadArcRollupSummaries,
   reconcileArcLifecycles,
   storyArcStamps,
@@ -398,7 +399,17 @@ test("loadArcRollups returns every arc id-sorted, closed ones included (filterin
  * Every key a lane row may carry. Pinned here so the two tests below read the same list and a
  * widening costs a deliberate edit — the payload got to 1.36 MB one convenient field at a time.
  */
-const SUMMARY_INCREMENT_KEYS = ["cites", "closedOn", "disposition", "id", "parked", "status", "title"];
+const SUMMARY_INCREMENT_KEYS = [
+  "cites",
+  "closedOn",
+  "disposition",
+  "id",
+  "parked",
+  "status",
+  "title",
+  // ADR-0574 — the one field added since, and it is a READING (question ids), never the question.
+  "waitingOn",
+];
 
 // ---------- ADR-0564: what a close MEANT, and what it must never be taken to mean ----------
 
@@ -468,11 +479,115 @@ test("ADR-0564 D2/D3: NOTHING ALREADY CLOSED FLIPS — the derivation is a pure 
   );
 });
 
-test("the lane row's key set is EXACTLY those seven — over an increment carrying every field", () => {
-  // Driven through `deriveArcRollup` rather than the loader so the source increment populates every
+// ---------- ADR-0574: work waiting on the owner's answer reads as waiting, and only while it is ----------
+
+test("incrementWaitingOn (ADR-0574): OPEN work, LINKED to an UNSETTLED question — each of the three is required", () => {
+  const lifecycles = new Map<string, "open" | "settled">([
+    ["oq-open", "open"],
+    ["oq-other", "open"],
+    ["oq-answered", "settled"],
+  ]);
+
+  // All three hold: every open status reads waiting, an unrecognised one included — an unreadable
+  // row is open work (`isForwardLooking`), and hiding it would be the quieter error.
+  for (const status of ["proposal", "ready", "active", "?"]) {
+    assert.deepEqual(incrementWaitingOn(status, ["asset:oq-open"], lifecycles), ["oq-open"], status);
+  }
+
+  // 1. CLOSED work is untouched whatever its link says (D1–D3): ADR-0564's dispositions stay three.
+  assert.deepEqual(incrementWaitingOn("closed", ["asset:oq-open"], lifecycles), []);
+  // 2. No LINK, no wait — an absent field and the `[]` an unlink leaves both hold nothing.
+  assert.deepEqual(incrementWaitingOn("ready", undefined, lifecycles), []);
+  assert.deepEqual(incrementWaitingOn("ready", [], lifecycles), []);
+  // 3. A SETTLED question holds nothing: settling is the whole release (D2).
+  assert.deepEqual(incrementWaitingOn("ready", ["asset:oq-answered"], lifecycles), []);
+
+  // A mixed link keeps the unanswered questions, in the order the row names them, once each.
+  assert.deepEqual(
+    incrementWaitingOn(
+      "active",
+      ["asset:oq-other", "asset:oq-answered", "asset:oq-open", "asset:oq-other"],
+      lifecycles,
+    ),
+    ["oq-other", "oq-open"],
+  );
+});
+
+test("incrementWaitingOn: a link it cannot follow holds NOTHING, and an untyped row never throws", () => {
+  const lifecycles = new Map<string, "open" | "settled">([["oq-open", "open"]]);
+
+  // A question the corpus does not hold. D2 holds the reading "exactly while that question is
+  // unsettled"; one that does not exist is waiting for no answer, and reading it as a hold would take
+  // the work off every worklist behind an ask nobody can give.
+  assert.deepEqual(incrementWaitingOn("ready", ["asset:oq-gone"], lifecycles), []);
+
+  // Not the pointer scheme. `ASSET:` is six characters too, so a reading that sliced the prefix off
+  // without checking it would land exactly on `oq-open` — this is what proves the scheme is checked.
+  assert.deepEqual(incrementWaitingOn("ready", ["oq-open", "doc:oq-open", "ASSET:oq-open"], lifecycles), []);
+
+  // Untyped rows: a non-array field, and non-string entries beside a good one.
+  assert.deepEqual(incrementWaitingOn("ready", "asset:oq-open", lifecycles), []);
+  assert.deepEqual(incrementWaitingOn("ready", { ref: "asset:oq-open" }, lifecycles), []);
+  assert.deepEqual(
+    incrementWaitingOn("ready", [42, null, { id: "oq-open" }, "asset:oq-open"], lifecycles),
+    ["oq-open"],
+  );
+});
+
+test("deriveArcRollup resolves waitingOn against EVERY question, onto OPEN work only, and leaks no question", () => {
+  const inc = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    kind: "increment",
+    doc: { kind: "increment", id, title: id, objective: "o", arcRef: "asset:held-arc", ...fields },
+    createdAt: "",
+    updatedAt: "",
+  });
+  const question = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    kind: "open-question",
+    doc: { kind: "open-question", id, title: id, stakes: "s", ...fields },
+    createdAt: "",
+    updatedAt: "",
+  });
+  const rollup = deriveArcRollup({
+    arc: { id: "held-arc", kind: "arc", doc: { kind: "arc", id: "held-arc", title: "T" }, createdAt: "", updatedAt: "" },
+    incrementDocs: [
+      inc("held", { status: "ready", parked: "2026-09-10", waitsOn: ["asset:oq-elsewhere"] }),
+      inc("free", { status: "proposal", parked: "2026-09-11" }),
+      inc("released", { status: "active", waitsOn: ["asset:oq-answered"] }),
+      inc("closed-held", { status: "closed", outcome: { date: "2026-09-12", pr: "#1" }, waitsOn: ["asset:oq-elsewhere"] }),
+    ],
+    questionDocs: [
+      // Homed on ANOTHER arc, and authored before ADR-0434 (no `lifecycle` at all): still unsettled,
+      // and still able to hold this arc's work.
+      question("oq-elsewhere", { arcRef: "asset:other-arc" }),
+      question("oq-answered", { arcRef: "asset:other-arc", lifecycle: "settled", answer: "yes" }),
+    ],
+    adrs: [],
+    storyStamps: [],
+  });
+  const byId = new Map(rollup.increments.map((i) => [i.id, i]));
+
+  assert.deepEqual(byId.get("held")?.waitingOn, ["oq-elsewhere"]);
+  // ABSENT, not `[]`, on everything nothing holds — the closed row despite its stored link.
+  for (const id of ["free", "released", "closed-held"]) {
+    assert.equal(Object.hasOwn(byId.get(id) ?? {}, "waitingOn"), false, `${id} must carry no waitingOn`);
+  }
+  // The corpus-wide LOOKUP is not the arc's QUESTION leg: another arc's questions never render here,
+  // and a held increment does not invent a new arc state (ADR-0574: "no new status").
+  assert.deepEqual(rollup.questions, []);
+  assert.equal(rollup.waiting, false);
+});
+
+test("the lane row's key set is EXACTLY those eight — over the two rows that between them carry every field", () => {
+  // Driven through `deriveArcRollup` rather than the loader so the source increments populate every
   // optional field at once, including the four the projection must DROP (`objective`,
   // `frictionRefs`, `anchorSha`, `danglingCites`) and the whole `outcome`. Against the seeded
   // fixture this could only ever assert which optionals that fixture happens to set.
+  //
+  // TWO ROWS, because no single row can carry every lane key any more: `disposition` and `closedOn`
+  // exist only on a CLOSED increment and `waitingOn` (ADR-0574) only on an OPEN one — waiting is a
+  // reading of work still to do, never a fourth disposition.
   const rollup = deriveArcRollup({
     arc: {
       id: "everything-arc",
@@ -501,8 +616,32 @@ test("the lane row's key set is EXACTLY those seven — over an increment carryi
         createdAt: "",
         updatedAt: "",
       },
+      {
+        id: "everything-arc-held",
+        kind: "increment",
+        doc: {
+          kind: "increment",
+          id: "everything-arc-held",
+          title: "the row held on the owner",
+          objective: "work that stopped to ask a question",
+          arcRef: "asset:everything-arc",
+          status: "ready",
+          parked: "2026-09-01",
+          waitsOn: ["asset:oq-held"],
+        },
+        createdAt: "",
+        updatedAt: "",
+      },
     ],
-    questionDocs: [],
+    questionDocs: [
+      {
+        id: "oq-held",
+        kind: "open-question",
+        doc: { kind: "open-question", id: "oq-held", title: "the question", stakes: "a lot" },
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
     adrs: [],
     storyStamps: [],
     // An EMPTY hierarchy index, so both `cites` resolve to nothing and `danglingCites` is populated
@@ -511,13 +650,24 @@ test("the lane row's key set is EXACTLY those seven — over an increment carryi
   });
 
   // Every optional really is populated upstream, or the assertion below proves nothing.
-  const source = rollup.increments[0]!;
+  const source = rollup.increments.find((i) => i.id === "everything-arc-inc-01")!;
   for (const key of ["objective", "frictionRefs", "anchorSha", "danglingCites", "outcome"]) {
     assert.ok(Object.hasOwn(source, key), `the source row must carry "${key}" for this to fence it`);
   }
 
-  const row = summariseArcRollup(rollup).increments[0]!;
-  assert.deepEqual(Object.keys(row).sort(), SUMMARY_INCREMENT_KEYS);
+  const rows = summariseArcRollup(rollup).increments;
+  assert.deepEqual([...new Set(rows.flatMap((r) => Object.keys(r)))].sort(), SUMMARY_INCREMENT_KEYS);
+  // Forward-looking first — the rollup's own order, which the projection must not disturb.
+  assert.deepEqual(rows[0], {
+    id: "everything-arc-held",
+    title: "the row held on the owner",
+    status: "ready",
+    parked: "2026-09-01",
+    // ADR-0574 — the READING, copied off the full row: the question's id, never the question, and
+    // never the raw `waitsOn` link (which outlives the answer where this does not).
+    waitingOn: ["oq-held"],
+  });
+  const row = rows[1]!;
   assert.deepEqual(row, {
     id: "everything-arc-inc-01",
     title: "the row that has everything",
