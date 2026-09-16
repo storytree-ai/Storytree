@@ -251,9 +251,15 @@ kind owes a seed export any more.
   INVOKES it rather than stat-ing a path, so it reports the installed-but-unreachable case correctly
   — which is the case that actually bites. Wiring a machine dependency is ONBOARDING's job now rather
   than a note's (ADR-0433), and `docs/machine-onboarding.md` §1 lists Bun. CI needs no such step — `.github/workflows/ci.yml` has a pinned
-  `oven-sh/setup-bun@v2` step at the same version. Which packages have moved, and the measured
-  reason the rest have not, is `docs/research/bun-runtime-probe-2026-08-22.md` — **read it before
-  converting anything else; do not re-run the sweep.**
+  `oven-sh/setup-bun@v2` step at the same version. **Which packages moved, and the measured reason
+  the rest did not, is the CLOSED `bun-runtime-migration-arc`'s END-STATE ROSTER** (clause 3 —
+  `storytree arc show bun-runtime-migration-arc --pg`): it names each stay-on-Node package and its
+  reason, and it was corrected in place as the arc's own later increments falsified the original
+  expectation. Read the current split from the package manifests, never from a prose count.
+  ⚠ `docs/research/bun-runtime-probe-2026-08-22.md` is that arc's FIRST measurement and is HISTORY,
+  not current state — its own header records the "hard NO" and the 2.4% ceiling as WITHDRAWN
+  (inc-09; neither reproduces, and it was re-measuring that withdrew them), so read it as history
+  plus its correction boxes and quote none of its withdrawn numbers.
 - **Fresh worktree — or a REUSED one that main moved under?** A new git worktree has NO `node_modules`
   of its own — but a `SessionStart` hook now **auto-provisions** it:
   `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` when the worktree is either
