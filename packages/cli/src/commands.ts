@@ -2939,13 +2939,13 @@ async function nodeLedgerCommand(
     if (deps.writable !== true || deps.attemptLedger === undefined || deps.attemptLedger === null) {
       return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageGrant(unitId)] };
     }
-    const grant: NodeGrantInput = {
+    const input: NodeGrantInput = {
       unitId,
       attempts: Number(attemptsFlag),
       kind: kindFlag,
       difference: differenceFlag,
+      actor: deps.actor,
     };
-    const input: NodeGrantInput = deps.actor === undefined ? grant : { ...grant, actor: deps.actor };
     const result = await recordNodeGrant(deps.attemptLedger, input);
     if (!result.ok) {
       return { ok: false, body: result.reason, next: [usageAttempts(unitId)] };
@@ -2989,18 +2989,19 @@ async function nodeLedgerCommand(
     return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageAdjudicate(unitId)] };
   }
   const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-  // Each optional field is added only when its flag was given — the objection's decision and survivor
-  // count, then the objection and the actor on the input — as a whole-object ternary per field.
-  const ruling: NodeAdjudicateInput = { unitId, runId: runFlag };
-  let withObjection: NodeAdjudicateInput = ruling;
-  if (objectionFlag !== undefined) {
-    const stated = { kind: objectionFlag, statement: statementFlag ?? "" };
-    const decided = decisionFlag === undefined ? stated : { ...stated, decision: decisionFlag };
-    const objection = survivorsFlag === undefined ? decided : { ...decided, survivors: Number(survivorsFlag) };
-    withObjection = { ...ruling, objection };
-  }
-  const input: NodeAdjudicateInput =
-    deps.actor === undefined ? withObjection : { ...withObjection, actor: deps.actor };
+  // An absent optional flag is passed through as `undefined` rather than omitted: the verb treats the
+  // two alike, so a guard choosing between them would be a branch no test could tell apart. Only
+  // `--survivors` keeps its guard, because `Number(undefined)` is NaN, which the verb refuses.
+  const objection =
+    objectionFlag === undefined
+      ? undefined
+      : {
+          kind: objectionFlag,
+          statement: statementFlag ?? "",
+          decision: decisionFlag,
+          survivors: survivorsFlag === undefined ? undefined : Number(survivorsFlag),
+        };
+  const input: NodeAdjudicateInput = { unitId, runId: runFlag, objection, actor: deps.actor };
   const result = await recordNodeAdjudication(
     deps.attemptLedger,
     input,

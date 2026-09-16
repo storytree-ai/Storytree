@@ -32,7 +32,7 @@ export interface NodeGrantInput {
   readonly attempts: number;
   readonly kind: string;
   readonly difference: string;
-  readonly actor?: string;
+  readonly actor?: string | undefined;
 }
 
 export type NodeGrantResult =
@@ -42,15 +42,15 @@ export type NodeGrantResult =
 interface NodeAdjudicateObjectionInput {
   readonly kind: string;
   readonly statement: string;
-  readonly decision?: string;
-  readonly survivors?: number;
+  readonly decision?: string | undefined;
+  readonly survivors?: number | undefined;
 }
 
 export interface NodeAdjudicateInput {
   readonly unitId: string;
   readonly runId: string;
-  readonly objection?: NodeAdjudicateObjectionInput;
-  readonly actor?: string;
+  readonly objection?: NodeAdjudicateObjectionInput | undefined;
+  readonly actor?: string | undefined;
 }
 
 export type StrengthSignalReach = (unitId: string) => boolean;
