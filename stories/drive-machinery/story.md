@@ -432,6 +432,11 @@ the now-settled modeling call.
   records one attempt immediately before the gate walk and one signed pass after a signed result,
   refuses the walk when the attempt cannot be recorded, and records nothing without an increment, so
   story-chain members (ADR-0576 D7) are unaffected.
+- [`node-verbs-dispatch`](node-verbs-dispatch.md) — contract grain, spec-borne, edit-existing proof
+  over the CLI dispatch, proposed (ADR-0576 D3). `storytree node attempts|grant|adjudicate` reach the
+  ledger verbs through `run`, refuse a missing unit or flag and any write without the live store, and
+  record a grant or adjudication with the strength signal read from the unit's own package. It builds
+  after `orchestrator-records-its-calls` and `build-entry-refuses-before-spend`.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
