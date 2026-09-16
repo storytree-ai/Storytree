@@ -457,6 +457,96 @@ test("the second stale field compresses when its landings are already covered �
   assert.equal(dbody.filter((l) => l.includes("inc-02")).length, 2, "inc-02 is unseen by both fields");
 });
 
+// ---------------------------------------------------------------------------
+// THE RENDER, PINNED WHOLE.
+//
+// `check:mutation-diff` charges one mutant per prose word, plural suffix, separator and boundary on
+// every line a branch touches, and the re-wording above touched all of them. A dozen `assert.match`
+// probes kill only the words they quote; one golden assertion per RENDER SHAPE kills the whole
+// literal set at once — and it is deliberately brittle, because changing this wording is exactly
+// what should have to be re-read. Three shapes: overflowing + undated, exactly at the cap, and the
+// UNKNOWN branch. Between them every boundary in the block is a case: singular vs plural, the cap
+// itself, the `> 0` guard on the undated line, and the sum the unknown branch reports.
+// ---------------------------------------------------------------------------
+
+/** Intent-only prose, so a golden pins ONE field's block rather than the two-field compression. */
+const INTENT_ONLY = { intent: "the intent prose", endState: "" };
+const CHARTERED = ev("2026-07-24T09:00:00.000Z", { intent: "the intent prose" }, "created");
+const undatedClosed = (id: string): ArcRollupIncrement => ({ id, title: `${id} title`, objective: "o", status: "closed" });
+
+test("the stale block, pinned whole: plural count, the cap's overflow, and the undated ids joined", () => {
+  const s = deriveArcNarrativeStaleness({
+    ...INTENT_ONLY,
+    increments: [
+      ...Array.from({ length: NAMED_CLOSURE_CAP + 1 }, (_, i) =>
+        closed(`inc-${String(i + 1).padStart(2, "0")}`, `2026-08-${String(i + 1).padStart(2, "0")}`),
+      ),
+      undatedClosed("inc-x"),
+      undatedClosed("inc-y"),
+    ],
+    events: [CHARTERED],
+  });
+  assert.deepEqual(renderNarrativeStaleness(s, "a1"), [
+    "⚠ NARRATIVE STALENESS — the prose below was last written BEFORE closures on this arc's own log.",
+    "  intent: last written 2026-07-24 — 6 increments closed since:",
+    "    - 2026-08-06  inc-06  — inc-06 title",
+    "    - 2026-08-05  inc-05  — inc-05 title",
+    "    - 2026-08-04  inc-04  — inc-04 title",
+    "    - 2026-08-03  inc-03  — inc-03 title",
+    "    - 2026-08-02  inc-02  — inc-02 title",
+    "    … and 1 more — every one is in the increment log below.",
+    "  not compared (closed with no date): inc-x, inc-y — they may be newer than the prose too.",
+    "  This compares DATES, not meaning: a named closure may well be consistent with the prose. Read them",
+    "  against each other, then correct the prose in place if it no longer holds (ADR-0139):",
+    "    storytree arc edit a1 --intent @intent.txt --end-state @end-state.txt --pg",
+    "",
+  ]);
+});
+
+test("EXACTLY at the cap: every closure is named, and neither the overflow nor the undated line appears", () => {
+  // The boundary case both guards need. At n === NAMED_CLOSURE_CAP the overflow line must be ABSENT
+  // (a `>=` here would print "… and 0 more"), and with nothing undated the "not compared" line must
+  // be absent too (a `>= 0` there would print an empty list). Neither is visible in the case above,
+  // where both conditions are comfortably true and every mutant of them renders identically.
+  const s = deriveArcNarrativeStaleness({
+    ...INTENT_ONLY,
+    increments: Array.from({ length: NAMED_CLOSURE_CAP }, (_, i) =>
+      closed(`inc-${String(i + 1).padStart(2, "0")}`, `2026-08-${String(i + 1).padStart(2, "0")}`),
+    ),
+    events: [CHARTERED],
+  });
+  assert.deepEqual(renderNarrativeStaleness(s, "a1"), [
+    "⚠ NARRATIVE STALENESS — the prose below was last written BEFORE closures on this arc's own log.",
+    "  intent: last written 2026-07-24 — 5 increments closed since:",
+    "    - 2026-08-05  inc-05  — inc-05 title",
+    "    - 2026-08-04  inc-04  — inc-04 title",
+    "    - 2026-08-03  inc-03  — inc-03 title",
+    "    - 2026-08-02  inc-02  — inc-02 title",
+    "    - 2026-08-01  inc-01  — inc-01 title",
+    "  This compares DATES, not meaning: a named closure may well be consistent with the prose. Read them",
+    "  against each other, then correct the prose in place if it no longer holds (ADR-0139):",
+    "    storytree arc edit a1 --intent @intent.txt --end-state @end-state.txt --pg",
+    "",
+  ]);
+});
+
+test("the UNKNOWN block, pinned whole: it counts dated AND undated closures, and says so in the plural", () => {
+  // The count is a SUM across both halves, and the singular case above cannot see it: with one dated
+  // closure and nothing undated, adding and subtracting agree. Three closures also pin the plural.
+  const s = deriveArcNarrativeStaleness({
+    ...INTENT_ONLY,
+    increments: [closed("inc-01", "2026-08-01"), closed("inc-02", "2026-08-02"), undatedClosed("inc-x")],
+    events: [],
+  });
+  assert.equal(s.undatable, true);
+  assert.deepEqual(renderNarrativeStaleness(s, "a1"), [
+    "⚠ NARRATIVE FRESHNESS UNKNOWN — this arc has 3 closed increments on its log,",
+    "  but its write history holds no record of when the prose was last written, so whether the prose",
+    "  predates them could not be established. UNKNOWN IS NOT FRESH — read the log before trusting it.",
+    "",
+  ]);
+});
+
 test("--no-log stops the overflow line pointing at a log that is not rendered", () => {
   const many = Array.from({ length: NAMED_CLOSURE_CAP + 2 }, (_, i) =>
     closed(`inc-${String(i).padStart(2, "0")}`, `2026-08-${String(10 + i).padStart(2, "0")}`),
