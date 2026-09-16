@@ -403,7 +403,8 @@ test("an empty programme renders null optional report facts rather than invented
 
 test("mintbox-meaningful-events-wake-once: an unrecognised runtime event cannot create a coordinator", () => {
   const state = createMintboxSupervisorState(facts);
-  const unrecognisedEvent = { ...event, kind: "conversation-message" } as unknown as typeof event;
+  const unrecognisedEvent = structuredClone(event);
+  Object.defineProperty(unrecognisedEvent, "kind", { value: "conversation-message" });
 
   assert.equal(decideMintboxSupervisorEvent(state, unrecognisedEvent).wake, null);
 });
