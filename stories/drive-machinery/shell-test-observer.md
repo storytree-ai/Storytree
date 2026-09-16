@@ -119,10 +119,11 @@ child-process API retains no ownership-safe whole-scope handle after leader exit
 
 Settlement is bounded but not identical to the declared command budget. The already-exited-root path
 releases its handles and settles in the deadline callback. For a still-live Windows root, synchronous
-`taskkill` has its own 2-second ceiling and is followed by at most a 1-second stream drain; POSIX group
-signal delivery is followed by the same drain. Natural `close` settles sooner. A delivered stop ends
-as timeout-red `code: null`; an undelivered or throwing stop ends as the structured termination error
-above, never as an ordinary red.
+`taskkill` has its own 10-second ceiling and is followed by at most a 1-second stream drain, bounding
+that post-deadline Windows path to 11 seconds; POSIX group signal delivery is followed by the same
+drain. Natural `close` settles sooner. A delivered stop ends as timeout-red `code: null`; an
+undelivered or throwing stop ends as the structured termination error above, never as an ordinary
+red.
 
 The code edge for the `depends_on`: `shell-test-executor.ts:15` imports the `TestExecutor` /
 `TestObservation` seam types from `./phase-machine.js` — this class IS the live implementation of

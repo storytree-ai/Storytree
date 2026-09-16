@@ -421,6 +421,10 @@ export const DEFAULT_PROOF_TIMEOUT_MS = 10 * 60_000;
  */
 /** The same generous capture ceiling the former `execFile` runner supplied to each output stream. */
 export const SHELL_COMMAND_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+// `taskkill /T /F` has exceeded two seconds while enumerating even this runner's three-process
+// fixture under a saturated Windows gate. Keep native delivery bounded, but do not turn ordinary
+// scheduler contention into a false infrastructure failure after the proof has already timed out.
+const WINDOWS_TREE_TERMINATION_TIMEOUT_MS = 10_000;
 const TREE_TERMINATION_DRAIN_MS = 1_000;
 
 export type ShellTreeTerminationDelivery =
@@ -507,7 +511,7 @@ function terminateProcessTree(pid: number): ShellTreeTerminationDelivery {
     try {
       execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
         stdio: "ignore",
-        timeout: 2_000,
+        timeout: WINDOWS_TREE_TERMINATION_TIMEOUT_MS,
         windowsHide: true,
       });
       return { delivered: true };

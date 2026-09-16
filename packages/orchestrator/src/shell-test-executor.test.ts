@@ -423,13 +423,16 @@ async function assertProcessExits(pid: number): Promise<void> {
 
 test(
   "timeout-stops-owned-process-scope: native timeout stops a ready wrapper and its same-scope descendants while preserving partial output",
-  { timeout: 10_000 },
+  // The outer watchdog must leave room for the 4s proof deadline, bounded native tree delivery,
+  // pipe drain, and the postcondition probe. It remains independent of the fixture's longer natural
+  // lifetime, so passing still proves force-stop rather than eventual self-exit.
+  { timeout: 20_000 },
   async () => {
     // Every fixture descendant stays in the detached POSIX process group or the taskkill-reachable
     // Windows tree and inherits stdout/stderr. An explicitly detached/setsid descendant would be
     // outside this owned scope and is deliberately not claimed by this contract.
     const dir = await mkdtemp(join(tmpdir(), "storytree-shell-tree-timeout-"));
-    const naturalLifetimeMs = 15_000;
+    const naturalLifetimeMs = 30_000;
     const grandchildFile = join(dir, "grandchild.cjs");
     const childFile = join(dir, "child.cjs");
     const wrapperFile = join(dir, "wrapper.cjs");
