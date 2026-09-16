@@ -130,8 +130,102 @@ export interface MintboxLaneLauncherPorts<PersistedIntent, SpawnToken> {
 
 /** Contract-bearing behavior is intentionally left to the real-build red/green leaf. */
 export function launchMintboxTerraLane<PersistedIntent, SpawnToken>(
-  _request: MintboxLaneLaunchRequest,
-  _ports: MintboxLaneLauncherPorts<PersistedIntent, SpawnToken>,
+  request: MintboxLaneLaunchRequest,
+  ports: MintboxLaneLauncherPorts<PersistedIntent, SpawnToken>,
 ): Promise<MintboxLaneLaunchDecision> {
-  return Promise.reject(new Error("Mintbox Terra lane launch is not implemented; refusing to declare occupancy"));
+  return launch(request, ports);
+}
+
+async function launch<PersistedIntent, SpawnToken>(
+  request: MintboxLaneLaunchRequest,
+  ports: MintboxLaneLauncherPorts<PersistedIntent, SpawnToken>,
+): Promise<MintboxLaneLaunchDecision> {
+  const coordinator = verifyCoordinator(request.coordinator);
+  const driverEffort = verifyIntent(request.intent);
+
+  const occupancy = await ports.readOccupancy();
+  const heldReason = request.intent.workload === "3d"
+    ? occupancy.threeD.length >= 3 ? "three-d-capacity" : undefined
+    : occupancy.gpu === null ? undefined : "gpu-busy";
+  if (heldReason !== undefined) {
+    const decision: MintboxLaneLaunchDecision = {
+      status: "held",
+      decisionId: request.coordinator.decisionId,
+      intentId: request.intent.intentId,
+      laneId: request.intent.laneId,
+      coordinator,
+      reason: heldReason,
+    };
+    await ports.persistVerifiedDecision(decision);
+    return decision;
+  }
+
+  const persistedIntent = await ports.persistIntent(request.intent);
+  const process = await ports.observeProcess(await ports.spawn(persistedIntent));
+  const [claims, worktrees] = await Promise.all([
+    ports.readLiveClaims(),
+    ports.readRegisteredWorktrees(),
+  ]);
+  const claim = claims.find((candidate) =>
+    candidate.unitId === request.intent.claim.unitId
+    && candidate.sessionId === request.intent.claim.sessionId
+    && candidate.branch === request.intent.branch,
+  );
+  const worktree = worktrees.find((candidate) =>
+    candidate.path === request.intent.worktreePath && candidate.branch === request.intent.branch,
+  );
+  if (
+    process.state !== "running" || process.handleId === null || process.pid === null
+    || process.processGroupId === null || process.host === null || !process.detached
+    || process.model !== MINTBOX_TERRA_LANE_MODEL || process.effort !== driverEffort
+    || claim === undefined || worktree === undefined
+  ) {
+    throw new Error("Mintbox Terra launch could not be verified");
+  }
+
+  const decision: MintboxLaneLaunchDecision = {
+    status: "occupied",
+    decisionId: request.coordinator.decisionId,
+    intentId: request.intent.intentId,
+    laneId: request.intent.laneId,
+    coordinator,
+    handle: {
+      id: process.handleId,
+      pid: process.pid,
+      processGroupId: process.processGroupId,
+      host: process.host,
+      detached: true,
+      model: MINTBOX_TERRA_LANE_MODEL,
+      effort: driverEffort,
+      worktreePath: worktree.path,
+      branch: worktree.branch,
+      claim,
+    },
+  };
+  await ports.persistVerifiedDecision(decision);
+  return decision;
+}
+
+function verifyCoordinator(context: MintboxCoordinatorLaunchContext): MintboxVerifiedCoordinatorPolicy {
+  if (context.model !== MINTBOX_ASTRA_COORDINATOR_MODEL || (context.effort !== "high" && context.effort !== "xhigh")) {
+    throw new Error("Mintbox launch requires the Astra coordinator policy");
+  }
+  if (context.effort === "xhigh" && context.architectureDecisionId === undefined) {
+    throw new Error("Mintbox xhigh coordination requires an architecture decision");
+  }
+  return context.architectureDecisionId === undefined
+    ? { model: MINTBOX_ASTRA_COORDINATOR_MODEL, effort: context.effort }
+    : { model: MINTBOX_ASTRA_COORDINATOR_MODEL, effort: context.effort, architectureDecisionId: context.architectureDecisionId };
+}
+
+function verifyIntent(intent: MintboxTerraLaunchIntent): MintboxTerraEffort {
+  if (intent.model !== MINTBOX_TERRA_LANE_MODEL || !isTerraEffort(intent.effort)) {
+    throw new Error("Mintbox lane launch requires the Terra driver policy");
+  }
+  return intent.effort;
+}
+
+function isTerraEffort(effort: string): effort is MintboxTerraEffort {
+  return effort === "low" || effort === "medium" || effort === "high" || effort === "xhigh"
+    || effort === "max" || effort === "ultra";
 }
