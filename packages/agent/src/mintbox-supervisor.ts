@@ -134,6 +134,11 @@ export type MintboxEventDecision =
 export interface MintboxProgressReport {
   readonly at: string;
   readonly coordinatorHealth: MintboxHandleHealth | "none";
+  readonly coordinator: {
+    readonly health: MintboxHandleHealth;
+    readonly model: string;
+    readonly effort: string;
+  } | null;
   readonly workerHealth: readonly MintboxWorkerSummary[];
   readonly lanes: { readonly ready3d: readonly string[]; readonly blocked3d: readonly string[] };
   readonly lastOutcome: string | null;
@@ -201,6 +206,7 @@ export function decideMintboxSupervisorEvent(
   state: MintboxSupervisorState,
   event: MintboxSupervisorEvent,
 ): MintboxEventDecision {
+  if (!isMintboxEventKind(event.kind)) return { state, wake: null };
   validateEvent(event);
   const dedupeKey = mintboxEventDedupeKey(event);
   if (state.wakeKeys.includes(dedupeKey)) return { state, wake: null };
@@ -242,7 +248,9 @@ export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, eve
     subject: bounded(event.subject),
     occurredAt: new Date(event.occurredAt).toISOString(),
   };
-  if (event.summary !== undefined) digestEvent.summary = bounded(event.summary);
+  if (event.summary !== undefined && !isRawTranscript(event.summary)) {
+    digestEvent.summary = bounded(event.summary);
+  }
   if (event.rendererEvidence !== undefined) {
     digestEvent.rendererEvidence = {
       ...event.rendererEvidence,
@@ -279,9 +287,13 @@ export function recordMintboxProgressReport(
   assertPercent(input.weeklyUsagePercent);
   if (input.action.trim() === "") throw new Error("Mintbox progress report needs an action");
   const workers = mintboxWorkerSummaries(state.handles);
+  const coordinator = latestHandle(state.handles, "coordinator");
   const report: MintboxProgressReport = {
     at: input.at,
-    coordinatorHealth: latestHandle(state.handles, "coordinator")?.health ?? "none",
+    coordinatorHealth: coordinator?.health ?? "none",
+    coordinator: coordinator === undefined
+      ? null
+      : { health: coordinator.health, model: bounded(coordinator.model), effort: bounded(coordinator.effort) },
     workerHealth: workers,
     lanes: { ready3d: state.facts.ready3dLanes, blocked3d: state.facts.blocked3dLanes },
     lastOutcome: state.facts.lastOutcome === undefined ? null : bounded(state.facts.lastOutcome),
@@ -348,6 +360,8 @@ function bounded(value: string): string {
   }).join("");
 }
 function encodeDedupePart(value: string): string { return value.replaceAll("%", "%25").replaceAll(":", "%3A"); }
+function isMintboxEventKind(kind: unknown): kind is MintboxEventKind { return kind === "completion" || kind === "failure" || kind === "dependency-release" || kind === "empty-ready-worker" || kind === "owner-attestation-gate"; }
+function isRawTranscript(value: string): boolean { return value.includes("\n") || value.includes("\r"); }
 function assertSameHandleIdentity(existing: MintboxDetachedHandle, incoming: MintboxDetachedHandle): void {
   if (existing.role !== incoming.role
     || existing.pid !== incoming.pid

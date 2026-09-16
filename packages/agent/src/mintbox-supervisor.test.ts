@@ -400,3 +400,48 @@ test("an empty programme renders null optional report facts rather than invented
   assert.equal(report.rendererBlocker, null);
   assert.deepEqual(report.workerHealth, []);
 });
+
+test("mintbox-meaningful-events-wake-once: an unrecognised runtime event cannot create a coordinator", () => {
+  const state = createMintboxSupervisorState(facts);
+  const unrecognisedEvent = { ...event, kind: "conversation-message" } as unknown as typeof event;
+
+  assert.equal(decideMintboxSupervisorEvent(state, unrecognisedEvent).wake, null);
+});
+
+test("mintbox-supervisor-owns-handles-not-transcripts: a raw multi-line transcript is omitted from the coordinator digest", () => {
+  const state = createMintboxSupervisorState(facts);
+  const rawTranscript = "assistant: starting work\nassistant: reading private conversation\nassistant: launching a worker";
+  const decision = decideMintboxSupervisorEvent(state, { ...event, deliveryId: "transcript-guard", summary: rawTranscript });
+
+  assert.ok(decision.wake);
+  assert.equal(JSON.stringify(decision.wake.digest).includes("private conversation"), false);
+});
+
+test("mintbox-three-hour-report-carries-delta: the compact backstop includes the actual coordinator model and effort", () => {
+  const coordinator = {
+    id: "astra-coordinator",
+    role: "coordinator" as const,
+    pid: 90,
+    host: "mintbox",
+    detached: true as const,
+    startedAt: "2026-09-09T00:00:00.000Z",
+    health: "running" as const,
+    model: "gpt-6-astra",
+    effort: "high",
+  };
+  const state = recordMintboxDetachedHandle(createMintboxSupervisorState(facts), coordinator);
+  const first = recordMintboxProgressReport(state, {
+    at: "2026-09-09T00:00:00.000Z",
+    weeklyUsagePercent: 32,
+    action: "observe coordinator",
+  });
+  const { report } = recordMintboxProgressReport(first.state, {
+    at: "2026-09-09T03:00:00.000Z",
+    weeklyUsagePercent: 37,
+    action: "continue compact reporting",
+  });
+
+  const compactReport = JSON.parse(JSON.stringify(report)) as { readonly coordinator?: unknown; readonly weeklyUsageDelta?: unknown };
+  assert.deepEqual(compactReport.coordinator, { health: "running", model: "gpt-6-astra", effort: "high" });
+  assert.equal(compactReport.weeklyUsageDelta, 5);
+});
