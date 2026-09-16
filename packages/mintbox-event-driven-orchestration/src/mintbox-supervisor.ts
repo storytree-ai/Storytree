@@ -139,10 +139,17 @@ export interface MintboxProgressReport {
   readonly lastOutcome: string | null;
   readonly rendererBlocker: string | null;
   readonly parallelSessionCount: number;
-  readonly weeklyUsagePercent: number;
+  /** The reader's typed observation; unavailable is preserved rather than guessed. */
+  readonly weeklyUsage: MintboxWeeklyUsage;
+  /** Retained for compact available observations and existing consumers. */
+  readonly weeklyUsagePercent?: number;
   readonly weeklyUsageDelta: number | null;
   readonly action: string;
 }
+
+export type MintboxWeeklyUsage =
+  | { readonly status: "available"; readonly percent: number }
+  | { readonly status: "unavailable"; readonly reason: string };
 
 export function createMintboxSupervisorState(facts: MintboxProgrammeFacts): MintboxSupervisorState {
   return { version: 1, handles: [], wakeKeys: [], facts: normalizeFacts(facts) };
@@ -201,6 +208,7 @@ export function decideMintboxSupervisorEvent(
   state: MintboxSupervisorState,
   event: MintboxSupervisorEvent,
 ): MintboxEventDecision {
+  if (!isMintboxEventKind(event.kind)) return { state, wake: null };
   validateEvent(event);
   const dedupeKey = mintboxEventDedupeKey(event);
   if (state.wakeKeys.includes(dedupeKey)) return { state, wake: null };
@@ -242,7 +250,8 @@ export function buildMintboxCoordinatorDigest(state: MintboxSupervisorState, eve
     subject: bounded(event.subject),
     occurredAt: new Date(event.occurredAt).toISOString(),
   };
-  if (event.summary !== undefined) digestEvent.summary = bounded(event.summary);
+  const summary = event.summary === undefined ? undefined : operationalSummary(event.summary);
+  if (summary !== undefined) digestEvent.summary = summary;
   if (event.rendererEvidence !== undefined) {
     digestEvent.rendererEvidence = {
       ...event.rendererEvidence,
@@ -273,13 +282,21 @@ export function isMintboxProgressReportDue(state: MintboxSupervisorState, now: D
 /** Create and persist a compact three-hour report, including weekly percentage and delta. */
 export function recordMintboxProgressReport(
   state: MintboxSupervisorState,
-  input: { readonly at: string; readonly weeklyUsagePercent: number; readonly action: string },
+  input: { readonly at: string; readonly weeklyUsagePercent: number; readonly action: string }
+    | { readonly at: string; readonly weeklyUsage: MintboxWeeklyUsage; readonly action: string },
 ): MintboxProgressDecision {
   assertDate(input.at, "report at");
-  assertPercent(input.weeklyUsagePercent);
   if (input.action.trim() === "") throw new Error("Mintbox progress report needs an action");
+  const weeklyUsage = "weeklyUsagePercent" in input
+    ? availableWeeklyUsage(input.weeklyUsagePercent)
+    : input.weeklyUsage;
+  let weeklyUsagePercent: number | undefined;
+  if (weeklyUsage.status === "available") {
+    assertPercent(weeklyUsage.percent);
+    weeklyUsagePercent = weeklyUsage.percent;
+  }
   const workers = mintboxWorkerSummaries(state.handles);
-  const report: MintboxProgressReport = {
+  const reportWithoutAvailablePercent: MintboxProgressReport = {
     at: input.at,
     coordinatorHealth: latestHandle(state.handles, "coordinator")?.health ?? "none",
     workerHealth: workers,
@@ -287,11 +304,22 @@ export function recordMintboxProgressReport(
     lastOutcome: state.facts.lastOutcome === undefined ? null : bounded(state.facts.lastOutcome),
     rendererBlocker: state.facts.rendererBlocker === undefined ? null : bounded(state.facts.rendererBlocker),
     parallelSessionCount: state.facts.parallelSessionCount,
-    weeklyUsagePercent: input.weeklyUsagePercent,
-    weeklyUsageDelta: state.lastWeeklyUsagePercent === undefined ? null : input.weeklyUsagePercent - state.lastWeeklyUsagePercent,
+    weeklyUsage,
+    weeklyUsageDelta: weeklyUsagePercent === undefined || state.lastWeeklyUsagePercent === undefined
+      ? null
+      : weeklyUsagePercent - state.lastWeeklyUsagePercent,
     action: bounded(input.action),
   };
-  return { state: { ...state, lastReportAt: input.at, lastWeeklyUsagePercent: input.weeklyUsagePercent }, report };
+  const report = weeklyUsagePercent === undefined
+    ? reportWithoutAvailablePercent
+    : { ...reportWithoutAvailablePercent, weeklyUsagePercent };
+  const nextState: MintboxSupervisorState = weeklyUsagePercent === undefined
+    ? { ...state, lastReportAt: input.at }
+    : { ...state, lastReportAt: input.at, lastWeeklyUsagePercent: weeklyUsagePercent };
+  return {
+    state: nextState,
+    report,
+  };
 }
 
 function normalizeFacts(facts: MintboxProgrammeFacts): MintboxProgrammeFacts {
@@ -346,6 +374,16 @@ function bounded(value: string): string {
     const code = character.charCodeAt(0);
     return code < 0x20 || (code >= 0xd800 && code <= 0xdfff) ? "�" : character;
   }).join("");
+}
+function operationalSummary(value: string): string | undefined {
+  return /[\r\n]/.test(value) ? undefined : bounded(value);
+}
+function availableWeeklyUsage(percent: number): MintboxWeeklyUsage {
+  return { status: "available", percent };
+}
+function isMintboxEventKind(value: unknown): value is MintboxEventKind {
+  return value === "completion" || value === "failure" || value === "dependency-release"
+    || value === "empty-ready-worker" || value === "owner-attestation-gate";
 }
 function encodeDedupePart(value: string): string { return value.replaceAll("%", "%25").replaceAll(":", "%3A"); }
 function assertSameHandleIdentity(existing: MintboxDetachedHandle, incoming: MintboxDetachedHandle): void {

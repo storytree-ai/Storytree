@@ -8,6 +8,30 @@ status: proposed
 proof_mode: integration-test
 depends_on: [mintbox-supervisor-events]
 decisions: [561, 505]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "test"]
+  scope:
+    testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts"]
+    sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"]
+  real:
+    testFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts"
+    sourceFile: "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"
+    scope:
+      testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts"]
+      sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"]
+    install: true
+    editsExisting: true
+    cluster:
+      - mintbox-active-proof-is-observe-only
+      - mintbox-green-release-is-the-adoption-boundary
+    proofCommand:
+      file: bun
+      args: ["test", "--timeout", "300000", "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.test.ts"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "typecheck"]
 ---
 
 # Protected rendering-driver transition — observe first, adopt only after green release
@@ -25,9 +49,11 @@ and released claim, and verify one fresh coordinator sees the lane as eligible.
 ## Contracts
 
 1. **`mintbox-active-proof-is-observe-only`** — architecture transition never interrupts proof
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` may read the protected renderer handle
-     before a terminal event and released claim, but cannot stop, restart, re-claim, migrate, or replace it.
+   - **asserts —** `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts` may
+     probe the protected renderer handle before a terminal-green event and released claim, but cannot
+     stop, restart, re-claim, migrate, or replace it.
 2. **`mintbox-green-release-is-the-adoption-boundary`** — eligibility follows the proof's own boundary
-   - **asserts —** `packages/notice-board/src/store/claim-store.ts` exposes active driver work as eligible
-     only after its terminal green/release event; failure remains an event for coordinator judgment, not
-     permission to retrofit it.
+   - **asserts —** `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts` makes
+     work eligible only after both a matching terminal-green event and released-claim evidence consumed
+     through the public `@storytree/notice-board` boundary; failure remains an event for coordinator
+     judgment, not permission to retrofit it.

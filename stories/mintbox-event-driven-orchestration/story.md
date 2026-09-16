@@ -8,7 +8,7 @@ proof_mode: UAT
 uat_witness: machine
 arc: mintbox-event-driven-orchestration-arc
 capabilities: [mintbox-supervisor-events, mintbox-protected-driver-transition, mintbox-terra-lane-launch]
-depends_on: [agent, notice-board, arc, drive-machinery]
+depends_on: [agent, notice-board, arc]
 artifact_edges: [notice-board, arc]
 decisions: [561, 505]
 ---

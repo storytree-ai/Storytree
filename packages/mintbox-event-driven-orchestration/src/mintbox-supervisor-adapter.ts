@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import type { CodexRateLimitSnapshot } from "@storytree/agent";
 import {
   MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   MINTBOX_COORDINATOR_MODEL,
@@ -12,10 +13,12 @@ import {
   decideMintboxSupervisorEvent,
   isMintboxRendererReleased,
   recordMintboxDetachedHandle,
+  recordMintboxProgressReport,
   updateMintboxProgrammeFacts,
   type MintboxDetachedHandle,
   type MintboxHandleHealth,
   type MintboxProgrammeFacts,
+  type MintboxProgressReport,
   type MintboxSupervisorEvent,
   type MintboxSupervisorState,
   type MintboxWakeRequest,
@@ -50,6 +53,7 @@ export interface MintboxSupervisorEnvelope {
   readonly state: MintboxSupervisorState;
   readonly pendingWake: MintboxWakeRequest | null;
   readonly protectedRenderer: MintboxProtectedRenderer | null;
+  readonly latestProgressReport?: MintboxProgressReport;
 }
 
 export interface FileMintboxSupervisorAdapterOptions {
@@ -65,11 +69,6 @@ const transitionTails = new Map<string, Promise<void>>();
 /** Read-only process-local queue visibility for health checks and focused concurrency proof. */
 export function mintboxSupervisorTransitionQueueSize(): number {
   return transitionTails.size;
-}
-
-interface HeldMintboxStateLock {
-  readonly path: string;
-  readonly database: DatabaseSync;
 }
 
 /**
@@ -150,15 +149,27 @@ export class FileMintboxSupervisorAdapter {
     });
   }
 
+  /** Persist a compact reader-produced account observation without creating a coordinator. */
+  recordProgressReport(
+    snapshot: CodexRateLimitSnapshot,
+    input: { readonly at: string; readonly action: string },
+  ): Promise<{ readonly state: MintboxSupervisorState; readonly report: MintboxProgressReport }> {
+    return this.#serialize(async () => {
+      const envelope = await this.#prepare();
+      const decision = recordMintboxProgressReport(envelope.state, {
+        ...input,
+        weeklyUsage: weeklyUsageFromSnapshot(snapshot),
+      });
+      await this.#save({ ...envelope, state: decision.state, latestProgressReport: decision.report });
+      return decision;
+    });
+  }
+
   #serialize<T>(operation: () => Promise<T>): Promise<T> {
     const previous = transitionTails.get(this.#statePath) ?? Promise.resolve();
     const run = async (): Promise<T> => {
-      const lock = await acquireMintboxStateLock(this.#statePath);
-      try {
-        return await operation();
-      } finally {
-        releaseMintboxStateLock(lock);
-      }
+      using _lock = await acquireMintboxStateLock(this.#statePath);
+      return await operation();
     };
     const result = previous.then(run, run);
     const tail = result.then(() => undefined, () => undefined);
@@ -371,6 +382,22 @@ const envelopeSchema = z.object({
   state: supervisorStateSchema,
   pendingWake: wakeSchema.nullable(),
   protectedRenderer: protectedRendererSchema.nullable(),
+  latestProgressReport: z.object({
+    at: isoDateSchema,
+    coordinatorHealth: z.union([healthSchema, z.literal("none")]),
+    workerHealth: z.array(workerSummarySchema).max(MINTBOX_DIGEST_LIST_LIMIT),
+    lanes: z.object({ ready3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT), blocked3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT) }).strict(),
+    lastOutcome: boundedTextSchema.nullable(),
+    rendererBlocker: boundedTextSchema.nullable(),
+    parallelSessionCount: z.number().int().nonnegative(),
+    weeklyUsage: z.union([
+      z.object({ status: z.literal("available"), percent: z.number().min(0).max(100) }).strict(),
+      z.object({ status: z.literal("unavailable"), reason: z.string() }).strict(),
+    ]),
+    weeklyUsagePercent: z.number().min(0).max(100).optional(),
+    weeklyUsageDelta: z.number().nullable(),
+    action: boundedTextSchema,
+  }).strict().optional(),
 }).strict().superRefine((envelope, context) => {
   if (envelope.pendingWake !== null && !envelope.state.wakeKeys.includes(envelope.pendingWake.dedupeKey)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "pending wake lacks persisted dedupe key" });
@@ -386,11 +413,19 @@ const envelopeSchema = z.object({
   }
 });
 
+function weeklyUsageFromSnapshot(snapshot: CodexRateLimitSnapshot): import("./mintbox-supervisor.js").MintboxWeeklyUsage {
+  if (snapshot.status !== "available") return { status: "unavailable", reason: snapshot.reason };
+  // The public reader represents a missing weekly window as not-reported. At the supervisor
+  // boundary that is an unusable observation, so retain the conservative malformed status.
+  if (snapshot.weekly.status !== "available") return { status: "unavailable", reason: "malformed" };
+  return { status: "available", percent: snapshot.weekly.usedPercent };
+}
+
 function invalidDurableState(cause: unknown): Error {
   return new Error("Invalid Mintbox supervisor durable state", { cause });
 }
 
-async function acquireMintboxStateLock(statePath: string): Promise<HeldMintboxStateLock> {
+async function acquireMintboxStateLock(statePath: string): Promise<DatabaseSync> {
   const lockPath = `${statePath}.lock.sqlite`;
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   let database: DatabaseSync | undefined;
@@ -398,13 +433,9 @@ async function acquireMintboxStateLock(statePath: string): Promise<HeldMintboxSt
     database = new DatabaseSync(lockPath);
     database.exec(`PRAGMA busy_timeout = ${SQLITE_LOCK_TIMEOUT_MS}`);
     database.exec("BEGIN IMMEDIATE");
-    return { path: lockPath, database };
+    return database;
   } catch (error) {
     database?.close();
     throw new Error(`Unable to acquire Mintbox supervisor lock ${lockPath}`, { cause: error });
   }
-}
-
-function releaseMintboxStateLock(lock: HeldMintboxStateLock): void {
-  lock.database.close();
 }

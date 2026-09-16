@@ -24,16 +24,22 @@ each driver is Terra with a verified handle/claim, at most three 3D lanes run, a
 serialization. Repeat with an architecture-marked decision to confirm only that coordinator can use
 xhigh.
 
+Implementation consumes the public pinned Codex invocation seam from `@storytree/agent`, but the
+launcher remains the contract-bearing surface.
+
 ## Contracts
 
 1. **`mintbox-role-model-effort-is-verified`** — model identity follows the role
-   - **asserts —** routine coordinators record GPT-6 Astra `high`; `xhigh` requires an explicitly
-     recorded architecture decision; every sustained lane driver records GPT-5.6 Terra before work starts.
+   - **asserts —** `packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts` records
+     routine coordinators as GPT-6 Astra `high`, permits `xhigh` only for an explicitly recorded
+     architecture decision, and accepts a sustained lane only after observing GPT-5.6 Terra and its
+     configured effort from the process before work starts.
 2. **`mintbox-launch-binds-handle-and-claim`** — a launched driver is observable and owns its lane
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` persists the detached process handle plus
-     the live claim, verifies both after spawn, and fails/reports rather than declaring a lane occupied when
-     either is absent.
+   - **asserts —** `packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts` durably
+     records launch intent before spawning in a fresh registered worktree, then persists and verifies the
+     detached process handle plus live claim, failing closed rather than declaring a lane occupied when
+     process-reported identity, worktree, branch, handle, or claim evidence is absent.
 3. **`mintbox-3d-capacity-and-gpu-serialization-hold`** — safe fan-out does not overrun the box
-   - **asserts —** `packages/agent/src/headless-orchestrator.ts` dispatches at most three safely disjoint
-     3D lanes and holds a GPU-intensive lane until conflicting GPU work has ended, regardless of otherwise
-     independent claims.
+   - **asserts —** `packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts` dispatches
+     at most three safely disjoint 3D lanes and holds a GPU-intensive lane until conflicting GPU work has
+     ended, regardless of otherwise independent claims.
