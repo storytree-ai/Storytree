@@ -4,10 +4,13 @@ import {
   buildMintboxCoordinatorDigest,
   createMintboxSupervisorState,
   decideMintboxSupervisorEvent,
+  isMintboxRendererReleased,
   isMintboxProgressReportDue,
+  MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   mintboxEventDedupeKey,
   recordMintboxDetachedHandle,
   recordMintboxProgressReport,
+  type MintboxDetachedHandle,
   updateMintboxProgrammeFacts,
   verifyMintboxCoordinatorPolicy,
 } from "./mintbox-supervisor.js";
@@ -52,6 +55,87 @@ test("state owns detached handles and digest carries bounded facts rather than r
   assert.equal(state.handles[0]?.health, "running", "renderer is observed, never stopped or restarted");
 });
 
+test("repeated handle observation refreshes health and every digest string remains bounded", () => {
+  const long = "界".repeat(400);
+  const initial = recordMintboxDetachedHandle(createMintboxSupervisorState({
+    ready3dLanes: Array.from({ length: 20 }, () => long),
+    blocked3dLanes: Array.from({ length: 20 }, () => long),
+    parallelSessionCount: 1,
+  }), {
+    id: long,
+    role: "worker",
+    pid: 17,
+    host: "mint",
+    detached: true,
+    startedAt: event.occurredAt,
+    health: "running",
+    model: long,
+    effort: long,
+    lane: long,
+  });
+  const refreshed = recordMintboxDetachedHandle(initial, {
+    id: long,
+    role: "worker",
+    pid: 17,
+    host: "mint",
+    detached: true,
+    startedAt: event.occurredAt,
+    health: "failed",
+    model: long,
+    effort: long,
+    lane: long,
+    outcome: long,
+  });
+
+  assert.equal(refreshed.handles.length, 1);
+  assert.equal(refreshed.handles[0]?.id, long, "durable OS identity is never truncated");
+  assert.equal(refreshed.handles[0]?.health, "failed", "a probe refresh cannot leave stale health behind");
+  assert.equal(refreshed.handles[0]?.outcome?.length, 280);
+  const digest = buildMintboxCoordinatorDigest(refreshed, {
+    ...event,
+    subject: long,
+    occurredAt: `2026-09-09T00:00:00.${"1".repeat(400)}Z`,
+    summary: long,
+  });
+  assert.equal(digest.event.subject.length, 280);
+  assert.equal(digest.event.occurredAt, "2026-09-09T00:00:00.111Z");
+  assert.equal(digest.event.summary?.length, 280);
+  assert.equal(digest.workers[0]?.id.length, 280);
+  assert.equal(digest.workers[0]?.model.length, 280);
+  assert.equal(digest.workers[0]?.effort.length, 280);
+  assert.equal(digest.workers[0]?.lane?.length, 280);
+  assert.equal(digest.ready3dLanes.length, 8);
+  assert.equal(digest.blocked3dLanes.length, 8);
+  assert.ok(Buffer.byteLength(JSON.stringify(digest), "utf8") <= MINTBOX_COORDINATOR_DIGEST_MAX_BYTES);
+  assert.equal(JSON.stringify(digest).includes("transcript"), false);
+});
+
+test("renderer release requires matching terminal-green and claim-release evidence without changing wake identity", () => {
+  const protectedId = "renderer-1";
+  assert.equal(isMintboxRendererReleased({ rendererId: protectedId, terminal: "failure", claim: "released" }, protectedId), false);
+  assert.equal(isMintboxRendererReleased({ rendererId: protectedId, terminal: "disappeared", claim: "released" }, protectedId), false);
+  assert.equal(isMintboxRendererReleased({ rendererId: protectedId, terminal: "green", claim: "held" }, protectedId), false);
+  assert.equal(isMintboxRendererReleased({ rendererId: "other", terminal: "green", claim: "released" }, protectedId), false);
+  const sharedPrefix = "r".repeat(280);
+  assert.equal(isMintboxRendererReleased({ rendererId: `${sharedPrefix}-one`, terminal: "green", claim: "released" }, `${sharedPrefix}-two`), false);
+  assert.equal(isMintboxRendererReleased({ rendererId: protectedId, terminal: "green", claim: "released" }, protectedId), true);
+
+  const state = createMintboxSupervisorState(facts);
+  const withoutEvidence = decideMintboxSupervisorEvent(state, event);
+  const withEvidence = decideMintboxSupervisorEvent(state, {
+    ...event,
+    rendererEvidence: { rendererId: protectedId, terminal: "green", claim: "released" },
+  });
+  assert.equal(withEvidence.wake?.dedupeKey, withoutEvidence.wake?.dedupeKey);
+  assert.equal(withEvidence.wake?.id, withoutEvidence.wake?.id);
+  assert.deepEqual(withEvidence.wake?.digest.event.rendererEvidence, {
+    rendererId: protectedId,
+    terminal: "green",
+    claim: "released",
+  });
+  assert.equal(withoutEvidence.wake?.digest.event.rendererEvidence, undefined);
+});
+
 test("Astra is high by default and xhigh requires an architecture decision", () => {
   assert.deepEqual(verifyMintboxCoordinatorPolicy({}), { model: "gpt-6-astra", effort: "high" });
   assert.deepEqual(verifyMintboxCoordinatorPolicy({ architecture: true, effort: "xhigh" }), { model: "gpt-6-astra", effort: "xhigh" });
@@ -84,11 +168,13 @@ test("recording handles validates real detached identity, coordinator exceptions
   };
   const recorded = recordMintboxDetachedHandle(state, coordinator);
   assert.equal(recorded.handles.length, 1);
+  assert.equal(recorded.handles[0]?.architecture, true);
   assert.equal(recorded.handles[0]?.lane?.length, 280);
   assert.equal(recorded.handles[0]?.outcome?.length, 280);
   assert.equal(recordMintboxDetachedHandle(recorded, coordinator), recorded, "same durable handle is idempotent");
   const { architecture: _architecture, ...withoutArchitecture } = coordinator;
-  assert.doesNotThrow(() => recordMintboxDetachedHandle(state, { ...withoutArchitecture, id: "coord-high", effort: "high" }));
+  const high = recordMintboxDetachedHandle(state, { ...withoutArchitecture, id: "coord-high", effort: "high" });
+  assert.equal(high.handles[0]?.architecture, undefined);
   assert.throws(() => recordMintboxDetachedHandle(state, { ...coordinator, id: "wrong-model", model: "gpt-5.6-terra" }), /must use gpt-6-astra/);
   assert.throws(() => recordMintboxDetachedHandle(state, { ...withoutArchitecture, id: "bad-effort", effort: "max" }), /invalid Mintbox coordinator effort: max/);
   assert.throws(() => recordMintboxDetachedHandle(state, { ...withoutArchitecture, id: "no-proof" }), /xhigh requires architecture/);
@@ -96,6 +182,52 @@ test("recording handles validates real detached identity, coordinator exceptions
   assert.throws(() => recordMintboxDetachedHandle(state, { ...coordinator, id: "zero-pid", pid: 0 }), /positive detached pid/);
   assert.throws(() => recordMintboxDetachedHandle(state, { ...coordinator, id: "", }), /handle identity is required/);
   assert.throws(() => recordMintboxDetachedHandle(state, { ...coordinator, id: "bad-date", startedAt: "never" }), /handle startedAt must be an ISO-compatible timestamp/);
+});
+
+test("a repeated handle id changes observations but never immutable process identity", () => {
+  const base = {
+    id: "stable-worker",
+    role: "worker" as const,
+    pid: 41,
+    host: "mint",
+    detached: true as const,
+    startedAt: "2026-09-09T00:00:00.000Z",
+    health: "running" as const,
+    model: "gpt-5.6-terra",
+    effort: "high",
+    lane: "terrain",
+    outcome: "warming",
+  };
+  const initial = recordMintboxDetachedHandle(createMintboxSupervisorState(facts), base);
+  const immutableVariants: ReadonlyArray<readonly [string, MintboxDetachedHandle]> = [
+    ["role", { ...base, role: "renderer" }],
+    ["pid", { ...base, pid: 42 }],
+    ["host", { ...base, host: "other-box" }],
+    ["startedAt", { ...base, startedAt: "2026-09-09T00:00:01.000Z" }],
+    ["model", { ...base, model: "another-runtime-model" }],
+    ["effort", { ...base, effort: "medium" }],
+    ["architecture", { ...base, architecture: true }],
+    ["lane", { ...base, lane: "water" }],
+  ];
+  for (const [field, incoming] of immutableVariants) {
+    assert.throws(
+      () => recordMintboxDetachedHandle(initial, incoming),
+      /cannot change immutable process identity/,
+      `${field} stays bound to the original process`,
+    );
+  }
+
+  const { outcome: _outcome, ...withoutOutcome } = base;
+  const healthRefresh = recordMintboxDetachedHandle(initial, { ...withoutOutcome, health: "failed" });
+  assert.equal(healthRefresh.handles[0]?.health, "failed");
+  assert.equal(healthRefresh.handles[0]?.outcome, "warming", "an omitted observation does not erase the last outcome");
+  const outcomeRefresh = recordMintboxDetachedHandle(healthRefresh, { ...base, health: "failed", outcome: "probe failed" });
+  assert.equal(outcomeRefresh.handles[0]?.outcome, "probe failed");
+  assert.equal(
+    recordMintboxDetachedHandle(outcomeRefresh, { ...base, health: "failed", outcome: "probe failed" }),
+    outcomeRefresh,
+    "an unchanged observation preserves the state identity",
+  );
 });
 
 test("programme facts are bounded, replaceable, and reject invalid capacity", () => {
@@ -127,6 +259,10 @@ test("architecture events use xhigh and event validation retains each meaningful
   assert.throws(() => decideMintboxSupervisorEvent(state, { ...event, subject: "" }), /subject and deliveryId are required/);
   assert.throws(() => decideMintboxSupervisorEvent(state, { ...event, deliveryId: "" }), /subject and deliveryId are required/);
   assert.throws(() => decideMintboxSupervisorEvent(state, { ...event, occurredAt: "not-a-date" }), /event occurredAt must be an ISO-compatible timestamp/);
+  assert.throws(() => decideMintboxSupervisorEvent(state, {
+    ...event,
+    rendererEvidence: { rendererId: " ", terminal: "green", claim: "released" },
+  }), /renderer evidence needs a rendererId/);
 });
 
 test("digest reports absent renderer and workers with and without lanes within its fixed bound", () => {
@@ -173,6 +309,62 @@ test("durable default state and event key retain their exact scheduler identity"
     version: 1, handles: [], wakeKeys: [], facts: { ready3dLanes: [], blocked3dLanes: [], parallelSessionCount: 0 },
   });
   assert.equal(mintboxEventDedupeKey(event), "completion:terrain:job-72");
+  assert.equal(mintboxEventDedupeKey({ ...event, subject: "a:b", deliveryId: "c" }), "completion:a%3Ab:c");
+  assert.equal(mintboxEventDedupeKey({ ...event, subject: "a%b:c", deliveryId: "d%e:f" }), "completion:a%25b%3Ac:d%25e%3Af");
+  assert.notEqual(
+    mintboxEventDedupeKey({ ...event, subject: "a:b", deliveryId: "c" }),
+    mintboxEventDedupeKey({ ...event, subject: "a", deliveryId: "b:c" }),
+  );
+  assert.notEqual(
+    mintboxEventDedupeKey({ ...event, subject: "a:b", deliveryId: "c" }),
+    mintboxEventDedupeKey({ ...event, subject: "a%3Ab", deliveryId: "c" }),
+  );
+});
+
+test("the declared digest byte ceiling holds for maximally escaped bounded fields", () => {
+  const hostile = "\u0000".repeat(400);
+  let state = createMintboxSupervisorState({
+    rendererId: hostile,
+    rendererHealth: "failed",
+    rendererBlocker: hostile,
+    ready3dLanes: Array.from({ length: 20 }, () => hostile),
+    blocked3dLanes: Array.from({ length: 20 }, () => hostile),
+    parallelSessionCount: 3,
+    lastOutcome: hostile,
+  });
+  for (let n = 0; n < 8; n += 1) {
+    state = recordMintboxDetachedHandle(state, {
+      id: `${hostile}${n}`,
+      role: "worker",
+      pid: 100 + n,
+      host: "mint",
+      detached: true,
+      startedAt: event.occurredAt,
+      health: "running",
+      model: hostile,
+      effort: hostile,
+      lane: hostile,
+    });
+  }
+  const digest = buildMintboxCoordinatorDigest(state, {
+    ...event,
+    subject: hostile,
+    summary: hostile,
+    rendererEvidence: { rendererId: hostile, terminal: "failure", claim: "released" },
+  });
+  const serialized = JSON.stringify(digest);
+  assert.ok(Buffer.byteLength(serialized, "utf8") <= MINTBOX_COORDINATOR_DIGEST_MAX_BYTES);
+  assert.equal(serialized.includes("\\u0000"), false);
+});
+
+test("digest sanitization replaces exactly unsafe code-unit boundaries", () => {
+  const unsafeBoundaries = "\u0000\u001f \ud7ff\ud800\udfff\ue000";
+  const digest = buildMintboxCoordinatorDigest(
+    createMintboxSupervisorState({ ready3dLanes: [], blocked3dLanes: [], parallelSessionCount: 0 }),
+    { ...event, subject: unsafeBoundaries, summary: unsafeBoundaries },
+  );
+  assert.equal(digest.event.subject, "�� \ud7ff��\ue000");
+  assert.equal(digest.event.summary, "�� \ud7ff��\ue000");
 });
 
 test("the digest retains populated facts, newest coordinator, and its explicit event details", () => {
