@@ -8,6 +8,31 @@ status: proposed
 proof_mode: integration-test
 depends_on: [mintbox-supervisor-events, mintbox-protected-driver-transition]
 decisions: [561, 505]
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "test"]
+  scope:
+    testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
+    sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"]
+  real:
+    testFile: "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"
+    sourceFile: "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"
+    scope:
+      testGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
+      sourceGlobs: ["packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts"]
+    install: true
+    editsExisting: true
+    cluster:
+      - mintbox-role-model-effort-is-verified
+      - mintbox-launch-binds-handle-and-claim
+      - mintbox-3d-capacity-and-gpu-serialization-hold
+    proofCommand:
+      file: bun
+      args: ["test", "--timeout", "300000", "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/mintbox-event-driven-orchestration", "typecheck"]
 ---
 
 # Verified Terra lane launch — role policy, claims, and safe Mintbox capacity
