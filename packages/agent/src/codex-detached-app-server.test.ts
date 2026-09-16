@@ -259,6 +259,39 @@ test("probe-reads-os-liveness-and-same-app-server-limits: re-observes the exact 
   events = undefined;
 });
 
+test("probe-tristate-and-same-channel-rate-limits: preserves an unavailable exact-owner observation without issuing a rate-limit request", async () => {
+  const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const owner = {
+    kind: platform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const,
+    rootPid: 437,
+    token: "unavailable-owner",
+  };
+  const protocol: string[] = [];
+
+  const thread = await openPinnedCodexDetachedThread({
+    cwd: process.cwd(), model: "requested-model", reasoningEffort: "requested-effort", platform,
+    authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+    spawn: (_command, events) => ({
+      pid: 437,
+      write: (line) => {
+        const message = JSON.parse(line) as { id?: number; method?: string };
+        if (message.method !== undefined) protocol.push(message.method);
+        if (message.method === "initialize") events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+        if (message.method === "thread/start") {
+          events.stdout(`${JSON.stringify({ id: message.id, result: { thread: { id: "thread", model: "resolved", reasoningEffort: "high" } } })}\n`);
+        }
+      },
+      end: () => undefined,
+    }),
+    observeOwnership: async () => owner,
+    observeLiveness: async () => undefined,
+    terminateOwnedTree: async () => undefined,
+  });
+
+  assert.deepEqual(await thread.probe(), { live: "unavailable", rateLimits: undefined });
+  assert.deepEqual(protocol, ["initialize", "initialized", "thread/start"]);
+});
+
 test("termination-reaps-the-exact-owned-tree-and-confirms-death: concurrent termination shares one exact-tree command", async () => {
   const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
   const owner = {
