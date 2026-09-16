@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import type { CodexRateLimitSnapshot } from "@storytree/agent";
 import {
   MINTBOX_COORDINATOR_DIGEST_MAX_BYTES,
   MINTBOX_COORDINATOR_MODEL,
@@ -12,10 +13,12 @@ import {
   decideMintboxSupervisorEvent,
   isMintboxRendererReleased,
   recordMintboxDetachedHandle,
+  recordMintboxProgressReport,
   updateMintboxProgrammeFacts,
   type MintboxDetachedHandle,
   type MintboxHandleHealth,
   type MintboxProgrammeFacts,
+  type MintboxProgressReport,
   type MintboxSupervisorEvent,
   type MintboxSupervisorState,
   type MintboxWakeRequest,
@@ -50,6 +53,7 @@ export interface MintboxSupervisorEnvelope {
   readonly state: MintboxSupervisorState;
   readonly pendingWake: MintboxWakeRequest | null;
   readonly protectedRenderer: MintboxProtectedRenderer | null;
+  readonly latestProgressReport?: MintboxProgressReport;
 }
 
 export interface FileMintboxSupervisorAdapterOptions {
@@ -147,6 +151,22 @@ export class FileMintboxSupervisorAdapter {
       const next = { ...envelope, state, protectedRenderer };
       await this.#save(next);
       return next;
+    });
+  }
+
+  /** Persist a compact reader-produced account observation without creating a coordinator. */
+  recordProgressReport(
+    snapshot: CodexRateLimitSnapshot,
+    input: { readonly at: string; readonly action: string },
+  ): Promise<{ readonly state: MintboxSupervisorState; readonly report: MintboxProgressReport }> {
+    return this.#serialize(async () => {
+      const envelope = await this.#prepare();
+      const decision = recordMintboxProgressReport(envelope.state, {
+        ...input,
+        weeklyUsage: weeklyUsageFromSnapshot(snapshot),
+      });
+      await this.#save({ ...envelope, state: decision.state, latestProgressReport: decision.report });
+      return decision;
     });
   }
 
@@ -371,6 +391,22 @@ const envelopeSchema = z.object({
   state: supervisorStateSchema,
   pendingWake: wakeSchema.nullable(),
   protectedRenderer: protectedRendererSchema.nullable(),
+  latestProgressReport: z.object({
+    at: isoDateSchema,
+    coordinatorHealth: z.union([healthSchema, z.literal("none")]),
+    workerHealth: z.array(workerSummarySchema).max(MINTBOX_DIGEST_LIST_LIMIT),
+    lanes: z.object({ ready3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT), blocked3d: z.array(boundedTextSchema).max(MINTBOX_DIGEST_LIST_LIMIT) }).strict(),
+    lastOutcome: boundedTextSchema.nullable(),
+    rendererBlocker: boundedTextSchema.nullable(),
+    parallelSessionCount: z.number().int().nonnegative(),
+    weeklyUsage: z.union([
+      z.object({ status: z.literal("available"), percent: z.number().min(0).max(100) }).strict(),
+      z.object({ status: z.literal("unavailable"), reason: z.string() }).strict(),
+    ]),
+    weeklyUsagePercent: z.number().min(0).max(100).optional(),
+    weeklyUsageDelta: z.number().nullable(),
+    action: boundedTextSchema,
+  }).strict().optional(),
 }).strict().superRefine((envelope, context) => {
   if (envelope.pendingWake !== null && !envelope.state.wakeKeys.includes(envelope.pendingWake.dedupeKey)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "pending wake lacks persisted dedupe key" });
@@ -385,6 +421,14 @@ const envelopeSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: "released renderer cannot remain protected" });
   }
 });
+
+function weeklyUsageFromSnapshot(snapshot: CodexRateLimitSnapshot): import("./mintbox-supervisor.js").MintboxWeeklyUsage {
+  if (snapshot.status !== "available") return { status: "unavailable", reason: snapshot.reason };
+  // The public reader represents a missing weekly window as not-reported. At the supervisor
+  // boundary that is an unusable observation, so retain the conservative malformed status.
+  if (snapshot.weekly.status !== "available") return { status: "unavailable", reason: "malformed" };
+  return { status: "available", percent: snapshot.weekly.usedPercent };
+}
 
 function invalidDurableState(cause: unknown): Error {
   return new Error("Invalid Mintbox supervisor durable state", { cause });
