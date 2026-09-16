@@ -30,6 +30,14 @@ import { silentBuildProgress, storyBuild } from "@storytree/drive";
 async function fixtureCorpus(): Promise<InMemoryStore> {
   const corpus = new InMemoryStore();
   await loadFixtureCorpus(corpus);
+  // ADR-0576 D7: a REAL story chain now names a live increment before any spend — these fixtures
+  // carry an active one so the chain scenarios below reach their gate walk unchanged.
+  await corpus.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  await corpus.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
   return corpus;
 }
 
@@ -204,8 +212,9 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
   const repo = await fixtureRepo(false);
   const store = new InMemoryStore();
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -213,6 +222,8 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB — NOT a CLI option
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false, // exercise the chain without touching a remote
       authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a"), "cap-b": scopeFor("cap-b") }),
     });
@@ -242,8 +253,9 @@ test("--real HALTS the chain when a node fails closed; the later node never runs
   ]);
   const repo = await fixtureRepo(false);
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -251,6 +263,8 @@ test("--real HALTS the chain when a node fails closed; the later node never runs
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB — NOT a CLI option
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false,
       authorOverride: scriptedAuthors({
         "cap-a": scopeFor("cap-a"),
@@ -278,8 +292,9 @@ test("--real promotes ONCE at the stacked HEAD; cap-a's verdict commit is an anc
   ]);
   const repo = await fixtureRepo(true);
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -287,6 +302,8 @@ test("--real promotes ONCE at the stacked HEAD; cap-a's verdict commit is an anc
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB — NOT a CLI option
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       // promote defaults to true; the fixture origin keeps the push local.
       authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a"), "cap-b": scopeFor("cap-b") }),
     });
@@ -327,8 +344,9 @@ test("--real HALT parks the proven prefix LOCAL-ONLY — never pushed, never a l
   ]);
   const repo = await fixtureRepo(true);
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -336,6 +354,8 @@ test("--real HALT parks the proven prefix LOCAL-ONLY — never pushed, never a l
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB — NOT a CLI option
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       authorOverride: scriptedAuthors({
         "cap-a": scopeFor("cap-a"),
         "cap-bad": scopeFor("cap-bad"),

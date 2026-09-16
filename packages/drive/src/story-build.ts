@@ -11,6 +11,7 @@ import {
   effectiveUatWitness,
 } from "@storytree/library";
 import {
+  appendInnerLoopEvent,
   createBuildWorktree,
   findNodeSpecFile,
   isUndertakenCapability,
@@ -54,8 +55,12 @@ import type { Envelope } from "./envelope.js";
 import {
   buildNodeReal,
   driveNode,
+  innerLoopRefusalEnvelope,
+  preflightPaidBuild,
   realConfigRefusal,
   renderForensicPreservation,
+  renderIncrementLines,
+  renderInnerLoopOutcome,
   renderLeafPhasePrompts,
   repoRoot,
   rel,
@@ -67,10 +72,14 @@ import {
 import type {
   ClaimStoreLike,
   DriveNodeArgs,
+  InnerLoopReadHandles,
+  InnerLoopRecording,
   LiveAuthor,
   RealBuildArgs,
   RealBuildResult,
+  VerdictStoreChoice,
 } from "./node-build.js";
+import { renderInnerLoopEntryState } from "./inner-loop-entry.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
 import { loadTitledAdrMetasFromStore } from "./adr-metas.js";
@@ -407,6 +416,24 @@ export function resolveStoryRealNodeBuilder(
 export interface StoryBuildOpts {
   dryRun: boolean;
   /**
+   * `--increment <id>` (ADR-0575 D1) — the live increment a REAL chain's story-level attempt is
+   * filed under on the attempt ledger. Valid only with `--real`; the preflight refuses a missing or
+   * closed increment, or any refusing story/member, before the database starts (ADR-0576 D7).
+   */
+  increment?: string | undefined;
+  /**
+   * Injectable read handles for the before-spend preflight (ADR-0576 D1): the corpus (the increment
+   * row) and the attempt ledger. Production omits this — {@link preflightPaidBuild} opens the live
+   * handles itself. A hermetic suite injects both to drive a `--real` chain with no credential.
+   */
+  innerLoopReads?: InnerLoopReadHandles | undefined;
+  /**
+   * Injectable test-only verdict store (the gate driver's `deps.store` precedent): when supplied, the
+   * chain uses it in place of the resolved verdict store — `persisted` false, no claim store, a
+   * no-op close. Production omits this and resolves the store from `--store`/mode as usual.
+   */
+  store?: Store | undefined;
+  /**
    * OPTIONAL corpus store the leaf's per-phase system prompts are rendered from — forwarded to
    * {@link renderLeafPhasePrompts}. Omit in production (the live store opens); present only so a
    * hermetic suite can drive a `--real` chain with no credential. See `NodeBuildOpts.corpusStore`.
@@ -619,6 +646,19 @@ export async function storyBuild(
       next: [`storytree story build ${storyId} ${real ? "--real" : "--live"} --runtime codex`],
     };
   }
+  // ADR-0575 D1 / ADR-0576 D1: --increment names the increment a paid chain attempt is filed under
+  // on the attempt ledger — meaningless (and refused) outside a REAL chain, since neither --dry-run
+  // nor --live records an attempt.
+  if (opts.increment !== undefined && !real) {
+    return {
+      ok: false,
+      body:
+        "--increment is valid only with --real: it names the increment a paid chain attempt is filed " +
+        "under on the attempt ledger, and neither --dry-run nor --live records an attempt (ADR-0575 " +
+        "D1, ADR-0576 D1).",
+      next: [`storytree story build ${storyId} --real --increment ${opts.increment}`],
+    };
+  }
   const rootDir = opts.repoRoot ?? repoRoot();
   const realNodeBuilder = resolveStoryRealNodeBuilder(opts.realNodeBuilder);
 
@@ -786,6 +826,30 @@ export async function storyBuild(
   // (`diagnosis-honesty-arc`): a backgrounded chain used to emit nothing between the pnpm banner and
   // its final report, which reads exactly like a wedged precondition whose remedy is the opposite.
   const progress = opts.progress ?? (live || real ? liveBuildProgress() : silentBuildProgress());
+
+  // ADR-0575 D1 / ADR-0576 D7: a REAL chain preflights the STORY and EVERY driven member against the
+  // attempt ledger in one read, before any spend — before the DB preflight, the leaf prompts, the
+  // worktree. A refusing story or member refuses the whole chain; a member's streak or obligation is
+  // never stepped around by building it inside a story.
+  let incrementId: string | undefined;
+  let incrementWarnings: readonly string[] = [];
+  if (real) {
+    const preflightUnitIds = Array.from(new Set([story.id, ...driveOrder.map((n) => n.id)]));
+    const preflight = await progress.stage(
+      "inner-loop preflight (the increment and the attempt ledger, before any spend)",
+      () =>
+        preflightPaidBuild({
+          incrementId: opts.increment,
+          unitIds: preflightUnitIds,
+          revise: false,
+          reads: opts.innerLoopReads,
+        }),
+    );
+    if (!preflight.ok) return innerLoopRefusalEnvelope(preflight.state);
+    incrementId = preflight.incrementId;
+    incrementWarnings = preflight.warnings;
+  }
+
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
     const ready = await progress.stage("live-store preflight (probe -> db:up -> wait for connections)", () =>
@@ -818,9 +882,22 @@ export async function storyBuild(
     phasePrompts = rendered.prompts;
   }
 
-  const storeChoice = await progress.stage("verdict store (open the pool, apply the schema)", () =>
-    resolveVerdictStore(effectiveStore, mode !== "real", retryCmd),
-  );
+  // Injectable test-only verdict store (the gate driver's `deps.store` precedent): a hermetic suite
+  // supplies its own store to drive a `--real` chain with no credential, bypassing the pool/schema
+  // stage entirely.
+  const storeChoice: VerdictStoreChoice =
+    opts.store !== undefined
+      ? {
+          ok: true,
+          store: opts.store,
+          persisted: false,
+          label: "in-memory (injected — nothing persists past this run)",
+          claim: null,
+          close: async () => {},
+        }
+      : await progress.stage("verdict store (open the pool, apply the schema)", () =>
+          resolveVerdictStore(effectiveStore, mode !== "real", retryCmd),
+        );
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
@@ -908,6 +985,40 @@ export async function storyBuild(
         `shared worktree (fresh detached checkout${anyInstall ? " + pnpm install" : ""})`,
         () => createBuildWorktree(rootDir, worktreeOptions),
       );
+    }
+
+    // ADR-0576 D5/D7: ONE durable attempt for the STORY, appended immediately before the first
+    // member's walk — the fail-closed twin of `buildNodeReal`'s own per-unit append (Trap 6): a chain
+    // that could not record its attempt must never spend on a walk the ledger will never count. The
+    // members walk WITHOUT an incrementId (see the per-node buildNode below), so no member event is
+    // ever appended here.
+    let innerLoop: InnerLoopRecording | undefined;
+    if (real) {
+      if (incrementId === undefined) {
+        // Unreachable: a successful REAL preflight above always resolves incrementId. Fail-closed.
+        return {
+          ok: false,
+          body: `internal: incrementId missing for ${story.id} after a successful REAL preflight`,
+          next: ["pnpm db:probe"],
+        };
+      }
+      try {
+        await appendInnerLoopEvent(
+          store,
+          { event: "attempt", unitId: story.id, incrementId, runId },
+          signer.signer,
+        );
+        innerLoop = { incrementId, attempt: { recorded: true } };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          ok: false,
+          body:
+            `inner-loop attempt for ${story.id} (run ${runId}, increment ${incrementId}) could not be ` +
+            `recorded: ${message} — the chain is refused before its first member's walk (ADR-0576 D5, D7)`,
+          next: ["pnpm db:probe"],
+        };
+      }
     }
 
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
@@ -1075,6 +1186,24 @@ export async function storyBuild(
         if (opts.openPr === true && !anyRed) promoteArgs.openPr = true;
         if (opts.prTitle !== undefined) promoteArgs.prTitle = opts.prTitle;
         promotion = await promoteRealPass(promoteArgs);
+        // ADR-0576 D7: a signed pass is recorded for the STORY only when the chain passed AND its
+        // promotion ran UNWITHHELD — a withheld push is no landing candidate, and recording a pass
+        // there would mint an obligation nobody can land. A throw is caught and held, never overturns
+        // the already-signed verdict.
+        if (!anyRed && innerLoop !== undefined) {
+          const attemptIncrementId = innerLoop.incrementId;
+          try {
+            await appendInnerLoopEvent(
+              store,
+              { event: "signed-pass", unitId: story.id, incrementId: attemptIncrementId, runId },
+              signer.signer,
+            );
+            innerLoop = { ...innerLoop, signedPass: { recorded: true } };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            innerLoop = { ...innerLoop, signedPass: { recorded: false, reason: message } };
+          }
+        }
       } else if (!run.passed) {
         // HALT with a proven prefix: park LOCAL-ONLY (preservation over loss, ADR-0031), NEVER
         // pushed — a partial story is never a landing candidate (no `gh pr create` next-line below).
@@ -1090,6 +1219,16 @@ export async function storyBuild(
 
     // Per-node report lines off the ONE shared event log.
     const events = await store.readEvents();
+    // ADR-0576 D8: the STORY's own inner-loop outcome (attempt/signed-pass), through the ONE
+    // entry-state renderer — never re-typed here. A halted REAL chain also reports every driven
+    // member AFTER the halted one as not-attempted, through the same renderer.
+    const outcome = renderInnerLoopOutcome(story.id, runId, innerLoop, events);
+    const notAttemptedLines: string[] =
+      real && run.halted && run.haltedAt !== undefined
+        ? driveOrder
+            .slice(run.haltedAt + 1)
+            .flatMap((n) => renderInnerLoopEntryState({ state: "not-attempted", unitId: n.id }).lines)
+        : [];
     const width = Math.max(...order.map((n) => n.id.length));
     const nodeLines = order.map((spec, i) => {
       const label = `${String(i + 1).padStart(2)}. ${spec.id.padEnd(width)}`;
@@ -1119,6 +1258,7 @@ export async function storyBuild(
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
       ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
+      ...renderIncrementLines(incrementId, incrementWarnings),
       `budget:      ${
         budgetUsd !== undefined
           ? `$${budgetUsd.toFixed(2)} total ceiling (operator-set; each slice may draw the remaining total)`
@@ -1195,10 +1335,17 @@ export async function storyBuild(
           ...(real && promotion !== undefined
             ? [`             the proven prefix is parked LOCAL-ONLY (${promotion.branch}) — not a landing candidate`]
             : []),
+          ...notAttemptedLines,
+          ...outcome.lines,
           "",
           framing,
         ].join("\n"),
-        next: [`storytree story build ${story.id} ${real ? "--real" : live ? "--live" : "--dry-run"}`],
+        next: [
+          ...outcome.next,
+          real
+            ? `storytree story build ${story.id} --real --increment ${incrementId}`
+            : `storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`,
+        ],
       };
     }
 
@@ -1263,12 +1410,14 @@ export async function storyBuild(
           `             uat_witness is human${story.uatWitness === undefined ? " (the undeclared default)" : ""}, so the gate refuses to drive or sign the story UAT.`,
           `             The story stays unproven until a human witnesses its UAT; declare`,
           `             uat_witness: machine in the story frontmatter to let the gate drive it.`,
+          ...outcome.lines,
           "",
           ...curationLines,
           "",
           framing,
         ].join("\n"),
         next: [
+          ...outcome.next,
           // A --real chain's capabilities are real-built + promoted even though the story UAT is
           // withheld — surface the landing candidate (this is the main --real success shape, since a
           // story UAT node has no real: arm). When openPr already opened the PR, point at it (CI
@@ -1289,12 +1438,14 @@ export async function storyBuild(
       body: [
         ...header,
         `outcome:     PASSED — every node signed (capabilities in dependency order, story last)`,
+        ...outcome.lines,
         "",
         ...curationLines,
         "",
         framing,
       ].join("\n"),
       next: [
+        ...outcome.next,
         ...(promotion?.prUrl !== undefined
           ? [`gh pr checks ${promotion.prUrl}   (the PR is open; CI auto-merges it to trunk on green)`]
           : real && promotion !== undefined && promotion.pushed

@@ -350,6 +350,25 @@ test("story build REFUSES --revise-test on every route to the chain — no singl
   }
 });
 
+test("story build carries --increment to storyBuild on every route to the chain, which refuses it without --real (ADR-0575 D1)", async () => {
+  // --increment reaches storyBuild through the SAME options object --revise-test does; the chain must
+  // refuse it fail-closed on every dispatch route rather than silently ignoring it (ADR-0576 D1/D7).
+  for (const argv of [
+    ["story", "build", "library", "--dry-run", "--increment", "inc-x"],
+    ["build", "story", "library", "--dry-run", "--increment", "inc-x"],
+    ["build", "library", "--dry-run", "--increment", "inc-x"],
+  ]) {
+    const env = await run(argv, deps);
+    assert.equal(env.ok, false, argv.join(" "));
+    assert.match(env.body, /^--increment is valid only with --real/, argv.join(" "));
+    assert.deepEqual(
+      env.next,
+      ["storytree story build library --real --increment inc-x"],
+      argv.join(" "),
+    );
+  }
+});
+
 test("story build on a story with nodes lacking proof config fails closed BEFORE any node runs", async () => {
   const env = await run(
     ["story", "build", "studio", "--dry-run", "--actor", "t@e.c"],

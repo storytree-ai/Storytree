@@ -42,6 +42,14 @@ async function git(args: string[], cwd: string): Promise<string> {
 async function fixtureCorpus(): Promise<InMemoryStore> {
   const corpus = new InMemoryStore();
   await loadFixtureCorpus(corpus);
+  // ADR-0576 D7: a REAL story chain now names a live increment before any spend — these fixtures
+  // carry an active one so the backstop/forensics scenarios below reach their gate walk unchanged.
+  await corpus.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  await corpus.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
   return corpus;
 }
 
@@ -272,8 +280,9 @@ test(
       const realNodeBuilder = forensicStoryNodeBuilder("cap-a", visited);
       assertInjectedStoryNodeBuilder(realNodeBuilder);
 
+      const corpus = await fixtureCorpus();
       const result = await storyBuild("fix-story", {
-        corpusStore: await fixtureCorpus(),
+        corpusStore: corpus,
         progress: silentBuildProgress(),
         dryRun: false,
         real: true,
@@ -281,6 +290,8 @@ test(
         storiesDir: stories,
         repoRoot: repo.root,
         verdictStore: "memory",
+        increment: "inc-live",
+        innerLoopReads: { corpus, ledger: new InMemoryStore() },
         realNodeBuilder,
       });
 
@@ -340,8 +351,9 @@ test(
       const realNodeBuilder = forensicStoryNodeBuilder("fix-story", visited);
       assertInjectedStoryNodeBuilder(realNodeBuilder);
 
+      const corpus = await fixtureCorpus();
       const result = await storyBuild("fix-story", {
-        corpusStore: await fixtureCorpus(),
+        corpusStore: corpus,
         progress: silentBuildProgress(),
         dryRun: false,
         real: true,
@@ -349,6 +361,8 @@ test(
         storiesDir: stories,
         repoRoot: repo.root,
         verdictStore: "memory",
+        increment: "inc-live",
+        innerLoopReads: { corpus, ledger: new InMemoryStore() },
         realNodeBuilder,
       });
 
