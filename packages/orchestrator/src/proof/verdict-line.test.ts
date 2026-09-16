@@ -135,4 +135,49 @@ describe("verdictLine", () => {
     assert.equal(verdictLine(withZero), verdictLine(without));
     assert.doesNotMatch(verdictLine(withZero), /unread/);
   });
+
+  // ── the gated qualifier: an `uncovered` list must not be read as "no test exists" when a
+  //    substantive one names the contract and carries a condition the static reader cannot evaluate ──
+
+  it("names the GATED subset beside the uncovered list, pinned WHOLE so a blanked clause cannot pass", () => {
+    // Pinned as a full string rather than matched: a containment check survives a clause that renders
+    // empty or loses its separator, which is exactly the damage a reader would have to notice.
+    const verdict: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1"], uncovered: ["c-2", "c-3"], unreadTitles: 0, gated: ["c-3"] },
+    };
+    assert.equal(
+      verdictLine(verdict),
+      "PASS verdict-line (contract) — signed by hua.mick@gmail.com @ abc1234, 2026-06-10T00:00:00.000Z" +
+        " — coverage 1/3 contracts (⚠ uncovered: c-2, c-3; ⚠ gated: c-3)",
+    );
+  });
+
+  it("renders both qualifiers together, each saying a different thing about the same list", () => {
+    const verdict: Verdict = {
+      ...base,
+      contractCoverage: { covered: [], uncovered: ["c-1", "c-2"], unreadTitles: 2, gated: ["c-2"] },
+    };
+    assert.equal(
+      verdictLine(verdict),
+      "PASS verdict-line (contract) — signed by hua.mick@gmail.com @ abc1234, 2026-06-10T00:00:00.000Z" +
+        " — coverage 0/2 contracts (⚠ uncovered: c-1, c-2; ⚠ 2 title(s) unread; ⚠ gated: c-2)",
+    );
+  });
+
+  it("a measured-clean `gated: []` renders byte-identically to a verdict carrying no gated list", () => {
+    // Same discipline as `unreadTitles: 0`: the AXIS stamps the empty list to separate "measured, none
+    // gated" from "never measured", while the RENDER has nothing to add for a clean read — so every
+    // verdict signed before this field, and every clean one after it, renders unchanged.
+    const withEmpty: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1"], uncovered: ["c-2"], gated: [] },
+    };
+    const without: Verdict = {
+      ...base,
+      contractCoverage: { covered: ["c-1"], uncovered: ["c-2"] },
+    };
+    assert.equal(verdictLine(withEmpty), verdictLine(without));
+    assert.doesNotMatch(verdictLine(withEmpty), /gated/);
+  });
 });

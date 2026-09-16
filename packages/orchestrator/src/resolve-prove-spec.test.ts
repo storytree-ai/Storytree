@@ -917,6 +917,9 @@ test("ADR-0127 — the injected contractCoverage seam classifies declared contra
       // Every title here read cleanly, so the axis attests a MEASURED-CLEAN read: these two uncovered
       // contracts are a statement about the TESTS, not about the reader's reach.
       unreadTitles: 0,
+      // …and nothing on the surface is gated, so they are also not a statement about a test that may
+      // not have run. The empty list is the measurement; absence would mean "never asked".
+      gated: [],
     });
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
@@ -967,6 +970,63 @@ test("the seam CARRIES unreadTitles, so a signed `uncovered` says which of the t
       // The whole point: c-2 reads uncovered AND the verdict admits the reader could not read one
       // title — so a later auditor can tell a genuine gap from a limit of this checker.
       unreadTitles: 1,
+      gated: [],
+    });
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("the seam CARRIES gated, so a signed `uncovered` says a test EXISTS behind a condition", async () => {
+  // The executability hop, and the same failure shape one fold over. `readTestSurface` separates "no
+  // test names this contract" from "a substantive test names it and carries `{ skip: <expr> }`" — but
+  // until the seam stamps it, the signed verdict freezes a bare `uncovered` for both. The live instance
+  // (`claim-store-work-time`, measured 2026-09-16) declares `real.db: true`, so its next `--real` build
+  // would stamp "no test covers it" over two tests the runner watched run and pass.
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-coverage-gated-"));
+  try {
+    const testRel = "widget.test.ts";
+    await fs.writeFile(
+      path.join(workspace, testRel),
+      [
+        'import test from "node:test";',
+        'import assert from "node:assert/strict";',
+        "const DB = process.env.STORYTREE_DB_USER !== undefined;",
+        "// c-1: an ordinary offline test → covered",
+        'test("c-1: the widget doubles its input", () => {',
+        "  assert.equal(widget(2), 4);",
+        "});",
+        "// c-2 is named by a SUBSTANTIVE test that only runs against a live database. The static read",
+        "// sees an expression, not which condition it tests, so it withholds credit — but it can say",
+        "// that the test EXISTS, which is a different claim from c-3's.",
+        'test("c-2: the widget persists through the store", { skip: !DB }, () => {',
+        "  assert.equal(store.rows.length, 1);",
+        "});",
+        "// c-3 is declared and nothing names it at all.",
+        "",
+      ].join("\n"),
+    );
+    const spec = coverageSpec(
+      "coverage-gated",
+      [
+        { id: "c-1", title: "doubles" },
+        { id: "c-2", title: "persists" },
+        { id: "c-3", title: "bounded" },
+      ],
+      testRel,
+    );
+    const result = resolveRealForCoverage(spec, workspace);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.spec.contractCoverage!(), {
+      covered: ["c-1"],
+      // SEPARATION, NEVER CREDIT: c-2 stays uncovered. A `--real` build of a `real.db: true` unit does
+      // force the database, but the reader cannot tell `!DB` from a credential gate nothing forces, so
+      // crediting on the shape of the expression would over-claim for the second.
+      uncovered: ["c-2", "c-3"],
+      unreadTitles: 0,
+      // …and this is the whole hop: the verdict now distinguishes c-2 from c-3.
+      gated: ["c-2"],
     });
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });

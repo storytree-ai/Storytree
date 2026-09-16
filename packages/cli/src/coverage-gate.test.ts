@@ -244,9 +244,13 @@ test("the ADR-0353 sweep: every capability whose contract tests live outside its
       // db-backed arm's own, and both carry `{ skip: !DB }`: ADR-0126's classifier now reads that
       // options-form skip, and a test that may not run vouches for nothing on a static read. It was
       // measured in advance as exactly this one contract (ADR-0126, 2026-07-28) and re-measured the day
-      // the classifier learned the form. It leaves this list only if an offline test comes to name it —
-      // the parked `coverage-counts-a-gated-test-apart-from-an-absent-one` would label it gated, not
-      // credit it. Any OTHER entry appearing here still means a binding or a test name regressed.
+      // the classifier learned the form. It leaves this list only if an offline test comes to name it.
+      // `coverage-counts-a-gated-test-apart-from-an-absent-one` has since LANDED and does label it gated
+      // — `storytree coverage` prints it GATED and the signed axis carries `gated: [...]` — and this
+      // assertion is unchanged BY DESIGN: the separation rides alongside `uncovered` and never leaves
+      // it, so a remedy that moved this entry would have been credit, not separation. That is the
+      // property, so read this row as pinning it. Any OTHER entry appearing here still means a binding
+      // or a test name regressed.
       unitId: "claim-store-work-time",
       surface: "packages/notice-board/src/claim.test.ts",
       remainder: ["release-claims-by-branch-clears-the-branch"],

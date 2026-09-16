@@ -79,6 +79,63 @@ test("a loader that does not measure unread titles adds no caveat (absent ≠ ze
   assert.ok(!/could NOT be read/.test(env.body));
 });
 
+test("an UNCOVERED report says whether the test is ABSENT or only GATED, per contract", async () => {
+  // The live instance (`claim-store-work-time`, 2026-09-16): two substantive tests NAME the contract
+  // and both carry `{ skip: !DB }`, so the report told the author "no substantive test covers it" —
+  // the same words it uses for a contract nobody ever wrote a test for.
+  const env = await coverageCommand(
+    "u",
+    deps({
+      loadUnit: () => ({
+        ...FOREST_UNIT,
+        gatedTestNames: ["fr-bounded-never-hangs: only against the live broker"],
+      }),
+    }),
+  );
+  // The per-contract line is the one that was lying, so it is the one pinned — WHOLE, because a
+  // containment check passes just as happily over a blanked reason or a lost separator.
+  assert.ok(
+    env.body.includes(
+      "  ◐ fr-bounded-never-hangs                         GATED      " +
+        'by "fr-bounded-never-hangs: only against the live broker" — conditionally skipped, so it may not have run',
+    ),
+    env.body,
+  );
+  // …and the contract nobody named still reads exactly as before.
+  assert.match(env.body, /fr-write-brokers-not-direct\s+UNCOVERED\s+no substantive test covers it/);
+  // SEPARATION, NEVER CREDIT: the gated contract is still counted uncovered, and the check still fails.
+  assert.equal(env.ok, false);
+  assert.match(env.body, /contracts: 4\s+\(1 covered, 3 uncovered\)/);
+  assert.match(env.body, /1 of those GATED, not absent: fr-bounded-never-hangs/);
+});
+
+test("a loader that measures no gated tests adds no gated block, and a clean surface raises none", async () => {
+  // Absent (the loader never asked) and `[]` (asked, nothing gated) both render silently — there is
+  // nothing to say about a surface with no gate. The DIFFERENCE between them lives on the signed axis,
+  // where a later auditor cannot re-ask; this report is re-run on demand.
+  const unmeasured = await coverageCommand("u", deps({ loadUnit: () => FOREST_UNIT }));
+  assert.ok(!/GATED/.test(unmeasured.body));
+  const measuredClean = await coverageCommand(
+    "u",
+    deps({ loadUnit: () => ({ ...FOREST_UNIT, gatedTestNames: [] }) }),
+  );
+  assert.equal(measuredClean.body, unmeasured.body);
+});
+
+test("a gated test beside a COVERING one changes nothing — nothing is being withheld", async () => {
+  const env = await coverageCommand(
+    "u",
+    deps({
+      loadUnit: () => ({
+        ...FOREST_UNIT,
+        gatedTestNames: ["fr-ready-when-broker-accepts-builder: also exercised against the live broker"],
+      }),
+    }),
+  );
+  assert.match(env.body, /fr-ready-when-broker-accepts-builder\s+COVERED/);
+  assert.ok(!/GATED/.test(env.body), "an already-covered contract is never reported gated");
+});
+
 test("GREEN: a unit whose every contract is named by a test PASSES the check", async () => {
   const env = await coverageCommand(
     "deploy-health-signal",

@@ -46,6 +46,14 @@ export interface CoverageUnit {
    * "no test names this contract", and one the report must not swallow.
    */
   unreadTitles?: number;
+  /**
+   * The SUBSTANTIVE test names across the surface that carry an options-form skip whose value is an
+   * expression (`readTestSurface().gatedNames`) — tests that would cover their contract but for a
+   * condition a static read cannot evaluate. Absent = the loader did not measure it; `[]` = it did and
+   * nothing is gated. A contract named only by one of these is UNCOVERED but not ABSENT, and telling an
+   * author a test is missing when one is sitting in front of them is a different error from either.
+   */
+  gatedTestNames?: string[];
 }
 
 export interface CoverageDeps {
@@ -59,14 +67,22 @@ function coveredByLine(c: ContractCoverage): string {
   return first !== undefined ? `by "${first}"` : "";
 }
 
-/** The covered/uncovered classification rendered as report lines (mirrors adopt-plan's style). */
+/**
+ * The classification rendered as report lines (mirrors adopt-plan's style). THREE states, not two:
+ * an uncovered contract that a substantive test DOES name, behind a condition the static reader cannot
+ * evaluate, reads GATED — because "no substantive test covers it" told the author to write a test that
+ * was already there. GATED is still a form of uncovered; it is the REASON that differs.
+ */
 function classificationLines(contracts: ContractCoverage[]): string[] {
   const idWidth = Math.max(1, ...contracts.map((c) => c.contractId.length));
-  return contracts.map((c) =>
-    c.covered
-      ? `  ✓ ${c.contractId.padEnd(idWidth)}  COVERED    ${coveredByLine(c)}`
-      : `  ○ ${c.contractId.padEnd(idWidth)}  UNCOVERED  no substantive test covers it`,
-  );
+  return contracts.map((c) => {
+    if (c.covered) return `  ✓ ${c.contractId.padEnd(idWidth)}  COVERED    ${coveredByLine(c)}`;
+    const gate = c.gatedBy[0];
+    if (gate !== undefined) {
+      return `  ◐ ${c.contractId.padEnd(idWidth)}  GATED      by "${gate}" — conditionally skipped, so it may not have run`;
+    }
+    return `  ○ ${c.contractId.padEnd(idWidth)}  UNCOVERED  no substantive test covers it`;
+  });
 }
 
 /**
@@ -105,6 +121,7 @@ export async function coverageCommand(
     unitId: id,
     contractIds: unit.contractIds,
     testNames: unit.testNames,
+    gatedTestNames: unit.gatedTestNames ?? [],
   });
   const total = report.contracts.length;
   const lines: string[] = [
@@ -123,6 +140,22 @@ export async function coverageCommand(
       "  not every enumerated contract. Author a test that NAMES each (the `describe(\"<id>: …\")`",
       "  convention) AND asserts something substantive (a hollow `assert(true)` does not count, ADR-0126),",
       "  or split/retire the contract if it is not a real obligation.",
+    );
+  }
+
+  // "A test exists and may not have run" is NOT "no such test" — and the guidance just above is wrong
+  // advice for it: the author is told to write a test they already wrote. Named separately so the
+  // remedy can differ, while the contract stays counted uncovered.
+  if (report.gated.length > 0) {
+    lines.push(
+      "",
+      `⚠ ${report.gated.length} of those GATED, not absent: ${report.gated.join(", ")}`,
+      "  A SUBSTANTIVE test names each, but it carries an options-form skip whose value is an expression",
+      "  (`{ skip: !DB }`), so whether it ran depends on the environment the file loaded in. It is NOT",
+      "  credited: this reader sees the expression, not which condition it tests, so a live-DB gate the",
+      "  spine forces and a credential gate nothing forces look identical here. Do not write a second",
+      "  test — either run the suite in the environment that ungates it, or move the assertion behind a",
+      "  seam an offline test can drive.",
     );
   }
 

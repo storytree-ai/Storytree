@@ -159,6 +159,22 @@ test("ContractCoverageAxis.unreadTitles qualifies `uncovered` across three state
   assert.equal(ContractCoverageAxis.safeParse({ ...base, unreadTitles: "2" }).success, false);
 });
 
+test("ContractCoverageAxis.gated qualifies `uncovered` across the same three states, additively", () => {
+  const base = { covered: ["c-1"], uncovered: ["c-2", "c-3"] };
+  // ABSENT → executability was never measured, so `uncovered` carries the old ambiguity: a contract in
+  // it may be un-named, or named only by a test that may not have run. Unresolvable after the fact.
+  assert.equal(ContractCoverageAxis.parse(base).gated, undefined);
+  // [] → MEASURED CLEAN: nothing on the surface is gated, so `uncovered` is a claim about MISSING
+  // tests. Distinct from absent, which is why the producer stamps the empty list rather than omitting
+  // it — the same reason `unreadTitles` stamps its zero.
+  assert.deepEqual(ContractCoverageAxis.parse({ ...base, gated: [] }).gated, []);
+  // non-empty → these uncovered contracts ARE named by a substantive test that carries a conditional
+  // skip. Still uncovered — the field separates the claim, it never credits.
+  assert.deepEqual(ContractCoverageAxis.parse({ ...base, gated: ["c-3"] }).gated, ["c-3"]);
+  assert.equal(ContractCoverageAxis.safeParse({ ...base, gated: "c-3" }).success, false);
+  assert.equal(ContractCoverageAxis.safeParse({ ...base, gated: [1] }).success, false);
+});
+
 test("Verdict: contractCoverage is preserved when present and absent when omitted (ADR-0127 back-compat)", () => {
   const base = {
     unitId: "shared-forest-connection",

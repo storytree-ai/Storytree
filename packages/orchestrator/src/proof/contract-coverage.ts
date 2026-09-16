@@ -615,6 +615,24 @@ export interface TestSurfaceRead {
    * Both are honest outcomes; conflating them is not.
    */
   unreadTitles: number;
+  /**
+   * The observed test names that would VOUCH but for an options-form skip whose value is an expression
+   * (`{ skip: !DB }`) — substantive, readable, and skipped for CERTAIN in neither form. **The names
+   * that tell a GATED contract apart from an ABSENT one:** with `gatedNames: []` an uncovered contract
+   * is genuinely un-named by any substantive test; a name here means a test DOES name it and whether
+   * it ran depends on the environment the file loaded in, which a static read cannot know.
+   *
+   * NAMES rather than a count, unlike {@link unreadTitles}, and the asymmetry is structural rather
+   * than a style choice: an unread title is unattributable BY CONSTRUCTION — not reading it is what
+   * makes it unread — so a count is all there is to report. A gated test's title read perfectly, so a
+   * consumer can join it against contract ids with the very matcher coverage already uses and say
+   * WHICH uncovered contract is only gated, which is the question `storytree coverage`'s per-contract
+   * line asks. Reporting a bare count here would copy the precedent's SHAPE while discarding the
+   * information that made the precedent a count.
+   *
+   * It never credits: a name here is separation, not coverage — see {@link ContractCoverageReport.gated}.
+   */
+  gatedNames: string[];
 }
 
 /**
@@ -632,6 +650,14 @@ export function readTestSurface(testSource: string, testFile: string): TestSurfa
     // than feed a meaningless "" to the classifier; `unreadTitles` is where that test is accounted.
     vouching: observed.filter((t) => t.vouches && t.name.length > 0).map((t) => t.name),
     unreadTitles: observed.filter((t) => !t.titleFullyStatic).length,
+    // WOULD vouch but for its condition — substantive, named, and conditionally skipped. Both other
+    // conjuncts carry weight: a HOLLOW gated test proves nothing wherever it runs, so it is uncovered
+    // for hollowness and nothing is being withheld; and a test skipped for CERTAIN is not waiting on an
+    // environment at all (`conditionallySkipped` is never true beside `skipped` — a certain skip above
+    // or on the call outranks it, so that case is excluded by this flag rather than by a second test).
+    gatedNames: observed
+      .filter((t) => t.conditionallySkipped && t.substantive && t.name.length > 0)
+      .map((t) => t.name),
   };
 }
 
@@ -657,6 +683,14 @@ export interface ContractCoverage {
   covered: boolean;
   /** The observed test name(s) that name this contract (empty when uncovered). */
   coveredBy: string[];
+  /**
+   * The CONDITIONALLY SKIPPED test name(s) that name this contract — substantive tests that would have
+   * covered it but for a `{ skip: <expr> }` a static read cannot evaluate. Non-empty on an UNCOVERED
+   * contract means a test exists and may well have run; non-empty beside a non-empty {@link coveredBy}
+   * means nothing is being withheld (something else already covers it), which is why
+   * {@link ContractCoverageReport.gated} reports only the uncovered ones.
+   */
+  gatedBy: string[];
 }
 
 /**
@@ -676,6 +710,22 @@ export interface ContractCoverageReport {
    * signed green would over-claim: the gap ADR-0020 §3 leaves open (it observes only the new test).
    */
   uncovered: string[];
+  /**
+   * The GATED contract ids — a SUBSET of {@link uncovered}: declared, named by no vouching test, but
+   * named by a substantive test that carries a conditional skip. **Separation, never credit.** These
+   * stay in `uncovered` and every downstream ceiling keys off that list unchanged; what this adds is
+   * that a report can stop telling an author a test is missing when one is sitting in front of them.
+   *
+   * It is deliberately NOT credit even where the spine forces the environment (a `real.db: true` unit's
+   * `--real` build does force the database its `{ skip: !DB }` tests read). A static read sees an
+   * EXPRESSION, not which condition it tests: `!DB` and `!RUN_LIVE_TRELLIS` are the same shape, and the
+   * spine forces the first and nothing forces the second. Crediting on shape would over-claim for the
+   * second, which is the direction ADR-0127's PR #1172 incident went wrong in.
+   *
+   * Three states, the {@link TestSurfaceRead.unreadTitles} rule on a list: an ABSENT field (a consumer
+   * that never measured), `[]` (measured, nothing gated), and non-empty (measured, these are gated).
+   */
+  gated: string[];
 }
 
 /** Everything {@link classifyContractCoverage} reads, injected for determinism (pure — no I/O). */
@@ -686,6 +736,15 @@ export interface ContractCoverageSpec {
   contractIds: readonly string[];
   /** The observed test names across the unit's test surface (from `extractTestNames`). */
   testNames: readonly string[];
+  /**
+   * The substantive-but-CONDITIONALLY-SKIPPED test names across the same surface
+   * ({@link TestSurfaceRead.gatedNames}). OPTIONAL and default-empty, so a caller that does not measure
+   * executability reads exactly as it did before — omitted means "nothing measured", which yields an
+   * empty {@link ContractCoverageReport.gated} rather than an unknown. These names NEVER cover: they are
+   * matched with the same {@link testNameCoversContract} the covering names use, purely to say which
+   * uncovered contract is gated.
+   */
+  gatedTestNames?: readonly string[];
 }
 
 /**
@@ -700,28 +759,42 @@ export function classifyContractCoverage(spec: ContractCoverageSpec): ContractCo
   const contracts: ContractCoverage[] = [];
   const covered: string[] = [];
   const uncovered: string[] = [];
+  const gated: string[] = [];
   const seen = new Set<string>();
   for (const contractId of spec.contractIds) {
     if (seen.has(contractId)) continue; // collapse a duplicate contract id to its first occurrence
     seen.add(contractId);
     const coveredBy = spec.testNames.filter((name) => testNameCoversContract(name, contractId));
+    const gatedBy = (spec.gatedTestNames ?? []).filter((name) =>
+      testNameCoversContract(name, contractId),
+    );
     const isCovered = coveredBy.length > 0;
-    contracts.push({ contractId, covered: isCovered, coveredBy });
+    contracts.push({ contractId, covered: isCovered, coveredBy, gatedBy });
     (isCovered ? covered : uncovered).push(contractId);
+    // GATED qualifies UNCOVERED and is a subset of it by construction. A gated test beside a covering
+    // one withholds nothing, so it is not reported — the question this answers is only ever "is this
+    // gap a missing test, or a test that may not have run?".
+    if (!isCovered && gatedBy.length > 0) gated.push(contractId);
   }
-  return { unitId: spec.unitId, contracts, covered, uncovered };
+  return { unitId: spec.unitId, contracts, covered, uncovered, gated };
 }
 
-/** Convenience: classify straight from parsed {@link ContractDecl}s (maps to their ids). */
+/**
+ * Convenience: classify straight from parsed {@link ContractDecl}s (maps to their ids). `gatedTestNames`
+ * is optional and default-empty for the same reason it is on {@link ContractCoverageSpec} — a caller
+ * that does not measure executability reads exactly as before.
+ */
 export function classifyDeclaredCoverage(
   unitId: string,
   declared: readonly ContractDecl[],
   testNames: readonly string[],
+  gatedTestNames: readonly string[] = [],
 ): ContractCoverageReport {
   return classifyContractCoverage({
     unitId,
     contractIds: declared.map((c) => c.id),
     testNames,
+    gatedTestNames,
   });
 }
 

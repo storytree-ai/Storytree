@@ -543,6 +543,54 @@ test("readTestSurface: the `.each` exception is STRUCTURAL — a genuinely runti
   assert.equal(surface.unreadTitles, 1, "the OUTER call's unreadable title is still counted");
 });
 
+// ---------------------------------------------------------------------------
+// The EXECUTABILITY separation: a GATED test is not an ABSENT one (ADR-0126's last deferred limit)
+// ---------------------------------------------------------------------------
+
+test("readTestSurface: a CONDITIONALLY skipped test is named apart — only one that would OTHERWISE vouch", () => {
+  // ADR-0126's third fold folds `{ skip: <expr> }` toward "uncovered", because a static read cannot
+  // know where the file loads. That fold is right and is NOT loosened here: what it lacked was the
+  // separation the readability fold already has, so "no substantive test covers it" could mean either
+  // "none exists" or "one exists and may not have run". `gatedNames` is that separation.
+  const src = `
+    test("c-gated: only against the live DB", { skip: !DB }, () => { assert.equal(row.branch, "b"); });
+    test("c-certain: parked for now", { skip: true }, () => { assert.equal(x, 1); });
+    test("c-hollow: gated AND hollow", { skip: !DB }, () => { assert.ok(true); });
+    test("c-plain: ordinary", () => { assert.equal(y, 2); });
+  `;
+  const surface = readTestSurface(src, TS_FIXTURE);
+  assert.deepEqual(surface.vouching, ["c-plain: ordinary"], "the fold is unchanged — a gated test still vouches for nothing");
+  assert.deepEqual(
+    surface.gatedNames,
+    ["c-gated: only against the live DB"],
+    "ONLY a test that would vouch but for its condition: a CERTAIN skip never runs (it is not waiting " +
+      "on an environment), and a HOLLOW one would prove nothing even where its condition holds — " +
+      "counting either as gated would claim a proof is being withheld when none exists",
+  );
+});
+
+test("readTestSurface: gatedNames is EMPTY on an ordinary surface, so the qualifier raises no false alarm", () => {
+  const surface = readTestSurface(`test("c-a: plain", () => { assert.equal(v, 1); });`, TS_FIXTURE);
+  assert.deepEqual(surface.gatedNames, []);
+  // `[]` is a measurement, not a silence: it says this surface was READ and nothing on it is gated,
+  // which is the same three-state discipline `unreadTitles: 0` carries (ADR-0127).
+  assert.deepEqual(surface.vouching, ["c-a: plain"]);
+});
+
+test("readTestSurface: a gated SUITE gates the tests beneath it (the skip is read from the enclosing call)", () => {
+  // The real shape in the repo: one `describe(..., { skip: !DB })` over a file of live-DB tests. The
+  // enclosing skip reaches every declaration under it, so the separation must too — otherwise the
+  // commonest gated surface reports nothing gated.
+  const src = `
+    describe("c-live: the live-DB arm", { skip: !DB }, () => {
+      it("clears the branch", () => { assert.equal(rows.length, 0); });
+    });
+  `;
+  const surface = readTestSurface(src, TS_FIXTURE);
+  assert.deepEqual(surface.vouching, []);
+  assert.ok(surface.gatedNames.includes("c-live: the live-DB arm"), "the suite title is what carries the contract id");
+});
+
 test("readTitle: a concatenated title still obeys hollow-test detection (ADR-0126 is untouched)", () => {
   // Reading the title must not smuggle a hollow test past the vouching rule — the two axes compose.
   const hollow = `test("c-x: reads fine but " + "proves nothing", () => { assert(true); });`;
@@ -619,6 +667,65 @@ test("GREEN: every declared contract named by a test classifies fully covered (n
   assert.deepEqual(report.contracts[0]!.coveredBy, [
     "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
   ]);
+});
+
+test("classifyContractCoverage: a contract named ONLY by a gated test reads GATED — separation, never credit", () => {
+  // The live instance this closes (`claim-store-work-time`, measured 2026-09-16): the contract's only
+  // tests carry `{ skip: !DB }`, so the report said "no substantive test covers it" — the same words it
+  // uses for a contract nobody ever wrote a test for. Two different claims, one bucket.
+  const report = classifyContractCoverage({
+    unitId: "claim-store-work-time",
+    contractIds: ["c-gated", "c-absent", "c-covered", "c-both"],
+    testNames: ["c-covered: an offline test", "c-both: an offline test"],
+    gatedTestNames: ["c-gated: the live-DB arm", "c-both: the live-DB arm"],
+  });
+  assert.deepEqual(report.covered, ["c-covered", "c-both"]);
+  assert.deepEqual(
+    report.uncovered,
+    ["c-gated", "c-absent"],
+    "a gated contract is STILL uncovered — a static read cannot tell a forced-environment gate from a " +
+      "credential gate nothing forces, so the qualifier separates the claim and never credits it",
+  );
+  assert.deepEqual(
+    report.gated,
+    ["c-gated"],
+    "`c-both` is covered by an offline test, so nothing about it is being withheld — a gated sibling " +
+      "qualifies only a contract that is otherwise uncovered",
+  );
+  const gated = report.contracts.find((c) => c.contractId === "c-gated");
+  assert.deepEqual(gated?.coveredBy, [], "the gated test is not a covering test");
+  assert.deepEqual(gated?.gatedBy, ["c-gated: the live-DB arm"], "…but the report can NAME what is withheld");
+});
+
+test("classifyContractCoverage: `gated` is always a SUBSET of `uncovered`, so the qualifier can never widen a green", () => {
+  // The property that keeps this additive. `ok` and every ceiling downstream key off `uncovered`; if a
+  // gated contract could leave that list, this qualifier would silently become credit.
+  const report = classifyContractCoverage({
+    unitId: "u",
+    contractIds: ["c-a", "c-b", "c-c"],
+    testNames: ["c-a: covered"],
+    gatedTestNames: ["c-a: also gated somewhere", "c-b: gated", "c-zz-undeclared: gated"],
+  });
+  assert.deepEqual(report.covered, ["c-a"]);
+  assert.deepEqual(report.uncovered, ["c-b", "c-c"]);
+  assert.deepEqual(report.gated, ["c-b"]);
+  assert.ok(
+    report.gated.every((id) => report.uncovered.includes(id)),
+    "every gated id must also be uncovered",
+  );
+});
+
+test("classifyContractCoverage: gatedTestNames is OPTIONAL — an existing caller reads exactly as before", () => {
+  // `coverage-gate.ts`'s corpus sweep passes no gated names, and must keep its answer byte-for-byte:
+  // the drain ceilings are calibrated on `uncovered`, and this change may not move them.
+  const report = classifyContractCoverage({
+    unitId: "u",
+    contractIds: ["c-a", "c-b"],
+    testNames: ["c-a: covered"],
+  });
+  assert.deepEqual(report.uncovered, ["c-b"]);
+  assert.deepEqual(report.gated, [], "no gated input measured means nothing gated, never an unknown");
+  assert.deepEqual(report.contracts[1]?.gatedBy, []);
 });
 
 test("classifyContractCoverage preserves declared order and collapses a duplicate id", () => {
