@@ -70,6 +70,16 @@ function hostPlatform(): "posix" | "windows" {
   return process.platform === "win32" ? "windows" : "posix";
 }
 
+function isExactOwner(
+  candidate: CodexDetachedOwner | undefined,
+  pid: number,
+  platform: "posix" | "windows",
+): candidate is CodexDetachedOwner {
+  return candidate !== undefined && candidate.rootPid === pid && Number.isSafeInteger(candidate.rootPid) &&
+    candidate.token.trim() !== "" &&
+    (platform === "posix" ? candidate.kind === "posix-process-group" : candidate.kind === "windows-process-tree");
+}
+
 function pinnedCommand(cwd: string, sourceEnv: NodeJS.ProcessEnv): CodexAppServerCommand {
   const env = scrubMeteredCodexAuth(sourceEnv);
   const override = env[CODEX_EXECUTABLE_ENV]?.trim();
@@ -176,8 +186,13 @@ export async function openPinnedCodexDetachedThread(args: OpenPinnedCodexDetache
   };
   const liveness = async (): Promise<boolean | undefined> => {
     if (owner === undefined || exited) return false;
-    return args.observeLiveness !== undefined ? await args.observeLiveness(owner) :
-      args.observeOwnership === undefined ? await productionLiveness(owner) : !closed;
+    if (args.observeLiveness !== undefined) return await args.observeLiveness(owner);
+    if (args.observeOwnership !== undefined) {
+      if (closed) return false;
+      const observed = await args.observeOwnership({ pid: owner.rootPid, platform, timeoutMs });
+      return isExactOwner(observed, owner.rootPid, platform);
+    }
+    return await productionLiveness(owner);
   };
   const terminate = (): Promise<void> => terminal ??= (async () => {
     closed = true;
@@ -228,8 +243,7 @@ export async function openPinnedCodexDetachedThread(args: OpenPinnedCodexDetache
     owner = args.observeOwnership === undefined
       ? await acquireProductionOwnership(pid, platform)
       : await args.observeOwnership({ pid, platform, timeoutMs });
-    if (owner === undefined || owner.rootPid !== pid || !Number.isSafeInteger(owner.rootPid) || owner.token.trim() === "" ||
-      (platform === "posix" ? owner.kind !== "posix-process-group" : owner.kind !== "windows-process-tree") || args.platform !== platform) {
+    if (!isExactOwner(owner, pid, platform) || args.platform !== platform) {
       throw new Error("exact Codex process ownership was not acquired");
     }
     const initialized = await request("initialize", { clientInfo: { name: "storytree", version: "0.0.0" } });
