@@ -3,7 +3,9 @@ import test from "node:test";
 
 import { openPinnedCodexDetachedThread } from "./index.js";
 
-test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticated POSIX thread, then uses and terminates that exact owner", async () => {
+test("staged-protocol-returns-response-produced-identity: stages one authenticated host-owned thread, then uses and terminates that exact owner", async () => {
+  const hostPlatform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const hostOwnerKind = hostPlatform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const;
   const authCommands: unknown[] = [];
   const spawnCommands: unknown[] = [];
   const protocol: unknown[] = [];
@@ -24,7 +26,7 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
     },
     model: "requested-model",
     reasoningEffort: "requested-effort",
-    platform: "posix",
+    platform: hostPlatform,
     timeoutMs: 100,
     authRunner: async (command: unknown) => {
       authCommands.push(command);
@@ -71,7 +73,7 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
     },
     observeOwnership: async (request: unknown) => {
       ownershipRequests.push(request);
-      return { kind: "posix-process-group", rootPid: 431, token: "owned-group" };
+      return { kind: hostOwnerKind, rootPid: 431, token: "owned-group" };
     },
     terminateOwnedTree: async (owner: unknown) => {
       terminationRequests.push(owner);
@@ -83,7 +85,7 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
   assert.match(JSON.stringify(spawnCommands[0]), /app-server/);
   assert.match(JSON.stringify(spawnCommands[0]), /--stdio/);
   assert.equal(JSON.stringify(spawnCommands[0]).includes("metered"), false, "metered credentials are scrubbed");
-  assert.deepEqual(ownershipRequests, [{ pid: 431, platform: "posix", timeoutMs: 100 }]);
+  assert.deepEqual(ownershipRequests, [{ pid: 431, platform: hostPlatform, timeoutMs: 100 }]);
   assert.deepEqual(
     protocol.map((message) => (message as { method?: string }).method),
     ["initialize", "initialized", "thread/start"],
@@ -96,7 +98,7 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
       model: "response-model",
       reasoningEffort: "response-effort",
       pid: 431,
-      owner: { kind: "posix-process-group", rootPid: 431, token: "owned-group" },
+      owner: { kind: hostOwnerKind, rootPid: 431, token: "owned-group" },
     },
   );
 
@@ -117,11 +119,11 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
   await Promise.all([result.terminate(), result.terminate()]);
   await result.terminate();
   assert.equal(ended, 1, "termination closes the one protocol channel once");
-  assert.deepEqual(terminationRequests, [{ kind: "posix-process-group", rootPid: 431, token: "owned-group" }]);
+  assert.deepEqual(terminationRequests, [{ kind: hostOwnerKind, rootPid: 431, token: "owned-group" }]);
   events?.exit(0, null);
 });
 
-test("detached-codex-thread-is-staged-owned-and-bounded: rejects an ownership token that is blank and cleans up that exact root", async () => {
+test("invalid-protocol-identity-and-turn-fail-closed: rejects an ownership token that is blank and cleans up that exact root", async () => {
   const terminated: unknown[] = [];
 
   await assert.rejects(
@@ -154,4 +156,42 @@ test("detached-codex-thread-is-staged-owned-and-bounded: rejects an ownership to
   );
 
   assert.deepEqual(terminated, [{ kind: "posix-process-group", rootPid: 432, token: "" }]);
+});
+
+test("platform-owner-distinguishes-posix-group-from-windows-tree: refuses a caller-selected ownership platform that contradicts this host", async () => {
+  const hostPlatform = process.platform === "win32" ? "windows" as const : "posix" as const;
+  const contradictoryPlatform = hostPlatform === "windows" ? "posix" as const : "windows" as const;
+  const contradictoryKind = contradictoryPlatform === "windows" ? "windows-process-tree" as const : "posix-process-group" as const;
+  const terminated: unknown[] = [];
+
+  await assert.rejects(
+    openPinnedCodexDetachedThread({
+      cwd: process.cwd(),
+      model: "requested-model",
+      reasoningEffort: "requested-effort",
+      platform: contradictoryPlatform,
+      authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+      spawn: (_command, events) => ({
+        pid: 433,
+        write: (line) => {
+          const message = JSON.parse(line) as { id?: number; method?: string };
+          if (message.method === "initialize") {
+            events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+          }
+          if (message.method === "thread/start") {
+            events.stdout(`${JSON.stringify({
+              id: message.id,
+              result: { thread: { id: "wrong-platform-thread", model: "model", reasoningEffort: "effort" } },
+            })}\n`);
+          }
+        },
+        end: () => undefined,
+      }),
+      observeOwnership: async () => ({ kind: contradictoryKind, rootPid: 433, token: "host-mismatch" }),
+      terminateOwnedTree: async (owner) => { terminated.push(owner); },
+    }),
+    /exact Codex process ownership was not acquired/,
+  );
+
+  assert.deepEqual(terminated, [{ kind: contradictoryKind, rootPid: 433, token: "host-mismatch" }]);
 });
