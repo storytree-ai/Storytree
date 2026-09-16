@@ -28,6 +28,7 @@ import {
   arcRefOf,
   bagOf,
   deriveArcLifecycle,
+  incrementDisposition,
   isCuratedLifecycle,
   isForwardLooking,
   loadArcRollup,
@@ -225,16 +226,42 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
   const shown = scope === "all" ? rollups : rollups.filter((a) => a.lifecycle === scope);
   const width = Math.max(1, ...shown.map((a) => a.id.length));
   const rows = shown.map((a) => {
-    const landed = a.increments.filter((i) => !isForwardLooking(i.status));
-    const open = a.increments.length - landed.length;
+    // ADR-0564 D2 — GREEN REQUIRES A LANDING, and this row is where a session picks its work up.
+    // `terminal` is what is OVER; `landed` is the subset that demonstrably landed something, resolved
+    // by `dispositionOf` — the SAME function the studio's lane strip paints from, so the worklist and
+    // the board cannot answer differently for one arc. Counting every terminal row as a landing is
+    // the false green ADR-0564 took off the board, and it outlived the fix here: measured on the live
+    // store 2026-09-16, this row said `88 landed` for `verification-integrity-arc` over 69 landings
+    // and 19 rows recording none.
+    const terminal = a.increments
+      .filter((i) => !isForwardLooking(i.status))
+      .map((inc) => ({ inc, reading: incrementDisposition(inc.status, inc.outcome) }));
+    const landed = terminal.filter((t) => t.reading === "landed").map((t) => t.inc);
+    const failed = terminal.filter((t) => t.reading === "failed").length;
+    const withdrawn = terminal.filter((t) => t.reading === "withdrawn").length;
+    // Closed, with no recorded call and no pr to derive one from — ADR-0564's third terminal reading,
+    // and every row closed before that decision existed. It is SUBTRACTION over the three named
+    // readings rather than a fourth predicate, so the buckets cannot fail to sum to the terminal rows.
+    const unrecorded = terminal.length - landed.length - failed - withdrawn;
+    const open = a.increments.length - terminal.length;
+    // The last LANDING, not the last closure: this note answers "when did this arc last deliver", and
+    // a later unrecorded row would answer it with a date on which nothing landed.
     const last = landed[landed.length - 1];
     const lastNote = last
       ? `last ${last.outcome?.date ?? "?"}${last.outcome?.pr !== undefined ? ` ${last.outcome.pr}` : ""}`
       : "no landings yet";
+    // ZERO BUCKETS ARE OMITTED, which is what keeps the split from spending the density this surface
+    // is built on (ADR-0314 D2): the overwhelmingly common arc still reads `3 landed, 2 open`.
     // The OPEN count rides every row since the fold. Before it, forward-looking work lived in a
     // second array this list never read, so an arc with nine parked remedies and no landings printed
     // "0 increment(s), no landings yet" — indistinguishable from an arc nobody had started.
-    const openNote = open > 0 ? `, ${open} open` : "";
+    const counts = [
+      `${landed.length} landed`,
+      ...(failed > 0 ? [`${failed} failed`] : []),
+      ...(withdrawn > 0 ? [`${withdrawn} withdrawn`] : []),
+      ...(unrecorded > 0 ? [`${unrecorded} unrecorded`] : []),
+      ...(open > 0 ? [`${open} open`] : []),
+    ].join(", ");
     // The state tag rides every non-active row so `--all` / `--closed` / `--parked` are never the old
     // blind list; under the default scope only active arcs show, so it never appears there.
     const tag = a.lifecycle === "active" ? "" : `[${a.lifecycle}] `;
@@ -243,7 +270,7 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     // an arc that is BOTH parked and queued would otherwise indent its marker past the ones beside it.
     const queue = arcListQueueNote(a, rollups);
     return [
-      `  ${a.id.padEnd(width)}  ${landed.length} landed${openNote}, ${lastNote}  — ${queue.marker}${tag}${a.title}`,
+      `  ${a.id.padEnd(width)}  ${counts}, ${lastNote}  — ${queue.marker}${tag}${a.title}`,
       // Only the queued and the blocking rows gain a line, which is the property the surface is
       // required to preserve: an ungated arc costs no extra line at all (ADR-0523's `gates` doc).
       ...queue.lines,
