@@ -38,6 +38,26 @@ async function fixtureCorpus(): Promise<InMemoryStore> {
   return corpus;
 }
 
+/**
+ * The gate's corpus, plus the increment rows ADR-0576's before-spend preflight resolves against
+ * (`gate-real-build-names-its-increment`) — an active `inc-live` and a closed `inc-closed`.
+ */
+async function fixtureCorpusWithIncrements(): Promise<InMemoryStore> {
+  const corpus = await fixtureCorpus();
+  await corpus.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  await corpus.upsertDoc({
+    id: "inc-closed",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "closed" },
+  });
+  await corpus.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
+  return corpus;
+}
+
 
 /**
  * ADR-0098 (U2) — the gate→loop wiring, proven OFFLINE: a `build-tests` gate carrying a
@@ -168,15 +188,18 @@ test("drives a build-tests gate's R2 red→green and signs a DRIVEN verdict FOR 
   const repo = await fixtureRepo();
   const store: Store = new InMemoryStore();
   try {
+    const corpus = await fixtureCorpusWithIncrements();
     const gate = buildTestsGate();
     const env = await driveBuildTestsGate(gate, "builder@example.com", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store, // the test OWNS the store, so it can roll up the events below
       promote: false, // no remote to push to
       authorOverride: scriptedR2Author,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
     });
     assert.equal(env.ok, true, env.body);
     assert.match(env.body, /gate run fix-story#gate-1 — BUILD-TESTS \(REAL\)/);
@@ -233,14 +256,17 @@ test("U3 regression wall: an R2 refactor that REGRESSES the sibling test reds th
         scope: new PathWriteScope({ testGlobs: [TEST_FILE], sourceGlobs: [SOURCE_FILE] }),
         writeTools: FILE_WRITE_TOOLS,
       });
+    const corpus = await fixtureCorpusWithIncrements();
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store,
       promote: false,
       authorOverride: regressingAuthor,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
     });
     assert.equal(env.ok, false, env.body);
     assert.match(env.body, /failed closed at CONFIRM_GREEN/);
@@ -273,12 +299,15 @@ test("U4 — an UNRESOLVED key design fork HALTS the drive before any spend (no 
   try {
     // A fork that changes a public seam other code depends on = the owner's call (d.5 bar). Unresolved,
     // so the sweep blocks. The halt is BEFORE store/worktree, so repoRoot is never touched (`.` is fine).
+    const corpus = await fixtureCorpusWithIncrements();
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: ".",
       store,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
       decisionForks: [
         routineFork({
           id: "runseed-seam",
@@ -303,14 +332,17 @@ test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proce
   const repo = await fixtureRepo();
   const store: Store = new InMemoryStore();
   try {
+    const corpus = await fixtureCorpusWithIncrements();
     const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // the offline driver asserts the ENVELOPE, not the liveness chatter
       storiesDir: stories,
       repoRoot: repo,
       store,
       promote: false,
       authorOverride: scriptedR2Author,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
       decisionForks: [
         routineFork({ id: "helper-name", question: "What to name the extracted helper?" }), // routine — leaf decides
         routineFork({

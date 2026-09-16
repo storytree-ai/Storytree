@@ -3117,6 +3117,7 @@ export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: str
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     driveBuildTestsGate: (gate, signer) => {
       const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot() };
+      driverDeps.increment = values.increment;
       if (values.store !== undefined) driverDeps.verdictStore = values.store;
       if (values.model !== undefined) driverDeps.model = values.model;
       if (values.runtime !== undefined) driverDeps.runtime = values.runtime;
