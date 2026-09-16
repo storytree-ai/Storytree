@@ -9,7 +9,7 @@ import { InMemoryStore, type StoreEvent } from "@storytree/storage-protocol";
 import { arcCommand } from "./arc.js";
 import type { ArcRollupIncrement } from "./arc-rollup.js";
 import {
-  NAMED_LANDING_CAP,
+  NAMED_CLOSURE_CAP,
   deriveArcNarrativeStaleness,
   narrativeLastChangedAt,
   renderNarrativeStaleness,
@@ -192,7 +192,7 @@ test("UNKNOWN is not FRESH: landings with no write history report the third stat
   assert.equal(s.undatable, true);
   const body = renderNarrativeStaleness(s, "a1").join("\n");
   assert.match(body, /UNKNOWN IS NOT FRESH/);
-  assert.match(body, /1 landing\b/, "singular, and it says how many it could not check against");
+  assert.match(body, /1 closed increment\b/, "singular, and it says how many it could not check against");
 });
 
 test("an arc with no landings says nothing at all, however old its prose", () => {
@@ -225,7 +225,7 @@ test("a closed increment with no date is NAMED, never silently dropped", () => {
     increments: [closed("inc-10", "2026-08-03"), undated],
     events: [ev("2026-07-01T09:00:00.000Z", PROSE, "created")],
   });
-  assert.deepEqual(s.undatedLandings, ["inc-x"]);
+  assert.deepEqual(s.undatedClosures, ["inc-x"]);
   const body = renderNarrativeStaleness(s, "a1").join("\n");
   assert.match(body, /not compared \(closed with no date\): inc-x/);
 });
@@ -240,8 +240,8 @@ test("an arc whose only landings are undated reports UNKNOWN rather than silence
   assert.match(renderNarrativeStaleness(s, "a1").join("\n"), /UNKNOWN IS NOT FRESH/);
 });
 
-test("the named-landing cap says how many it did not name", () => {
-  const many = Array.from({ length: NAMED_LANDING_CAP + 3 }, (_, i) =>
+test("the named-closure cap says how many it did not name", () => {
+  const many = Array.from({ length: NAMED_CLOSURE_CAP + 3 }, (_, i) =>
     closed(`inc-${String(i).padStart(2, "0")}`, `2026-08-${String(10 + i).padStart(2, "0")}`),
   );
   const s = deriveArcNarrativeStaleness({
@@ -251,7 +251,7 @@ test("the named-landing cap says how many it did not name", () => {
   });
   const body = renderNarrativeStaleness(s, "a1").join("\n");
   assert.match(body, new RegExp(`â€¦ and 3 more`));
-  assert.equal(s.fields[0]?.unseen.length, NAMED_LANDING_CAP + 3, "the DATA is never capped, only the render");
+  assert.equal(s.fields[0]?.unseen.length, NAMED_CLOSURE_CAP + 3, "the DATA is never capped, only the render");
 });
 
 test("narrativeLastChangedAt: first appearance, disappearance, and out-of-order events", () => {
@@ -429,7 +429,7 @@ test("the second stale field compresses when its landings are already covered â€
   assert.equal(subset.fields.find((f) => f.field === "endState")?.unseen.length, 1);
   const endLine = body.find((l) => l.trimStart().startsWith("end state:"));
   assert.ok(endLine);
-  assert.match(endLine, /1 increment landed since, all of them within the intent's 2 above\./);
+  assert.match(endLine, /1 increment closed since, all of them within the intent's 2 above\./);
   assert.equal(
     body.filter((l) => l.includes("inc-02")).length,
     1,
@@ -458,7 +458,7 @@ test("the second stale field compresses when its landings are already covered â€
 });
 
 test("--no-log stops the overflow line pointing at a log that is not rendered", () => {
-  const many = Array.from({ length: NAMED_LANDING_CAP + 2 }, (_, i) =>
+  const many = Array.from({ length: NAMED_CLOSURE_CAP + 2 }, (_, i) =>
     closed(`inc-${String(i).padStart(2, "0")}`, `2026-08-${String(10 + i).padStart(2, "0")}`),
   );
   const s = deriveArcNarrativeStaleness({
@@ -466,7 +466,7 @@ test("--no-log stops the overflow line pointing at a log that is not rendered", 
     increments: many,
     events: [ev("2026-07-01T09:00:00.000Z", PROSE, "created")],
   });
-  assert.match(renderNarrativeStaleness(s, "a1").join("\n"), /every landing is in the increment log below\./);
+  assert.match(renderNarrativeStaleness(s, "a1").join("\n"), /every one is in the increment log below\./);
   assert.match(
     renderNarrativeStaleness(s, "a1", { noLog: true }).join("\n"),
     /drop --no-log to read the full increment log below\./,

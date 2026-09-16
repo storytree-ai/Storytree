@@ -2654,7 +2654,7 @@ export async function arcPark(
 
 /** One line per drifted arc — shared by the dry run and the applied run so they cannot disagree. */
 function driftLine(d: ArcLifecycleDrift, width: number): string {
-  const counts = `${d.landed} landed, ${d.open} open`;
+  const counts = `${d.closed} closed, ${d.open} open`;
   return `  ${d.id.padEnd(width)}  ${d.stored} → ${d.derived}  (${counts})`;
 }
 
