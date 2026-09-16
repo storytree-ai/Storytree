@@ -185,6 +185,13 @@ criterion revision without replacement proof and the Agent story silently render
 another CLI-resident pure judge, but not part of `gate-ci-parity`: one decides whether a candidate
 proof binding is admissible; the other decides whether the local and CI step sets correspond.)*
 
+*(`gate-ci-parity` also carries one contract-grain unit,
+[`gate-real-build-names-its-increment`](gate-real-build-names-its-increment.md) — spec-borne,
+edit-existing proof over `driveBuildTestsGate` and `makeGateDeps`, proposed (ADR-0576). A REAL
+build-tests gate drive names a live increment and passes the gate's attempt policy before spend. It
+sits under that capability because the capability owns `packages/cli/src/gate*.ts`, not because it
+bears on gate↔CI parity.)*
+
 **Three capabilities left this table on 2026-08-14, and where they went is the point
 (ADR-0369).**
 

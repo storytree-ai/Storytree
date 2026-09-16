@@ -119,8 +119,8 @@ The operator surface over the whole machinery — two commands, one honest-envel
     supplies a directory: `node build` does, and `story build` and the gate build driver do not. A
     write failure never fails the build.
   - **The envelope.** The failure envelope names the record, together with the re-run command
-    `storytree node build <id> --real --runtime <runtime> --revise-test <run-id>`. If the record was
-    not written, it says so and why.
+    `storytree node build <id> --real --runtime <runtime> --increment <increment-id> --revise-test <run-id>`.
+    If the record was not written, it says so and why.
   - **The re-run.** `node build --real --revise-test <run-id>` reads that record before the leaf
     prompts, the DB preflight, the claim or the worktree. It refuses the flag without `--real`, a
     run id that is not a single path segment, a missing record, and a record that does not describe
@@ -128,8 +128,32 @@ The operator surface over the whole machinery — two commands, one honest-envel
     hands the revision to `buildNodeReal`, which briefs only the AUTHOR_TEST leaf with it (contract
     [`real-brief-carries-test-revision`](real-brief-carries-test-revision.md)). The header names the
     run being revised.
-  - **What it does not do.** Nothing here counts attempts or records the orchestrator's grant
-    (ADR-0571 D5).
+  - **What it does not do.** It records no grant: that stays the orchestrator's call (ADR-0571 D5).
+    Since ADR-0576 D6 a revision run IS a paid entry like any other, so it takes `--increment`,
+    passes the attempt preflight and records an attempt (below).
+
+- **The paid REAL entry: an increment and the attempt ledger before spend** (proposed, ADR-0575 D1
+  and ADR-0576; contracts [`build-entry-refuses-before-spend`](build-entry-refuses-before-spend.md),
+  [`real-lifecycle-records-its-attempt`](real-lifecycle-records-its-attempt.md),
+  [`node-build-names-its-increment`](node-build-names-its-increment.md),
+  [`orchestrator-records-its-calls`](orchestrator-records-its-calls.md) and
+  [`node-verbs-dispatch`](node-verbs-dispatch.md)).
+  - **The refusal.** `node build --real` requires `--increment <id>`, and `--dry-run` and `--live`
+    refuse the flag. After every existing cheap refusal and before the leaf prompts, the database,
+    the claim and the worktree, `preflightPaidBuild` (`node-build.ts`, over `inner-loop-entry.ts`)
+    refuses a missing, unknown, wrong-kind or closed increment, and a unit the attempt ledger stops:
+    at the decision point with no live grant, at the ceiling, holding an unresolved signed pass,
+    rebuilt under an increment that already landed it, or run against a live grant of the other kind
+    (`--revise-test` pairs only with a `revised-test` grant). An unreadable corpus or ledger refuses,
+    quoting the error.
+  - **The record.** `buildNodeReal` appends one attempt immediately before the gate walk, and a failed
+    append refuses the walk; it appends one signed pass after a signed result, and a failed append is
+    reported rather than swallowed. With no increment id it records nothing.
+  - **The envelopes.** Every refusal and outcome renders through the one entry state
+    (`renderInnerLoopEntryState`), and every `--real` command the CLI prints carries `--increment`.
+  - **The orchestrator's calls.** `storytree node attempts|grant|adjudicate <id> --pg`
+    (`packages/cli/src/inner-loop-verbs.ts`, dispatched from `commands.ts`) read the unit's fold and
+    record a grant or a landing adjudication. A build never records either.
 
 - **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
   `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry

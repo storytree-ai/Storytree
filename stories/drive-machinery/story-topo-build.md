@@ -41,6 +41,14 @@ proof ladder walked bottom-up). Deliberately NOT a rewrite of any control flow:
   (`story-build.ts:78-87`): once spend reaches the ceiling, the run halts with a typed
   budget-exhausted reason rather than starting another leaf, and the remaining headroom is handed
   to the builder so each slice can be capped.
+- **A REAL chain is ONE unit on the attempt ledger** (proposed, ADR-0576 D7; contract
+  [`story-real-chain-names-its-increment`](story-real-chain-names-its-increment.md), in
+  `packages/drive/src/story-build.ts`, this loop's CLI caller). `story build --real` requires
+  `--increment <id>` and reads the story's ledger and every driven member's in one read before the
+  database starts, refusing the whole chain if any of them refuses. It records one attempt for the
+  story immediately before the first member walks, and one signed pass only when the chain passed and
+  its promotion ran unwithheld. Members walk with no increment and record nothing, so a halted chain
+  is one failed attempt at the story and its signed prefix owes the ledger nothing.
 
 The other code edges: `story-build.ts:1-2` import `ProveResult` from `./prove-it-gate.js` and
 `NodeSpec` from `./node-spec.js` (type-only — the chain's vocabulary is the gate's result and the
