@@ -1,0 +1,22 @@
+{
+  "name": "@storytree/mintbox-event-driven-orchestration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mintbox event-driven orchestration: durable supervisor state, bounded coordinator wakes, and the on-box adapter.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 300000 src/"
+  },
+  "dependencies": {
+    "@storytree/agent": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "~7.0.2"
+  }
+}
