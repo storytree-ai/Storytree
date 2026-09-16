@@ -19,7 +19,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { globMatch } from "./phase-machine.js";
-import { ShellTestExecutor } from "./shell-test-executor.js";
+import { DEFAULT_PROOF_TIMEOUT_MS, ShellTestExecutor } from "./shell-test-executor.js";
 import type { ShellCommand } from "./shell-test-executor.js";
 
 /** A live build worktree: the checkout root, the HEAD it was cut from, and its own teardown. */
@@ -360,13 +360,16 @@ function chunked<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-// ── Promotion (ADR-0031 §1): a signed REAL pass lands, it does not evaporate ─
+// ── Branch preservation + promotion (ADR-0031 §1): a committed REAL head does not evaporate ─
 
-/** The outcome of {@link promoteRealPass}: where the proven commit now lives. */
+/**
+ * The branch-placement outcome of {@link promoteRealPass}. A pushed signed pass is promotion; a
+ * `push:false` pre-signature red is unsigned forensic preservation. The caller owns that label.
+ */
 export interface PromotionResult {
-  /** The branch the proven commit was parked on (`claude/real/<unit-id>-<run-id>`). */
+  /** The branch the supplied commit was parked on (`claude/real/*` or `claude/real-forensics/*`). */
   branch: string;
-  /** The exact commit the signed verdict attests (the branch tip). */
+  /** The exact supplied commit (the branch tip); a signed caller's verdict attests it. */
   commitSha: string;
   /** Whether the branch reached origin (false = local branch only; see `detail`). */
   pushed: boolean;
@@ -386,13 +389,17 @@ export interface PromotionResult {
 export type GhRunner = (args: string[], cwd: string) => Promise<string>;
 
 /**
- * Park a signed REAL pass's proven commit on a branch and (when an `origin` remote exists) push
- * it, so landing rides the ADR-0022 PR/CI cadence instead of evaporating with the worktree. The
- * branch name embeds the runId, so a retried build never collides with a prior run's branch.
+ * Park an exact committed REAL head on a branch so it cannot evaporate with the worktree. By
+ * default this is the signed-pass promotion path: when an `origin` exists it pushes, so landing
+ * rides the ADR-0022 PR/CI cadence. `purpose: "unsigned-forensics"` is the separate local-only path:
+ * retain a pre-signature-red authored head under `claude/real-forensics/*`, never spread it or let it
+ * collide with the same run's signed-prefix branch under `claude/real/*`. The branch name embeds the
+ * runId, so a retried build never collides with a prior run's branch.
  *
- * Honesty invariant (ADR-0031): the branch tip IS `commitSha` — the exact commit the verdict
- * signed. Landing must keep that commit in `main`'s ancestry (merge commit / fast-forward, never
- * a squash), or the persisted verdict loses its anchor to history.
+ * Honesty invariant (ADR-0031): the branch tip IS `commitSha`. When the caller has a signed pass,
+ * it is the exact commit the verdict signed and landing must keep it in `main`'s ancestry (merge
+ * commit / fast-forward, never a squash). An unsigned caller must describe the same mechanics as
+ * forensic preservation, never promotion or proof.
  *
  * A push failure is DATA, not an error: the local branch is kept either way (preservation over
  * loss — V1's failed-ceremony rule), and the caller reports `detail`.
@@ -403,9 +410,16 @@ export async function promoteRealPass(args: {
   runId: string;
   commitSha: string;
   /**
+   * Default `signed-promotion` keeps the established `claude/real/*` landing namespace. An
+   * `unsigned-forensics` head is categorically separate under `claude/real-forensics/*`, so a
+   * story-node refusal cannot collide with the same run's signed-prefix branch.
+   */
+  purpose?: "signed-promotion" | "unsigned-forensics";
+  /**
    * Default true. `false` parks the branch LOCALLY only — preservation without spread, e.g. when
-   * the package regression suite came back red: the proven commit must not be lost, but a branch
-   * known to break its package should not reach origin as a landing candidate.
+   * the package regression suite came back red before signing: the authored commit must not be
+   * lost, but an unsigned branch known to break its package must not reach origin as a landing
+   * candidate.
    */
   push?: boolean;
   /**
@@ -423,7 +437,14 @@ export async function promoteRealPass(args: {
   /** Injectable `gh` runner (openPr only) — defaults to the real `gh` CLI; tests pass a fake. */
   gh?: GhRunner;
 }): Promise<PromotionResult> {
-  const branch = `claude/real/${args.unitId}-${args.runId}`;
+  const purpose = args.purpose ?? "signed-promotion";
+  if (purpose === "unsigned-forensics" && (args.push !== false || args.openPr === true)) {
+    throw new Error(
+      "unsigned-forensics requires push:false and cannot open a PR (it has no signed verdict)",
+    );
+  }
+  const namespace = purpose === "unsigned-forensics" ? "claude/real-forensics" : "claude/real";
+  const branch = `${namespace}/${args.unitId}-${args.runId}`;
   await runGit(["branch", branch, args.commitSha], args.repoRoot);
 
   if (args.push === false) {
@@ -500,6 +521,22 @@ export async function promoteRealPass(args: {
 // ── The regression suite (ADR-0031 §2: a green node must not break its package) ─
 
 /**
+ * The exact process fact behind an install-bearing worktree backstop. `result` remains the only
+ * transition input; the original output and effective timeout are diagnostics for a refusal that
+ * would otherwise say only RED after the disposable worktree has gone.
+ */
+export interface WorktreeCommandObservation {
+  result: "green" | "red";
+  originalProcessResult: {
+    stdout: string;
+    stderr: string;
+    exitCode: number | null;
+  };
+  /** The timeout the spawned command actually inherited, including the spine-wide default. */
+  timeoutMs: number;
+}
+
+/**
  * Run a package-suite regression command in the (installed) worktree and observe green/red the
  * same honest way the gate does — exit code only, `NODE_TEST*` scrubbed (the forged-green fix).
  * The V1 lesson adapted to package grain: a node's own proof going green never proves it didn't
@@ -508,7 +545,7 @@ export async function promoteRealPass(args: {
 export async function runRegressionSuite(args: {
   command: ShellCommand;
   cwd: string;
-}): Promise<{ result: "green" | "red" }> {
+}): Promise<WorktreeCommandObservation> {
   return observeWorktreeCommand("regression-suite", args);
 }
 
@@ -524,7 +561,7 @@ export async function runRegressionSuite(args: {
 export async function runWorktreeTypecheck(args: {
   command: ShellCommand;
   cwd: string;
-}): Promise<{ result: "green" | "red" }> {
+}): Promise<WorktreeCommandObservation> {
   return observeWorktreeCommand("worktree-typecheck", args);
 }
 
@@ -532,12 +569,21 @@ export async function runWorktreeTypecheck(args: {
 async function observeWorktreeCommand(
   label: string,
   args: { command: ShellCommand; cwd: string },
-): Promise<{ result: "green" | "red" }> {
+): Promise<WorktreeCommandObservation> {
+  const command = platformShellCommand({ ...args.command, cwd: args.cwd });
   const executor = new ShellTestExecutor({
-    command: (): ShellCommand => platformShellCommand({ ...args.command, cwd: args.cwd }),
+    command: (): ShellCommand => command,
   });
   const observation = await executor.run(label);
-  return { result: observation.result };
+  const originalProcessResult = observation.originalProcessResult;
+  if (originalProcessResult === undefined) {
+    throw new Error(`${label} returned no original process observation after its command ran`);
+  }
+  return {
+    result: observation.result,
+    originalProcessResult,
+    timeoutMs: command.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+  };
 }
 
 /**
@@ -557,6 +603,8 @@ export function platformShellCommand(
   if (cmd.cwd !== undefined) wrapped.cwd = cmd.cwd;
   // Preserve any per-command env overrides through the win32 rewrap (ADR-0064 DB-backed proof).
   if (cmd.env !== undefined) wrapped.env = cmd.env;
+  // The wrapper is transport only: a declared timeout must remain the timeout the child inherits.
+  if (cmd.timeoutMs !== undefined) wrapped.timeoutMs = cmd.timeoutMs;
   return wrapped;
 }
 
@@ -566,7 +614,7 @@ export function platformShellCommand(
  * spec already in the shared store hard-links. The package specs are an `execFile` arg vector (no
  * shell), and leading-dash specs are refused upstream — so an author can never inject a flag.
  */
-async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<void> {
+export async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<void> {
   for (const group of groups) {
     // Canonical filter form: `pnpm --filter <pkg> add …` (the filter selects the package the `add`
     // command runs in). `--prefer-offline` hard-links specs already in the shared store. Retried on
@@ -590,7 +638,7 @@ async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<voi
  * whose handle a sibling process holds for a beat; a short backoff clears it (ADR-0031 worktree
  * reliability). `pnpm install` is idempotent, so re-running after a partial failure completes it.
  */
-async function defaultPnpmInstall(root: string): Promise<void> {
+export async function defaultPnpmInstall(root: string): Promise<void> {
   const cmd = platformShellCommand({
     file: "pnpm",
     args: ["install", "--frozen-lockfile", "--prefer-offline"],
@@ -733,7 +781,7 @@ function runGit(args: string[], cwd: string): Promise<string> {
 }
 
 /** The default {@link GhRunner}: spawn the `gh` CLI in `cwd` (the operator's authed local env). */
-function runGh(args: string[], cwd: string): Promise<string> {
+export function runGh(args: string[], cwd: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     execFile("gh", args, { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error === null) {
