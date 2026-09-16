@@ -90,6 +90,7 @@ const SURFACES: AppSurfaces = {
 
 import * as appDataModule from './lib/appData';
 import { CLIENT_STAMP, PAYLOAD_CACHE_KEY } from './lib/payloadCache';
+import { ACT2_INTRO_SESSION_KEY } from './components/act2Intro';
 import type {
   ActivityPayload,
   DocMeta,
@@ -224,6 +225,11 @@ function navigate(hash: string): void {
 
 beforeEach(() => {
   window.localStorage.clear();
+  // This suite proves App's BOOT ordering, not the separate first-arrival choreography. Mark this
+  // jsdom browser session as returning so the real TreeView paints the settled forest directly;
+  // otherwise the first test in the file alone waits for Act 2's wall-clock regrow, making the boot
+  // assertion depend on host load while every later test silently runs after the session flag lands.
+  window.sessionStorage.setItem(ACT2_INTRO_SESSION_KEY, '1');
   navigate('#/tree');
   http = installHttpDouble();
   http.get(ART_SHEET, () => new Response('', { status: 404 }));
@@ -234,6 +240,7 @@ afterEach(() => {
   http.uninstall();
   vi.clearAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 describe('map-boot-independence', () => {
