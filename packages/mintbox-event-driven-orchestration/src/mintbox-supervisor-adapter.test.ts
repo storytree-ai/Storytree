@@ -113,6 +113,7 @@ class RecordingClaimLedger implements MintboxClaimLedgerReader {
   readonly claimReads: string[] = [];
   readonly historyReads: string[] = [];
   released = false;
+  releaseEvents: ClaimAuditEvent[] | undefined;
 
   async claimsFor(unitId: string): Promise<ClaimDocT[]> {
     this.claimReads.push(unitId);
@@ -129,7 +130,22 @@ class RecordingClaimLedger implements MintboxClaimLedgerReader {
 
   async history(unitId: string): Promise<ClaimAuditEvent[]> {
     this.historyReads.push(unitId);
-    return [];
+    if (this.releaseEvents !== undefined) return this.releaseEvents;
+    if (!this.released) return [];
+    return [{
+      type: "released",
+      sessionId: "renderer-proof-session",
+      doc: {
+        unitId,
+        sessionId: "renderer-proof-session",
+        branch: "proof/renderer",
+        intent: "active rendering proof",
+        grade: "work",
+        claimedAt: "2026-09-16T00:00:00.000Z",
+        heartbeatAt: "2026-09-16T00:00:00.000Z",
+      } satisfies ClaimDocT,
+      at: "2026-09-16T02:00:00.000Z",
+    }];
   }
 }
 
@@ -847,6 +863,64 @@ test("mintbox-green-release-is-the-adoption-boundary: a fresh coordinator adopts
 
   assert.equal(eligible.protectedRenderer, null, "the fresh coordinator sees the lane only after the ledger confirms release");
   assert.deepEqual(ledger.claimReads, [identity.unitId, identity.unitId]);
+});
+
+test("mintbox-active-proof-is-observe-only: an absent live row without a released audit event keeps the active proof held", async (t) => {
+  const { statePath } = await fixture(t);
+  const ledger = new RecordingClaimLedger();
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session" };
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 73, host: "mintbox", detached: true,
+    startedAt: "2026-09-16T00:00:00.000Z", health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  await supervisor.observeProtectedRenderer(renderer);
+  ledger.released = true;
+  ledger.releaseEvents = [];
+
+  const recovered = await supervisor.recover();
+
+  assert.deepEqual(recovered.protectedRenderer, { handleId: renderer.id, terminal: "active", claim: "held" });
+  assert.deepEqual(recovered.state.handles.find((handle) => handle.id === renderer.id), renderer);
+  assert.deepEqual(ledger.historyReads, [identity.unitId]);
+});
+
+test("mintbox-green-release-is-the-adoption-boundary: a release for another claim incarnation cannot make a green proof eligible", async (t) => {
+  const { statePath } = await fixture(t);
+  const ledger = new RecordingClaimLedger();
+  const claimedAt = "2026-09-16T00:00:00.000Z";
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session", claimedAt };
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 74, host: "mintbox", detached: true,
+    startedAt: claimedAt, health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  await supervisor.observeProtectedRenderer(renderer);
+  await supervisor.handleEvent({
+    ...event,
+    deliveryId: "renderer-green-without-matching-release",
+    rendererEvidence: { rendererId: renderer.id, terminal: "green", claim: "released" },
+  });
+  ledger.released = true;
+  ledger.releaseEvents = [{
+    type: "released",
+    sessionId: identity.sessionId,
+    doc: {
+      unitId: identity.unitId,
+      sessionId: identity.sessionId,
+      branch: "proof/renderer",
+      intent: "active rendering proof",
+      grade: "work",
+      claimedAt: "2026-09-16T00:01:00.000Z",
+      heartbeatAt: "2026-09-16T00:01:00.000Z",
+    } satisfies ClaimDocT,
+    at: "2026-09-16T02:00:00.000Z",
+  }];
+
+  const recovered = await adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity).recover();
+
+  assert.deepEqual(recovered.protectedRenderer, { handleId: renderer.id, terminal: "green", claim: "held" });
+  assert.deepEqual(ledger.historyReads, [identity.unitId]);
 });
 
 test("renderer evidence is harmless when no renderer is protected", async (t) => {

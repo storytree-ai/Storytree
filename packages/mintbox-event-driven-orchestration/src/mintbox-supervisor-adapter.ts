@@ -252,6 +252,8 @@ export class FileMintboxSupervisorAdapter {
         ? envelope
         : { ...envelope, protectedRenderer: { ...protectedRenderer, claim: "held" } };
     }
+    const released = (await ledger.history(identity.unitId)).some((event) => isMatchingRendererRelease(event, identity));
+    if (!released) return envelope;
     if (protectedRenderer.terminal === "green") return { ...envelope, protectedRenderer: null };
     return protectedRenderer.claim === "released"
       ? envelope
@@ -315,6 +317,19 @@ export class FileMintboxSupervisorAdapter {
       await fs.unlink(temporaryPath).catch(() => undefined);
     }
   }
+}
+
+function isMatchingRendererRelease(
+  event: { readonly type: string; readonly sessionId: string; readonly doc: unknown },
+  identity: MintboxRendererClaimIdentity,
+): boolean {
+  if (event.type !== "released" || event.sessionId !== identity.sessionId || typeof event.doc !== "object" || event.doc === null) {
+    return false;
+  }
+  const doc = event.doc as Record<string, unknown>;
+  return doc.unitId === identity.unitId
+    && doc.sessionId === identity.sessionId
+    && (identity.claimedAt === undefined || doc.claimedAt === identity.claimedAt);
 }
 
 function releaseOrRefreshProtection(
