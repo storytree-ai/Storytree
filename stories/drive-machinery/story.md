@@ -422,6 +422,11 @@ the now-settled modeling call.
   adjudication reach the attempt ledger only when the attempt policy and the landing ruler admit them,
   bound to the run and increment the ledger holds, and a unit's fold reads back as lines. The `node`
   dispatch that reaches it is a later unit.
+- [`build-entry-refuses-before-spend`](build-entry-refuses-before-spend.md) — contract grain,
+  spec-borne, net-new drive module plus one barrel export, proposed (ADR-0576 D1/D2/D4/D6/D8). It
+  resolves a paid build's increment and preflights the units it will drive against the attempt ledger
+  from injected read handles, before any database, worktree or leaf spend, and owns the one entry state
+  every paid REAL entry renders. The entries that call it are later units.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
