@@ -31,10 +31,6 @@ proof:
         - "packages/mintbox-event-driven-orchestration/src/mintbox-supervisor-adapter.ts"
     install: true
     editsExisting: true
-    cluster:
-      - mintbox-meaningful-events-wake-once
-      - mintbox-supervisor-owns-handles-not-transcripts
-      - mintbox-three-hour-report-carries-delta
     proofCommand:
       file: bun
       args:
@@ -58,6 +54,29 @@ Feed completion, failure, dependency-release, empty-ready-worker, and owner/atte
 an injected durable state/handle seam, including replay of the same event and a supervisor restart.
 Observe one coordinator per dedupe key, recovery from the persisted handle state, a digest without raw
 logs, and the next compact three-hour report.
+
+## Guidance
+
+This is the recorded changed-input route for granted attempt 1/3. It targets ONLY
+`mintbox-meaningful-events-wake-once`; it does not change that contract's acceptance bar.
+
+- In `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts`, author exactly one
+  NEW static test whose title begins exactly `mintbox-meaningful-events-wake-once: `.
+- Start from a fresh supervisor state and an otherwise valid event. Preserve the compiler's evidence
+  for the complete event shape with
+  `const runtimeEvent = { ...event } satisfies Parameters<typeof decideMintboxSupervisorEvent>[1]`,
+  then use `Reflect.set(runtimeEvent, "kind", "conversation-message")` so only the runtime value crosses
+  the typed boundary. Do not use `as any`, an `unknown` double-cast, a widened `MintboxEventKind`, or a
+  loosened production signature.
+- Pass that runtime event to `decideMintboxSupervisorEvent`; assert that `wake` is `null` AND that the
+  returned state is deep-equal to the untouched initial state.
+- This is mechanically red at current HEAD: `decideMintboxSupervisorEvent` accepts the unrecognised
+  runtime kind, appends its dedupe key, and returns a coordinator wake instead of ignoring the event.
+
+Freeze `mintbox-supervisor-owns-handles-not-transcripts` and
+`mintbox-three-hour-report-carries-delta` for this drive. Do not add, delete, or edit their assertions,
+tests, or implementation; the broader proof scope is regression coverage, not authority to change
+those behaviours.
 
 ## Contracts
 
