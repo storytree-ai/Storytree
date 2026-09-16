@@ -102,7 +102,8 @@ injected DB preflight.
      and the same with `dryRun: false, live: true`, each deep-equal
      `{ ok: false, body: "--increment is valid only with --real: it names the increment a paid attempt is filed under on the attempt ledger, and neither --dry-run nor --live records an attempt (ADR-0575 D1, ADR-0576 D1).", next: ["storytree node build no-such-unit-for-increment --real --increment inc-live"] }`.
      The body never mentions `no node spec`: the check precedes the spec load.
-   - Without `increment`, the same dry-run reaches the spec load: `ok: false` and a body beginning
+   - In the SAME test as the refusals above, a control that already holds before the change: without
+     `increment`, the same dry-run reaches the spec load, with `ok: false` and a body beginning
      `no node spec "no-such-unit-for-increment"`.
 2. **A REAL build names a live increment, refused before any spend.** Each call is the REAL options
    with `increment` as shown.
@@ -112,8 +113,9 @@ injected DB preflight.
      `increment-wrong-kind`. `"inc-closed"`: refused as `increment-closed`.
    - `innerLoopReads.corpus` is the throwing corpus: refused as `increment-unreadable`, whose body
      contains `corpus-down-marker`.
-   - **The existing cheap refusals keep their precedence.** With `increment` omitted AND
-     `reviseTest: "a-run-with-no-record"`, the envelope deep-equals
+   - **The existing cheap refusals keep their precedence**, checked in the SAME test as the
+     `increment`-omitted refusal above, as a control that already holds before the change. With
+     `increment` omitted AND `reviseTest: "a-run-with-no-record"`, the envelope deep-equals
      `{ ok: false, body: NodeBuildModule.readTestRevision(escalationsDir, "cap-a", "a-run-with-no-record").reason, next: [] }`
      and NO stage is recorded.
 3. **A REAL build's unit passes the attempt policy before any spend.** Each call is the REAL options
@@ -161,8 +163,8 @@ injected DB preflight.
    - `renderRevisionRecord("cap-a", "run-x", runtime, { written: true, path: "/tmp/r.json" }, "inc-live")`
      is, for each runtime `codex`, `claude` and `pi`,
      `["revision:    written to /tmp/r.json — re-run with: storytree node build cap-a --real --runtime <runtime> --increment inc-live --revise-test run-x"]`.
-     With the fifth argument omitted it is the command without `--increment`. An unwritten record
-     still names no command.
+     In the SAME test, two controls that already hold before the change: with the fifth argument
+     omitted it is the command without `--increment`, and an unwritten record still names no command.
    - `nodeBuildRetryCommand("cap-a", "--real", "inc-live")` is
      `storytree node build cap-a --real --increment inc-live`. `nodeBuildRetryCommand("cap-a", "--dry-run", undefined)`
      is `storytree node build cap-a --dry-run`.
@@ -177,8 +179,10 @@ injected DB preflight.
 **Before the source change** `nodeBuild` ignores `increment` and `innerLoopReads`, and the new
 functions do not exist. Step 1's dry-run proceeds to the spec load. Steps 2–4 run on past the missing
 check, render the prompts and reach the DB preflight. Step 5's functions are not functions, and step
-6's commands name no `--increment`. Every step fails on an assertion. After the change, every step
-passes.
+6's commands name no `--increment`. Four control checks already hold before the change: step 1's
+increment-less dry-run, step 2's precedence case, and step 6's two `renderRevisionRecord` controls.
+Each shares a test with an assertion that fails, so every NEW TEST fails on an assertion at red; no
+new test passes before the source changes. After the change, every step passes.
 
 ## Guidance
 
@@ -199,6 +203,22 @@ preflight refused before the DB preflight ran. The test author must pass `increm
 `innerLoopReads` in that call, keeping the title byte-for-byte and changing the body only. Nothing else
 attempt 1 authored broke anything. At `a4e3dc5` the `@storytree/cli` suite was fully green (4212 pass,
 0 fail), and that one test was the `@storytree/drive` suite's only failure (1145 pass, 1 fail).
+
+Attempt 2 (run real-mu4bz47a) failed closed at CONFIRM_RED on per-test review: 8 new tests asserted only inside helpers (C6) and 2 control checks the walkthrough wrongly claimed would fail at red passed early (C4); attempt 3 fixes those two defects in this spec — the contract is unchanged.
+
+**The per-test review's two constraints, as run `real-mu4bz47a` measured them.**
+- **Every `assert` of a new test is written in that test's body.** A helper may RETURN values for
+  the body to assert: a built envelope, the expected refused state, the recorded stages, the
+  `ensureDb` call count. A helper may not assert anything itself, because assertions inside helpers
+  are not credited, and the test is refused as not vouching. That is the C6 finding on 8 tests of run
+  `real-mu4bz47a`, whose assertions all lived in `assertRefusedBeforeSpend` and
+  `assertProceedsToDbPreflight`. The walkthrough's "Refused as S" and "Proceeds" are shorthand for
+  three assertions each; write those three `assert` calls in each test's body, and write each
+  `typeof … === "function"` check there too.
+- **No new test may pass before the source changes.** The walkthrough names four control checks that
+  already hold at red, and places each in the SAME test as an assertion that fails at red. Keep them
+  there. Giving a control its own test is the C4 finding on 2 tests of run `real-mu4bz47a`, because
+  none of this unit's contracts declares a guard-rail.
 
 **Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
 quoted text if they have moved.
@@ -383,7 +403,7 @@ accepted.
   - Import `./node-build.js` as a namespace (`import * as NodeBuildModule`), never by name, and reach
     `nodeBuild`, `readTestRevision`, `writeRevisionRecord`, `realConfigRefusal`, `renderRevisionRecord`
     and every new function through it. Before calling a new function, assert `typeof` it is
-    `"function"`.
+    `"function"`, in the test's body.
   - **Every NEW test must FAIL at red on an `assert` call, never on a `TypeError`.** Assert whole
     envelopes with `assert.deepEqual`.
   - Use flat `test(...)` calls from `node:test`, with no `describe`. Each title is ONE static string
