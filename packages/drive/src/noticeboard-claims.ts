@@ -227,12 +227,21 @@ function bindingFork(unitId: string): string[] {
   ];
 }
 
-/** The `next:` lines a fenced-out session needs — its own holdings, the board, and the two exits. */
+/**
+ * The `next:` lines a fenced-out session needs — its own holdings, the board, and the two exits.
+ *
+ * The residue goes onto the OPEN increment the session was driving (ADR-0574 D3, which the contention
+ * landing inherits through `merge-ceremony` step 10's residue half), read out first and written back
+ * whole so the intention it already holds survives. It used to be `arc increment add`, which mints a
+ * row already CLOSED — and a PR-less `add` now refuses without a recorded reading, which a residue for
+ * work that neither landed nor failed cannot honestly give.
+ */
 function bindingNext(cmdId: string): string[] {
   return [
     "storytree noticeboard mine --pg",
     `storytree noticeboard claims ${cmdId} --pg`,
-    "storytree arc increment add <arc-id> --outcome <text|@file> --pg",
+    "storytree library artifact <increment-id> --raw body --out body.md --pg",
+    "storytree library artifact edit <increment-id> --set body=@body.md --pg",
     "storytree noticeboard done --pg",
   ];
 }

@@ -172,6 +172,14 @@ its waiting set by querying `arcRef`, so a question without one is authored into
 difference between those two terminal states was a REASON rather than a state. `--note` is therefore
 REQUIRED when there is no `--pr`, so a closure that is not a landing cannot read as one.
 
+**A close with no PR also records what it meant.** ADR-0564 D1's `--disposition landed|failed|withdrawn`
+is optional beside a PR, which derives `landed`; with no PR nothing derives it, so an unrecorded close
+draws grey for good. `arc increment close` and `arc increment add` therefore both refuse a PR-less close
+without it — one refusal naming every missing flag, before any write. `arc close` records its terminal
+increment as `landed` itself, because the verb asserts the end state was met. The PARKED / REOPENED /
+UN-PARKED rows that `arc park` and `arc reopen` write are exempt: they record a lifecycle decision, not
+work, and none of the three readings is true of them. Rows closed before the rule are not backfilled.
+
 **Work waiting on the owner's answer reads as waiting — derived, never stored (ADR-0574).** An
 escalating session keeps its residue on the OPEN increment it was driving and links the question it
 authored through that increment's `waitsOn` field. `incrementWaitingOn` in `arc-rollup.ts` is the one
@@ -179,7 +187,9 @@ rule: open work whose link names an unsettled question — on any arc — reads 
 does, and a link to a question the corpus does not hold holds nothing. The rollup carries the reading
 as `waitingOn`; `arc list` counts it apart from open work, and `arc show` takes it out of the
 proposal / ready / active counts, names the question on its row and offers no freshness check on it.
-Settling the question releases the work with no write to the increment. The link is its own field
+Settling the question releases the work with no write to the increment. `question new` ends by
+printing that link command, with the new question's id filled in, and the `arc show` that confirms it
+took. The link is its own field
 rather than a `cites` entry for the reason `gatedBy` is not `dependsOn` (ADR-0523): a hold is a
 schedule, not support.
 
@@ -221,10 +231,10 @@ heading, so nothing was broken — but a reader counting from the heading would 
    - **asserts —** `arc new` stamps every mechanical field and the resulting row is read back by the derived view without a migration or a second write.
    - **covers —** `packages/arc/src/arc.ts` (`arcNew`), `packages/arc/src/arc-rollup.ts` (`loadArcRollup`)
    - **proven by —** `packages/arc/src/arc.test.ts`, *"a scaffolded arc is immediately readable by the arc VIEW path (writer + reader agree)"* (REAL, passing)
-5. **`an-increment-closes-and-is-never-deleted`** — closure is terminal, write-once, and requires a reason when it is not a landing
-   - **asserts —** `arc increment close` marks one increment terminal rather than removing it; a second closure is refused; `--note` is required when there is no `--pr`.
-   - **covers —** `packages/arc/src/arc.ts` (`arcIncrementClose`)
-   - **proven by —** `packages/arc/src/arc.test.ts`, *"arc increment close marks one TERMINAL — it is closed, never deleted (ADR-0305 D5)"* and *"arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's collapsed states)"* (REAL, passing)
+5. **`an-increment-closes-and-is-never-deleted`** — closure is terminal, write-once, and requires a reason and a recorded reading when it carries no PR
+   - **asserts —** `arc increment close` marks one increment terminal rather than removing it; a second closure is refused; `--note` is required when there is no `--pr`. With no `--pr`, `arc increment close` and `arc increment add` also require `--disposition`, naming every missing flag in one refusal before anything is written; beside a PR it stays optional and unstamped. `arc close` records its terminal increment as `landed`; the lifecycle-marker rows `arc park` and `arc reopen` write record no reading.
+   - **covers —** `packages/arc/src/arc.ts` (`arcIncrementClose`, `arcIncrementAdd`, `arcClose`, `arcPark`, `arcReopen`)
+   - **proven by —** `packages/arc/src/arc.test.ts`, *"arc increment close marks one TERMINAL — it is closed, never deleted (ADR-0305 D5)"*, *"arc increment close REQUIRES a reason when there is no --pr (ADR-0305 D2's collapsed states)"*, *"arc increment close with no --pr REFUSES without --disposition, naming everything missing in ONE message"*, *"arc increment add with no --pr REFUSES without --disposition, and records the reading it is given"*, *"arc close defaults the date to today and works without a PR"* and *"arc park and arc reopen write their LIFECYCLE MARKER with no PR, and record no reading on it"* (REAL, passing)
 6. **`a-question-is-homed-or-refused`** — `--arc` is required, must resolve, and must name an arc
    - **asserts —** `question new` refuses a missing `--arc`, a dangling `--arc`, and an `--arc` naming a doc of another kind — before writing anything.
    - **covers —** `packages/arc/src/question.ts` (`questionNew`, the arc fence)

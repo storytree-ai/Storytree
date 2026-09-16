@@ -161,6 +161,25 @@ test("question new writes a valid open-question with the arcRef pointer and deri
   assert.match(res.body, /Escalating is a LANDING, not a wait/);
 });
 
+test("question new ends by naming the LINK that makes the held increment read as waiting (ADR-0574)", async () => {
+  // Authoring the question lights the ARC; only the `waitsOn` link lights the INCREMENT behind it. A
+  // session told merely to "write the residue and end" leaves that work reading as ordinary open grey
+  // — the false impression ADR-0574 exists to remove — so the link, the file's contents and the check
+  // that it took are all printed where the escalating session reads them, with the real ids filled in.
+  const res = await questionNew(writeDeps(await storeWithArc()), undefined, { arc: ARC_ID, ...BRIEFING });
+  assert.equal(res.ok, true, res.body);
+  const closing = [
+    `${ARC_ID} now reads as WAITING — the arc's question view is derived from this row's arcRef`,
+    "(ADR-0183 D3), so nothing is authored on the arc itself. Escalating is a LANDING, not a wait",
+    "(ADR-0303): write your residue onto the increment you were driving, LINK that increment to this",
+    "question so it reads as waiting (ADR-0574), confirm the link, then release your claims and end:",
+    "  storytree library artifact edit <increment-id> --set waitsOn=@waits-on.json --pg",
+    '    (waits-on.json holds ["asset:oq-does-escalation-bind-every-ask"])',
+    `  storytree arc show ${ARC_ID} --pg`,
+  ].join("\n");
+  assert.ok(res.body.endsWith(`\n\n${closing}`), `the closing guidance, whole and last:\n${res.body}`);
+});
+
 test("question new carries an explicit id, description, diagram and recommendation when given", async () => {
   const store = await storeWithArc();
   const res = await questionNew(writeDeps(store), "oq-escalation-binding", {

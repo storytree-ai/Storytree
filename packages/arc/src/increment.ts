@@ -369,8 +369,10 @@ export async function incrementCheck(
       drifted && alreadyDone
         ? [
             // NOT the planner: pointing a session at `agents planner` here is the misdirection this
-            // arc closes. Closing an already-delivered increment is the honest terminal move.
-            `storytree arc increment close ${id} --note "<why>" --pg`,
+            // arc closes. Closing an already-delivered increment is the honest terminal move — and with
+            // no PR it owes a reading: `landed` if this row's own work landed, `withdrawn` if a sibling's
+            // row already carries that landing and this one would only count it twice.
+            `storytree arc increment close ${id} --note "<why>" --disposition <landed|withdrawn> --pg`,
             ...(delivered ? [`storytree library artifact ${delivered.by} --pg`] : []),
             `storytree library artifact ${id} --pg`,
           ]

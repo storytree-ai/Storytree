@@ -437,7 +437,11 @@ export async function questionNew(
       // Where the arc's waiting state comes from, said where it is earned rather than left to memory.
       `${arc} now reads as WAITING — the arc's question view is derived from this row's arcRef`,
       "(ADR-0183 D3), so nothing is authored on the arc itself. Escalating is a LANDING, not a wait",
-      "(ADR-0303): write the arc's residue, release your claims, and end.",
+      "(ADR-0303): write your residue onto the increment you were driving, LINK that increment to this",
+      "question so it reads as waiting (ADR-0574), confirm the link, then release your claims and end:",
+      "  storytree library artifact edit <increment-id> --set waitsOn=@waits-on.json --pg",
+      `    (waits-on.json holds ["asset:${saved.id}"])`,
+      `  storytree arc show ${arc} --pg`,
     ].join("\n"),
     next: [
       `storytree arc show ${arc} --pg`,

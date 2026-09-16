@@ -720,7 +720,9 @@ export async function noticeboardCommand(
       next = [
         "storytree noticeboard mine --pg   (what you hold — work one of these, ADR-0346 D4)",
         `storytree noticeboard claims ${firstHeld} --pg`,
-        "storytree arc increment add <arc-id> --outcome <text|@file> --pg   (land the residue and END)",
+        // Onto the OPEN increment, never a closed `arc increment add` row (ADR-0574 D3) — see
+        // `bindingNext` in noticeboard-claims.ts, which offers the same exit in two commands.
+        "storytree library artifact <increment-id> --raw body --out body.md --pg   (add the residue, write it back with edit --set body=@body.md, and END)",
       ];
     } else {
       // Nothing held and nothing acquired: every node's write FAILED, so the store is the problem.

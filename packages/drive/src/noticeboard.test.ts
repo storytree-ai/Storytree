@@ -760,7 +760,13 @@ test("declare: a total refusal explains the ceremony requirement and the ADR-034
     env.next?.some((n) => n.startsWith("storytree noticeboard mine --pg")),
     `next should offer the session's own holdings; got ${JSON.stringify(env.next)}`,
   );
-  assert.ok(env.next?.some((n) => n.includes("arc increment add")));
+  // The residue lands on the OPEN increment (ADR-0574 D3), read out first so its intention survives —
+  // never as a closed `arc increment add` row, which with no PR now refuses without a reading.
+  assert.equal(
+    env.next?.[2],
+    "storytree library artifact <increment-id> --raw body --out body.md --pg   (add the residue, write it back with edit --set body=@body.md, and END)",
+  );
+  assert.ok(!env.next?.some((n) => n.includes("arc increment add")), "no exit that mints a closed row");
 });
 
 test("declare: PARTIAL — some claimed, some held → ok:true, but the headline names the shortfall", async () => {

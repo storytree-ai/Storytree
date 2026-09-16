@@ -334,6 +334,12 @@ test("a lifecycle-tier kind's render offers the verb that ENDS it; a durable kin
   // pointer to a refusal (`retire` needs --reason, `increment close` needs --note absent a --pr).
   assert.match(terminalVerbFor("open-question", "oq-x") ?? "", /--reason/);
   assert.match(terminalVerbFor("increment", "inc-x") ?? "", /--note/);
+  // …and an increment's also names the READING, which a close with no --pr owes as well — without it
+  // the offered command is a pointer to a refusal (`a-close-without-a-pr-records-its-reading`).
+  assert.equal(
+    terminalVerbFor("increment", "inc-x"),
+    'storytree arc increment close inc-x --note "<why>" --disposition <landed|failed|withdrawn> --pg   (close it — the terminal verb)',
+  );
 
   // The gate is the KIND, and it has to be: three `deepEqual` assertions above pin the `next:` of a
   // `definition` exactly, and every durable kind is evergreen — offering it a drain would be a lie
@@ -824,6 +830,51 @@ test("arc increment add <id> via dispatch appends one increment (positional rout
   assert.equal(bag["arcRef"], "asset:dispatch-arc");
   assert.deepEqual(bag["outcome"], { date: "2026-07-20", pr: "#42" });
   assert.equal(bag["body"], "landed inc 2");
+});
+
+test("--disposition reaches arc increment add AND close through the dispatcher, and a PR-less close is refused without it", async () => {
+  // END TO END on purpose: a unit test of the verb cannot see a flag the dispatcher never forwards, and
+  // a missing forward would read as "the caller omitted it" — every PR-less `add` refused forever.
+  const store = await seeded();
+  await seedArc(store);
+  const addArgv = ["arc", "increment", "add", "dispatch-arc", "--outcome", "a decision landed", "--date", "2026-07-20"];
+
+  const unsaid = await run([...addArgv, "--pg"], { store, writable: true });
+  assert.equal(unsaid.ok, false);
+  assert.match(unsaid.body, /^arc increment add with no --pr needs --outcome AND --disposition — missing: --disposition\.$/m);
+  assert.equal(await store.getDoc("dispatch-arc-inc-01"), null, "the refusal wrote nothing");
+
+  const said = await run([...addArgv, "--disposition", "landed", "--pg"], { store, writable: true });
+  assert.equal(said.ok, true, said.body);
+  const added = (await store.getDoc("dispatch-arc-inc-01"))?.doc as Record<string, unknown> | undefined;
+  assert.deepEqual(added?.["outcome"], { date: "2026-07-20", disposition: "landed" });
+
+  // `close` already forwarded the flag; what is new is that a PR-less close cannot omit it.
+  await store.upsertDoc({
+    id: "held-work",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "held-work",
+      title: "Held work",
+      description: "d",
+      objective: "o",
+      body: "b",
+      arcRef: "asset:dispatch-arc",
+      status: "proposal",
+      parked: "2026-07-01T00:00:00.000Z",
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+  const closeArgv = ["arc", "increment", "close", "held-work", "--note", "decided against", "--date", "2026-07-21"];
+  const noReading = await run([...closeArgv, "--pg"], { store, writable: true });
+  assert.equal(noReading.ok, false);
+  assert.match(noReading.body, /^arc increment close with no --pr needs --note AND --disposition — missing: --disposition\.$/m);
+  const withdrawn = await run([...closeArgv, "--disposition", "withdrawn", "--pg"], { store, writable: true });
+  assert.equal(withdrawn.ok, true, withdrawn.body);
+  const closed = (await store.getDoc("held-work"))?.doc as Record<string, unknown> | undefined;
+  assert.deepEqual(closed?.["outcome"], { date: "2026-07-21", note: "decided against", disposition: "withdrawn" });
 });
 
 test("arc edit --end-state @path via dispatch reads long prose from a file", async () => {
