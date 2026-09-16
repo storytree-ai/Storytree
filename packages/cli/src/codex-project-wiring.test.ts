@@ -48,6 +48,31 @@ test("Codex's project instruction budget contains the whole generated AGENTS.md"
   );
 });
 
+test("Codex receives raw context readings without inheriting Claude's scheduling marks", () => {
+  const guidance = fs.readFileSync(agentsFile, "utf8");
+
+  assert.match(
+    guidance,
+    /`storytree context`[\s\S]{0,300}\braw\b[\s\S]{0,80}\bresident\b[\s\S]{0,100}\bpeak\b[\s\S]{0,100}\bdeclared capacity\b/i,
+    "the generated Codex projection must describe the raw resident, peak, and declared-capacity readings",
+  );
+  assert.match(
+    guidance,
+    /(?:\bCodex\b[\s\S]{0,160}\bno scheduling band\b|\bno scheduling band\b[\s\S]{0,160}\bCodex\b)/i,
+    "the generated Codex projection must say explicitly that Codex has no scheduling band",
+  );
+  assert.match(
+    guidance,
+    /\bClaude(?:'s)?\b[\s\S]{0,200}~700K[\s\S]{0,100}850K[\s\S]{0,240}\bdo not apply to Codex\b/i,
+    "Claude's calibrated absolute marks must remain named while being excluded from Codex",
+  );
+  assert.match(
+    guidance,
+    /(?:\bdo not\b|\bmust not\b|\bnever\b)[^.\n]{0,100}\binvent\b[^.\n]{0,100}\bproportional\b[^.\n]{0,80}\bCodex\b[^.\n]{0,80}\b(?:marks|thresholds)\b/i,
+    "the generated Codex projection must forbid inventing proportional Codex marks",
+  );
+});
+
 test("Codex carries the compatible session-start mechanics without taking ownership of Claude surfaces", () => {
   const text = fs.readFileSync(hooksFile, "utf8");
   const config = JSON.parse(text) as HookConfig;
