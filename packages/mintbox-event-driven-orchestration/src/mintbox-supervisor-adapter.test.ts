@@ -113,10 +113,12 @@ class RecordingClaimLedger implements MintboxClaimLedgerReader {
   readonly claimReads: string[] = [];
   readonly historyReads: string[] = [];
   released = false;
+  claims: ClaimDocT[] | undefined;
   releaseEvents: ClaimAuditEvent[] | undefined;
 
   async claimsFor(unitId: string): Promise<ClaimDocT[]> {
     this.claimReads.push(unitId);
+    if (this.claims !== undefined) return this.claims;
     return this.released ? [] : [{
       unitId,
       sessionId: "renderer-proof-session",
@@ -147,6 +149,35 @@ class RecordingClaimLedger implements MintboxClaimLedgerReader {
       at: "2026-09-16T02:00:00.000Z",
     }];
   }
+}
+
+function rendererClaimDoc(
+  identity: MintboxRendererClaimIdentity,
+  overrides: Partial<ClaimDocT> = {},
+): ClaimDocT {
+  return {
+    unitId: identity.unitId,
+    sessionId: identity.sessionId,
+    branch: "proof/renderer",
+    intent: "active rendering proof",
+    grade: "work",
+    claimedAt: identity.claimedAt ?? "2026-09-16T00:00:00.000Z",
+    heartbeatAt: identity.claimedAt ?? "2026-09-16T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function rendererReleaseEvent(
+  identity: MintboxRendererClaimIdentity,
+  overrides: Partial<{ type: string; sessionId: string; doc: unknown }> = {},
+): ClaimAuditEvent {
+  return {
+    type: "released",
+    sessionId: identity.sessionId,
+    doc: rendererClaimDoc(identity),
+    at: "2026-09-16T02:00:00.000Z",
+    ...overrides,
+  } as ClaimAuditEvent;
 }
 
 async function readEnvelope(statePath: string): Promise<MintboxSupervisorEnvelope> {
@@ -834,6 +865,7 @@ test("mintbox-active-proof-is-observe-only: recovery observes the live renderer 
   const recovered = await supervisor.recover();
 
   assert.deepEqual(ledger.claimReads, [identity.unitId], "recovery observes the renderer claim through the notice-board reader");
+  assert.deepEqual(ledger.historyReads, [], "a matching live row does not consult released-claim history");
   assert.deepEqual(recovered.protectedRenderer, { handleId: renderer.id, terminal: "active", claim: "held" });
   assert.deepEqual(recovered.state.handles.find((handle) => handle.id === renderer.id), renderer);
   assert.equal(runtime.ensureCalls.length, 0, "observation does not replace the protected renderer with a coordinator");
@@ -921,6 +953,174 @@ test("mintbox-green-release-is-the-adoption-boundary: a release for another clai
 
   assert.deepEqual(recovered.protectedRenderer, { handleId: renderer.id, terminal: "green", claim: "held" });
   assert.deepEqual(ledger.historyReads, [identity.unitId]);
+});
+
+test("half-configured claim verification preserves legacy release behavior", async (t) => {
+  const { root } = await fixture(t);
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session" };
+  const ledger = new RecordingClaimLedger();
+  for (const variant of [
+    { name: "ledger-only", options: { claimLedger: ledger } },
+    { name: "identity-only", options: { rendererClaimIdentity: identity } },
+  ] as const) {
+    const statePath = path.join(root, `${variant.name}.json`);
+    const renderer: MintboxDetachedHandle = {
+      id: "renderer-proof", role: "renderer", pid: 75, host: "mintbox", detached: true,
+      startedAt: "2026-09-16T00:00:00.000Z", health: "running", model: "renderer-runtime", effort: "n/a",
+    };
+    await adapter(statePath, new RecordingRuntime()).observeProtectedRenderer(renderer);
+    const partial = new FileMintboxSupervisorAdapter({
+      statePath,
+      coordinatorCommand: command,
+      initialFacts: facts,
+      runtime: new RecordingRuntime(),
+      ...variant.options,
+    });
+
+    const released = await partial.handleEvent({
+      ...event,
+      deliveryId: `half-configured-${variant.name}`,
+      rendererEvidence: { rendererId: renderer.id, terminal: "green", claim: "released" },
+    });
+
+    assert.equal(released.protectedRenderer, null, `${variant.name} must not pretend ledger verification is configured`);
+  }
+});
+
+test("claim reconciliation durably marks release, reacquires the exact live claim, and no-ops repeated states", async (t) => {
+  const { statePath } = await fixture(t);
+  const claimedAt = "2026-09-16T00:00:00.000Z";
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session", claimedAt };
+  const ledger = new RecordingClaimLedger();
+  ledger.claims = [];
+  ledger.releaseEvents = [rendererReleaseEvent(identity)];
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 76, host: "mintbox", detached: true,
+    startedAt: claimedAt, health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  await supervisor.observeProtectedRenderer(renderer);
+
+  const released = await supervisor.recover();
+  assert.deepEqual(released.protectedRenderer, { handleId: renderer.id, terminal: "active", claim: "released" });
+  assert.deepEqual(await readEnvelope(statePath), released, "the verified release transition is durable");
+  await delay(30);
+  const beforeRepeatedRelease = (await fs.stat(statePath, { bigint: true })).mtimeNs;
+  const repeatedRelease = await supervisor.recover();
+  const afterRepeatedRelease = (await fs.stat(statePath, { bigint: true })).mtimeNs;
+  assert.deepEqual(repeatedRelease.protectedRenderer, released.protectedRenderer);
+  assert.equal(afterRepeatedRelease, beforeRepeatedRelease, "an already released protection is not rewritten");
+
+  ledger.claims = [rendererClaimDoc(identity)];
+  ledger.releaseEvents = [];
+  const reacquired = await supervisor.recover();
+  assert.deepEqual(reacquired.protectedRenderer, { handleId: renderer.id, terminal: "active", claim: "held" });
+  assert.deepEqual(await readEnvelope(statePath), reacquired, "the exact live incarnation restores held protection");
+  await delay(30);
+  const beforeRepeatedHeld = (await fs.stat(statePath, { bigint: true })).mtimeNs;
+  const repeatedHeld = await supervisor.recover();
+  const afterRepeatedHeld = (await fs.stat(statePath, { bigint: true })).mtimeNs;
+  assert.deepEqual(repeatedHeld.protectedRenderer, reacquired.protectedRenderer);
+  assert.equal(afterRepeatedHeld, beforeRepeatedHeld, "an already held protection is not rewritten");
+  assert.deepEqual(ledger.historyReads, [identity.unitId, identity.unitId]);
+});
+
+test("live claim reconciliation requires the exact session and incarnation", async (t) => {
+  const { statePath } = await fixture(t);
+  const claimedAt = "2026-09-16T00:00:00.000Z";
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session", claimedAt };
+  const ledger = new RecordingClaimLedger();
+  ledger.claims = [];
+  ledger.releaseEvents = [rendererReleaseEvent(identity)];
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 77, host: "mintbox", detached: true,
+    startedAt: claimedAt, health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  await supervisor.observeProtectedRenderer(renderer);
+  assert.equal((await supervisor.recover()).protectedRenderer?.claim, "released");
+  ledger.releaseEvents = [];
+
+  for (const [name, claim] of [
+    ["wrong-session", rendererClaimDoc(identity, { sessionId: "another-renderer-session" })],
+    ["wrong-incarnation", rendererClaimDoc(identity, { claimedAt: "2026-09-16T00:01:00.000Z" })],
+  ] as const) {
+    ledger.claims = [claim];
+    const reconciled = await supervisor.recover();
+    assert.deepEqual(
+      reconciled.protectedRenderer,
+      { handleId: renderer.id, terminal: "active", claim: "released" },
+      `${name} cannot reacquire the protected renderer`,
+    );
+  }
+});
+
+test("released history requires a valid event and exact unit, session, and incarnation", async (t) => {
+  const { root } = await fixture(t);
+  const claimedAt = "2026-09-16T00:00:00.000Z";
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session", claimedAt };
+  const invalidEvents = [
+    ["wrong-type", rendererReleaseEvent(identity, { type: "claimed" })],
+    ["wrong-event-session", rendererReleaseEvent(identity, { sessionId: "another-renderer-session" })],
+    ["missing-doc", rendererReleaseEvent(identity, { doc: undefined })],
+    ["null-doc", rendererReleaseEvent(identity, { doc: null })],
+    ["wrong-unit", rendererReleaseEvent(identity, { doc: rendererClaimDoc(identity, { unitId: "another-rendering-proof" }) })],
+    ["wrong-doc-session", rendererReleaseEvent(identity, { doc: rendererClaimDoc(identity, { sessionId: "another-renderer-session" }) })],
+    ["wrong-incarnation", rendererReleaseEvent(identity, { doc: rendererClaimDoc(identity, { claimedAt: "2026-09-16T00:01:00.000Z" }) })],
+  ] as const;
+
+  for (const [name, invalidEvent] of invalidEvents) {
+    const statePath = path.join(root, `${name}.json`);
+    const ledger = new RecordingClaimLedger();
+    const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+    const renderer: MintboxDetachedHandle = {
+      id: "renderer-proof", role: "renderer", pid: 78, host: "mintbox", detached: true,
+      startedAt: claimedAt, health: "running", model: "renderer-runtime", effort: "n/a",
+    };
+    await supervisor.observeProtectedRenderer(renderer);
+    await supervisor.handleEvent({
+      ...event,
+      deliveryId: `green-before-invalid-release-${name}`,
+      rendererEvidence: { rendererId: renderer.id, terminal: "green", claim: "released" },
+    });
+    ledger.claims = [];
+    ledger.releaseEvents = [invalidEvent];
+
+    const recovered = await supervisor.recover();
+
+    assert.deepEqual(
+      recovered.protectedRenderer,
+      { handleId: renderer.id, terminal: "green", claim: "held" },
+      `${name} is not release evidence for this protected renderer`,
+    );
+  }
+});
+
+test("a verified release arriving before green makes the later green event adoptable", async (t) => {
+  const { statePath } = await fixture(t);
+  const claimedAt = "2026-09-16T00:00:00.000Z";
+  const identity = { unitId: "rendering-engine-proof", sessionId: "renderer-proof-session", claimedAt };
+  const ledger = new RecordingClaimLedger();
+  ledger.claims = [];
+  ledger.releaseEvents = [rendererReleaseEvent(identity)];
+  const supervisor = adapterWithRendererClaim(statePath, new RecordingRuntime(), ledger, identity);
+  const renderer: MintboxDetachedHandle = {
+    id: "renderer-proof", role: "renderer", pid: 79, host: "mintbox", detached: true,
+    startedAt: claimedAt, health: "running", model: "renderer-runtime", effort: "n/a",
+  };
+  await supervisor.observeProtectedRenderer(renderer);
+  assert.deepEqual(
+    (await supervisor.recover()).protectedRenderer,
+    { handleId: renderer.id, terminal: "active", claim: "released" },
+  );
+
+  const eligible = await supervisor.handleEvent({
+    ...event,
+    deliveryId: "verified-release-before-green",
+    rendererEvidence: { rendererId: renderer.id, terminal: "green", claim: "released" },
+  });
+
+  assert.equal(eligible.protectedRenderer, null);
 });
 
 test("renderer evidence is harmless when no renderer is protected", async (t) => {
