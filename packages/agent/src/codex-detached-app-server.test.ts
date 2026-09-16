@@ -120,3 +120,38 @@ test("detached-codex-thread-is-staged-owned-and-bounded: stages one authenticate
   assert.deepEqual(terminationRequests, [{ kind: "posix-process-group", rootPid: 431, token: "owned-group" }]);
   events?.exit(0, null);
 });
+
+test("detached-codex-thread-is-staged-owned-and-bounded: rejects an ownership token that is blank and cleans up that exact root", async () => {
+  const terminated: unknown[] = [];
+
+  await assert.rejects(
+    openPinnedCodexDetachedThread({
+      cwd: process.cwd(),
+      model: "requested-model",
+      reasoningEffort: "requested-effort",
+      platform: "posix",
+      authRunner: async () => ({ code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" }),
+      spawn: (_command, events) => ({
+        pid: 432,
+        write: (line) => {
+          const message = JSON.parse(line) as { id?: number; method?: string };
+          if (message.method === "initialize") {
+            events.stdout(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+          }
+          if (message.method === "thread/start") {
+            events.stdout(`${JSON.stringify({
+              id: message.id,
+              result: { thread: { id: "thread", model: "model", reasoningEffort: "effort" } },
+            })}\n`);
+          }
+        },
+        end: () => undefined,
+      }),
+      observeOwnership: async () => ({ kind: "posix-process-group", rootPid: 432, token: "" }),
+      terminateOwnedTree: async (owner) => { terminated.push(owner); },
+    }),
+    /exact Codex process ownership was not acquired/,
+  );
+
+  assert.deepEqual(terminated, [{ kind: "posix-process-group", rootPid: 432, token: "" }]);
+});
