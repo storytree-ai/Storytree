@@ -29,7 +29,7 @@ import { renderInnerLoopEntryState, type InnerLoopEntryState } from "@storytree/
 
 import { readNodeAttempts } from "./inner-loop-verbs.js";
 import { LITERAL_FLAGS, PROSE_FLAGS } from "./at-path.js";
-import { run, CLI_OPTIONS } from "./commands.js";
+import { run, CLI_OPTIONS, type RunDeps } from "./commands.js";
 import * as Commands from "./commands.js";
 
 // ── ledger fixtures ────────────────────────────────────────────────────────────────────────────
@@ -494,7 +494,7 @@ test("node-adjudicate-dispatch-records-the-ruling: `node adjudicate` refuses a m
         signedPass(unitId, "inc-b", "r2"),
       ]);
     }
-    function depsFor(ledger: InMemoryStore): Record<string, unknown> {
+    function depsFor(ledger: InMemoryStore): RunDeps {
       return {
         store: new InMemoryStore(),
         writable: true,

@@ -3654,13 +3654,8 @@ export type CliValues = ReturnType<typeof parseCliArgs>["values"];
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
  * {@link Envelope}; `main` formats it and maps `ok` to the exit code.
- *
  */
-export async function run(
-  argv: readonly string[],
-  rawDeps: RunDeps | Record<string, unknown>,
-): Promise<Envelope> {
-  const deps = rawDeps as RunDeps;
+export async function run(argv: readonly string[], deps: RunDeps): Promise<Envelope> {
   let positionals: string[];
   let help: boolean;
   let values: CliValues;
