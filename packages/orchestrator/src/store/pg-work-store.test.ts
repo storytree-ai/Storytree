@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 
 import { rollupParitySuite } from "../proof/rollup-parity.js";
 import { rollupStatus, workEvent } from "../proof/rollup.js";
-import type { Store } from "@storytree/storage-protocol";
+import type { Store, StoreEvent } from "@storytree/storage-protocol";
 import type { Verdict } from "@storytree/proof-protocol";
 
+import {
+  foldInnerLoopLedger,
+  innerLoopEventId,
+  readInnerLoopLedger,
+} from "../proof/inner-loop-ledger.js";
 import { PgWorkStore } from "./pg-work-store.js";
 import type { WorkStoreClient } from "./pg-work-store.js";
 
@@ -35,6 +40,7 @@ function fakeClient(rowsByTable?: {
   verdict?: unknown[];
   usage?: unknown[];
   scope?: unknown[];
+  innerLoop?: unknown[];
 }) {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   let seq = 0;
@@ -43,6 +49,19 @@ function fakeClient(rowsByTable?: {
       queries.push({ text, values: values ?? [] });
       if (text.startsWith("INSERT")) {
         seq += 1;
+        if (text.includes("INTO events.inner_loop_event")) {
+          return {
+            rows: [
+              {
+                seq,
+                event_id: values?.[0],
+                doc: JSON.parse(values?.[5] as string) as unknown,
+                actor: values?.[6],
+                at: new Date("2026-06-10T00:00:00.000Z"),
+              },
+            ],
+          };
+        }
         return { rows: [{ seq, at: new Date("2026-06-10T00:00:00.000Z") }] };
       }
       if (text.startsWith("DELETE")) return { rows: [], rowCount: 1 };
@@ -50,10 +69,76 @@ function fakeClient(rowsByTable?: {
       if (text.includes("FROM events.verdict")) return { rows: rowsByTable?.verdict ?? [] };
       if (text.includes("FROM events.usage_event")) return { rows: rowsByTable?.usage ?? [] };
       if (text.includes("FROM events.scope_event")) return { rows: rowsByTable?.scope ?? [] };
+      if (text.includes("FROM events.inner_loop_event")) return { rows: rowsByTable?.innerLoop ?? [] };
       return { rows: [] };
     },
   };
   return { client, queries };
+}
+
+/** A stateful, offline model of the one inner-loop table seam this store owns. */
+function statefulInnerLoopClient() {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const rows: Array<{
+    seq: number;
+    event_id: string;
+    unit_id: string;
+    increment_id: string;
+    run_id: string;
+    event: string;
+    doc: unknown;
+    actor: string;
+    at: string;
+  }> = [];
+  const client: WorkStoreClient = {
+    async query(text: string, values: unknown[] = []) {
+      queries.push({ text, values });
+      if (text.includes("INSERT INTO events.inner_loop_event")) {
+        const [eventId, unitId, incrementId, runId, event, rawDoc, actor] = values as [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ];
+        const existing = rows.find(
+          (row) =>
+            row.unit_id === unitId &&
+            row.increment_id === incrementId &&
+            row.event === event &&
+            row.run_id === runId,
+        );
+        const doc = JSON.parse(rawDoc) as unknown;
+        if (existing !== undefined) {
+          return JSON.stringify(existing.doc) === JSON.stringify(doc)
+            ? { rows: [existing] }
+            : { rows: [] };
+        }
+        const row = {
+          seq: rows.length + 1,
+          event_id: eventId,
+          unit_id: unitId,
+          increment_id: incrementId,
+          run_id: runId,
+          event,
+          doc,
+          actor,
+          at: `2026-06-10T00:00:0${rows.length}.000Z`,
+        };
+        rows.push(row);
+        return { rows: [row] };
+      }
+      if (text.includes("FROM events.inner_loop_event")) return { rows: [...rows] };
+      if (text.includes("FROM events.work_event")) return { rows: [] };
+      if (text.includes("FROM events.verdict")) return { rows: [] };
+      if (text.includes("FROM events.usage_event")) return { rows: [] };
+      if (text.includes("FROM events.scope_event")) return { rows: [] };
+      return { rows: [] };
+    },
+  };
+  return { client, queries, rows };
 }
 
 const USAGE_DOC = {
@@ -112,6 +197,127 @@ test("a scope event routes to events.scope_event with the counts as the scalar s
   // Every scalar count is derived from its array's own length, so detail and count cannot disagree.
   assert.deepEqual(JSON.parse(q.values[9] as string), doc);
   assert.equal(event.kind, "scope");
+});
+
+test("an inner-loop event routes to its idempotent ledger table", async () => {
+  const { client, queries } = fakeClient();
+  const doc = { event: "attempt", unitId: "u1", incrementId: "inc", runId: "run-1" } as const;
+  await new PgWorkStore(client).appendEvent({
+    id: innerLoopEventId(doc),
+    kind: "inner-loop",
+    type: "created",
+    doc,
+  });
+  assert.match(queries[0]!.text, /INSERT INTO events\.inner_loop_event/);
+  assert.match(queries[0]!.text, /ON CONFLICT \(unit_id, increment_id, event, run_id\)/);
+  assert.match(queries[0]!.text, /RETURNING seq, event_id, doc, actor, at/);
+  assert.deepEqual(queries[0]!.values.slice(0, 5), [
+    innerLoopEventId(doc),
+    "u1",
+    "inc",
+    "run-1",
+    "attempt",
+  ]);
+});
+
+test("a fresh PgWorkStore folds all four event families in durable seq order despite reversed timestamps", async () => {
+  const docs = [
+    { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r1" },
+    { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r2" },
+    { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r3" },
+    { event: "grant", unitId: "u1", incrementId: "inc", runId: "r3", attempts: 1, kind: "fixed-defect", difference: "fixed parser" },
+    { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r4" },
+    { event: "signed-pass", unitId: "u1", incrementId: "inc", runId: "r4" },
+    { event: "adjudication", unitId: "u1", incrementId: "inc", runId: "r4", disposition: "land", mayRefuse: false, escalates: false, reason: "land" },
+  ] as const;
+  const { client, rows } = statefulInnerLoopClient();
+  const writer = new PgWorkStore(client);
+  const written: StoreEvent[] = [];
+  for (const doc of docs) {
+    written.push(await writer.appendEvent({
+      id: innerLoopEventId(doc),
+      kind: "inner-loop",
+      type: "created",
+      doc,
+      actor: "first-writer",
+    }));
+  }
+  for (const [index, row] of rows.entries()) {
+    row.at = `2026-06-10T00:00:${String(rows.length - index).padStart(2, "0")}.000Z`;
+  }
+
+  const fresh = new PgWorkStore(client);
+  const readBack = await fresh.readEvents();
+  assert.deepEqual(readBack.map((row) => row.id), docs.map(innerLoopEventId));
+  assert.deepEqual(readBack.map((row) => row.doc), docs);
+  assert.ok(readBack.every((row) => row.kind === "inner-loop" && row.type === "created"));
+  assert.ok(readBack.every((row) => row.actor === "first-writer"));
+  assert.deepEqual(
+    await readInnerLoopLedger(fresh, "u1", "inc"),
+    foldInnerLoopLedger(written, "u1", "inc"),
+  );
+});
+
+test("an exact inner-loop replay returns the originally stored sequence, timestamp, actor, and document", async () => {
+  const { client } = statefulInnerLoopClient();
+  const store = new PgWorkStore(client);
+  const doc = { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r1" } as const;
+  const first = await store.appendEvent({
+    id: innerLoopEventId(doc),
+    kind: "inner-loop",
+    type: "created",
+    doc,
+    actor: "original",
+  });
+  const replay = await store.appendEvent({
+    id: innerLoopEventId(doc),
+    kind: "inner-loop",
+    type: "created",
+    doc,
+    actor: "replayer",
+  });
+  assert.deepEqual(replay, first);
+  assert.equal(replay.actor, "original");
+});
+
+test("inner-loop append rejects any non-created envelope before SQL", async () => {
+  const { client, queries } = statefulInnerLoopClient();
+  const doc = { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r1" } as const;
+  await assert.rejects(
+    () => new PgWorkStore(client).appendEvent({ id: innerLoopEventId(doc), kind: "inner-loop", type: "updated", doc }),
+    /created envelope/,
+  );
+  assert.equal(queries.length, 0);
+});
+
+test("inner-loop append refuses a noncanonical envelope id before SQL", async () => {
+  const { client, queries } = fakeClient();
+  await assert.rejects(() =>
+    new PgWorkStore(client).appendEvent({
+      id: "forged",
+      kind: "inner-loop",
+      type: "created",
+      doc: { event: "attempt", unitId: "u1", incrementId: "inc", runId: "r1" },
+    }),
+  );
+  assert.equal(queries.length, 0);
+});
+
+test("inner-loop conflicting reuse of the same natural identity fails closed", async () => {
+  const { client } = statefulInnerLoopClient();
+  const store = new PgWorkStore(client);
+  const original = { event: "grant", unitId: "u1", incrementId: "inc", runId: "r1", attempts: 1, kind: "fixed-defect", difference: "fixed parser" } as const;
+  const conflicting = { ...original, attempts: 2, difference: "changed input" } as const;
+  await store.appendEvent({
+    id: innerLoopEventId(original),
+    kind: "inner-loop",
+    type: "created",
+    doc: original,
+  });
+  await assert.rejects(
+    () => store.appendEvent({ id: innerLoopEventId(conflicting), kind: "inner-loop", type: "created", doc: conflicting }),
+    /conflicting data/,
+  );
 });
 
 test("a scope event for an ARMED-AND-SILENT slice lands with refusal_count 0 — a measured zero", async () => {

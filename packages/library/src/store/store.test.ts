@@ -17,7 +17,7 @@ const LIVE = process.env["STORYTREE_DB_LIVE"] === "1";
 
 // ---- Offline: schema.sql shape -------------------------------------------------------------
 
-test("schema-shape-stable: schema.sql declares the events schema and all six tables", async () => {
+test("schema-shape-stable: schema.sql declares the events schema and durable tables", async () => {
   const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
   assert.match(sql, /CREATE SCHEMA IF NOT EXISTS events/);
   assert.match(sql, /events\.library_event/);
@@ -31,6 +31,17 @@ test("schema-shape-stable: schema.sql declares the events schema and all six tab
   // Drive-machinery Phase A: the work-hierarchy lifecycle + signed-verdict homes (additive only).
   assert.match(sql, /events\.work_event/);
   assert.match(sql, /events\.verdict\b/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS events\.inner_loop_event/);
+  assert.match(sql, /event_id\s+TEXT NOT NULL UNIQUE/);
+  assert.match(sql, /UNIQUE\s*\(unit_id,\s*increment_id,\s*event,\s*run_id\)/);
+  assert.match(sql, /CHECK\s*\(event IN \('attempt',\s*'grant',\s*'signed-pass',\s*'adjudication'\)\)/);
+  assert.match(sql, /inner_loop_event_unit_increment_idx/);
+  const helpfulIndexes = sql.indexOf("-- Helpful indexes (ADR-0017).");
+  assert.ok(helpfulIndexes >= 0, "schema retains the established helpful-indexes section");
+  assert.ok(
+    sql.indexOf("CREATE INDEX IF NOT EXISTS inner_loop_event_unit_increment_idx") > helpfulIndexes,
+    "the inner-loop lookup index belongs in the established helpful-indexes section",
+  );
   // ADR-0050: the ADR-number allocator table (number is the PK — the unique-violation retry hinges on it).
   assert.match(sql, /events\.adr_number/);
   assert.match(sql, /number INT PRIMARY KEY/);

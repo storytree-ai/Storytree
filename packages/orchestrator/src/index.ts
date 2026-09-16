@@ -390,6 +390,13 @@ export type {
   ObjectionKind,
 } from "./proof/inner-loop-exit.js";
 export {
+  appendInnerLoopEvent,
+  foldInnerLoopLedger,
+  innerLoopEventId,
+  readInnerLoopLedger,
+} from "./proof/inner-loop-ledger.js";
+export type { InnerLoopAttempt, InnerLoopLedger } from "./proof/inner-loop-ledger.js";
+export {
   ATTEMPT_CEILING,
   ATTEMPT_DECISION_POINT,
   adjudicateLanding,

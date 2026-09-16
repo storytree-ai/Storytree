@@ -2,6 +2,8 @@ import type { CausedBy, Store, StoredDoc, StoreEvent } from "@storytree/storage-
 import {
   SCOPE_EVENT_KIND,
   ScopeEventDoc,
+  INNER_LOOP_EVENT_KIND,
+  InnerLoopEventDoc,
   SIGNING_EVENT_KIND,
   USAGE_EVENT_KIND,
   UsageEventDoc,
@@ -9,6 +11,7 @@ import {
   WORK_EVENT_KIND,
   WorkEventDoc,
 } from "@storytree/proof-protocol";
+import { innerLoopEventId } from "../proof/inner-loop-ledger.js";
 
 /**
  * The Postgres work-hierarchy event store (drive-machinery Phase A's tables, finally written to —
@@ -18,8 +21,9 @@ import {
  * `kind:"usage"` → `events.usage_event` (per-slice token accounting — the runtime-cost sibling
  * stream; the signed Verdict deliberately carries no cost), `kind:"scope"` → `events.scope_event`
  * (per-slice write-fence record, ADR-0446 — the observability sibling; a row per ARMED authoring
- * slice, so a wall that held silently is a zero rather than an absence) — so signed verdicts STOP
- * co-mingling with `events.library_event` (the plan §1 mis-landing).
+ * slice, so a wall that held silently is a zero rather than an absence), and `kind:"inner-loop"` →
+ * `events.inner_loop_event` (ADR-0563's retry-safe attempt/grant/adjudication/pass ledger) — so
+ * signed verdicts STOP co-mingling with `events.library_event` (the plan §1 mis-landing).
  *
  * EVENT-ONLY and fail-closed by design:
  *  - the doc surface (`upsertDoc`/`getDoc`/`queryDocs`/`deleteDoc`) throws — library artifacts
@@ -27,12 +31,13 @@ import {
  *  - a `signing` event whose doc is not a full signed {@link Verdict} throws (nothing forgeable
  *    lands in `events.verdict`); an unknown kind throws rather than landing somewhere silent.
  *
- * `readEvents` merges the tables into one stream ordered by `at` (work before signing before
- * usage then scope on a tie — a `building` mark precedes the pass it leads to) and REASSIGNS `seq`
- * monotonically over the merged view: the tables have independent BIGSERIALs, so the raw values
- * cannot order the union. The Store contract only needs `seq` monotonic per store; `rollupStatus`
- * sorts by it (and ignores the usage and scope kinds entirely — neither accounting nor a fence
- * record ever moves a derived status).
+ * `readEvents` merges the tables into one stream ordered by `at` (work before signing before usage,
+ * scope, then inner-loop on a tie — a `building` mark precedes the pass it led to), while preserving
+ * BIGSERIAL order inside the inner-loop state machine even if two transaction timestamps arrive
+ * reversed. It REASSIGNS `seq` monotonically over the merged view: the tables have independent
+ * BIGSERIALs, so the raw values cannot order the union. The Store contract only needs `seq` monotonic;
+ * `rollupStatus` sorts by it (and ignores usage, scope, and inner-loop kinds entirely — none moves
+ * a derived work status).
  */
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
@@ -113,6 +118,13 @@ interface ScopeRow {
   unit_id: string;
   run_id: string;
   phase: string;
+  doc: unknown;
+  actor: string;
+  at: Date | string;
+}
+interface InnerLoopRow {
+  seq: string | number;
+  event_id: string;
   doc: unknown;
   actor: string;
   at: Date | string;
@@ -299,10 +311,41 @@ export class PgWorkStore implements Store {
       };
     }
 
+    if (e.kind === INNER_LOOP_EVENT_KIND) {
+      if (e.type !== "created") {
+        throw new Error("PgWorkStore.appendEvent: inner-loop events require a created envelope");
+      }
+      const doc = InnerLoopEventDoc.parse(e.doc);
+      const canonicalId = innerLoopEventId(doc);
+      if (e.id !== canonicalId) throw new Error("PgWorkStore.appendEvent: inner-loop event id must be canonical");
+      const actor = e.actor ?? "system";
+      const res = await this.#client.query(
+        `INSERT INTO events.inner_loop_event (event_id, unit_id, increment_id, run_id, event, doc, actor)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+         ON CONFLICT (unit_id, increment_id, event, run_id) DO UPDATE
+           SET event_id = events.inner_loop_event.event_id
+           WHERE events.inner_loop_event.event_id = EXCLUDED.event_id
+             AND events.inner_loop_event.doc = EXCLUDED.doc
+         RETURNING seq, event_id, doc, actor, at`,
+        [e.id, doc.unitId, doc.incrementId, doc.runId, doc.event, JSON.stringify(doc), actor],
+      );
+      const row = res.rows[0] as InnerLoopRow | undefined;
+      if (row === undefined) throw new Error("PgWorkStore.appendEvent: inner-loop identity reused with conflicting data");
+      return {
+        seq: Number(row.seq),
+        id: row.event_id,
+        kind: INNER_LOOP_EVENT_KIND,
+        type: "created",
+        doc: InnerLoopEventDoc.parse(row.doc),
+        actor: row.actor,
+        at: toIso(row.at),
+      };
+    }
+
     throw new Error(
       `PgWorkStore is the work-hierarchy event store: kind "${e.kind}" has no home here ` +
         `(only "${WORK_EVENT_KIND}", "${SIGNING_EVENT_KIND}", "${USAGE_EVENT_KIND}" and ` +
-        `"${SCOPE_EVENT_KIND}"); library docs belong in PgLibraryStore`,
+        `"${SCOPE_EVENT_KIND}" and "${INNER_LOOP_EVENT_KIND}"); library docs belong in PgLibraryStore`,
     );
   }
 
@@ -319,15 +362,23 @@ export class PgWorkStore implements Store {
     const scope = await this.#client.query(
       `SELECT seq, unit_id, run_id, phase, doc, actor, at FROM events.scope_event ORDER BY seq`,
     );
+    const innerLoop = await this.#client.query(
+      `SELECT seq, event_id, doc, actor, at FROM events.inner_loop_event ORDER BY seq`,
+    );
 
     // kindRank orders a same-timestamp tie: the building mark precedes the pass it led to.
-    const merged: Array<{ at: string; kindRank: number; tableSeq: number; event: Omit<StoreEvent, "seq"> }> = [];
+    const merged: Array<{
+      sortAt: string;
+      kindRank: number;
+      tableSeq: number;
+      event: Omit<StoreEvent, "seq">;
+    }> = [];
     for (const raw of work.rows) {
       const row = raw as WorkEventRow;
       const doc = WorkEventDoc.safeParse(row.doc);
       const id = doc.success ? eventId(doc.data.unitId, doc.data.runId) : `work:${String(row.seq)}`;
       merged.push({
-        at: toIso(row.at),
+        sortAt: toIso(row.at),
         kindRank: 0,
         tableSeq: Number(row.seq),
         event: {
@@ -347,7 +398,7 @@ export class PgWorkStore implements Store {
     for (const raw of verdicts.rows) {
       const row = raw as VerdictRow;
       merged.push({
-        at: toIso(row.at),
+        sortAt: toIso(row.at),
         kindRank: 1,
         tableSeq: Number(row.seq),
         event: {
@@ -366,7 +417,7 @@ export class PgWorkStore implements Store {
       // Usage rows are ACCOUNTING: rollupStatus ignores the kind entirely (conservative by
       // construction), so surfacing them in the merged stream can never move a derived status.
       merged.push({
-        at: toIso(row.at),
+        sortAt: toIso(row.at),
         kindRank: 2,
         tableSeq: Number(row.seq),
         event: {
@@ -386,7 +437,7 @@ export class PgWorkStore implements Store {
       // surfacing them here can never move a derived status — which is the property that lets the
       // fence be counted without the count becoming a second gate.
       merged.push({
-        at: toIso(row.at),
+        sortAt: toIso(row.at),
         kindRank: 3,
         tableSeq: Number(row.seq),
         event: {
@@ -399,10 +450,34 @@ export class PgWorkStore implements Store {
         },
       });
     }
+    // PostgreSQL's `now()` is the transaction-start timestamp. Two independent writers can
+    // therefore commit seq 1 then seq 2 while carrying timestamps in the opposite order. Fold this
+    // ONE state-machine stream against its BIGSERIAL order: clamp its sort timestamp forward while
+    // preserving the originally recorded `event.at` for display/audit.
+    let innerLoopSortAt: string | undefined;
+    for (const raw of innerLoop.rows) {
+      const row = raw as InnerLoopRow;
+      const doc = InnerLoopEventDoc.parse(row.doc);
+      const at = toIso(row.at);
+      if (innerLoopSortAt === undefined || at > innerLoopSortAt) innerLoopSortAt = at;
+      merged.push({
+        sortAt: innerLoopSortAt,
+        kindRank: 4,
+        tableSeq: Number(row.seq),
+        event: {
+          id: row.event_id,
+          kind: INNER_LOOP_EVENT_KIND,
+          type: "created",
+          doc,
+          actor: row.actor,
+          at,
+        },
+      });
+    }
 
     merged.sort(
       (a, b) =>
-        a.at.localeCompare(b.at) || a.kindRank - b.kindRank || a.tableSeq - b.tableSeq,
+        a.sortAt.localeCompare(b.sortAt) || a.kindRank - b.kindRank || a.tableSeq - b.tableSeq,
     );
     const events = merged.map(({ event }, index) => ({ ...event, seq: index + 1 }));
     return filter?.id === undefined ? events : events.filter((e) => e.id === filter.id);
