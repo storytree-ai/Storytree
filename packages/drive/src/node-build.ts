@@ -93,6 +93,20 @@ import {
 } from "./scope-walls.js";
 import type { LiveRunInfo, UsageRunIds } from "./usage.js";
 import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
+import {
+  makeBackstopRefusal,
+  renderBackstopRefusalObservation,
+  renderForensicPreservation,
+} from "./backstop-report.js";
+import type { BackstopRefusalObservation } from "./backstop-report.js";
+import {
+  assembleBackstopResultEvidence,
+  planBackstopPreservation,
+} from "./backstop-preservation.js";
+import type { BackstopPreservationRefusal } from "./backstop-preservation.js";
+
+export { renderBackstopRefusalObservation, renderForensicPreservation };
+export type { BackstopRefusalObservation };
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -341,10 +355,12 @@ export function honestFramingReal(
     outcome.failedAt === "CONFIRM_GREEN" ||
     outcome.failedAt === "GATE";
   const suiteClause =
-    regression === undefined
-      ? ranProofCommand
-        ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
-        : "neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them"
+    typecheck !== undefined && regression === undefined
+      ? `the node's proof command ran AND the package typecheck was observed ${typecheck.toUpperCase()}\nin the installed worktree BEFORE the gate ruled; the package suite did not run because the first red\nbackstop is the actionable refusal`
+      : regression === undefined
+        ? ranProofCommand
+          ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
+          : "neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them"
       : typecheck === undefined
         ? `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree BEFORE the gate ruled`
         : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code)`;
@@ -1478,6 +1494,10 @@ export interface RealBuildResult {
   promotionSkipped?: string;
   regression?: "green" | "red";
   typecheck?: "green" | "red";
+  /** The first red install-bearing command, including the process fact already observed by the gate. */
+  backstopObservation?: BackstopRefusalObservation;
+  /** Local-only retention of an authored HEAD that the package backstop refused before signing. */
+  forensicPreservation?: PromotionResult;
   /**
    * ADR-0571 D2: present only when {@link RealBuildArgs.escalationsDir} was supplied — the outcome
    * of recording THIS attempt's own returned escalation (if any) via {@link writeRevisionRecord}.
@@ -1557,30 +1577,42 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   // gate over the whole stack (chain-backstop.ts) — the two gate different things.
   let regression: "green" | "red" | undefined;
   let typecheck: "green" | "red" | undefined;
+  let backstopRefusal: BackstopPreservationRefusal | undefined;
   if (realConfig.install === true) {
     const typecheckCommand = realConfig.typecheck;
     resolved.spec.backstop = async (): Promise<BackstopOutcome> => {
+      // The gate has just found this tree clean. Capture the authored HEAD BEFORE a package command
+      // runs so even a misbehaving test cannot move the forensic ref to a different commit.
+      const authoredCommitSha = (await resolved.spec.treeState()).commitSha;
       if (typecheckCommand !== undefined) {
-        typecheck = (await runWorktreeTypecheck({ command: typecheckCommand, cwd: worktree.root }))
-          .result;
+        const observed = await runWorktreeTypecheck({ command: typecheckCommand, cwd: worktree.root });
+        typecheck = observed.result;
         // Short-circuit: this is a refusal path, the first red is the actionable one, and the suite
         // costs a minute nobody can act on.
-        if (typecheck === "red") {
-          return {
-            ok: false,
-            reason:
-              "the package typecheck is RED in the worktree (the proof run is tsx-driven — types " +
-              "stripped — so only the typecheck sees type-illegal code)",
+        if (observed.result === "red") {
+          const refusal = makeBackstopRefusal(
+            "typecheck",
+            observed as Parameters<typeof makeBackstopRefusal>[1],
+          );
+          backstopRefusal = {
+            observation: refusal.observation,
+            authoredCommitSha,
           };
+          return { ok: refusal.ok, reason: refusal.reason };
         }
       }
-      regression = (await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root }))
-        .result;
-      if (regression === "red") {
-        return {
-          ok: false,
-          reason: "the package regression suite is RED in the worktree (a green leaf must not break its package)",
+      const observed = await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root });
+      regression = observed.result;
+      if (observed.result === "red") {
+        const refusal = makeBackstopRefusal(
+          "regression",
+          observed as Parameters<typeof makeBackstopRefusal>[1],
+        );
+        backstopRefusal = {
+          observation: refusal.observation,
+          authoredCommitSha,
         };
+        return { ok: refusal.ok, reason: refusal.reason };
       }
       return { ok: true };
     };
@@ -1603,12 +1635,33 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     if (args.model !== undefined) scopeIds.model = args.model;
     await appendSliceScope(store, scopeIds, liveAuthorScopeWalls(resolved.liveAuthor), signer);
   }
+  // A package red correctly refuses the verdict, but the spine has already committed the authored
+  // scope. Keep that exact pre-backstop HEAD reachable before the caller tears the detached worktree
+  // down. `push:false` is categorical: this is unsigned forensic preservation, not promotion.
+  let forensicPreservation: PromotionResult | undefined;
+  const preservationRequest = planBackstopPreservation({
+    refusal: backstopRefusal,
+    baseSha,
+    repoRoot: args.repoRoot,
+    unitId: spec.id,
+    runId,
+  });
+  if (preservationRequest !== undefined) {
+    forensicPreservation = await promoteRealPass(preservationRequest);
+  }
   const out: RealBuildResult = { result };
   if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
   // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
   // alike, so the report can say WHICH observation refused the verdict.
   if (typecheck !== undefined) out.typecheck = typecheck;
   if (regression !== undefined) out.regression = regression;
+  Object.assign(
+    out,
+    assembleBackstopResultEvidence({
+      backstopObservation: backstopRefusal?.observation,
+      forensicPreservation,
+    }),
+  );
   // ADR-0571 D2: record THIS attempt's own returned escalation (if any) under the supplied
   // directory, and report exactly what was written. `writeRevisionRecord` itself resolves to `null`
   // when `escalationsDir` is undefined or `result` carries no escalation, so the key is present on
@@ -2092,6 +2145,7 @@ export async function nodeBuild(
     let promotionSkipped: string | undefined;
     let regression: "green" | "red" | undefined;
     let typecheck: "green" | "red" | undefined;
+    let forensicPreservation: PromotionResult | undefined;
 
     if (real) {
       // The REAL walk: a fresh DETACHED git worktree of this repo (the node's real source at
@@ -2147,6 +2201,7 @@ export async function nodeBuild(
         promotionSkipped = built.promotionSkipped;
         regression = built.regression;
         typecheck = built.typecheck;
+        forensicPreservation = built.forensicPreservation;
       } finally {
         await worktree.remove();
       }
@@ -2238,6 +2293,7 @@ export async function nodeBuild(
             `promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`,
           ]
         : []),
+      ...renderForensicPreservation(forensicPreservation),
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real

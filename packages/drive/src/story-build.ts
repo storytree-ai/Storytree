@@ -55,6 +55,7 @@ import {
   buildNodeReal,
   driveNode,
   realConfigRefusal,
+  renderForensicPreservation,
   renderLeafPhasePrompts,
   repoRoot,
   rel,
@@ -68,6 +69,7 @@ import type {
   DriveNodeArgs,
   LiveAuthor,
   RealBuildArgs,
+  RealBuildResult,
 } from "./node-build.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
@@ -366,6 +368,42 @@ async function runLiveCuration(
   }
 }
 
+/**
+ * Keep only concrete unsigned attempts in the story-level report.
+ *
+ * A green member has no forensic preservation. Recording that absence makes an otherwise empty
+ * collection look non-empty and lets the chain claim evidence was retained when no such ref exists.
+ */
+export function retainStoryForensicPreservation(
+  retained: Set<PromotionResult>,
+  preservation: PromotionResult | undefined,
+): void {
+  if (preservation !== undefined) retained.add(preservation);
+}
+
+/** Explain why a REAL chain whose shared HEAD never advanced has no ordinary promotion. */
+export function storyNoCommitPromotionReason(
+  passed: boolean,
+  forensicCount: number,
+): string {
+  if (passed) {
+    return "nothing authored across the chain — every verdict attests the unchanged HEAD";
+  }
+  return forensicCount > 0
+    ? "the chain halted before any node signed a commit — no proven prefix to park; the unsigned failing attempt is retained separately"
+    : "the chain halted before any node signed a commit — nothing to park";
+}
+
+/** The REAL node-driving dependency used by a story chain. */
+export type StoryRealNodeBuilder = (args: RealBuildArgs) => Promise<RealBuildResult>;
+
+/** Resolve an injected story node builder, defaulting by identity to the production REAL builder. */
+export function resolveStoryRealNodeBuilder(
+  injected: StoryRealNodeBuilder | undefined,
+): StoryRealNodeBuilder {
+  return injected ?? buildNodeReal;
+}
+
 export interface StoryBuildOpts {
   dryRun: boolean;
   /**
@@ -435,6 +473,11 @@ export interface StoryBuildOpts {
    * function, so the test cannot construct the author beforehand).
    */
   authorOverride?: (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined;
+  /**
+   * Injectable REAL node-driving dependency. The production default is {@link buildNodeReal}; a
+   * caller may supply the same contract when it owns node execution behind another boundary.
+   */
+  realNodeBuilder?: StoryRealNodeBuilder;
   /**
    * ADR-0243 D1 — the accounting-only widening, resolved per-node alongside `authorOverride`: a
    * canned {@link LiveAuthor} (see `node-build.ts`'s `RealBuildArgs.liveAuthorOverride`) reported as
@@ -577,6 +620,7 @@ export async function storyBuild(
     };
   }
   const rootDir = opts.repoRoot ?? repoRoot();
+  const realNodeBuilder = resolveStoryRealNodeBuilder(opts.realNodeBuilder);
 
   // Fail-closed before any work: a verdict must be attributable.
   const signer = resolveSignerFromEnv(
@@ -869,6 +913,10 @@ export async function storyBuild(
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
     const leaves = new Map<string, LiveAuthor>();
     const failures = new Map<string, Extract<ProveResult, { ok: false }>>();
+    // A per-node pre-signature package red can preserve an authored HEAD even though that node did
+    // not sign and therefore never advances `currentHead`. Keep that distinct evidence through the
+    // story caller: the local ref is useful only if the envelope tells the operator where it lives.
+    const forensicPreservations = new Set<PromotionResult>();
     // The REAL chain's stacked HEAD: advances to each node's verdict commit as it passes, so the
     // next node builds on top. Promotion at chain end points at THIS, not the stale worktree cut.
     let currentHead = worktree?.headSha ?? "";
@@ -936,11 +984,15 @@ export async function storyBuild(
                   ),
                 );
             }
-            const built = await buildNodeReal(realArgs);
+            const built = await realNodeBuilder(realArgs);
             if (built.liveAuthor !== undefined) {
               leaves.set(spec.id, built.liveAuthor);
               opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
             }
+            retainStoryForensicPreservation(
+              forensicPreservations,
+              built.forensicPreservation,
+            );
             if (!built.result.ok) failures.set(spec.id, built.result);
             // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
             // when nothing was authored, which is a harmless no-op advance).
@@ -991,9 +1043,7 @@ export async function storyBuild(
     const backstopLines: string[] = [];
     if (real && worktree !== undefined) {
       if (currentHead === worktree.headSha) {
-        promotionSkipped = run.passed
-          ? "nothing authored across the chain — every verdict attests the unchanged HEAD"
-          : "the chain halted before any node signed a commit — nothing to park";
+        promotionSkipped = storyNoCommitPromotionReason(run.passed, forensicPreservations.size);
       } else if (run.passed && (opts.promote ?? true)) {
         // The PUSH gate: re-observe each DISTINCT install-bearing node's typecheck + package suite
         // over the whole stack (tsx strips types — only tsc sees them; a green leaf must not break
@@ -1122,6 +1172,9 @@ export async function storyBuild(
       ...(promotion !== undefined
         ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]
         : []),
+      ...Array.from(forensicPreservations).flatMap((preservation) =>
+        renderForensicPreservation(preservation),
+      ),
       ...(promotion?.prUrl !== undefined
         ? [`landed:      ${promotion.prUrl} — opened; CI auto-merges to trunk on green (NON-SQUASH, ADR-0031)`]
         : []),
