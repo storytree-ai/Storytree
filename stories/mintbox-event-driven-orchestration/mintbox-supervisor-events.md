@@ -57,26 +57,28 @@ logs, and the next compact three-hour report.
 
 ## Guidance
 
-This is the recorded changed-input route for granted attempt 1/3. It targets ONLY
-`mintbox-meaningful-events-wake-once`; it does not change that contract's acceptance bar.
+This is focused route 2/3. It targets ONLY `mintbox-supervisor-owns-handles-not-transcripts`; it is a
+changed proof input, not a raised acceptance bar.
 
 - In `packages/mintbox-event-driven-orchestration/src/mintbox-supervisor.test.ts`, author exactly one
-  NEW static test whose title begins exactly `mintbox-meaningful-events-wake-once: `.
-- Start from a fresh supervisor state and an otherwise valid event. Preserve the compiler's evidence
-  for the complete event shape with
-  `const runtimeEvent = { ...event } satisfies Parameters<typeof decideMintboxSupervisorEvent>[1]`,
-  then use `Reflect.set(runtimeEvent, "kind", "conversation-message")` so only the runtime value crosses
-  the typed boundary. Do not use `as any`, an `unknown` double-cast, a widened `MintboxEventKind`, or a
-  loosened production signature.
-- Pass that runtime event to `decideMintboxSupervisorEvent`; assert that `wake` is `null` AND that the
-  returned state is deep-equal to the untouched initial state.
-- This is mechanically red at current HEAD: `decideMintboxSupervisorEvent` accepts the unrecognised
-  runtime kind, appends its dedupe key, and returns a coordinator wake instead of ignoring the event.
+  NEW static test whose title begins exactly `mintbox-supervisor-owns-handles-not-transcripts: `.
+- Send an otherwise valid meaningful event through `decideMintboxSupervisorEvent` with this concrete
+  raw multiline summary:
+  `"User: MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN\r\nAssistant: acknowledged\nUser: continue"`.
+  Require a wake, serialize its digest with `JSON.stringify`, and assert that the serialization contains
+  neither the distinctive `MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN` phrase nor raw `\r` or `\n`
+  characters.
+- In that SAME new test, send a distinct otherwise valid event with a normal bounded one-line summary
+  such as `"terrain proof passed"`; require a wake and assert that this summary remains available in the
+  digest. Dropping every summary is not a valid implementation.
+- This is mechanically red at current HEAD: `buildMintboxCoordinatorDigest` copies every defined
+  `event.summary` through `bounded()` regardless of transcript shape, so the distinctive private
+  conversation phrase survives in the serialized digest.
 
-Freeze `mintbox-supervisor-owns-handles-not-transcripts` and
-`mintbox-three-hour-report-carries-delta` for this drive. Do not add, delete, or edit their assertions,
-tests, or implementation; the broader proof scope is regression coverage, not authority to change
-those behaviours.
+Freeze the now-signed `mintbox-meaningful-events-wake-once` runtime-kind behavior and freeze
+`mintbox-three-hour-report-carries-delta` entirely. Do not add, delete, or edit their tests,
+assertions, or implementation in this drive; the broader proof scope is regression coverage, not
+authority to change those behaviours.
 
 ## Contracts
 
