@@ -445,6 +445,43 @@ test("story-chain-records-one-attempt-for-the-story: a passing chain records exa
   }
 });
 
+test("a REAL chain on an injected verdict store names that store in its header and says its signed verdicts are gone", async () => {
+  const stories = await fixtureStories([
+    { id: "cap-a", dependsOn: [] },
+    { id: "cap-b", dependsOn: ["cap-a"] },
+  ]);
+  const repo = await fixtureRepo(false);
+  const store = new InMemoryStore();
+  const corpus = await fixtureCorpus();
+  try {
+    const env = await StoryBuildModule.storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      corpusStore: corpus,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
+      store,
+      verdictStore: "memory",
+      progress: silentBuildProgress(),
+      authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a"), "cap-b": scopeFor("cap-b") }),
+    });
+
+    assert.equal(env.ok, true, env.body);
+    const bodyLines = env.body.split("\n");
+    assert.ok(bodyLines.includes("store:       in-memory (injected — nothing persists past this run)"), env.body);
+    assert.ok(
+      bodyLines.includes("All 2 member verdicts were signed; they landed in an in-memory store and are gone."),
+      env.body,
+    );
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
 test("story-chain-records-one-attempt-for-the-story: promote:false records only the story's attempt, because its promotion never ran", async () => {
   const stories = await fixtureStories([
     { id: "cap-a", dependsOn: [] },
@@ -524,6 +561,50 @@ test("story-chain-records-one-attempt-for-the-story: a halted chain records only
     assert.ok(!(env.next ?? []).some((n) => n.includes("gh pr create")));
     const next = env.next ?? [];
     assert.equal(next[next.length - 1], "storytree story build fix-story --real --increment inc-live");
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+test("story-chain-records-one-attempt-for-the-story: a halted chain reports exactly the members after the halted one as not-attempted", async () => {
+  const stories = await fixtureStories([
+    { id: "cap-a", dependsOn: [] },
+    { id: "cap-bad", dependsOn: ["cap-a"] },
+    { id: "cap-b", dependsOn: ["cap-bad"] },
+  ]);
+  const repo = await fixtureRepo(false);
+  const store = new InMemoryStore();
+  const corpus = await fixtureCorpus();
+  try {
+    const env = await StoryBuildModule.storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: repo.root,
+      corpusStore: corpus,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: store },
+      store,
+      verdictStore: "memory",
+      progress: silentBuildProgress(),
+      authorOverride: scriptedAuthors({
+        "cap-a": scopeFor("cap-a"),
+        "cap-bad": scopeFor("cap-bad"),
+        "cap-b": scopeFor("cap-b"),
+      }),
+    });
+
+    assert.equal(env.ok, false, env.body);
+    const bodyLines = env.body.split("\n");
+    const reportedNotAttempted = (unitId: string): boolean =>
+      renderInnerLoopEntryState({ state: "not-attempted", unitId }).lines.every((line) => bodyLines.includes(line));
+    assert.deepEqual(
+      ["cap-a", "cap-bad", "cap-b"].map(reportedNotAttempted),
+      [false, false, true],
+      "only the member after the halted cap-bad is not-attempted — the signed cap-a and the halted cap-bad were attempted",
+    );
   } finally {
     await rm(stories, { recursive: true, force: true });
     await rm(repo.root, { recursive: true, force: true });

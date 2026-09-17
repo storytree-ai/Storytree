@@ -1185,6 +1185,7 @@ export async function storyBuild(
         // promotion ran UNWITHHELD — a withheld push is no landing candidate, and recording a pass
         // there would mint an obligation nobody can land. A throw is caught and held, never overturns
         // the already-signed verdict.
+        // Stryker disable next-line ConditionalExpression,LogicalOperator: NOT OBSERVABLE HERMETICALLY — a REAL chain that reaches its promotion recorded its attempt above, so innerLoop is always set here, and these replacements differ only on a red chain-end push gate, which needs an install-bearing member (a real pnpm install in the chain's worktree) that no hermetic chain test drives
         if (!anyRed && innerLoop !== undefined) {
           const attemptIncrementId = innerLoop.incrementId;
           try {
@@ -1218,12 +1219,15 @@ export async function storyBuild(
     // entry-state renderer — never re-typed here. A halted REAL chain also reports every driven
     // member AFTER the halted one as not-attempted, through the same renderer.
     const outcome = renderInnerLoopOutcome(story.id, runId, innerLoop, events);
-    const notAttemptedLines: string[] =
-      real && run.halted && run.haltedAt !== undefined
-        ? driveOrder
-            .slice(run.haltedAt + 1)
-            .flatMap((n) => renderInnerLoopEntryState({ state: "not-attempted", unitId: n.id }).lines)
-        : [];
+    // Stryker disable next-line ArrayDeclaration: NOT OBSERVABLE HERMETICALLY — only a halted chain prints these lines, and the halted chain that leaves them empty is a --dry-run or --live one: a --dry-run chain walks a synthetic pair that passes, and only the live leaf can halt a --live one, which no hermetic test may spawn
+    let notAttemptedLines: string[] = [];
+    // `haltedAt` is set exactly when the run halted (runSequence sets the two together).
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: NOT OBSERVABLE HERMETICALLY — a passing chain never prints these lines, so these replacements differ only on a halted --dry-run or --live chain, which no hermetic test can produce (see the line above)
+    if (real && run.haltedAt !== undefined) {
+      notAttemptedLines = driveOrder
+        .slice(run.haltedAt + 1)
+        .flatMap((n) => renderInnerLoopEntryState({ state: "not-attempted", unitId: n.id }).lines);
+    }
     const width = Math.max(...order.map((n) => n.id.length));
     const nodeLines = order.map((spec, i) => {
       const label = `${String(i + 1).padStart(2)}. ${spec.id.padEnd(width)}`;

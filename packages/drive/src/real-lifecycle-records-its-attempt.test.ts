@@ -283,6 +283,44 @@ test(
 );
 
 test(
+  "an-unrecordable-attempt-refuses-the-walk: the refusal names the unit, the run and the increment " +
+    "whose attempt could not be recorded",
+  async () => {
+    const fx = await setupFixture("cap-a");
+    const store = new ThrowingAttemptAppendStore();
+    const inner = scriptedAuthors({ "cap-a": scopeFor("cap-a") })(fx.spec, fx.worktree.root);
+    assert.ok(inner !== undefined, "ground truth: the scripted author must resolve for cap-a");
+    try {
+      const built = await NodeBuildModule.buildNodeReal({
+        spec: fx.spec,
+        worktree: fx.worktree,
+        baseSha: fx.worktree.headSha,
+        buildConfig: fx.buildConfig,
+        realConfig: fx.buildConfig.real!,
+        store,
+        runId: "run-named-refusal",
+        signer: fx.signer,
+        phasePrompts: fx.phasePrompts,
+        repoRoot: fx.repoRoot,
+        promote: false,
+        authorOverride: inner as PhaseAuthor,
+        incrementId: "inc-1",
+      });
+
+      assert.equal(built.result.ok, false, "ground truth: an unrecordable attempt must refuse the walk");
+      if (built.result.ok) return;
+      assert.equal(
+        built.result.reason,
+        "inner-loop attempt for cap-a (run run-named-refusal, increment inc-1) could not be recorded: " +
+          "attempt-append-marker — the walk is refused before the leaf (ADR-0576 D5)",
+      );
+    } finally {
+      await teardownFixture(fx);
+    }
+  },
+);
+
+test(
   "an-unrecordable-attempt-refuses-the-walk: the protocol's own refusal of a blank increment id " +
     "takes the same fail-closed path",
   async () => {
