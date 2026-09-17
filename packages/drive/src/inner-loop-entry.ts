@@ -155,7 +155,7 @@ function latestGrantKind(events: readonly StoreEvent[], unitId: string): string 
     // skip as another unit's (and skipping needs an object carrying a unitId), and a doc that fails
     // to parse refuses the preflight as ledger-unreadable before this runs.
     const record = event.doc as Record<string, unknown>;
-    if (record.event !== "grant" || record.unitId !== unitId) continue;
+    if ((record.event !== "grant" && record.event !== "owner-grant") || record.unitId !== unitId) continue;
     // Stryker disable next-line EqualityOperator: EQUIVALENT (the `>=` replacement) for every real store — each appended event gets a unique seq, so two grants never compare equal
     if (event.seq > latestSeq) {
       latestSeq = event.seq;

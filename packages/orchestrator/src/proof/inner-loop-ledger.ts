@@ -8,6 +8,8 @@ import { ATTEMPT_CEILING, decideAttempt, type AttemptDecision } from "./inner-lo
 
 type AdjudicationEvent = Extract<InnerLoopEvent, { event: "adjudication" }>;
 type GrantEvent = Extract<InnerLoopEvent, { event: "grant" }>;
+type OwnerGrantEvent = Extract<InnerLoopEvent, { event: "owner-grant" }>;
+type AnyGrantEvent = GrantEvent | OwnerGrantEvent;
 type LedgerEvent = Pick<StoreEvent, "doc" | "id" | "kind" | "seq" | "type">;
 
 export interface InnerLoopAttempt {
@@ -32,7 +34,8 @@ interface ParsedLedgerEvent {
 
 /** Canonical durable identity: one row per event family, unit, increment, and build run. */
 export function innerLoopEventId(doc: InnerLoopEvent): string {
-  return ["inner-loop", doc.event, doc.unitId, doc.incrementId, doc.runId]
+  const authority = doc.event === "owner-grant" ? [doc.authorityQuestionRef] : [];
+  return ["inner-loop", doc.event, doc.unitId, doc.incrementId, doc.runId, ...authority]
     .map(encodeURIComponent)
     .join(":");
 }
@@ -50,7 +53,7 @@ export function foldInnerLoopLedger(
   const adjudications: AdjudicationEvent[] = [];
   let latestReopenedAttempt = -1;
   let remainingGrantCount = 0;
-  let activeGrant: GrantEvent | undefined;
+  let activeGrant: AnyGrantEvent | undefined;
   let consecutiveFailures = 0;
   let terminalRun: string | undefined;
 
@@ -102,14 +105,17 @@ export function foldInnerLoopLedger(
       continue;
     }
 
-    if (doc.event === "grant") {
+    if (doc.event === "grant" || doc.event === "owner-grant") {
       if (attempts.at(-1)?.runId !== doc.runId) {
         throw new Error(`grant must bind the latest failed run: ${doc.runId}`);
       }
-      if (consecutiveFailures < 3) throw new Error("grant is early: the decision point is three failures");
+      if (doc.event === "grant" && consecutiveFailures < 3) throw new Error("grant is early: the decision point is three failures");
       if (remainingGrantCount > 0) throw new Error("grant overlaps a live grant");
-      if (consecutiveFailures >= ATTEMPT_CEILING) {
+      if (doc.event === "grant" && consecutiveFailures >= ATTEMPT_CEILING) {
         throw new Error(`grant exceeds the owner ceiling of ${ATTEMPT_CEILING} failures`);
+      }
+      if (doc.event === "owner-grant" && consecutiveFailures < ATTEMPT_CEILING) {
+        throw new Error(`owner grant is early: the owner ceiling is ${ATTEMPT_CEILING} failures`);
       }
       remainingGrantCount = doc.attempts;
       activeGrant = doc;
@@ -131,19 +137,28 @@ export function foldInnerLoopLedger(
     incrementId,
     signed: attemptSigned,
   }));
-  const basePolicy =
-    activeGrant === undefined
-      ? decideAttempt({ unitId, attempts: policyHistory })
-      : decideAttempt({
-          unitId,
-          attempts: policyHistory,
-          grant: {
-            attempts: remainingGrantCount,
-            kind: activeGrant.kind,
-            difference: activeGrant.difference,
-          },
-        });
-  const policy: AttemptDecision = basePolicy;
+  const basePolicy = activeGrant === undefined
+    ? decideAttempt({ unitId, attempts: policyHistory })
+    : decideAttempt({
+        unitId,
+        // The ordinary ruler owns the normal grant. An owner-grant is exceptional only at its
+        // ceiling boundary, so feed the ruler its last pre-ceiling history and retain the real
+        // failure count below; this preserves every content check without weakening the ceiling.
+        attempts: activeGrant.event === "owner-grant" ? policyHistory.slice(0, ATTEMPT_CEILING - 1) : policyHistory,
+        grant: {
+          attempts: remainingGrantCount,
+          kind: activeGrant.kind,
+          difference: activeGrant.difference,
+        },
+      });
+  const policy: AttemptDecision = activeGrant?.event === "owner-grant"
+    ? {
+        ...basePolicy,
+        consecutiveFailures,
+        remainingBeforeDecision: 0,
+        reason: `${basePolicy.reason} — settled authority ${activeGrant.authorityQuestionRef}, ${activeGrant.authorityDecisionRef}`,
+      }
+    : basePolicy;
 
   return {
     attempts,

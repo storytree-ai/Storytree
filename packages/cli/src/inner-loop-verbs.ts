@@ -1,4 +1,5 @@
 import { INNER_LOOP_EVENT_KIND, type InnerLoopEventDoc } from "@storytree/proof-protocol";
+import { DecisionAuthority, hasQuotedOwnerDirective } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 import {
   ATTEMPT_DECISION_POINT,
@@ -33,6 +34,9 @@ export interface NodeGrantInput {
   readonly difference: string;
   readonly actor?: string | undefined;
 }
+export interface NodeOwnerGrantInput extends NodeGrantInput {
+  readonly authorityQuestionId: string;
+}
 
 export type NodeGrantResult =
   | { readonly ok: true; readonly event: InnerLoopEventDoc; readonly ledger: InnerLoopLedger }
@@ -64,6 +68,7 @@ export type NodeAttemptsResult =
 
 type AdjudicationDoc = Extract<InnerLoopEventDoc, { event: "adjudication" }>;
 type GrantDoc = Extract<InnerLoopEventDoc, { event: "grant" }>;
+type OwnerGrantDoc = Extract<InnerLoopEventDoc, { event: "owner-grant" }>;
 
 const GRANT_KINDS = [
   "changed-input",
@@ -174,6 +179,56 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
 
   const freshLedger = foldInnerLoopLedger(await store.readEvents(), unitId);
   return { ok: true, event: candidate, ledger: freshLedger };
+}
+
+/** Record the single owner-authorised exceptional allowance after proving its live provenance. */
+export async function recordNodeOwnerGrant(
+  store: Store,
+  input: NodeOwnerGrantInput,
+): Promise<NodeGrantResult> {
+  const { unitId, authorityQuestionId, attempts, kind, difference, actor } = input;
+  if (!isGrantKind(kind) || kind === "better-spec") return { ok: false, reason: `unknown grant kind "${kind}"` };
+  const content = judgeGrantContent(unitId, attempts, kind, difference);
+  if (content.disposition === "refused") return { ok: false, reason: content.reason };
+  let events: Awaited<ReturnType<Store["readEvents"]>>;
+  let ledger: InnerLoopLedger;
+  let question; let increment;
+  try {
+    events = await store.readEvents();
+    ledger = foldInnerLoopLedger(events, unitId);
+    question = await store.getDoc(authorityQuestionId);
+    const latest = ledger.attempts.at(-1);
+    increment = latest === undefined ? null : await store.getDoc(latest.incrementId);
+  } catch (error) { return { ok: false, reason: `the owner authority could not be read: ${errorMessage(error)}` }; }
+  const latest = ledger.attempts.at(-1);
+  if (latest === undefined) return { ok: false, reason: `${unitId} has no recorded attempt for an owner grant to bind` };
+  if (ledger.unresolvedSignedRuns.length > 0) return { ok: false, reason: `${unitId} has an unresolved signed pass` };
+  if (ledger.consecutiveFailures < 6) return { ok: false, reason: `owner grant is early: the owner ceiling is 6 failures` };
+  if (ledger.remainingGrantCount > 0) return { ok: false, reason: "grant overlaps a live grant" };
+  if (question === null || question.kind !== "open-question") return { ok: false, reason: "authority question is missing or is not an open-question" };
+  const q = question.doc as Record<string, unknown>;
+  if (q.lifecycle !== "settled" || typeof q.answer !== "string" || q.answer.trim() === "" || typeof q.settledAt !== "string" || q.settledAt.trim() === "" || typeof q.settledByRef !== "string" || !q.settledByRef.startsWith("asset:")) return { ok: false, reason: "authority question is not fully settled" };
+  if (increment === null || increment.kind !== "increment") return { ok: false, reason: "bound increment is missing or is not an increment" };
+  const decisionId = q.settledByRef.slice("asset:".length);
+  let decision;
+  try { decision = await store.getDoc(decisionId); } catch (error) { return { ok: false, reason: `deciding ADR could not be read: ${errorMessage(error)}` }; }
+  if (decision === null || decision.kind !== "adr") return { ok: false, reason: "deciding ADR is missing or is not an adr" };
+  const d = decision.doc as Record<string, unknown>; const i = increment.doc as Record<string, unknown>;
+  if (d.status !== "accepted" || !hasQuotedOwnerDirective(DecisionAuthority.safeParse(d.authority).success ? DecisionAuthority.parse(d.authority) : undefined)) return { ok: false, reason: "deciding ADR is not accepted with quoted owner authority" };
+  const arc = q.arcRef;
+  if (typeof arc !== "string" || !arc.startsWith("asset:") || i.arcRef !== arc || d.arcRef !== arc) return { ok: false, reason: "question, increment and deciding ADR must name the same arc" };
+  const questionRef = `asset:${authorityQuestionId}`;
+  try {
+    for (const event of events) {
+      if (event.kind !== INNER_LOOP_EVENT_KIND) continue;
+      const prior = event.doc as Record<string, unknown>;
+      if (prior.event === "owner-grant" && prior.authorityQuestionRef === questionRef) return { ok: false, reason: `owner authority ${questionRef} is already spent` };
+    }
+    const candidate: OwnerGrantDoc = { event: "owner-grant", unitId, incrementId: latest.incrementId, runId: latest.runId, attempts, kind, difference, authorityQuestionRef: questionRef, authorityDecisionRef: q.settledByRef };
+    foldInnerLoopLedger([...events, { id: innerLoopEventId(candidate), kind: INNER_LOOP_EVENT_KIND, type: "created", doc: candidate, seq: Number.MAX_SAFE_INTEGER }], unitId);
+    await appendInnerLoopEvent(store, candidate, actor);
+    return { ok: true, event: candidate, ledger: foldInnerLoopLedger(await store.readEvents(), unitId) };
+  } catch (error) { return { ok: false, reason: errorMessage(error) }; }
 }
 
 /** A landing objection under construction: its optional fields are filled only when given. */

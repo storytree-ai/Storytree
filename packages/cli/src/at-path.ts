@@ -266,6 +266,7 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // `node attempts|grant|adjudicate` (ADR-0576 D3): a count, a run id, an objection enum and a
   // decision reference — none of them a durable prose record, so each is taken literally.
   "attempts",
+  "authority",
   "run",
   "objection",
   "decision",
