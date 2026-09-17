@@ -1,0 +1,7 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/mintbox-event-driven-orchestration/src/index.ts": "mintbox-event-driven-orchestration"
+    }
+  }
+}

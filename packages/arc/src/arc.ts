@@ -1660,11 +1660,103 @@ export async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): 
     : `arc ${arcId} reopened — open work is back on it (ADR-0335).`;
 }
 
+/**
+ * What `--disposition` means on a close with NO PR, in the words both refusals print — ADR-0564 D1,
+ * made REQUIRED where nothing else can supply the reading (`a-close-without-a-pr-records-its-reading`).
+ *
+ * A PR derives `landed` on its own (`incrementDisposition`), so a close that carries one may stay
+ * silent. Nothing derives anything else: a close with neither a PR nor a recorded call reads
+ * UNRECORDED — grey — for good, because nothing revisits a closed row. Measured on the live store
+ * 2026-09-16: of 48 increments closed since 2026-09-13, the only 2 that drew grey were this shape,
+ * and one of them was a real decision-log landing.
+ *
+ * ONE copy, printed by `arc increment close` and `arc increment add` alike, so the two verbs that can
+ * write such a close cannot teach the rule two ways.
+ */
+const DISPOSITION_WITHOUT_PR = [
+  "--disposition says what the close MEANT, which the board paints (ADR-0564 D1):",
+  "  landed     something landed without a PR — a decision, an arc edit, knowledge artifacts",
+  "  failed     the work was attempted and did not land",
+  "  withdrawn  a duplicate, a superseded plan, a unit that should never have been parked",
+  "A PR derives `landed` by itself. Nothing else does, so a close with neither reads grey for good.",
+];
+
+/**
+ * Read `--disposition` into ADR-0564 D1's three values — `undefined` when none was given — or return
+ * the REFUSAL (an `Envelope`, so `typeof … === "object"`) for a value outside them.
+ *
+ * Blank reads as ABSENT rather than as a value: a shell expanding `--disposition "$VAR"` with `VAR`
+ * unset must not store `""`, which the schema's enum would reject on the row's next write. An
+ * unrecognised word is refused rather than dropped, because an absence reads downstream as "nobody
+ * said" and would quietly discard the judgement the caller took the trouble to make.
+ */
+function parseDisposition(raw: string | undefined, next: string[]): IncrementDisposition | undefined | Envelope {
+  const value = raw?.trim();
+  if (value === undefined || value === "") return undefined;
+  const parsed = IncrementDisposition.safeParse(value);
+  if (parsed.success) return parsed.data;
+  return {
+    ok: false,
+    body: [
+      `--disposition takes "landed", "failed" or "withdrawn" (got "${value}").`,
+      "ADR-0564 D1: it records what the close MEANT, which the board paints as the bar's tone.",
+      "`withdrawn` is NOT a softer `failed` (D3) — it is a duplicate, a superseded plan, or a",
+      "unit that should never have been parked: work that stopped rather than work that lost.",
+      "Omit it only beside --pr, which derives `landed`; with no --pr it is REQUIRED.",
+    ].join("\n"),
+    next,
+  };
+}
+
+/**
+ * The ONE refusal for a close with no PR that has not said everything it owes. It names EVERY missing
+ * flag at once, so a session that omitted both learns both from one message rather than from two
+ * round trips, and it is returned before anything is written.
+ *
+ * `reason` is the verb's own prose requirement: `--note` for `arc increment close`, whose parked row's
+ * `body` is the INTENTION and cannot double as the closing prose (ADR-0322), and `--outcome` for
+ * `arc increment add`, whose born-closed row's `body` IS the outcome.
+ */
+function refuseUnrecordedClose(
+  verb: "close" | "add",
+  reason: { flag: string; given: boolean; why: readonly string[] },
+  dispositionGiven: boolean,
+  next: string[],
+): Envelope | undefined {
+  const missing = [...(reason.given ? [] : [reason.flag]), ...(dispositionGiven ? [] : ["--disposition"])];
+  if (missing.length === 0) return undefined;
+  return {
+    ok: false,
+    body: [
+      `arc increment ${verb} with no --pr needs ${reason.flag} AND --disposition — missing: ${missing.join(", ")}.`,
+      ...reason.why,
+      ...DISPOSITION_WITHOUT_PR,
+    ].join("\n"),
+    next,
+  };
+}
+
+/**
+ * WHAT A BORN-CLOSED ROW RECORDS — and so whether it owes a reading when it carries no PR.
+ *
+ *   - `work` — a unit of work closing: `arc increment add`, and the terminal increment `arc close`
+ *     writes. With no PR it must RECORD what the close meant, or it draws grey for good.
+ *   - `lifecycle-marker` — the PARKED / REOPENED / UN-PARKED row that `arc park` and `arc reopen` write
+ *     to put prose behind a lifecycle flip. EXEMPT, and on purpose: ADR-0564's three readings say what
+ *     a unit of WORK's close meant, and none of them is true of a shelving or a reopening. `landed`
+ *     would count one as a landing on `arc list` and on the board — the false green the decision
+ *     removed — while `failed` and `withdrawn` would report work that never existed as lost or
+ *     stopped. Unrecorded is the honest reading of a row that is not work.
+ */
+type ClosedRowKind = "work" | "lifecycle-marker";
+
 /** What {@link arcIncrementAdd} accepts — the landing it is being asked to record. */
 export interface ArcIncrementAddOpts {
   date?: string | undefined;
   pr?: string | undefined;
   outcome?: string | undefined;
+  /** ADR-0564 D1's recorded reading — REQUIRED when there is no `pr`, optional beside one. */
+  disposition?: string | undefined;
   id?: string | undefined;
   cites?: string[] | undefined;
 }
@@ -1683,21 +1775,54 @@ export interface ArcIncrementAddOpts {
  * Work that was PARKED first should close its existing increment (`arc increment close`) rather than
  * mint a second one here; that is what keeps a deferred intention traceable to the landing that
  * discharged it instead of leaving two rows describing one piece of work.
+ *
+ * **With no `--pr`, `--disposition` is REQUIRED** — the row is born closed, so this is the only moment
+ * its reading can be recorded ({@link DISPOSITION_WITHOUT_PR}).
  */
 export async function arcIncrementAdd(
   deps: ArcWriteDeps,
   arcId: string | undefined,
   opts: ArcIncrementAddOpts,
 ): Promise<Envelope> {
+  return recordClosedIncrement(deps, arcId, opts, "work");
+}
+
+/**
+ * {@link arcIncrementAdd}'s body, shared with the lifecycle verbs. `kind` is the ONE difference between
+ * the callers: whether a PR-less row must record its reading ({@link ClosedRowKind}).
+ */
+async function recordClosedIncrement(
+  deps: ArcWriteDeps,
+  arcId: string | undefined,
+  opts: ArcIncrementAddOpts,
+  kind: ClosedRowKind,
+): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment add");
   if (arcId === undefined) {
     return {
       ok: false,
-      body: "arc increment add needs an arc id:  storytree arc increment add <arc-id> --outcome <text|@file> --pg",
+      body: "arc increment add needs an arc id:  storytree arc increment add <arc-id> --outcome <text|@file> --pr <ref> --pg",
       next: ["storytree arc list --pg"],
     };
   }
   const outcomeText = opts.outcome?.trim();
+  const pr = opts.pr?.trim();
+  const hasPr = pr !== undefined && pr !== "";
+  const disposition = parseDisposition(opts.disposition, [`storytree arc show ${arcId} --pg`]);
+  if (typeof disposition === "object") return disposition;
+  if (!hasPr && kind === "work") {
+    const refused = refuseUnrecordedClose(
+      "add",
+      {
+        flag: "--outcome",
+        given: outcomeText !== undefined && outcomeText !== "",
+        why: ["--outcome <text|@file> says what landed / halted / was re-planned (long prose: --outcome @path)."],
+      },
+      disposition !== undefined,
+      [`storytree arc show ${arcId} --pg`],
+    );
+    if (refused !== undefined) return refused;
+  }
   if (outcomeText === undefined || outcomeText === "") {
     return {
       ok: false,
@@ -1712,7 +1837,6 @@ export async function arcIncrementAdd(
   if ("error" in found) return found.error;
 
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
-  const pr = opts.pr?.trim();
 
   // The id: an explicit `--id`, else `<arc>-inc-NN` at the next free ordinal. The scan skips ids
   // already taken, so a re-run mints a fresh row rather than silently overwriting a landing.
@@ -1731,6 +1855,9 @@ export async function arcIncrementAdd(
 
   const lead = firstSentenceOf(outcomeText, DERIVED_TITLE_CAP);
   const outcome: IncrementOutcome = pr !== undefined && pr !== "" ? { date, pr } : { date };
+  // Written ONLY when given, exactly as `arc increment close` does: beside a PR the reading is
+  // derived downstream, and stamping one nobody chose would assert a judgement nobody made.
+  if (disposition !== undefined) outcome.disposition = disposition;
   const doc: IncrementDraft = {
     kind: "increment",
     id,
@@ -1788,7 +1915,7 @@ export async function arcIncrementAdd(
       `storytree library artifact ${result.saved.id} --pg`,
       ...(stillOpen
         ? [
-            `storytree arc increment close <id> --note "…" --pg  (end state met? draw the open work down — the last one closes the arc, ADR-0347)`,
+            `storytree arc increment close <id> --note "…" --disposition <landed|failed|withdrawn> --pg  (end state met? draw the open work down — the last one closes the arc, ADR-0347)`,
           ]
         : []),
     ],
@@ -2109,6 +2236,9 @@ export async function arcIncrementPromote(
  * is written down rather than implied — which is exactly why **`--note` is REQUIRED when there is no
  * `--pr`.** ADR-0305 D2 removed `superseded` and `retired` as separate states on the grounds that the
  * difference between them was a REASON, not a state; that trade only holds if the reason is recorded.
+ * **So is `--disposition`** (ADR-0564 D1, made required here): with no PR to derive a reading from, a
+ * close that does not record one draws grey on the board for good ({@link DISPOSITION_WITHOUT_PR}).
+ * Both are refused together, before anything is written.
  *
  * Closing is cheap because it rides a step the closing leg already performs (ADR-0271). The
  * increment is CLOSED, never deleted — its own history is the trace, and a closed increment IS the
@@ -2158,42 +2288,26 @@ export async function arcIncrementClose(
   const pr = opts.pr?.trim();
   const note = opts.note?.trim();
 
-  // ADR-0564 D1 — the orchestrator's own call about what this close MEANT. Refused rather than
-  // dropped when it is not one of the three: an unrecognised value silently becoming an ABSENCE is
-  // the worst outcome available here, because an absence reads downstream as "nobody said" and would
-  // quietly discard the judgement the caller took the trouble to make.
-  const dispositionRaw = opts.disposition?.trim();
-  let disposition: IncrementDisposition | undefined;
-  if (dispositionRaw !== undefined && dispositionRaw !== "") {
-    const parsed = IncrementDisposition.safeParse(dispositionRaw);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        body: [
-          `--disposition takes "landed", "failed" or "withdrawn" (got "${dispositionRaw}").`,
-          "ADR-0564 D1: it records what the close MEANT, which the board paints as the bar's tone.",
-          "`withdrawn` is NOT a softer `failed` (D3) — it is a duplicate, a superseded plan, or a",
-          "unit that should never have been parked: work that stopped rather than work that lost.",
-          "Omit it and the reading is derived from --pr, which is what every historical row does.",
-        ].join("\n"),
-        next: [`storytree library artifact ${id} --pg`],
-      };
-    }
-    disposition = parsed.data;
-  }
+  // ADR-0564 D1 — the orchestrator's own call about what this close MEANT.
+  const disposition = parseDisposition(opts.disposition, [`storytree library artifact ${id} --pg`]);
+  if (typeof disposition === "object") return disposition;
 
-  if ((pr === undefined || pr === "") && (note === undefined || note === "")) {
-    return {
-      ok: false,
-      body: [
-        "arc increment close needs --pr <ref> or --note <text|@file>.",
-        "ADR-0305 D2 removed `superseded` and `retired` as states because the difference between them",
-        "was a REASON, not a state — so the reason has to be written somewhere. Give the landing ref,",
-        "or say why it closed: discharged by a deletion, duplicated by a sibling, decided against.",
-        "An unexplained closure reads as a landing that never happened (long prose: --note @path).",
-      ].join("\n"),
-      next: [`storytree library artifact ${id} --pg`],
-    };
+  if (pr === undefined || pr === "") {
+    const refused = refuseUnrecordedClose(
+      "close",
+      {
+        flag: "--note",
+        given: note !== undefined && note !== "",
+        why: [
+          "--note <text|@file> says WHY it closed. ADR-0305 D2 removed `superseded` and `retired` as",
+          "states because the difference between them was a REASON, not a state — so write it down:",
+          "discharged by a deletion, duplicated by a sibling, decided against (long prose: --note @path).",
+        ],
+      },
+      disposition !== undefined,
+      [`storytree library artifact ${id} --pg`],
+    );
+    if (refused !== undefined) return refused;
   }
 
   // FIELD-SCOPED (ADR-0352): a closure names `status`, `outcome` and the stamp. Everything else on
@@ -2360,18 +2474,22 @@ export async function arcClose(
         "Close or re-home each one first. There is deliberately NO override (ADR-0347 D2) — a closure carries",
         "its OWN reason on the row a later reader will actually open, which is a better record than one blanket",
         "sentence covering all of them:",
-        ...open.map((r) => `  storytree arc increment close ${r.id} --note "<why>" --pg`),
+        ...open.map((r) => `  storytree arc increment close ${r.id} --note "<why>" --disposition <landed|failed|withdrawn> --pg`),
         "",
         `The LAST of those closes this arc for you (ADR-0335), so you may not need \`arc close\` at all. To put a`,
         "terminal statement of the end state on the log as well, append it afterwards:",
-        `  storytree arc increment add ${id} --outcome "…" --pg`,
+        `  storytree arc increment add ${id} --outcome "…" --disposition landed --pg`,
       ].join("\n"),
       next: [`storytree arc show ${id} --pg`],
     };
   }
 
   // 1. The terminal increment FIRST — see the header for why this order is the mitigation.
-  const terminalOpts: ArcIncrementAddOpts = { outcome };
+  // It records `landed` itself, PR or no PR, because that is what this verb asserts: `--outcome` is
+  // the end-state condition the arc MET, and ADR-0564 D2 names "a recorded landing of … an arc" as a
+  // landing. A `--disposition` flag here would have one honest value, so it is not offered — and
+  // without the record a PR-less close would draw its own terminal row grey for good.
+  const terminalOpts: ArcIncrementAddOpts = { outcome, disposition: "landed" };
   if (opts.pr !== undefined) terminalOpts.pr = opts.pr;
   if (opts.date !== undefined) terminalOpts.date = opts.date;
   const terminal = await arcIncrementAdd(deps, id, terminalOpts);
@@ -2489,16 +2607,19 @@ export async function arcReopen(
         "To record a landing on it, use:",
         `  storytree arc increment add ${id} --outcome "<what landed>" --pr <ref> --pg`,
       ].join("\n"),
-      next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pg`],
+      next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pr <ref> --pg`],
     };
   }
   const wasParked = base["lifecycle"] === "parked";
 
-  // 1. The increment FIRST — see the header for why this order is the mitigation.
+  // 1. The increment FIRST — see the header for why this order is the mitigation. A LIFECYCLE MARKER,
+  // so it records no reading ({@link ClosedRowKind}): a reopening is not work that landed or failed.
   const entryOpts: ArcIncrementAddOpts = { outcome: `${wasParked ? UNPARK_MARKER : REOPEN_MARKER} — ${reason}` };
   if (opts.pr !== undefined) entryOpts.pr = opts.pr;
   if (opts.date !== undefined) entryOpts.date = opts.date;
-  const entry = await arcIncrementAdd(deps, id, entryOpts);
+  // Stryker disable next-line StringLiteral: EQUIVALENT — only `"work"` owes a reading, so an emptied
+  // label is exempt exactly as `"lifecycle-marker"` is; the exemption itself is pinned by a test.
+  const entry = await recordClosedIncrement(deps, id, entryOpts, "lifecycle-marker");
   if (!entry.ok) return entry;
 
   // 2. Then the flip. Written EXPLICITLY rather than by deleting the field: `lifecycleOf` reads
@@ -2632,11 +2753,14 @@ export async function arcPark(
     };
   }
 
-  // 1. The increment FIRST — see the header for why this order is the mitigation.
+  // 1. The increment FIRST — see the header for why this order is the mitigation. A LIFECYCLE MARKER,
+  // so it records no reading ({@link ClosedRowKind}): shelving an arc is not work that landed or failed.
   const entryOpts: ArcIncrementAddOpts = { outcome: `${PARK_MARKER} — ${reason}` };
   if (opts.pr !== undefined) entryOpts.pr = opts.pr;
   if (opts.date !== undefined) entryOpts.date = opts.date;
-  const entry = await arcIncrementAdd(deps, id, entryOpts);
+  // Stryker disable next-line StringLiteral: EQUIVALENT — only `"work"` owes a reading, so an emptied
+  // label is exempt exactly as `"lifecycle-marker"` is; the exemption itself is pinned by a test.
+  const entry = await recordClosedIncrement(deps, id, entryOpts, "lifecycle-marker");
   if (!entry.ok) return entry;
 
   // 2. Then the flip — FIELD-SCOPED (ADR-0352), for the reason both siblings are: the increment
@@ -2891,7 +3015,7 @@ export function arcHelp(): Envelope {
       "",
       "the increment verbs:",
       "  storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date] [--id <slug>]",
-      "        [--cites <ref>]... --pg",
+      "        [--cites <ref>]... [--disposition landed|failed|withdrawn: REQUIRED with no --pr] --pg",
       "        RECORD one landing — the merge-ceremony residue (ADR-0271). Creates a CLOSED increment;",
       "        title / objective / id are derived, so it still costs one command. Work that was PARKED",
       "        first should `increment close` its existing row instead of minting a second one.",
@@ -2916,8 +3040,8 @@ export function arcHelp(): Envelope {
       "        FORWARD-ONLY: a demotion is refused — correct a wrong status in place instead.",
       "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>]",
       "        [--disposition landed|failed|withdrawn: what the BOARD paints, ADR-0564] --pg",
-      "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` is REQUIRED",
-      "        when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",
+      "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` AND `--disposition`",
+      "        are REQUIRED when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",
       "        difference was a REASON not a state, so a closure that is not a landing has to say why.",
       "        This is what lets a wrong or duplicate entry close honestly instead of reading as landed.",
       "",

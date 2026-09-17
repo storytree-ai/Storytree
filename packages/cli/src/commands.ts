@@ -870,7 +870,7 @@ export function terminalVerbFor(kind: string, id: string): string | undefined {
     case "friction":
       return `storytree friction route ${id} --route <enum> --reason "<why>" --pg   (adjudicate it — the terminal verb)`;
     case "increment":
-      return `storytree arc increment close ${id} --note "<why>" --pg   (close it — the terminal verb)`;
+      return `storytree arc increment close ${id} --note "<why>" --disposition <landed|failed|withdrawn> --pg   (close it — the terminal verb)`;
     default:
       return undefined;
   }
@@ -3504,10 +3504,10 @@ export const CLI_OPTIONS = {
   doing: { type: "string" },
   redirect: { type: "string" },
   "self-report": { type: "string" },
-  // SHARED with `storytree arc increment close --disposition landed|failed|withdrawn` (ADR-0564 D1),
-  // which records what a close MEANT. The option table is flat and global, so one declaration serves
-  // both verbs — as `--note`, `--date` and `--reason` already do — and each verb validates its OWN
-  // vocabulary and refuses a value from the other's.
+  // SHARED with `storytree arc increment close|add --disposition landed|failed|withdrawn` (ADR-0564
+  // D1), which records what a close MEANT and is REQUIRED on a close with no --pr. The option table is
+  // flat and global, so one declaration serves every verb — as `--note`, `--date` and `--reason`
+  // already do — and each verb validates its OWN vocabulary and refuses a value from the other's.
   disposition: { type: "string" },
   by: { type: "string" },
   mode: { type: "string" },
@@ -4732,6 +4732,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       if (values.date !== undefined) incAddOpts.date = values.date;
       if (values.pr !== undefined) incAddOpts.pr = values.pr;
       if (resolved.outcome !== undefined) incAddOpts.outcome = resolved.outcome;
+      // The same flag `increment close` reads — REQUIRED here when there is no --pr, because the row
+      // is born closed and this is the only moment its reading can be recorded.
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — the guard exists for
+      // `exactOptionalPropertyTypes`, not behaviour: the callee reads `opts.disposition?.trim()`, which
+      // answers the same for an absent key and a key holding undefined (the `arc gate` idiom above).
+      if (values.disposition !== undefined) incAddOpts.disposition = values.disposition;
       const incAddId = Array.isArray(values.id) ? values.id[0] : undefined;
       if (incAddId !== undefined) incAddOpts.id = incAddId;
       if (Array.isArray(values.cites)) incAddOpts.cites = values.cites;

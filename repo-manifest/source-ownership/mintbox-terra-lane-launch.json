@@ -1,0 +1,8 @@
+{
+  "sourceOwnership": {
+    "subtrees": {
+      "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.test.ts": "mintbox-terra-lane-launch",
+      "packages/mintbox-event-driven-orchestration/src/mintbox-lane-launcher.ts": "mintbox-terra-lane-launch"
+    }
+  }
+}

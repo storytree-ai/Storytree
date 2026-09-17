@@ -24,6 +24,7 @@
       "@storytree/forest-world": "forest-world",
       "@storytree/forest-world-r3f": "website-experience",
       "@storytree/library": "library",
+      "@storytree/mintbox-event-driven-orchestration": "mintbox-event-driven-orchestration",
       "@storytree/notice-board": "notice-board",
       "@storytree/orchestrator": "drive-machinery",
       "@storytree/procedural-architecture": "art-factory",

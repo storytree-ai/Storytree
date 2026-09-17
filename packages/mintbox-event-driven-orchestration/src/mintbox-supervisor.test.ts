@@ -1,5 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { readCodexRateLimitSnapshot, type CodexAppServerProcessEvents, type CodexRateLimitSnapshot } from "@storytree/agent";
+import {
+  FileMintboxSupervisorAdapter,
+  type MintboxHandleProbe,
+  type MintboxSupervisorRuntime,
+} from "./mintbox-supervisor-adapter.js";
 import {
   buildMintboxCoordinatorDigest,
   createMintboxSupervisorState,
@@ -25,6 +34,131 @@ const facts = {
   lastOutcome: "terrain proof passed",
 };
 const event = { kind: "completion" as const, subject: "terrain", deliveryId: "job-72", occurredAt: "2026-09-09T01:00:00.000Z", summary: "green" };
+
+test("mintbox-meaningful-events-wake-once: ignores an unrecognised runtime event without consuming its dedupe key", () => {
+  const initial = createMintboxSupervisorState(facts);
+  const runtimeEvent = { ...event } satisfies Parameters<typeof decideMintboxSupervisorEvent>[1];
+  Reflect.set(runtimeEvent, "kind", "conversation-message");
+
+  const decision = decideMintboxSupervisorEvent(initial, runtimeEvent);
+  assert.equal(decision.wake, null);
+  assert.deepEqual(decision.state, initial);
+});
+
+test("mintbox-supervisor-owns-handles-not-transcripts: retains bounded operational summaries but never raw conversation text", () => {
+  const initial = createMintboxSupervisorState(facts);
+  const privateSummary = "User: MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN\r\nAssistant: acknowledged\nUser: continue";
+  const privateWake = decideMintboxSupervisorEvent(initial, { ...event, deliveryId: "private-summary", summary: privateSummary }).wake;
+  assert.ok(privateWake);
+  assert.equal(Object.hasOwn(privateWake.digest.event, "summary"), false, "rejected transcript-shaped input is omitted rather than retained as an undefined field");
+  const serializedPrivateDigest = JSON.stringify(privateWake.digest);
+  assert.equal(serializedPrivateDigest.includes("MINTBOX-PRIVATE-CONVERSATION-DO-NOT-RETAIN"), false);
+  assert.equal(serializedPrivateDigest.includes("\\r"), false);
+  assert.equal(serializedPrivateDigest.includes("\\n"), false);
+
+  const operationalWake = decideMintboxSupervisorEvent(initial, {
+    ...event,
+    deliveryId: "operational-summary",
+    summary: "terrain proof passed",
+  }).wake;
+  assert.ok(operationalWake);
+  assert.equal(JSON.stringify(operationalWake.digest).includes("terrain proof passed"), true);
+});
+
+test("mintbox-three-hour-report-carries-delta: persists reader-produced weekly observations and compact live handle facts", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "mintbox-supervisor-report-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const statePath = path.join(root, "supervisor.json");
+  const requests: Array<{ readonly method: string }> = [];
+  const readSnapshot = async (weekly: number | "unavailable"): Promise<CodexRateLimitSnapshot> => {
+    let events: CodexAppServerProcessEvents | undefined;
+    const snapshot = readCodexRateLimitSnapshot({
+      cwd: root,
+      timeoutMs: 1_000,
+      spawn: (_command, nextEvents) => {
+        events = nextEvents;
+        return {
+          write: (line) => {
+            const request = JSON.parse(line) as { readonly id?: number; readonly method: string };
+            requests.push({ method: request.method });
+            if (request.method === "initialize") {
+              events?.stdout(`${JSON.stringify({ id: request.id, result: { userAgent: "test", platformFamily: "windows", platformOs: "windows", codexHome: root } })}\n`);
+            }
+            if (request.method === "account/rateLimits/read") {
+              const primary = weekly === "unavailable"
+                ? { usedPercent: "not-a-number", windowDurationMins: 10_080 }
+                : { usedPercent: weekly, windowDurationMins: 10_080 };
+              events?.stdout(`${JSON.stringify({ id: request.id, result: { rateLimits: { primary, secondary: null }, rateLimitsByLimitId: {}, rateLimitResetCredits: { availableCount: 0 } } })}\n`);
+            }
+          },
+          end: () => events?.exit(0, null),
+          kill: () => undefined,
+        };
+      },
+    });
+    return await snapshot;
+  };
+  const runtime: MintboxSupervisorRuntime = {
+    probeHandle: async (): Promise<MintboxHandleProbe> => "unknown",
+    ensureCoordinator: async () => { throw new Error("the reporting path must not launch a coordinator"); },
+  };
+  const supervisor = new FileMintboxSupervisorAdapter({
+    statePath,
+    coordinatorCommand: { executable: "codex", args: [] },
+    initialFacts: facts,
+    runtime,
+  });
+  await supervisor.recordHandle({ id: "worker-actual", role: "worker", pid: 731, host: "mintbox", detached: true, startedAt: event.occurredAt, health: "blocked", model: "worker-observed-model", effort: "xhigh", lane: "shadows" });
+  await supervisor.recordHandle({ id: "coordinator-actual", role: "coordinator", pid: 732, host: "mintbox", detached: true, startedAt: event.occurredAt, health: "failed", model: "gpt-6-astra", effort: "high" });
+
+  const first = await readSnapshot(32);
+  const second = await readSnapshot(37);
+  assert.deepEqual(requests.map((request) => request.method), ["initialize", "initialized", "account/rateLimits/read", "initialize", "initialized", "account/rateLimits/read"]);
+  assert.equal(requests.some((request) => request.method === "thread/start" || request.method === "turn/start"), false);
+  const firstReport = await supervisor.recordProgressReport(first, { at: "2026-09-09T00:00:00.000Z", action: "wait for renderer green boundary" });
+  const secondReport = await supervisor.recordProgressReport(second, { at: "2026-09-09T03:00:00.000Z", action: "wake coordinator" });
+  const recovered = await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
+  const report = secondReport.report;
+  assert.equal(firstReport.report.weeklyUsageDelta, null);
+  assert.equal(report.weeklyUsagePercent, 37);
+  assert.equal(report.weeklyUsageDelta, 5);
+  assert.equal(report.coordinatorHealth, "failed");
+  assert.deepEqual(report.workerHealth, [{ id: "worker-actual", health: "blocked", model: "worker-observed-model", effort: "xhigh", lane: "shadows" }]);
+  assert.deepEqual(report.lanes, { ready3d: ["canopy"], blocked3d: ["shadows"] });
+  assert.equal(report.lastOutcome, "terrain proof passed");
+  assert.equal(report.rendererBlocker, "green boundary pending");
+  assert.equal(report.parallelSessionCount, 2);
+  assert.equal(report.action, "wake coordinator");
+  assert.deepEqual(recovered.latestProgressReport, report);
+
+  const malformedWeekly = await readSnapshot("unavailable");
+  const unavailableReport = await supervisor.recordProgressReport(malformedWeekly, { at: "2026-09-09T06:00:00.000Z", action: "await account usage" });
+  const unavailableUsage = unavailableReport.report.weeklyUsage;
+  assert.deepEqual(unavailableUsage, { status: "unavailable", reason: "malformed" });
+  assert.equal(Object.hasOwn(unavailableReport.report, "weeklyUsagePercent"), false);
+  const recoveredUnavailable = await new FileMintboxSupervisorAdapter({ statePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
+  assert.deepEqual(recoveredUnavailable.latestProgressReport?.weeklyUsage, unavailableUsage);
+  assert.equal(recoveredUnavailable.state.lastWeeklyUsagePercent, 37);
+
+  const emptyStatePath = path.join(root, "empty-supervisor.json");
+  const emptySupervisor = new FileMintboxSupervisorAdapter({
+    statePath: emptyStatePath,
+    coordinatorCommand: { executable: "codex", args: [] },
+    initialFacts: facts,
+    runtime,
+  });
+  const unavailableSnapshot = { status: "unavailable", reason: "timed-out" } as const satisfies CodexRateLimitSnapshot;
+  const emptyReport = await emptySupervisor.recordProgressReport(unavailableSnapshot, {
+    at: "2026-09-09T09:00:00.000Z",
+    action: "await account usage reader",
+  });
+  assert.equal(emptyReport.report.coordinatorHealth, "none");
+  assert.deepEqual(emptyReport.report.weeklyUsage, { status: "unavailable", reason: "timed-out" });
+  assert.equal(Object.hasOwn(emptyReport.report, "weeklyUsagePercent"), false);
+  const recoveredEmpty = await new FileMintboxSupervisorAdapter({ statePath: emptyStatePath, coordinatorCommand: { executable: "codex", args: [] }, initialFacts: facts, runtime }).recover();
+  assert.equal(recoveredEmpty.latestProgressReport?.coordinatorHealth, "none");
+  assert.deepEqual(recoveredEmpty.latestProgressReport?.weeklyUsage, { status: "unavailable", reason: "timed-out" });
+});
 
 test("each meaningful event wakes exactly once across retry and supervisor recovery", () => {
   const initial = createMintboxSupervisorState(facts);
