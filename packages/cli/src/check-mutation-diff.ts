@@ -258,7 +258,12 @@ ${SHARED_CONSTRAINTS}
     // capping the suite by killing slow tests; lifting that let \`packages/agent\`'s dry run take the
     // ~43 s it honestly needs, and the run then died as "Dry run timed out" instead. Neither clock
     // is the runaway guard — Stryker's own \`timeoutMS\` above is, per mutant, and it is unchanged.
-    timeout: 180000,
+    // Moved again 180 s → 600 s on 2026-09-17, for the same reason at a larger covering set: the
+    // \`production-builds-enforce-the-inner-loop-exit\` landing's 24 drive + cli witness files
+    // include the real-chain tests (\`leaf-slices-activation\` 157 s, \`story-real-build\` 125 s
+    // alone), its dry run measured ~316 s on the Windows dev box, and 180 s killed it before a
+    // single mutant ran. 600 s is about twice that measurement.
+    timeout: 600000,
   },`
       : `  testRunner: "vitest",
   plugins: ["@stryker-mutator/vitest-runner"],
