@@ -169,6 +169,12 @@ function sameOwner(left: CodexDetachedOwner, right: CodexDetachedOwner): boolean
   return left.kind === right.kind && left.rootPid === right.rootPid && left.token === right.token;
 }
 
+function immutableOwner(owner: CodexDetachedOwner): CodexDetachedOwner {
+  return Object.freeze(owner.kind === "posix-process-group"
+    ? { kind: owner.kind, rootPid: owner.rootPid, token: owner.token }
+    : { kind: owner.kind, rootPid: owner.rootPid, token: owner.token });
+}
+
 function validOwner(
   candidate: CodexDetachedOwner | undefined,
   pid: number,
@@ -907,7 +913,7 @@ export function createOpenPinnedCodexDetachedThread(
         return;
       }
       const responseId = message["id"];
-      if (!Number.isSafeInteger(responseId)) {
+      if (!Number.isSafeInteger(responseId) || (responseId as number) <= 0) {
         protocolFault("Codex app-server emitted an invalid response id");
         return;
       }
@@ -1000,8 +1006,8 @@ export function createOpenPinnedCodexDetachedThread(
       if (!validOwner(acquired, pid, runtime.platform)) {
         throw new Error("exact Codex process ownership was not acquired");
       }
-      owner = acquired;
-      const openedOwner = acquired;
+      const openedOwner = immutableOwner(acquired);
+      owner = openedOwner;
       await throwLatchedFault();
       const initialized = await request("initialize", { clientInfo: { name: "storytree", version: "0.0.0" } });
       if (!record(initialized)) throw new Error("initialize returned an invalid result");
@@ -1060,6 +1066,12 @@ export function createOpenPinnedCodexDetachedThread(
   };
 }
 
-export const openPinnedCodexDetachedThread: (
+export const openPinnedCodexDetachedThread = async (
   args: OpenPinnedCodexDetachedThreadArgs,
-) => Promise<CodexDetachedThread> = createOpenPinnedCodexDetachedThread(codexDetachedProductionRuntime);
+): Promise<CodexDetachedThread> => await createOpenPinnedCodexDetachedThread(codexDetachedProductionRuntime)({
+  cwd: args.cwd,
+  env: args.env ?? process.env,
+  model: args.model,
+  reasoningEffort: args.reasoningEffort,
+  timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+});
