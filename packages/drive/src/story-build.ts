@@ -1339,8 +1339,8 @@ export async function storyBuild(
           ...outcome.next,
           real
             ? `storytree story build ${story.id} --real --increment ${incrementId}`
-            // Stryker disable next-line StringLiteral,ConditionalExpression: NO COVERAGE BY DESIGN — a --dry-run chain walks a synthetic pair that passes, and only the live leaf can halt a --live one, which no hermetic test may spawn
-            : `storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`,
+            : // Stryker disable next-line StringLiteral: NO COVERAGE BY DESIGN — a --dry-run chain walks a synthetic pair that passes, and only the live leaf can halt a --live one, which no hermetic test may spawn
+              `storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`,
         ],
       };
     }

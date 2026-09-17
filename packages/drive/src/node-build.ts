@@ -1422,7 +1422,7 @@ export function liveInnerLoopReads(): InnerLoopReadHandles & { readonly close: (
         return ledgerStore.readEvents(filter);
       },
     },
-    // Stryker disable next-line BlockStatement: EQUIVALENT — close() releases only a handle that opened, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
+    // Stryker disable next-line BlockStatement: NOT OBSERVABLE HERMETICALLY — close() releases only a handle that opened, only the live store opens one, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
     close: async () => {
       // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
       if (corpus !== undefined) await corpus.close();
@@ -1471,12 +1471,8 @@ export async function preflightPaidBuild(input: {
     return runPaidBuildPreflight(input.reads, input.incrementId, input.unitIds, input.revise);
   }
   const reads = liveInnerLoopReads();
-  try {
-    return await runPaidBuildPreflight(reads, input.incrementId, input.unitIds, input.revise);
-    // Stryker disable next-line BlockStatement: EQUIVALENT — close() releases only a handle that opened, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
-  } finally {
-    await reads.close();
-  }
+  // Stryker disable next-line ArrowFunction: NOT OBSERVABLE HERMETICALLY — close() releases only a handle that opened, only the live store opens one, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
+  return runPaidBuildPreflight(reads, input.incrementId, input.unitIds, input.revise).finally(() => reads.close());
 }
 
 /** `[]` for undefined, or `{lines,next}` rendered through {@link renderInnerLoopEntryState}. */

@@ -223,10 +223,10 @@ function buildAdjudicationEvent(
     adjudication.inadmissible !== undefined
       ? { ...core, inadmissible: adjudication.inadmissible }
       : core;
-  return adjudication.disposition === "refuse"
-    // Stryker disable next-line StringLiteral: EQUIVALENT — an unreachable fallback: the ruler refuses a landing only for an objection that names a decision
-    ? { ...withInadmissible, namedRule: (namedRuleSource ?? "").trim() }
-    : withInadmissible;
+  if (adjudication.disposition !== "refuse") return withInadmissible;
+  // Stryker disable next-line StringLiteral: EQUIVALENT — an unreachable fallback: the ruler refuses a landing only for an objection that names a decision
+  const namedRule = (namedRuleSource ?? "").trim();
+  return { ...withInadmissible, namedRule };
 }
 
 export async function recordNodeAdjudication(

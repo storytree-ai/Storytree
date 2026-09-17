@@ -320,10 +320,9 @@ function nextForRefusal(r: InnerLoopRefusal): string | undefined {
     case "unresolved-signed-pass":
       // Stryker disable next-line StringLiteral: EQUIVALENT — unreachable fallbacks: judgeUnit stamps the unit id and run id on an unresolved-signed-pass refusal
       return adjudicateCommand(r.unitId ?? "", r.runId ?? "");
-    default:
-      // owner-ceiling and grant-kind-mismatch point at no command: the next call is the owner's, or a rerun of the right shape.
-      return undefined;
   }
+  // owner-ceiling and grant-kind-mismatch point at no command: the next call is the owner's, or a rerun of the right shape.
+  return undefined;
 }
 
 /** An entry state rendered for an envelope: the body lines and the next-step commands. */
