@@ -143,7 +143,11 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     re-observing the exact same root generation, and may terminate only after another exact match;
     dead, changed, malformed, host-wrong and observation-unavailable rows start no process or protocol
     request and never signal a numeric pid or group. Termination remains bounded and idempotent and
-    confirms the recovered owner dead-for-controller.
+    confirms the recovered owner dead-for-controller. Cross-runtime recovery is a fallback only for a
+    runtime that never minted that token: if the current runtime minted it and has observed that exact
+    generation dead or latch-closed it, that stronger local negative fact remains terminal. Durable
+    recovery must not re-open it even when an OS descriptor is later observable, and a reused pid or
+    different generation never inherits the old token's authority.
 Across all fourteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
@@ -217,7 +221,11 @@ re-observe the same platform-specific root generation before reporting live or s
 runtime-local map, token prefix, bare pid or bare process-group existence is insufficient; malformed,
 host-wrong, changed or unobservable ownership fails closed without a signal. Recovery never implies a
 surviving JSONL channel and never upgrades Windows root disappearance into proof that escaped
-descendants died.
+descendants died. Durable recovery is only the fallback when the receiving runtime has no local
+mint/closure provenance for that token. If this runtime minted the token and locally observed that
+exact generation dead or latch-closed it, that negative knowledge wins permanently: neither recovery
+parsing nor a later matching OS descriptor may re-open the generation, and pid reuse or a different
+generation never acquires the old token's authority.
 
 **The red is an assertion over existing code.** Source and test now exist and carry a signed first
 green, so this `real:` arm is deliberately `editsExisting: true`. AUTHOR_TEST adds regression
@@ -408,11 +416,16 @@ descendant is reaped in `finally`, even when an assertion fails.
       idempotent `terminate` re-observes immediately before signalling, targets only that exact owner,
       and confirms it dead-for-controller. Dead, changed, malformed, host-wrong and unavailable rows
       never signal and never authenticate, spawn, initialize, start a thread/turn or issue a rate-limit
-      request; no result depends on a prior runtime's maps, handles or token prefix.
+      request; no result depends on a prior runtime's maps, handles or token prefix. Cross-runtime
+      recovery is used only when the receiving runtime never minted that token: a locally minted token
+      whose exact generation was observed dead or latch-closed stays terminal despite any later
+      descriptor match, and pid reuse or a different generation cannot inherit its authority.
     - **covers —** the public owner-recovery types and `recoverCodexDetachedOwner`, plus production
       cross-runtime owner validation, observation and termination in
       `packages/agent/src/codex-detached-app-server.ts` and publication through `index.ts`.
     - **proven by —** `persisted-owner-recovers-across-runtime-restart: ...` tests that mint and
       serialize each platform owner in runtime A, discard A, recover it in independently constructed
       runtime B, and assert live/dead/unavailable probe plus exact-match termination, pid/group-reuse,
-      malformed/host-wrong input, bounded failure, idempotence and zero protocol/process creation.
+      malformed/host-wrong input, bounded failure, idempotence and zero protocol/process creation;
+      same-runtime rows also prove that a locally closed generation cannot be re-opened through the
+      durable fallback.
