@@ -87,6 +87,23 @@ const grantEvt = (
   kind,
   difference: "a new fixture",
 });
+const ownerGrantEvt = (
+  unitId: string,
+  incrementId: string,
+  runId: string,
+  attempts: number,
+  kind: DiffKind = "revised-test",
+) => ({
+  event: "owner-grant" as const,
+  unitId,
+  incrementId,
+  runId,
+  attempts,
+  kind,
+  difference: "the owner-authorised test migration",
+  authorityQuestionRef: "asset:q-a",
+  authorityDecisionRef: "asset:adr-0577",
+});
 const landEvt = (unitId: string, incrementId: string, runId: string) => ({
   event: "adjudication" as const,
   unitId,
@@ -112,6 +129,7 @@ type LedgerDoc =
   | ReturnType<typeof attemptEvt>
   | ReturnType<typeof passEvt>
   | ReturnType<typeof grantEvt>
+  | ReturnType<typeof ownerGrantEvt>
   | ReturnType<typeof landEvt>
   | ReturnType<typeof reworkEvt>;
 
@@ -695,6 +713,36 @@ test("a-live-grant-pairs-with-the-run-shape: of two grants the one with the high
       ],
     },
   });
+});
+
+test("owner-grant-carries-settled-authority: preflight reads the live owner-grant kind rather than treating it as no grant", async () => {
+  const ledger = await seedLedger(
+    attemptEvt("u1", "inc-a", "r1"),
+    attemptEvt("u1", "inc-a", "r2"),
+    attemptEvt("u1", "inc-a", "r3"),
+    attemptEvt("u1", "inc-a", "r4"),
+    attemptEvt("u1", "inc-a", "r5"),
+    attemptEvt("u1", "inc-a", "r6"),
+    ownerGrantEvt("u1", "inc-a", "r6", 1),
+  );
+
+  assert.deepEqual(
+    await preflightInnerLoop({ ledger, incrementId: "inc-a", unitIds: ["u1"], revise: false }),
+    {
+      ok: false,
+      state: {
+        state: "refused",
+        refusals: [
+          {
+            kind: "grant-kind-mismatch",
+            unitId: "u1",
+            reason:
+              "u1 holds a live revised-test grant, so this attempt must be a --revise-test run (ADR-0576 D6)",
+          },
+        ],
+      },
+    },
+  );
 });
 
 test("one-entry-state-renders-every-outcome: an increment refusal names no unit and points at the arc list", () => {

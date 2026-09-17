@@ -200,6 +200,12 @@ export async function recordNodeOwnerGrant(
     const latest = ledger.attempts.at(-1);
     increment = latest === undefined ? null : await store.getDoc(latest.incrementId);
   } catch (error) { return { ok: false, reason: `the owner authority could not be read: ${errorMessage(error)}` }; }
+  const questionRef = `asset:${authorityQuestionId}`;
+  for (const event of events) {
+    if (event.kind !== INNER_LOOP_EVENT_KIND) continue;
+    const prior = event.doc as Record<string, unknown>;
+    if (prior.event === "owner-grant" && prior.authorityQuestionRef === questionRef) return { ok: false, reason: `owner authority ${questionRef} is already spent` };
+  }
   const latest = ledger.attempts.at(-1);
   if (latest === undefined) return { ok: false, reason: `${unitId} has no recorded attempt for an owner grant to bind` };
   if (ledger.unresolvedSignedRuns.length > 0) return { ok: false, reason: `${unitId} has an unresolved signed pass` };
@@ -217,14 +223,9 @@ export async function recordNodeOwnerGrant(
   if (d.status !== "accepted" || !hasQuotedOwnerDirective(DecisionAuthority.safeParse(d.authority).success ? DecisionAuthority.parse(d.authority) : undefined)) return { ok: false, reason: "deciding ADR is not accepted with quoted owner authority" };
   const arc = q.arcRef;
   if (typeof arc !== "string" || !arc.startsWith("asset:") || i.arcRef !== arc || d.arcRef !== arc) return { ok: false, reason: "question, increment and deciding ADR must name the same arc" };
-  const questionRef = `asset:${authorityQuestionId}`;
   try {
-    for (const event of events) {
-      if (event.kind !== INNER_LOOP_EVENT_KIND) continue;
-      const prior = event.doc as Record<string, unknown>;
-      if (prior.event === "owner-grant" && prior.authorityQuestionRef === questionRef) return { ok: false, reason: `owner authority ${questionRef} is already spent` };
-    }
     const candidate: OwnerGrantDoc = { event: "owner-grant", unitId, incrementId: latest.incrementId, runId: latest.runId, attempts, kind, difference, authorityQuestionRef: questionRef, authorityDecisionRef: q.settledByRef };
+    // Stryker disable next-line ArrayDeclaration,ObjectLiteral: EQUIVALENT — every ledger invariant is checked above; appendInnerLoopEvent re-validates the authority refs before any write.
     foldInnerLoopLedger([...events, { id: innerLoopEventId(candidate), kind: INNER_LOOP_EVENT_KIND, type: "created", doc: candidate, seq: Number.MAX_SAFE_INTEGER }], unitId);
     await appendInnerLoopEvent(store, candidate, actor);
     return { ok: true, event: candidate, ledger: foldInnerLoopLedger(await store.readEvents(), unitId) };
