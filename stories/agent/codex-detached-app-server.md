@@ -5,11 +5,11 @@ story: agent
 capability: live-codex-leaf
 arc: mintbox-event-driven-orchestration-arc
 title: "Stage one authenticated pinned Codex thread in an exactly owned detached process before any turn starts"
-outcome: "A caller can open one authenticated repo-pinned Codex app-server, observe its response-resolved thread/model/effort and exact platform-honest process ownership before work starts, then use that same bounded controller to start a turn, probe it, and terminate its whole owned tree idempotently."
+outcome: "A caller can open one authenticated repo-pinned Codex app-server, observe its response-resolved thread/model/effort and exact platform-honest process ownership before work starts, then use that same bounded controller to start a turn, probe current ownership, and perform every cleanup that ownership still safely licenses idempotently."
 status: proposed
 proof_mode: contract-test
 depends_on: []
-decisions: [11, 232, 561]
+decisions: [11, 104, 232, 561]
 proof:
   command:
     file: pnpm
@@ -41,14 +41,15 @@ proof:
 
 **Outcome —** A caller can open one authenticated repo-pinned Codex app-server, observe its
 response-resolved thread/model/effort and exact platform-honest process ownership before work starts,
-then use that same bounded controller to start a turn, probe it, and terminate its whole owned tree
-idempotently.
+then use that same bounded controller to start a turn, probe current ownership, and perform every
+cleanup that ownership still safely licenses idempotently.
 
 ## Why this is a contract under `live-codex-leaf`
 
 The proof-mode boundary decides the tier. This behaviour has no standalone integrated journey: its
 honest proof replaces subscription auth, the child process, JSONL protocol, clock, OS ownership and
-tree termination with injected collaborators and asserts one public boundary. That is one isolated
+platform-safe termination with injected collaborators and asserts one public boundary. That is one
+isolated
 automated behaviour — a contract — inside the independently viable live-Codex capability. A seventh
 capability would be a shallow boundary over the same `codex-*` runtime surface and would still need
 the same stubs. The contract adds no capability edge: any helper it reuses from `codex-author.ts` or
@@ -56,8 +57,8 @@ the same stubs. The contract adds no capability edge: any helper it reuses from 
 precondition.
 
 The seam is deliberately role-neutral. It knows Codex subscription authentication, protocol identity
-and exact process ownership; it knows nothing about Mintbox, Terra, claims, worktrees, lane limits,
-graphics, GPUs, or whether a caller should accept the observed identity.
+and platform-honest process ownership; it knows nothing about Mintbox, Terra, claims, worktrees, lane
+limits, graphics, GPUs, or whether a caller should accept the observed identity.
 
 ## Proof walkthrough
 
@@ -82,17 +83,21 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    `posix-process-group` owner rooted at that child, and terminate that same negative group with the
    bounded signal. Never target a bare pid, executable name or another group.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`.** Through a deterministic Windows OS
-   seam, assert acquisition and liveness inspect the exact root, publish the literal
-   `windows-process-tree` owner, and terminate with a rooted descendant-inclusive tree command. Never
-   reinterpret the root as a POSIX group or broad-kill an image name.
+   seam, assert acquisition records the exact live root identity and publishes the literal
+   `windows-process-tree` owner. Probe and termination re-run `tasklist` and require the same live root
+   token before `taskkill /PID <root> /T /F`; root disappearance or token change is ownership lost and
+   dead-for-controller, so it is never signalled. The rooted command reaches descendants still reachable
+   from that live root; it is not durable containment or proof that escaped descendants died.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`.** Table-drive every owner boundary:
    absent, zero, negative, fractional, non-finite and unsafe pid; missing owner; wrong root; host-wrong
    discriminant; caller platform assertion contradicting the host; blank/whitespace token. Every row
-   rejects, cleans only the just-created child, and never returns a controller.
+   rejects, closes protocol I/O, performs only cleanup still safely licensed by the just-created
+   process identity or handle, and never returns a controller or signals a stale numeric pid.
 6. **`ownership-acquisition-failure-reaps-spawned-child`.** Make production ownership observation
-   return unavailable, throw and exceed its bound after spawn. Each path closes protocol I/O, reaps the
-   just-spawned root and descendants through its platform-honest emergency path, independently confirms
-   death, and then rejects; inability to acquire the public owner never licenses an orphan.
+   return unavailable, throw and exceed its bound after spawn. Each path closes protocol I/O and uses
+   every still-owned cleanup handle: POSIX may reap the exact detached group, while Windows may signal
+   only a root whose current identity is still proven. With no such proof it rejects without a numeric
+   kill; inability to acquire the public owner never licenses a stale-pid guess or silent abandonment.
 7. **`initialize-notification-thread-order-returns-response-identity`.** Assert auth -> spawn ->
    initialize request -> initialized notification -> ephemeral thread/start, with no turn/start during
    open. Make the returned thread id, model and effort deliberately contradict the request and assert
@@ -105,24 +110,29 @@ has its own required test-title prefix; no single broad happy-path title satisfi
 9. **`jsonl-rpc-write-and-exit-faults-clean-up`.** Table-drive malformed JSON, non-object messages,
    missing/non-safe/wrong response ids, RPC error responses, request and notification write failures,
    process error and early exit. Every row rejects the affected operation, settles all pending work,
-   closes I/O, reaps the exact owner once, confirms death and retains only bounded diagnostics.
+   closes I/O and performs every cleanup still safely licensed. An observed Windows root exit is
+   dead-for-controller and forbids `taskkill`; no row claims that vanished-root descendants were killed.
 10. **`request-timeouts-use-safe-bound-and-clean-up`.** Drive initialize, thread/start, turn/start and
     rate-limit reads past their request bound. Undefined uses the safe positive default; zero, negative,
     `NaN` and infinite inputs cannot disable or corrupt it. Each expiry removes its pending
-    correlation, reaps the exact owner, confirms death and rejects without a second process.
+    correlation, performs platform-safe owned cleanup, reaches the controller's terminal observation
+    and rejects without a second process or stale-pid signal.
 11. **`turn-prompt-and-response-failures-clean-up`.** Table-drive blank/whitespace prompts and missing,
     non-object, blank-id or blank-status turn results, then prove one valid turn/start carries the staged
-    thread id and exact prompt and returns response identity. Every invalid start reaps and confirms the
-    owner dead; a later probe cannot report it live.
+    thread id and exact prompt and returns response identity. Every invalid start performs every safe
+    cleanup and confirms the owner terminal for this controller; a later probe cannot report it live.
 12. **`probe-tristate-and-same-channel-rate-limits`.** At call time, make exact-owner liveness report
     live, dead and unavailable/error. Live alone sends bounded `account/rateLimits/read` through the
     already-initialized app-server and returns its observation; dead starts no request; unavailable is
     preserved as typed unavailable rather than collapsed to dead or guessed live. No case starts a
     thread, turn or second process.
 13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
-    again after settlement. They share one terminal operation, close protocol I/O and invoke one exact
-    platform terminator, then poll within a positive finite bound until observed dead. Terminator error,
-    liveness error, bound expiry and a still-live postcondition reject rather than report cleanup.
+    again after settlement. They share one terminal operation and close protocol I/O. POSIX invokes one
+    exact-group terminator and confirms group death; Windows invokes `taskkill /PID <root> /T /F` only
+    after same-token live-root re-observation, then confirms root disappearance. A root already absent
+    or changed is ownership-lost/dead-for-controller and is never signalled; descendant death is not
+    inferred from it. Terminator error, observation error, bound expiry and a still-live matching root
+    reject rather than report cleanup.
 Across all thirteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
@@ -160,21 +170,32 @@ that same initialized app-server and staged thread.
 
 **Ownership is observed, opaque and platform-honest.** The positive pid is the spawned OS child's pid.
 The public owner is a discriminated opaque value: `posix-process-group` only when a POSIX process group
-was acquired and observed for that child; `windows-process-tree` only when a Windows-owned tree/job
-rooted at that child was acquired and observed. The token may be persisted but its representation is
-not caller policy. Never call a Windows pid a pgid, never fall back to an unowned bare pid, and never
-broad-kill by image name. If exact ownership cannot be acquired, the open fails and cleans up the
-just-spawned child within the same bound. Production chooses the ownership variant from the OS; a
-caller-supplied `platform` string is not observation. POSIX process-group termination and Windows
-rooted-tree termination are both production behaviours, not optional test injections.
+was acquired and observed for that child; `windows-process-tree` only when the exact live Windows root
+and its observation token were acquired. The Windows discriminant records a rooted `taskkill`
+capability while that same root remains live; it does not claim a Job Object or durable containment.
+Before every Windows probe or termination, `tasklist` must re-observe the root and the token must equal
+the acquired token. Only then may termination run `taskkill /PID <root> /T /F`, reaching descendants
+still reachable from that live root. Root disappearance or token change means ownership lost and
+dead-for-controller: never reuse the numeric pid, never signal it, and never infer that escaped
+descendants died. The token may be persisted but its representation is not caller policy. Never call a
+Windows pid a pgid, never fall back to an unowned bare pid, and never broad-kill by image name. If
+ownership cannot be acquired, the open fails, closes protocol I/O, and uses only cleanup still licensed
+by the just-spawned process handle or a current identity observation. Production chooses the ownership
+variant from the OS; a caller-supplied `platform` string is not observation. Exact POSIX process-group
+termination and live-root-reachable Windows tree termination are both production behaviours, not
+optional test injections.
 
 **One controller, one process, bounded all the way down.** `startTurn`, `probe` and `terminate` operate
 on the same app-server. `probe` combines exact-owner liveness with a typed rate-limit observation made
 through `account/rateLimits/read` on that same channel, so a caller can take before/after account-wide
 observations without starting another app-server. Every protocol request and every cleanup wait has a
 positive finite bound with a safe default. A protocol error, write error, early exit, timeout, invalid
-identity or failed `startTurn` terminates the owned tree before rejecting. `terminate` is concurrent-
-safe and idempotent, waits for observed death, and retains only bounded diagnostic detail.
+identity or failed `startTurn` closes and rejects after performing every safe owned cleanup still
+available. In particular, observed Windows root exit closes the channel but forbids a stale-pid kill.
+`terminate` is concurrent-safe and idempotent: it waits for exact POSIX group death, or for Windows
+root disappearance/ownership loss after any same-token live-root termination it was allowed to send,
+and retains only bounded diagnostic detail. It never upgrades Windows root disappearance into proof
+that escaped descendants died.
 
 **The red is an assertion over existing code.** Source and test now exist and carry a signed first
 green, so this `real:` arm is deliberately `editsExisting: true`. AUTHOR_TEST adds regression
@@ -202,9 +223,10 @@ contract.
 The hardening must exercise the production defaults and their branches directly, not infer them from
 high-level injected substitutes: bounded authentication and credential scrubbing, pinned detached
 spawn, actual-host owner selection and acquisition, POSIX-group and Windows-tree command composition,
-current-owner liveness, exact-tree termination, and observed-death confirmation. Refactor a hidden
-default behind a deterministic low-level seam when that is needed to make its decisions observable,
-while keeping the public barrel narrow and role-neutral. The remaining protocol, validation, timeout,
+current-owner liveness, exact POSIX-group termination, live-root-reachable Windows termination, and
+platform-qualified terminal observation. Refactor a hidden default behind a deterministic low-level
+seam when that is needed to make its decisions observable, while keeping the public barrel narrow and
+role-neutral. The remaining protocol, validation, timeout,
 failure-cleanup, idempotence, and same-app-server branches are subject to the same per-mutant rule.
 Strengthen or simplify source together with substantive assertions until the mutation command passes;
 an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
@@ -249,31 +271,39 @@ descendant is reaped in `finally`, even when an assertion fails.
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** `posix-group-owner-is-observed-probed-and-terminated: ...` tests whose recording
      OS seam asserts literal owner discriminant, signed target, probe and termination signal.
-4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path owns, observes and terminates the exact rooted process tree.
-   - **asserts —** a positive child pid is inspected as the exact Windows root, yields opaque
-     `windows-process-tree` ownership, is re-observed at probe time and is terminated by a root-scoped
-     descendant-inclusive `/PID <root> /T /F` operation; it is never treated as a pgid or image name.
+4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path observes
+   the exact live root and terminates only its currently reachable rooted tree.
+   - **asserts —** a positive child pid is inspected by `tasklist` as the exact live Windows root,
+     yields opaque `windows-process-tree` ownership with an identity token, and is re-observed with the
+     same token before any descendant-inclusive `taskkill /PID <root> /T /F`. Root disappearance or
+     token change reports ownership lost/dead-for-controller and sends no signal; no result claims
+     escaped-descendant death, a Job Object, pgid ownership or image-name ownership.
    - **covers —** Windows arms of production ownership acquisition, liveness and termination in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** `windows-tree-owner-is-observed-probed-and-terminated: ...` tests whose recording
-     OS seam asserts literal discriminant and exact task-list/task-kill command composition.
+     OS seam asserts literal discriminant, exact-token task-list re-observation, exact task-kill command
+     composition, and no kill after root disappearance or token change.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`** — no invalid or mismatched process identity can become the controller's owner.
    - **asserts —** absent, zero, negative, fractional, non-finite and unsafe pids plus missing owner,
      wrong root, host-wrong kind, caller platform assertion contradicting the host, and blank/whitespace
-     token each reject; every post-spawn row cleans the just-created child, confirms death and returns
-     no controller.
+     token each reject; every post-spawn row closes I/O, attempts only cleanup authorized by a current
+     identity or owned handle, reaches a platform-qualified terminal observation and returns no
+     controller or stale-pid signal.
    - **covers —** pid and exact-owner validation before protocol staging in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** an exhaustive `owner-validation-rejects-invalid-pid-root-kind-and-token: ...`
-     table with one named case and cleanup/death assertion for every listed value class.
+     table with one named case and platform-qualified cleanup/terminal assertion for every listed value
+     class.
 6. **`ownership-acquisition-failure-reaps-spawned-child`** — failure to acquire public ownership cannot orphan the child created immediately before it.
    - **asserts —** unavailable, thrown and bounded-out production ownership observations close I/O,
-     reap only the new root and descendants through a platform-honest emergency path, independently
-     observe death and then reject; no path returns an unowned bare pid or silently skips cleanup.
+     use every still-owned emergency cleanup path and then reject. POSIX targets only the exact group;
+     Windows signals only a same-token live root, otherwise it closes without numeric kill. No path
+     returns an unowned bare pid, claims escaped-descendant death or silently skips available cleanup.
    - **covers —** post-spawn/pre-owner failure handling and emergency cleanup in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** `ownership-acquisition-failure-reaps-spawned-child: ...` tests for unavailable,
-     error and timeout rows, each observing the exact root/descendant dead before rejection settles.
+     error and timeout rows, each asserting I/O closure, every available owned cleanup, the
+     platform-qualified terminal observation and no stale-pid kill before rejection settles.
 7. **`initialize-notification-thread-order-returns-response-identity`** — opening stages one response-identified thread without starting work.
    - **asserts —** the one child observes auth -> spawn -> `initialize` request -> `initialized`
      notification -> ephemeral `thread/start`, and no `turn/start`; thread id, model and effort that
@@ -284,7 +314,7 @@ descendant is reaped in `finally`, even when an assertion fails.
      `packages/agent/src/codex-detached-app-server.ts` plus the public return in `index.ts`.
    - **proven by —** `initialize-notification-thread-order-returns-response-identity: ...` tests with
      a literal protocol log, a response contradicting all requested identity fields, and one asserted
-     cleanup/death row for every invalid initialize/thread shape.
+     platform-qualified cleanup/terminal row for every invalid initialize/thread shape.
 8. **`jsonl-fragments-and-correlates-responses`** — the app-server reader frames chunked JSONL and resolves only the request named by each response id.
    - **asserts —** a response split across chunks, several lines coalesced in one chunk and blank lines
      preserve the incomplete suffix and parse exactly once; safe numeric ids correlate the right
@@ -296,24 +326,27 @@ descendant is reaped in `finally`, even when an assertion fails.
 9. **`jsonl-rpc-write-and-exit-faults-clean-up`** — protocol and process faults reject pending work and clean up the exact owner.
    - **asserts —** malformed JSON, non-object messages, missing/non-safe/wrong ids, RPC errors, request
      and notification write errors, process error and early exit each reject the affected operation,
-     settle all pending requests, close I/O, reap the exact owner once and confirm death with bounded
-     diagnostics only.
+     settle all pending requests, close I/O and perform every still-safe owned cleanup once with bounded
+     diagnostics only. Early Windows root exit forbids `taskkill`; it is dead-for-controller, not proof
+     that descendants died.
    - **covers —** JSONL fault dispatch, RPC rejection, write catches and process event handlers in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** a `jsonl-rpc-write-and-exit-faults-clean-up: ...` matrix with one asserted row for
-     every named fault and its pending-settlement plus cleanup/death postcondition.
-10. **`request-timeouts-use-safe-bound-and-clean-up`** — every request family has a positive finite timeout whose expiry reaps the owner.
+     every named fault and its pending-settlement plus platform-qualified cleanup/terminal postcondition.
+10. **`request-timeouts-use-safe-bound-and-clean-up`** — every request family has a positive finite
+    timeout whose expiry cleans up the owner within current platform authority.
     - **asserts —** initialize, thread/start, turn/start and rate-limit reads expire through the injected
       clock; undefined selects the safe default while zero, negative, `NaN` and infinite
-      inputs cannot disable or corrupt it; expiry deletes correlation, reaps and confirms the exact
-      owner dead, rejects and starts no replacement process.
+      inputs cannot disable or corrupt it; expiry deletes correlation, performs platform-safe cleanup,
+      reaches the controller's terminal observation, rejects and starts no replacement process or
+      stale-pid signal.
     - **covers —** timeout normalization and per-request timer cleanup in
       `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `request-timeouts-use-safe-bound-and-clean-up: ...` tables spanning every timeout
       input class and request family, with observed bound, correlation removal and exact cleanup.
 11. **`turn-prompt-and-response-failures-clean-up`** — a staged controller starts only a valid response-identified turn and cleans up every invalid attempt.
     - **asserts —** blank/whitespace prompt and missing, non-object, blank-id or blank-status turn result
-      reject and confirm the owner dead; one valid request carries the staged thread id and exact prompt
+      reject and confirm the owner terminal for this controller; one valid request carries the staged thread id and exact prompt
       and returns response-produced id/status; no case starts another app-server and failed start leaves
       probe unable to report live.
     - **covers —** `CodexDetachedThread.startTurn`, turn response validation and its cleanup path in
@@ -329,12 +362,16 @@ descendant is reaped in `finally`, even when an assertion fails.
       in `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
       states plus a spontaneous exit and a literal one-channel protocol log.
-13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination succeeds once for all callers and only after bounded observed death.
-    - **asserts —** concurrent calls and a later repeat share one terminal operation, close I/O and
-      invoke one exact platform terminator, then poll within a positive finite bound until dead;
-      terminator error, liveness error, bound expiry and still-live postcondition reject rather than
-      report cleanup, without targeting another owner.
-    - **covers —** `CodexDetachedThread.terminate`, concurrency/idempotence, bounded death observation
-      and terminal error retention in `packages/agent/src/codex-detached-app-server.ts`.
+13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination settles once for all
+    callers only after a bounded platform-qualified terminal observation.
+    - **asserts —** concurrent calls and a later repeat share one terminal operation and close I/O.
+      POSIX invokes one exact-group terminator and polls until group death. Windows first requires the
+      same live root token, invokes one rooted `taskkill`, and polls until root disappearance; a root
+      already absent or carrying another token is ownership-lost/dead-for-controller and is never
+      signalled. Terminator error, observation error, bound expiry and a still-live matching owner
+      reject rather than report cleanup; no Windows row claims escaped-descendant death.
+    - **covers —** `CodexDetachedThread.terminate`, concurrency/idempotence, bounded platform-qualified
+      terminal observation and terminal error retention in
+      `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `termination-is-idempotent-bounded-and-confirms-death: ...` tests racing calls and
       separately asserting terminator error, observation error, timeout and still-live rows.

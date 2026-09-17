@@ -60,7 +60,10 @@ The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
   an OS-observed positive pid and a platform-honest opaque owner: a POSIX process group or a Windows
   owned process tree, never one mislabeled as the other. Only after a caller has independently checked
   and persisted those observations may it call the same handle's bounded `startTurn`; bounded `probe`
-  and idempotent `terminate` retain exact ownership of that one process tree. This is a **contract**,
+  and idempotent `terminate` retain exact POSIX group ownership, or exact Windows root identity only
+  while `tasklist` re-observes the same live token. Windows may then use rooted `taskkill /T`; root exit
+  or token change ends that authority, is dead-for-controller, and proves nothing about escaped
+  descendants. The seam claims no broader Windows containment. This is a **contract**,
   not a seventh capability: its honest proof is one isolated automated test surface with injected
   auth, protocol, clock, process and OS collaborators, while its live runtime boundary is already the
   independently viable capability described here. The seam carries no Mintbox or model-role policy.
