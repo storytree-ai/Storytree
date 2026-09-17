@@ -2974,7 +2974,7 @@ async function nodeLedgerCommand(
       return { ok: false, body: "node owner-grant needs --authority <question-id>, --attempts <n>, --kind <kind> and --difference <text|@file>", next: [usageOwnerGrant(unitId)] };
     }
     if (deps.writable !== true || deps.attemptLedger === undefined || deps.attemptLedger === null) return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageOwnerGrant(unitId)] };
-    const result = await recordNodeOwnerGrant(deps.attemptLedger, { unitId, authorityQuestionId: authorityFlag, attempts: Number(attemptsFlag), kind: kindFlag, difference: differenceFlag, actor: deps.actor } satisfies NodeOwnerGrantInput);
+    const result = await recordNodeOwnerGrant(deps.attemptLedger, deps.store, { unitId, authorityQuestionId: authorityFlag, attempts: Number(attemptsFlag), kind: kindFlag, difference: differenceFlag, actor: deps.actor } satisfies NodeOwnerGrantInput);
     if (!result.ok) return { ok: false, body: result.reason, next: [usageAttempts(unitId)] };
     const grantEvent = result.event as Extract<InnerLoopEventDoc, { event: "owner-grant" }>;
     return { ok: true, body: `owner-granted: ${unitId} — ${grantEvent.attempts} further attempt(s), ${grantEvent.kind}, bound to run ${grantEvent.runId} under increment ${grantEvent.incrementId}\nauthority: ${grantEvent.authorityQuestionRef}, ${grantEvent.authorityDecisionRef}\ndifference: ${grantEvent.difference}`, next: [usageAttempts(unitId)] };

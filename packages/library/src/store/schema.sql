@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS events.scope_event (
   at                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ADR-0563's replayable attempt/grant/adjudication/pass ledger. Identity makes delivery retry-safe;
+-- ADR-0563's replayable attempt/grant/owner-grant/adjudication/pass ledger. Identity makes delivery retry-safe;
 -- PgWorkStore rejects a different document attempting to reuse the same identity.
 CREATE TABLE IF NOT EXISTS events.inner_loop_event (
   seq          BIGSERIAL PRIMARY KEY,
@@ -203,12 +203,34 @@ CREATE TABLE IF NOT EXISTS events.inner_loop_event (
   unit_id      TEXT NOT NULL,
   increment_id TEXT NOT NULL,
   run_id       TEXT NOT NULL,
-  event        TEXT NOT NULL CHECK (event IN ('attempt', 'grant', 'signed-pass', 'adjudication')),
+  event        TEXT NOT NULL CHECK (event IN ('attempt', 'grant', 'owner-grant', 'signed-pass', 'adjudication')),
   doc          JSONB NOT NULL,
   actor        TEXT NOT NULL,
   at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (unit_id, increment_id, event, run_id)
 );
+
+-- ADR-0578 added the separately authorised owner-grant event after this table was already live.
+-- CREATE TABLE IF NOT EXISTS cannot widen an existing CHECK, so converge the old shape in place.
+DO $$
+DECLARE
+  event_check TEXT;
+BEGIN
+  SELECT pg_get_constraintdef(oid)
+    INTO event_check
+    FROM pg_constraint
+   WHERE conrelid = 'events.inner_loop_event'::regclass
+     AND conname = 'inner_loop_event_event_check'
+     AND contype = 'c';
+
+  IF event_check IS NULL OR position('owner-grant' IN event_check) = 0 THEN
+    ALTER TABLE events.inner_loop_event
+      DROP CONSTRAINT IF EXISTS inner_loop_event_event_check;
+    ALTER TABLE events.inner_loop_event
+      ADD CONSTRAINT inner_loop_event_event_check
+      CHECK (event IN ('attempt', 'grant', 'owner-grant', 'signed-pass', 'adjudication'));
+  END IF;
+END $$;
 
 -- Per-UAT-criterion attestations: append-only signed signals. Current rows bind an exact
 -- (criterionId, revisionId); legacy positional test ids remain readable and are migration-classified.
@@ -405,6 +427,10 @@ CREATE INDEX IF NOT EXISTS scope_event_unit_idx ON events.scope_event (unit_id);
 CREATE INDEX IF NOT EXISTS scope_event_at_idx ON events.scope_event (at);
 CREATE INDEX IF NOT EXISTS inner_loop_event_unit_increment_idx
   ON events.inner_loop_event (unit_id, increment_id, seq);
+-- The owner question is a globally single-spend authority, even if two units race to use it.
+CREATE UNIQUE INDEX IF NOT EXISTS inner_loop_owner_grant_authority_unique
+  ON events.inner_loop_event ((doc ->> 'authorityQuestionRef'))
+  WHERE event = 'owner-grant';
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
 CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
 CREATE INDEX IF NOT EXISTS uat_drive_criterion_idx ON events.uat_drive (criterion_id);
