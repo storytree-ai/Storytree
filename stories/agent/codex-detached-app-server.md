@@ -5,7 +5,7 @@ story: agent
 capability: live-codex-leaf
 arc: mintbox-event-driven-orchestration-arc
 title: "Stage one authenticated pinned Codex thread in an exactly owned detached process before any turn starts"
-outcome: "A caller can open one authenticated repo-pinned Codex app-server, observe its response-resolved thread/model/effort and exact platform-honest process ownership before work starts, then use that same bounded controller to start a turn, probe current ownership, and perform every cleanup that ownership still safely licenses idempotently."
+outcome: "A caller can open one authenticated repo-pinned Codex app-server, observe its response-resolved thread/model/effort and exact platform-honest process ownership before work starts, then use that same bounded controller to start a turn, probe current ownership, and perform every cleanup that ownership still safely licenses idempotently; after a caller persists that opaque owner, a fresh Agent runtime can safely recover owner-only probe and termination without reconstructing protocol state."
 status: proposed
 proof_mode: contract-test
 depends_on: []
@@ -42,7 +42,9 @@ proof:
 **Outcome —** A caller can open one authenticated repo-pinned Codex app-server, observe its
 response-resolved thread/model/effort and exact platform-honest process ownership before work starts,
 then use that same bounded controller to start a turn, probe current ownership, and perform every
-cleanup that ownership still safely licenses idempotently.
+cleanup that ownership still safely licenses idempotently; after a caller persists that opaque owner,
+a fresh Agent runtime can safely recover owner-only probe and termination without reconstructing
+protocol state.
 
 ## Why this is a contract under `live-codex-leaf`
 
@@ -123,9 +125,10 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     cleanup and confirms the owner terminal for this controller; a later probe cannot report it live.
 12. **`probe-tristate-and-same-channel-rate-limits`.** At call time, make exact-owner liveness report
     live, dead and unavailable/error. Live alone sends bounded `account/rateLimits/read` through the
-    already-initialized app-server and returns its observation; dead starts no request; unavailable is
-    preserved as typed unavailable rather than collapsed to dead or guessed live. No case starts a
-    thread, turn or second process.
+    already-initialized app-server and returns the existing public `CodexRateLimitSnapshot`, parsed
+    from the full response with `capturedAt` supplied by the injected clock; dead starts no request and
+    returns no snapshot; unavailable is preserved as typed unavailable rather than collapsed to dead,
+    guessed live or given a fabricated snapshot. No case starts a thread, turn or second process.
 13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
     again after settlement. They share one terminal operation and close protocol I/O. POSIX invokes one
     exact-group terminator and confirms group death; Windows invokes `taskkill /PID <root> /T /F` only
@@ -133,7 +136,15 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     or changed is ownership-lost/dead-for-controller and is never signalled; descendant death is not
     inferred from it. Terminator error, observation error, bound expiry and a still-live matching root
     reject rather than report cleanup.
-Across all thirteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
+14. **`persisted-owner-recovers-across-runtime-restart`.** Persist the public opaque owner from one
+    Agent runtime, discard every in-memory generation map, child handle and protocol channel, then pass
+    it through the public barrel to `recoverCodexDetachedOwner` in a fresh runtime. On both POSIX and
+    Windows, the owner-only controller validates the host-appropriate shape, reports live only after
+    re-observing the exact same root generation, and may terminate only after another exact match;
+    dead, changed, malformed, host-wrong and observation-unavailable rows start no process or protocol
+    request and never signal a numeric pid or group. Termination remains bounded and idempotent and
+    confirms the recovered owner dead-for-controller.
+Across all fourteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
 
@@ -147,11 +158,14 @@ writing. The contract id in a phase prompt is an index, never a substitute for t
 and the full assertion below.
 
 **One public deep module.** Author `packages/agent/src/codex-detached-app-server.ts` and publish only
-the narrow role-neutral types plus `openPinnedCodexDetachedThread` through
-`packages/agent/src/index.ts`. The module hides authentication, repo-pinned command resolution,
-generated v2 JSONL protocol, request correlation, detachment, ownership, bounds and cleanup. Do not
-export raw child-process objects, the generated `@openai/codex` protocol types, stdout/stderr, argv,
-or a transcript. Do not add another `@openai/codex` import site outside `@storytree/agent`.
+the narrow role-neutral types plus `openPinnedCodexDetachedThread` and
+`recoverCodexDetachedOwner` through `packages/agent/src/index.ts`. The recovery operation accepts a
+persisted `CodexDetachedOwner` and returns an owner-only bounded controller exposing tri-state `probe`
+and idempotent `terminate`; it cannot recreate protocol state, start a thread or turn, or read rate
+limits. The module hides authentication, repo-pinned command resolution, generated v2 JSONL protocol,
+request correlation, detachment, ownership, bounds and cleanup. Do not export raw child-process
+objects, the generated `@openai/codex` protocol types, stdout/stderr, argv, or a transcript. Do not add
+another `@openai/codex` import site outside `@storytree/agent`.
 
 **Authenticate before detaching.** Run the bounded `codex login status` preflight with the existing
 case-insensitive metered-credential scrub and admit only the existing exact ChatGPT-managed result.
@@ -187,15 +201,23 @@ optional test injections.
 
 **One controller, one process, bounded all the way down.** `startTurn`, `probe` and `terminate` operate
 on the same app-server. `probe` combines exact-owner liveness with a typed rate-limit observation made
-through `account/rateLimits/read` on that same channel, so a caller can take before/after account-wide
-observations without starting another app-server. Every protocol request and every cleanup wait has a
-positive finite bound with a safe default. A protocol error, write error, early exit, timeout, invalid
-identity or failed `startTurn` closes and rejects after performing every safe owned cleanup still
-available. In particular, observed Windows root exit closes the channel but forbids a stale-pid kill.
+through `account/rateLimits/read` on that same channel: its live result carries the existing public
+`CodexRateLimitSnapshot`, parsed from the full response with `capturedAt` taken from the injected
+clock. Dead or unavailable ownership sends no rate-limit request and carries no fabricated snapshot,
+so a caller can take before/after account-wide observations without starting another app-server. Every
+protocol request and every cleanup wait has a positive finite bound with a safe default. A protocol
+error, write error, early exit, timeout, invalid identity or failed `startTurn` closes and rejects after
+performing every safe owned cleanup still available. In particular, observed Windows root exit closes
+the channel but forbids a stale-pid kill.
 `terminate` is concurrent-safe and idempotent: it waits for exact POSIX group death, or for Windows
 root disappearance/ownership loss after any same-token live-root termination it was allowed to send,
-and retains only bounded diagnostic detail. It never upgrades Windows root disappearance into proof
-that escaped descendants died.
+and retains only bounded diagnostic detail. The opaque owner is durable recovery authority, not an
+in-memory runtime id: after persistence, `recoverCodexDetachedOwner` in a fresh Agent runtime must
+re-observe the same platform-specific root generation before reporting live or signalling it. A
+runtime-local map, token prefix, bare pid or bare process-group existence is insufficient; malformed,
+host-wrong, changed or unobservable ownership fails closed without a signal. Recovery never implies a
+surviving JSONL channel and never upgrades Windows root disappearance into proof that escaped
+descendants died.
 
 **The red is an assertion over existing code.** Source and test now exist and carry a signed first
 green, so this `real:` arm is deliberately `editsExisting: true`. AUTHOR_TEST adds regression
@@ -227,14 +249,15 @@ current-owner liveness, exact POSIX-group termination, live-root-reachable Windo
 platform-qualified terminal observation. Refactor a hidden default behind a deterministic low-level
 seam when that is needed to make its decisions observable, while keeping the public barrel narrow and
 role-neutral. The remaining protocol, validation, timeout,
-failure-cleanup, idempotence, and same-app-server branches are subject to the same per-mutant rule.
+failure-cleanup, idempotence, same-app-server and fresh-runtime owner-recovery branches are subject to
+the same per-mutant rule.
 Strengthen or simplify source together with substantive assertions until the mutation command passes;
 an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
-that some input could distinguish does not satisfy any of the thirteen contracts.
+that some input could distinguish does not satisfy any of the fourteen contracts.
 
 **Tests.** Use `node:test` and `node:assert/strict`, with every await bounded and every fake settling
 deterministically. Retain the signed tests, then add at least one substantive runtime test for EACH of
-the thirteen exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
+the fourteen exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
 prefix, naming several ids in one title, or keeping an old title without the new prefix covers none of
 the new lines. For a line that names a matrix, every named row needs an assertion under that line's
 prefix — one representative case is incomplete. Literal protocol methods, command argv and platform
@@ -242,7 +265,7 @@ discriminants appear in assertions rather than being read back from production c
 table-driven cases plus one real-child production-composition test. Every spawned stand-in/root/
 descendant is reaped in `finally`, even when an assertion fails.
 
-## Contracts (13)
+## Contracts (14)
 
 1. **`auth-refusal-and-timeout-never-spawn`** — only a bounded exact ChatGPT-managed authentication result may reach process creation.
    - **asserts —** `openPinnedCodexDetachedThread` runs `login status` first and rejects every
@@ -356,12 +379,14 @@ descendant is reaped in `finally`, even when an assertion fails.
 12. **`probe-tristate-and-same-channel-rate-limits`** — probe preserves live/dead/unavailable ownership truth and reads limits only on the existing live channel.
     - **asserts —** exact-owner observation at call time yields distinguishable live, dead and typed
       unavailable/error results; only live sends bounded `account/rateLimits/read` through the staged
-      app-server and returns that response, while dead/unavailable start no request, process, thread or
-      turn and never manufacture limits.
+      app-server and returns the existing public `CodexRateLimitSnapshot`, parsed from the full result
+      with `capturedAt` supplied by the injected clock, while dead/unavailable start no request,
+      process, thread or turn and return no fabricated snapshot.
     - **covers —** `CodexDetachedThread.probe`, production liveness and same-channel rate-limit dispatch
       in `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
-      states plus a spontaneous exit and a literal one-channel protocol log.
+      states plus a spontaneous exit, an asserted full-result-to-`CodexRateLimitSnapshot` parse with
+      injected-clock `capturedAt`, and a literal one-channel protocol log.
 13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination settles once for all
     callers only after a bounded platform-qualified terminal observation.
     - **asserts —** concurrent calls and a later repeat share one terminal operation and close I/O.
@@ -375,3 +400,19 @@ descendant is reaped in `finally`, even when an assertion fails.
       `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `termination-is-idempotent-bounded-and-confirms-death: ...` tests racing calls and
       separately asserting terminator error, observation error, timeout and still-live rows.
+14. **`persisted-owner-recovers-across-runtime-restart`** — a fresh Agent runtime can safely probe and
+    terminate the exact persisted owner without reconstructing an app-server channel.
+    - **asserts —** the public `recoverCodexDetachedOwner` accepts only a valid host-appropriate
+      `CodexDetachedOwner` and returns an owner-only bounded controller. Its `probe` reports live only
+      after the fresh runtime re-observes the exact same POSIX group or Windows root generation; its
+      idempotent `terminate` re-observes immediately before signalling, targets only that exact owner,
+      and confirms it dead-for-controller. Dead, changed, malformed, host-wrong and unavailable rows
+      never signal and never authenticate, spawn, initialize, start a thread/turn or issue a rate-limit
+      request; no result depends on a prior runtime's maps, handles or token prefix.
+    - **covers —** the public owner-recovery types and `recoverCodexDetachedOwner`, plus production
+      cross-runtime owner validation, observation and termination in
+      `packages/agent/src/codex-detached-app-server.ts` and publication through `index.ts`.
+    - **proven by —** `persisted-owner-recovers-across-runtime-restart: ...` tests that mint and
+      serialize each platform owner in runtime A, discard A, recover it in independently constructed
+      runtime B, and assert live/dead/unavailable probe plus exact-match termination, pid/group-reuse,
+      malformed/host-wrong input, bounded failure, idempotence and zero protocol/process creation.
