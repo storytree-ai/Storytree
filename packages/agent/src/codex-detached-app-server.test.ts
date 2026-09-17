@@ -516,6 +516,7 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
 test("staged-protocol-returns-response-produced-identity: the public opener ignores every private construction seam", async () => {
   const originalDefaultAuth = codexDetachedProductionRuntime.runDefaultAuth;
   const hiddenReads: string[] = [];
+  let publicAuthCommand: Parameters<CodexDetachedRuntime["runDefaultAuth"]>[0] | undefined;
   const hostileArgs: OpenPinnedCodexDetachedThreadArgs = {
     cwd: process.cwd(),
     env: {},
@@ -542,7 +543,10 @@ test("staged-protocol-returns-response-produced-identity: the public opener igno
   assert.equal(Reflect.set(
     codexDetachedProductionRuntime,
     "runDefaultAuth",
-    async () => ({ code: 1, stdout: "", stderr: "not logged in" }),
+    async (command) => {
+      publicAuthCommand = command;
+      return { code: 1, stdout: "", stderr: "not logged in" };
+    },
   ), true);
   try {
     await assert.rejects(
@@ -561,6 +565,12 @@ test("staged-protocol-returns-response-produced-identity: the public opener igno
     ), true);
   }
   assert.deepEqual(hiddenReads, []);
+  assert.deepEqual(publicAuthCommand, {
+    args: ["login", "status"],
+    cwd: process.cwd(),
+    env: {},
+    timeoutMs: 100,
+  });
 });
 
 test("auth-refusal-and-timeout-never-spawn: only exact managed authentication reaches process creation", async () => {
