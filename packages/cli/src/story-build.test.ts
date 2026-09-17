@@ -328,23 +328,24 @@ test("story build threads explicit runtime policy before any live work starts", 
   assert.match(budget.body, /ChatGPT subscription quota/);
 });
 
-test("story build REFUSES --revise-test on every route to the chain — no single unit to revise (ADR-0571 D3)", async () => {
-  // The flag reaches `storyBuild` through the options it shares with `node build`, so without the
-  // refusal a chain would silently ignore it. All three dispatch routes to the chain must refuse.
+test("story build carries --revise-test to storyBuild on every route to the chain, which refuses it without --real (ADR-0571, amended for story chains)", async () => {
+  // The flag reaches `storyBuild` through the options it shares with `node build`; a chain reads it as
+  // <member-id>:<run-id> and must refuse it fail-closed outside --real on every dispatch route, rather
+  // than silently ignoring it.
   const body =
-    "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
-    "(ADR-0571 D3): a story chain has no single unit to revise.";
+    "--revise-test is valid only with --real: it re-runs one member of a paid chain as a test " +
+    "revision against that member's prior returned escalation (ADR-0571).";
   for (const argv of [
-    ["story", "build", "library", "--dry-run", "--revise-test", "real-abc123"],
-    ["build", "story", "library", "--dry-run", "--revise-test", "real-abc123"],
-    ["build", "library", "--dry-run", "--revise-test", "real-abc123"],
+    ["story", "build", "library", "--dry-run", "--revise-test", "cap-a:story-real-abc123"],
+    ["build", "story", "library", "--dry-run", "--revise-test", "cap-a:story-real-abc123"],
+    ["build", "library", "--dry-run", "--revise-test", "cap-a:story-real-abc123"],
   ]) {
     const env = await run(argv, deps);
     assert.equal(env.ok, false, argv.join(" "));
     assert.equal(env.body, body, argv.join(" "));
     assert.deepEqual(
       env.next,
-      ["storytree node build <unit-id> --real --increment <increment-id> --revise-test real-abc123"],
+      ["storytree story build library --real --increment <increment-id> --revise-test cap-a:story-real-abc123"],
       argv.join(" "),
     );
   }

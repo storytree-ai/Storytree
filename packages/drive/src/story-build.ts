@@ -37,6 +37,7 @@ import type {
   PromotionResult,
   ProveResult,
   StoryBuildArgs,
+  TestRevision,
 } from "@storytree/orchestrator";
 
 import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
@@ -57,13 +58,16 @@ import {
   driveNode,
   innerLoopRefusalEnvelope,
   preflightPaidBuild,
+  readTestRevision,
   realConfigRefusal,
   renderForensicPreservation,
   renderIncrementLines,
   renderInnerLoopOutcome,
   renderLeafPhasePrompts,
+  renderRevisingLine,
   repoRoot,
   rel,
+  resolveEscalationsDir,
   resolveLiveRuntime,
   resolveAddDepsGroup,
   resolveDbProofEnv,
@@ -77,6 +81,7 @@ import type {
   LiveAuthor,
   RealBuildArgs,
   RealBuildResult,
+  RevisionWrite,
   VerdictStoreChoice,
 } from "./node-build.js";
 import { renderInnerLoopEntryState } from "./inner-loop-entry.js";
@@ -413,6 +418,73 @@ export function resolveStoryRealNodeBuilder(
   return injected ?? buildNodeReal;
 }
 
+/** The ONE member a story chain's test revision names, and the prior chain run it revises against. */
+export interface StoryRevisionTarget {
+  memberId: string;
+  runId: string;
+}
+
+/**
+ * Parse a story chain's `--revise-test <member-id>:<run-id>` (ADR-0571, amended for story chains).
+ * `undefined` answers no target. The value must be exactly one non-blank member id and one non-blank
+ * run id split by a single `:`, and the member must be one this chain DRIVES — checked here, before
+ * any record path is built from it. The run segment's own shape is left to {@link readTestRevision},
+ * which refuses anything but a single path segment.
+ */
+export function parseStoryRevisionTarget(
+  value: string | undefined,
+  drivenIds: readonly string[],
+): { ok: true; target: StoryRevisionTarget | undefined } | { ok: false; reason: string } {
+  if (value === undefined) return { ok: true, target: undefined };
+  const colon = value.indexOf(":");
+  const memberId = value.slice(0, colon);
+  const runId = value.slice(colon + 1);
+  if (colon <= 0 || runId.length === 0 || runId.includes(":")) {
+    return {
+      ok: false,
+      reason:
+        `--revise-test on a story chain takes <member-id>:<run-id> — exactly one member the chain ` +
+        `drives and the prior chain run whose escalation it revises against — not "${value}".`,
+    };
+  }
+  if (!drivenIds.includes(memberId)) {
+    return {
+      ok: false,
+      reason:
+        `--revise-test names "${memberId}", which this chain does not drive (it drives: ` +
+        `${drivenIds.join(", ")}) — a story revision revises exactly one of its own members.`,
+    };
+  }
+  return { ok: true, target: { memberId, runId } };
+}
+
+/**
+ * `[]` when a member's walk recorded nothing. A written record names the member, its path and the
+ * exact story re-run that revises THAT member against it, carrying the runtime (and the increment,
+ * when known) this chain ran under — so running it as printed never switches leaves. An unwritten
+ * record names the path and the reason, and never a command: there is nothing on disk to revise
+ * against.
+ */
+export function renderStoryRevisionRecord(
+  storyId: string,
+  memberId: string,
+  runId: string,
+  runtime: LiveRuntime,
+  write: RevisionWrite | undefined,
+  incrementId?: string,
+): string[] {
+  if (write === undefined) return [];
+  if (write.written) {
+    const incrementPart = incrementId === undefined ? "" : ` --increment ${incrementId}`;
+    return [
+      `revision:    ${memberId} written to ${write.path} — re-run with: storytree story build ${storyId} --real --runtime ${runtime}${incrementPart} --revise-test ${memberId}:${runId}`,
+    ];
+  }
+  return [
+    `revision:    ${memberId} NOT written (${write.path}): ${write.reason} — relay that member's escalation to the owner by hand`,
+  ];
+}
+
 export interface StoryBuildOpts {
   dryRun: boolean;
   /**
@@ -427,6 +499,19 @@ export interface StoryBuildOpts {
    * handles itself. A hermetic suite injects both to drive a `--real` chain with no credential.
    */
   innerLoopReads?: InnerLoopReadHandles | undefined;
+  /**
+   * `--revise-test <member-id>:<run-id>` (ADR-0571, amended for story chains): names exactly ONE member
+   * this chain drives and the prior chain run whose returned escalation that member's AUTHOR_TEST leaf
+   * revises against. Valid only with `--real`; the record is read before any spend, and every other
+   * member walks unrevised.
+   */
+  reviseTest?: string | undefined;
+  /**
+   * Where revision records live (ADR-0571 D2) — each member's own returned escalation is written under
+   * its id and this chain's run id, and a `reviseTest` record is read from here. Default
+   * `~/.storytree/escalations`; a hermetic suite injects a temp dir.
+   */
+  escalationsDir?: string | undefined;
   /**
    * Injectable test-only verdict store (the gate driver's `deps.store` precedent): when supplied, the
    * chain uses it in place of the resolved verdict store — `persisted` false, no claim store, a
@@ -659,6 +744,17 @@ export async function storyBuild(
       next: [`storytree story build ${storyId} --real --increment ${opts.increment}`],
     };
   }
+  // ADR-0571 (amended for story chains): a test revision re-runs ONE member of a paid chain against
+  // its prior returned escalation, so it is refused outside a REAL chain rather than silently ignored.
+  if (opts.reviseTest !== undefined && !real) {
+    return {
+      ok: false,
+      body:
+        "--revise-test is valid only with --real: it re-runs one member of a paid chain as a test " +
+        "revision against that member's prior returned escalation (ADR-0571).",
+      next: [`storytree story build ${storyId} --real --increment <increment-id> --revise-test ${opts.reviseTest}`],
+    };
+  }
   const rootDir = opts.repoRoot ?? repoRoot();
   const realNodeBuilder = resolveStoryRealNodeBuilder(opts.realNodeBuilder);
 
@@ -831,6 +927,19 @@ export async function storyBuild(
   // attempt ledger in one read, before any spend — before the DB preflight, the leaf prompts, the
   // worktree. A refusing story or member refuses the whole chain; a member's streak or obligation is
   // never stepped around by building it inside a story.
+  // ADR-0571 (amended for story chains): a named test revision is vetted — its member one this chain
+  // drives, its record present and describing that member's own returned escalation — before the
+  // ledger preflight, the database, the claims, the worktree and every leaf.
+  const escalationsDir = resolveEscalationsDir(opts.escalationsDir);
+  const revisionTarget = parseStoryRevisionTarget(opts.reviseTest, driveOrder.map((n) => n.id));
+  if (!revisionTarget.ok) return { ok: false, body: revisionTarget.reason, next: [] };
+  let testRevision: TestRevision | undefined;
+  if (revisionTarget.target !== undefined) {
+    const read = readTestRevision(escalationsDir, revisionTarget.target.memberId, revisionTarget.target.runId);
+    if (!read.ok) return { ok: false, body: read.reason, next: [] };
+    testRevision = read.revision;
+  }
+
   let incrementId: string | undefined;
   // Stryker disable next-line ArrayDeclaration: EQUIVALENT — renderIncrementLines renders nothing while incrementId is undefined, and the one path that sets incrementId sets these warnings with it
   let incrementWarnings: readonly string[] = [];
@@ -842,7 +951,8 @@ export async function storyBuild(
         preflightPaidBuild({
           incrementId: opts.increment,
           unitIds: preflightUnitIds,
-          revise: false,
+          // ADR-0576 D6: a revision run pairs with a live grant's kind, exactly as on `node build`.
+          revise: testRevision !== undefined,
           reads: opts.innerLoopReads,
         }),
     );
@@ -1023,6 +1133,10 @@ export async function storyBuild(
     // not sign and therefore never advances `currentHead`. Keep that distinct evidence through the
     // story caller: the local ref is useful only if the envelope tells the operator where it lives.
     const forensicPreservations = new Set<PromotionResult>();
+    // ADR-0571 (amended for story chains): what each driven member's walk recorded of its own returned
+    // escalation, set for every REAL member (undefined when nothing was recorded) — the halted member's
+    // entry is what the envelope turns into its record path and re-run command.
+    const revisionWrites = new Map<string, RevisionWrite | undefined>();
     // The REAL chain's stacked HEAD: advances to each node's verdict commit as it passes, so the
     // next node builds on top. Promotion at chain end points at THIS, not the stale worktree cut.
     let currentHead = worktree?.headSha ?? "";
@@ -1077,6 +1191,11 @@ export async function storyBuild(
             // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
             if (remainingUsd !== undefined) realArgs.budgetUsd = remainingUsd;
             if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
+            // ADR-0571 (amended for story chains): every member records its own returned escalation
+            // under its id and this chain's run id, and ONLY the member the revision names receives it
+            // — its record's unitId is that member's id (readTestRevision refuses any other).
+            realArgs.escalationsDir = escalationsDir;
+            realArgs.testRevision = spec.id === testRevision?.unitId ? testRevision : undefined;
             // ADR-0416 D6: driving the STORY node is the one pass that establishes a baseline, so it
             // is the one that records WHAT it covered. A capability node supplies nothing — a
             // capability verdict is not a whole-story outcome and must never read as one. The thunk
@@ -1091,6 +1210,7 @@ export async function storyBuild(
                 );
             }
             const built = await realNodeBuilder(realArgs);
+            revisionWrites.set(spec.id, built.revisionWrite);
             if (built.liveAuthor !== undefined) {
               leaves.set(spec.id, built.liveAuthor);
               opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
@@ -1257,6 +1377,7 @@ export async function storyBuild(
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
       ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
+      ...renderRevisingLine(testRevision),
       ...renderIncrementLines(incrementId, incrementWarnings),
       `budget:      ${
         budgetUsd !== undefined
@@ -1334,6 +1455,9 @@ export async function storyBuild(
           ...(real && promotion !== undefined
             ? [`             the proven prefix is parked LOCAL-ONLY (${promotion.branch}) — not a landing candidate`]
             : []),
+          ...Array.from(revisionWrites).flatMap(([memberId, write]) =>
+            renderStoryRevisionRecord(story.id, memberId, runId, runtime, write, incrementId),
+          ),
           ...notAttemptedLines,
           ...outcome.lines,
           "",
@@ -1510,6 +1634,10 @@ export function storyHelp(): Envelope {
       "      refuses a fake USD cap.",
       "      --increment <id> is REQUIRED with --real and refused without it: the whole chain is ONE unit on",
       "      the attempt ledger, the story id, preflighted with every driven member before any spend (ADR-0576 D7).",
+      "",
+      "  --revise-test <member-id>:<run-id>   (--real only) re-run the chain with ONE member's AUTHOR_TEST",
+      "      leaf briefed from that member's escalation record in the named prior run; every other member",
+      "      walks unrevised (ADR-0571). A halted member's record path and this exact re-run are printed.",
       "",
       "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it persists",
       "      building marks + signed verdicts (events.work_event/events.verdict) so real work feeds",

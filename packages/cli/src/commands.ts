@@ -2793,7 +2793,8 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
   if (values.budget !== undefined) opts.budgetUsd = Number(values.budget);
   if (values["max-turns"] !== undefined) opts.maxTurns = Number(values["max-turns"]);
   // ADR-0571 D3: unguarded, because `reviseTest` admits undefined — a guard here would be a mutant
-  // no test could kill. `story build` never sees it: `storyBuildFromValues` refuses the flag first.
+  // no test could kill. `story build` reads the same field as `<member-id>:<run-id>` (ADR-0571,
+  // amended for story chains) and refuses it without --real.
   opts.reviseTest = values["revise-test"];
   // ADR-0575 D1: unguarded for the same reason — `increment` admits undefined, and `nodeBuild`
   // itself refuses a REAL-only flag supplied without --real.
@@ -2805,24 +2806,14 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
 }
 
 /**
- * `story build` from argv, refusing `--revise-test` first (ADR-0571 D3). A test revision names ONE
- * unit's failed run, and a chain has no single unit to revise; without this refusal the flag would
- * reach `storyBuild` through the options it shares with `node build` and be silently ignored.
+ * `story build` from argv. `--revise-test` reaches `storyBuild` through the options it shares with
+ * `node build`, where a chain reads it as `<member-id>:<run-id>` — ONE member and the prior chain run
+ * (ADR-0571, amended for story chains) — and refuses it outside `--real`.
  */
 export async function storyBuildFromValues(
   storyId: string | undefined,
   values: BuildValues,
 ): Promise<Envelope> {
-  const revision = values["revise-test"];
-  if (revision !== undefined) {
-    return {
-      ok: false,
-      body:
-        "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
-        "(ADR-0571 D3): a story chain has no single unit to revise.",
-      next: [`storytree node build <unit-id> --real --increment <increment-id> --revise-test ${revision}`],
-    };
-  }
   return storyBuild(storyId, nodeStoryBuildOpts(values));
 }
 
@@ -3127,6 +3118,8 @@ export type GateDriverSeams = Partial<
     | "repoRoot"
     | "authorOverride"
     | "promote"
+    | "escalationsDir"
+    | "realNodeBuilder"
   >
 >;
 
@@ -3154,6 +3147,9 @@ export function makeGateDeps(
     driveBuildTestsGate: (gate, signer) => {
       const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot(), ...driverSeams };
       driverDeps.increment = values.increment;
+      // ADR-0571 (amended for gates): unguarded, because `reviseTest` admits undefined — the driver
+      // reads the record keyed by the gate id, and reads nothing when no run is named.
+      driverDeps.reviseTest = values["revise-test"];
       if (values.store !== undefined) driverDeps.verdictStore = values.store;
       if (values.model !== undefined) driverDeps.model = values.model;
       if (values.runtime !== undefined) driverDeps.runtime = values.runtime;
@@ -3187,7 +3183,7 @@ function buildHelp(): Envelope {
       "flags: --dry-run (scripted, offline) · --live (subscription leaf smoke) · --real (real build)",
       "       --runtime claude|codex|pi (default: codex) · --model <runtime-model-id>",
       "       --budget <usd> (Claude only) · --max-turns <n>   ·   --runtime pi is --live only (ADR-0449)",
-      "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+      "       --revise-test <run-id> (node/gate --real) · <member-id>:<run-id> (story --real) — a test revision against that failed run's escalation (ADR-0571)",
       "       --increment <id> (REQUIRED with --real, refused without it) — the arc increment a paid attempt is filed under (ADR-0576)",
       "",
       "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",

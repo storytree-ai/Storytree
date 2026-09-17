@@ -49,6 +49,14 @@ proof ladder walked bottom-up). Deliberately NOT a rewrite of any control flow:
   story immediately before the first member walks, and one signed pass only when the chain passed and
   its promotion ran unwithheld. Members walk with no increment and record nothing, so a halted chain
   is one failed attempt at the story and its signed prefix owes the ledger nothing.
+- **A REAL chain carries one member's test revision** (ADR-0571, amended for story chains; increment
+  `story-and-gate-builds-carry-test-revisions`, in `packages/drive/src/story-build.ts`).
+  `story build --real --revise-test <member-id>:<run-id>` names ONE driven member and the prior chain
+  run. The handle, the member and its record are vetted before the ledger preflight, the database,
+  the claims and the worktree, and only that member's walk receives the revision. Every member walk is
+  handed the records directory, so a member's own returned escalation is recorded under its id and the
+  chain's run id, and a halted member's record path and the exact story re-run are printed. The chain
+  stays one ledger unit, so a revision run pairs with the story's live grant (ADR-0576 D6).
 
 The other code edges: `story-build.ts:1-2` import `ProveResult` from `./prove-it-gate.js` and
 `NodeSpec` from `./node-spec.js` (type-only — the chain's vocabulary is the gate's result and the
