@@ -162,7 +162,48 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     minted it and has observed that exact generation dead or latch-closed it, that stronger local
     negative fact remains terminal. Durable recovery must not re-open it even when an OS descriptor is
     later observable, and a reused pid or different generation never inherits the old token's authority.
-Across all fourteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
+15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`.** Exercise one durable
+    token grammar across both host kinds. It carries its version, host kind, embedded root pid, runtime
+    provenance and immutable OS birth identity; no alternate or legacy encoding is accepted. Table-drive
+    every malformed field, missing/extra field, unsupported version, host mismatch, root mismatch and
+    legacy encoding, and assert typed unavailable with zero ownership-observer, terminator or other OS
+    calls.
+16. **`posix-owner-requires-immutable-birth-identity`.** Make POSIX acquisition and recovery distinguish
+    the exact root process birth from process-group existence. A bare negative group, a sentinel and a
+    group-exists result without immutable birth identity all fail closed; only the matching immutable
+    root birth makes the token live.
+17. **`windows-owner-requires-tasklist-and-creation-identity`.** Make Windows acquisition and recovery
+    require the conjunction of the matching `tasklist` image/pid/session row and an independent immutable
+    creation identity. The same row with a different creation identity is dead-for-controller and never
+    sufficient ownership.
+18. **`both-platforms-reobserve-generation-immediately-before-signal`.** On POSIX and Windows, first
+    observe the persisted generation live, then swap it before the termination operation's own observation.
+    Each platform performs the fresh observation immediately before its signal and sends zero `SIGTERM`
+    or `taskkill` calls when that generation no longer matches.
+19. **`same-runtime-negative-owner-knowledge-is-terminal`.** For each platform, mint a token in one
+    runtime, locally observe that exact generation dead or latch it closed, then make the OS descriptor
+    look live again. Both probe and termination retain the local negative fact, make no durable fallback
+    capable of reopening it, and send no signal; fresh-runtime recovery remains separately available.
+20. **`recovery-outer-deadline-bounds-every-await`.** Under one recovery-termination deadline, separately
+    make the initial observer, terminator, post-signal observer and injected delay never settle. Each row
+    rejects when that one bound expires, stops scheduling further work, and cannot emit a late signal or
+    observation after the overdue collaborator eventually settles.
+21. **`recovery-settlement-matrix-is-bounded-and-shared`.** Within the same finite recovery bound,
+    separately drive observer throw, terminator throw, unavailable-after-signal, multi-poll death and
+    still-live exhaustion. Assert the exact finite poll cap and delay schedule, then prove concurrent and
+    every later caller share the same fulfillment or rejection without a second signal or polling loop.
+22. **`detached-probe-reuses-direct-canonical-rate-limit-parser`.** Feed a full response whose nested
+    optional/malformed fields distinguish the canonical parser from the detached module's current local
+    copy. Assert identical `CodexRateLimitSnapshot` output through the existing channel, a direct-module
+    import of the canonical parser, deletion of the local parser implementation, and no new parser export
+    from `packages/agent/src/index.ts`.
+
+Legs 15-22 are separate hardening acceptance units even where they strengthen the same public boundary
+as legs 3-5 or 12-14. A test under an earlier broad prefix, or one test title naming several hardening
+ids, covers none of legs 15-22; each exact prefix needs its own discriminating assertion that fails the
+pre-hardening implementation during AUTHOR_TEST.
+
+Across all twenty-two legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
 
@@ -275,10 +316,13 @@ no assertion may retain the raw `account/rateLimits/read` payload as `probe().ra
 ownership follows explicit injection: only a controller/runtime given a `ManualClock` may assert its
 exact `capturedAt`. Every path with no injected clock uses `SYSTEM_CLOCK` and must assert a valid
 contemporaneous ISO timestamp, such as one bounded by system-clock readings immediately before and
-after the probe — never the manual clock's fixed epoch. The next AUTHOR_TEST red must directly fail the
-current implementation on the strict token decoder, zero-OS-call malformed rows, POSIX and Windows
-immutable-generation/TOCTOU counterexamples, and the bounded recovery-controller matrix below. A broad
-existing failure, title-only shell, or indirect high-level assertion is not this red. It also adds a
+after the probe — never the manual clock's fixed epoch. The next AUTHOR_TEST red must add a separately
+titled, substantive failing test under every exact hardening prefix in Contracts 15-22: strict token
+grammar, POSIX immutable birth identity, Windows tasklist-plus-creation identity, both platforms'
+pre-signal generation swap, both platforms' local negative knowledge, the one outer deadline over each
+await, the recovery settlement matrix, and direct canonical rate-limit parser reuse. A failure under
+one prefix cannot discharge another prefix. A broad existing failure, title-only shell, renamed old
+assertion, or indirect high-level assertion is not this red. It also adds a
 discriminating assertion for every non-equivalent branch implicated by the latest survivor/no-coverage
 report; leaving those branches for an unchanged suite to miss again is not an accepted revised test.
 For Contract 12, canonical tests keep the nested parser matrix while the detached test proves the same
@@ -311,19 +355,21 @@ failure-cleanup, idempotence, same-app-server and fresh-runtime owner-recovery b
 the same per-mutant rule.
 Strengthen or simplify source together with substantive assertions until the mutation command passes;
 an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
-that some input could distinguish does not satisfy any of the fourteen contracts.
+that some input could distinguish does not satisfy any of the twenty-two contracts.
 
 **Tests.** Use `node:test` and `node:assert/strict`, with every await bounded and every fake settling
-deterministically. Retain the signed tests, then add at least one substantive runtime test for EACH of
-the fourteen exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
+deterministically. Retain the signed tests, then add at least one substantive test for EACH of the
+twenty-two exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
 prefix, naming several ids in one title, or keeping an old title without the new prefix covers none of
-the new lines. For a line that names a matrix, every named row needs an assertion under that line's
-prefix — one representative case is incomplete. Literal protocol methods, command argv and platform
-discriminants appear in assertions rather than being read back from production constants. Use focused
-table-driven cases plus one real-child production-composition test. Every spawned stand-in/root/
-descendant is reaped in `finally`, even when an assertion fails.
+the new lines. Contracts 15-22 each require a newly authored discriminating red; pre-existing tests
+under Contracts 1-14 remain regression proof but do not count for those eight. For a line that names a
+matrix, every named row needs an assertion under that line's prefix — one representative case is
+incomplete. Literal protocol methods, command argv and platform discriminants appear in assertions
+rather than being read back from production constants. Use focused table-driven cases plus one
+real-child production-composition test. Every spawned stand-in/root/descendant is reaped in `finally`,
+even when an assertion fails.
 
-## Contracts (14)
+## Contracts (22)
 
 1. **`auth-refusal-and-timeout-never-spawn`** — only a bounded exact ChatGPT-managed authentication result may reach process creation.
    - **asserts —** `openPinnedCodexDetachedThread` runs `login status` first and rejects every
@@ -517,3 +563,109 @@ descendant is reaped in `finally`, even when an assertion fails.
       plus later callers sharing both fulfilled and rejected outcomes. Same-runtime rows separately
       prove that a locally closed generation cannot be re-opened through durable fallback, and every
       row asserts zero authentication, process creation and protocol work.
+15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`** — durable owner authority
+    has one complete grammar, and invalid bytes are rejected before they can name an OS process.
+    - **asserts —** both host variants use the same strict versioned envelope carrying host kind,
+      embedded root pid, runtime provenance and platform-specific immutable birth identity. Unknown or
+      missing version, unknown host kind, missing/extra/reordered fields, blank provenance or birth
+      identity, non-canonical or mismatched pid, trailing data, and every legacy encoding — including
+      bare `pgid:<pid>` and an unversioned Windows descriptor — return typed unavailable before any
+      ownership observer, terminator, process runner or other OS collaborator is called. No permissive
+      alternate decoder remains.
+    - **covers —** durable-token encode/decode and recovery admission in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** an `owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection: ...`
+      table with one valid token per platform and every named malformed/legacy row, asserting the typed
+      result and zero calls in all OS logs for each rejection.
+16. **`posix-owner-requires-immutable-birth-identity`** — POSIX owner authority identifies a process
+    birth, not merely a currently occupied process group.
+    - **asserts —** acquisition persists an OS-observed immutable birth identity for the positive root
+      pid beside its negative process group, and fresh recovery reports live only when that exact birth
+      is observed. Bare group existence, a sentinel result, an identity-less success and any observation
+      error are unavailable and cannot mint or validate authority; a host without immutable birth
+      observation fails closed.
+    - **covers —** POSIX owner acquisition, token minting and recovery probe in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** `posix-owner-requires-immutable-birth-identity: ...` tests that distinguish two
+      births at the same pid/group and separately feed bare-group, sentinel, identity-less and thrown
+      observations, asserting only the exact birth is live and no fallback token is minted or accepted.
+17. **`windows-owner-requires-tasklist-and-creation-identity`** — Windows owner authority requires two
+    independent observations of the same root generation.
+    - **asserts —** acquisition and recovery require both the exact `tasklist` image/pid/session row and
+      an independent immutable process-creation identity, and persist enough information to compare
+      both. A missing or malformed observation is unavailable. The same pid and identical tasklist row
+      paired with a different creation identity is ownership lost/dead-for-controller and never gains
+      signal authority.
+    - **covers —** Windows owner acquisition, token minting and recovery probe in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** `windows-owner-requires-tasklist-and-creation-identity: ...` tests for matching
+      dual observations, each missing/malformed half, and the discriminating same-tasklist/different-
+      creation reuse row, with zero `taskkill` in every non-matching case.
+18. **`both-platforms-reobserve-generation-immediately-before-signal`** — no earlier probe licenses a
+    later signal after the pid has changed generations.
+    - **asserts —** POSIX and Windows termination each make a fresh immutable-generation observation
+      inside the terminal operation immediately before invoking the platform terminator. In each arm,
+      a persisted generation that was live during an earlier probe but changes before this final check
+      becomes dead-for-controller and emits no `SIGTERM`, `taskkill` or substitute signal. The Windows
+      final check still requires both tasklist and creation identity.
+    - **covers —** the last observation-to-signal edge in both production termination arms in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** separate
+      `both-platforms-reobserve-generation-immediately-before-signal: posix ...` and
+      `both-platforms-reobserve-generation-immediately-before-signal: windows ...` tests whose ordered
+      logs show live probe, swapped final generation, fresh observation and zero terminator calls.
+19. **`same-runtime-negative-owner-knowledge-is-terminal`** — a runtime cannot resurrect an owner it
+    minted and then learned was dead or closed.
+    - **asserts —** on both platforms, once the minting runtime observes that exact generation dead or
+      latches its controller closed, its local negative knowledge wins over later durable-token parsing
+      and a later OS descriptor that appears to match. Probe stays dead and every terminate call shares
+      the terminal result with zero signal. This rule is scoped to the minting runtime and does not
+      prevent a genuinely fresh runtime from using durable recovery.
+    - **covers —** runtime provenance, local terminal state and the recovery fallback-selection branch
+      in `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —**
+      `same-runtime-negative-owner-knowledge-is-terminal: posix ...` and
+      `same-runtime-negative-owner-knowledge-is-terminal: windows ...` rows for observed-dead and
+      latch-closed state, followed by a matching-looking OS observation and assertions of dead probe,
+      shared terminal settlement and zero signals.
+20. **`recovery-outer-deadline-bounds-every-await`** — one positive finite deadline bounds the entire
+    recovery termination, including collaborators that never settle.
+    - **asserts —** the same outer deadline covers the initial ownership observer, platform terminator,
+      every post-signal observer and every injected delay rather than restarting per await. A
+      never-settling promise in each position rejects at that deadline, cancels further scheduling and
+      ignores any eventual late settlement. Once the deadline wins, no later observer completion may
+      cause a signal and no terminator completion may restart observation or delay work.
+    - **covers —** recovery deadline normalization, await racing and post-settlement fencing in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** a `recovery-outer-deadline-bounds-every-await: ...` manual-clock table with
+      never-settling initial-observer, terminator, post-signal-observer and delay rows. Each advances one
+      total deadline, asserts rejection and exact pre-expiry calls, then resolves the overdue promise
+      and asserts no late signal, observer, delay or second settlement.
+21. **`recovery-settlement-matrix-is-bounded-and-shared`** — all completing recovery paths obey one
+    finite polling schedule and one memoized settlement.
+    - **asserts —** observer throw, terminator throw, unavailable observation after signal and
+      still-live poll exhaustion reject; death after several polls fulfills. The implementation makes
+      no more than the exact finite poll cap and requested delays, never schedules a delay after the
+      terminal observation, and does not reset the outer deadline per poll. Concurrent callers and
+      every later caller receive the identical fulfillment or rejection without a second signal,
+      observer sequence or delay loop.
+    - **covers —** recovery error mapping, poll state machine, finite cap and idempotent settlement in
+      `packages/agent/src/codex-detached-app-server.ts`.
+    - **proven by —** a `recovery-settlement-matrix-is-bounded-and-shared: ...` matrix containing every
+      named error/fulfillment/timeout row with exact observer, terminator and delay logs, plus concurrent
+      and later callers for both one fulfilled and one rejected operation.
+22. **`detached-probe-reuses-direct-canonical-rate-limit-parser`** — detached probing has no second
+    interpretation of the Codex rate-limit response.
+    - **asserts —** `codex-detached-app-server.ts` imports the canonical full-response parser directly
+      from `codex-rate-limits.ts`, contains no local rate-limit field/window/bucket/full-response parser,
+      and returns that parser's `CodexRateLimitSnapshot` for the same-channel response and boundary clock.
+      The parser may be exported from its direct module for this reuse but is not added to
+      `packages/agent/src/index.ts`; the existing public snapshot types and reader remain unchanged.
+    - **covers —** parser ownership and same-channel integration across
+      `packages/agent/src/codex-detached-app-server.ts`,
+      `packages/agent/src/codex-rate-limits.ts` and `packages/agent/src/index.ts`.
+    - **proven by —** `detached-probe-reuses-direct-canonical-rate-limit-parser: ...` tests using a
+      nested response with distinguishable missing and malformed optional fields, asserting exact
+      parity with the direct canonical parser and supplied clock, plus a source-structure assertion
+      that the detached module imports that parser, defines no local copy, and the barrel exports no
+      parser symbol.
