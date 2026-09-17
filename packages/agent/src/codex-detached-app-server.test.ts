@@ -1310,6 +1310,11 @@ test("windows-tree-owner-is-observed-probed-and-terminated: same-pid generations
     await runtime.observeOwnership({ ...secondOwner }, 45),
     { status: "live", owner: secondOwner },
   );
+  assert.deepEqual(
+    await runtime.acquireOwnership(606, 45),
+    secondOwner,
+    "a late old-generation exit cannot erase the replacement's acquisition identity",
+  );
 
   await runtime.terminateOwnedTree({ ...secondOwner }, 46);
   assert.deepEqual(calls.filter((call) => call.executable === "taskkill"), [{
