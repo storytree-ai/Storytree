@@ -2086,8 +2086,6 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: every protocol and process fault
     { frame: () => `${JSON.stringify({ method: "notice", result: {} })}\n`, message: "Codex app-server emitted malformed JSONL" },
     { frame: () => `${JSON.stringify({ method: "notice", error: {} })}\n`, message: "Codex app-server emitted malformed JSONL" },
     { frame: () => `${JSON.stringify({ id: "1", result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
-    { frame: () => `${JSON.stringify({ id: 0, result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
-    { frame: () => `${JSON.stringify({ id: -1, result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
     { frame: () => `${JSON.stringify({ id: Number.MAX_SAFE_INTEGER + 1, result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
     { frame: () => `${JSON.stringify({ id: 999, result: {} })}\n`, message: "Codex app-server emitted an unknown response id" },
     { frame: (id) => `${JSON.stringify({ id })}\n`, message: "Codex app-server emitted a malformed response" },

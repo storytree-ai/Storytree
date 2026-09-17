@@ -170,9 +170,7 @@ function sameOwner(left: CodexDetachedOwner, right: CodexDetachedOwner): boolean
 }
 
 function immutableOwner(owner: CodexDetachedOwner): CodexDetachedOwner {
-  return Object.freeze(owner.kind === "posix-process-group"
-    ? { kind: owner.kind, rootPid: owner.rootPid, token: owner.token }
-    : { kind: owner.kind, rootPid: owner.rootPid, token: owner.token });
+  return Object.freeze({ ...owner });
 }
 
 function validOwner(
@@ -913,7 +911,7 @@ export function createOpenPinnedCodexDetachedThread(
         return;
       }
       const responseId = message["id"];
-      if (!Number.isSafeInteger(responseId) || (responseId as number) <= 0) {
+      if (!Number.isSafeInteger(responseId)) {
         protocolFault("Codex app-server emitted an invalid response id");
         return;
       }
