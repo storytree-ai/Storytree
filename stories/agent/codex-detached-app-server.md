@@ -18,6 +18,7 @@ proof:
     testGlobs: ["packages/agent/src/codex-detached-app-server.test.ts"]
     sourceGlobs:
       - "packages/agent/src/codex-detached-app-server.ts"
+      - "packages/agent/src/codex-rate-limits.ts"
       - "packages/agent/src/index.ts"
   real:
     testFile: "packages/agent/src/codex-detached-app-server.test.ts"
@@ -26,6 +27,7 @@ proof:
       testGlobs: ["packages/agent/src/codex-detached-app-server.test.ts"]
       sourceGlobs:
         - "packages/agent/src/codex-detached-app-server.ts"
+        - "packages/agent/src/codex-rate-limits.ts"
         - "packages/agent/src/index.ts"
     install: true
     editsExisting: true
@@ -81,20 +83,28 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    successful auth; a relative override, resolution failure or spawn failure rejects before ownership
    or protocol work and never starts a second child.
 3. **`posix-group-owner-is-observed-probed-and-terminated`.** Through a deterministic POSIX OS seam,
-   assert acquisition and liveness probe the negative child pid as a process group, publish the literal
-   `posix-process-group` owner rooted at that child, and terminate that same negative group with the
-   bounded signal. Never target a bare pid, executable name or another group.
+   assert acquisition observes the root's immutable process-birth generation as well as the negative
+   child pid as a process group, persists both in the `posix-process-group` owner, and re-observes that
+   exact generation immediately before signalling the same negative group with bounded `SIGTERM`.
+   Observation error is unavailable, never live-by-sentinel. If the generation changes after a probe
+   but before the termination check, send no signal. Never target a bare pid, executable name or
+   another group.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`.** Through a deterministic Windows OS
    seam, assert acquisition records the exact live root identity and publishes the literal
-   `windows-process-tree` owner. Probe and termination re-run `tasklist` and require the same live root
-   token before `taskkill /PID <root> /T /F`; root disappearance or token change is ownership lost and
-   dead-for-controller, so it is never signalled. The rooted command reaches descendants still reachable
-   from that live root; it is not durable containment or proof that escaped descendants died.
+   `windows-process-tree` owner. Probe and termination re-run `tasklist`, but its image/pid/session row
+   is not generation identity: an independent immutable process-creation observation must also match
+   immediately before `taskkill /PID <root> /T /F`. Root disappearance, creation-identity change, or a
+   change after probe but before the termination check is ownership lost and dead-for-controller, so
+   it is never signalled even when the tasklist row is identical. The rooted command reaches descendants
+   still reachable from that live root; it is not durable containment or proof that escaped descendants
+   died.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`.** Table-drive every owner boundary:
    absent, zero, negative, fractional, non-finite and unsafe pid; missing owner; wrong root; host-wrong
-   discriminant; caller platform assertion contradicting the host; blank/whitespace token. Every row
-   rejects, closes protocol I/O, performs only cleanup still safely licensed by the just-created
-   process identity or handle, and never returns a controller or signals a stale numeric pid.
+   discriminant; caller platform assertion contradicting the host; blank/whitespace token; malformed
+   token version/prefix/field count; embedded-root mismatch; and legacy bare `pgid:<pid>`. Every malformed
+   persisted owner returns typed unavailable before any OS call. Every open-time row rejects, closes
+   protocol I/O, performs only cleanup still safely licensed by the just-created process identity or
+   handle, and never returns a controller or signals a stale numeric pid.
 6. **`ownership-acquisition-failure-reaps-spawned-child`.** Make production ownership observation
    return unavailable, throw and exceed its bound after spawn. Each path closes protocol I/O and uses
    every still-owned cleanup handle: POSIX may reap the exact detached group, while Windows may signal
@@ -125,10 +135,12 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     cleanup and confirms the owner terminal for this controller; a later probe cannot report it live.
 12. **`probe-tristate-and-same-channel-rate-limits`.** At call time, make exact-owner liveness report
     live, dead and unavailable/error. Live alone sends bounded `account/rateLimits/read` through the
-    already-initialized app-server and returns the existing public `CodexRateLimitSnapshot`, parsed
-    from the full response with `capturedAt` supplied by the injected clock; dead starts no request and
-    returns no snapshot; unavailable is preserved as typed unavailable rather than collapsed to dead,
-    guessed live or given a fabricated snapshot. No case starts a thread, turn or second process.
+    already-initialized app-server and returns the existing public `CodexRateLimitSnapshot` by reusing
+    the canonical full-response parser in `codex-rate-limits.ts`; detached tests prove same-channel
+    integration and clock ownership, while the canonical parser tests own the nested response-boundary
+    matrix. Dead starts no request and returns no snapshot; unavailable is preserved as typed unavailable
+    rather than collapsed to dead, guessed live or given a fabricated snapshot. No case starts a thread,
+    turn or second process.
 13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
     again after settlement. They share one terminal operation and close protocol I/O. POSIX invokes one
     exact-group terminator and confirms group death; Windows invokes `taskkill /PID <root> /T /F` only
@@ -139,15 +151,17 @@ has its own required test-title prefix; no single broad happy-path title satisfi
 14. **`persisted-owner-recovers-across-runtime-restart`.** Persist the public opaque owner from one
     Agent runtime, discard every in-memory generation map, child handle and protocol channel, then pass
     it through the public barrel to `recoverCodexDetachedOwner` in a fresh runtime. On both POSIX and
-    Windows, the owner-only controller validates the host-appropriate shape, reports live only after
-    re-observing the exact same root generation, and may terminate only after another exact match;
-    dead, changed, malformed, host-wrong and observation-unavailable rows start no process or protocol
-    request and never signal a numeric pid or group. Termination remains bounded and idempotent and
-    confirms the recovered owner dead-for-controller. Cross-runtime recovery is a fallback only for a
-    runtime that never minted that token: if the current runtime minted it and has observed that exact
-    generation dead or latch-closed it, that stronger local negative fact remains terminal. Durable
-    recovery must not re-open it even when an OS descriptor is later observable, and a reused pid or
-    different generation never inherits the old token's authority.
+    Windows, require a strict versioned token carrying host kind, embedded root pid, runtime provenance,
+    and OS-observed immutable process-birth identity. Validate its complete shape before any OS call,
+    report live only after re-observing that exact generation, and re-observe again inside termination
+    immediately before signalling. Drive generation-change TOCTOU on each platform, malformed-owner
+    zero-OS-call rows, observer and terminator throws, unavailable after signal, multi-poll death,
+    still-live timeout, exact delay/poll caps, and a hanging delay that the outer bound still rejects.
+    Concurrent and later terminate callers share the one fulfillment or rejection. Cross-runtime
+    recovery is a fallback only for a runtime that never minted that token: if the current runtime
+    minted it and has observed that exact generation dead or latch-closed it, that stronger local
+    negative fact remains terminal. Durable recovery must not re-open it even when an OS descriptor is
+    later observable, and a reused pid or different generation never inherits the old token's authority.
 Across all fourteen legs, errors carry bounded diagnostic classification but no stdout/stderr or raw
 protocol transcript, and the public barrel exposes only the role-neutral controller/types — no
 Mintbox, Terra, claim, worktree, GPU or lane policy.
@@ -189,30 +203,46 @@ that same initialized app-server and staged thread.
 **Ownership is observed, opaque and platform-honest.** The positive pid is the spawned OS child's pid.
 The public owner is a discriminated opaque value: `posix-process-group` only when a POSIX process group
 was acquired and observed for that child; `windows-process-tree` only when the exact live Windows root
-and its observation token were acquired. The Windows discriminant records a rooted `taskkill`
-capability while that same root remains live; it does not claim a Job Object or durable containment.
-Before every Windows probe or termination, `tasklist` must re-observe the root and the token must equal
-the acquired token. Only then may termination run `taskkill /PID <root> /T /F`, reaching descendants
-still reachable from that live root. Root disappearance or token change means ownership lost and
-dead-for-controller: never reuse the numeric pid, never signal it, and never infer that escaped
-descendants died. The token may be persisted but its representation is not caller policy. Never call a
-Windows pid a pgid, never fall back to an unowned bare pid, and never broad-kill by image name. If
-ownership cannot be acquired, the open fails, closes protocol I/O, and uses only cleanup still licensed
-by the just-spawned process handle or a current identity observation. Production chooses the ownership
-variant from the OS; a caller-supplied `platform` string is not observation. Exact POSIX process-group
-termination and live-root-reachable Windows tree termination are both production behaviours, not
-optional test injections.
+and its process generation were acquired. Every durable token has one strict versioned encoding and
+carries host kind, embedded root pid, runtime provenance, and an immutable process-birth identity
+observed from the OS. Its embedded root must equal the owner's `rootPid`. Unknown/malformed prefixes or
+versions, missing/extra fields, invalid or mismatched pids, and legacy bare `pgid:<pid>` tokens are typed
+unavailable before any OS call. The representation is not caller policy.
+
+On POSIX, process-group existence or a sentinel is never generation authority. Acquisition persists the
+root process's immutable birth identity; every probe and termination observes it, and any observation
+error is unavailable. Termination re-observes the exact same generation inside the terminal operation,
+immediately before bounded `SIGTERM`; a generation change after an earlier probe sends no signal. Delete
+every bare-group and sentinel fallback. A host that cannot supply immutable generation identity may fail
+closed rather than weaken ownership.
+
+On Windows, `tasklist` remains required to locate the live root but its image/pid/session row is
+explicitly insufficient as generation identity. Pair it with an independent immutable process-creation
+observation, persist both, and require both to match immediately before any descendant-inclusive
+`taskkill /PID <root> /T /F`. The same pid and identical tasklist row with a different creation identity
+is ownership lost/dead-for-controller and sends no signal, including when the change occurs after probe
+but before the termination check. The Windows discriminant records only that rooted capability while
+the same generation remains live; it does not claim a Job Object or durable containment. Never reuse a
+numeric pid, call a Windows pid a pgid, fall back to an unowned pid, broad-kill by image name, or infer
+that escaped descendants died. If ownership cannot be acquired, the open fails, closes protocol I/O,
+and uses only cleanup still licensed by the just-spawned process handle or a current exact-generation
+observation. Production chooses the ownership variant from the OS; a caller-supplied `platform` string
+is not observation. Exact POSIX process-group termination and live-root-reachable Windows tree
+termination are both production behaviours, not optional test injections.
 
 **One controller, one process, bounded all the way down.** `startTurn`, `probe` and `terminate` operate
 on the same app-server. `probe` combines exact-owner liveness with a typed rate-limit observation made
 through `account/rateLimits/read` on that same channel: its live result carries the existing public
-`CodexRateLimitSnapshot`, parsed from the full response with `capturedAt` taken from the injected
-clock. Dead or unavailable ownership sends no rate-limit request and carries no fabricated snapshot,
-so a caller can take before/after account-wide observations without starting another app-server. Every
-protocol request and every cleanup wait has a positive finite bound with a safe default. A protocol
-error, write error, early exit, timeout, invalid identity or failed `startTurn` closes and rejects after
-performing every safe owned cleanup still available. In particular, observed Windows root exit closes
-the channel but forbids a stale-pid kill.
+`CodexRateLimitSnapshot`, parsed from the full response by the one canonical parser in
+`codex-rate-limits.ts` with `capturedAt` taken from the supplied clock. Do not duplicate that nested
+parser here: it may be exported from its direct module for reuse, but not widened through the package
+barrel. Canonical parser tests own the full nested-boundary matrix; detached tests own same-channel
+dispatch, integration, and injected/default-clock assertions. Dead or unavailable ownership sends no
+rate-limit request and carries no fabricated snapshot, so a caller can take before/after account-wide
+observations without starting another app-server. Every protocol request and every cleanup wait has a
+positive finite bound with a safe default. A protocol error, write error, early exit, timeout, invalid
+identity or failed `startTurn` closes and rejects after performing every safe owned cleanup still
+available. In particular, observed Windows root exit closes the channel but forbids a stale-pid kill.
 `terminate` is concurrent-safe and idempotent: it waits for exact POSIX group death, or for Windows
 root disappearance/ownership loss after any same-token live-root termination it was allowed to send,
 and retains only bounded diagnostic detail. The opaque owner is durable recovery authority, not an
@@ -225,7 +255,12 @@ descendants died. Durable recovery is only the fallback when the receiving runti
 mint/closure provenance for that token. If this runtime minted the token and locally observed that
 exact generation dead or latch-closed it, that negative knowledge wins permanently: neither recovery
 parsing nor a later matching OS descriptor may re-open the generation, and pid reuse or a different
-generation never acquires the old token's authority.
+generation never acquires the old token's authority. Recovery termination re-observes the persisted
+generation immediately before signalling and then polls through the injected delay only within one
+outer bound and an exact finite poll cap. Observer/terminator errors, an unavailable observation after
+signal, a still-live timeout, and even a delay that never settles reject within that bound. Multi-poll
+death may fulfill. All concurrent callers and every later caller share the one settled fulfillment or
+rejection; they never start a second signal or polling operation.
 
 **The red is an assertion over existing code.** Source and test now exist and carry a signed first
 green, so this `real:` arm is deliberately `editsExisting: true`. AUTHOR_TEST adds regression
@@ -240,7 +275,14 @@ no assertion may retain the raw `account/rateLimits/read` payload as `probe().ra
 ownership follows explicit injection: only a controller/runtime given a `ManualClock` may assert its
 exact `capturedAt`. Every path with no injected clock uses `SYSTEM_CLOCK` and must assert a valid
 contemporaneous ISO timestamp, such as one bounded by system-clock readings immediately before and
-after the probe — never the manual clock's fixed epoch.
+after the probe — never the manual clock's fixed epoch. The next AUTHOR_TEST red must directly fail the
+current implementation on the strict token decoder, zero-OS-call malformed rows, POSIX and Windows
+immutable-generation/TOCTOU counterexamples, and the bounded recovery-controller matrix below. A broad
+existing failure, title-only shell, or indirect high-level assertion is not this red. It also adds a
+discriminating assertion for every non-equivalent branch implicated by the latest survivor/no-coverage
+report; leaving those branches for an unchanged suite to miss again is not an accepted revised test.
+For Contract 12, canonical tests keep the nested parser matrix while the detached test proves the same
+full response reaches that parser on the existing channel; do not recreate the matrix around a copy.
 
 **The changed-line mutation rung is a binary ship gate, not a percentage target.** The first gated
 reading counted 455 mutants: 201 killed, 138 survived, 115 with no coverage and one timed out. The
@@ -254,7 +296,9 @@ naming the precise mutator class and explaining why no possible input or observa
 the mutant from the original. A timeout is unproven, not a pass. Reachable, merely uncovered,
 expensive, or inconvenient behaviour is not equivalent; do not disable it, do not use a blanket `all`
 annotation, and remove a redundant branch instead of annotating it when deletion preserves the
-contract.
+contract. The latest refused signed verdict still produced 70 surviving mutants and 41 no-coverage
+mutants; this rework ships with zero survivors and zero no-coverage mutants in changed lines, except
+only a precise equivalence annotation meeting that bar.
 
 The hardening must exercise the production defaults and their branches directly, not infer them from
 high-level injected substitutes: bounded authentication and credential scrubbing, pinned detached
@@ -301,36 +345,47 @@ descendant is reaped in `finally`, even when an assertion fails.
      low-level process seam, its named failure rows, and the bounded real-child stand-in composition
      case.
 3. **`posix-group-owner-is-observed-probed-and-terminated`** — the POSIX production path owns, observes and terminates the exact detached process group.
-   - **asserts —** a positive child pid is observed as negative pgid, yields opaque
-     `posix-process-group` ownership rooted at that child, is probed with the same negative target and
-     is terminated with the bounded group signal; no bare pid, other group or image name is targeted.
+   - **asserts —** a positive child pid is observed as negative pgid and with an immutable OS-observed
+     process-birth identity, yielding `posix-process-group` ownership rooted at that exact generation.
+     Probe compares that generation; observation error is unavailable. Termination re-observes the same
+     generation inside the terminal operation immediately before bounded `SIGTERM`. A generation
+     change after probe sends no signal; no bare-group/sentinel fallback, bare pid, other group or image
+     name is targeted. A host unable to observe immutable generation identity fails closed.
    - **covers —** POSIX arms of production ownership acquisition, liveness and termination in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** `posix-group-owner-is-observed-probed-and-terminated: ...` tests whose recording
-     OS seam asserts literal owner discriminant, signed target, probe and termination signal.
+     OS seam asserts literal owner discriminant, persisted process-birth identity, signed target,
+     observation-error unavailability, exact pre-signal re-observation, and generation-change TOCTOU
+     with zero signal.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path observes
    the exact live root and terminates only its currently reachable rooted tree.
    - **asserts —** a positive child pid is inspected by `tasklist` as the exact live Windows root,
-     yields opaque `windows-process-tree` ownership with an identity token, and is re-observed with the
-     same token before any descendant-inclusive `taskkill /PID <root> /T /F`. Root disappearance or
-     token change reports ownership lost/dead-for-controller and sends no signal; no result claims
-     escaped-descendant death, a Job Object, pgid ownership or image-name ownership.
+     but that image/pid/session row is insufficient alone. An independent immutable process-creation
+     identity is persisted in `windows-process-tree` ownership and both observations must match inside
+     termination immediately before descendant-inclusive `taskkill /PID <root> /T /F`. Root
+     disappearance, creation-identity change, or a change after probe means ownership is lost; the
+     controller is dead and sends no signal even when pid and tasklist row are identical. No result
+     claims escaped-descendant death, a Job Object, pgid ownership or image-name ownership.
    - **covers —** Windows arms of production ownership acquisition, liveness and termination in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** `windows-tree-owner-is-observed-probed-and-terminated: ...` tests whose recording
-     OS seam asserts literal discriminant, exact-token task-list re-observation, exact task-kill command
-     composition, and no kill after root disappearance or token change.
+     OS seam asserts literal discriminant, required tasklist plus independent creation observation,
+     exact task-kill composition, same-row/different-creation pid reuse, and pre-signal generation-change
+     TOCTOU with zero taskkill.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`** — no invalid or mismatched process identity can become the controller's owner.
    - **asserts —** absent, zero, negative, fractional, non-finite and unsafe pids plus missing owner,
      wrong root, host-wrong kind, caller platform assertion contradicting the host, and blank/whitespace
-     token each reject; every post-spawn row closes I/O, attempts only cleanup authorized by a current
-     identity or owned handle, reaches a platform-qualified terminal observation and returns no
-     controller or stale-pid signal.
+     token each reject. Durable tokens are strict and versioned and carry host kind, embedded root pid,
+     runtime provenance, and OS-observed immutable process-birth identity; malformed prefix/version/
+     field count, embedded-root mismatch, and legacy bare `pgid:<pid>` report unavailable before any OS
+     call. Every post-spawn row closes I/O, attempts only cleanup authorized by a current identity or
+     owned handle, reaches a platform-qualified terminal observation and returns no stale-pid signal.
    - **covers —** pid and exact-owner validation before protocol staging in
      `packages/agent/src/codex-detached-app-server.ts`.
    - **proven by —** an exhaustive `owner-validation-rejects-invalid-pid-root-kind-and-token: ...`
      table with one named case and platform-qualified cleanup/terminal assertion for every listed value
-     class.
+     class, plus malformed durable-token rows asserting typed unavailable and zero observer/terminator
+     calls.
 6. **`ownership-acquisition-failure-reaps-spawned-child`** — failure to acquire public ownership cannot orphan the child created immediately before it.
    - **asserts —** unavailable, thrown and bounded-out production ownership observations close I/O,
      use every still-owned emergency cleanup path and then reject. POSIX targets only the exact group;
@@ -393,53 +448,72 @@ descendant is reaped in `finally`, even when an assertion fails.
 12. **`probe-tristate-and-same-channel-rate-limits`** — probe preserves live/dead/unavailable ownership truth and reads limits only on the existing live channel.
     - **asserts —** exact-owner observation at call time yields distinguishable live, dead and typed
       unavailable/error results; only live sends bounded `account/rateLimits/read` through the staged
-      app-server and returns the existing public `CodexRateLimitSnapshot`, parsed from the full result
-      with `capturedAt` supplied by the boundary's clock, while dead/unavailable start no request,
-      process, thread or turn and return no fabricated snapshot. Tests using an injected `ManualClock`
-      assert its exact timestamp; every controller/runtime created without an explicit clock inherits
-      `SYSTEM_CLOCK` and asserts a valid contemporaneous ISO timestamp with an equivalent bounded
-      before/after check, never a fixed injected epoch. Every probe assertion in the existing suite,
-      whatever its title, expects this typed public snapshot and the clock actually supplied to its
-      runtime; none expects the raw rate-limit response payload.
+      app-server and returns the existing public `CodexRateLimitSnapshot`. The detached module reuses
+      the canonical full-response parser from the direct `codex-rate-limits.ts` module rather than
+      carrying a second parser; this reuse does not add the parser to the package barrel. `capturedAt`
+      comes from the boundary's clock. Tests using an injected `ManualClock` assert its exact timestamp;
+      every controller/runtime created without an explicit clock inherits `SYSTEM_CLOCK` and asserts a
+      valid contemporaneous ISO timestamp with an equivalent bounded before/after check, never a fixed
+      injected epoch. Dead/unavailable starts no request, process, thread or turn and returns no
+      fabricated snapshot. Every existing probe assertion expects this typed public snapshot and the
+      clock actually supplied to its runtime; none expects the raw rate-limit response payload.
     - **covers —** `CodexDetachedThread.probe`, production liveness and same-channel rate-limit dispatch
-      in `packages/agent/src/codex-detached-app-server.ts`.
+      in `packages/agent/src/codex-detached-app-server.ts`, plus canonical full-response parsing in
+      `packages/agent/src/codex-rate-limits.ts`.
     - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
       states plus a spontaneous exit, an asserted full-result-to-`CodexRateLimitSnapshot` parse with
       exact explicitly injected-clock `capturedAt`, a default-clock assertion bounded around
       `SYSTEM_CLOCK`, and a literal one-channel protocol log, plus migrated typed-snapshot and
       clock-appropriate expectations in every pre-existing probe assertion, including the broad JSONL
-      correlation test.
+      correlation test. Existing canonical parser tests own the nested missing/malformed boundary
+      matrix; detached tests prove only reuse, same-channel integration, and clock propagation.
 13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination settles once for all
     callers only after a bounded platform-qualified terminal observation.
     - **asserts —** concurrent calls and a later repeat share one terminal operation and close I/O.
-      POSIX invokes one exact-group terminator and polls until group death. Windows first requires the
-      same live root token, invokes one rooted `taskkill`, and polls until root disappearance; a root
-      already absent or carrying another token is ownership-lost/dead-for-controller and is never
-      signalled. Terminator error, observation error, bound expiry and a still-live matching owner
-      reject rather than report cleanup; no Windows row claims escaped-descendant death.
+      POSIX re-observes the persisted immutable root generation immediately before one exact-group
+      `SIGTERM` and polls until death. Windows re-runs required tasklist plus the independent immutable
+      creation observation immediately before one rooted `taskkill`, then polls until root
+      disappearance. A generation that changes between probe and this pre-signal check means ownership
+      is lost; the controller is dead and that generation is never signalled. Terminator error,
+      observation error, bound expiry and a still-live matching owner reject rather than report cleanup;
+      no Windows row claims escaped-descendant death.
     - **covers —** `CodexDetachedThread.terminate`, concurrency/idempotence, bounded platform-qualified
       terminal observation and terminal error retention in
       `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `termination-is-idempotent-bounded-and-confirms-death: ...` tests racing calls and
-      separately asserting terminator error, observation error, timeout and still-live rows.
+      separately asserting both platforms' pre-signal generation-change TOCTOU, terminator error,
+      observation error, timeout and still-live rows.
 14. **`persisted-owner-recovers-across-runtime-restart`** — a fresh Agent runtime can safely probe and
     terminate the exact persisted owner without reconstructing an app-server channel.
-    - **asserts —** the public `recoverCodexDetachedOwner` accepts only a valid host-appropriate
-      `CodexDetachedOwner` and returns an owner-only bounded controller. Its `probe` reports live only
-      after the fresh runtime re-observes the exact same POSIX group or Windows root generation; its
-      idempotent `terminate` re-observes immediately before signalling, targets only that exact owner,
-      and confirms it dead-for-controller. Dead, changed, malformed, host-wrong and unavailable rows
-      never signal and never authenticate, spawn, initialize, start a thread/turn or issue a rate-limit
-      request; no result depends on a prior runtime's maps, handles or token prefix. Cross-runtime
-      recovery is used only when the receiving runtime never minted that token: a locally minted token
-      whose exact generation was observed dead or latch-closed stays terminal despite any later
-      descriptor match, and pid reuse or a different generation cannot inherit its authority.
+    - **asserts —** the public `recoverCodexDetachedOwner` returns an owner-only bounded controller for
+      a host-appropriate `CodexDetachedOwner`. Before any OS call it strictly decodes a versioned token
+      containing host kind, embedded root pid equal to `rootPid`, runtime provenance, and OS-observed
+      immutable process-birth identity; malformed prefix/version/field count, pid mismatch and legacy
+      bare `pgid:<pid>` report typed unavailable with zero OS calls. POSIX live requires the same exact
+      root generation, never group existence or a sentinel; observation error is unavailable and a host
+      without immutable generation observation may fail closed. Windows live requires both tasklist and
+      an independent immutable creation identity; the same pid and identical tasklist row with changed
+      creation identity is dead-for-controller. `terminate` re-observes the exact generation inside the
+      terminal operation immediately before bounded `SIGTERM` or `taskkill`; a post-probe/pre-signal
+      generation change sends no signal. Cross-runtime recovery applies only when the receiving runtime
+      never minted that token: stronger local closed-generation knowledge stays terminal and pid reuse
+      cannot inherit authority. Dead, changed, host-wrong and unavailable rows never signal and never
+      authenticate, spawn, initialize, start a thread/turn or issue a rate-limit request.
+      Recovery termination has one positive finite outer bound, an exact finite poll cap, and observable
+      delay schedule. Observer or terminator throws, unavailable after signal, still-live exhaustion,
+      and a delay promise that never settles all reject within the outer bound; multi-poll death fulfills.
+      Concurrent callers and every later caller share the one fulfillment or rejection, with no second
+      signal, observer sequence or delay loop.
     - **covers —** the public owner-recovery types and `recoverCodexDetachedOwner`, plus production
       cross-runtime owner validation, observation and termination in
       `packages/agent/src/codex-detached-app-server.ts` and publication through `index.ts`.
     - **proven by —** `persisted-owner-recovers-across-runtime-restart: ...` tests that mint and
-      serialize each platform owner in runtime A, discard A, recover it in independently constructed
-      runtime B, and assert live/dead/unavailable probe plus exact-match termination, pid/group-reuse,
-      malformed/host-wrong input, bounded failure, idempotence and zero protocol/process creation;
-      same-runtime rows also prove that a locally closed generation cannot be re-opened through the
-      durable fallback.
+      serialize each platform owner in runtime A, discard A, and recover it in independently
+      constructed runtime B. The matrix asserts strict malformed-owner rejection with zero OS calls;
+      POSIX bare-group/sentinel refusal and generation-change TOCTOU with zero `SIGTERM`; Windows
+      same-tasklist/different-creation reuse and pre-signal TOCTOU with zero `taskkill`; host-wrong,
+      observer-throw and terminator-throw rows; unavailable after signal; multi-poll death; still-live
+      timeout; exact delay count/poll cap; a hanging delay bounded by the outer timer; and concurrent
+      plus later callers sharing both fulfilled and rejected outcomes. Same-runtime rows separately
+      prove that a locally closed generation cannot be re-opened through durable fallback, and every
+      row asserts zero authentication, process creation and protocol work.
