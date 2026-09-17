@@ -236,7 +236,11 @@ the existing source minimally until the new assertions and every old one pass. `
 the implementation and barrel, and the package suite remains the explicit `proofCommand` over that
 public surface. AUTHOR_TEST must migrate every existing probe expectation — including the broad
 `jsonl-fragments-and-correlates-responses` test — to the public `CodexRateLimitSnapshot` semantics;
-no assertion may retain the raw `account/rateLimits/read` payload as `probe().rateLimits`.
+no assertion may retain the raw `account/rateLimits/read` payload as `probe().rateLimits`. Clock
+ownership follows explicit injection: only a controller/runtime given a `ManualClock` may assert its
+exact `capturedAt`. Every path with no injected clock uses `SYSTEM_CLOCK` and must assert a valid
+contemporaneous ISO timestamp, such as one bounded by system-clock readings immediately before and
+after the probe — never the manual clock's fixed epoch.
 
 **The changed-line mutation rung is a binary ship gate, not a percentage target.** The first gated
 reading counted 455 mutants: 201 killed, 138 survived, 115 with no coverage and one timed out. The
@@ -390,16 +394,21 @@ descendant is reaped in `finally`, even when an assertion fails.
     - **asserts —** exact-owner observation at call time yields distinguishable live, dead and typed
       unavailable/error results; only live sends bounded `account/rateLimits/read` through the staged
       app-server and returns the existing public `CodexRateLimitSnapshot`, parsed from the full result
-      with `capturedAt` supplied by the injected clock, while dead/unavailable start no request,
-      process, thread or turn and return no fabricated snapshot. Every probe assertion in the existing
-      suite, whatever its title, expects this typed public snapshot; none expects the raw rate-limit
-      response payload.
+      with `capturedAt` supplied by the boundary's clock, while dead/unavailable start no request,
+      process, thread or turn and return no fabricated snapshot. Tests using an injected `ManualClock`
+      assert its exact timestamp; every controller/runtime created without an explicit clock inherits
+      `SYSTEM_CLOCK` and asserts a valid contemporaneous ISO timestamp with an equivalent bounded
+      before/after check, never a fixed injected epoch. Every probe assertion in the existing suite,
+      whatever its title, expects this typed public snapshot and the clock actually supplied to its
+      runtime; none expects the raw rate-limit response payload.
     - **covers —** `CodexDetachedThread.probe`, production liveness and same-channel rate-limit dispatch
       in `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
       states plus a spontaneous exit, an asserted full-result-to-`CodexRateLimitSnapshot` parse with
-      injected-clock `capturedAt`, and a literal one-channel protocol log, plus migrated typed-snapshot
-      expectations in every pre-existing probe assertion, including the broad JSONL correlation test.
+      exact explicitly injected-clock `capturedAt`, a default-clock assertion bounded around
+      `SYSTEM_CLOCK`, and a literal one-channel protocol log, plus migrated typed-snapshot and
+      clock-appropriate expectations in every pre-existing probe assertion, including the broad JSONL
+      correlation test.
 13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination settles once for all
     callers only after a bounded platform-qualified terminal observation.
     - **asserts —** concurrent calls and a later repeat share one terminal operation and close I/O.
