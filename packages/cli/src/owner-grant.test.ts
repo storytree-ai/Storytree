@@ -115,7 +115,7 @@ async function expectRefusal(
   input: InnerLoopVerbs.NodeOwnerGrantInput = validInput(),
 ): Promise<void> {
   const before = (await ownerGrantEvents(store)).length;
-  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, input);
+  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, store, input);
   assert.equal(result.ok, false, "expected the authority to be refused");
   if (result.ok) return;
   if (typeof expected === "string") assert.equal(result.reason, expected);
@@ -149,6 +149,12 @@ class ThrowingAppendStore extends InMemoryStore {
   }
 }
 
+class EventOnlyStore extends InMemoryStore {
+  override async getDoc(): Promise<never> {
+    throw new Error("event-only-store-must-not-read-library-docs");
+  }
+}
+
 test("owner-grant-carries-settled-authority: the protocol, canonical identity, fold and preflight spend the exceptional allowance exactly once", async () => {
   const parsed = InnerLoopEventDoc.safeParse(ownerGrantCandidate);
   assert.equal(parsed.success, true, "owner-grant must be a durable protocol event");
@@ -161,7 +167,7 @@ test("owner-grant-carries-settled-authority: the protocol, canonical identity, f
   );
 
   const store = await seedAuthorityStore(new InMemoryStore());
-  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, validInput());
+  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, store, validInput());
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.event, parsed.data);
@@ -245,7 +251,8 @@ test("owner-grant-carries-settled-authority: malformed content and unreadable au
     [validInput({ attempts: 1.5 }), /grants nothing/],
     [validInput({ difference: "   " }), /states no difference/],
   ] as const) {
-    const result = await InnerLoopVerbs.recordNodeOwnerGrant(new ThrowingReadStore(), input);
+    const store = new ThrowingReadStore();
+    const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, store, input);
     assert.equal(result.ok, false);
     if (result.ok) continue;
     if (typeof reason === "string") assert.equal(result.reason, reason);
@@ -253,7 +260,8 @@ test("owner-grant-carries-settled-authority: malformed content and unreadable au
     assert.doesNotMatch(result.reason, /ledger-down-marker/);
   }
 
-  const readResult = await InnerLoopVerbs.recordNodeOwnerGrant(new ThrowingReadStore(), validInput());
+  const unreadable = new ThrowingReadStore();
+  const readResult = await InnerLoopVerbs.recordNodeOwnerGrant(unreadable, unreadable, validInput());
   assert.equal(readResult.ok, false);
   if (!readResult.ok) assert.equal(readResult.reason, "the owner authority could not be read: ledger-down-marker");
 
@@ -307,7 +315,7 @@ test("owner-grant-carries-settled-authority: the authority binds the latest fail
     await appendInnerLoopEvent(store, attempt(UNIT_ID, INCREMENT_ID, `r${index}`));
   }
 
-  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, validInput());
+  const result = await InnerLoopVerbs.recordNodeOwnerGrant(store, store, validInput());
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.event.incrementId, INCREMENT_ID);
@@ -393,7 +401,7 @@ test("owner-grant-carries-settled-authority: one answered question is spendable 
   });
   await store.appendEvent({ id: "other-question-decoy", kind: INNER_LOOP_EVENT_KIND, type: "created", doc: ownerGrant({ unitId: "other", incrementId: "inc-other", runId: "other-r6", authorityQuestionRef: "asset:q-other" }) });
 
-  const first = await InnerLoopVerbs.recordNodeOwnerGrant(store, validInput());
+  const first = await InnerLoopVerbs.recordNodeOwnerGrant(store, store, validInput());
   assert.equal(first.ok, true, "non-spending decoys cannot suppress the valid grant");
   await expectRefusal(store, "owner authority asset:q-a is already spent");
 
@@ -470,6 +478,21 @@ test("owner-grant-carries-settled-authority: the CLI classifies, dispatches, ref
   const events = await ownerGrantEvents(ledger);
   assert.equal(events.length, 1);
   assert.equal(events[0]?.actor, "cli-owner@example.com");
+
+  const splitLedger = await seedAuthorityStore(new EventOnlyStore());
+  const splitAuthority = await seedAuthorityStore(new InMemoryStore(), { failures: 0 });
+  const splitSuccess = await run(fullArgv, {
+    store: splitAuthority,
+    writable: true,
+    attemptLedger: splitLedger,
+    actor: "split-store-owner@example.com",
+  });
+  assert.equal(splitSuccess.ok, true, "production keeps work events and Library authority in separate stores");
+  assert.doesNotMatch(splitSuccess.body, /event-only-store-must-not-read-library-docs/);
+  const splitEvents = await ownerGrantEvents(splitLedger);
+  assert.equal(splitEvents.length, 1);
+  assert.equal(splitEvents[0]?.actor, "split-store-owner@example.com");
+  assert.equal((await ownerGrantEvents(splitAuthority)).length, 0, "the authority store is read-only on this path");
 
   const ordinaryAtCeiling = await seedAuthorityStore(new InMemoryStore());
   const ordinary = await run(

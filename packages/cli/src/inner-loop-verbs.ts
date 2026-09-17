@@ -183,7 +183,8 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
 
 /** Record the single owner-authorised exceptional allowance after proving its live provenance. */
 export async function recordNodeOwnerGrant(
-  store: Store,
+  ledgerStore: Store,
+  authorityStore: Pick<Store, "getDoc">,
   input: NodeOwnerGrantInput,
 ): Promise<NodeGrantResult> {
   const { unitId, authorityQuestionId, attempts, kind, difference, actor } = input;
@@ -194,11 +195,11 @@ export async function recordNodeOwnerGrant(
   let ledger: InnerLoopLedger;
   let question; let increment;
   try {
-    events = await store.readEvents();
+    events = await ledgerStore.readEvents();
     ledger = foldInnerLoopLedger(events, unitId);
-    question = await store.getDoc(authorityQuestionId);
+    question = await authorityStore.getDoc(authorityQuestionId);
     const latest = ledger.attempts.at(-1);
-    increment = latest === undefined ? null : await store.getDoc(latest.incrementId);
+    increment = latest === undefined ? null : await authorityStore.getDoc(latest.incrementId);
   } catch (error) { return { ok: false, reason: `the owner authority could not be read: ${errorMessage(error)}` }; }
   const questionRef = `asset:${authorityQuestionId}`;
   for (const event of events) {
@@ -217,7 +218,7 @@ export async function recordNodeOwnerGrant(
   if (increment === null || increment.kind !== "increment") return { ok: false, reason: "bound increment is missing or is not an increment" };
   const decisionId = q.settledByRef.slice("asset:".length);
   let decision;
-  try { decision = await store.getDoc(decisionId); } catch (error) { return { ok: false, reason: `deciding ADR could not be read: ${errorMessage(error)}` }; }
+  try { decision = await authorityStore.getDoc(decisionId); } catch (error) { return { ok: false, reason: `deciding ADR could not be read: ${errorMessage(error)}` }; }
   if (decision === null || decision.kind !== "adr") return { ok: false, reason: "deciding ADR is missing or is not an adr" };
   const d = decision.doc as Record<string, unknown>; const i = increment.doc as Record<string, unknown>;
   if (d.status !== "accepted" || !hasQuotedOwnerDirective(DecisionAuthority.safeParse(d.authority).success ? DecisionAuthority.parse(d.authority) : undefined)) return { ok: false, reason: "deciding ADR is not accepted with quoted owner authority" };
@@ -227,8 +228,8 @@ export async function recordNodeOwnerGrant(
     const candidate: OwnerGrantDoc = { event: "owner-grant", unitId, incrementId: latest.incrementId, runId: latest.runId, attempts, kind, difference, authorityQuestionRef: questionRef, authorityDecisionRef: q.settledByRef };
     // Stryker disable next-line ArrayDeclaration,ObjectLiteral: EQUIVALENT — every ledger invariant is checked above; appendInnerLoopEvent re-validates the authority refs before any write.
     foldInnerLoopLedger([...events, { id: innerLoopEventId(candidate), kind: INNER_LOOP_EVENT_KIND, type: "created", doc: candidate, seq: Number.MAX_SAFE_INTEGER }], unitId);
-    await appendInnerLoopEvent(store, candidate, actor);
-    return { ok: true, event: candidate, ledger: foldInnerLoopLedger(await store.readEvents(), unitId) };
+    await appendInnerLoopEvent(ledgerStore, candidate, actor);
+    return { ok: true, event: candidate, ledger: foldInnerLoopLedger(await ledgerStore.readEvents(), unitId) };
   } catch (error) { return { ok: false, reason: errorMessage(error) }; }
 }
 
