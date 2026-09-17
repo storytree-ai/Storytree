@@ -35,12 +35,13 @@ test("build (bare) shows the workflow help: the goal, the auto-route, the nested
   assert.match(env.body, /storytree build node resolve <id>/);
   assert.match(env.body, /storytree build story <id>/);
   assert.match(env.body, /storytree build gate .*--real/);
-  // ADR-0571: the test-revision flag is advertised, scoped to the one surface that takes it
+  // ADR-0571 (amended for story chains and gates): the test-revision flag is advertised with the
+  // handle each paid surface takes — a run id for node and gate, member:run for a story chain
   assert.ok(
     env.body.includes(
-      "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+      "       --revise-test <run-id> (node/gate --real) · <member-id>:<run-id> (story --real) — a test revision against that failed run's escalation (ADR-0571)",
     ),
-    "the build help must name --revise-test and the one mode it is valid in",
+    "the build help must name --revise-test and the handle each surface takes",
   );
   // teaches that an observe gate is NOT a build — it relocates to `adopt gate`, not under `build`
   assert.match(env.body, /adopt gate/);
@@ -155,10 +156,10 @@ test("the build help puts --increment on the paid gate form and names it as requ
     env.body,
   );
   const at = lines.indexOf(
-    "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+    "       --revise-test <run-id> (node/gate --real) · <member-id>:<run-id> (story --real) — a test revision against that failed run's escalation (ADR-0571)",
   );
   assert.deepEqual(lines.slice(at, at + 3), [
-    "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+    "       --revise-test <run-id> (node/gate --real) · <member-id>:<run-id> (story --real) — a test revision against that failed run's escalation (ADR-0571)",
     "       --increment <id> (REQUIRED with --real, refused without it) — the arc increment a paid attempt is filed under (ADR-0576)",
     "",
   ]);

@@ -54,21 +54,30 @@ import { effectiveVerdictStore, ensureLiveDb } from "@storytree/drive";
 import type { EnsureDbResult } from "@storytree/drive";
 import type { Envelope } from "./envelope.js";
 import {
-  buildNodeReal,
   innerLoopRefusalEnvelope,
   liveBuildProgress,
   preflightPaidBuild,
+  readTestRevision,
   realConfigRefusal,
   rel,
   renderIncrementLines,
   renderInnerLoopOutcome,
   renderLeafPhasePrompts,
+  renderRevisingLine,
   resolveAddDepsGroup,
   resolveDbProofEnv,
+  resolveEscalationsDir,
   resolveLiveRuntime,
+  resolveStoryRealNodeBuilder,
   resolveVerdictStore,
 } from "@storytree/drive";
-import type { BuildProgress, InnerLoopReadHandles, RealBuildArgs } from "@storytree/drive";
+import type {
+  BuildProgress,
+  InnerLoopReadHandles,
+  RealBuildArgs,
+  RevisionWrite,
+  StoryRealNodeBuilder,
+} from "@storytree/drive";
 
 /** Seams a real build-tests-gate drive needs, all injectable so the R2 walk is offline-testable. */
 export interface GateBuildDriverDeps {
@@ -143,6 +152,46 @@ export interface GateBuildDriverDeps {
    * Production omits it, and `preflightPaidBuild` opens the live handles itself.
    */
   innerLoopReads?: InnerLoopReadHandles | undefined;
+  /**
+   * `--revise-test <run-id>` (ADR-0571, amended for gates): the prior gate run whose returned
+   * escalation this drive's AUTHOR_TEST leaf revises against. The record is keyed by the GATE id — the
+   * id the verdict and the ledger use — and read before any spend.
+   */
+  reviseTest?: string | undefined;
+  /**
+   * Where revision records live (ADR-0571 D2): this drive's own returned escalation is written under
+   * the gate id and its run id, and a `reviseTest` record is read from here. Default
+   * `~/.storytree/escalations`; a hermetic suite injects a temp dir.
+   */
+  escalationsDir?: string | undefined;
+  /**
+   * Offline test seam: the REAL node builder the drive walks (default `buildNodeReal`, resolved by
+   * `resolveStoryRealNodeBuilder` — the same default-by-identity the story chain uses).
+   */
+  realNodeBuilder?: StoryRealNodeBuilder | undefined;
+}
+
+/**
+ * `[]` when the drive recorded nothing. A written record names its path and the exact gate re-run that
+ * revises against it, carrying this drive's runtime and increment — so running it as printed never
+ * switches leaves. An unwritten record names the path and the reason, and never a command.
+ */
+export function renderGateRevisionRecord(
+  gateId: string,
+  runId: string,
+  runtime: string,
+  write: RevisionWrite | undefined,
+  incrementId: string,
+): string[] {
+  if (write === undefined) return [];
+  if (write.written) {
+    return [
+      `revision:    written to ${write.path} — re-run with: storytree gate run ${gateId} --real --runtime ${runtime} --increment ${incrementId} --revise-test ${runId} --pg`,
+    ];
+  }
+  return [
+    `revision:    NOT written (${write.path}): ${write.reason} — relay the escalation to the owner by hand`,
+  ];
 }
 
 /**
@@ -269,14 +318,24 @@ export async function driveBuildTestsGate(
   if (!resolvedDeps.ok) return resolvedDeps.refusal;
   addDepsGroup = resolvedDeps.group;
 
+  // 5a. ADR-0571 (amended for gates): a named test revision reads the record keyed by the GATE id —
+  //     the id the verdict and the ledger use — so a record `node build` wrote for the referenced
+  //     build node is never read here, and this drive's record is never read there. Vetted before
+  //     the prompt render, the ledger, the database, the worktree and the leaf.
+  const escalationsDir = resolveEscalationsDir(deps.escalationsDir);
+  const revisionRead = readTestRevision(escalationsDir, gate.id, deps.reviseTest);
+  if (!revisionRead.ok) return { ok: false, body: revisionRead.reason, next: [] };
+  const testRevision = revisionRead.revision;
+
   // 5b. ADR-0576 D1: a missing or blank `--increment` is ARGUMENT VALIDATION — refused before the
   //     prompt render or the decision sweep, with no ledger or corpus touched beyond what the
   //     resolver itself needs to name the refusal. The same preflight input serves this check and the
-  //     full preflight after the sweep (6c): the gate id is the unit, and a gate drive never revises.
+  //     full preflight after the sweep (6c): the gate id is the unit, and a revision run pairs with a
+  //     live grant's kind (ADR-0576 D6).
   const preflightInput = {
     incrementId: deps.increment,
     unitIds: [gate.id],
-    revise: false,
+    revise: testRevision !== undefined,
     reads: deps.innerLoopReads,
   };
   if (deps.increment === undefined || deps.increment.trim().length === 0) {
@@ -400,13 +459,17 @@ export async function driveBuildTestsGate(
           onPhase: (phase) => progress.note(phase),
           runtime: runtimeResult.runtime,
           incrementId: preflight.incrementId,
+          // ADR-0571 (amended for gates): the drive records its own returned escalation under the gate
+          // id, and a named revision reaches this drive's AUTHOR_TEST brief.
+          testRevision,
+          escalationsDir,
         };
         if (dbProofEnv !== undefined) realArgs.dbProofEnv = dbProofEnv;
         if (override !== undefined) realArgs.authorOverride = override;
         if (deps.model !== undefined) realArgs.model = deps.model;
         if (deps.budgetUsd !== undefined) realArgs.budgetUsd = deps.budgetUsd;
         if (deps.maxTurns !== undefined) realArgs.maxTurns = deps.maxTurns;
-        return buildNodeReal(realArgs);
+        return resolveStoryRealNodeBuilder(deps.realNodeBuilder)(realArgs);
       },
     );
 
@@ -422,6 +485,7 @@ export async function driveBuildTestsGate(
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeLabel}`,
+      ...renderRevisingLine(testRevision),
       ...sweepSummaryLine(sweep),
       ...renderIncrementLines(preflight.incrementId, preflight.warnings),
       `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
@@ -434,6 +498,7 @@ export async function driveBuildTestsGate(
         body: [
           ...header,
           `verdict:     NONE — failed closed at ${built.result.failedAt}: ${built.result.reason}`,
+          ...renderGateRevisionRecord(gate.id, runId, runtimeResult.runtime, built.revisionWrite, preflight.incrementId),
           ...outcome.lines,
           `rollup:      ${derived ?? "(no derived status)"}`,
           "",
