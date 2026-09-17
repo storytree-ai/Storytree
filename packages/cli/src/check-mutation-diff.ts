@@ -261,9 +261,11 @@ ${SHARED_CONSTRAINTS}
     // Moved again 180 s → 600 s on 2026-09-17, for the same reason at a larger covering set: the
     // \`production-builds-enforce-the-inner-loop-exit\` landing's 24 drive + cli witness files
     // include the real-chain tests (\`leaf-slices-activation\` 157 s, \`story-real-build\` 125 s
-    // alone), its dry run measured ~316 s on the Windows dev box, and 180 s killed it before a
-    // single mutant ran. 600 s is about twice that measurement.
-    timeout: 600000,
+    // alone), its dry run measured ~316 s on the Windows dev box WITHOUT coverage instrumentation,
+    // and 180 s killed it before a single mutant ran. Under the rung's own perTest instrumentation
+    // the same dry run then outran 600 s too ("Dry run timed out" at exactly ten minutes), so the
+    // budget is 30 minutes. It bounds a child process, never a mutant's verdict.
+    timeout: 1800000,
   },`
       : `  testRunner: "vitest",
   plugins: ["@stryker-mutator/vitest-runner"],
@@ -324,8 +326,9 @@ ${head}
   // lever the note above rules out: it bounds the one coverage-gathering run, never a mutant. A
   // covering set that includes the real-chain drive tests needs more than five minutes on the dev
   // box — measured 2026-09-17 on the \`production-builds-enforce-the-inner-loop-exit\` landing, whose
-  // run died with "Initial test run timed out!" at exactly 5 minutes, before any mutant ran.
-  dryRunTimeoutMinutes: 15,
+  // run died with "Initial test run timed out!" at exactly 5 minutes, before any mutant ran, and
+  // then outran ten minutes under the rung's perTest instrumentation (the child budget below).
+  dryRunTimeoutMinutes: 30,
   tempDirName: ".stryker-tmp",
   // typescript@7 exports no compiler API (ADR-0400 D3), so Stryker's tsconfig preprocessor throws if
   // it finds a real one. Pointing at a path that does not exist is the fix increment 1 established.
