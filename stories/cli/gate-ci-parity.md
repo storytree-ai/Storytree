@@ -166,6 +166,13 @@ the **merge-ref**.
   stops, refuses after the sweep and before the database starts. The gate id is the ledger unit
   (ADR-0098 U2), the walk records its attempt and any signed pass under it, and `makeGateDeps`
   (`commands.ts`) threads `--increment` from argv.
+- **The REAL build-tests gate drive carries a test revision** (ADR-0571, amended for gates; increment
+  `story-and-gate-builds-carry-test-revisions`). `gate run <story>#gate-<n> --real --revise-test
+  <run-id>` reads the record keyed by the GATE id — so a record `node build` wrote for the referenced
+  build node is never read for the gate — before any spend, threads it into the drive's AUTHOR_TEST
+  brief, and a failed drive prints its own record path and the exact gate re-run. A revision run pairs
+  with the gate's live grant (ADR-0576 D6). `driveBuildTestsGate` takes the same injectable REAL node
+  builder the story chain does, and `makeGateDeps` threads `--revise-test` from argv.
 
 ## Contracts (3)
 
