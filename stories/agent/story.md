@@ -221,9 +221,10 @@ nothing from each other, and neither splitting trigger above rests on the absenc
   credential scrub, the pinned command, the one-turn JSONL contract, manifest validation, replica
   promotion and rollback, the spawn bound), but its defining behaviour — a real `codex exec` turn
   drawing on a ChatGPT subscription — is need-gated and operator-attested, never a standing offline
-  test. Its role-neutral staged app-server behaviour is buildable one grain down as contract
-  `codex-detached-app-server`; that isolated contract proof does not substitute for a capability-level
-  live integration proof. It also `depends_on` the unwired `phase-author-seam`, so dependency-closure
+  test. Its role-neutral staged app-server behaviour is authored one grain down as contract
+  `codex-detached-app-server`, but remains deliberately unregistered and unbuildable until its
+  implementation, named test and `proof.real` arm land together; that future isolated contract proof
+  will not substitute for a capability-level live integration proof. It also `depends_on` the unwired `phase-author-seam`, so dependency-closure
   would exclude it from the buildable set regardless. It stays `proposed`, unwired.
 
 > **The Cursor second-harness leaf remains RETIRED (ADR-0198, superseding ADR-0177; subsequently

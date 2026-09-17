@@ -37,7 +37,8 @@ verdicts remain outside the runtime.
 > spawn bound (`resolveCodexTimeoutMs`). The genuinely LIVE leg — a real `codex exec` turn drawing on a
 > ChatGPT subscription — is need-gated and operator-attested: live builds have driven it, but no
 > standing test in this package does. Contract `codex-detached-app-server` is authored but not yet
-> implemented or signed. No `healthy` — no capability verdict (ADR-0020).
+> implemented, proof-registered or signed: its source, named test and `proof.real` arm must land
+> together. No `healthy` — no capability verdict (ADR-0020).
 
 This is the second live `PhaseAuthor` (ADR-0232) and, since ADR-0555, the one the build path binds when
 no runtime is named — `--runtime claude` selects [`live-sdk-leaf`](live-sdk-leaf.md) instead. It runs
@@ -133,6 +134,7 @@ whole-phase refusal before any copy, multi-file promotion, rollback under inject
 the bound under an injected clock. A real `codex exec` turn is need-gated and operator-attested, not a
 free/offline standing test — the boundary every live leg in storytree carries (a subscription turn
 cannot be a free standing test). This capability carries no `real:` arm, so it is not in the story's
-buildable set. The staged detached-process behaviour has its own genuine contract-level `real:` arm in
-[`codex-detached-app-server`](codex-detached-app-server.md); a buildable child contract does not invent
-the missing capability-level live integration proof.
+buildable set. The staged detached-process behaviour is authored one grain down in
+[`codex-detached-app-server`](codex-detached-app-server.md), but remains deliberately unregistered and
+unbuildable until its implementation, named test and `proof.real` arm land together. That future child
+proof will not invent the missing capability-level live integration proof.

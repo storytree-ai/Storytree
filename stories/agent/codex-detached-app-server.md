@@ -20,23 +20,6 @@ proof:
       - "packages/agent/src/codex-detached-app-server.ts"
       - "packages/agent/src/codex-rate-limits.ts"
       - "packages/agent/src/index.ts"
-  real:
-    testFile: "packages/agent/src/codex-detached-app-server.test.ts"
-    sourceFile: "packages/agent/src/codex-detached-app-server.ts"
-    scope:
-      testGlobs: ["packages/agent/src/codex-detached-app-server.test.ts"]
-      sourceGlobs:
-        - "packages/agent/src/codex-detached-app-server.ts"
-        - "packages/agent/src/codex-rate-limits.ts"
-        - "packages/agent/src/index.ts"
-    install: true
-    editsExisting: false
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
 ---
 
 # Stage one authenticated pinned Codex thread in an exactly owned detached process before any turn starts
@@ -365,13 +348,16 @@ signal, a still-live timeout, and even a delay that never settles reject within 
 death may fulfill. All concurrent callers and every later caller share the one settled fulfillment or
 rejection; they never start a second signal or polling operation.
 
-**The red creates the public boundary from a clean checkout.** Current `origin/main` contains
-neither detached-app-server source nor its test file, so this `real:` arm is deliberately
-`editsExisting: false`. AUTHOR_TEST creates the test file, reaches the planned public value through
-`./index.js`, and adds substantive assertions for all twenty-two exact contract ids below. At least
-one assertion must run and fail for missing behaviour; a missing import, compile failure, title-only
-shell, or type-only check is the wrong red. IMPLEMENT creates the source and publishes the narrow
-public surface until the new assertions and the package suite pass.
+**Proof registration lands with the implementation.** Current `origin/main` contains neither the
+detached-app-server source nor its test file. This proposed contract therefore carries planned
+`proof.command` / `proof.scope` context but deliberately carries no `proof.real` arm: registering a
+missing test file would be an unbound proof defect, not buildability. When implementation and named
+tests land together, that landing adds the net-new `proof.real` arm. Its AUTHOR_TEST creates the test
+file, reaches the planned public value through `./index.js`, and adds substantive assertions for all
+twenty-two exact contract ids below. At least one assertion must run and fail for missing behaviour;
+a missing import, compile failure, title-only shell, or type-only check is the wrong red. IMPLEMENT
+creates the source and publishes the narrow public surface until the new assertions and package suite
+pass.
 
 The test design is self-contained. Define shared `VALID_POSIX_OWNER_TOKEN` and
 `VALID_WINDOWS_OWNER_TOKEN` constants with Contract 15's literal fixtures, plus
