@@ -148,3 +148,34 @@ test("adopt-plan --readings renders the enriched proposal: stamped class + recom
   // An unresolved escalated fork surfaces the fail-closed halt note.
   assert.match(env.body, /escalated fork\(s\) unresolved/);
 });
+
+test("adopt-plan's enriched proposal prints every paid `gate run --real` command with the increment it must name", async () => {
+  // ADR-0576 D1: a REAL gate drive naming no `--increment <id>` is refused as written.
+  const env = await adoptPlanCommand("library", deps(), {
+    readings: {
+      "seed-corpus-scripts": {
+        class: "R2",
+        title: "Seam out the seed orchestration",
+        proofCommand: "pnpm --filter @storytree/library test",
+        buildNode: "seed-corpus-scripts",
+        forks: [],
+      },
+    },
+  });
+  assert.equal(env.ok, true);
+  const lines = env.body.split("\n");
+  assert.ok(
+    lines.includes("(`storytree gate run <story>#gate-<n> --real --increment <increment-id> --pg`, `build-tests`):"),
+    env.body,
+  );
+  assert.ok(
+    lines.includes(
+      "adopt <story> --pg` (observe) / `gate run <gate> --real --increment <increment-id> --pg` (build-tests) earns the green.",
+    ),
+    env.body,
+  );
+  assert.deepEqual(env.next, [
+    "storytree adopt library --pg",
+    "storytree gate run library#gate-1 --real --increment <increment-id> --pg",
+  ]);
+});

@@ -567,7 +567,7 @@ export async function treeCommand(
   ];
   const realCap = capRows.find((r) => r.mark === "REAL-buildable");
   if (realCap !== undefined) {
-    next.push(`storytree node build ${realCap.id} --real`);
+    next.push(`storytree node build ${realCap.id} --real --increment <increment-id>`);
   }
   next.push("storytree tree");
 

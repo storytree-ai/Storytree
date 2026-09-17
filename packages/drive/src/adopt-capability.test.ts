@@ -341,9 +341,10 @@ test("THE SELF-ATTESTATION FENCE: a branch that authored the capability's own so
       "acceptance. A capability adopted in the same landing that authored it is self-attestation\n" +
       "wearing the brownfield's clothes — freshly written work earns a driven red→green instead.",
   );
-  // It sends the caller at the honest alternative: drive a real proof.
+  // It sends the caller at the honest alternative: drive a real proof — which, being paid, names the
+  // increment it is filed under (ADR-0576 D1), or the command it prints is refused as written.
   assert.deepEqual(env.next, [
-    "storytree node build hydrated-store-dialing-root --real --store pg",
+    "storytree node build hydrated-store-dialing-root --real --increment <increment-id> --store pg",
   ]);
   assert.equal(rec.observed.length, 0);
   assert.equal(rec.appended.length, 0);

@@ -54,6 +54,7 @@ import {
   resolveSignerFromEnv,
   shellObserveCommand,
   runShellCommand,
+  resolveBuildConfig,
 } from "@storytree/orchestrator";
 import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
@@ -69,6 +70,16 @@ import {
 import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
 import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
+import type { InnerLoopEventDoc } from "@storytree/proof-protocol";
+import {
+  readNodeAttempts,
+  recordNodeGrant,
+  recordNodeAdjudication,
+  strengthSignalFromTestScript,
+  type NodeGrantInput,
+  type NodeAdjudicateInput,
+  type StrengthSignalReach,
+} from "./inner-loop-verbs.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
 import {
   libraryRelated,
@@ -259,6 +270,8 @@ import {
   nodeHelp,
   nodeResolve,
   specView,
+  renderInnerLoopEntryState,
+  type InnerLoopEntryState,
   type NodeBuildOpts,
 } from "@storytree/drive";
 // The work-hierarchy ref index (ADR-0306 D1) — one scan per report, feeding health's tier-aware
@@ -2321,6 +2334,14 @@ export interface RunDeps {
    * `storytree uat attest` then refuses (a verdict that does not persist greens nothing).
    */
   readonly uatStore?: UatVerdictStoreLike | null;
+  /**
+   * The orchestrator's attempt ledger (ADR-0576 D3): the live work store when --pg (the same
+   * `PgWorkStore` instance as `uatStore`); null/absent offline — `storytree node
+   * attempts|grant|adjudicate` then refuse (the ledger lives in the live store, and every ledger
+   * write needs both `writable` and this seam). Typed `Store` rather than `uatStore`'s narrower
+   * shape because `recordNodeGrant`/`recordNodeAdjudication` read and append raw events.
+   */
+  readonly attemptLedger?: Store | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
   /** Backfill-only process seams; the live composition supplies git, identity and wall clock. */
@@ -2714,7 +2735,7 @@ function refuseMemoryStore(area: "node" | "story" | "gate", id: string | undefin
   // The retry hint mirrors the area's own verb: node/story `build`, a gate `run --real`.
   const retry =
     area === "gate"
-      ? `storytree gate run ${id ?? "<story>#gate-<n>"} --real --pg   (a --real gate build persists by default)`
+      ? `storytree gate run ${id ?? "<story>#gate-<n>"} --real --increment <increment-id> --pg   (a --real gate build persists by default)`
       : `storytree ${area} build ${id ?? "<id>"} --live   (persists by default — no --store needed)`;
   return {
     ok: false,
@@ -2743,6 +2764,7 @@ interface BuildValues {
   budget?: string;
   "max-turns"?: string;
   "revise-test"?: string;
+  increment?: string;
   actor?: string;
   store?: string;
   signer?: string;
@@ -2773,6 +2795,9 @@ export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
   // ADR-0571 D3: unguarded, because `reviseTest` admits undefined — a guard here would be a mutant
   // no test could kill. `story build` never sees it: `storyBuildFromValues` refuses the flag first.
   opts.reviseTest = values["revise-test"];
+  // ADR-0575 D1: unguarded for the same reason — `increment` admits undefined, and `nodeBuild`
+  // itself refuses a REAL-only flag supplied without --real.
+  opts.increment = values.increment;
   if (values.actor !== undefined) opts.actor = values.actor;
   if (values.store !== undefined) opts.verdictStore = values.store;
   opts.onLeafSlices = captureBuildLeafSlices;
@@ -2795,10 +2820,208 @@ export async function storyBuildFromValues(
       body:
         "--revise-test names one unit's failed run and is valid only on `node build <id> --real` " +
         "(ADR-0571 D3): a story chain has no single unit to revise.",
-      next: [`storytree node build <unit-id> --real --revise-test ${revision}`],
+      next: [`storytree node build <unit-id> --real --increment <increment-id> --revise-test ${revision}`],
     };
   }
   return storyBuild(storyId, nodeStoryBuildOpts(values));
+}
+
+// ---------------------------------------------------------------------------
+// node attempts|grant|adjudicate — the orchestrator's ledger verbs (ADR-0576 D3)
+// ---------------------------------------------------------------------------
+
+const LIVE_STORE_REFUSAL =
+  "the attempt ledger lives in the live store — rerun with --pg (bring the DB up first: pnpm db:up)";
+
+function usageAttempts(unitId: string): string {
+  return `storytree node attempts ${unitId} --pg`;
+}
+function usageGrant(unitId: string): string {
+  return `storytree node grant ${unitId} --attempts <n> --kind <changed-input|fixed-defect|new-observation|revised-test> --difference <text|@file> --pg`;
+}
+function usageAdjudicate(unitId: string): string {
+  return `storytree node adjudicate ${unitId} --run <run-id> [--objection test-quality|rule-violation|surviving-mutants --statement <text|@file> --decision <rule> --survivors <n>] --pg`;
+}
+
+/**
+ * ADR-0576 D3: whether the mutation rung could ever reach the unit's own package — the production
+ * composition `orchestrator-records-its-calls` left to this unit's caller. Resolves the unit's spec,
+ * its declared `real.sourceFile`, the owning package's `package.json`, and asks the mutation rung's
+ * own classifier whether that package's `test` script runs under an instrument it can drive. Any
+ * missing link or thrown error answers `false` — the honest direction: a false reach only DECLARES a
+ * gap (ADR-0563 D3), where a true one would falsely claim an instrument that cannot run.
+ */
+export function unitStrengthSignalReach(storiesDir: string): StrengthSignalReach {
+  return (unitId: string): boolean => {
+    // Each guard below narrows a type for the step after it and decides nothing at runtime: without it
+    // that step throws or finds nothing, and the catch answers `false` just as the guard does.
+    try {
+      const file = findNodeSpecFile(storiesDir, unitId);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — loading a null path throws, and the catch answers false as this guard does
+      if (file === null) return false;
+      const spec = loadNodeSpec(file);
+      // Stryker disable next-line OptionalChaining: EQUIVALENT — a missing build config or real arm throws without the chaining, and the catch answers false as the undefined does
+      const sourceFile = resolveBuildConfig(spec)?.config.real?.sourceFile;
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — the pattern below matches no undefined, so the next guard answers false as this one does
+      if (sourceFile === undefined) return false;
+      const match = /^packages\/([^/]+)\//.exec(sourceFile);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — reading a group off a null match throws, and the catch answers false as this guard does
+      if (match === null) return false;
+      const pkgDir = match[1]!;
+      const pkgJsonPath = path.join(path.dirname(storiesDir), "packages", pkgDir, "package.json");
+      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as {
+        scripts?: Record<string, string>;
+      };
+      // Stryker disable next-line OptionalChaining: EQUIVALENT — a manifest with no scripts throws without the chaining, and the catch answers false as an absent test script does
+      return strengthSignalFromTestScript(pkgJson.scripts?.test);
+    } catch {
+      return false;
+    }
+  };
+}
+
+/**
+ * `node attempts|grant|adjudicate` (ADR-0576 D3): the dispatch over the pure verbs in
+ * `./inner-loop-verbs.js`. Every refusal here is the verb's own reason relayed whole, or a flag/seam
+ * refusal the dispatch owns because the verb never sees the raw CLI values.
+ */
+async function nodeLedgerCommand(
+  sub: "attempts" | "grant" | "adjudicate",
+  unitId: string | undefined,
+  values: CliValues,
+  deps: RunDeps,
+): Promise<Envelope> {
+  if (unitId === undefined) {
+    const usage =
+      sub === "attempts" ? usageAttempts("<unit-id>")
+      : sub === "grant" ? usageGrant("<unit-id>")
+      : usageAdjudicate("<unit-id>");
+    return { ok: false, body: `node ${sub} needs a unit id`, next: [usage] };
+  }
+
+  if (sub === "attempts") {
+    const ledger = deps.attemptLedger;
+    if (ledger === undefined || ledger === null) {
+      return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageAttempts(unitId)] };
+    }
+    const result = await readNodeAttempts(ledger, unitId);
+    if (!result.ok) {
+      return { ok: false, body: result.reason, next: ["pnpm db:probe"] };
+    }
+    const fold = result.ledger;
+    let state: InnerLoopEntryState | null;
+    if (fold.unresolvedSignedRuns.length > 0) {
+      state = { state: "signed", unitId, runId: fold.unresolvedSignedRuns[0]! };
+    } else if (fold.consecutiveFailures > 0) {
+      const latest = fold.attempts.at(-1)!;
+      state = {
+        state: "attempt-failed",
+        unitId,
+        runId: latest.runId,
+        consecutiveFailures: fold.consecutiveFailures,
+        remainingGrantCount: fold.remainingGrantCount,
+      };
+    } else {
+      state = null;
+    }
+    if (state === null) {
+      return { ok: true, body: result.lines.join("\n"), next: [] };
+    }
+    const rendered = renderInnerLoopEntryState(state);
+    return { ok: true, body: [...result.lines, ...rendered.lines].join("\n"), next: [...rendered.next] };
+  }
+
+  if (sub === "grant") {
+    const attemptsFlag = values.attempts;
+    const kindFlag = values.kind;
+    const differenceFlag = values.difference;
+    if (attemptsFlag === undefined || kindFlag === undefined || differenceFlag === undefined) {
+      return {
+        ok: false,
+        body:
+          "node grant needs --attempts <n>, --kind <kind> and --difference <text|@file>: a grant records how many further attempts, which kind of difference, and what will be different (ADR-0563 D4)",
+        next: [usageGrant(unitId)],
+      };
+    }
+    if (deps.writable !== true || deps.attemptLedger === undefined || deps.attemptLedger === null) {
+      return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageGrant(unitId)] };
+    }
+    const input: NodeGrantInput = {
+      unitId,
+      attempts: Number(attemptsFlag),
+      kind: kindFlag,
+      difference: differenceFlag,
+      actor: deps.actor,
+    };
+    const result = await recordNodeGrant(deps.attemptLedger, input);
+    if (!result.ok) {
+      return { ok: false, body: result.reason, next: [usageAttempts(unitId)] };
+    }
+    // `recordNodeGrant` only ever builds a "grant" doc on success; narrow the union it returns
+    // (shared across every inner-loop event kind) rather than re-typing its result shape.
+    const grantEvent = result.event as Extract<InnerLoopEventDoc, { event: "grant" }>;
+    const body = [
+      `granted: ${unitId} — ${grantEvent.attempts} further attempt(s), ${grantEvent.kind}, bound to run ${grantEvent.runId} under increment ${grantEvent.incrementId}`,
+      `difference: ${grantEvent.difference}`,
+      `policy: ${result.ledger.policy.disposition} — ${result.ledger.policy.reason}`,
+    ].join("\n");
+    return { ok: true, body, next: [usageAttempts(unitId)] };
+  }
+
+  // sub === "adjudicate"
+  const runFlag = values.run;
+  if (runFlag === undefined) {
+    return {
+      ok: false,
+      body: "node adjudicate needs --run <run-id>: the signed run it adjudicates (ADR-0576 D3)",
+      next: [usageAdjudicate(unitId)],
+    };
+  }
+  const objectionFlag = values.objection;
+  const statementFlag = values.statement;
+  const decisionFlag = values.decision;
+  const survivorsFlag = values.survivors;
+  if (
+    objectionFlag === undefined &&
+    (statementFlag !== undefined || decisionFlag !== undefined || survivorsFlag !== undefined)
+  ) {
+    return {
+      ok: false,
+      body:
+        "--statement, --decision and --survivors qualify an --objection: pass --objection test-quality|rule-violation|surviving-mutants with them",
+      next: [usageAdjudicate(unitId)],
+    };
+  }
+  if (deps.writable !== true || deps.attemptLedger === undefined || deps.attemptLedger === null) {
+    return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageAdjudicate(unitId)] };
+  }
+  const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+  // An absent optional flag is passed through as `undefined` rather than omitted: the verb treats the
+  // two alike, so a guard choosing between them would be a branch no test could tell apart. Only
+  // `--survivors` keeps its guard, because `Number(undefined)` is NaN, which the verb refuses.
+  const objection =
+    objectionFlag === undefined
+      ? undefined
+      : {
+          kind: objectionFlag,
+          statement: statementFlag ?? "",
+          decision: decisionFlag,
+          survivors: survivorsFlag === undefined ? undefined : Number(survivorsFlag),
+        };
+  const input: NodeAdjudicateInput = { unitId, runId: runFlag, objection, actor: deps.actor };
+  const result = await recordNodeAdjudication(
+    deps.attemptLedger,
+    input,
+    unitStrengthSignalReach(storiesDir),
+  );
+  if (!result.ok) {
+    return { ok: false, body: result.reason, next: [usageAttempts(unitId)] };
+  }
+  const body = [
+    `adjudicated: ${unitId} run ${result.event.runId} under increment ${result.event.incrementId} — ${result.adjudication.disposition}`,
+    `reason: ${result.adjudication.reason}`,
+  ].join("\n");
+  return { ok: true, body, next: [usageAttempts(unitId)] };
 }
 
 /**
@@ -2883,11 +3106,42 @@ function makeGateOpts(values: BuildValues): GateOpts {
 }
 
 /**
+ * The seams a hermetic suite may hand {@link makeGateDeps}' composed gate driver: every collaborator
+ * a REAL drive reaches once its argument checks pass — the leaf-prompt corpus, the before-spend read
+ * handles, the liveness reporter, the database preflight, the verdict store, the repository a
+ * worktree is cut from, the leaf author and promotion. Production passes none of them, so each one
+ * falls back to the driver's live default.
+ *
+ * Deliberately NOT the argv-threaded fields (`increment`, `verdictStore`, `model`, `runtime`,
+ * `budgetUsd`, `maxTurns`) nor `storiesDir`: those stay `makeGateDeps`' own threading, so a suite
+ * that supplies seams still proves what the composition wires rather than what the suite substituted.
+ */
+export type GateDriverSeams = Partial<
+  Pick<
+    GateBuildDriverDeps,
+    | "corpusStore"
+    | "innerLoopReads"
+    | "progress"
+    | "ensureDb"
+    | "store"
+    | "repoRoot"
+    | "authorOverride"
+    | "promote"
+  >
+>;
+
+/**
  * Wire the live `gate` seams (verdict store, gate/UAT loaders, git state, the observe runner, the
  * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
  * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
+ * `driverSeams` is for suites only: see {@link GateDriverSeams}.
  */
-export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+export function makeGateDeps(
+  deps: RunDeps,
+  values: BuildValues,
+  storiesDir: string,
+  driverSeams?: GateDriverSeams,
+): GateDeps {
   const store = deps.uatStore ?? null;
   const baselineAdvancer = makeStoryBaselineAdvancer(storiesDir, store);
   const gateDeps: GateDeps = {
@@ -2898,7 +3152,8 @@ export function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: str
     observe: observeCommand,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     driveBuildTestsGate: (gate, signer) => {
-      const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot() };
+      const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot(), ...driverSeams };
+      driverDeps.increment = values.increment;
       if (values.store !== undefined) driverDeps.verdictStore = values.store;
       if (values.model !== undefined) driverDeps.model = values.model;
       if (values.runtime !== undefined) driverDeps.runtime = values.runtime;
@@ -2927,12 +3182,13 @@ function buildHelp(): Envelope {
       "  storytree build node <id> [flags]              drive ONE node through the prove-it-gate (was `node build`)",
       "  storytree build node resolve <id>              FREE, read-only: how a node spec resolves (was `node resolve`)",
       "  storytree build story <id> [flags]             drive a WHOLE story's nodes in dependency order (was `story build`)",
-      "  storytree build gate <story>#gate-<n> --real   earn a build-tests gate by a real red→green (was `gate run --real`)",
+      "  storytree build gate <story>#gate-<n> --real --increment <id>   earn a build-tests gate by a real red→green (was `gate run --real`)",
       "",
       "flags: --dry-run (scripted, offline) · --live (subscription leaf smoke) · --real (real build)",
       "       --runtime claude|codex|pi (default: codex) · --model <runtime-model-id>",
       "       --budget <usd> (Claude only) · --max-turns <n>   ·   --runtime pi is --live only (ADR-0449)",
       "       --revise-test <run-id> (node --real only) — a test revision against that failed run's escalation (ADR-0571)",
+      "       --increment <id> (REQUIRED with --real, refused without it) — the arc increment a paid attempt is filed under (ADR-0576)",
       "",
       "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",
       "The moved verbs keep working as back-compat aliases (`node build`, `node resolve`, `story build`,",
@@ -3130,6 +3386,17 @@ export const CLI_OPTIONS = {
   // `node build <id> --real --revise-test <run-id>` (ADR-0571): re-run the unit as a test revision
   // against that run's escalation record. `node build` only — `story build` refuses it.
   "revise-test": { type: "string" },
+  // `node attempts|grant|adjudicate` (ADR-0576 D3): the orchestrator's ledger verbs — a grant's
+  // count/kind/difference, an adjudication's run/objection/decision/survivors.
+  attempts: { type: "string" },
+  difference: { type: "string" },
+  run: { type: "string" },
+  objection: { type: "string" },
+  decision: { type: "string" },
+  survivors: { type: "string" },
+  // `node build <id> --real --increment <id>` (ADR-0575 D1): the arc increment a paid attempt is
+  // filed under on the attempt ledger.
+  increment: { type: "string" },
   actor: { type: "string" },
   store: { type: "string" },
   "working-on": { type: "string" },
@@ -3580,15 +3847,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             : [`storytree node log ${third} --pg`, "storytree node walls --pg"],
       };
     }
+    if (sub === "attempts" || sub === "grant" || sub === "adjudicate") {
+      return nodeLedgerCommand(sub, third, values, deps);
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg | storytree node walls --pg`,
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg | storytree node walls --pg | storytree node attempts <id> --pg | storytree node grant <id> --pg | storytree node adjudicate <id> --run <run-id> --pg`,
         next: [
           "storytree node resolve <id>",
           "storytree node log <id> --pg",
           "storytree node walls --pg",
           "storytree node build <id> --dry-run",
+          "storytree node attempts <id> --pg",
         ],
       };
     }

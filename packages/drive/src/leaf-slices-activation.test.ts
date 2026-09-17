@@ -64,6 +64,14 @@ function asUsageDoc(doc: unknown): UsageEventDoc {
 async function fixtureCorpus(): Promise<InMemoryStore> {
   const corpus = new InMemoryStore();
   await loadFixtureCorpus(corpus);
+  // ADR-0576 D7: a REAL story chain now names a live increment before any spend — these fixtures
+  // carry an active one so the leaf-slices scenarios below reach their gate walk unchanged.
+  await corpus.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  await corpus.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
   return corpus;
 }
 
@@ -73,8 +81,9 @@ test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real ch
   const runs: SdkRunInfo[] = [cannedRun({ costUsd: 0.25 })];
   const calls: ObservedSlices[] = [];
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -82,6 +91,8 @@ test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real ch
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory", // internal test seam (ADR-0081): in-memory store, no DB
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false,
       authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
       liveAuthorOverride: () => cannedLiveAuthor(runs),
@@ -107,8 +118,9 @@ test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (
   const repo = await fixtureRepo(false);
   const calls: ObservedSlices[] = [];
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -116,6 +128,8 @@ test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory",
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false,
       authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
       onLeafSlices: (args) => calls.push(args),
@@ -138,8 +152,9 @@ test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run ac
   const repo = await fixtureRepo(false);
   const calls: ObservedSlices[] = [];
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -147,6 +162,8 @@ test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run ac
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory",
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false,
       authorOverride: scriptedAuthors({ "cap-bad": scopeFor("cap-bad") }),
       liveAuthorOverride: () => cannedLiveAuthor([cannedRun({ subtype: "success", costUsd: 99 })]),
@@ -254,8 +271,9 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
   };
   const calls: ObservedSlices[] = [];
   try {
+    const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
-      corpusStore: await fixtureCorpus(),
+      corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
       real: true,
@@ -263,6 +281,8 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
       storiesDir: stories,
       repoRoot: repo.root,
       verdictStore: "memory",
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
       promote: false,
       authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a"), "cap-b": scopeFor("cap-b") }),
       liveAuthorOverride,

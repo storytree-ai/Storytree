@@ -90,6 +90,8 @@ async function buildStore(usePg: boolean): Promise<{
   /** The row-level work-event read (`node log`, ADR-0350 D3); null off --pg. */
   workLog: WorkLogReaderLike | null;
   uatStore: UatVerdictStoreLike | null;
+  /** The orchestrator's attempt ledger (ADR-0576 D3); null off --pg. */
+  attemptLedger: Store | null;
   attestations: AttestationStoreLike | null;
   /** The studio member directory (ADR-0043) — `storytree members`; null off --pg (no door, no offline form). */
   members: MemberStoreLike | null;
@@ -132,6 +134,10 @@ async function buildStore(usePg: boolean): Promise<{
       // The per-test UAT write surface (ADR-0082): `uat attest` appends a signed operator-attested
       // verdict to events.verdict through the same work store; offline `uat attest` refuses.
       uatStore: work,
+      // The orchestrator's attempt ledger (ADR-0576 D3): `node attempts|grant|adjudicate` read and
+      // append raw events through the same PgWorkStore/pool as `uatStore` above; offline the ledger
+      // verbs refuse rather than reading or writing nothing.
+      attemptLedger: work,
       // The attestation log (ADR-0044): `storytree attest` records/reads events.attestation
       // through the same pool; offline `attest` refuses (writes/reads both need --pg).
       attestations: new PgAttestationStore(pool),
@@ -166,6 +172,7 @@ async function buildStore(usePg: boolean): Promise<{
       verdicts: null,
       workLog: null,
       uatStore: null,
+      attemptLedger: null,
       attestations: null,
       members: null,
       adr: null,
@@ -207,6 +214,7 @@ async function buildStore(usePg: boolean): Promise<{
     verdicts: null,
     workLog: null,
     uatStore: null,
+    attemptLedger: null,
     attestations: null,
     members: null,
     adr: null,
@@ -506,6 +514,7 @@ export async function main(): Promise<void> {
     verdicts,
     workLog,
     uatStore,
+    attemptLedger,
     attestations,
     members,
     adr,
@@ -525,6 +534,7 @@ export async function main(): Promise<void> {
       verdicts,
       workLog,
       uatStore,
+      attemptLedger,
       attestations,
       members,
       adr,

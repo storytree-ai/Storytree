@@ -65,6 +65,14 @@ test("`node build --revise-test` is LITERAL — a run id naming a revision recor
   assert.equal(PROSE_FLAGS.has("revise-test"), false, "a run id is an identity, never a record");
 });
 
+test("`node build --increment` is LITERAL — an increment id naming the work an attempt is filed under, never prose", () => {
+  // ADR-0575 D1. Named rather than left to the generic sweep above, because the sweep only asks that
+  // a flag be classified SOMEHOW: were `--increment` to drift into PROSE, `--increment @notes.md`
+  // would read a file where an increment id belongs.
+  assert.equal(LITERAL_FLAGS.has("increment"), true, "increment must be literal");
+  assert.equal(PROSE_FLAGS.has("increment"), false, "an increment id is an identity, never a record");
+});
+
 test("`resteer new`'s six flags are classified on the right side of the prose/literal line", () => {
   // ADR-0515. Named rather than left to the generic exhaustiveness sweep above, because that sweep
   // only asks that a flag be classified SOMEHOW — it stays green if a PROSE flag drifts into LITERAL,

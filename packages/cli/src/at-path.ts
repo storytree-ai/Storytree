@@ -99,6 +99,9 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "note",
   // noticeboard declare — the session's own "what I am doing" prose on the claim ledger.
   "working-on",
+  // `node grant <id> --difference <text|@file>` (ADR-0576 D3): a grant's recorded difference is
+  // durable prose on the attempt ledger, and ADR-0563 D4 makes the recording of it the decision.
+  "difference",
 ]);
 
 /**
@@ -182,6 +185,9 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // the orchestrator names WHICH escalation and never handles its text, so `@path` here would bring
   // back exactly the hand relay the flag exists to remove.
   "revise-test",
+  // `node build <id> --real --increment <id>` (ADR-0575 D1): the arc increment a paid attempt is
+  // filed under on the attempt ledger. An identity, never a durable prose record.
+  "increment",
   "actor",
   "store",
   "node",
@@ -257,6 +263,13 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // class. Neither is stored into an artifact.
   "host",
   "pid-file",
+  // `node attempts|grant|adjudicate` (ADR-0576 D3): a count, a run id, an objection enum and a
+  // decision reference — none of them a durable prose record, so each is taken literally.
+  "attempts",
+  "run",
+  "objection",
+  "decision",
+  "survivors",
 ]);
 
 /** A `@path` value that could not be read — the refusal the boundary returns instead of storing it. */

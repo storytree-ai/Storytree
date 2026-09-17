@@ -13,11 +13,13 @@ import type {
   PiPhaseAuthor,
 } from "@storytree/agent";
 import { parseAuthoringEscalation } from "@storytree/agent";
-import type { Store } from "@storytree/storage-protocol";
+import type { Store, StoreEvent } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
+  appendInnerLoopEvent,
   createBuildWorktree,
   findNodeSpecFile,
+  foldInnerLoopLedger,
   loadNodeSpec,
   mapProofMode,
   promoteRealPass,
@@ -66,7 +68,14 @@ import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 import { renderAgentPrompt } from "@storytree/library/store";
+import {
+  preflightInnerLoop,
+  renderInnerLoopEntryState,
+  resolveBuildIncrement,
+  type InnerLoopRefusedState,
+} from "./inner-loop-entry.js";
 import { openCorpusStore } from "./corpus-store.js";
+import type { OpenCorpusStore } from "./corpus-store.js";
 import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
 import type { BuildProgress } from "./build-progress.js";
 import { phaseActivityWriter, withPhaseReport } from "./phase-activity.js";
@@ -728,7 +737,7 @@ export async function resolveVerdictStore(
           "smoke): its PASS does not come from a real driven red→green, so persisting it would plant a\n" +
           "forged `healthy` in the shared event log (ADR-0020/0099-B — a synthetic smoke must never green\n" +
           "a unit). Only --real (a genuine red→green) persists to pg.",
-        next: [`${retryCmd.replace(/--live\b/, "--real")} --store pg`],
+        next: [`${retryCmd.replace(/--live\b/, "--real --increment <increment-id>")} --store pg`],
       },
     };
   }
@@ -1354,16 +1363,197 @@ export function renderRevisionRecord(
   runId: string,
   runtime: LiveRuntime,
   write: RevisionWrite | undefined,
+  incrementId?: string,
 ): string[] {
   if (write === undefined) return [];
   if (write.written) {
+    const incrementPart = incrementId === undefined ? "" : ` --increment ${incrementId}`;
     return [
-      `revision:    written to ${write.path} — re-run with: storytree node build ${unitId} --real --runtime ${runtime} --revise-test ${runId}`,
+      `revision:    written to ${write.path} — re-run with: storytree node build ${unitId} --real --runtime ${runtime}${incrementPart} --revise-test ${runId}`,
     ];
   }
   return [
     `revision:    NOT written (${write.path}): ${write.reason} — relay the escalation block above to the owner by hand`,
   ];
+}
+
+// ── The paid-build entry (ADR-0576): the increment + attempt-ledger preflight before any spend ──
+
+/** The two injected read handles a paid build's before-spend preflight reads (ADR-0576 D1). */
+export interface InnerLoopReadHandles {
+  readonly corpus: Pick<Store, "getDoc">;
+  readonly ledger: Pick<Store, "readEvents">;
+}
+
+/**
+ * The production read handles (ADR-0576 D1): the corpus opens LAZILY on its first `getDoc` (through
+ * {@link openCorpusStore}), the ledger opens LAZILY on its first `readEvents` (a bare `createPool()`
+ * with NO `applySchema` — it only reads). `close()` closes only what actually opened. An open that
+ * throws surfaces as that method's own throw, which the pure functions in `inner-loop-entry.ts`
+ * refuse as `increment-unreadable` / `ledger-unreadable`. No hermetic test may reach this function,
+ * because it opens the live store (ADR-0302 D3).
+ */
+export function liveInnerLoopReads(): InnerLoopReadHandles & { readonly close: () => Promise<void> } {
+  let corpus: OpenCorpusStore | undefined;
+  let ledgerPool: Awaited<ReturnType<typeof createPool>> | undefined;
+  let ledgerStore: Pick<Store, "readEvents"> | undefined;
+  return {
+    // Stryker disable next-line ObjectLiteral: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any lookup (ADR-0302 D3)
+    corpus: {
+      // Stryker disable next-line BlockStatement: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any lookup (ADR-0302 D3)
+      async getDoc(id: string) {
+        // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+        if (corpus === undefined) corpus = await openCorpusStore("build --real");
+        // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+        return corpus.store.getDoc(id);
+      },
+    },
+    // Stryker disable next-line ObjectLiteral: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any ledger read (ADR-0302 D3)
+    ledger: {
+      // Stryker disable next-line BlockStatement: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any ledger read (ADR-0302 D3)
+      async readEvents(filter?: { id?: string }) {
+        // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+        if (ledgerStore === undefined) {
+          // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+          ledgerPool = await createPool();
+          ledgerStore = new PgWorkStore(ledgerPool.pool);
+        }
+        // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+        return ledgerStore.readEvents(filter);
+      },
+    },
+    // Stryker disable next-line BlockStatement: NOT OBSERVABLE HERMETICALLY — close() releases only a handle that opened, only the live store opens one, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
+    close: async () => {
+      // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+      if (corpus !== undefined) await corpus.close();
+      // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
+      if (ledgerPool !== undefined) await closePool(ledgerPool.pool, ledgerPool.connector);
+    },
+  };
+}
+
+/** The outcome of {@link preflightPaidBuild}: the resolved increment + warnings, or a refused state. */
+export type PaidBuildPreflight =
+  | { readonly ok: true; readonly incrementId: string; readonly warnings: readonly string[] }
+  | { readonly ok: false; readonly state: InnerLoopRefusedState };
+
+async function runPaidBuildPreflight(
+  reads: InnerLoopReadHandles,
+  incrementId: string | undefined,
+  unitIds: readonly string[],
+  revise: boolean,
+): Promise<PaidBuildPreflight> {
+  const resolvedIncrement = await resolveBuildIncrement(reads.corpus, incrementId);
+  if (!resolvedIncrement.ok) return { ok: false, state: resolvedIncrement.state };
+  const preflight = await preflightInnerLoop({
+    ledger: reads.ledger,
+    incrementId: resolvedIncrement.incrementId,
+    unitIds,
+    revise,
+  });
+  if (!preflight.ok) return { ok: false, state: preflight.state };
+  return { ok: true, incrementId: resolvedIncrement.incrementId, warnings: preflight.warnings };
+}
+
+/**
+ * Resolve the increment a paid build names and preflight every unit it will drive against the
+ * attempt ledger (ADR-0576 D1) — the increment first, so a missing id refuses before anything is
+ * read. `reads` undefined uses {@link liveInnerLoopReads} and closes it in a `finally`; a caller that
+ * injects `reads` owns its lifecycle.
+ */
+export async function preflightPaidBuild(input: {
+  readonly incrementId: string | undefined;
+  readonly unitIds: readonly string[];
+  readonly revise: boolean;
+  readonly reads: InnerLoopReadHandles | undefined;
+}): Promise<PaidBuildPreflight> {
+  if (input.reads !== undefined) {
+    return runPaidBuildPreflight(input.reads, input.incrementId, input.unitIds, input.revise);
+  }
+  const reads = liveInnerLoopReads();
+  // Stryker disable next-line ArrowFunction: NOT OBSERVABLE HERMETICALLY — close() releases only a handle that opened, only the live store opens one, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
+  return runPaidBuildPreflight(reads, input.incrementId, input.unitIds, input.revise).finally(() => reads.close());
+}
+
+/** `[]` for undefined, or `{lines,next}` rendered through {@link renderInnerLoopEntryState}. */
+export function innerLoopRefusalEnvelope(state: InnerLoopRefusedState): Envelope {
+  const rendered = renderInnerLoopEntryState(state);
+  return { ok: false, body: rendered.lines.join("\n"), next: [...rendered.next] };
+}
+
+/** The header lines naming the increment a paid build attempts under, plus any relabel warning. */
+export function renderIncrementLines(
+  incrementId: string | undefined,
+  warnings: readonly string[],
+): string[] {
+  if (incrementId === undefined) return [];
+  return [`increment:   ${incrementId}`, ...warnings.map((w) => `warning:     ${w}`)];
+}
+
+/** What {@link renderInnerLoopOutcome} adds to a paid build's envelope: body lines and next steps. */
+export interface InnerLoopOutcomeLines {
+  lines: string[];
+  next: string[];
+}
+
+/**
+ * Render what {@link buildNodeReal} recorded on the inner-loop attempt ledger for this walk, through
+ * the one entry-state renderer (ADR-0576 D8). `innerLoop` undefined, or its attempt unrecorded,
+ * renders nothing — a build that never reached the REAL arm, or whose attempt append itself failed,
+ * has nothing new to report here (the refusal envelope already said why). A signed pass renders the
+ * `signed` state; an unrecordable signed pass renders its own line; anything else folds `events` for
+ * this unit and renders the `attempt-failed` state — a fold that throws (a corrupt ledger) renders a
+ * named line instead of propagating.
+ */
+export function renderInnerLoopOutcome(
+  unitId: string,
+  runId: string,
+  innerLoop: InnerLoopRecording | undefined,
+  events: readonly StoreEvent[],
+): InnerLoopOutcomeLines {
+  if (innerLoop === undefined || !innerLoop.attempt.recorded) return { lines: [], next: [] };
+  if (innerLoop.signedPass?.recorded === true) {
+    const rendered = renderInnerLoopEntryState({ state: "signed", unitId, runId });
+    return { lines: [...rendered.lines], next: [...rendered.next] };
+  }
+  if (innerLoop.signedPass !== undefined && !innerLoop.signedPass.recorded) {
+    return {
+      lines: [
+        `inner loop:  signed, but the signed pass could not be recorded: ${innerLoop.signedPass.reason} — the ledger holds no landing obligation for run ${runId} (ADR-0576 D5)`,
+      ],
+      next: [],
+    };
+  }
+  try {
+    const fold = foldInnerLoopLedger(events, unitId);
+    const rendered = renderInnerLoopEntryState({
+      state: "attempt-failed",
+      unitId,
+      runId,
+      consecutiveFailures: fold.consecutiveFailures,
+      remainingGrantCount: fold.remainingGrantCount,
+    });
+    return { lines: [...rendered.lines], next: [...rendered.next] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      lines: [
+        `inner loop:  the attempt was recorded, but the ledger could not be folded after the walk: ${message}`,
+      ],
+      next: ["pnpm db:probe"],
+    };
+  }
+}
+
+/** The retry command a refused/failed paid build points at, naming the increment when it is known. */
+export function nodeBuildRetryCommand(
+  unitId: string,
+  modeFlag: string,
+  incrementId: string | undefined,
+): string {
+  return incrementId === undefined
+    ? `storytree node build ${unitId} ${modeFlag}`
+    : `storytree node build ${unitId} ${modeFlag} --increment ${incrementId}`;
 }
 
 // ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
@@ -1390,7 +1580,7 @@ export function realConfigRefusal(
         `node "${spec.id}" is not REAL-buildable — its proof config has no \`real:\` arm ` +
         `(real.testFile/sourceFile/scope). Add one to the node's spec \`proof:\` block (ADR-0057) ` +
         `or its registry entry.\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
-      next: buildable.map((id) => `storytree node build ${id} --real`),
+      next: buildable.map((id) => `storytree node build ${id} --real --increment <increment-id>`),
     };
   }
   if (realConfig.install === true && realConfig.typecheck === undefined) {
@@ -1482,11 +1672,43 @@ export interface RealBuildArgs {
    * regardless, because a verdict must never out-run the observation that backs it.
    */
   promote?: boolean;
+  /**
+   * ADR-0576 D5: the arc increment this attempt is filed under. Present, a durable attempt is
+   * appended to the inner-loop attempt ledger immediately before the gate walk, and a signed pass is
+   * appended after a signed result. Absent (including every story-chain member, ADR-0576 D7's own
+   * walk), nothing is recorded at all.
+   */
+  incrementId?: string | undefined;
+}
+
+/**
+ * The outcome of ONE append to the durable inner-loop attempt ledger (ADR-0576 D5): recorded, or
+ * refused with the reason the store gave.
+ */
+export type InnerLoopAppend =
+  | { readonly recorded: true }
+  | { readonly recorded: false; readonly reason: string };
+
+/**
+ * What {@link buildNodeReal} recorded on the durable inner-loop attempt ledger for this walk
+ * (ADR-0576 D5) — never a grant, never an adjudication: a paid build records only what the spine
+ * observed.
+ */
+export interface InnerLoopRecording {
+  readonly incrementId: string;
+  readonly attempt: InnerLoopAppend;
+  readonly signedPass?: InnerLoopAppend;
 }
 
 /** Outcome of {@link buildNodeReal}: the gate result plus the promotion/backstop facts (when promoting). */
 export interface RealBuildResult {
   result: ProveResult;
+  /**
+   * Present exactly when an attempt append was made (ADR-0576 D5) — absent when no `incrementId` was
+   * supplied, or when the walk was refused before the gate (e.g. a resolution refusal). Never set to
+   * `undefined`.
+   */
+  innerLoop?: InnerLoopRecording;
   liveAuthor?: LiveAuthor;
   /** The verdict's commit (= the new worktree HEAD) on a pass that authored; undefined otherwise. */
   commitSha?: string;
@@ -1617,8 +1839,49 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
       return { ok: true };
     };
   }
+  // ADR-0576 D5: a durable attempt is recorded on the inner-loop ledger immediately before the gate
+  // walk — Trap 6, the only FAIL-CLOSED append in this function: a build that could not record its
+  // attempt must never spend on a walk the ledger will never count. Nothing before this point is an
+  // attempt at the unit — not the `building` event above, not resolution.
+  let innerLoop: InnerLoopRecording | undefined;
+  if (args.incrementId !== undefined) {
+    const incrementId = args.incrementId;
+    try {
+      await appendInnerLoopEvent(store, { event: "attempt", unitId: spec.id, incrementId, runId }, signer);
+      innerLoop = { incrementId, attempt: { recorded: true } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        result: {
+          ok: false,
+          failedAt: "AUTHOR_TEST",
+          reason:
+            `inner-loop attempt for ${spec.id} (run ${runId}, increment ${incrementId}) could not be ` +
+            `recorded: ${message} — the walk is refused before the leaf (ADR-0576 D5)`,
+          phasesVisited: [],
+        },
+        innerLoop: { incrementId, attempt: { recorded: false, reason: message } },
+      };
+    }
+  }
   // A build run never writes session presence (ADR-0199) — work-events + the claim only.
   const result = await proveUnit(resolved.spec);
+  // ADR-0576 D5: one signed pass appended after a signed result — advisory in the sense that a throw
+  // here never overturns the verdict (it is already signed), but never swallowed either: reported on
+  // `innerLoop.signedPass` so an unrecordable pass is visible rather than silently lost.
+  if (innerLoop !== undefined && result.ok) {
+    try {
+      await appendInnerLoopEvent(
+        store,
+        { event: "signed-pass", unitId: spec.id, incrementId: innerLoop.incrementId, runId },
+        signer,
+      );
+      innerLoop = { ...innerLoop, signedPass: { recorded: true } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      innerLoop = { ...innerLoop, signedPass: { recorded: false, reason: message } };
+    }
+  }
   // Per-slice token accounting (advisory): what each authoring slice consumed, persisted to the
   // run's store — events.usage_event under --store pg. Appended for PASS and FAIL alike (a red
   // slice billed too); never proof, and a failed write never fails the build.
@@ -1650,6 +1913,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     forensicPreservation = await promoteRealPass(preservationRequest);
   }
   const out: RealBuildResult = { result };
+  if (innerLoop !== undefined) out.innerLoop = innerLoop;
   if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
   // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
   // alike, so the report can say WHICH observation refused the verdict.
@@ -1795,6 +2059,16 @@ export interface NodeBuildOpts {
    * default house per-user directory.
    */
   escalationsDir?: string | undefined;
+  /**
+   * `--increment <id>` (ADR-0575 D1): the arc increment a paid attempt is filed under on the attempt
+   * ledger. Valid only with `--real` — neither `--dry-run` nor `--live` records an attempt.
+   */
+  increment?: string | undefined;
+  /**
+   * Test seam (ADR-0576 D1): the injected read handles the before-spend preflight reads. Production
+   * omits it and {@link liveInnerLoopReads} opens instead.
+   */
+  innerLoopReads?: InnerLoopReadHandles | undefined;
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -1826,7 +2100,7 @@ export async function nodeBuild(
       next: [
         `storytree node build ${unitId} --dry-run`,
         `storytree node build ${unitId} --live`,
-        `storytree node build ${unitId} --real`,
+        `storytree node build ${unitId} --real --increment <increment-id>`,
       ],
     };
   }
@@ -1871,7 +2145,7 @@ export async function nodeBuild(
       body:
         "--budget is unavailable with --runtime codex: Codex uses ChatGPT subscription quota and " +
         "reports no honest USD spend. Drop --budget or select --runtime claude.",
-      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree node build ${unitId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   if (runtime === "codex" && opts.maxTurns !== undefined && opts.maxTurns !== 1) {
@@ -1880,7 +2154,7 @@ export async function nodeBuild(
       body:
         "--max-turns is fixed at 1 with --runtime codex: each prove-it phase is exactly one " +
         "non-interactive Codex turn. Omit the flag or pass --max-turns 1.",
-      next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
+      next: [`storytree node build ${unitId} ${real ? "--real --increment <increment-id>" : "--live"} --runtime codex`],
     };
   }
   if (isCodexMultifileRuntimeSeam(unitId) && real) {
@@ -1913,7 +2187,19 @@ export async function nodeBuild(
         "--revise-test is valid only with --real: it hands a prior attempt's returned escalation to " +
         "the AUTHOR_TEST leaf as this REAL build's revision brief, and neither --dry-run nor --live " +
         "authors at real repo paths (ADR-0571 D3).",
-      next: [`storytree node build ${unitId} --real --revise-test ${opts.reviseTest}`],
+      next: [`storytree node build ${unitId} --real --increment <increment-id> --revise-test ${opts.reviseTest}`],
+    };
+  }
+  // ADR-0575 D1/ADR-0576 D1: --increment names the increment a paid attempt is filed under on the
+  // attempt ledger — only --real records an attempt, so it is real-only, refused before the spec load.
+  if (opts.increment !== undefined && !real) {
+    return {
+      ok: false,
+      body:
+        "--increment is valid only with --real: it names the increment a paid attempt is filed under " +
+        "on the attempt ledger, and neither --dry-run nor --live records an attempt (ADR-0575 D1, " +
+        "ADR-0576 D1).",
+      next: [`storytree node build ${unitId} --real --increment ${opts.increment}`],
     };
   }
 
@@ -2040,6 +2326,29 @@ export async function nodeBuild(
   // report, which is indistinguishable from a wedged precondition whose correct response is the
   // opposite. Silent for `--dry-run` — that walk is offline and takes seconds.
   const progress = opts.progress ?? (live || real ? liveBuildProgress() : silentBuildProgress());
+
+  // ADR-0575 D1/ADR-0576 D1/D4/D5/D6: a REAL build names a live increment and its unit passes the
+  // attempt policy, BOTH refused before any spend — before the prompt render, the claim, and the
+  // worktree. Every existing cheap refusal above (the revision read included) keeps its precedence.
+  let incrementId: string | undefined;
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — renderIncrementLines renders nothing while incrementId is undefined, and the one path that sets incrementId sets these warnings with it
+  let incrementWarnings: readonly string[] = [];
+  if (real) {
+    const preflight = await progress.stage(
+      "inner-loop preflight (the increment and the attempt ledger, before any spend)",
+      () =>
+        preflightPaidBuild({
+          incrementId: opts.increment,
+          unitIds: [spec.id],
+          revise: testRevision !== undefined,
+          reads: opts.innerLoopReads,
+        }),
+    );
+    if (!preflight.ok) return innerLoopRefusalEnvelope(preflight.state);
+    incrementId = preflight.incrementId;
+    incrementWarnings = preflight.warnings;
+  }
+
   let phasePrompts: LeafPhasePrompts | undefined;
   if (live || real) {
     const rendered = await progress.stage(
@@ -2051,7 +2360,7 @@ export async function nodeBuild(
   }
 
   const modeFlag = real ? "--real" : live ? "--live" : "--dry-run";
-  const retryCmd = `storytree node build ${spec.id} ${modeFlag}`;
+  const retryCmd = nodeBuildRetryCommand(spec.id, modeFlag, incrementId);
   // ADR-0060/0081, narrowed by ADR-0099-B: only a REAL driven proof OWNS the database and persists —
   // `--store` resolves to `pg` for `--real` (so real work feeds the studio's wisp/bloom), and the
   // preflight ENSURES the instance is up before we connect (probe → `db:up` + wait if down). A
@@ -2129,7 +2438,7 @@ export async function nodeBuild(
             "different unit, coordinate via the notice board, or wait for the claim to be released on",
             "completion (or to age out via stale-reclaim if the holder died).",
           ].join("\n"),
-          next: ["storytree noticeboard --pg", `storytree node build <other-id> ${modeFlag}`],
+          next: ["storytree noticeboard --pg", nodeBuildRetryCommand("<other-id>", modeFlag, incrementId)],
         };
       }
       claimHeld = true;
@@ -2141,6 +2450,7 @@ export async function nodeBuild(
     let liveAuthor: LiveAuthor | undefined;
     let worktree: BuildWorktree | undefined;
     let promotion: PromotionResult | undefined;
+    let innerLoop: InnerLoopRecording | undefined;
     let revisionWrite: RevisionWrite | undefined;
     let promotionSkipped: string | undefined;
     let regression: "green" | "red" | undefined;
@@ -2190,6 +2500,7 @@ export async function nodeBuild(
         if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
         realArgs.testRevision = testRevision;
         realArgs.escalationsDir = escalationsDir;
+        realArgs.incrementId = incrementId;
         const built = await progress.stage(
           "gate (the leaf authors, the spine observes red -> green)",
           () => buildNodeReal(realArgs),
@@ -2197,6 +2508,7 @@ export async function nodeBuild(
         result = built.result;
         liveAuthor = built.liveAuthor;
         promotion = built.promotion;
+        innerLoop = built.innerLoop;
         revisionWrite = built.revisionWrite;
         promotionSkipped = built.promotionSkipped;
         regression = built.regression;
@@ -2242,7 +2554,9 @@ export async function nodeBuild(
       opts.onLeafSlices?.({ runId, unitId: spec.id, runs: liveAuthor.runs });
     }
 
-    const derived = rollupStatus(spec.id, await store.readEvents());
+    const events = await store.readEvents();
+    const derived = rollupStatus(spec.id, events);
+    const outcome = renderInnerLoopOutcome(spec.id, runId, innerLoop, events);
     const header = [
       `node build ${spec.id} — ${mode.toUpperCase()}`,
       "",
@@ -2253,6 +2567,7 @@ export async function nodeBuild(
       `store:       ${storeChoice.label}`,
       ...(live || real ? [`runtime:     ${runtime}${opts.model !== undefined ? ` (${opts.model})` : ""}`] : []),
       ...renderRevisingLine(testRevision),
+      ...renderIncrementLines(incrementId, incrementWarnings),
       ...(real && worktree !== undefined && realConfig !== undefined
         ? [
             `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
@@ -2312,13 +2627,15 @@ export async function nodeBuild(
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
           ...renderEscalation(spec.id, runId, result),
-          ...renderRevisionRecord(spec.id, runId, runtime, revisionWrite),
+          ...renderRevisionRecord(spec.id, runId, runtime, revisionWrite, incrementId),
+          ...outcome.lines,
           ...renderFailedConfirmObservation(spec.id, runId, result.failedObservation),
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
           framing,
         ].join("\n"),
-        next: [`storytree node build ${spec.id} ${modeFlag}`],
+        // Stryker disable next-line ArrayDeclaration: NO COVERAGE BY DESIGN — only a failed --live or --real walk reaches this envelope (a --dry-run walk is synthetic and passes), and NodeBuildOpts has no author seam (ADR-0243 D4)
+        next: [...outcome.next, retryCmd],
       };
     }
 
@@ -2330,11 +2647,13 @@ export async function nodeBuild(
         ...renderEscalation(spec.id, runId, result),
         `evidence:    ${result.verdict.evidence.map((e) => e.kind).join(", ")}`,
         ...promotionLines,
+        ...outcome.lines,
         `rollup:      ${derived} (derived from the event log: building → signed pass; authored status in the spec stays ${spec.status})`,
         "",
         framing,
       ].join("\n"),
       next: [
+        ...outcome.next,
         ...(promotion !== undefined && promotion.pushed
           ? [
               `gh pr create --head ${promotion.branch} --title "real: ${spec.id} proven via the gate"   (merge NON-SQUASH — the verdict's commit must stay an ancestor)`,
@@ -2345,7 +2664,7 @@ export async function nodeBuild(
               `storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex --actor <email>   (subscription-backed exact two-file promotion smoke)`,
             ]
           : [
-              `storytree node build <id> ${modeFlag}   (any registered node)`,
+              `${nodeBuildRetryCommand("<id>", modeFlag, incrementId)}   (any registered node)`,
               `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
             ]),
       ],
@@ -2505,7 +2824,7 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
   const next = [`storytree node build ${report.id} --dry-run   (free — prove the glue, scripted walk)`];
   if (report.realBuildable) {
     next.push(
-      `storytree node build ${report.id} --real   (paid — the live leaf authors the node's real proof)`,
+      `storytree node build ${report.id} --real --increment <increment-id>   (paid — the live leaf authors the node's real proof)`,
     );
   }
   return { ok: true, body: lines.join("\n"), next };
@@ -2544,7 +2863,7 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       `      Codex multi-file promotion smoke: node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID}`,
       "      --live --runtime codex --actor <email> (built-in disposable fixture; never --real).",
       "",
-      "  storytree node build <id> --real [--runtime claude|codex] [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
+      "  storytree node build <id> --real --increment <id> [--runtime claude|codex] [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",
       "      node's REAL test/impl at their real paths, the spine runs the node's REAL proof",
       "      command for red/green, commits the authored files, and the GATE reads genuine git",
@@ -2553,6 +2872,12 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      via PR with a NON-SQUASH merge. Registry nodes with real.install get a lockfile-only",
       "      pnpm install in the worktree plus a package typecheck (tsx strips types; tsc must",
       "      agree) and a package-suite regression run — a red of either withholds the push.",
+      "      --increment <id> is REQUIRED with --real and refused without it: the arc increment the attempt",
+      "      is filed under. The unit's attempt ledger is read before any spend and can refuse the build (ADR-0576).",
+      "",
+      "  storytree node attempts <id> --pg                read a unit's attempt ledger and the entry state it leaves",
+      "  storytree node grant <id> --attempts <n> --kind <kind> --difference <text|@file> --pg   record further attempts past the decision point",
+      "  storytree node adjudicate <id> --run <run-id> [--objection <kind> --statement <text|@file>] --pg   rule on a run's signed pass",
       "",
       "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it",
       "      persists the building mark + signed verdict to the live work tables",

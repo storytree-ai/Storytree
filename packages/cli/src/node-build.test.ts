@@ -82,8 +82,9 @@ test("resolveVerdictStore: ADR-0099-B refuses --store pg for a SYNTHETIC walk (d
   assert.match(res.refusal.body, /SYNTHETIC walk/);
   assert.match(res.refusal.body, /forged `healthy`/);
   assert.match(res.refusal.body, /Only --real/);
-  // The retry nudge points at --real, never --live (a live smoke can never earn pg).
-  assert.ok(res.refusal.next?.some((n) => /--real --store pg/.test(n)));
+  // The retry nudge points at --real, never --live (a live smoke can never earn pg) — and a paid
+  // --real build names its increment (ADR-0576 D1).
+  assert.ok(res.refusal.next?.some((n) => /--real --increment <increment-id> --store pg/.test(n)));
 });
 
 test("resolveVerdictStore: a synthetic walk still resolves the in-memory stores (undefined / the memory seam)", async () => {
@@ -214,7 +215,7 @@ test("node build --real on a node WITHOUT a real-proof config fails closed befor
   assert.equal(env.ok, false);
   assert.match(env.body, /not REAL-buildable/);
   assert.match(env.body, /verdict-line/);
-  assert.ok(env.next?.some((n) => n === "storytree node build verdict-line --real"));
+  assert.ok(env.next?.some((n) => n === "storytree node build verdict-line --real --increment <increment-id>"));
 });
 
 test("node build --real refuses a STALE NEGATIVE-EXISTENCE CLAIM before any worktree or live-store touch (ADR-0378)", async () => {
@@ -683,7 +684,33 @@ test("node build carries --revise-test to nodeBuild on every node route, which r
     const env = await run(argv, deps);
     assert.equal(env.ok, false, argv.join(" "));
     assert.equal(env.body, body, argv.join(" "));
-    assert.deepEqual(env.next, ["storytree node build library-cli --real --revise-test real-abc123"], argv.join(" "));
+    assert.deepEqual(
+      env.next,
+      ["storytree node build library-cli --real --increment <increment-id> --revise-test real-abc123"],
+      argv.join(" "),
+    );
+  }
+});
+
+test("node build carries --increment to nodeBuild on every node route, which refuses it without --real (ADR-0575 D1)", async () => {
+  // The end-to-end proof that the argv table and nodeStoryBuildOpts actually deliver the flag: a unit
+  // test of nodeBuild alone cannot see a flag the dispatch drops, and a dropped flag would let this
+  // dry-run proceed rather than refuse.
+  const expected = {
+    ok: false,
+    body:
+      "--increment is valid only with --real: it names the increment a paid attempt is filed under " +
+      "on the attempt ledger, and neither --dry-run nor --live records an attempt (ADR-0575 D1, " +
+      "ADR-0576 D1).",
+    next: ["storytree node build library-cli --real --increment inc-x"],
+  };
+  for (const argv of [
+    ["node", "build", "library-cli", "--dry-run", "--increment", "inc-x", "--actor", "tester@example.com"],
+    ["build", "node", "library-cli", "--dry-run", "--increment", "inc-x", "--actor", "tester@example.com"],
+    ["build", "library-cli", "--dry-run", "--increment", "inc-x", "--actor", "tester@example.com"],
+  ]) {
+    const env = await run(argv, deps);
+    assert.deepEqual(env, expected, argv.join(" "));
   }
 });
 

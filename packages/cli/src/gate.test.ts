@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { ReliabilityGate } from "@storytree/library";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
-import { gateCommand } from "./gate.js";
+import { gateCommand, gateHelp } from "./gate.js";
 import type { GateDeps, GateVerdictStoreLike } from "./gate.js";
 
 // ── doubles ────────────────────────────────────────────────────────────────
@@ -337,4 +337,50 @@ test("gate run refuses a blank signer chain (a verdict must be attributable)", a
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /no signer/);
+});
+
+test("every paid `gate run --real` command the gate surface prints names the increment it must be filed under", async () => {
+  // ADR-0576 D1: a REAL gate drive naming no `--increment <id>` is refused as written, so each printed
+  // retry carries the flag with its placeholder.
+  const buildTests: ReliabilityGate[] = [
+    { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], retired: false, buildNode: "brown-seam" },
+  ];
+  const withoutReal = await gateCommand(
+    { mode: "run", target: "brown#gate-1" },
+    {},
+    deps({ loadReliabilityGates: () => buildTests }),
+  );
+  assert.equal(withoutReal.ok, false);
+  assert.deepEqual(withoutReal.next, ["storytree gate run brown#gate-1 --real --increment <increment-id> --pg"]);
+
+  const notWired = await gateCommand(
+    { mode: "run", target: "brown#gate-1" },
+    { real: true },
+    deps({ loadReliabilityGates: () => buildTests }),
+  );
+  assert.equal(notWired.ok, false);
+  assert.deepEqual(notWired.next, ["storytree gate run brown#gate-1 --real --increment <increment-id> --pg"]);
+
+  const list = await gateCommand({ mode: "list", target: "proof-protocol" }, {}, deps());
+  assert.ok(
+    list.body
+      .split("\n")
+      .includes(
+        "`storytree gate run <id> --pg`; a `build-tests` gate via `storytree gate run <id> --real --increment <increment-id> --pg`",
+      ),
+    list.body,
+  );
+});
+
+test("gate help puts --increment on the paid --real form and closes by saying a --real run is refused without it", () => {
+  const lines = gateHelp().body.split("\n");
+  assert.ok(
+    lines.includes("  storytree gate run  <story>#gate-<n> --real --increment <id> --pg    drive a `build-tests` gate's red→green"),
+    gateHelp().body,
+  );
+  assert.deepEqual(lines.slice(-3), [
+    "offline store. gate ids come from: storytree gate list <id> --pg.",
+    "A `--real` run REQUIRES `--increment <id>` and is refused without it: the arc increment its attempt is",
+    "filed under, with the gate id as its unit on the attempt ledger, read before any spend (ADR-0576).",
+  ]);
 });

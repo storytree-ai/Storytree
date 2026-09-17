@@ -246,7 +246,7 @@ test("list: a build-tests-bound machine leg routes to the build gate, not uat ru
     baseDeps({ loadUatTestCriteria: () => buildBound }),
   );
   assert.ok(
-    nextOf(r).includes("storytree build gate demo#gate-2 --real --pg"),
+    nextOf(r).includes("storytree build gate demo#gate-2 --real --increment <increment-id> --pg"),
     `a build-tests gate is earned by a red→green, never observe-and-sign; got ${JSON.stringify(nextOf(r))}`,
   );
   assert.ok(!nextOf(r).some((c) => c.startsWith("storytree uat run")), "must not offer the observe-signing verb");

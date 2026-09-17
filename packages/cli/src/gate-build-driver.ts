@@ -55,16 +55,20 @@ import type { EnsureDbResult } from "@storytree/drive";
 import type { Envelope } from "./envelope.js";
 import {
   buildNodeReal,
+  innerLoopRefusalEnvelope,
   liveBuildProgress,
+  preflightPaidBuild,
   realConfigRefusal,
   rel,
+  renderIncrementLines,
+  renderInnerLoopOutcome,
   renderLeafPhasePrompts,
   resolveAddDepsGroup,
   resolveDbProofEnv,
   resolveLiveRuntime,
   resolveVerdictStore,
 } from "@storytree/drive";
-import type { BuildProgress, RealBuildArgs } from "@storytree/drive";
+import type { BuildProgress, InnerLoopReadHandles, RealBuildArgs } from "@storytree/drive";
 
 /** Seams a real build-tests-gate drive needs, all injectable so the R2 walk is offline-testable. */
 export interface GateBuildDriverDeps {
@@ -127,6 +131,28 @@ export interface GateBuildDriverDeps {
    * the arc. Defaults to the real stderr heartbeat; suites inject {@link silentBuildProgress}.
    */
   progress?: BuildProgress;
+  /**
+   * ADR-0575 D1 / ADR-0576: the arc increment this gate attempt is filed under (`--increment <id>`).
+   * A missing or blank id refuses as argument validation, before the prompt render or the decision
+   * sweep (ADR-0576 D1); a resolved id then passes the attempt-ledger policy after the sweep and
+   * before any spend, and the walk records under it.
+   */
+  increment?: string | undefined;
+  /**
+   * Offline test seam for the before-spend increment + attempt-ledger preflight (ADR-0576 D1).
+   * Production omits it, and `preflightPaidBuild` opens the live handles itself.
+   */
+  innerLoopReads?: InnerLoopReadHandles | undefined;
+}
+
+/**
+ * The retry command a refused/failed real gate drive points at, naming the increment when known
+ * (ADR-0576 D6/D7) and printing the placeholder `<increment-id>` for an absent or blank one.
+ */
+export function gateRetryCommand(gateId: string, increment: string | undefined): string {
+  const trimmed = increment?.trim();
+  const id = trimmed === undefined || trimmed.length === 0 ? "<increment-id>" : trimmed;
+  return `storytree gate run ${gateId} --real --increment ${id} --pg`;
 }
 
 const HONEST_FRAMING_GATE_REAL =
@@ -148,7 +174,7 @@ export async function driveBuildTestsGate(
   signerFlag: string | undefined,
   deps: GateBuildDriverDeps,
 ): Promise<Envelope> {
-  const retryCmd = `storytree gate run ${gate.id} --real --pg`;
+  const retryCmd = gateRetryCommand(gate.id, deps.increment);
   const runtimeResult = resolveLiveRuntime(deps.runtime);
   if (!runtimeResult.ok) {
     return { ok: false, body: runtimeResult.reason, next: [retryCmd] };
@@ -226,7 +252,7 @@ export async function driveBuildTestsGate(
     return {
       ok: false,
       body: `no signer resolved — a verdict must be attributable.\n${signer.error}`,
-      next: [`storytree gate run ${gate.id} --real --signer <email> --pg`],
+      next: [`${retryCmd} --signer <email>`],
     };
   }
 
@@ -242,6 +268,22 @@ export async function driveBuildTestsGate(
   const resolvedDeps = resolveAddDepsGroup(realConfig);
   if (!resolvedDeps.ok) return resolvedDeps.refusal;
   addDepsGroup = resolvedDeps.group;
+
+  // 5b. ADR-0576 D1: a missing or blank `--increment` is ARGUMENT VALIDATION — refused before the
+  //     prompt render or the decision sweep, with no ledger or corpus touched beyond what the
+  //     resolver itself needs to name the refusal. The same preflight input serves this check and the
+  //     full preflight after the sweep (6c): the gate id is the unit, and a gate drive never revises.
+  const preflightInput = {
+    incrementId: deps.increment,
+    unitIds: [gate.id],
+    revise: false,
+    reads: deps.innerLoopReads,
+  };
+  if (deps.increment === undefined || deps.increment.trim().length === 0) {
+    const missing = await preflightPaidBuild(preflightInput);
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `true` replacement) — this call runs only for a missing or blank increment, which the preflight always refuses
+    if (!missing.ok) return innerLoopRefusalEnvelope(missing.state);
+  }
 
   // 6. Assemble the live SDK leaf's per-phase system prompts from the Library (offline-safe — reads
   //    the seed). Fail-loud before any spend; the offline driver test injects authorOverride, but the
@@ -269,6 +311,15 @@ export async function driveBuildTestsGate(
   if (!sweep.clear) {
     return { ok: false, body: blockedHaltReport(sweep), next: [retryCmd] };
   }
+
+  // 6c. ADR-0576 D1/D4-D6: the full increment + attempt-ledger preflight, now the sweep is clear but
+  //     before any spend (no DB brought up, no worktree cut, no SDK leaf).
+  const preflight = await progress.stage(
+    "inner-loop preflight (the increment and the attempt ledger, before any spend)",
+    () => preflightPaidBuild(preflightInput),
+  );
+  if (!preflight.ok) return innerLoopRefusalEnvelope(preflight.state);
+
   const phasePrompts = threadResolutions(rendered.prompts, sweep);
 
   // 7. Resolve the verdict store. A REAL gate build OWNS the DB and ALWAYS persists (ADR-0060/0081) —
@@ -348,6 +399,7 @@ export async function driveBuildTestsGate(
           promote: deps.promote ?? true,
           onPhase: (phase) => progress.note(phase),
           runtime: runtimeResult.runtime,
+          incrementId: preflight.incrementId,
         };
         if (dbProofEnv !== undefined) realArgs.dbProofEnv = dbProofEnv;
         if (override !== undefined) realArgs.authorOverride = override;
@@ -360,6 +412,7 @@ export async function driveBuildTestsGate(
 
     const events = await store.readEvents();
     const derived = rollupStatus(gate.id, events);
+    const outcome = renderInnerLoopOutcome(gate.id, runId, built.innerLoop, events);
     const header = [
       `gate run ${gate.id} — BUILD-TESTS (REAL)`,
       "",
@@ -370,6 +423,7 @@ export async function driveBuildTestsGate(
       `signer:      ${signer.signer}`,
       `store:       ${storeLabel}`,
       ...sweepSummaryLine(sweep),
+      ...renderIncrementLines(preflight.incrementId, preflight.warnings),
       `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
     ];
     const promotionLines = buildPromotionLines(built.regression, built.typecheck, built.promotion, built.promotionSkipped);
@@ -380,11 +434,12 @@ export async function driveBuildTestsGate(
         body: [
           ...header,
           `verdict:     NONE — failed closed at ${built.result.failedAt}: ${built.result.reason}`,
+          ...outcome.lines,
           `rollup:      ${derived ?? "(no derived status)"}`,
           "",
           HONEST_FRAMING_GATE_REAL,
         ].join("\n"),
-        next: [retryCmd],
+        next: [...outcome.next, retryCmd],
       };
     }
     return {
@@ -394,11 +449,13 @@ export async function driveBuildTestsGate(
         `verdict:     ${verdictLine(built.result.verdict)}`,
         `evidence:    ${built.result.verdict.evidence.map((e) => e.kind).join(", ")}`,
         ...promotionLines,
+        ...outcome.lines,
         `rollup:      ${derived} (the gate's signed verdict — events.verdict; ${persisted ? "PERSISTED" : "in-memory"})`,
         "",
         HONEST_FRAMING_GATE_REAL,
       ].join("\n"),
       next: [
+        ...outcome.next,
         ...(built.promotion !== undefined && built.promotion.pushed
           ? [
               `gh pr create --head ${built.promotion.branch} --title "real: ${gate.id} proven via the build-tests gate"   (merge NON-SQUASH — the verdict's commit must stay an ancestor)`,

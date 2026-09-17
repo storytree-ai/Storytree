@@ -157,6 +157,15 @@ the **merge-ref**.
   TS with no build step; the only buildable target is `apps/studio` (`vite build`), which can fail on
   something `tsx` tolerates. So `build` is legitimately CI-only — the parity contract DECLARES it as
   one of the declared CI-only steps, it does not try to eliminate it.
+- **The REAL build-tests gate drive names its increment** (proposed, ADR-0576; contract
+  [`gate-real-build-names-its-increment`](gate-real-build-names-its-increment.md)). This capability
+  owns `packages/cli/src/gate*.ts`, so the third paid REAL entry, `driveBuildTestsGate`, sits here even
+  though it bears on the gate BUILD rather than on gate↔CI parity. `gate run <story>#gate-<n> --real`
+  and `build gate` require `--increment <id>`. A missing one refuses as argument validation before the
+  prompt render and the decision sweep; an unknown or closed increment, or a gate the attempt policy
+  stops, refuses after the sweep and before the database starts. The gate id is the ledger unit
+  (ADR-0098 U2), the walk records its attempt and any signed pass under it, and `makeGateDeps`
+  (`commands.ts`) threads `--increment` from argv.
 
 ## Contracts (3)
 

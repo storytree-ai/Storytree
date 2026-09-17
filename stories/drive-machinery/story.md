@@ -417,6 +417,38 @@ the now-settled modeling call.
   edit-existing proof over `foldInnerLoopLedger`, proposed (ADR-0575 D2). The attempt ledger reads a
   unit's consecutive failures and pending landing obligation across every increment it was filed
   under, and a landed pass starts a fresh count instead of closing the unit forever.
+- [`orchestrator-records-its-calls`](orchestrator-records-its-calls.md) — contract grain, spec-borne,
+  net-new pure verbs module in `@storytree/cli`, proposed (ADR-0576 D3). The orchestrator's grant and
+  adjudication reach the attempt ledger only when the attempt policy and the landing ruler admit them,
+  bound to the run and increment the ledger holds, and a unit's fold reads back as lines. The `node`
+  dispatch that reaches it is a later unit.
+- [`build-entry-refuses-before-spend`](build-entry-refuses-before-spend.md) — contract grain,
+  spec-borne, net-new drive module plus one barrel export, proposed (ADR-0576 D1/D2/D4/D6/D8). It
+  resolves a paid build's increment and preflights the units it will drive against the attempt ledger
+  from injected read handles, before any database, worktree or leaf spend, and owns the one entry state
+  every paid REAL entry renders. The entries that call it are later units.
+- [`real-lifecycle-records-its-attempt`](real-lifecycle-records-its-attempt.md) — contract grain,
+  spec-borne, edit-existing proof over `buildNodeReal`, proposed (ADR-0576 D5). Given an increment, it
+  records one attempt immediately before the gate walk and one signed pass after a signed result,
+  refuses the walk when the attempt cannot be recorded, and records nothing without an increment, so
+  story-chain members (ADR-0576 D7) are unaffected.
+- [`node-verbs-dispatch`](node-verbs-dispatch.md) — contract grain, spec-borne, edit-existing proof
+  over the CLI dispatch, proposed (ADR-0576 D3). `storytree node attempts|grant|adjudicate` reach the
+  ledger verbs through `run`, refuse a missing unit or flag and any write without the live store, and
+  record a grant or adjudication with the strength signal read from the unit's own package. It builds
+  after `orchestrator-records-its-calls` and `build-entry-refuses-before-spend`.
+- [`node-build-names-its-increment`](node-build-names-its-increment.md) — contract grain, spec-borne,
+  edit-existing proof over `nodeBuild` and its CLI threading, proposed (ADR-0576 D1/D2/D4/D5/D6/D8).
+  `node build --real` refuses before any spend unless it names a live increment and its unit passes
+  the attempt policy, records the attempt under that increment, renders every outcome through the one
+  entry state, and prints REAL commands that name the increment. It builds after
+  `real-lifecycle-records-its-attempt` and `node-verbs-dispatch`.
+- [`story-real-chain-names-its-increment`](story-real-chain-names-its-increment.md) — contract grain,
+  spec-borne, edit-existing proof over `storyBuild`, proposed (ADR-0576 D7 with D1/D2/D5/D8). A REAL
+  story chain is one unit on the attempt ledger: it refuses before the database starts unless it names
+  a live increment and the story and every driven member pass the attempt policy, records one attempt
+  for the story and a signed pass only when the chain passed and its push was not withheld, and renders
+  every outcome through the one entry state. It builds after `node-build-names-its-increment`.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention

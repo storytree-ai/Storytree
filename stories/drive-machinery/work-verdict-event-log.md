@@ -68,6 +68,11 @@ in `packages/orchestrator/src/store/` — once split across the since-dissolved 
   landing obligation; each attempt keeps its own increment id, which is what lets `decideAttempt`
   report a relabelled retry. A landing adjudication closes the loop, and later work on the unit starts
   a fresh count. Contract: [`attempt-count-follows-the-unit`](attempt-count-follows-the-unit.md).
+  **Paid builds now write and read it (ADR-0576).** Every paid REAL entry reads the ledger through
+  `preflightPaidBuild` (`packages/drive/src/node-build.ts`) before any spend and refuses on its policy.
+  A REAL build appends the attempt immediately before its gate walk and the signed pass after a signed
+  result (`buildNodeReal`, under the unit id; a story chain under the story id, a gate drive under the
+  gate id), and `storytree node grant|adjudicate` append the orchestrator's calls.
 
 Every writer that can make a story green consumes this same transition. Whole-story build already
 stamps its story verdict; completing the final current UAT criterion or reliability gate must also

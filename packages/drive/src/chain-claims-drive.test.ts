@@ -22,8 +22,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import type { ClaimAcquired, ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import { loadFixtureCorpus } from "@storytree/library/fixture";
+import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { silentBuildProgress } from "./build-progress.js";
+import { fixtureStories } from "./real-chain-fixture.js";
 import { storyBuild } from "./story-build.js";
 
 const FIXTURE_DIR = "packages/fixture";
@@ -252,5 +255,131 @@ test("a member the launching session already declared is BORROWED, not destroyed
     assert.deepEqual(ledger.live(), ["cap-b::mine"], "the session's own declaration survives the chain");
   } finally {
     rmSync(stories, { recursive: true, force: true });
+  }
+});
+
+test("a chain's printed suggestions name the increment on every paid --real command, and on no --live one", async () => {
+  // ADR-0576 D1: a paid REAL build is refused without `--increment <id>`, so every `--real` command a
+  // chain suggests carries it, whatever mode the chain itself ran in.
+  const human = stageStory();
+  const machine = stageStory({ uatWitness: "machine" });
+  try {
+    const withheld = await storyBuild("claims-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: human,
+      progress: silentBuildProgress(),
+    });
+    assert.equal(withheld.ok, true, withheld.body);
+    assert.deepEqual(withheld.next, [
+      "storytree node build <id> --real --increment <increment-id>   (one node's REAL proof in a fresh worktree)",
+    ]);
+
+    const passed = await storyBuild("claims-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: machine,
+      progress: silentBuildProgress(),
+    });
+    assert.equal(passed.ok, true, passed.body);
+    assert.deepEqual(passed.next, [
+      "storytree story build claims-story --real --increment <increment-id>   (chain the WHOLE story for real)",
+      "storytree node build <id> --real --increment <increment-id>   (one node's REAL proof in a fresh worktree)",
+    ]);
+
+    const refused = await storyBuild("claims-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: human,
+      progress: silentBuildProgress(),
+      claim: { store: fakeLedger([{ unitId: "cap-b", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(refused.ok, false, refused.body);
+    assert.deepEqual(refused.next, [
+      "storytree noticeboard --pg",
+      "storytree node build cap-a --live   (another member of this story — check the board above first)",
+    ]);
+  } finally {
+    rmSync(human, { recursive: true, force: true });
+    rmSync(machine, { recursive: true, force: true });
+  }
+});
+
+test("a REAL chain refused at a member's claim points at another member's paid build, naming the increment", async () => {
+  // Offline: the refusal lands after the increment preflight and before any worktree, leaf or database —
+  // the store is the internal in-memory seam and every read handle is injected.
+  const stories = await fixtureStories([
+    { id: "cap-a", dependsOn: [] },
+    { id: "cap-b", dependsOn: ["cap-a"] },
+  ]);
+  const corpus = new InMemoryStore();
+  await loadFixtureCorpus(corpus);
+  await corpus.upsertDoc({
+    id: "inc-live",
+    kind: "increment",
+    doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+  });
+  try {
+    const refused = await storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      runtime: "claude",
+      actor: "tester@storytree.local",
+      storiesDir: stories,
+      repoRoot: stories,
+      progress: silentBuildProgress(),
+      verdictStore: "memory",
+      corpusStore: corpus,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger: new InMemoryStore() },
+      claim: { store: fakeLedger([{ unitId: "cap-b", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(refused.ok, false, refused.body);
+    assert.match(refused.body, /node "cap-b"/);
+    assert.deepEqual(refused.next, [
+      "storytree noticeboard --pg",
+      "storytree node build cap-a --real --increment <increment-id>   (another member of this story — check the board above first)",
+    ]);
+  } finally {
+    rmSync(stories, { recursive: true, force: true });
+  }
+});
+
+test("a chain refused at its first member points at the next member, and a one-member chain at a placeholder", async () => {
+  const stories = stageStory();
+  const single = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  try {
+    const firstHeld = await storyBuild("claims-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: stories,
+      progress: silentBuildProgress(),
+      claim: { store: fakeLedger([{ unitId: "cap-a", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(firstHeld.ok, false, firstHeld.body);
+    assert.deepEqual(firstHeld.next, [
+      "storytree noticeboard --pg",
+      "storytree node build cap-b --live   (another member of this story — check the board above first)",
+    ]);
+
+    const onlyMemberHeld = await storyBuild("fix-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: single,
+      progress: silentBuildProgress(),
+      claim: { store: fakeLedger([{ unitId: "cap-a", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(onlyMemberHeld.ok, false, onlyMemberHeld.body);
+    assert.deepEqual(onlyMemberHeld.next, [
+      "storytree noticeboard --pg",
+      "storytree node build <other-id> --live   (another member of this story — check the board above first)",
+    ]);
+  } finally {
+    rmSync(stories, { recursive: true, force: true });
+    rmSync(single, { recursive: true, force: true });
   }
 });
