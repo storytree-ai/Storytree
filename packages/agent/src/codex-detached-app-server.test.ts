@@ -13,6 +13,7 @@ import {
   codexDetachedProductionRuntime,
   createCodexDetachedRuntime,
   createOpenPinnedCodexDetachedThread,
+  createRecoverCodexDetachedOwner,
   type CodexDetachedAppServerProcess,
   type CodexDetachedClock,
   type CodexDetachedNativeChild,
@@ -21,7 +22,11 @@ import {
   type CodexDetachedOwnerObservation,
   type CodexDetachedRuntime,
 } from "./codex-detached-app-server.js";
-import type { CodexAppServerCommand, CodexAppServerProcessEvents } from "./codex-rate-limits.js";
+import type {
+  CodexAppServerCommand,
+  CodexAppServerProcessEvents,
+  CodexRateLimitSnapshot,
+} from "./codex-rate-limits.js";
 
 type RpcMessage = { readonly id?: number; readonly method?: string; readonly params?: unknown };
 type Responder = (message: RpcMessage, events: CodexAppServerProcessEvents) => void;
@@ -1525,34 +1530,12 @@ test("windows-tree-owner-is-observed-probed-and-terminated: in-flight inspection
   assert.equal(calls.includes("taskkill"), false, "a closed spawned generation cannot be killed after inspection");
 });
 
-test("windows-tree-owner-is-observed-probed-and-terminated: opaque owners never cross runtime instances", async () => {
-  const createRuntime = (
-    calls: Array<{ executable: string; args: readonly string[]; timeout: number }>,
-  ): CodexDetachedRuntime => createCodexDetachedRuntime({
-    platform: "windows",
-    nativeSpawn: () => ({
-      pid: 707,
-      stdout: { on: () => undefined },
-      stderr: { on: () => undefined },
-      stdin: { once: () => undefined, write: () => undefined, end: () => undefined },
-      once: () => undefined,
-    }),
-    execFile: async (executable, args, options) => {
-      calls.push({ executable, args, timeout: options.timeout });
-      return {
-        stdout: executable === "tasklist"
-          ? '"codex.exe","707","Console","3","10,000 K"\r\n'
-          : "SUCCESS",
-        stderr: "",
-      };
-    },
-    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
-    runDefaultAuth: managedTestAuth,
-  });
-  const callsA: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
-  const callsB: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
-  const runtimeA = createRuntime(callsA);
-  const runtimeB = createRuntime(callsB);
+test("persisted-owner-recovers-across-runtime-restart: Windows re-observes a serialized root generation in a fresh runtime", async () => {
+  const pid = 707;
+  const descriptorA = "codex.exe\u0000707\u0000Console\u00003";
+  const rowA = '"codex.exe","707","Console","3","10,000 K"\r\n';
+  const rowB = '"codex.exe","707","Console","4","10,000 K"\r\n';
+  const missingRow = "INFO: No tasks are running which match the specified criteria.";
   const command: CodexAppServerCommand = {
     executable: "codex.exe",
     args: ["app-server", "--stdio"],
@@ -1564,35 +1547,134 @@ test("windows-tree-owner-is-observed-probed-and-terminated: opaque owners never 
     error: () => undefined,
     exit: () => undefined,
   };
-  runtimeA.spawn(command, events);
-  runtimeB.spawn(command, events);
-  const ownerA = expectWindowsOwner(
-    await runtimeA.acquireOwnership(707, 51),
-    707,
-    "codex.exe\u0000707\u0000Console\u00003",
-  );
-  const ownerB = expectWindowsOwner(
-    await runtimeB.acquireOwnership(707, 52),
-    707,
-    "codex.exe\u0000707\u0000Console\u00003",
-  );
-  assert.notEqual(ownerA.token, ownerB.token);
+  const nativeChild = (onWrite: () => void): CodexDetachedNativeChild => ({
+    pid,
+    stdout: { on: () => undefined },
+    stderr: { on: () => undefined },
+    stdin: { once: () => undefined, write: () => { onWrite(); }, end: () => undefined },
+    once: () => undefined,
+  });
 
-  const callsBeforeForeignOwner = callsB.length;
-  assert.deepEqual(
-    await runtimeB.observeOwnership({ ...ownerA }, 53),
-    { status: "unavailable" },
-  );
-  await assert.rejects(
-    runtimeB.terminateOwnedTree({ ...ownerA }, 53),
-    /Windows owner is unavailable/,
-  );
-  assert.equal(callsB.length, callsBeforeForeignOwner, "a foreign token never reaches tasklist or taskkill");
-  assert.equal(callsB.some((call) => call.executable === "taskkill"), false);
-  assert.deepEqual(
-    await runtimeB.observeOwnership({ ...ownerB }, 54),
-    { status: "live", owner: ownerB },
-  );
+  const runtimeACalls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  const runtimeA = createCodexDetachedRuntime({
+    platform: "windows",
+    nativeSpawn: () => nativeChild(() => undefined),
+    execFile: async (executable, args, options) => {
+      runtimeACalls.push({ executable, args, timeout: options.timeout });
+      return { stdout: executable === "tasklist" ? rowA : "SUCCESS", stderr: "" };
+    },
+    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
+    runDefaultAuth: managedTestAuth,
+  });
+  runtimeA.spawn(command, events);
+  const acquired = await runtimeA.acquireOwnership(pid, 37);
+  assert.ok(acquired !== undefined);
+  const persisted = JSON.parse(JSON.stringify(acquired)) as CodexDetachedOwner;
+
+  const runtimeBCalls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  let runtimeBSpawns = 0;
+  let runtimeBAuth = 0;
+  let runtimeBProtocolWrites = 0;
+  let taskRow = rowA;
+  let tasklistUnavailable = false;
+  const runtimeB = createCodexDetachedRuntime({
+    platform: "windows",
+    nativeSpawn: () => {
+      runtimeBSpawns += 1;
+      return nativeChild(() => { runtimeBProtocolWrites += 1; });
+    },
+    execFile: async (executable, args, options) => {
+      runtimeBCalls.push({ executable, args, timeout: options.timeout });
+      if (executable === "tasklist") {
+        if (tasklistUnavailable) throw new Error("tasklist unavailable");
+        return { stdout: taskRow, stderr: "" };
+      }
+      if (executable === "taskkill") taskRow = missingRow;
+      return { stdout: "SUCCESS", stderr: "" };
+    },
+    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
+    clock: new ManualClock(),
+    runDefaultAuth: async () => {
+      runtimeBAuth += 1;
+      return await managedTestAuth();
+    },
+  });
+  const recoverInRuntimeB = createRecoverCodexDetachedOwner(runtimeB);
+  const settleTermination = async (controller: ReturnType<typeof recoverInRuntimeB>): Promise<string> => {
+    try {
+      await controller.terminate();
+      return "fulfilled";
+    } catch (error) {
+      return `rejected: ${(error as Error).message}`;
+    }
+  };
+
+  const sameGeneration = recoverInRuntimeB({ owner: persisted, timeoutMs: 37 });
+  const sameProbe = await sameGeneration.probe();
+
+  taskRow = rowB;
+  const changedGeneration = recoverInRuntimeB({ owner: persisted, timeoutMs: 37 });
+  const changedProbe = await changedGeneration.probe();
+  const killsBeforeChanged = runtimeBCalls.filter((call) => call.executable === "taskkill").length;
+  const changedTermination = await settleTermination(changedGeneration);
+  const changedKills = runtimeBCalls.filter((call) => call.executable === "taskkill").length - killsBeforeChanged;
+
+  taskRow = rowA;
+  tasklistUnavailable = true;
+  const unavailable = recoverInRuntimeB({ owner: persisted, timeoutMs: 37 });
+  const unavailableProbe = await unavailable.probe();
+  const killsBeforeUnavailable = runtimeBCalls.filter((call) => call.executable === "taskkill").length;
+  const unavailableTermination = await settleTermination(unavailable);
+  const unavailableKills = runtimeBCalls.filter((call) => call.executable === "taskkill").length - killsBeforeUnavailable;
+
+  tasklistUnavailable = false;
+  taskRow = rowA;
+  const exact = recoverInRuntimeB({ owner: persisted, timeoutMs: 37 });
+  const exactProbe = await exact.probe();
+  const concurrentTermination = await Promise.allSettled([exact.terminate(), exact.terminate()]);
+  const laterTermination = await settleTermination(exact);
+  const taskkills = runtimeBCalls.filter((call) => call.executable === "taskkill");
+
+  assert.equal(typeof recoverCodexDetachedOwner, "function", "the public barrel keeps the production recovery entrypoint");
+  assert.deepEqual({
+    serializedOwner: persisted,
+    tokenCarriesGeneration: persisted.token.includes(descriptorA),
+    runtimeAAcquiredThroughTasklist: runtimeACalls.some((call) => call.executable === "tasklist"),
+    sameProbe,
+    changedProbe,
+    changedTermination,
+    changedKills,
+    unavailableProbe,
+    unavailableTermination,
+    unavailableKills,
+    exactProbe,
+    concurrentTermination: concurrentTermination.map((result) => result.status),
+    laterTermination,
+    taskkills,
+    allRuntimeBCallsBounded: runtimeBCalls.every((call) => call.timeout === 37),
+    runtimeBSpawns,
+    runtimeBAuth,
+    runtimeBProtocolWrites,
+  }, {
+    serializedOwner: acquired,
+    tokenCarriesGeneration: true,
+    runtimeAAcquiredThroughTasklist: true,
+    sameProbe: { live: true },
+    changedProbe: { live: false },
+    changedTermination: "fulfilled",
+    changedKills: 0,
+    unavailableProbe: { live: "unavailable" },
+    unavailableTermination: "rejected: Codex detached owner is unavailable",
+    unavailableKills: 0,
+    exactProbe: { live: true },
+    concurrentTermination: ["fulfilled", "fulfilled"],
+    laterTermination: "fulfilled",
+    taskkills: [{ executable: "taskkill", args: ["/PID", "707", "/T", "/F"], timeout: 37 }],
+    allRuntimeBCallsBounded: true,
+    runtimeBSpawns: 0,
+    runtimeBAuth: 0,
+    runtimeBProtocolWrites: 0,
+  });
 });
 
 test("pinned-command-scrubs-env-and-spawns-detached: production runtime reaps a real detached child", async () => {
@@ -2615,8 +2697,46 @@ test("turn-prompt-and-response-failures-clean-up: validates prompt and every ret
 test("probe-tristate-and-same-channel-rate-limits: preserves live, dead, unavailable, changed-owner, and malformed observations", async () => {
   const live = createHarness();
   const liveThread = await live.open(live.args());
-  assert.deepEqual(await liveThread.probe(), { live: true, rateLimits: { primary: null, secondary: null } });
+  const capturedAt = Date.parse("2026-09-17T04:05:06.000Z");
+  live.clock.advance(capturedAt);
+  live.setResponder((message, events) => {
+    if (message.method === "account/rateLimits/read") {
+      events.stdout(`${JSON.stringify({
+        id: message.id,
+        result: {
+          rateLimits: {
+            limitId: "codex",
+            limitName: null,
+            primary: { usedPercent: 6, windowDurationMins: 10_080, resetsAt: 1_789_984_107 },
+            secondary: null,
+          },
+          rateLimitsByLimitId: {
+            codex_bengalfox: {
+              limitId: "codex_bengalfox",
+              limitName: "GPT-5.3-Codex-Spark",
+              primary: { usedPercent: 2, windowDurationMins: 300, resetsAt: 1_789_542_311 },
+              secondary: { usedPercent: 9, windowDurationMins: 10_080, resetsAt: null },
+            },
+          },
+          rateLimitResetCredits: { availableCount: 1, credits: null },
+        },
+      })}\n`);
+    }
+  });
+  const writesBeforeLiveProbe = live.writes.length;
+  const liveProbe = await liveThread.probe();
+  const liveProbeWrites = live.writes.slice(writesBeforeLiveProbe);
   assert.equal(live.commands.length, 1);
+  assert.deepEqual(liveProbeWrites, [{
+    id: liveProbeWrites[0]?.id,
+    method: "account/rateLimits/read",
+    params: null,
+  }]);
+  assert.equal(
+    liveProbeWrites.some((message) => message.method === "thread/start" || message.method === "turn/start"),
+    false,
+    "probe reuses the staged channel without starting a thread, turn, or second process",
+  );
   await liveThread.terminate();
 
   const dead = createHarness();
@@ -2625,16 +2745,20 @@ test("probe-tristate-and-same-channel-rate-limits: preserves live, dead, unavail
   const beforeDead = dead.writes.length;
   assert.deepEqual(await deadThread.probe(), { live: false, rateLimits: undefined });
   assert.equal(dead.writes.length, beforeDead);
+  assert.equal(dead.commands.length, 1);
 
   const unavailable = createHarness({ observe: async () => ({ status: "unavailable" }) });
   const unavailableThread = await unavailable.open(unavailable.args());
   const beforeUnavailable = unavailable.writes.length;
   assert.deepEqual(await unavailableThread.probe(), { live: "unavailable", rateLimits: undefined });
   assert.equal(unavailable.writes.length, beforeUnavailable);
+  assert.equal(unavailable.commands.length, 1);
 
   const observationError = createHarness({ observe: async () => { throw new Error("probe unavailable"); } });
   const observationErrorThread = await observationError.open(observationError.args());
+  const beforeObservationError = observationError.writes.length;
   assert.deepEqual(await observationErrorThread.probe(), { live: "unavailable", rateLimits: undefined });
+  assert.equal(observationError.writes.length, beforeObservationError);
 
   const changedOwnerRows: Array<(expected: CodexDetachedOwner) => CodexDetachedOwner> = [
     (expected) => expected.kind === "posix-process-group"
@@ -2698,6 +2822,41 @@ test("probe-tristate-and-same-channel-rate-limits: preserves live, dead, unavail
     await assert.rejects(thread.probe(), /invalid/);
     assert.equal(harness.terminations.length, 1);
   }
+
+  const expectedSnapshot = {
+    status: "available",
+    capturedAt: "2026-09-17T04:05:06.000Z",
+    weekly: {
+      status: "available",
+      usedPercent: 6,
+      windowDurationMins: { status: "available", value: 10_080 },
+      resetsAt: { status: "available", value: 1_789_984_107 },
+    },
+    rateLimitsByLimitId: {
+      status: "available",
+      value: {
+        codex_bengalfox: {
+          status: "available",
+          limitId: { status: "available", value: "codex_bengalfox" },
+          limitName: { status: "available", value: "GPT-5.3-Codex-Spark" },
+          primary: {
+            status: "available",
+            usedPercent: 2,
+            windowDurationMins: { status: "available", value: 300 },
+            resetsAt: { status: "available", value: 1_789_542_311 },
+          },
+          secondary: {
+            status: "available",
+            usedPercent: 9,
+            windowDurationMins: { status: "available", value: 10_080 },
+            resetsAt: { status: "unavailable", reason: "not-reported" },
+          },
+        },
+      },
+    },
+    resetCredits: { status: "available", availableCount: 1 },
+  } satisfies CodexRateLimitSnapshot;
+  assert.deepEqual(liveProbe, { live: true, rateLimits: expectedSnapshot });
 });
 
 test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and rejects every unconfirmed terminal state", async () => {
@@ -3183,17 +3342,169 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   await hangingLivenessThread.terminate();
 });
 
-test("persisted-owner-recovers-across-runtime-restart: the public barrel restores an owner-only controller without protocol state", () => {
-  const owner: CodexDetachedOwner = process.platform === "win32"
-    ? { kind: "windows-process-tree", rootPid: 421, token: "persisted-root-generation" }
-    : { kind: "posix-process-group", rootPid: 421, token: "persisted-root-generation" };
-
-  let controller: ReturnType<typeof recoverCodexDetachedOwner> | undefined;
-  assert.doesNotThrow(() => {
-    controller = recoverCodexDetachedOwner({ owner, timeoutMs: 25 });
+test("persisted-owner-recovers-across-runtime-restart: POSIX re-observes a serialized process-group generation in a fresh runtime", async () => {
+  const pid = 421;
+  const generationA = "generation-a-1758081906";
+  const generationB = "generation-b-1758082906";
+  const command: CodexAppServerCommand = {
+    executable: "codex",
+    args: ["app-server", "--stdio"],
+    cwd: "/repo",
+    env: {},
+  };
+  const events: CodexAppServerProcessEvents = {
+    stdout: () => undefined,
+    error: () => undefined,
+    exit: () => undefined,
+  };
+  const nativeChild = (onWrite: () => void): CodexDetachedNativeChild => ({
+    pid,
+    stdout: { on: () => undefined },
+    stderr: { on: () => undefined },
+    stdin: { once: () => undefined, write: () => { onWrite(); }, end: () => undefined },
+    once: () => undefined,
   });
-  assert.deepEqual(controller?.owner, owner);
-  assert.equal(typeof controller?.probe, "function");
-  assert.equal(typeof controller?.terminate, "function");
-  assert.equal("startTurn" in (controller ?? {}), false);
+  const noSuchProcess = (): Error => Object.assign(new Error("gone"), { code: "ESRCH" });
+
+  const runtimeAExecCalls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  let runtimeALive = true;
+  const runtimeA = createCodexDetachedRuntime({
+    platform: "posix",
+    nativeSpawn: () => nativeChild(() => undefined),
+    execFile: async (executable, args, options) => {
+      runtimeAExecCalls.push({ executable, args, timeout: options.timeout });
+      return { stdout: runtimeALive ? `${pid} ${generationA}\n` : "", stderr: "" };
+    },
+    signal: (_target, signal) => {
+      if (signal === 0 && !runtimeALive) throw noSuchProcess();
+      if (signal === "SIGTERM") runtimeALive = false;
+    },
+    runDefaultAuth: managedTestAuth,
+  });
+  runtimeA.spawn(command, events);
+  const acquired = await runtimeA.acquireOwnership(pid, 29);
+  assert.ok(acquired !== undefined);
+  const persisted = JSON.parse(JSON.stringify(acquired)) as CodexDetachedOwner;
+
+  const runtimeBExecCalls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  const runtimeBSignals: Array<{ target: number; signal: NodeJS.Signals | 0; generation: string }> = [];
+  let runtimeBSpawns = 0;
+  let runtimeBAuth = 0;
+  let runtimeBProtocolWrites = 0;
+  let runtimeBLive = true;
+  let runtimeBGeneration = generationA;
+  let runtimeBGenerationUnavailable = false;
+  const runtimeB = createCodexDetachedRuntime({
+    platform: "posix",
+    nativeSpawn: () => {
+      runtimeBSpawns += 1;
+      return nativeChild(() => { runtimeBProtocolWrites += 1; });
+    },
+    execFile: async (executable, args, options) => {
+      runtimeBExecCalls.push({ executable, args, timeout: options.timeout });
+      if (runtimeBGenerationUnavailable) throw new Error("root generation unavailable");
+      return {
+        stdout: runtimeBLive ? `${pid} ${runtimeBGeneration}\n` : "",
+        stderr: "",
+      };
+    },
+    signal: (target, signal) => {
+      runtimeBSignals.push({ target, signal, generation: runtimeBGeneration });
+      if (signal === 0 && !runtimeBLive) throw noSuchProcess();
+      if (signal === "SIGTERM") runtimeBLive = false;
+    },
+    clock: new ManualClock(),
+    runDefaultAuth: async () => {
+      runtimeBAuth += 1;
+      return await managedTestAuth();
+    },
+  });
+  const recoverInRuntimeB = createRecoverCodexDetachedOwner(runtimeB);
+  const settleTermination = async (controller: ReturnType<typeof recoverInRuntimeB>): Promise<string> => {
+    try {
+      await controller.terminate();
+      return "fulfilled";
+    } catch (error) {
+      return `rejected: ${(error as Error).message}`;
+    }
+  };
+
+  const sameGeneration = recoverInRuntimeB({ owner: persisted, timeoutMs: 29 });
+  const sameProbe = await sameGeneration.probe();
+
+  runtimeBGeneration = generationB;
+  const changedGeneration = recoverInRuntimeB({ owner: persisted, timeoutMs: 29 });
+  const changedProbe = await changedGeneration.probe();
+  const termsBeforeChanged = runtimeBSignals.filter((call) => call.signal === "SIGTERM").length;
+  const changedTermination = await settleTermination(changedGeneration);
+  const changedTerms = runtimeBSignals.filter((call) => call.signal === "SIGTERM").length - termsBeforeChanged;
+
+  runtimeBLive = true;
+  runtimeBGeneration = generationA;
+  runtimeBGenerationUnavailable = true;
+  const unavailable = recoverInRuntimeB({ owner: persisted, timeoutMs: 29 });
+  const unavailableProbe = await unavailable.probe();
+  const termsBeforeUnavailable = runtimeBSignals.filter((call) => call.signal === "SIGTERM").length;
+  const unavailableTermination = await settleTermination(unavailable);
+  const unavailableTerms = runtimeBSignals.filter((call) => call.signal === "SIGTERM").length - termsBeforeUnavailable;
+
+  runtimeBLive = true;
+  runtimeBGeneration = generationA;
+  runtimeBGenerationUnavailable = false;
+  const exact = recoverInRuntimeB({ owner: persisted, timeoutMs: 29 });
+  const exactProbe = await exact.probe();
+  const termsBeforeExact = runtimeBSignals.filter((call) => call.signal === "SIGTERM").length;
+  const concurrentTermination = await Promise.allSettled([exact.terminate(), exact.terminate()]);
+  const laterTermination = await settleTermination(exact);
+  const exactTerminationSignals = runtimeBSignals
+    .filter((call) => call.signal === "SIGTERM")
+    .slice(termsBeforeExact);
+  const generationCommands = [...runtimeAExecCalls, ...runtimeBExecCalls].filter((call) =>
+    call.executable === "ps" &&
+    call.args.includes(String(pid)) &&
+    call.args.some((argument) => /start|lstart|etime/iu.test(argument)));
+
+  assert.deepEqual({
+    serializedOwner: persisted,
+    tokenCarriesGeneration: persisted.token.includes(generationA),
+    runtimeAAcquiredThroughGenerationCommand: runtimeAExecCalls.length > 0,
+    sameProbe,
+    changedProbe,
+    changedTermination,
+    changedTerms,
+    unavailableProbe,
+    unavailableTermination,
+    unavailableTerms,
+    exactProbe,
+    concurrentTermination: concurrentTermination.map((result) => result.status),
+    laterTermination,
+    exactTerminationSignals,
+    generationCommandObserved: generationCommands.length > 0,
+    allRuntimeBCallsBounded: runtimeBExecCalls.every((call) => call.timeout === 29),
+    ownerOnlyController: !("startTurn" in exact),
+    runtimeBSpawns,
+    runtimeBAuth,
+    runtimeBProtocolWrites,
+  }, {
+    serializedOwner: acquired,
+    tokenCarriesGeneration: true,
+    runtimeAAcquiredThroughGenerationCommand: true,
+    sameProbe: { live: true },
+    changedProbe: { live: false },
+    changedTermination: "fulfilled",
+    changedTerms: 0,
+    unavailableProbe: { live: "unavailable" },
+    unavailableTermination: "rejected: Codex detached owner is unavailable",
+    unavailableTerms: 0,
+    exactProbe: { live: true },
+    concurrentTermination: ["fulfilled", "fulfilled"],
+    laterTermination: "fulfilled",
+    exactTerminationSignals: [{ target: -421, signal: "SIGTERM", generation: generationA }],
+    generationCommandObserved: true,
+    allRuntimeBCallsBounded: true,
+    ownerOnlyController: true,
+    runtimeBSpawns: 0,
+    runtimeBAuth: 0,
+    runtimeBProtocolWrites: 0,
+  });
 });
