@@ -74,8 +74,8 @@ export type CodexDetachedTurnStatus = "completed" | "interrupted" | "failed" | "
 
 export interface CodexDetachedClock {
   now(): number;
-  setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout>;
-  clearTimeout(handle: ReturnType<typeof setTimeout>): void;
+  setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout> | number;
+  clearTimeout(handle: ReturnType<typeof setTimeout> | number): void;
   delay(ms: number): Promise<void>;
 }
 
@@ -294,13 +294,14 @@ export function createCodexDetachedRuntime(deps: {
     return generation;
   };
 
-  const generationForSpawn: Record<
+  const generationForSpawn = {
+    posix: (_pid: number | undefined): WindowsProcessGeneration | undefined => undefined,
+    windows: (pid: number | undefined): WindowsProcessGeneration | undefined =>
+      positiveSafePid(pid) ? startWindowsGeneration(pid) : undefined,
+  } satisfies Record<
     "posix" | "windows",
     (pid: number | undefined) => WindowsProcessGeneration | undefined
-  > = {
-    posix: () => undefined,
-    windows: (pid) => positiveSafePid(pid) ? startWindowsGeneration(pid) : undefined,
-  };
+  >;
 
   const inspectWindowsRoot = async (pid: number, timeoutMs: number): Promise<string | undefined> => {
     const result = await deps.execFile(
@@ -386,16 +387,10 @@ export function createCodexDetachedRuntime(deps: {
       }
       events.exit(code, signal);
     });
-    return {
+    const spawned: CodexDetachedAppServerProcess = {
       pid: child.pid,
       write: (line) => { child.stdin.write(line); },
       end: () => { child.stdin.end(); },
-      ...(child.kill === undefined ? {} : { terminateRoot: async () => {
-        if (!child.kill!("SIGTERM")) {
-          throw new Error("Codex app-server native root termination was not sent");
-        }
-        if (windowsGeneration !== undefined) windowsGeneration.rootTerminationRequested = true;
-      } }),
       terminateTree: async (timeoutMs) => {
         if (!positiveSafePid(child.pid)) throw new Error("Codex app-server provisional pid is unavailable");
         if (deps.platform === "posix") {
@@ -415,6 +410,18 @@ export function createCodexDetachedRuntime(deps: {
         return await observeWindowsGeneration(windowsGeneration!, timeoutMs);
       },
     };
+    const kill = child.kill;
+    if (kill !== undefined) {
+      Object.assign(spawned, {
+        terminateRoot: async () => {
+          if (!kill.call(child, "SIGTERM")) {
+            throw new Error("Codex app-server native root termination was not sent");
+          }
+          if (windowsGeneration !== undefined) windowsGeneration.rootTerminationRequested = true;
+        },
+      });
+    }
+    return spawned;
   };
 
   return {
@@ -584,7 +591,7 @@ function deferredResult<T>(): DeferredResult<T> {
 }
 
 interface PendingRequest extends DeferredResult<unknown> {
-  readonly timer: ReturnType<typeof setTimeout>;
+  readonly timer: ReturnType<CodexDetachedClock["setTimeout"]>;
 }
 
 /** Direct-module factory; the package barrel exposes only the production-bound function. */
@@ -601,7 +608,7 @@ export function createOpenPinnedCodexDetachedThread(
       boundMs = timeoutMs,
     ): Promise<T> => {
       const timeout = deferredResult<never>();
-      let timer: ReturnType<typeof setTimeout>;
+      let timer: ReturnType<CodexDetachedClock["setTimeout"]>;
       try {
         timer = runtime.clock.setTimeout(() => {
           timeout.reject(new Error(`${label} timed out`));
@@ -649,7 +656,7 @@ export function createOpenPinnedCodexDetachedThread(
       | { readonly kind: "error" }
       | { readonly kind: "exit" };
 
-    const clearRequestTimer = (timer: ReturnType<typeof setTimeout>): boolean => {
+    const clearRequestTimer = (timer: ReturnType<CodexDetachedClock["setTimeout"]>): boolean => {
       try {
         runtime.clock.clearTimeout(timer);
         return true;
@@ -860,7 +867,7 @@ export function createOpenPinnedCodexDetachedThread(
       }
       const id = nextId++;
       const result = deferredResult<unknown>();
-      let timer: ReturnType<typeof setTimeout>;
+      let timer: ReturnType<CodexDetachedClock["setTimeout"]>;
       try {
         timer = runtime.clock.setTimeout(() => {
           void failSession(new Error(`${method} timed out`));

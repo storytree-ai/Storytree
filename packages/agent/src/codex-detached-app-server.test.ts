@@ -40,15 +40,16 @@ class ManualClock implements CodexDetachedClock {
   get delayDurations(): readonly number[] { return this.delays; }
   get clearedTimerHandles(): readonly number[] { return this.clearedTimers; }
 
-  setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout> {
+  setTimeout(callback: () => void, ms: number): ReturnType<CodexDetachedClock["setTimeout"]> {
     if (this.timers.size >= 100) throw new Error("manual clock timer runaway");
     const id = this.nextId++;
     this.timers.set(id, { at: this.current + ms, callback });
-    return id as unknown as ReturnType<typeof setTimeout>;
+    return id;
   }
 
-  clearTimeout(handle: ReturnType<typeof setTimeout>): void {
-    const id = handle as unknown as number;
+  clearTimeout(handle: ReturnType<CodexDetachedClock["setTimeout"]>): void {
+    if (typeof handle !== "number") throw new Error("manual clock received a non-numeric timer handle");
+    const id = handle;
     this.clearedTimers.push(id);
     this.timers.delete(id);
   }
@@ -261,7 +262,9 @@ function createHarness(options: HarnessOptions = {}) {
       ended += 1;
       options.end?.();
     },
-    ...(options.includeNativeRoot === true ? { terminateRoot: async (timeoutMs: number) => {
+  };
+  if (options.includeNativeRoot === true) {
+    Object.assign(process, { terminateRoot: async (timeoutMs: number) => {
       nativeRootTerminations += 1;
       nativeRootTerminationTimeouts.push(timeoutMs);
       if (options.nativeRootTerminate !== undefined) {
@@ -270,20 +273,24 @@ function createHarness(options: HarnessOptions = {}) {
         live = false;
         events!.exit(0, "SIGTERM");
       }
-    } } : {}),
-    ...(options.omitProvisionalTerminate === true ? {} : { terminateTree: async (timeoutMs: number) => {
+    } });
+  }
+  if (options.omitProvisionalTerminate !== true) {
+    Object.assign(process, { terminateTree: async (timeoutMs: number) => {
       provisionalTerminations += 1;
       provisionalTerminationTimeouts.push(timeoutMs);
       if (options.provisionalTerminate !== undefined) await options.provisionalTerminate(timeoutMs);
       else live = false;
-    } }),
-    ...(options.omitProvisionalObserve === true ? {} : { observeTree: async (timeoutMs: number) => {
+    } });
+  }
+  if (options.omitProvisionalObserve !== true) {
+    Object.assign(process, { observeTree: async (timeoutMs: number) => {
       provisionalObservationTimeouts.push(timeoutMs);
       return options.provisionalObserve === undefined
         ? live
         : await options.provisionalObserve(timeoutMs);
-    } }),
-  };
+    } });
+  }
   if ("provisionalTerminateGetterFailure" in options) {
     Object.defineProperty(process, "terminateTree", {
       configurable: true,
@@ -504,6 +511,56 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
     platform,
     timeoutMs: 100,
   })));
+});
+
+test("staged-protocol-returns-response-produced-identity: the public opener ignores every private construction seam", async () => {
+  const originalDefaultAuth = codexDetachedProductionRuntime.runDefaultAuth;
+  const hiddenReads: string[] = [];
+  const hostileArgs: OpenPinnedCodexDetachedThreadArgs = {
+    cwd: process.cwd(),
+    env: {},
+    model: "requested-model",
+    reasoningEffort: "requested-effort",
+    timeoutMs: 100,
+  };
+  for (const key of [
+    "authRunner",
+    "spawn",
+    "observeOwnership",
+    "observeLiveness",
+    "terminateOwnedTree",
+  ]) {
+    Object.defineProperty(hostileArgs, key, {
+      configurable: true,
+      get: () => {
+        hiddenReads.push(key);
+        throw new Error(`public opener read private seam ${key}`);
+      },
+    });
+  }
+
+  assert.equal(Reflect.set(
+    codexDetachedProductionRuntime,
+    "runDefaultAuth",
+    async () => ({ code: 1, stdout: "", stderr: "not logged in" }),
+  ), true);
+  try {
+    await assert.rejects(
+      openPinnedCodexDetachedThread(hostileArgs),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.message, "Codex is not authenticated with a ChatGPT-managed login");
+        return true;
+      },
+    );
+  } finally {
+    assert.equal(Reflect.set(
+      codexDetachedProductionRuntime,
+      "runDefaultAuth",
+      originalDefaultAuth,
+    ), true);
+  }
+  assert.deepEqual(hiddenReads, []);
 });
 
 test("auth-refusal-and-timeout-never-spawn: only exact managed authentication reaches process creation", async () => {
@@ -1041,6 +1098,29 @@ test("posix-group-owner-is-observed-probed-and-terminated: uses the exact negati
     await assert.rejects(spawned.terminateTree!(33), /pid is unavailable/);
     assert.equal(calls.length, callsBefore, "an invalid child pid never reaches a POSIX signal");
   }
+});
+
+test("posix-group-owner-is-observed-probed-and-terminated: public owner mutation cannot redirect cleanup authority", async () => {
+  const acquired = ownerFor("posix", 701, "pgid:701");
+  const harness = createHarness({ platform: "posix", pid: 701, candidate: acquired });
+  const thread = await harness.open(harness.args());
+  const expectedOwner: CodexDetachedOwner = {
+    kind: "posix-process-group",
+    rootPid: 701,
+    token: "pgid:701",
+  };
+
+  assert.equal(Object.isFrozen(thread.owner), true);
+  assert.equal(Reflect.set(thread.owner, "rootPid", 999), false);
+  assert.equal(Reflect.set(thread.owner, "token", "pgid:999"), false);
+  assert.deepEqual(thread.owner, expectedOwner);
+  assert.deepEqual(await thread.probe(), {
+    live: true,
+    rateLimits: { primary: null, secondary: null },
+  });
+  await thread.terminate();
+  assert.deepEqual(harness.terminations, [expectedOwner]);
+  assert.equal(harness.terminations.some((owner) => owner.rootPid === 999), false);
 });
 
 test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tasklist pid and issues one rooted tree kill", async () => {
@@ -1929,17 +2009,17 @@ test("initialize-notification-thread-order-returns-response-identity: validates 
     { thread: {} },
   ];
   for (const invalid of [undefined, null, 0, "", " \t "]) {
-    const identity: Record<string, unknown> = { id: "thread" };
+    const identity: Record<string, unknown> = {};
+    identity.id = "thread";
     if (invalid === undefined) delete identity.id; else identity.id = invalid;
     invalidThreads.push({ thread: identity, model: "model", reasoningEffort: "effort" });
   }
   for (const field of ["model", "reasoningEffort"] as const) {
     for (const invalid of [undefined, null, 0, "", " \t "]) {
-      const result: Record<string, unknown> = {
-        thread: { id: "thread" },
-        model: "model",
-        reasoningEffort: "effort",
-      };
+      const result: Record<string, unknown> = {};
+      result.thread = { id: "thread" };
+      result.model = "model";
+      result.reasoningEffort = "effort";
       if (invalid === undefined) delete result[field]; else result[field] = invalid;
       invalidThreads.push(result);
     }
@@ -2322,13 +2402,13 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
     const harness = createHarness();
     const seen: number[] = [];
     const callArgs = harness.args({
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
       authRunner: async (command) => {
         seen.push(command.timeoutMs);
         return { code: 1, stdout: "", stderr: "" };
       },
     });
     if (timeoutMs === undefined) Reflect.deleteProperty(callArgs, "timeoutMs");
+    else Object.assign(callArgs, { timeoutMs });
     await assert.rejects(harness.open(callArgs), /not authenticated/);
     assert.deepEqual(seen, [60_000]);
   }
@@ -2461,7 +2541,7 @@ test("turn-prompt-and-response-failures-clean-up: validates prompt and every ret
     const harness = createHarness();
     const thread = await harness.open(harness.args());
     await assert.rejects(
-      thread.startTurn(malformedPrompt as unknown as string),
+      thread.startTurn(malformedPrompt as string),
       /prompt must not be blank/,
     );
     assert.equal(harness.writes.at(-1)?.method, "thread/start");
@@ -2476,7 +2556,9 @@ test("turn-prompt-and-response-failures-clean-up: validates prompt and every ret
   const invalidTurns: unknown[] = [null, [], "invalid", {}, { turn: null }, { turn: [] }, { turn: {} }];
   for (const field of ["id", "status"] as const) {
     for (const invalid of [undefined, null, 0, "", " \t ", ...(field === "status" ? ["accepted", "unknown"] : [])]) {
-      const identity: Record<string, unknown> = { id: "turn", status: "inProgress" };
+      const identity: Record<string, unknown> = {};
+      identity.id = "turn";
+      identity.status = "inProgress";
       if (invalid === undefined) delete identity[field]; else identity[field] = invalid;
       invalidTurns.push({ turn: identity });
     }
