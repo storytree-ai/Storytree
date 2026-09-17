@@ -137,7 +137,11 @@ The operator surface over the whole machinery — two commands, one honest-envel
   [`real-lifecycle-records-its-attempt`](real-lifecycle-records-its-attempt.md),
   [`node-build-names-its-increment`](node-build-names-its-increment.md),
   [`orchestrator-records-its-calls`](orchestrator-records-its-calls.md) and
-  [`node-verbs-dispatch`](node-verbs-dispatch.md)).
+  [`node-verbs-dispatch`](node-verbs-dispatch.md)). ADR-0577 triggers, and ADR-0578 defines, the
+  explicitly deferred above-ceiling mechanism in
+  [`owner-grant-carries-settled-authority`](owner-grant-carries-settled-authority.md): a distinct
+  owner-grant event carries its settled question and deciding ADR, is spendable once across the
+  ledger, and admits only its recorded allowance while ordinary grants keep the ceiling unchanged.
   - **The refusal.** `node build --real` requires `--increment <id>`, and `--dry-run` and `--live`
     refuse the flag. After every existing cheap refusal and before the leaf prompts, the database,
     the claim and the worktree, `preflightPaidBuild` (`node-build.ts`, over `inner-loop-entry.ts`)
@@ -154,6 +158,12 @@ The operator surface over the whole machinery — two commands, one honest-envel
   - **The orchestrator's calls.** `storytree node attempts|grant|adjudicate <id> --pg`
     (`packages/cli/src/inner-loop-verbs.ts`, dispatched from `commands.ts`) read the unit's fold and
     record a grant or a landing adjudication. A build never records either.
+  - **The owner's exceptional call.** `storytree node owner-grant <id> --authority <question-id>
+    --attempts <n> --kind <kind> --difference <text|@file> --pg` records a distinct owner grant only
+    when the question is settled by an accepted owner-backed ADR and the question, decision, and
+    failed attempt's increment share one arc. Its exact allowance is consumed by the same preflight;
+    the question cannot be replayed for this or another unit, and the ordinary `node grant` ceiling
+    is unchanged.
 
 - **The LIVENESS channel** (`packages/drive/src/build-progress.ts`, wired at every leg of
   `nodeBuild`, `storyBuild` AND `packages/cli/src/gate-build-driver.ts` — all THREE `--real` entry
