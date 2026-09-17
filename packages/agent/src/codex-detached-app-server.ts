@@ -205,6 +205,29 @@ function validOwner(
   return candidate.kind === "windows-process-tree";
 }
 
+/**
+ * Recovery receives an owner from durable storage, not from this runtime's acquisition path.  Check
+ * its complete generation-bearing encoding before allowing the runtime to make an OS observation.
+ * The nul-delimited forms remain readable for owners minted by the already-shipped runtime; their
+ * bare pid-only predecessors intentionally do not.
+ */
+function validPersistedOwner(
+  owner: CodexDetachedOwner,
+  platform: "posix" | "windows",
+): boolean {
+  if (!positiveSafePid(owner.rootPid)) return false;
+  if (platform === "posix") {
+    if (owner.kind !== "posix-process-group") return false;
+    const versioned = new RegExp(`^v1:posix:${owner.rootPid}:([^:\\s]+)$`, "u");
+    const minted = new RegExp(`^pgid:${owner.rootPid}\\u0000\\S+$`, "u");
+    return versioned.test(owner.token) || minted.test(owner.token);
+  }
+  if (owner.kind !== "windows-process-tree") return false;
+  const versioned = new RegExp(`^v1:windows:${owner.rootPid}:([^:\\s]+)$`, "u");
+  const minted = /^runtime:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:generation:[1-9][0-9]*\u0000\S+$/iu;
+  return versioned.test(owner.token) || minted.test(owner.token);
+}
+
 function resolvePinnedEntrypoint(): string {
   const require = createRequire(import.meta.url);
   const packageJson = require.resolve("@openai/codex/package.json");
@@ -1199,7 +1222,8 @@ export function createRecoverCodexDetachedOwner(
   return (args) => {
     const timeoutMs = positiveTimeout(args.timeoutMs);
     const owner = immutableOwner(args.owner);
-    const ownerIsUsable = validOwner(owner, owner.rootPid, runtime.platform);
+    const ownerIsUsable = validOwner(owner, owner.rootPid, runtime.platform)
+      && validPersistedOwner(owner, runtime.platform);
     let termination: Promise<void> | undefined;
 
     const observe = async (): Promise<CodexDetachedOwnerObservation> => {

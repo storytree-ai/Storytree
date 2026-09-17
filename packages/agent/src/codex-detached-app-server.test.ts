@@ -3529,3 +3529,46 @@ test("persisted-owner-recovers-across-runtime-restart: POSIX re-observes a seria
     runtimeBProtocolWrites: 0,
   });
 });
+
+test("owner-validation-rejects-invalid-pid-root-kind-and-token: recovery rejects malformed durable POSIX tokens before OS observation", async () => {
+  const clock = new ManualClock();
+  let ownershipObservations = 0;
+  const runtime: CodexDetachedRuntime = {
+    platform: "posix",
+    clock,
+    spawn: () => { throw new Error("recovery must not spawn"); },
+    resolvePinnedEntrypoint: () => "/pinned/codex.js",
+    runDefaultAuth: managedTestAuth,
+    acquireOwnership: async () => undefined,
+    observeOwnership: async () => {
+      ownershipObservations += 1;
+      return {
+        status: "live",
+        owner: { kind: "posix-process-group", rootPid: 733, token: "v1:posix:733:birth" },
+      };
+    },
+    terminateOwnedTree: async () => undefined,
+  };
+  const recover = createRecoverCodexDetachedOwner(runtime);
+
+  for (const token of [
+    "pgid:733",
+    "v0:posix:733:birth",
+    "v1:posix:733",
+    "v1:posix:734:birth",
+    "v1:windows:733:birth",
+    "v1:posix:733:birth:extra",
+  ]) {
+    const controller = recover({
+      owner: { kind: "posix-process-group", rootPid: 733, token },
+      timeoutMs: 29,
+    });
+    assert.deepEqual(
+      await controller.probe(),
+      { live: "unavailable" },
+      `malformed token ${token} is unavailable without an OS probe`,
+    );
+  }
+
+  assert.equal(ownershipObservations, 0, "malformed persisted owners make zero OS calls");
+});
