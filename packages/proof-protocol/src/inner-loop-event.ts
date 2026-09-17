@@ -25,6 +25,17 @@ export const InnerLoopGrantEvent = z
     difference,
   })
   .strict();
+export const InnerLoopOwnerGrantEvent = z
+  .object({
+    event: z.literal("owner-grant"),
+    ...base,
+    attempts: z.number().int().positive(),
+    kind: AttemptDifferenceKind,
+    difference,
+    authorityQuestionRef: z.string().regex(/^asset:[^\s]+$/),
+    authorityDecisionRef: z.string().regex(/^asset:[^\s]+$/),
+  })
+  .strict();
 export const InnerLoopAdjudicationEvent = z
   .object({
     event: z.literal("adjudication"),
@@ -50,6 +61,7 @@ export const InnerLoopEventDoc = z
   .discriminatedUnion("event", [
     InnerLoopAttemptEvent,
     InnerLoopGrantEvent,
+    InnerLoopOwnerGrantEvent,
     InnerLoopAdjudicationEvent,
     InnerLoopSignedPassEvent,
   ])

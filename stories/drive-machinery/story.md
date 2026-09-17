@@ -437,6 +437,14 @@ the now-settled modeling call.
   ledger verbs through `run`, refuse a missing unit or flag and any write without the live store, and
   record a grant or adjudication with the strength signal read from the unit's own package. It builds
   after `orchestrator-records-its-calls` and `build-entry-refuses-before-spend`.
+- [`owner-grant-carries-settled-authority`](owner-grant-carries-settled-authority.md) — contract
+  grain, spec-borne, edit-existing proof across the inner-loop protocol, fold, CLI and paid-build
+  preflight, proposed (ADR-0578, triggered by ADR-0577 and fulfilling ADR-0576's explicit deferral).
+  A settled owner-backed
+  question on the failed attempt's arc records one globally spendable owner-grant event whose exact
+  allowance opens the ceiling and then closes it again; ordinary grants remain unchanged. It builds
+  after `orchestrator-records-its-calls`, `build-entry-refuses-before-spend` and
+  `node-verbs-dispatch`.
 - [`node-build-names-its-increment`](node-build-names-its-increment.md) — contract grain, spec-borne,
   edit-existing proof over `nodeBuild` and its CLI threading, proposed (ADR-0576 D1/D2/D4/D5/D6/D8).
   `node build --real` refuses before any spend unless it names a live increment and its unit passes

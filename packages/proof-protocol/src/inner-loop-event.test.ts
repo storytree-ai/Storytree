@@ -74,6 +74,35 @@ test("grants require a positive whole count and an actual recorded difference", 
   assert.throws(() => InnerLoopEventDoc.parse({ ...grant, difference: "   " }));
 });
 
+test("owner-grant-carries-settled-authority: owner authority refs are strict, anchored asset references", () => {
+  const grant = {
+    event: "owner-grant",
+    ...identity,
+    attempts: 1,
+    kind: "revised-test",
+    difference: "migrate the authorised inherited fixtures",
+    authorityQuestionRef: "asset:q-a",
+    authorityDecisionRef: "asset:adr-0577",
+  } as const;
+
+  assert.deepEqual(InnerLoopEventDoc.parse(grant), grant);
+  for (const [field, value] of [
+    ["authorityQuestionRef", "q-a"],
+    ["authorityQuestionRef", "prefixasset:q-a"],
+    ["authorityQuestionRef", "asset:"],
+    ["authorityQuestionRef", "asset:q a"],
+    ["authorityQuestionRef", "asset:q-a "],
+    ["authorityDecisionRef", "adr-0577"],
+    ["authorityDecisionRef", "prefixasset:adr-0577"],
+    ["authorityDecisionRef", "asset:"],
+    ["authorityDecisionRef", "asset:adr 0577"],
+    ["authorityDecisionRef", "asset:adr-0577 "],
+  ] as const) {
+    assert.equal(InnerLoopEventDoc.safeParse({ ...grant, [field]: value }).success, false, `${field}=${value}`);
+  }
+  assert.equal(InnerLoopEventDoc.safeParse({ ...grant, event: "" }).success, false);
+});
+
 test("adjudications preserve the exact deterministic landing disposition", () => {
   const shapes = [
     ["land", false, false, undefined],
