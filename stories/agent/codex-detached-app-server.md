@@ -88,7 +88,10 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    exact generation immediately before signalling the same negative group with bounded `SIGTERM`.
    Observation error is unavailable, never live-by-sentinel. If the generation changes after a probe
    but before the termination check, send no signal. Never target a bare pid, executable name or
-   another group.
+   another group. The inherited positive acquisition row must replace its `execFile: Error("not used")`
+   sentinel and bare `token: "pgid:71"` expectation with a real immutable-birth observation and an
+   exact six-field Contract 15 decode; every other positive POSIX fixture reaches the same shared strict
+   helper rather than spelling an opaque shorthand.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`.** Through a deterministic Windows OS
    seam, assert acquisition records the exact live root identity and publishes the literal
    `windows-process-tree` owner. Probe and termination re-run `tasklist`, but its image/pid/session row
@@ -97,14 +100,24 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    change after probe but before the termination check is ownership lost and dead-for-controller, so
    it is never signalled even when the tasklist row is identical. The rooted command reaches descendants
    still reachable from that live root; it is not durable containment or proof that escaped descendants
-   died.
+   died. Rewrite the inherited `expectWindowsOwner` helper: its NUL split and
+   `runtime:<uuid>:generation:<n>` regex are forbidden. Every positive Windows acquisition in the
+   existing low-level, owner, same-pid, in-flight and persisted-recovery rows must pass through a strict
+   seven-field decoder that separately compares the creation identity and tasklist row. Their fake OS
+   responders must supply the independent creation observation; tasklist-only success is not a positive
+   fixture, and same-pid replacement rows vary creation identity rather than relying on a runtime counter.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`.** Table-drive every owner boundary:
    absent, zero, negative, fractional, non-finite and unsafe pid; missing owner; wrong root; host-wrong
    discriminant; caller platform assertion contradicting the host; blank/whitespace token; malformed
    token version/prefix/field count; embedded-root mismatch; and legacy bare `pgid:<pid>`. Every malformed
    persisted owner returns typed unavailable before any OS call. Every open-time row rejects, closes
    protocol I/O, performs only cleanup still safely licensed by the just-created process identity or
-   handle, and never returns a controller or signals a stale numeric pid.
+   handle, and never returns a controller or signals a stale numeric pid. The shared `ownerFor` and
+   `createHarness` positive-candidate factories emit Contract 15 tokens for both platforms, including
+   staged-protocol, cleanup and frozen-owner mutation tests. A wrong-kind row starts from the other
+   platform's *valid* strict token so kind is the only failing dimension. All deliberately malformed or
+   legacy spellings live only in explicitly named rejection-case tables; no arbitrary legacy token may
+   remain in a positive helper, cleanup fixture, changed-owner fixture or mutation attempt.
 6. **`ownership-acquisition-failure-reaps-spawned-child`.** Make production ownership observation
    return unavailable, throw and exceed its bound after spawn. Each path closes protocol I/O and uses
    every still-owned cleanup handle: POSIX may reap the exact detached group, while Windows may signal
@@ -144,13 +157,20 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     channel or invoke cleanup. Dead starts no request and returns no snapshot; unavailable ownership is
     preserved as typed unavailable rather than collapsed to dead, guessed live or given a fabricated
     snapshot. No case starts a thread, turn or second process.
+    The pre-existing broad loop at committed-test lines 2834-2845 is itself part of this contract: split
+    or amend its `invalid === undefined` / `{ result: {} }` arm so that exact row fulfills with the typed
+    unavailable snapshot, leaves the channel open and performs zero cleanup. Adding a new passing row
+    while leaving that inherited rejection expectation untouched does not satisfy this contract.
 13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
     again after settlement. They share one terminal operation and close protocol I/O. POSIX invokes one
     exact-group terminator and confirms group death; Windows invokes `taskkill /PID <root> /T /F` only
     after same-token live-root re-observation, then confirms root disappearance. A root already absent
     or changed is ownership-lost/dead-for-controller and is never signalled; descendant death is not
     inferred from it. Terminator error, observation error, bound expiry and a still-live matching root
-    reject rather than report cleanup.
+    reject rather than report cleanup. Every inherited cleanup harness starts from a strict owner. The
+    changed-owner rows currently formed by appending `-reused` or `-changed` must instead produce a
+    different but fully valid Contract 15 token, so cleanup is testing identity change rather than parser
+    rejection; the frozen-owner mutation attempt likewise uses a strict replacement token.
 14. **`persisted-owner-recovers-across-runtime-restart`.** Persist the public opaque owner from one
     Agent runtime, discard every in-memory generation map, child handle and protocol channel, then pass
     it through the public barrel to `recoverCodexDetachedOwner` in a fresh runtime. On both POSIX and
@@ -171,6 +191,10 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     seven; strictly base64url-decode the semantic identity fields and compare the decoded bytes/text with
     the expected immutable birth identity or creation identity and tasklist row. A raw POSIX generation
     string or NUL-delimited Windows descriptor is never required to occur literally inside the token.
+    This migration applies to the actual inherited assertions at committed-test lines 1553-1697 and
+    3366-3530: replace both `persisted.token.includes(...)` checks, retain every surrounding behavioral
+    assertion, and prove the serialized owner itself passes the shared exact-field decoder before runtime
+    B receives it.
 15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`.** Exercise one durable
     token grammar across both host kinds. POSIX is exactly six colon-separated fields,
     `codex-owner:v1:p:<canonical-positive-pid>:<lowercase-rfc4122-v4-runtime-uuid>:<unpadded-base64url-birth-id>`;
@@ -191,37 +215,55 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     first establish the exact field count, then strictly decode and re-encode each base64url field before
     comparing its decoded value with the expected semantic identity; raw-identity substring matching is
     not a valid assertion over the canonical token.
+    Add a source-structure regression or an equivalently exhaustive positive-site inventory that proves
+    the committed test file contains no positive legacy owner spelling or parser. Its allowlist may name
+    only individual entries in the explicit malformed-token rejection tables; it may not exclude a whole
+    test or helper. Outside that allowlist it rejects `owner-<pid>`, `owned-group`, bare positive `pgid:`,
+    the old `runtime:<uuid>:generation:<n>` parser, raw `.token.includes(...)`, and suffix mutation by
+    `-reused`/`-changed`. A row testing some other failure (wrong host kind, cleanup or mutation) is a
+    positive token site for this purpose and therefore uses a valid strict token.
 16. **`posix-owner-requires-immutable-birth-identity`.** Make POSIX acquisition and recovery distinguish
     the exact root process birth from process-group existence. A bare negative group, a sentinel and a
     group-exists result without immutable birth identity all fail closed; only the matching immutable
-    root birth makes the token live.
+    root birth makes the token live. The original direct POSIX acquisition test must decode and compare
+    that birth identity; its old thrown `"not used"` observer cannot remain as a positive seam.
 17. **`windows-owner-requires-tasklist-and-creation-identity`.** Make Windows acquisition and recovery
     require the conjunction of the matching `tasklist` image/pid/session row and an independent immutable
     creation identity. The same row with a different creation identity is dead-for-controller and never
-    sufficient ownership.
+    sufficient ownership. All inherited Windows `execFile` fakes that currently return tasklist-or-
+    `"SUCCESS"` must explicitly model the creation observation, and every acquired owner assertion must
+    compare both decoded identities rather than merely accept a non-undefined owner.
 18. **`both-platforms-reobserve-generation-immediately-before-signal`.** On POSIX and Windows, first
     observe the persisted generation live, then swap it before the termination operation's own observation.
     Each platform performs the fresh observation immediately before its signal and sends zero `SIGTERM`
-    or `taskkill` calls when that generation no longer matches.
+    or `taskkill` calls when that generation no longer matches. Both starting and replacement owners in
+    these rows are strict grammar-preserving fixtures; malformed suffixes cannot stand in for a generation
+    swap.
 19. **`same-runtime-negative-owner-knowledge-is-terminal`.** For each platform, mint a token in one
     runtime, locally observe that exact generation dead or latch it closed, then make the OS descriptor
     look live again. Both probe and termination retain the local negative fact, make no durable fallback
     capable of reopening it, and send no signal; fresh-runtime recovery remains separately available.
+    The inherited local-negative and cleanup cases use the shared strict owner factories, including
+    default `createHarness` candidates, so parser rejection cannot masquerade as remembered death.
 20. **`recovery-outer-deadline-bounds-every-await`.** Under one recovery-termination deadline, separately
     make the initial observer, terminator, post-signal observer and injected delay never settle. Each row
     rejects when that one bound expires, stops scheduling further work, and cannot emit a late signal or
-    observation after the overdue collaborator eventually settles.
+    observation after the overdue collaborator eventually settles. Every positive owner supplied to this
+    matrix is decoded by the shared strict helper before the deadline exercise begins.
 21. **`recovery-settlement-matrix-is-bounded-and-shared`.** Within the same finite recovery bound,
     separately drive observer throw, terminator throw, unavailable-after-signal, multi-poll death and
     still-live exhaustion. Assert the exact finite poll cap and delay schedule, then prove concurrent and
     every later caller share the same fulfillment or rejection without a second signal or polling loop.
+    All fulfilled, changed and error-path starting owners use the strict shared factories; only the named
+    malformed-token table may intentionally supply a legacy spelling.
 22. **`detached-probe-reuses-direct-canonical-rate-limit-parser`.** Feed a full response whose nested
     optional/malformed fields distinguish the canonical parser from the detached module's current local
     copy. Assert identical `CodexRateLimitSnapshot` output through the existing channel, a direct-module
     import of the canonical parser, deletion of the local parser implementation, and no new parser export
     from `packages/agent/src/index.ts`. The pre-existing broad `{ result: {} }` row is part of this proof:
     it fulfills as live with the canonical `invalid-response` unavailable snapshot and performs no
-    rejection or cleanup.
+    rejection or cleanup. The row at committed-test lines 2834-2845 must change in place; a new adjacent
+    test does not compensate for retaining its stale rejection and termination assertions.
 
 Legs 15-22 are separate hardening acceptance units even where they strengthen the same public boundary
 as legs 3-5 or 12-14. A test under an earlier broad prefix, or one test title naming several hardening
@@ -340,14 +382,16 @@ import, compile failure, deleted old assertion or type-only check is the wrong r
 the existing source minimally until the new assertions and every old one pass. `real.scope` retains
 the implementation and barrel, and the package suite remains the explicit `proofCommand` over that
 public surface. AUTHOR_TEST must migrate every existing probe expectation — including the broad
-`jsonl-fragments-and-correlates-responses` test — to the public `CodexRateLimitSnapshot` semantics;
+`jsonl-fragments-and-correlates-responses` test and the `probe-tristate-and-same-channel-rate-limits`
+matrix — to the public `CodexRateLimitSnapshot` semantics;
 no assertion may retain the raw `account/rateLimits/read` payload as `probe().rateLimits`. Clock
 ownership follows explicit injection: only a controller/runtime given a `ManualClock` may assert its
 exact `capturedAt`. Every path with no injected clock uses `SYSTEM_CLOCK` and must assert a valid
 contemporaneous ISO timestamp, such as one bounded by system-clock readings immediately before and
 after the probe — never the manual clock's fixed epoch. The broad
-`jsonl-fragments-and-correlates-responses` row already returns `{ result: {} }` for the same-channel
-rate-limit request; AUTHOR_TEST must change its stale expectation so probe fulfills, leaves the channel
+`probe-tristate-and-same-channel-rate-limits` loop at committed-test lines 2834-2845 already returns
+`{ result: {} }` for its `invalid === undefined` same-channel rate-limit request; AUTHOR_TEST must change
+that inherited row in place so probe fulfills, leaves the channel
 open, performs no cleanup, and returns exactly `{ live: true, rateLimits: { status: "unavailable",
 reason: "invalid-response", detail: "account/rateLimits/read did not return a rateLimits object" } }`.
 That row must not be converted into a rejection test. The most recent ephemeral AUTHOR_TEST still left
@@ -368,7 +412,46 @@ identity; Windows separately compares the decoded creation identity and decoded 
 accepted: a NUL-delimited descriptor or raw generation text need not occur literally in an encoded
 token. Both inherited recovery tests must construct valid owners through the shared Contract 15
 constants/helpers while retaining their existing probe, changed-generation, unavailable, termination,
-idempotence, bounded-call and zero-new-work assertions. AUTHOR_TEST must also add a separately titled,
+idempotence, bounded-call and zero-new-work assertions.
+
+**Committed-test migration inventory.** These anchors name the complete positive legacy surface in
+`packages/agent/src/codex-detached-app-server.test.ts` at committed baseline `9288062b`; snippets and test
+names remain normative if edits shift the numbers. AUTHOR_TEST changes every item in this one revision:
+
+- lines 179-203: replace `ownerFor`'s ``owner-${pid}`` default and `expectWindowsOwner`'s NUL split plus
+  `runtime:<uuid>:generation:<n>` regex with grammar-producing and strict-decoding helpers;
+- lines 255-260, 435-445 and 1140-1152: make the default `createHarness` candidate, staged-protocol
+  `"owned-group"` owner, frozen expected owner and attempted replacement all strict tokens;
+- lines 730-984, especially positive acquisitions at 798-802, 849-853, 882, 898, 915, 953 and 973:
+  teach the low-level Windows fixture the independent creation observation and route every acquired
+  owner through the seven-field decoder, including acquisitions previously awaited and discarded;
+- lines 1012-1077: replace the positive POSIX `execFile: Error("not used")` sentinel and bare
+  `token: "pgid:71"` equality with an immutable-birth response and exact six-field decoded equality;
+- lines 1108-1116 and 1335-1343: use valid strict Windows/POSIX tokens for the cross-kind checks, so the
+  host-kind mismatch is isolated rather than accompanied by `"windows-owner"` or bare `pgid:130`;
+- lines 1162-1354, 1356-1445 and 1447-1551: make every Windows tasklist-only fake return creation
+  identity too, run every positive acquisition through the strict decoder, and make same-pid generations
+  differ by immutable creation identity rather than the removed runtime-generation counter;
+- lines 1553-1697 and 3366-3530: keep both inherited cross-runtime matrices intact while replacing the
+  descriptor/generation `.token.includes(...)` checks with exact seven-/six-field decode and semantic
+  equality assertions over the persisted owners;
+- lines 1700-1795: after the real production child is acquired, assert its host-appropriate strict field
+  count, embedded pid, UUID and canonical base64url identities before using it for observe/terminate;
+- lines 2473-2505, 2784-2800 and 2971-2982: replace each `${expected.token}-reused` or `-changed`
+  construction with a grammar-preserving helper that changes one decoded identity while keeping the
+  starting and returned owners valid; and
+- lines 2834-2845: migrate the existing `{ result: {} }` arm itself to the exact fulfilled canonical
+  unavailable snapshot and zero cleanup, rather than adding a new test beside the stale rejection.
+
+The malformed/invalid rows at lines 1088-1106, 1315-1333, 1797-1830 and 3533-3573 are negative cases,
+not positive fixtures. Any legacy spelling retained there must be an individually named member of a
+malformed-token rejection table. AUTHOR_TEST adds a Contract 15 source-structure assertion over this
+test file (or an explicit executable inventory with the same coverage) whose only allowlist is those
+named individual rejection entries; it proves none of the positive helpers, literals, acquisition
+assertions, changed-owner rows or cleanup fixtures above still uses a legacy form, old regex, suffix
+mutation or raw-token substring test.
+
+AUTHOR_TEST must also add a separately titled,
 substantive failing test under every exact hardening prefix in Contracts 15-22: strict token grammar,
 POSIX immutable birth identity, Windows tasklist-plus-creation identity,
 both platforms' pre-signal generation swap, both platforms' local negative knowledge, the one outer
@@ -455,7 +538,8 @@ even when an assertion fails.
    - **proven by —** `posix-group-owner-is-observed-probed-and-terminated: ...` tests whose recording
      OS seam asserts literal owner discriminant, persisted process-birth identity, signed target,
      observation-error unavailability, exact pre-signal re-observation, and generation-change TOCTOU
-     with zero signal.
+     with zero signal. The inherited positive acquisition row replaces its `Error("not used")` sentinel
+     and `pgid:71` equality with the shared exact six-field decode.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path observes
    the exact live root and terminates only its currently reachable rooted tree.
    - **asserts —** a positive child pid is inspected by `tasklist` as the exact live Windows root,
@@ -470,7 +554,8 @@ even when an assertion fails.
    - **proven by —** `windows-tree-owner-is-observed-probed-and-terminated: ...` tests whose recording
      OS seam asserts literal discriminant, required tasklist plus independent creation observation,
      exact task-kill composition, same-row/different-creation pid reuse, and pre-signal generation-change
-     TOCTOU with zero taskkill.
+     TOCTOU with zero taskkill. The shared acquisition assertion decodes exactly seven fields and replaces
+     the old NUL separator plus `runtime:<uuid>:generation:<n>` matcher at every inherited call site.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`** — no invalid or mismatched process identity can become the controller's owner.
    - **asserts —** absent, zero, negative, fractional, non-finite and unsafe pids plus missing owner,
      wrong root, host-wrong kind, caller platform assertion contradicting the host, and blank/whitespace
@@ -484,7 +569,8 @@ even when an assertion fails.
    - **proven by —** an exhaustive `owner-validation-rejects-invalid-pid-root-kind-and-token: ...`
      table with one named case and platform-qualified cleanup/terminal assertion for every listed value
      class, plus malformed durable-token rows asserting typed unavailable and zero observer/terminator
-     calls.
+     calls. Shared positive `ownerFor`/`createHarness` factories and wrong-kind isolation rows use valid
+     Contract 15 tokens; legacy strings occur only as individually named malformed-token table entries.
 6. **`ownership-acquisition-failure-reaps-spawned-child`** — failure to acquire public ownership cannot orphan the child created immediately before it.
    - **asserts —** unavailable, thrown and bounded-out production ownership observations close I/O,
      use every still-owned emergency cleanup path and then reject. POSIX targets only the exact group;
@@ -568,7 +654,9 @@ even when an assertion fails.
       exact explicitly injected-clock `capturedAt`, a default-clock assertion bounded around
       `SYSTEM_CLOCK`, and a literal one-channel protocol log, plus migrated typed-snapshot and
       clock-appropriate expectations in every pre-existing probe assertion, including the broad JSONL
-      correlation test and its exact `{ result: {} }` unavailable fulfillment. Existing canonical parser
+      correlation test. The existing `probe-tristate-and-same-channel-rate-limits` line-2839
+      `{ result: {} }` arm is changed in place to exact typed-unavailable fulfillment and zero cleanup.
+      Existing canonical parser
       tests own the nested missing/malformed boundary matrix; detached tests prove only reuse,
       same-channel integration, and clock propagation.
 13. **`termination-is-idempotent-bounded-and-confirms-death`** — termination settles once for all
@@ -586,7 +674,9 @@ even when an assertion fails.
       `packages/agent/src/codex-detached-app-server.ts`.
     - **proven by —** `termination-is-idempotent-bounded-and-confirms-death: ...` tests racing calls and
       separately asserting both platforms' pre-signal generation-change TOCTOU, terminator error,
-      observation error, timeout and still-live rows.
+      observation error, timeout and still-live rows. Default cleanup candidates and changed-owner rows
+      are strict tokens; identity changes are created by grammar-preserving helpers, never suffixing an
+      otherwise valid token into malformed text.
 14. **`persisted-owner-recovers-across-runtime-restart`** — a fresh Agent runtime can safely probe and
     terminate the exact persisted owner without reconstructing an app-server channel.
     - **asserts —** the public `recoverCodexDetachedOwner` returns an owner-only bounded controller for
@@ -659,7 +749,9 @@ even when an assertion fails.
       shortened tokens occur only in rejection rows. The same helpers expose strict field-count parsing
       and canonical base64url decoding for assertions: POSIX decoded field six equals the expected birth
       identity; Windows decoded fields six and seven equal the expected creation identity and tasklist row.
-      No positive assertion searches the encoded token for raw identity text.
+      No positive assertion searches the encoded token for raw identity text. A source-structure proof
+      (or executable positive-site inventory of equal coverage) checks all line-anchored inherited sites
+      listed in AUTHOR_TEST and allows legacy text only in individually named rejection-table entries.
 16. **`posix-owner-requires-immutable-birth-identity`** — POSIX owner authority identifies a process
     birth, not merely a currently occupied process group.
     - **asserts —** acquisition persists an OS-observed immutable birth identity for the positive root
@@ -769,5 +861,5 @@ even when an assertion fails.
       nested response with distinguishable missing and malformed optional fields, asserting exact
       parity with the direct canonical parser and supplied clock, plus a source-structure assertion
       that the detached module imports that parser, defines no local copy, and the barrel exports no
-      parser symbol. The existing broad JSONL correlation row separately pins the exact `{ result: {} }`
-      typed-unavailable fulfillment and zero cleanup.
+      parser symbol. The existing `probe-tristate-and-same-channel-rate-limits` loop's line-2839
+      `{ result: {} }` arm separately pins exact typed-unavailable fulfillment and zero cleanup in place.
