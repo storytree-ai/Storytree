@@ -21,6 +21,8 @@ import {
 } from "@storytree/drive";
 import type { RealBuildArgs, RealBuildResult, RevisionWrite, StoryRealNodeBuilder } from "@storytree/drive";
 
+import { makeGateDeps } from "./commands.js";
+import type { GateDriverSeams } from "./commands.js";
 import { driveBuildTestsGate, renderGateRevisionRecord } from "./gate-build-driver.js";
 import type { GateBuildDriverDeps } from "./gate-build-driver.js";
 
@@ -274,6 +276,41 @@ test("a gate revision reaches the drive's build and header, every drive gets the
       `revision:    written to /records/gate/gate-real-next.json — re-run with: storytree gate run fix-story#gate-1 --real --runtime codex --increment inc-live --revise-test ${String(calls[0]?.runId)} --pg`,
     ),
     env.body,
+  );
+});
+
+test("gate run's dispatch threads --revise-test from argv into the gate drive (makeGateDeps)", async () => {
+  const priorRun = "gate-real-dispatched";
+  await writeRevisionRecord(fx.escalationsDir, GATE_ID, priorRun, { ok: false, escalation: ESCALATION });
+  const revision = readTestRevision(fx.escalationsDir, GATE_ID, priorRun);
+  assert.equal(revision.ok, true, "ground truth: the gate's prior record reads back");
+  if (!revision.ok) return;
+
+  const calls: BuilderCall[] = [];
+  const seams: GateDriverSeams = {
+    corpusStore: fx.corpus,
+    innerLoopReads: { corpus: fx.corpus, ledger: new InMemoryStore() },
+    progress: silentBuildProgress(),
+    store: new InMemoryStore(),
+    repoRoot: fx.repoRoot,
+    promote: false,
+    escalationsDir: fx.escalationsDir,
+    realNodeBuilder: recordingBuilder(calls, { written: true, path: "/records/gate/gate-real-next.json" }),
+  };
+  const gateDeps = makeGateDeps(
+    { store: new InMemoryStore() },
+    { real: true, increment: "inc-live", "revise-test": priorRun },
+    fx.stories,
+    seams,
+  );
+  const drive = gateDeps.driveBuildTestsGate;
+  assert.equal(typeof drive, "function", "makeGateDeps must wire a driveBuildTestsGate");
+  if (typeof drive !== "function") return;
+  await drive(gate, "builder@example.com");
+
+  assert.deepEqual(
+    calls.map((c) => c.testRevision),
+    [revision.revision],
   );
 });
 

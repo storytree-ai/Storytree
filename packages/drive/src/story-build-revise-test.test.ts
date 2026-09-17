@@ -19,7 +19,7 @@ import {
 } from "./node-build.js";
 import type { RealBuildArgs, RealBuildResult, RevisionWrite } from "./node-build.js";
 import { fixtureRepo, fixtureStories } from "./real-chain-fixture.js";
-import { parseStoryRevisionTarget, renderStoryRevisionRecord, storyBuild } from "./story-build.js";
+import { parseStoryRevisionTarget, renderStoryRevisionRecord, storyBuild, storyHelp } from "./story-build.js";
 import type { StoryBuildOpts, StoryRealNodeBuilder } from "./story-build.js";
 
 /**
@@ -250,7 +250,34 @@ test("renderStoryRevisionRecord: nothing recorded renders nothing; a written rec
   );
 });
 
+test("the story help documents --revise-test as a --real-only member:run re-run of one member", () => {
+  const lines = storyHelp().body.split("\n");
+  const at = lines.indexOf(
+    "  --revise-test <member-id>:<run-id>   (--real only) re-run the chain with ONE member's AUTHOR_TEST",
+  );
+  assert.deepEqual(lines.slice(at, at + 4), [
+    "  --revise-test <member-id>:<run-id>   (--real only) re-run the chain with ONE member's AUTHOR_TEST",
+    "      leaf briefed from that member's escalation record in the named prior run; every other member",
+    "      walks unrevised (ADR-0571). A halted member's record path and this exact re-run are printed.",
+    "",
+  ]);
+});
+
 // ── the chain ────────────────────────────────────────────────────────────────────────────────────
+
+test("a build naming no revision is never stopped by the revision check: a dry run reaches the story's own lookup", async () => {
+  const env = await storyBuild("no-such-story", {
+    dryRun: true,
+    actor: "tester@example.com",
+    storiesDir: fx.stories,
+    repoRoot: fx.repoRoot,
+  });
+  assert.deepEqual(env, {
+    ok: false,
+    body: `no story spec "no-such-story" under ${fx.stories} (looked for no-such-story/story.md).`,
+    next: ["storytree story build library --dry-run"],
+  });
+});
 
 test("story build refuses --revise-test outside --real, pointing at the paid re-run", async () => {
   const env = await storyBuild("fix-story", { dryRun: true, reviseTest: "cap-b:story-real-prior" });

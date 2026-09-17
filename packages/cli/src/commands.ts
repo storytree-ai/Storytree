@@ -3118,6 +3118,8 @@ export type GateDriverSeams = Partial<
     | "repoRoot"
     | "authorOverride"
     | "promote"
+    | "escalationsDir"
+    | "realNodeBuilder"
   >
 >;
 
