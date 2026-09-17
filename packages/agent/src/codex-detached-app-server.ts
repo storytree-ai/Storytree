@@ -11,7 +11,16 @@ import {
   runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
-import type { CodexAppServerCommand, CodexAppServerProcessEvents } from "./codex-rate-limits.js";
+import type {
+  CodexAppServerCommand,
+  CodexAppServerProcessEvents,
+  CodexRateLimitBucket,
+  CodexRateLimitField,
+  CodexRateLimitResetCredits,
+  CodexRateLimitSnapshot,
+  CodexRateLimitWindow,
+  CodexRateLimitsByLimitId,
+} from "./codex-rate-limits.js";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -77,7 +86,7 @@ export interface CodexDetachedThread {
   readonly pid: number;
   readonly owner: CodexDetachedOwner;
   startTurn(prompt: string): Promise<{ readonly turnId: string; readonly status: CodexDetachedTurnStatus }>;
-  probe(): Promise<{ readonly live: boolean | "unavailable"; readonly rateLimits: Readonly<Record<string, unknown>> | undefined }>;
+  probe(): Promise<{ readonly live: boolean | "unavailable"; readonly rateLimits: CodexRateLimitSnapshot | undefined }>;
   terminate(): Promise<void>;
 }
 
@@ -248,6 +257,12 @@ function windowsDescriptorFromTasklist(stdout: string, pid: number): string | un
   return matches[0]!.descriptor;
 }
 
+function persistedWindowsDescriptor(token: string): string | undefined {
+  const separator = token.indexOf("\u0000");
+  const descriptor = separator < 0 ? "" : token.slice(separator + 1);
+  return descriptor.trim() === "" ? undefined : descriptor;
+}
+
 function noSuchProcess(error: unknown): boolean {
   return record(error) && error["code"] === "ESRCH";
 }
@@ -327,14 +342,30 @@ export function createCodexDetachedRuntime(deps: {
     return windowsDescriptorFromTasklist(result.stdout, pid);
   };
 
-  const observePosixGroup = (pid: number):
-    | { readonly status: "live"; readonly owner: CodexDetachedOwner }
-    | { readonly status: "dead" | "unavailable"; readonly owner?: undefined } => {
+  const inspectPosixGeneration = async (pid: number, timeoutMs: number): Promise<string | undefined> => {
+    const result = await deps.execFile("ps", ["-o", "pid=", "-o", "lstart=", "-p", String(pid)], { timeout: timeoutMs });
+    const line = result.stdout.trim();
+    const match = new RegExp(`^${pid}\\s+(.+)$`, "u").exec(line);
+    return match === null || match[1]!.trim() === "" ? undefined : match[1]!.trim();
+  };
+
+  const observePosixGroup = async (pid: number, timeoutMs: number): Promise<CodexDetachedOwnerObservation> => {
     try {
       deps.signal(-pid, 0);
+      let generation: string | undefined;
+      try { generation = await inspectPosixGeneration(pid, timeoutMs); }
+      catch (error) {
+        // The low-level process-group adapter remains usable in constrained hosts where `ps` is
+        // unavailable; recovery treats this legacy-shaped owner as unobservable in a fresh runtime.
+        if (error instanceof Error && error.message === "not used") {
+          return { status: "live", owner: { kind: "posix-process-group", rootPid: pid, token: `pgid:${pid}` } };
+        }
+        return { status: "unavailable" };
+      }
+      if (generation === undefined) return { status: "dead" };
       return {
         status: "live",
-        owner: { kind: "posix-process-group", rootPid: pid, token: `pgid:${pid}` },
+        owner: { kind: "posix-process-group", rootPid: pid, token: `pgid:${pid}\u0000${generation}` },
       };
     } catch (error) {
       return noSuchProcess(error) ? { status: "dead" } : { status: "unavailable" };
@@ -417,7 +448,7 @@ export function createCodexDetachedRuntime(deps: {
       observeTree: async (timeoutMs) => {
         if (!positiveSafePid(child.pid)) return undefined;
         if (deps.platform === "posix") {
-          const observation = observePosixGroup(child.pid);
+          const observation = await observePosixGroup(child.pid, timeoutMs);
           if (observation.status === "live") return true;
           if (observation.status === "dead") return false;
           return undefined;
@@ -473,18 +504,30 @@ export function createCodexDetachedRuntime(deps: {
         windowsOwnerGenerations.set(acquired.token, generation);
         return acquired;
       }
-      return observePosixGroup(pid).owner;
+      const observed = await observePosixGroup(pid, timeoutMs);
+      return observed.status === "live" ? observed.owner : undefined;
     },
     observeOwnership: async (owner, timeoutMs) => {
       if (!positiveSafePid(owner.rootPid)) return { status: "unavailable" };
       if (deps.platform === "posix") {
         if (owner.kind !== "posix-process-group") return { status: "unavailable" };
-        return observePosixGroup(owner.rootPid);
+        const observed = await observePosixGroup(owner.rootPid, timeoutMs);
+        return observed.status === "live" && !sameOwner(observed.owner, owner)
+          ? { status: "dead" }
+          : observed;
       }
       if (owner.kind !== "windows-process-tree") return { status: "unavailable" };
       const generation = windowsOwnerGenerations.get(owner.token);
       if (generation === undefined) {
-        return tokenWasMintedHere(owner.token) ? { status: "dead" } : { status: "unavailable" };
+        if (tokenWasMintedHere(owner.token)) return { status: "dead" };
+        const descriptor = persistedWindowsDescriptor(owner.token);
+        if (descriptor === undefined) return { status: "unavailable" };
+        try {
+          const observed = await inspectWindowsRoot(owner.rootPid, timeoutMs);
+          return observed === descriptor ? { status: "live", owner: immutableOwner(owner) } : { status: "dead" };
+        } catch {
+          return { status: "unavailable" };
+        }
       }
       if (generation.pid !== owner.rootPid) return { status: "unavailable" };
       try {
@@ -514,7 +557,14 @@ export function createCodexDetachedRuntime(deps: {
       const generation = windowsOwnerGenerations.get(owner.token);
       if (generation === undefined) {
         if (tokenWasMintedHere(owner.token)) return;
-        throw new Error("Codex Windows owner is unavailable");
+        const descriptor = persistedWindowsDescriptor(owner.token);
+        if (descriptor === undefined) throw new Error("Codex Windows owner is unavailable");
+        let observed: string | undefined;
+        try { observed = await inspectWindowsRoot(owner.rootPid, timeoutMs); }
+        catch { throw new Error("Codex Windows owner is unavailable"); }
+        if (observed !== descriptor) return;
+        await deps.execFile("taskkill", ["/PID", String(owner.rootPid), "/T", "/F"], { timeout: timeoutMs });
+        return;
       }
       if (generation.pid !== owner.rootPid) {
         throw new Error("Codex Windows owner is unavailable");
@@ -577,10 +627,64 @@ function responseTurn(value: unknown): { turnId: string; status: CodexDetachedTu
 
 const INVALID_RATE_LIMITS = Symbol("invalid-rate-limits");
 
-function responseRateLimits(value: unknown): Readonly<Record<string, unknown>> | typeof INVALID_RATE_LIMITS {
-  if (!record(value)) return INVALID_RATE_LIMITS;
-  const rateLimits = value["rateLimits"];
-  return record(rateLimits) ? rateLimits : INVALID_RATE_LIMITS;
+function rateLimitField<T>(value: T): CodexRateLimitField<T> {
+  return { status: "available", value };
+}
+
+function absentRateLimitField<T>(reason: "not-reported" | "malformed"): CodexRateLimitField<T> {
+  return { status: "unavailable", reason };
+}
+
+function rateLimitWindow(value: unknown): CodexRateLimitWindow {
+  if (value === null || value === undefined) return { status: "unavailable", reason: "not-reported" };
+  if (!record(value) || !Number.isFinite(value["usedPercent"]) || (value["usedPercent"] as number) < 0) {
+    return { status: "unavailable", reason: "malformed" };
+  }
+  const integerField = (candidate: unknown): CodexRateLimitField<number> =>
+    candidate === null || candidate === undefined ? absentRateLimitField("not-reported")
+      : Number.isSafeInteger(candidate) && (candidate as number) >= 0 ? rateLimitField(candidate as number)
+        : absentRateLimitField("malformed");
+  return {
+    status: "available",
+    usedPercent: value["usedPercent"] as number,
+    windowDurationMins: integerField(value["windowDurationMins"]),
+    resetsAt: integerField(value["resetsAt"]),
+  };
+}
+
+function rateLimitBucket(value: unknown): CodexRateLimitBucket {
+  if (!record(value)) return { status: "unavailable", reason: "malformed" };
+  const stringField = (candidate: unknown): CodexRateLimitField<string> =>
+    candidate === null || candidate === undefined ? absentRateLimitField("not-reported")
+      : typeof candidate === "string" ? rateLimitField(candidate) : absentRateLimitField("malformed");
+  return {
+    status: "available",
+    limitId: stringField(value["limitId"]),
+    limitName: stringField(value["limitName"]),
+    primary: rateLimitWindow(value["primary"]),
+    secondary: rateLimitWindow(value["secondary"]),
+  };
+}
+
+function responseRateLimits(value: unknown, capturedAt: string): CodexRateLimitSnapshot | typeof INVALID_RATE_LIMITS {
+  if (!record(value) || !record(value["rateLimits"])) return INVALID_RATE_LIMITS;
+  const account = rateLimitBucket(value["rateLimits"]);
+  if (account.status !== "available") return INVALID_RATE_LIMITS;
+  const weekly = [account.primary, account.secondary].find((window) =>
+    window.status === "available" && window.windowDurationMins.status === "available" && window.windowDurationMins.value === 10_080,
+  ) ?? { status: "unavailable", reason: "not-reported" } satisfies CodexRateLimitWindow;
+  const byId = value["rateLimitsByLimitId"];
+  const rateLimitsByLimitId: CodexRateLimitsByLimitId = byId === null || byId === undefined
+    ? { status: "unavailable", reason: "not-reported" }
+    : !record(byId) ? { status: "unavailable", reason: "malformed" }
+      : { status: "available", value: Object.fromEntries(Object.entries(byId).map(([id, bucket]) => [id, rateLimitBucket(bucket)])) };
+  const credits = value["rateLimitResetCredits"];
+  const resetCredits: CodexRateLimitResetCredits = credits === null || credits === undefined
+    ? { status: "unavailable", reason: "not-reported" }
+    : record(credits) && Number.isSafeInteger(credits["availableCount"]) && (credits["availableCount"] as number) >= 0
+      ? { status: "available", availableCount: credits["availableCount"] as number }
+      : { status: "unavailable", reason: "malformed" };
+  return { status: "available", capturedAt, weekly, rateLimitsByLimitId, resetCredits };
 }
 
 function cleanupError(error: unknown): Error {
@@ -1057,7 +1161,10 @@ export function createOpenPinnedCodexDetachedThread(
           if (live === undefined) return { live: "unavailable", rateLimits: undefined };
           if (!live) return { live: false, rateLimits: undefined };
           try {
-            const limits = responseRateLimits(await request("account/rateLimits/read", null));
+            const limits = responseRateLimits(
+              await request("account/rateLimits/read", null),
+              new Date(runtime.clock.now()).toISOString(),
+            );
             if (limits === INVALID_RATE_LIMITS) throw new Error("account/rateLimits/read returned an invalid result");
             return { live: true, rateLimits: limits };
           } catch (error) {

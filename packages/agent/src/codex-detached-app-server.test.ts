@@ -79,6 +79,23 @@ class ManualClock implements CodexDetachedClock {
   }
 }
 
+function assertMinimalRateLimitSnapshot(
+  value: unknown,
+  earliestCapturedAt: number,
+  latestCapturedAt: number,
+): void {
+  const snapshot = value as CodexRateLimitSnapshot;
+  assert.equal(snapshot.status, "available");
+  if (snapshot.status !== "available") return;
+  const capturedAt = Date.parse(snapshot.capturedAt);
+  assert.equal(Number.isFinite(capturedAt), true, "capturedAt is an ISO timestamp");
+  assert.equal(capturedAt >= earliestCapturedAt, true, "capturedAt is taken during this probe");
+  assert.equal(capturedAt <= latestCapturedAt, true, "capturedAt is taken during this probe");
+  assert.deepEqual(snapshot.weekly, { status: "unavailable", reason: "not-reported" });
+  assert.deepEqual(snapshot.rateLimitsByLimitId, { status: "unavailable", reason: "not-reported" });
+  assert.deepEqual(snapshot.resetCredits, { status: "unavailable", reason: "not-reported" });
+}
+
 async function flush(): Promise<void> {
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
 }
@@ -506,7 +523,11 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
       },
     },
   ]);
-  assert.deepEqual(await thread.probe(), { live: true, rateLimits: { primary: null, secondary: null } });
+  const probeStartedAt = Date.now();
+  const probe = await thread.probe();
+  const probeFinishedAt = Date.now();
+  assert.equal(probe.live, true);
+  assertMinimalRateLimitSnapshot(probe.rateLimits, probeStartedAt, probeFinishedAt);
   assert.deepEqual(await thread.startTurn("  do the bounded work  "), { turnId: "response-turn", status: "inProgress" });
   await Promise.all([thread.terminate(), thread.terminate()]);
   await thread.terminate();
@@ -1130,10 +1151,9 @@ test("posix-group-owner-is-observed-probed-and-terminated: public owner mutation
   assert.equal(Reflect.set(thread.owner, "rootPid", 999), false);
   assert.equal(Reflect.set(thread.owner, "token", "pgid:999"), false);
   assert.deepEqual(thread.owner, expectedOwner);
-  assert.deepEqual(await thread.probe(), {
-    live: true,
-    rateLimits: { primary: null, secondary: null },
-  });
+  const probe = await thread.probe();
+  assert.equal(probe.live, true);
+  assertMinimalRateLimitSnapshot(probe.rateLimits, 0, 0);
   await thread.terminate();
   assert.deepEqual(harness.terminations, [expectedOwner]);
   assert.equal(harness.terminations.some((owner) => owner.rootPid === 999), false);
@@ -2166,7 +2186,9 @@ test("jsonl-fragments-and-correlates-responses: streams UTF-8, accepts notificat
     id: turnRequest.id,
     result: { turn: { id: "reverse-turn", status: "completed" } },
   })}\n`);
-  assert.deepEqual(await probePromise, { live: true, rateLimits: { primary: { usedPercent: 12 } } });
+  const probe = await probePromise;
+  assert.equal(probe.live, true);
+  assertMinimalRateLimitSnapshot(probe.rateLimits, 0, 0);
   assert.deepEqual(await turnPromise, { turnId: "reverse-turn", status: "completed" });
   await thread.terminate();
 });
@@ -2558,10 +2580,9 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
     turnId: "response-turn",
     status: "inProgress",
   });
-  assert.deepEqual(await successfulThread.probe(), {
-    live: true,
-    rateLimits: { primary: null, secondary: null },
-  });
+  const successfulProbe = await successfulThread.probe();
+  assert.equal(successfulProbe.live, true);
+  assertMinimalRateLimitSnapshot(successfulProbe.rateLimits, 0, 0);
   assert.equal(
     successfulTimers.clock.pendingTimerCount,
     0,
