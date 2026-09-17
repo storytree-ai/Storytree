@@ -74,9 +74,11 @@ import type { InnerLoopEventDoc } from "@storytree/proof-protocol";
 import {
   readNodeAttempts,
   recordNodeGrant,
+  recordNodeOwnerGrant,
   recordNodeAdjudication,
   strengthSignalFromTestScript,
   type NodeGrantInput,
+  type NodeOwnerGrantInput,
   type NodeAdjudicateInput,
   type StrengthSignalReach,
 } from "./inner-loop-verbs.js";
@@ -2833,6 +2835,9 @@ function usageGrant(unitId: string): string {
 function usageAdjudicate(unitId: string): string {
   return `storytree node adjudicate ${unitId} --run <run-id> [--objection test-quality|rule-violation|surviving-mutants --statement <text|@file> --decision <rule> --survivors <n>] --pg`;
 }
+function usageOwnerGrant(unitId: string): string {
+  return `storytree node owner-grant ${unitId} --authority <question-id> --attempts <n> --kind <changed-input|fixed-defect|new-observation|revised-test> --difference <text|@file> --pg`;
+}
 
 /**
  * ADR-0576 D3: whether the mutation rung could ever reach the unit's own package — the production
@@ -2877,7 +2882,7 @@ export function unitStrengthSignalReach(storiesDir: string): StrengthSignalReach
  * refusal the dispatch owns because the verb never sees the raw CLI values.
  */
 async function nodeLedgerCommand(
-  sub: "attempts" | "grant" | "adjudicate",
+  sub: "attempts" | "grant" | "owner-grant" | "adjudicate",
   unitId: string | undefined,
   values: CliValues,
   deps: RunDeps,
@@ -2886,6 +2891,7 @@ async function nodeLedgerCommand(
     const usage =
       sub === "attempts" ? usageAttempts("<unit-id>")
       : sub === "grant" ? usageGrant("<unit-id>")
+      : sub === "owner-grant" ? usageOwnerGrant("<unit-id>")
       : usageAdjudicate("<unit-id>");
     return { ok: false, body: `node ${sub} needs a unit id`, next: [usage] };
   }
@@ -2957,6 +2963,21 @@ async function nodeLedgerCommand(
       `policy: ${result.ledger.policy.disposition} — ${result.ledger.policy.reason}`,
     ].join("\n");
     return { ok: true, body, next: [usageAttempts(unitId)] };
+  }
+
+  if (sub === "owner-grant") {
+    const attemptsFlag = values.attempts;
+    const kindFlag = values.kind;
+    const differenceFlag = values.difference;
+    const authorityFlag = values.authority;
+    if (attemptsFlag === undefined || kindFlag === undefined || differenceFlag === undefined || authorityFlag === undefined) {
+      return { ok: false, body: "node owner-grant needs --authority <question-id>, --attempts <n>, --kind <kind> and --difference <text|@file>", next: [usageOwnerGrant(unitId)] };
+    }
+    if (deps.writable !== true || deps.attemptLedger === undefined || deps.attemptLedger === null) return { ok: false, body: LIVE_STORE_REFUSAL, next: [usageOwnerGrant(unitId)] };
+    const result = await recordNodeOwnerGrant(deps.attemptLedger, { unitId, authorityQuestionId: authorityFlag, attempts: Number(attemptsFlag), kind: kindFlag, difference: differenceFlag, actor: deps.actor } satisfies NodeOwnerGrantInput);
+    if (!result.ok) return { ok: false, body: result.reason, next: [usageAttempts(unitId)] };
+    const grantEvent = result.event as Extract<InnerLoopEventDoc, { event: "owner-grant" }>;
+    return { ok: true, body: `owner-granted: ${unitId} — ${grantEvent.attempts} further attempt(s), ${grantEvent.kind}, bound to run ${grantEvent.runId} under increment ${grantEvent.incrementId}\nauthority: ${grantEvent.authorityQuestionRef}, ${grantEvent.authorityDecisionRef}\ndifference: ${grantEvent.difference}`, next: [usageAttempts(unitId)] };
   }
 
   // sub === "adjudicate"
@@ -3385,6 +3406,7 @@ export const CLI_OPTIONS = {
   // `node attempts|grant|adjudicate` (ADR-0576 D3): the orchestrator's ledger verbs — a grant's
   // count/kind/difference, an adjudication's run/objection/decision/survivors.
   attempts: { type: "string" },
+  authority: { type: "string" },
   difference: { type: "string" },
   run: { type: "string" },
   objection: { type: "string" },
@@ -3843,7 +3865,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             : [`storytree node log ${third} --pg`, "storytree node walls --pg"],
       };
     }
-    if (sub === "attempts" || sub === "grant" || sub === "adjudicate") {
+    if (sub === "attempts" || sub === "grant" || sub === "owner-grant" || sub === "adjudicate") {
       return nodeLedgerCommand(sub, third, values, deps);
     }
     if (sub !== "build") {
