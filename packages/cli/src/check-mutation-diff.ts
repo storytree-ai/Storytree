@@ -319,6 +319,13 @@ ${head}
   // budget below, that is the next lever — not a further raise.
   timeoutFactor: 6,
   timeoutMS: 120000,
+  // Stryker's INITIAL test run has a clock of its own, \`dryRunTimeoutMinutes\` (default 5), separate
+  // from the per-mutant budget above and from the bun plugin's child-process budget. It is not the
+  // lever the note above rules out: it bounds the one coverage-gathering run, never a mutant. A
+  // covering set that includes the real-chain drive tests needs more than five minutes on the dev
+  // box — measured 2026-09-17 on the \`production-builds-enforce-the-inner-loop-exit\` landing, whose
+  // run died with "Initial test run timed out!" at exactly 5 minutes, before any mutant ran.
+  dryRunTimeoutMinutes: 15,
   tempDirName: ".stryker-tmp",
   // typescript@7 exports no compiler API (ADR-0400 D3), so Stryker's tsconfig preprocessor throws if
   // it finds a real one. Pointing at a path that does not exist is the fix increment 1 established.
