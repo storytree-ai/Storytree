@@ -22,6 +22,17 @@ export type CodexDetachedOwner =
   | { readonly kind: "posix-process-group"; readonly rootPid: number; readonly token: string }
   | { readonly kind: "windows-process-tree"; readonly rootPid: number; readonly token: string };
 
+export interface RecoverCodexDetachedOwnerArgs {
+  readonly owner: CodexDetachedOwner;
+  readonly timeoutMs?: number;
+}
+
+export interface CodexDetachedOwnerController {
+  readonly owner: CodexDetachedOwner;
+  probe(): Promise<{ readonly live: boolean | "unavailable" }>;
+  terminate(): Promise<void>;
+}
+
 export interface CodexDetachedAppServerProcess {
   readonly pid: number | undefined;
   write(line: string): void;
@@ -1073,3 +1084,9 @@ export const openPinnedCodexDetachedThread = async (
   reasoningEffort: args.reasoningEffort,
   timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 });
+
+export function recoverCodexDetachedOwner(
+  _args: RecoverCodexDetachedOwnerArgs,
+): CodexDetachedOwnerController {
+  throw new Error("Codex detached owner recovery is not implemented");
+}

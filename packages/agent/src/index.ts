@@ -98,12 +98,17 @@ export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";
 export { runSdkCurator } from "./sdk-curator.js";
 
 export type {
+  CodexDetachedOwnerController,
   CodexDetachedOwner,
   OpenPinnedCodexDetachedThreadArgs,
+  RecoverCodexDetachedOwnerArgs,
   CodexDetachedThread,
   CodexDetachedTurnStatus,
 } from "./codex-detached-app-server.js";
-export { openPinnedCodexDetachedThread } from "./codex-detached-app-server.js";
+export {
+  openPinnedCodexDetachedThread,
+  recoverCodexDetachedOwner,
+} from "./codex-detached-app-server.js";
 
 export type { WriteToolSpec } from "./fs-tools.js";
 export {
