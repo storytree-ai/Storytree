@@ -2452,6 +2452,22 @@ test("turn-prompt-and-response-failures-clean-up: validates prompt and every ret
     await assert.rejects(thread.probe(), /prompt must not be blank/);
   }
 
+  for (const malformedPrompt of [null, undefined, 17, {}, []] as const) {
+    const harness = createHarness();
+    const thread = await harness.open(harness.args());
+    await assert.rejects(
+      thread.startTurn(malformedPrompt as unknown as string),
+      /prompt must not be blank/,
+    );
+    assert.equal(harness.writes.at(-1)?.method, "thread/start");
+    assert.equal(
+      harness.terminations.length,
+      1,
+      "a malformed runtime prompt must close the staged controller rather than leak it",
+    );
+    await assert.rejects(thread.probe(), /prompt must not be blank/);
+  }
+
   const invalidTurns: unknown[] = [null, [], "invalid", {}, { turn: null }, { turn: [] }, { turn: {} }];
   for (const field of ["id", "status"] as const) {
     for (const invalid of [undefined, null, 0, "", " \t ", ...(field === "status" ? ["accepted", "unknown"] : [])]) {

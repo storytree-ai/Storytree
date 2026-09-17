@@ -1013,7 +1013,7 @@ export function createOpenPinnedCodexDetachedThread(
         owner: openedOwner,
         startTurn: async (prompt) => {
           await throwLatchedFault();
-          if (prompt.trim() === "") {
+          if (typeof prompt !== "string" || prompt.trim() === "") {
             return await cleanupBeforeThrow(new Error("turn prompt must not be blank"));
           }
           try {
