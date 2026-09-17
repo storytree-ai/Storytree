@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   openPinnedCodexDetachedThread,
+  recoverCodexDetachedOwner,
   type CodexDetachedThread,
   type OpenPinnedCodexDetachedThreadArgs,
 } from "./index.js";
@@ -3180,4 +3181,19 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   hangLiveness = false;
   settleLiveness?.(undefined);
   await hangingLivenessThread.terminate();
+});
+
+test("persisted-owner-recovers-across-runtime-restart: the public barrel restores an owner-only controller without protocol state", () => {
+  const owner: CodexDetachedOwner = process.platform === "win32"
+    ? { kind: "windows-process-tree", rootPid: 421, token: "persisted-root-generation" }
+    : { kind: "posix-process-group", rootPid: 421, token: "persisted-root-generation" };
+
+  let controller: ReturnType<typeof recoverCodexDetachedOwner> | undefined;
+  assert.doesNotThrow(() => {
+    controller = recoverCodexDetachedOwner({ owner, timeoutMs: 25 });
+  });
+  assert.deepEqual(controller?.owner, owner);
+  assert.equal(typeof controller?.probe, "function");
+  assert.equal(typeof controller?.terminate, "function");
+  assert.equal("startTurn" in (controller ?? {}), false);
 });

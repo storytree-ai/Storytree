@@ -1086,7 +1086,61 @@ export const openPinnedCodexDetachedThread = async (
 });
 
 export function recoverCodexDetachedOwner(
-  _args: RecoverCodexDetachedOwnerArgs,
+  args: RecoverCodexDetachedOwnerArgs,
 ): CodexDetachedOwnerController {
-  throw new Error("Codex detached owner recovery is not implemented");
+  const timeoutMs = positiveTimeout(args.timeoutMs);
+  const owner = immutableOwner(args.owner);
+  const platform = codexDetachedProductionRuntime.platform;
+  const ownerIsUsable = validOwner(owner, owner.rootPid, platform);
+  let termination: Promise<void> | undefined;
+
+  const observe = async (): Promise<CodexDetachedOwnerObservation> => {
+    if (!ownerIsUsable) return { status: "unavailable" };
+    try {
+      return await codexDetachedProductionRuntime.observeOwnership(owner, timeoutMs);
+    } catch {
+      return { status: "unavailable" };
+    }
+  };
+
+  const isExactLiveOwner = (observation: CodexDetachedOwnerObservation): boolean =>
+    observation.status === "live" && sameOwner(observation.owner, owner);
+
+  return {
+    owner,
+    probe: async () => {
+      const observation = await observe();
+      if (observation.status === "unavailable") return { live: "unavailable" };
+      return { live: isExactLiveOwner(observation) };
+    },
+    terminate: async () => {
+      termination ??= (async () => {
+        const initial = await observe();
+        if (initial.status === "unavailable") {
+          throw new Error("Codex detached owner is unavailable");
+        }
+        // A vanished or replaced root is already dead for this controller.  In either case a
+        // numeric pid is deliberately not reused as a termination target.
+        if (!isExactLiveOwner(initial)) return;
+        try {
+          await codexDetachedProductionRuntime.terminateOwnedTree(owner, timeoutMs);
+        } catch (error) {
+          throw cleanupError(normalizedError(error, "Codex detached owner termination failed"));
+        }
+
+        for (let attempt = 0; attempt < MAX_CLEANUP_POLLS; attempt += 1) {
+          const observation = await observe();
+          if (observation.status === "unavailable") {
+            throw cleanupError(new Error("Codex detached owner death observation failed"));
+          }
+          if (!isExactLiveOwner(observation)) return;
+          const remaining = timeoutMs - (attempt * CLEANUP_POLL_MS);
+          if (remaining <= 0) break;
+          await codexDetachedProductionRuntime.clock.delay(Math.min(CLEANUP_POLL_MS, remaining));
+        }
+        throw cleanupError(new Error("Codex detached owner did not become dead"));
+      })();
+      await termination;
+    },
+  };
 }
