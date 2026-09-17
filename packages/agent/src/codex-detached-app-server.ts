@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -15,6 +16,7 @@ import type { CodexAppServerCommand, CodexAppServerProcessEvents } from "./codex
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const CLEANUP_POLL_MS = 10;
+const MAX_CLEANUP_POLLS = 10_000;
 
 export type CodexDetachedOwner =
   | { readonly kind: "posix-process-group"; readonly rootPid: number; readonly token: string }
@@ -26,6 +28,8 @@ export interface CodexDetachedAppServerProcess {
   end(): void;
   /** Exact-tree cleanup available before a public owner has been validated. */
   terminateTree?(timeoutMs: number): Promise<void>;
+  /** Generation-bound native child-handle cleanup when exact tree authority is unavailable. */
+  terminateRoot?(timeoutMs: number): Promise<void>;
   /** OS observation of the provisional tree; undefined means the observation failed. */
   observeTree?(timeoutMs: number): Promise<boolean | undefined>;
 }
@@ -84,6 +88,7 @@ export interface CodexDetachedNativeChild {
     write(line: string): unknown;
     end(): unknown;
   };
+  kill?(signal: NodeJS.Signals): boolean;
   once(event: "error", listener: (error: Error) => void): unknown;
   once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
 }
@@ -148,16 +153,16 @@ function nonBlankString(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
 }
 
-function positiveSafePid(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+function positiveSafePid(value: number | undefined): value is number {
+  return Number.isSafeInteger(value) && (value as number) > 0;
 }
 
 function positiveTimeout(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_TIMEOUT_MS;
-  if (!Number.isFinite(value)) return DEFAULT_TIMEOUT_MS;
-  if (value <= 0) return DEFAULT_TIMEOUT_MS;
-  if (value > MAX_TIMER_DELAY_MS) return DEFAULT_TIMEOUT_MS;
-  return value;
+  const candidate = value as number;
+  if (!Number.isFinite(candidate) || candidate <= 0 || candidate > MAX_TIMER_DELAY_MS) {
+    return DEFAULT_TIMEOUT_MS;
+  }
+  return candidate;
 }
 
 function sameOwner(left: CodexDetachedOwner, right: CodexDetachedOwner): boolean {
@@ -170,7 +175,6 @@ function validOwner(
   platform: "posix" | "windows",
 ): candidate is CodexDetachedOwner {
   if (candidate === undefined) return false;
-  if (!positiveSafePid(candidate.rootPid)) return false;
   if (candidate.rootPid !== pid) return false;
   if (!nonBlankString(candidate.token)) return false;
   if (platform === "posix") return candidate.kind === "posix-process-group";
@@ -234,6 +238,20 @@ function noSuchProcess(error: unknown): boolean {
   return record(error) && error["code"] === "ESRCH";
 }
 
+function normalizedError(error: unknown, fallback: string): Error {
+  return error instanceof Error ? error : new Error(fallback);
+}
+
+interface WindowsProcessGeneration {
+  readonly id: number;
+  readonly pid: number;
+  closed: boolean;
+  descriptor: string | undefined;
+  rootExited: boolean;
+  rootTerminationRequested: boolean;
+  owner: CodexDetachedOwner | undefined;
+}
+
 /** Direct-module factory used to prove both production OS branches without widening the barrel. */
 export function createCodexDetachedRuntime(deps: {
   readonly platform: "posix" | "windows";
@@ -244,8 +262,48 @@ export function createCodexDetachedRuntime(deps: {
   readonly resolvePinnedEntrypoint?: () => string;
   readonly runDefaultAuth: CodexDetachedRuntime["runDefaultAuth"];
 }): CodexDetachedRuntime {
-  const windowsSpawnOwners = new Map<number, CodexDetachedOwner>();
-  const windowsClosedRoots = new Set<number>();
+  const windowsRuntimeNonce = deps.platform === "windows"
+    ? randomUUID()
+    : undefined;
+  const windowsTokenPrefix = windowsRuntimeNonce === undefined
+    ? undefined
+    : `runtime:${windowsRuntimeNonce}:`;
+  let nextWindowsGenerationId = 1;
+  const currentWindowsGenerations = new Map<number, WindowsProcessGeneration>();
+  const windowsOwnerGenerations = new Map<string, WindowsProcessGeneration>();
+
+  const closeWindowsGeneration = (
+    generation: WindowsProcessGeneration,
+    rootExited = false,
+  ): void => {
+    generation.closed = true;
+    if (rootExited) generation.rootExited = true;
+    if (currentWindowsGenerations.get(generation.pid) === generation) {
+      currentWindowsGenerations.delete(generation.pid);
+    }
+    if (generation.owner !== undefined) {
+      windowsOwnerGenerations.delete(generation.owner.token);
+    }
+  };
+
+  const tokenWasMintedHere = (token: string): boolean =>
+    windowsTokenPrefix !== undefined && token.startsWith(windowsTokenPrefix);
+
+  const startWindowsGeneration = (pid: number): WindowsProcessGeneration => {
+    const previous = currentWindowsGenerations.get(pid);
+    if (previous !== undefined) closeWindowsGeneration(previous, true);
+    const generation: WindowsProcessGeneration = {
+      id: nextWindowsGenerationId++,
+      pid,
+      closed: false,
+      descriptor: undefined,
+      rootExited: false,
+      rootTerminationRequested: false,
+      owner: undefined,
+    };
+    currentWindowsGenerations.set(pid, generation);
+    return generation;
+  };
 
   const inspectWindowsRoot = async (pid: number, timeoutMs: number): Promise<CodexDetachedOwner | undefined> => {
     const result = await deps.execFile(
@@ -268,22 +326,19 @@ export function createCodexDetachedRuntime(deps: {
     }
   };
 
-  const observeSpawnedTree = async (pid: number, timeoutMs: number): Promise<boolean | undefined> => {
-    if (!positiveSafePid(pid)) return undefined;
-    if (deps.platform === "posix") {
-      const observation = observePosixGroup(pid);
-      if (observation.status === "live") return true;
-      if (observation.status === "dead") return false;
-      return undefined;
-    }
-    if (windowsClosedRoots.has(pid)) return false;
-    const expected = windowsSpawnOwners.get(pid);
+  const observeWindowsGeneration = async (
+    generation: WindowsProcessGeneration,
+    timeoutMs: number,
+  ): Promise<boolean | undefined> => {
+    if (generation.rootTerminationRequested) return generation.rootExited ? false : true;
+    if (generation.closed) return false;
+    const expected = generation.descriptor;
     if (expected === undefined) return undefined;
     try {
-      const observed = await inspectWindowsRoot(pid, timeoutMs);
-      if (observed === undefined || !sameOwner(expected, observed)) {
-        windowsSpawnOwners.delete(pid);
-        windowsClosedRoots.add(pid);
+      const observed = await inspectWindowsRoot(generation.pid, timeoutMs);
+      if (generation.closed) return false;
+      if (observed === undefined || observed.token !== expected) {
+        closeWindowsGeneration(generation);
         return false;
       }
       return true;
@@ -292,24 +347,26 @@ export function createCodexDetachedRuntime(deps: {
     }
   };
 
-  const terminateSpawnedTree = async (pid: number, timeoutMs: number): Promise<void> => {
-    if (!positiveSafePid(pid)) throw new Error("Codex app-server provisional pid is invalid");
-    if (deps.platform === "posix") {
-      deps.signal(-pid, "SIGTERM");
-      return;
-    }
-    if (windowsClosedRoots.has(pid)) return;
-    const expected = windowsSpawnOwners.get(pid);
+  const terminateWindowsGeneration = async (
+    generation: WindowsProcessGeneration,
+    timeoutMs: number,
+  ): Promise<void> => {
+    const expected = generation.descriptor;
     if (expected === undefined) {
       throw new Error("Codex provisional Windows owner is unavailable");
     }
-    const observed = await inspectWindowsRoot(pid, timeoutMs);
-    if (windowsClosedRoots.has(pid) || observed === undefined || !sameOwner(expected, observed)) {
-      windowsSpawnOwners.delete(pid);
-      windowsClosedRoots.add(pid);
+    if (generation.closed) return;
+    const observed = await inspectWindowsRoot(generation.pid, timeoutMs);
+    if (generation.closed) return;
+    if (observed === undefined || observed.token !== expected) {
+      closeWindowsGeneration(generation);
       return;
     }
-    await deps.execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { timeout: timeoutMs });
+    await deps.execFile(
+      "taskkill",
+      ["/PID", String(generation.pid), "/T", "/F"],
+      { timeout: timeoutMs },
+    );
   };
 
   const appServerSpawn: CodexDetachedAppServerSpawner = (command, events) => {
@@ -320,15 +377,17 @@ export function createCodexDetachedRuntime(deps: {
       detached: true,
       windowsHide: true,
     });
-    if (deps.platform === "windows" && child.pid !== undefined) windowsClosedRoots.delete(child.pid);
+    const childPid = child.pid;
+    const windowsGeneration = deps.platform === "windows" && positiveSafePid(childPid)
+      ? startWindowsGeneration(childPid)
+      : undefined;
     child.stdout.on("data", events.stdout);
     child.stderr.on("data", () => undefined);
     child.once("error", events.error);
     child.stdin.once("error", events.error);
     child.once("exit", (code, signal) => {
-      if (deps.platform === "windows" && child.pid !== undefined) {
-        windowsSpawnOwners.delete(child.pid);
-        windowsClosedRoots.add(child.pid);
+      if (windowsGeneration !== undefined) {
+        closeWindowsGeneration(windowsGeneration, true);
       }
       events.exit(code, signal);
     });
@@ -336,13 +395,29 @@ export function createCodexDetachedRuntime(deps: {
       pid: child.pid,
       write: (line) => { child.stdin.write(line); },
       end: () => { child.stdin.end(); },
+      ...(child.kill === undefined ? {} : { terminateRoot: async () => {
+        if (!child.kill!("SIGTERM")) {
+          throw new Error("Codex app-server native root termination was not sent");
+        }
+        if (windowsGeneration !== undefined) windowsGeneration.rootTerminationRequested = true;
+      } }),
       terminateTree: async (timeoutMs) => {
         if (!positiveSafePid(child.pid)) throw new Error("Codex app-server provisional pid is unavailable");
-        await terminateSpawnedTree(child.pid, timeoutMs);
+        if (deps.platform === "posix") {
+          deps.signal(-child.pid, "SIGTERM");
+          return;
+        }
+        await terminateWindowsGeneration(windowsGeneration!, timeoutMs);
       },
       observeTree: async (timeoutMs) => {
         if (!positiveSafePid(child.pid)) return undefined;
-        return await observeSpawnedTree(child.pid, timeoutMs);
+        if (deps.platform === "posix") {
+          const observation = observePosixGroup(child.pid);
+          if (observation.status === "live") return true;
+          if (observation.status === "dead") return false;
+          return undefined;
+        }
+        return await observeWindowsGeneration(windowsGeneration!, timeoutMs);
       },
     };
   };
@@ -356,15 +431,30 @@ export function createCodexDetachedRuntime(deps: {
     acquireOwnership: async (pid, timeoutMs) => {
       if (!positiveSafePid(pid)) return undefined;
       if (deps.platform === "windows") {
-        if (windowsClosedRoots.has(pid)) return undefined;
+        const generation = currentWindowsGenerations.get(pid);
+        if (generation === undefined || generation.closed) return undefined;
         const observed = await inspectWindowsRoot(pid, timeoutMs);
+        if (generation.closed || currentWindowsGenerations.get(pid) !== generation) return undefined;
         if (observed === undefined) {
-          windowsSpawnOwners.delete(pid);
-          windowsClosedRoots.add(pid);
-        } else {
-          windowsSpawnOwners.set(pid, observed);
+          closeWindowsGeneration(generation);
+          return undefined;
         }
-        return observed;
+        if (generation.descriptor !== undefined) {
+          if (generation.descriptor !== observed.token) {
+            closeWindowsGeneration(generation);
+            return undefined;
+          }
+          return generation.owner!;
+        }
+        const acquired: CodexDetachedOwner = {
+          kind: "windows-process-tree",
+          rootPid: pid,
+          token: `${windowsTokenPrefix!}generation:${generation.id}\u0000${observed.token}`,
+        };
+        generation.descriptor = observed.token;
+        generation.owner = acquired;
+        windowsOwnerGenerations.set(acquired.token, generation);
+        return acquired;
       }
       const observation = observePosixGroup(pid);
       return observation.status === "live" ? observation.owner : undefined;
@@ -376,16 +466,20 @@ export function createCodexDetachedRuntime(deps: {
         return observePosixGroup(owner.rootPid);
       }
       if (owner.kind !== "windows-process-tree") return { status: "unavailable" };
-      if (windowsClosedRoots.has(owner.rootPid)) return { status: "dead" };
+      const generation = windowsOwnerGenerations.get(owner.token);
+      if (generation === undefined) {
+        return tokenWasMintedHere(owner.token) ? { status: "dead" } : { status: "unavailable" };
+      }
+      if (generation.pid !== owner.rootPid) return { status: "unavailable" };
+      if (generation.closed) return { status: "dead" };
       try {
         const observed = await inspectWindowsRoot(owner.rootPid, timeoutMs);
-        if (observed === undefined) {
-          windowsSpawnOwners.delete(owner.rootPid);
-          windowsClosedRoots.add(owner.rootPid);
+        if (generation.closed) return { status: "dead" };
+        if (observed === undefined || observed.token !== generation.descriptor) {
+          closeWindowsGeneration(generation);
           return { status: "dead" };
         }
-        if (!sameOwner(owner, observed)) windowsClosedRoots.add(owner.rootPid);
-        return { status: "live", owner: observed };
+        return { status: "live", owner: generation.owner! };
       } catch {
         return { status: "unavailable" };
       }
@@ -402,11 +496,19 @@ export function createCodexDetachedRuntime(deps: {
       if (owner.kind !== "windows-process-tree") {
         throw new Error("Codex owner kind does not match the runtime platform");
       }
-      if (windowsClosedRoots.has(owner.rootPid)) return;
+      const generation = windowsOwnerGenerations.get(owner.token);
+      if (generation === undefined) {
+        if (tokenWasMintedHere(owner.token)) return;
+        throw new Error("Codex Windows owner is unavailable");
+      }
+      if (generation.pid !== owner.rootPid) {
+        throw new Error("Codex Windows owner is unavailable");
+      }
+      if (generation.closed) return;
       const observed = await inspectWindowsRoot(owner.rootPid, timeoutMs);
-      if (windowsClosedRoots.has(owner.rootPid) || observed === undefined || !sameOwner(owner, observed)) {
-        windowsSpawnOwners.delete(owner.rootPid);
-        windowsClosedRoots.add(owner.rootPid);
+      if (generation.closed) return;
+      if (observed === undefined || observed.token !== generation.descriptor) {
+        closeWindowsGeneration(generation);
         return;
       }
       await deps.execFile(
@@ -414,14 +516,18 @@ export function createCodexDetachedRuntime(deps: {
         ["/PID", String(owner.rootPid), "/T", "/F"],
         { timeout: timeoutMs },
       );
-      windowsSpawnOwners.delete(owner.rootPid);
     },
   };
 }
 
+/** Direct-module-only host mapping used by the production composition. */
+export function codexDetachedPlatformFor(platform: NodeJS.Platform): "posix" | "windows" {
+  return platform === "win32" ? "windows" : "posix";
+}
+
 /** Direct-module-only production composition; the barrel exposes only the narrow opener. */
 export const codexDetachedProductionRuntime = createCodexDetachedRuntime({
-  platform: process.platform === "win32" ? "windows" : "posix",
+  platform: codexDetachedPlatformFor(process.platform),
   nativeSpawn: spawn as CodexDetachedNativeSpawn,
   execFile: execFileAsync,
   signal: process.kill as CodexDetachedSignal,
@@ -463,14 +569,10 @@ function responseRateLimits(value: unknown): Readonly<Record<string, unknown>> |
   return record(rateLimits) ? rateLimits : INVALID_RATE_LIMITS;
 }
 
-function asError(error: unknown, fallback: string): Error {
-  return error instanceof Error ? error : new Error(fallback);
-}
-
 function cleanupError(error: unknown): Error {
-  if (error instanceof Error && error.message.startsWith("Codex app-server cleanup failed:")) return error;
-  const message = error instanceof Error ? error.message : "unknown cleanup failure";
-  return new Error(`Codex app-server cleanup failed: ${message}`);
+  const normalized = normalizedError(error, "Codex app-server cleanup failed");
+  if (normalized.message.startsWith("Codex app-server cleanup failed:")) return normalized;
+  return new Error(`Codex app-server cleanup failed: ${normalized.message}`);
 }
 
 interface PendingRequest {
@@ -491,29 +593,25 @@ export function createOpenPinnedCodexDetachedThread(
       label: string,
       operation: () => Promise<T>,
       boundMs = timeoutMs,
-    ): Promise<T> =>
-      await new Promise<T>((resolve, reject) => {
-        let settled = false;
-        const timer = runtime.clock.setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          reject(new Error(`${label} timed out`));
-        }, boundMs);
-        void Promise.resolve().then(operation).then(
-          (value) => {
-            if (settled) return;
-            settled = true;
-            runtime.clock.clearTimeout(timer);
-            resolve(value);
-          },
-          () => {
-            if (settled) return;
-            settled = true;
-            runtime.clock.clearTimeout(timer);
-            reject(new Error(`${label} failed`));
-          },
-        );
-      });
+    ): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const timeout = new Promise<never>((_resolve, reject) => {
+          timer = runtime.clock.setTimeout(() => { reject(new Error(`${label} timed out`)); }, boundMs);
+        });
+        const operationResult = Promise.resolve()
+          .then(operation)
+          .catch(() => { throw new Error(`${label} failed`); });
+        return await Promise.race([operationResult, timeout]);
+      } catch (error) {
+        throw normalizedError(error, `${label} failed`);
+      } finally {
+        if (timer !== undefined) {
+          try { runtime.clock.clearTimeout(timer); }
+          catch (error) { throw normalizedError(error, `${label} timer cleanup failed`); }
+        }
+      }
+    };
 
     const auth = await boundedCall("Codex authentication preflight", async () =>
       args.authRunner === undefined
@@ -538,7 +636,7 @@ export function createOpenPinnedCodexDetachedThread(
     let nextId = 1;
     let buffer = "";
     const decoder = new TextDecoder();
-    const pending = new Map<number, PendingRequest>();
+    let pending = new Map<number, PendingRequest>();
     type ProcessEvent =
       | { readonly kind: "stdout"; readonly chunk: string | Uint8Array }
       | { readonly kind: "error" }
@@ -547,41 +645,43 @@ export function createOpenPinnedCodexDetachedThread(
 
     const clearAndTakePending = (): PendingRequest[] => {
       const entries = [...pending.values()];
-      pending.clear();
+      pending = new Map<number, PendingRequest>();
       for (const entry of entries) runtime.clock.clearTimeout(entry.timer);
       return entries;
     };
 
-    const observeExactOwner = async (): Promise<boolean | undefined> => {
-      if (owner === undefined) return false;
-      if (owner.kind === "windows-process-tree" && rootExited) return false;
+    const observeExactOwner = async (target: CodexDetachedOwner): Promise<boolean | undefined> => {
+      if (runtime.platform === "windows" && rootExited) return false;
       if (args.observeLiveness !== undefined) {
         return await boundedCall("Codex owner liveness observation", async () =>
-          await args.observeLiveness!(owner!));
+          await args.observeLiveness!(target));
       }
       if (args.observeOwnership !== undefined) {
         const observed = await boundedCall("Codex owner observation", async () =>
-          await args.observeOwnership!({ pid: owner!.rootPid, platform: runtime.platform, timeoutMs }));
-        return observed === undefined ? false : sameOwner(owner, observed);
+          await args.observeOwnership!({ pid: target.rootPid, platform: runtime.platform, timeoutMs }));
+        return observed === undefined ? false : sameOwner(target, observed);
       }
       const observation = await boundedCall("Codex owner observation", async () =>
-        await runtime.observeOwnership(owner!, timeoutMs));
+        await runtime.observeOwnership(target, timeoutMs));
       if (observation.status === "unavailable") return undefined;
       if (observation.status === "dead") return false;
-      return sameOwner(owner, observation.owner);
+      return sameOwner(target, observation.owner);
     };
 
-    const observeCleanupTarget = async (): Promise<boolean | undefined> => {
-      if (owner !== undefined) return await observeExactOwner();
+    const observeCleanupTarget = async (
+      useNativeGeneration: boolean,
+    ): Promise<boolean | undefined> => {
+      if (!useNativeGeneration && owner !== undefined) return await observeExactOwner(owner);
       if (child?.observeTree === undefined) return undefined;
       return await boundedCall("Codex provisional observation", async () =>
         await child!.observeTree!(timeoutMs));
     };
 
-    const waitForObservedDeath = async (): Promise<void> => {
+    const waitForObservedDeath = async (useNativeGeneration: boolean): Promise<void> => {
       const deadline = runtime.clock.now() + timeoutMs;
-      for (;;) {
-        const live = await observeCleanupTarget();
+      const pollLimit = Math.min(MAX_CLEANUP_POLLS, Math.ceil(timeoutMs / CLEANUP_POLL_MS) + 1);
+      for (let poll = 0; poll < pollLimit; poll += 1) {
+        const live = await observeCleanupTarget(useNativeGeneration);
         if (live === false) return;
         if (live === undefined) {
           throw new Error("Codex app-server death observation was unavailable");
@@ -597,67 +697,98 @@ export function createOpenPinnedCodexDetachedThread(
           remaining,
         );
       }
+      throw new Error("Codex app-server ownership did not become dead after termination");
     };
 
     const ensureCleanup = (): Promise<void> => {
       if (terminal !== undefined) return terminal;
       channelState = "closing";
-      let resolveCleanup!: () => void;
-      let rejectCleanup!: (error: unknown) => void;
-      const sharedCleanup = new Promise<void>((resolve, reject) => {
-        resolveCleanup = resolve;
-        rejectCleanup = reject;
-      });
-      terminal = sharedCleanup;
-      const cleanupRun = (async () => {
+      const cleanup = Promise.resolve().then(async () => {
         if (child === undefined) {
           channelState = "closed";
           return;
         }
-        let failure: unknown;
+        let failure: Error | undefined;
         const windowsRootAlreadyExited = runtime.platform === "windows" && rootExited;
-        let needsDeathObservation = owner === undefined && !windowsRootAlreadyExited;
+        let needsDeathObservation = false;
+        let useNativeGeneration = false;
+        const attemptNativeRootTermination = async (): Promise<boolean> => {
+          if (runtime.platform === "windows" && rootExited) return false;
+          if (child!.terminateRoot === undefined) {
+            throw new Error("native Codex root cleanup is unavailable");
+          }
+          needsDeathObservation = true;
+          useNativeGeneration = true;
+          await boundedCall("Codex native root termination", async () =>
+            await child!.terminateRoot!(timeoutMs));
+          return true;
+        };
         try { child.end(); }
         catch { failure = new Error("Codex app-server protocol close failed"); }
-        try {
-          if (windowsRootAlreadyExited) {
-            // A Windows PID is no longer an ownership handle after its root exits.
-          } else if (owner !== undefined) {
-            needsDeathObservation = false;
-            const live = await observeExactOwner();
-            if (live === undefined) {
-              throw new Error("Codex app-server ownership observation was unavailable before termination");
+        if (!windowsRootAlreadyExited) {
+          if (owner !== undefined) {
+            const exactOwner = owner;
+            let live: boolean | undefined;
+            try { live = await observeExactOwner(exactOwner); }
+            catch (error) {
+              failure ??= normalizedError(error, "Codex app-server ownership observation failed");
+              live = undefined;
             }
-            if (live) {
-              if (runtime.platform === "windows" && rootExited) {
-                needsDeathObservation = false;
-              } else {
-                needsDeathObservation = true;
+            if (live === undefined) {
+              failure ??= new Error("Codex app-server ownership observation was unavailable before termination");
+              try { await attemptNativeRootTermination(); }
+              catch (error) {
+                failure ??= normalizedError(error, "Codex app-server native root cleanup failed");
+              }
+            } else if (live && !(runtime.platform === "windows" && rootExited)) {
+              needsDeathObservation = true;
+              try {
                 await boundedCall("Codex owner termination", async () => {
-                  if (args.terminateOwnedTree !== undefined) await args.terminateOwnedTree(owner!);
-                  else await runtime.terminateOwnedTree(owner!, timeoutMs);
+                  if (args.terminateOwnedTree !== undefined) await args.terminateOwnedTree(exactOwner);
+                  else await runtime.terminateOwnedTree(exactOwner, timeoutMs);
                 });
+              } catch (error) {
+                failure ??= normalizedError(error, "Codex app-server owned cleanup failed");
+                try { await attemptNativeRootTermination(); }
+                catch (fallbackError) {
+                  failure ??= normalizedError(
+                    fallbackError,
+                    "Codex app-server native root cleanup failed",
+                  );
+                }
               }
             }
           } else {
-            if (child.terminateTree === undefined) {
-              throw new Error("provisional Codex process cleanup is unavailable");
+            needsDeathObservation = true;
+            let treeFailure: unknown;
+            if (child.terminateTree !== undefined) {
+              try {
+                await boundedCall("Codex provisional termination", async () =>
+                  await child!.terminateTree!(timeoutMs));
+                treeFailure = undefined;
+              } catch (error) {
+                treeFailure = error;
+              }
+            } else {
+              treeFailure = new Error("provisional Codex process cleanup is unavailable");
             }
-            await boundedCall("Codex provisional termination", async () =>
-              await child!.terminateTree!(timeoutMs));
+            if (treeFailure !== undefined) {
+              try { await attemptNativeRootTermination(); }
+              catch { failure ??= normalizedError(treeFailure, "Codex app-server owned cleanup failed"); }
+            }
           }
-        } catch (error) {
-          failure ??= error;
         }
         if (needsDeathObservation) {
-          try { await waitForObservedDeath(); }
-          catch (error) { failure ??= error; }
+          try { await waitForObservedDeath(useNativeGeneration); }
+          catch (error) {
+            failure ??= normalizedError(error, "Codex app-server death observation failed");
+          }
         }
         channelState = "closed";
         if (failure !== undefined) throw cleanupError(failure);
-      })();
-      void cleanupRun.then(resolveCleanup, rejectCleanup);
-      return sharedCleanup;
+      });
+      terminal = cleanup;
+      return cleanup;
     };
 
     const latchFault = (error: Error): Error => {
@@ -677,7 +808,6 @@ export function createOpenPinnedCodexDetachedThread(
           for (const entry of entries) entry.reject(rejected);
         },
       );
-      void cleanup.catch(() => undefined);
       return cleanup;
     };
 
@@ -687,10 +817,11 @@ export function createOpenPinnedCodexDetachedThread(
       return settleAfterCleanup(entries, cause);
     };
 
-    const cleanupBeforeThrow = async (error: Error): Promise<never> => {
-      try { await failSession(error); }
+    const cleanupBeforeThrow = async (error: unknown): Promise<never> => {
+      const normalized = normalizedError(error, "Codex app-server operation failed");
+      try { await failSession(normalized); }
       catch (failure) { throw cleanupError(failure); }
-      throw terminalFault ?? error;
+      throw terminalFault ?? normalized;
     };
 
     const throwLatchedFault = async (): Promise<void> => {
@@ -702,12 +833,12 @@ export function createOpenPinnedCodexDetachedThread(
 
     const request = async (method: string, params: unknown, notification = false): Promise<unknown> => {
       await throwLatchedFault();
-      if (child === undefined || channelState !== "open") {
+      if (channelState !== "open") {
         throw new Error("Codex app-server is unavailable");
       }
       if (notification) {
         try {
-          child.write(`${JSON.stringify({ method, params })}\n`);
+          child!.write(`${JSON.stringify({ method, params })}\n`);
         } catch {
           return await cleanupBeforeThrow(new Error("Codex app-server notification write failed"));
         }
@@ -716,9 +847,17 @@ export function createOpenPinnedCodexDetachedThread(
       }
       const id = nextId++;
       const result = await new Promise<unknown>((resolve, reject) => {
-        const timer = runtime.clock.setTimeout(() => {
-          void failSession(new Error(`${method} timed out`));
-        }, timeoutMs);
+        let timer: ReturnType<typeof setTimeout>;
+        try {
+          timer = runtime.clock.setTimeout(() => {
+            void failSession(new Error(`${method} timed out`));
+          }, timeoutMs);
+        } catch (error) {
+          const failure = normalizedError(error, "Codex app-server request timer failed");
+          reject(failure);
+          void failSession(failure);
+          return;
+        }
         pending.set(id, { resolve, reject, timer });
         try {
           child!.write(`${JSON.stringify({ id, method, params })}\n`);
@@ -749,17 +888,18 @@ export function createOpenPinnedCodexDetachedThread(
         return;
       }
       const responseId = message["id"];
-      if (typeof responseId !== "number" || !Number.isSafeInteger(responseId)) {
+      if (!Number.isSafeInteger(responseId)) {
         protocolFault("Codex app-server emitted an invalid response id");
         return;
       }
+      const id = responseId as number;
       const hasResult = Object.hasOwn(message, "result");
       const hasError = Object.hasOwn(message, "error");
       if (hasResult === hasError) {
         protocolFault("Codex app-server emitted a malformed response");
         return;
       }
-      const entry = pending.get(responseId);
+      const entry = pending.get(id);
       if (entry === undefined) {
         protocolFault("Codex app-server emitted an unknown response id");
         return;
@@ -768,7 +908,7 @@ export function createOpenPinnedCodexDetachedThread(
         protocolFault("Codex app-server RPC error");
         return;
       }
-      pending.delete(responseId);
+      pending.delete(id);
       runtime.clock.clearTimeout(entry.timer);
       entry.resolve(message["result"]);
     };
@@ -793,7 +933,6 @@ export function createOpenPinnedCodexDetachedThread(
           return;
         }
         acceptMessage(message);
-        if (terminal !== undefined) return;
       }
     };
 
@@ -813,7 +952,7 @@ export function createOpenPinnedCodexDetachedThread(
 
     const receiveProcessEvent = (event: ProcessEvent): void => {
       if (!spawnReturned) {
-        queuedEvents.push(event.kind === "stdout" && typeof event.chunk !== "string"
+        queuedEvents.push(event.kind === "stdout"
           ? { kind: "stdout", chunk: event.chunk.slice() }
           : event);
         return;
@@ -851,8 +990,9 @@ export function createOpenPinnedCodexDetachedThread(
         throw new Error("exact Codex process ownership was not acquired");
       }
       owner = acquired;
+      const openedOwner = acquired;
       await throwLatchedFault();
-      if (channelState !== "opening") await throwLatchedFault();
+      if (channelState !== "opening") throw new Error("Codex app-server left the opening state");
       channelState = "open";
       const initialized = await request("initialize", { clientInfo: { name: "storytree", version: "0.0.0" } });
       if (!record(initialized)) throw new Error("initialize returned an invalid result");
@@ -865,11 +1005,11 @@ export function createOpenPinnedCodexDetachedThread(
       }));
       if (started === undefined) throw new Error("thread/start returned an invalid thread identity");
       await throwLatchedFault();
-      if (channelState !== "open") await throwLatchedFault();
+      if (channelState !== "open") throw new Error("Codex app-server left the open state");
       return {
         ...started,
         pid,
-        owner,
+        owner: openedOwner,
         startTurn: async (prompt) => {
           await throwLatchedFault();
           if (prompt.trim() === "") {
@@ -884,14 +1024,12 @@ export function createOpenPinnedCodexDetachedThread(
             await throwLatchedFault();
             return turn;
           } catch (error) {
-            return await cleanupBeforeThrow(asError(error, "turn/start failed"));
+            return await cleanupBeforeThrow(error);
           }
         },
         probe: async () => {
           await throwLatchedFault();
-          let live: boolean | undefined;
-          try { live = await observeExactOwner(); }
-          catch { live = undefined; }
+          const live = await observeExactOwner(openedOwner).catch(() => undefined);
           await throwLatchedFault();
           if (live === undefined) return { live: "unavailable", rateLimits: undefined };
           if (!live) return { live: false, rateLimits: undefined };
@@ -900,7 +1038,7 @@ export function createOpenPinnedCodexDetachedThread(
             if (limits === INVALID_RATE_LIMITS) throw new Error("account/rateLimits/read returned an invalid result");
             return { live: true, rateLimits: limits };
           } catch (error) {
-            return await cleanupBeforeThrow(asError(error, "rate-limit probe failed"));
+            return await cleanupBeforeThrow(error);
           }
         },
         terminate: async () => {
@@ -909,7 +1047,7 @@ export function createOpenPinnedCodexDetachedThread(
         },
       };
     } catch (error) {
-      return await cleanupBeforeThrow(asError(error, "Codex app-server open failed"));
+      return await cleanupBeforeThrow(error);
     }
   };
 }

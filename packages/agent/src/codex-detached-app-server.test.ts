@@ -8,6 +8,7 @@ import {
   type OpenPinnedCodexDetachedThreadArgs,
 } from "./index.js";
 import {
+  codexDetachedPlatformFor,
   codexDetachedProductionRuntime,
   createCodexDetachedRuntime,
   createOpenPinnedCodexDetachedThread,
@@ -27,11 +28,16 @@ type Responder = (message: RpcMessage, events: CodexAppServerProcessEvents) => v
 class ManualClock implements CodexDetachedClock {
   private current = 0;
   private nextId = 1;
+  private delayCalls = 0;
   private readonly timers = new Map<number, { readonly at: number; readonly callback: () => void }>();
 
   now(): number { return this.current; }
 
+  get pendingTimerCount(): number { return this.timers.size; }
+  get delayCallCount(): number { return this.delayCalls; }
+
   setTimeout(callback: () => void, ms: number): ReturnType<typeof setTimeout> {
+    if (this.timers.size >= 100) throw new Error("manual clock timer runaway");
     const id = this.nextId++;
     this.timers.set(id, { at: this.current + ms, callback });
     return id as unknown as ReturnType<typeof setTimeout>;
@@ -42,6 +48,8 @@ class ManualClock implements CodexDetachedClock {
   }
 
   async delay(ms: number): Promise<void> {
+    this.delayCalls += 1;
+    if (this.delayCalls > 100) throw new Error("manual clock delay runaway");
     this.current += ms;
   }
 
@@ -51,7 +59,7 @@ class ManualClock implements CodexDetachedClock {
       .filter(([, timer]) => timer.at <= this.current)
       .sort((left, right) => left[1].at - right[1].at);
     for (const [id, timer] of due) {
-      this.timers.delete(id);
+      if (!this.timers.delete(id)) continue;
       timer.callback();
     }
   }
@@ -61,23 +69,79 @@ async function flush(): Promise<void> {
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
 }
 
+class SettlementWallError extends Error {
+  constructor(label: string) {
+    super(`TEST SETTLEMENT WALL: ${label}`);
+  }
+}
+
+interface SettlementGuard {
+  drain(): Promise<void>;
+  assertDrained(): void;
+}
+
+async function mustSettle<T>(
+  operation: Promise<T>,
+  label: string,
+  guard: SettlementGuard,
+  assertDrainedOnSuccess = false,
+): Promise<T> {
+  let operationSettled = false;
+  const observed = operation.then(
+    (value) => {
+      operationSettled = true;
+      return { kind: "fulfilled" as const, value };
+    },
+    (error: unknown) => {
+      operationSettled = true;
+      return { kind: "rejected" as const, error };
+    },
+  );
+  let watchdog!: ReturnType<typeof setTimeout>;
+  const wall = new Promise<{ readonly kind: "wall" }>((resolve) => {
+    watchdog = setTimeout(() => { resolve({ kind: "wall" }); }, 2_000);
+  });
+  const outcome = await Promise.race([observed, wall]);
+  clearTimeout(watchdog);
+  if (outcome.kind === "wall") {
+    await guard.drain();
+    await flush();
+    assert.equal(operationSettled, true, `${label} remained pending after its deterministic drain`);
+    guard.assertDrained();
+    throw new SettlementWallError(label);
+  }
+  if (outcome.kind === "rejected") {
+    guard.assertDrained();
+    throw outcome.error;
+  }
+  if (assertDrainedOnSuccess) guard.assertDrained();
+  return outcome.value;
+}
+
 async function waitForMethod(
   writes: readonly RpcMessage[],
   method: string,
+  drain: () => Promise<void>,
 ): Promise<RpcMessage> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const found = writes.findLast((message) => message.method === method);
     if (found !== undefined) return found;
     await flush();
   }
+  await drain();
   throw new Error(`${method} was not written`);
 }
 
-async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
+async function waitUntil(
+  predicate: () => boolean,
+  description: string,
+  drain: () => Promise<void>,
+): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     if (predicate()) return;
     await flush();
   }
+  await drain();
   throw new Error(`${description} was not observed`);
 }
 
@@ -89,6 +153,23 @@ function ownerFor(platform: "posix" | "windows", pid: number, token = `owner-${p
 
 function sameTestOwner(left: CodexDetachedOwner, right: CodexDetachedOwner): boolean {
   return left.kind === right.kind && left.rootPid === right.rootPid && left.token === right.token;
+}
+
+function expectWindowsOwner(
+  owner: CodexDetachedOwner | undefined,
+  pid: number,
+  descriptor: string,
+): CodexDetachedOwner {
+  assert.ok(owner !== undefined);
+  assert.equal(owner.kind, "windows-process-tree");
+  assert.equal(owner.rootPid, pid);
+  const separator = owner.token.indexOf("\u0000");
+  assert.match(
+    owner.token.slice(0, separator),
+    /^runtime:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:generation:[0-9]+$/u,
+  );
+  assert.equal(owner.token.slice(separator + 1), descriptor);
+  return owner;
 }
 
 function defaultResponder(message: RpcMessage, events: CodexAppServerProcessEvents): void {
@@ -126,9 +207,13 @@ interface HarnessOptions {
   readonly terminate?: (owner: CodexDetachedOwner, timeoutMs: number) => Promise<void>;
   readonly provisionalTerminate?: (timeoutMs: number) => Promise<void>;
   readonly provisionalObserve?: (timeoutMs: number) => Promise<boolean | undefined>;
+  readonly nativeRootTerminate?: (timeoutMs: number) => Promise<void>;
+  readonly includeNativeRoot?: boolean;
+  readonly omitProvisionalTerminate?: boolean;
+  readonly omitProvisionalObserve?: boolean;
   readonly responder?: Responder;
   readonly end?: () => void;
-  readonly spawnError?: Error;
+  readonly spawnError?: unknown;
   readonly resolvePinnedEntrypoint?: () => string;
   readonly beforeSpawnReturn?: (events: CodexAppServerProcessEvents) => void;
   readonly defaultAuth?: CodexDetachedRuntime["runDefaultAuth"];
@@ -146,10 +231,13 @@ function createHarness(options: HarnessOptions = {}) {
   const terminations: CodexDetachedOwner[] = [];
   const provisionalTerminationTimeouts: number[] = [];
   const provisionalObservationTimeouts: number[] = [];
+  const nativeRootTerminationTimeouts: number[] = [];
   const defaultAuthCalls: Parameters<CodexDetachedRuntime["runDefaultAuth"]>[0][] = [];
   let provisionalTerminations = 0;
+  let nativeRootTerminations = 0;
   let ended = 0;
   let live = true;
+  let spawned = false;
   let events: CodexAppServerProcessEvents | undefined;
   let responder = options.responder ?? defaultResponder;
 
@@ -164,18 +252,28 @@ function createHarness(options: HarnessOptions = {}) {
       ended += 1;
       options.end?.();
     },
-    terminateTree: async (timeoutMs) => {
+    ...(options.includeNativeRoot === true ? { terminateRoot: async (timeoutMs: number) => {
+      nativeRootTerminations += 1;
+      nativeRootTerminationTimeouts.push(timeoutMs);
+      if (options.nativeRootTerminate !== undefined) {
+        await options.nativeRootTerminate(timeoutMs);
+      } else {
+        live = false;
+        events!.exit(0, "SIGTERM");
+      }
+    } } : {}),
+    ...(options.omitProvisionalTerminate === true ? {} : { terminateTree: async (timeoutMs: number) => {
       provisionalTerminations += 1;
       provisionalTerminationTimeouts.push(timeoutMs);
       if (options.provisionalTerminate !== undefined) await options.provisionalTerminate(timeoutMs);
       else live = false;
-    },
-    observeTree: async (timeoutMs) => {
+    } }),
+    ...(options.omitProvisionalObserve === true ? {} : { observeTree: async (timeoutMs: number) => {
       provisionalObservationTimeouts.push(timeoutMs);
       return options.provisionalObserve === undefined
         ? live
         : await options.provisionalObserve(timeoutMs);
-    },
+    } }),
   };
 
   const runtime: CodexDetachedRuntime = {
@@ -190,6 +288,7 @@ function createHarness(options: HarnessOptions = {}) {
     },
     spawn: (command, nextEvents) => {
       if (options.spawnError !== undefined) throw options.spawnError;
+      spawned = true;
       commands.push(command);
       events = nextEvents;
       options.beforeSpawnReturn?.(nextEvents);
@@ -211,7 +310,39 @@ function createHarness(options: HarnessOptions = {}) {
     },
   };
 
-  const open = createOpenPinnedCodexDetachedThread(runtime);
+  const assertDrained = (): void => {
+    assert.equal(clock.pendingTimerCount, 0, "a settled fake operation leaves no armed clock timer");
+    if (spawned) assert.equal(ended, 1, "a settled terminal fake operation closes its child once");
+  };
+  const drain = async (): Promise<void> => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      clock.advance(2_147_483_647);
+      await flush();
+      if (spawned && ended === 0 && events !== undefined) {
+        live = false;
+        events.error(new Error("test settlement drain"));
+        await flush();
+      }
+      if (clock.pendingTimerCount === 0 && (!spawned || ended === 1)) break;
+    }
+    if (spawned) live = false;
+  };
+  const guard: SettlementGuard = { drain, assertDrained };
+  const rawOpen = createOpenPinnedCodexDetachedThread(runtime);
+  const open = async (callArgs: Parameters<typeof rawOpen>[0]): Promise<CodexDetachedThread> => {
+    const thread = await mustSettle(rawOpen(callArgs), "detached thread open", guard);
+    return {
+      ...thread,
+      startTurn: async (prompt) => await mustSettle(thread.startTurn(prompt), "detached turn", guard),
+      probe: async () => await mustSettle(thread.probe(), "detached probe", guard),
+      terminate: async () => await mustSettle(
+        thread.terminate(),
+        "detached termination",
+        guard,
+        true,
+      ),
+    };
+  };
   const args = (overrides: Partial<Parameters<typeof open>[0]> = {}): Parameters<typeof open>[0] => ({
     cwd: "C:\\repo",
     env: { STORYTREE_SAFE_VALUE: "kept" },
@@ -232,13 +363,16 @@ function createHarness(options: HarnessOptions = {}) {
     terminations,
     provisionalTerminationTimeouts,
     provisionalObservationTimeouts,
+    nativeRootTerminationTimeouts,
     defaultAuthCalls,
     runtime,
     open,
+    drain,
     args,
     get events() { return events!; },
     get ended() { return ended; },
     get provisionalTerminations() { return provisionalTerminations; },
+    get nativeRootTerminations() { return nativeRootTerminations; },
     get live() { return live; },
     set live(value: boolean) { live = value; },
     setResponder(next: Responder) { responder = next; },
@@ -254,10 +388,13 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
   ) => Promise<CodexDetachedThread> = openPinnedCodexDetachedThread;
   assert.equal(typeof publicEntry, "function");
   assert.equal(codexDetachedProductionRuntime.platform, platform);
+  assert.equal(codexDetachedPlatformFor("win32"), "windows");
+  assert.equal(codexDetachedPlatformFor("linux"), "posix");
 
   const owner = ownerFor(platform, 431, "owned-group");
   const protocol: RpcMessage[] = [];
   const terminationRequests: CodexDetachedOwner[] = [];
+  const ownershipRequests: Array<{ pid: number; platform: "posix" | "windows"; timeoutMs: number }> = [];
   const authCommands: Parameters<CodexDetachedRuntime["runDefaultAuth"]>[0][] = [];
   let alive = true;
   let ended = 0;
@@ -294,7 +431,10 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
         observeTree: async () => alive,
       };
     },
-    observeOwnership: async () => alive ? owner : undefined,
+    observeOwnership: async (request) => {
+      ownershipRequests.push(request);
+      return alive ? owner : undefined;
+    },
     terminateOwnedTree: async (target) => { terminationRequests.push(target); alive = false; },
   });
 
@@ -309,13 +449,40 @@ test("staged-protocol-returns-response-produced-identity: stages one authenticat
     { threadId: thread.threadId, model: thread.model, reasoningEffort: thread.reasoningEffort, pid: thread.pid, owner: thread.owner },
     { threadId: "response-thread", model: "response-model", reasoningEffort: "response-effort", pid: 431, owner },
   );
-  assert.deepEqual(protocol.map((message) => message.method), ["initialize", "initialized", "thread/start"]);
+  const protocolIds = protocol
+    .filter((message) => message.id !== undefined)
+    .map((message) => message.id!);
+  assert.equal(protocolIds.length, 2);
+  assert.equal(protocolIds.every(Number.isSafeInteger), true);
+  assert.notEqual(protocolIds[0], protocolIds[1]);
+  assert.deepEqual(protocol, [
+    {
+      id: protocolIds[0],
+      method: "initialize",
+      params: { clientInfo: { name: "storytree", version: "0.0.0" } },
+    },
+    { method: "initialized", params: {} },
+    {
+      id: protocolIds[1],
+      method: "thread/start",
+      params: {
+        model: "requested-model",
+        config: { model_reasoning_effort: "requested-effort" },
+        ephemeral: true,
+      },
+    },
+  ]);
   assert.deepEqual(await thread.probe(), { live: true, rateLimits: { primary: null, secondary: null } });
   assert.deepEqual(await thread.startTurn("  do the bounded work  "), { turnId: "response-turn", status: "inProgress" });
   await Promise.all([thread.terminate(), thread.terminate()]);
   await thread.terminate();
   assert.equal(ended, 1);
   assert.deepEqual(terminationRequests, [owner]);
+  assert.deepEqual(ownershipRequests, Array.from({ length: 4 }, () => ({
+    pid: 431,
+    platform,
+    timeoutMs: 100,
+  })));
 });
 
 test("auth-refusal-and-timeout-never-spawn: only exact managed authentication reaches process creation", async () => {
@@ -334,12 +501,22 @@ test("auth-refusal-and-timeout-never-spawn: only exact managed authentication re
         return path.resolve("node_modules", "@openai", "codex", "bin", "codex.js");
       },
     });
-    await assert.rejects(harness.open(harness.args({ authRunner })));
+    await assert.rejects(
+      harness.open(harness.args({ authRunner })),
+      /not authenticated|authentication preflight failed/,
+    );
     assert.equal(resolutions, 0);
     assert.equal(harness.commands.length, 0);
   }
   const success = createHarness();
-  const thread = await success.open(success.args());
+  const customAuthCommands: Array<{ args: string[]; timeoutMs: number }> = [];
+  const thread = await success.open(success.args({
+    authRunner: async (command) => {
+      customAuthCommands.push(command);
+      return { code: 0, stdout: "Logged in using ChatGPT\n", stderr: "" };
+    },
+  }));
+  assert.deepEqual(customAuthCommands, [{ args: ["login", "status"], timeoutMs: 40 }]);
   assert.equal(success.commands.length, 1);
   assert.deepEqual(success.commands[0], {
     executable: process.execPath,
@@ -369,6 +546,17 @@ test("auth-refusal-and-timeout-never-spawn: only exact managed authentication re
   }]);
   await defaultThread.terminate();
 
+  const maximumTimeout = createHarness();
+  const maximumTimeouts: number[] = [];
+  await assert.rejects(maximumTimeout.open(maximumTimeout.args({
+    timeoutMs: 2_147_483_647,
+    authRunner: async (command) => {
+      maximumTimeouts.push(command.timeoutMs);
+      return { code: 1, stdout: "", stderr: "" };
+    },
+  })), /not authenticated/);
+  assert.deepEqual(maximumTimeouts, [2_147_483_647]);
+
   let settleLateAuth: (() => void) | undefined;
   const hangingDefault = createHarness({
     defaultAuth: async () => await new Promise((resolve) => {
@@ -378,7 +566,11 @@ test("auth-refusal-and-timeout-never-spawn: only exact managed authentication re
   const hangingArgs = hangingDefault.args({ timeoutMs: 19 });
   Reflect.deleteProperty(hangingArgs, "authRunner");
   const hangingOpen = hangingDefault.open(hangingArgs);
-  await waitUntil(() => hangingDefault.defaultAuthCalls.length === 1, "default auth call");
+  await waitUntil(
+    () => hangingDefault.defaultAuthCalls.length === 1,
+    "default auth call",
+    hangingDefault.drain,
+  );
   hangingDefault.clock.advance(19);
   await assert.rejects(hangingOpen, /authentication preflight timed out/);
   settleLateAuth?.();
@@ -387,10 +579,11 @@ test("auth-refusal-and-timeout-never-spawn: only exact managed authentication re
 test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command and native detached process", async () => {
   const harness = createHarness();
   const absoluteOverride = path.resolve("tools", "codex.exe");
+  const paddedOverride = `  ${absoluteOverride}\t`;
   const thread = await harness.open(harness.args({
     cwd: "C:\\bounded-worktree",
     env: {
-      STORYTREE_CODEX_EXECUTABLE: absoluteOverride,
+      STORYTREE_CODEX_EXECUTABLE: paddedOverride,
       KEEP_ME: "yes",
       OPENAI_API_KEY: "secret-a",
       Codex_Access_Token: "secret-b",
@@ -400,7 +593,7 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
     executable: absoluteOverride,
     args: ["app-server", "--stdio"],
     cwd: "C:\\bounded-worktree",
-    env: { STORYTREE_CODEX_EXECUTABLE: absoluteOverride, KEEP_ME: "yes" },
+    env: { STORYTREE_CODEX_EXECUTABLE: paddedOverride, KEEP_ME: "yes" },
   }]);
   await thread.terminate();
 
@@ -486,11 +679,11 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
   assert.equal(await spawned.observeTree!(31), undefined, "a PID without an acquired token is not owned");
   await assert.rejects(spawned.terminateTree!(29), /owner is unavailable/);
   assert.equal(execCalls.length, 0);
-  assert.deepEqual(await runtime.acquireOwnership(901, 31), {
-    kind: "windows-process-tree",
-    rootPid: 901,
-    token: "codex.exe\u0000901\u0000Console\u00004",
-  });
+  const firstOwner = expectWindowsOwner(
+    await runtime.acquireOwnership(901, 31),
+    901,
+    "codex.exe\u0000901\u0000Console\u00004",
+  );
   assert.equal(await spawned.observeTree!(31), true);
   await spawned.terminateTree!(29);
   assert.deepEqual(execCalls, [
@@ -517,18 +710,13 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
   await assert.rejects(spawned.terminateTree!(28), /tasklist unavailable/);
   assert.equal(execCalls.length, callsBeforeTasklistFailure + 2);
   lowLevelTasklistError = false;
-  lowLevelTaskRow = "INFO: No tasks are running which match the specified criteria.";
-  assert.equal(await spawned.observeTree!(29), false, "the retained provisional token can confirm root death");
   (listeners["child:exit"] as (code: number | null, signal: NodeJS.Signals | null) => void)(7, "SIGTERM");
   assert.deepEqual(forwardedExits, [{ code: 7, signal: "SIGTERM" }]);
   const callsBeforeExitedRootAcquisition = execCalls.length;
+  assert.equal(await spawned.observeTree!(29), false, "native exit closes the spawned generation");
   assert.equal(await runtime.acquireOwnership(901, 27), undefined);
   assert.equal(execCalls.length, callsBeforeExitedRootAcquisition);
-  await runtime.terminateOwnedTree({
-    kind: "windows-process-tree",
-    rootPid: 901,
-    token: "codex.exe\u0000901\u0000Console\u00004",
-  }, 27);
+  await runtime.terminateOwnedTree(firstOwner, 27);
   assert.equal(execCalls.length, callsBeforeExitedRootAcquisition, "a known exited root cannot reach taskkill");
 
   lowLevelTaskRow = '"codex.exe","901","Console","4","13,000 K"';
@@ -538,11 +726,15 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
     cwd: "C:\\repo",
     env: { KEEP: "yes" },
   }, { stdout: () => undefined, error: () => undefined, exit: () => undefined });
-  assert.deepEqual(await runtime.acquireOwnership(901, 26), {
-    kind: "windows-process-tree",
-    rootPid: 901,
-    token: "codex.exe\u0000901\u0000Console\u00004",
-  });
+  const callsBeforeRespawnAcquisition = execCalls.length;
+  assert.equal(await respawned.observeTree!(26), undefined, "same-pid respawn has no inherited owner token");
+  await assert.rejects(respawned.terminateTree!(26), /owner is unavailable/);
+  assert.equal(execCalls.length, callsBeforeRespawnAcquisition);
+  expectWindowsOwner(
+    await runtime.acquireOwnership(901, 26),
+    901,
+    "codex.exe\u0000901\u0000Console\u00004",
+  );
   lowLevelTaskRow = '"codex.exe","901","Console","4","99,000 K"';
   assert.equal(await respawned.observeTree!(26), true, "mutable memory usage is not a root identity field");
   lowLevelTaskRow = '"other.exe","901","Console","4","13,000 K"';
@@ -571,6 +763,25 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
     "a newly spawned root may reuse a pid only after acquiring its new token",
   );
 
+  lowLevelTaskRow = '"codex.exe","901","Console","4","15,000 K"';
+  const missingDuringTermination = runtime.spawn({
+    executable: absoluteOverride,
+    args: ["app-server", "--stdio"],
+    cwd: "C:\\repo",
+    env: { KEEP: "yes" },
+  }, { stdout: () => undefined, error: () => undefined, exit: () => undefined });
+  await runtime.acquireOwnership(901, 24);
+  lowLevelTaskRow = "INFO: No tasks are running which match the specified criteria.";
+  const killsBeforeMissingProvisional = execCalls.filter((call) => call.executable === "taskkill").length;
+  await missingDuringTermination.terminateTree!(24);
+  assert.equal(
+    execCalls.filter((call) => call.executable === "taskkill").length,
+    killsBeforeMissingProvisional,
+  );
+  const callsAfterMissingProvisional = execCalls.length;
+  assert.equal(await missingDuringTermination.observeTree!(24), false);
+  assert.equal(execCalls.length, callsAfterMissingProvisional, "missing provisional ownership is irreversible");
+
   lowLevelTaskRow = "INFO: No tasks are running which match the specified criteria.";
   const ownershipLost = runtime.spawn({
     executable: absoluteOverride,
@@ -581,11 +792,16 @@ test("pinned-command-scrubs-env-and-spawns-detached: composes the exact command 
   assert.equal(await runtime.acquireOwnership(901, 24), undefined);
   const callsAfterLostAcquisition = execCalls.length;
   assert.equal(await ownershipLost.observeTree!(24), false);
-  await ownershipLost.terminateTree!(24);
+  await assert.rejects(ownershipLost.terminateTree!(24), /owner is unavailable/);
   assert.equal(execCalls.length, callsAfterLostAcquisition, "a failed exact acquisition closes that spawn generation");
 
   const spawnFailure = createHarness({ spawnError: new Error("spawn failed") });
   await assert.rejects(spawnFailure.open(spawnFailure.args()), /spawn failed/);
+  const nonErrorSpawnFailure = createHarness({ spawnError: "raw spawn detail" });
+  await assert.rejects(nonErrorSpawnFailure.open(nonErrorSpawnFailure.args()), (error: unknown) => {
+    assert.equal((error as Error).message, "Codex app-server spawn failed");
+    return true;
+  });
 });
 
 test("posix-group-owner-is-observed-probed-and-terminated: uses the exact negative process group for every OS operation", async () => {
@@ -702,9 +918,16 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   const calls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
   let row = '"codex.exe","123","Console","4","12,000 K"';
   let tasklistError = false;
+  let nextSpawnPid: number | undefined;
   const runtime = createCodexDetachedRuntime({
     platform: "windows",
-    nativeSpawn: () => { throw new Error("not used"); },
+    nativeSpawn: () => ({
+      pid: nextSpawnPid,
+      stdout: { on: () => undefined },
+      stderr: { on: () => undefined },
+      stdin: { once: () => undefined, write: () => undefined, end: () => undefined },
+      once: () => undefined,
+    }),
     execFile: async (executable, args, options) => {
       calls.push({ executable, args, timeout: options.timeout });
       if (executable === "tasklist" && tasklistError) throw new Error("tasklist unavailable");
@@ -713,26 +936,58 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
     signal: () => { throw new Error("Windows must not signal a POSIX group"); },
     runDefaultAuth: managedTestAuth,
   });
-  const owner = await runtime.acquireOwnership(123, 55);
-  assert.deepEqual(owner, {
-    kind: "windows-process-tree",
-    rootPid: 123,
-    token: "codex.exe\u0000123\u0000Console\u00004",
-  });
+  const spawnGeneration = (pid: number): void => {
+    nextSpawnPid = pid;
+    runtime.spawn({ executable: "codex.exe", args: [], cwd: "C:\\repo", env: {} }, {
+      stdout: () => undefined,
+      error: () => undefined,
+      exit: () => undefined,
+    });
+    nextSpawnPid = undefined;
+  };
+  const acquireSpawned = async (pid: number): Promise<CodexDetachedOwner | undefined> => {
+    spawnGeneration(pid);
+    return await runtime.acquireOwnership(pid, 55);
+  };
+
+  const callsBeforeUnspawned = calls.length;
+  assert.equal(await runtime.acquireOwnership(777, 55), undefined);
+  assert.equal(calls.length, callsBeforeUnspawned, "an unspawned pid never reaches tasklist or taskkill");
+  const owner = expectWindowsOwner(
+    await acquireSpawned(123),
+    123,
+    "codex.exe\u0000123\u0000Console\u00004",
+  );
+  row = ' \t"co""dex.exe","132","RDP""Tcp#1","42","12,000 K" \t';
+  expectWindowsOwner(
+    await acquireSpawned(132),
+    132,
+    'co"dex.exe\u0000132\u0000RDP"Tcp#1\u000042',
+  );
+  row = '"noise.exe","999","Console","1","1 K"\n"codex.exe","133","Console","12","2 K"';
+  expectWindowsOwner(
+    await acquireSpawned(133),
+    133,
+    "codex.exe\u0000133\u0000Console\u000012",
+  );
+  row = 'prefix"codex.exe","134","Console","4","10 K"';
+  assert.equal(await acquireSpawned(134), undefined, "CSV rows are anchored at the start");
+  row = '"codex.exe","135","Console","4","10 K"suffix';
+  assert.equal(await acquireSpawned(135), undefined, "CSV rows are anchored at the end");
   row = '"codex.exe","123","Console","4","99,000 K"';
-  assert.deepEqual(await runtime.observeOwnership(owner!, 55), { status: "live", owner });
+  assert.deepEqual(await runtime.observeOwnership(owner, 55), { status: "live", owner });
   row = '"codex.exe","9123","Console","4","10 K"';
-  assert.equal(await runtime.acquireOwnership(124, 55), undefined, "substring pids are never accepted");
+  assert.equal(await acquireSpawned(124), undefined, "substring pids are never accepted");
   row = '"codex.exe","125","Console","4","10 K"\r\n"codex.exe","125","Console","4","11 K"';
-  assert.equal(await runtime.acquireOwnership(125, 55), undefined, "duplicate exact roots are ambiguous");
+  assert.equal(await acquireSpawned(125), undefined, "duplicate exact roots are ambiguous");
   row = "INFO: No tasks are running which match the specified criteria.";
-  assert.equal(await runtime.acquireOwnership(126, 55), undefined, "tasklist exit zero without a row is dead");
+  assert.equal(await acquireSpawned(126), undefined, "tasklist exit zero without a row is dead");
   tasklistError = true;
-  assert.deepEqual(await runtime.observeOwnership(owner!, 55), { status: "unavailable" });
+  assert.deepEqual(await runtime.observeOwnership(owner, 55), { status: "unavailable" });
   tasklistError = false;
 
   row = '"codex.exe","123","Console","4","12,000 K"';
-  await runtime.terminateOwnedTree(owner!, 55);
+  await runtime.terminateOwnedTree(owner, 55);
   assert.deepEqual(calls.at(-1), {
     executable: "taskkill",
     args: ["/PID", "123", "/T", "/F"],
@@ -740,7 +995,7 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   });
 
   row = '"codex.exe","127","Console","4","12,000 K"';
-  const missingOwner = await runtime.acquireOwnership(127, 55);
+  const missingOwner = await acquireSpawned(127);
   assert.ok(missingOwner !== undefined);
   row = "INFO: No tasks are running which match the specified criteria.";
   const killsBeforeMissingOwner = calls.filter((call) => call.executable === "taskkill").length;
@@ -756,7 +1011,7 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   assert.equal(calls.length, callsBeforeMissingReappearance, "lost ownership cannot reopen on pid reuse");
 
   row = '"codex.exe","128","Console","4","12,000 K"';
-  const changedTerminationOwner = await runtime.acquireOwnership(128, 55);
+  const changedTerminationOwner = await acquireSpawned(128);
   assert.ok(changedTerminationOwner !== undefined);
   row = '"other.exe","128","Console","4","10 K"';
   const killsBeforeChangedOwner = calls.filter((call) => call.executable === "taskkill").length;
@@ -772,12 +1027,14 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   assert.equal(calls.length, callsBeforeChangedReappearance, "changed ownership cannot reopen on pid reuse");
 
   row = '"codex.exe","129","Console","4","12,000 K"';
-  const changedObservationOwner = await runtime.acquireOwnership(129, 55);
+  const changedObservationOwner = await acquireSpawned(129);
   assert.ok(changedObservationOwner !== undefined);
   row = '"other.exe","129","Console","4","10 K"';
-  const changed = await runtime.observeOwnership(changedObservationOwner, 55);
-  assert.equal(changed.status, "live");
-  assert.notEqual(changed.status === "live" ? changed.owner.token : "", changedObservationOwner.token);
+  assert.deepEqual(
+    await runtime.observeOwnership(changedObservationOwner, 55),
+    { status: "dead" },
+    "a descriptor mismatch is dead for the requested owner, never a different live owner",
+  );
   row = '"codex.exe","129","Console","4","12,000 K"';
   assert.deepEqual(await runtime.observeOwnership(changedObservationOwner, 55), { status: "dead" });
   assert.deepEqual(calls[0], {
@@ -817,7 +1074,7 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   assert.equal(calls.length, callsBeforeWrongKind, "a POSIX owner never reaches tasklist or taskkill");
 
   row = '"codex.exe","131","Console","4","12,000 K"';
-  const disappearingOwner = await runtime.acquireOwnership(131, 55);
+  const disappearingOwner = await acquireSpawned(131);
   assert.ok(disappearingOwner !== undefined);
   row = "INFO: No tasks are running which match the specified criteria.";
   assert.deepEqual(await runtime.observeOwnership(disappearingOwner, 55), { status: "dead" });
@@ -827,10 +1084,171 @@ test("windows-tree-owner-is-observed-probed-and-terminated: parses the exact tas
   assert.equal(calls.length, callsBeforeDisappearanceReuse, "a disappeared owner cannot reopen on pid reuse");
 });
 
+test("windows-tree-owner-is-observed-probed-and-terminated: same-pid generations never share closure or kill authority", async () => {
+  type ExitListener = (code: number | null, signal: NodeJS.Signals | null) => void;
+  const exitListeners: ExitListener[] = [];
+  const calls: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  const runtime = createCodexDetachedRuntime({
+    platform: "windows",
+    nativeSpawn: () => ({
+      pid: 606,
+      stdout: { on: () => undefined },
+      stderr: { on: () => undefined },
+      stdin: { once: () => undefined, write: () => undefined, end: () => undefined },
+      once: (event, listener) => {
+        if (event === "exit") exitListeners.push(listener as ExitListener);
+      },
+    }),
+    execFile: async (executable, args, options) => {
+      calls.push({ executable, args, timeout: options.timeout });
+      return {
+        stdout: executable === "tasklist"
+          ? '"codex.exe","606","Console","8","10,000 K"\r\n'
+          : "SUCCESS",
+        stderr: "",
+      };
+    },
+    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
+    runDefaultAuth: managedTestAuth,
+  });
+  const command: CodexAppServerCommand = {
+    executable: "codex.exe",
+    args: ["app-server", "--stdio"],
+    cwd: "C:\\repo",
+    env: {},
+  };
+  const events: CodexAppServerProcessEvents = {
+    stdout: () => undefined,
+    error: () => undefined,
+    exit: () => undefined,
+  };
+
+  const first = runtime.spawn(command, events);
+  const firstOwner = expectWindowsOwner(
+    await runtime.acquireOwnership(606, 41),
+    606,
+    "codex.exe\u0000606\u0000Console\u00008",
+  );
+  const firstExit = exitListeners[0]!;
+  const second = runtime.spawn(command, events);
+  const secondOwner = expectWindowsOwner(
+    await runtime.acquireOwnership(606, 42),
+    606,
+    "codex.exe\u0000606\u0000Console\u00008",
+  );
+  assert.notEqual(firstOwner.token, secondOwner.token, "same descriptor and pid still get distinct generations");
+
+  const callsBeforeStaleHandles = calls.length;
+  assert.equal(await first.observeTree!(43), false);
+  await first.terminateTree!(43);
+  assert.deepEqual(await runtime.observeOwnership({ ...firstOwner }, 43), { status: "dead" });
+  await runtime.terminateOwnedTree({ ...firstOwner }, 43);
+  assert.equal(calls.length, callsBeforeStaleHandles, "stale handles never inspect or kill the reused pid");
+  assert.equal(calls.some((call) => call.executable === "taskkill"), false);
+
+  assert.equal(await second.observeTree!(44), true);
+  assert.deepEqual(
+    await runtime.observeOwnership({ ...secondOwner }, 44),
+    { status: "live", owner: secondOwner },
+  );
+  firstExit(0, null);
+  assert.equal(await second.observeTree!(45), true, "a late old-generation exit cannot poison the new child");
+  assert.deepEqual(
+    await runtime.observeOwnership({ ...secondOwner }, 45),
+    { status: "live", owner: secondOwner },
+  );
+
+  await runtime.terminateOwnedTree({ ...secondOwner }, 46);
+  assert.deepEqual(calls.filter((call) => call.executable === "taskkill"), [{
+    executable: "taskkill",
+    args: ["/PID", "606", "/T", "/F"],
+    timeout: 46,
+  }]);
+  exitListeners[1]!(0, "SIGTERM");
+  const callsBeforeClosedProbe = calls.length;
+  assert.deepEqual(await runtime.observeOwnership({ ...secondOwner }, 47), { status: "dead" });
+  assert.equal(calls.length, callsBeforeClosedProbe);
+});
+
+test("windows-tree-owner-is-observed-probed-and-terminated: opaque owners never cross runtime instances", async () => {
+  const createRuntime = (
+    calls: Array<{ executable: string; args: readonly string[]; timeout: number }>,
+  ): CodexDetachedRuntime => createCodexDetachedRuntime({
+    platform: "windows",
+    nativeSpawn: () => ({
+      pid: 707,
+      stdout: { on: () => undefined },
+      stderr: { on: () => undefined },
+      stdin: { once: () => undefined, write: () => undefined, end: () => undefined },
+      once: () => undefined,
+    }),
+    execFile: async (executable, args, options) => {
+      calls.push({ executable, args, timeout: options.timeout });
+      return {
+        stdout: executable === "tasklist"
+          ? '"codex.exe","707","Console","3","10,000 K"\r\n'
+          : "SUCCESS",
+        stderr: "",
+      };
+    },
+    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
+    runDefaultAuth: managedTestAuth,
+  });
+  const callsA: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  const callsB: Array<{ executable: string; args: readonly string[]; timeout: number }> = [];
+  const runtimeA = createRuntime(callsA);
+  const runtimeB = createRuntime(callsB);
+  const command: CodexAppServerCommand = {
+    executable: "codex.exe",
+    args: ["app-server", "--stdio"],
+    cwd: "C:\\repo",
+    env: {},
+  };
+  const events: CodexAppServerProcessEvents = {
+    stdout: () => undefined,
+    error: () => undefined,
+    exit: () => undefined,
+  };
+  runtimeA.spawn(command, events);
+  runtimeB.spawn(command, events);
+  const ownerA = expectWindowsOwner(
+    await runtimeA.acquireOwnership(707, 51),
+    707,
+    "codex.exe\u0000707\u0000Console\u00003",
+  );
+  const ownerB = expectWindowsOwner(
+    await runtimeB.acquireOwnership(707, 52),
+    707,
+    "codex.exe\u0000707\u0000Console\u00003",
+  );
+  assert.notEqual(ownerA.token, ownerB.token);
+
+  const callsBeforeForeignOwner = callsB.length;
+  assert.deepEqual(
+    await runtimeB.observeOwnership({ ...ownerA }, 53),
+    { status: "unavailable" },
+  );
+  await assert.rejects(
+    runtimeB.terminateOwnedTree({ ...ownerA }, 53),
+    /Windows owner is unavailable/,
+  );
+  assert.equal(callsB.length, callsBeforeForeignOwner, "a foreign token never reaches tasklist or taskkill");
+  assert.equal(callsB.some((call) => call.executable === "taskkill"), false);
+  assert.deepEqual(
+    await runtimeB.observeOwnership({ ...ownerB }, 54),
+    { status: "live", owner: ownerB },
+  );
+});
+
 test("pinned-command-scrubs-env-and-spawns-detached: production runtime reaps a real detached child", async () => {
   const platform = process.platform === "win32" ? "windows" as const : "posix" as const;
   const runtime = codexDetachedProductionRuntime;
   assert.equal(runtime.platform, platform);
+  const pinnedEntrypoint = runtime.resolvePinnedEntrypoint();
+  assert.equal(path.isAbsolute(pinnedEntrypoint), true);
+  assert.equal(path.basename(pinnedEntrypoint), "codex.js");
+  assert.equal(path.basename(path.dirname(pinnedEntrypoint)), "bin");
+  assert.equal(path.basename(path.dirname(path.dirname(pinnedEntrypoint))), "codex");
   let processError: Error | undefined;
   const child = runtime.spawn({
     executable: process.execPath,
@@ -865,16 +1283,57 @@ test("pinned-command-scrubs-env-and-spawns-detached: production runtime reaps a 
     assert.deepEqual(observation, { status: "dead" });
     assert.equal(processError, undefined);
   } finally {
-    try {
-      if (owner !== undefined) {
-        const observation = await runtime.observeOwnership(owner, 500);
-        if (observation.status === "live" && sameTestOwner(owner, observation.owner)) {
+    let exactTerminationSent = false;
+    let nativeFallbackNeeded = false;
+    if (owner !== undefined) {
+      let observation: CodexDetachedOwnerObservation | undefined;
+      try { observation = await runtime.observeOwnership(owner, 500); }
+      catch { nativeFallbackNeeded = true; }
+      if (observation?.status === "live" && sameTestOwner(owner, observation.owner)) {
+        try {
           await runtime.terminateOwnedTree(owner, 500);
+          exactTerminationSent = true;
+        } catch {
+          nativeFallbackNeeded = true;
         }
+      } else if (observation?.status === "unavailable") {
+        nativeFallbackNeeded = true;
       }
-    } catch { /* the direct pid fallback below still reaps the stand-in */ }
-    try { process.kill(pid, "SIGKILL"); }
-    catch { /* already gone */ }
+    } else {
+      let provisionalLive: boolean | undefined;
+      try { provisionalLive = await child.observeTree!(500); }
+      catch { provisionalLive = undefined; }
+      if (provisionalLive === true) {
+        try {
+          await child.terminateTree!(500);
+          exactTerminationSent = true;
+        } catch {
+          nativeFallbackNeeded = true;
+        }
+      } else if (provisionalLive === undefined) {
+        nativeFallbackNeeded = true;
+      }
+    }
+    if (nativeFallbackNeeded) await child.terminateRoot!(500);
+
+    const cleanupDeadline = Date.now() + 3_000;
+    let live: boolean | undefined;
+    try { live = await child.observeTree!(500); }
+    catch { live = undefined; }
+    if (live === undefined && exactTerminationSent && !nativeFallbackNeeded) {
+      await child.terminateRoot!(500);
+      nativeFallbackNeeded = true;
+      live = await child.observeTree!(500);
+    }
+    while (live === true && Date.now() < cleanupDeadline) {
+      await new Promise<void>((resolve) => { setTimeout(resolve, 20); });
+      live = await child.observeTree!(500);
+    }
+    assert.equal(
+      live,
+      false,
+      "the captured production ownership seam confirms the stand-in generation dead",
+    );
   }
 });
 
@@ -939,9 +1398,92 @@ test("ownership-acquisition-failure-reaps-spawned-child: unavailable, thrown, an
   await flush();
   assert.equal(timedOut.provisionalTerminations, 1);
   assert.equal(timedOut.live, false);
+
+  type ExitListener = (code: number | null, signal: NodeJS.Signals | null) => void;
+  let nativeExit: ExitListener | undefined;
+  let nativeEnds = 0;
+  const nativeSignals: NodeJS.Signals[] = [];
+  const nativeExecs: string[] = [];
+  const nativeRuntime = createCodexDetachedRuntime({
+    platform: "windows",
+    nativeSpawn: () => ({
+      pid: 733,
+      stdout: { on: () => undefined },
+      stderr: { on: () => undefined },
+      stdin: {
+        once: () => undefined,
+        write: () => undefined,
+        end: () => { nativeEnds += 1; },
+      },
+      kill: (signal) => {
+        nativeSignals.push(signal);
+        nativeExit?.(0, signal);
+        return true;
+      },
+      once: (event, listener) => {
+        if (event === "exit") nativeExit = listener as ExitListener;
+      },
+    }),
+    execFile: async (executable) => {
+      nativeExecs.push(executable);
+      if (executable === "taskkill") throw new Error("an unowned numeric tree must not be killed");
+      return {
+        stdout: "INFO: No tasks are running which match the specified criteria.",
+        stderr: "",
+      };
+    },
+    signal: () => { throw new Error("Windows must not signal a POSIX group"); },
+    resolvePinnedEntrypoint: () => path.resolve("node_modules", "@openai", "codex", "bin", "codex.js"),
+    runDefaultAuth: managedTestAuth,
+  });
+  const openNative = createOpenPinnedCodexDetachedThread(nativeRuntime);
+  await assert.rejects(openNative({
+    cwd: process.cwd(),
+    env: {},
+    model: "model",
+    reasoningEffort: "high",
+    timeoutMs: 100,
+    authRunner: managedTestAuth,
+  }), /exact Codex process ownership was not acquired/);
+  assert.deepEqual(nativeExecs, ["tasklist"]);
+  assert.deepEqual(nativeSignals, ["SIGTERM"]);
+  assert.equal(nativeEnds, 1);
 });
 
 test("ownership-acquisition-failure-reaps-spawned-child: provisional cleanup is bounded and uses the normalized timeout", async () => {
+  const missingTerminator = createHarness({
+    candidate: undefined,
+    omitProvisionalTerminate: true,
+  });
+  await assert.rejects(
+    missingTerminator.open(missingTerminator.args({ timeoutMs: 15 })),
+    /cleanup failed.*provisional Codex process cleanup is unavailable/,
+  );
+  assert.equal(missingTerminator.provisionalTerminations, 0);
+
+  const missingObserver = createHarness({
+    candidate: undefined,
+    omitProvisionalObserve: true,
+  });
+  await assert.rejects(
+    missingObserver.open(missingObserver.args({ timeoutMs: 16 })),
+    /cleanup failed.*death observation was unavailable/,
+  );
+  assert.equal(missingObserver.provisionalTerminations, 1);
+
+  const nonErrorTerminator = createHarness({
+    candidate: undefined,
+    provisionalTerminate: async () => { throw "raw provisional detail"; },
+    provisionalObserve: async () => false,
+  });
+  await assert.rejects(nonErrorTerminator.open(nonErrorTerminator.args({ timeoutMs: 16 })), (error: unknown) => {
+    assert.equal(
+      (error as Error).message,
+      "Codex app-server cleanup failed: Codex provisional termination failed",
+    );
+    return true;
+  });
+
   const terminatorThrow = createHarness({
     candidate: undefined,
     provisionalTerminate: async () => { throw new Error("secret terminator detail"); },
@@ -961,7 +1503,11 @@ test("ownership-acquisition-failure-reaps-spawned-child: provisional cleanup is 
     provisionalObserve: async () => false,
   });
   const hangingTermination = terminatorHang.open(terminatorHang.args({ timeoutMs: 18 }));
-  await waitUntil(() => terminatorHang.provisionalTerminations === 1, "provisional termination");
+  await waitUntil(
+    () => terminatorHang.provisionalTerminations === 1,
+    "provisional termination",
+    terminatorHang.drain,
+  );
   terminatorHang.clock.advance(18);
   await assert.rejects(hangingTermination, /cleanup failed.*provisional termination timed out/);
   assert.deepEqual(terminatorHang.provisionalTerminationTimeouts, [18]);
@@ -985,7 +1531,11 @@ test("ownership-acquisition-failure-reaps-spawned-child: provisional cleanup is 
     provisionalObserve: async () => await new Promise<boolean>((resolve) => { settleObserver = resolve; }),
   });
   const hangingObservation = observerHang.open(observerHang.args({ timeoutMs: 22 }));
-  await waitUntil(() => observerHang.provisionalObservationTimeouts.length === 1, "provisional observation");
+  await waitUntil(
+    () => observerHang.provisionalObservationTimeouts.length === 1,
+    "provisional observation",
+    observerHang.drain,
+  );
   observerHang.clock.advance(22);
   await assert.rejects(hangingObservation, /cleanup failed.*provisional observation timed out/);
   assert.deepEqual(observerHang.provisionalTerminationTimeouts, [22]);
@@ -1020,8 +1570,20 @@ test("initialize-notification-thread-order-returns-response-identity: validates 
     { threadId: "response-thread", model: "response-model", reasoningEffort: "response-effort" },
   );
   assert.deepEqual(valid.writes.map((message) => message.method), ["initialize", "initialized", "thread/start"]);
+  const requestIds = valid.writes
+    .filter((message) => message.id !== undefined)
+    .map((message) => message.id!);
+  assert.equal(requestIds.length, 2);
+  assert.equal(requestIds.every(Number.isSafeInteger), true);
+  assert.notEqual(requestIds[0], requestIds[1]);
+  assert.deepEqual(valid.writes[0], {
+    id: requestIds[0],
+    method: "initialize",
+    params: { clientInfo: { name: "storytree", version: "0.0.0" } },
+  });
+  assert.deepEqual(valid.writes[1], { method: "initialized", params: {} });
   assert.deepEqual(valid.writes.at(-1), {
-    id: valid.writes.at(-1)!.id,
+    id: requestIds[1],
     method: "thread/start",
     params: {
       model: "requested-model",
@@ -1069,7 +1631,8 @@ test("initialize-notification-thread-order-returns-response-identity: validates 
 test("jsonl-fragments-and-correlates-responses: streams UTF-8, accepts notifications, and resolves concurrent replies by id", async () => {
   const harness = createHarness({ responder: () => undefined });
   const opening = harness.open(harness.args());
-  const initialize = await waitForMethod(harness.writes, "initialize");
+  const initialize = await waitForMethod(harness.writes, "initialize", harness.drain);
+  assert.equal(Number.isSafeInteger(initialize.id), true);
   const encoded = new TextEncoder().encode(`${JSON.stringify({ id: initialize.id, result: { serverInfo: { name: "Codex ☃" } } })}\n`);
   const snowman = [...encoded].findIndex((value, index, all) => value === 0xe2 && all[index + 1] === 0x98);
   harness.emitRaw(encoded.slice(0, snowman + 1));
@@ -1077,18 +1640,35 @@ test("jsonl-fragments-and-correlates-responses: streams UTF-8, accepts notificat
   await flush();
   assert.equal(harness.writes.at(-1)?.method, "thread/start");
   const threadStart = harness.writes.at(-1)!;
-  harness.emitRaw(`\n${JSON.stringify({ method: "thread/started", params: { id: "notice" } })}\n${JSON.stringify({
+  assert.equal(Number.isSafeInteger(threadStart.id), true);
+  assert.notEqual(threadStart.id, initialize.id);
+  harness.emitRaw(` \t\r\n${JSON.stringify({ method: "thread/started", params: { id: "notice" } })}\n`);
+  const identityFrame = new TextEncoder().encode(`${JSON.stringify({
     id: threadStart.id,
-    result: { thread: { id: "streamed-thread" }, model: "streamed-model", reasoningEffort: "high" },
+    result: { thread: { id: "streamed-☃-thread" }, model: "streamed-model", reasoningEffort: "high" },
   })}\n`);
+  const identitySnowman = [...identityFrame].findIndex((value, index, all) => value === 0xe2 && all[index + 1] === 0x98);
+  harness.emitRaw(identityFrame.slice(0, identitySnowman + 1));
+  harness.emitRaw(identityFrame.slice(identitySnowman + 1));
   const thread = await opening;
-  assert.equal(thread.threadId, "streamed-thread");
+  assert.equal(thread.threadId, "streamed-☃-thread");
 
   const turnPromise = thread.startTurn("exact prompt");
   const probePromise = thread.probe();
-  await flush();
-  const turnRequest = harness.writes.find((message) => message.method === "turn/start")!;
-  const limitsRequest = harness.writes.find((message) => message.method === "account/rateLimits/read")!;
+  const turnRequest = await waitForMethod(harness.writes, "turn/start", harness.drain);
+  const limitsRequest = await waitForMethod(
+    harness.writes,
+    "account/rateLimits/read",
+    harness.drain,
+  );
+  assert.equal(Number.isSafeInteger(turnRequest.id), true);
+  assert.equal(Number.isSafeInteger(limitsRequest.id), true);
+  assert.notEqual(turnRequest.id, limitsRequest.id);
+  assert.deepEqual(limitsRequest, {
+    id: limitsRequest.id,
+    method: "account/rateLimits/read",
+    params: null,
+  });
   harness.emitRaw(`${JSON.stringify({ method: "account/updated", params: {} })}\n${JSON.stringify({
     id: limitsRequest.id,
     result: { rateLimits: { primary: { usedPercent: 12 } } },
@@ -1102,29 +1682,29 @@ test("jsonl-fragments-and-correlates-responses: streams UTF-8, accepts notificat
 });
 
 test("jsonl-rpc-write-and-exit-faults-clean-up: every protocol and process fault settles pending work after exact cleanup", async () => {
-  const frameRows: Array<(id: number) => string> = [
-    () => "{not-json}\n",
-    () => "null\n",
-    () => `${JSON.stringify({ value: "no id or method" })}\n`,
-    () => `${JSON.stringify({ method: "notice", result: {} })}\n`,
-    () => `${JSON.stringify({ method: "notice", error: {} })}\n`,
-    () => `${JSON.stringify({ id: "1", result: {} })}\n`,
-    () => `${JSON.stringify({ id: Number.MAX_SAFE_INTEGER + 1, result: {} })}\n`,
-    () => `${JSON.stringify({ id: 999, result: {} })}\n`,
-    (id) => `${JSON.stringify({ id })}\n`,
-    (id) => `${JSON.stringify({ id, result: {}, error: { code: -1 } })}\n`,
-    (id) => `${JSON.stringify({ id, error: { code: -1, message: "raw secret must not escape" } })}\n`,
+  const frameRows: Array<{ readonly frame: (id: number) => string; readonly message: string }> = [
+    { frame: () => "{not-json}\n", message: "Codex app-server emitted malformed JSONL" },
+    { frame: () => "null\n", message: "Codex app-server emitted a non-object JSONL message" },
+    { frame: () => `${JSON.stringify({ value: "no id or method" })}\n`, message: "Codex app-server emitted malformed JSONL" },
+    { frame: () => `${JSON.stringify({ method: "notice", result: {} })}\n`, message: "Codex app-server emitted malformed JSONL" },
+    { frame: () => `${JSON.stringify({ method: "notice", error: {} })}\n`, message: "Codex app-server emitted malformed JSONL" },
+    { frame: () => `${JSON.stringify({ id: "1", result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
+    { frame: () => `${JSON.stringify({ id: Number.MAX_SAFE_INTEGER + 1, result: {} })}\n`, message: "Codex app-server emitted an invalid response id" },
+    { frame: () => `${JSON.stringify({ id: 999, result: {} })}\n`, message: "Codex app-server emitted an unknown response id" },
+    { frame: (id) => `${JSON.stringify({ id })}\n`, message: "Codex app-server emitted a malformed response" },
+    { frame: (id) => `${JSON.stringify({ id, result: {}, error: { code: -1 } })}\n`, message: "Codex app-server emitted a malformed response" },
+    { frame: (id) => `${JSON.stringify({ id, error: { code: -1, message: "raw secret must not escape" } })}\n`, message: "Codex app-server RPC error" },
   ];
-  for (const frame of frameRows) {
+  for (const row of frameRows) {
     const harness = createHarness();
     const thread = await harness.open(harness.args());
     harness.setResponder(() => undefined);
     const pending = thread.startTurn("fault me");
     await flush();
     const id = harness.writes.at(-1)!.id!;
-    harness.emitRaw(frame(id));
+    harness.emitRaw(row.frame(id));
     await assert.rejects(pending, (error: unknown) => {
-      assert.match((error as Error).message, /Codex app-server|turn\/start/);
+      assert.equal((error as Error).message, row.message);
       assert.equal((error as Error).message.includes("raw secret"), false);
       return true;
     });
@@ -1137,10 +1717,17 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: every protocol and process fault
   concurrent.setResponder(() => undefined);
   const pendingTurn = concurrentThread.startTurn("pending one");
   const pendingProbe = concurrentThread.probe();
-  await waitForMethod(concurrent.writes, "account/rateLimits/read");
+  await waitForMethod(concurrent.writes, "account/rateLimits/read", concurrent.drain);
   concurrent.emitRaw("{broken}\n");
   const settled = await Promise.allSettled([pendingTurn, pendingProbe]);
   assert.deepEqual(settled.map((result) => result.status), ["rejected", "rejected"]);
+  assert.deepEqual(
+    settled.map((result) => (result as PromiseRejectedResult).reason.message),
+    [
+      "Codex app-server emitted malformed JSONL",
+      "Codex app-server emitted malformed JSONL",
+    ],
+  );
   assert.equal(concurrent.terminations.length, 1);
 
   const requestWrite = createHarness();
@@ -1175,12 +1762,36 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: every protocol and process fault
 });
 
 test("jsonl-rpc-write-and-exit-faults-clean-up: terminal faults are monotonic across spawn and response races", async () => {
+  const copiedBeforeSpawn = createHarness({
+    beforeSpawnReturn: (events) => {
+      const chunk = new TextEncoder().encode('{"method":"server/ready","params":{}}\n');
+      events.stdout(chunk);
+      chunk.fill("x".charCodeAt(0));
+    },
+  });
+  const copiedBeforeSpawnThread = await copiedBeforeSpawn.open(copiedBeforeSpawn.args());
+  await copiedBeforeSpawnThread.terminate();
+
   const beforeSpawn = createHarness({
     beforeSpawnReturn: (events) => { events.stdout("{malformed before spawn returned}\n"); },
   });
   await assert.rejects(beforeSpawn.open(beforeSpawn.args()), /malformed JSONL/);
   assert.equal(beforeSpawn.provisionalTerminations, 1);
   assert.equal(beforeSpawn.ended, 1);
+
+  for (const event of ["error", "exit"] as const) {
+    const beforeSpawnFault = createHarness({
+      beforeSpawnReturn: (events) => {
+        if (event === "error") events.error(new Error("pre-spawn process error"));
+        else events.exit(9, null);
+      },
+    });
+    await assert.rejects(
+      beforeSpawnFault.open(beforeSpawnFault.args()),
+      event === "error" ? /process error/ : /exited early/,
+    );
+    assert.equal(beforeSpawnFault.provisionalTerminations, 1);
+  }
 
   for (const event of ["error", "exit"] as const) {
     const afterResponse = createHarness({
@@ -1211,6 +1822,15 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: terminal faults are monotonic ac
   assert.equal(spontaneous.terminations.length, 1);
   assert.equal(spontaneous.writes.some((message) => message.method === "turn/start"), false);
 
+  const windowsProcessError = createHarness({ platform: "windows" });
+  const windowsProcessErrorThread = await windowsProcessError.open(windowsProcessError.args());
+  windowsProcessError.setResponder(() => undefined);
+  const windowsErrorPending = windowsProcessErrorThread.startTurn("error is not exit");
+  await waitForMethod(windowsProcessError.writes, "turn/start", windowsProcessError.drain);
+  windowsProcessError.events.error(new Error("Windows pipe error"));
+  await assert.rejects(windowsErrorPending, /process error/);
+  assert.deepEqual(windowsProcessError.terminations, [windowsProcessError.candidate]);
+
   const duplicate = createHarness();
   const duplicateThread = await duplicate.open(duplicate.args());
   duplicate.setResponder((message, events) => {
@@ -1232,7 +1852,7 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: terminal faults are monotonic ac
   const delayedThread = await delayedCleanup.open(delayedCleanup.args());
   delayedCleanup.setResponder(() => undefined);
   const pendingTurn = delayedThread.startTurn("wait for cleanup");
-  await waitForMethod(delayedCleanup.writes, "turn/start");
+  await waitForMethod(delayedCleanup.writes, "turn/start", delayedCleanup.drain);
   let settled = false;
   void pendingTurn.then(() => { settled = true; }, () => { settled = true; });
   delayedCleanup.emitRaw("{fault}\n");
@@ -1249,19 +1869,61 @@ test("jsonl-rpc-write-and-exit-faults-clean-up: terminal faults are monotonic ac
   const reentrantThread = await reentrant.open(reentrant.args());
   reentrant.setResponder(() => undefined);
   const reentrantPending = reentrantThread.startTurn("cleanup once");
-  await waitForMethod(reentrant.writes, "turn/start");
+  await waitForMethod(reentrant.writes, "turn/start", reentrant.drain);
   reentrant.events.error(new Error("initial process fault"));
   await assert.rejects(reentrantPending, /process error/);
   assert.equal(reentrant.ended, 1);
   assert.equal(reentrant.terminations.length, 1);
 
+  const cleanupFailure = createHarness({
+    terminate: async () => { throw new Error("secret cleanup diagnostic"); },
+  });
+  const cleanupFailureThread = await cleanupFailure.open(cleanupFailure.args());
+  cleanupFailure.setResponder(() => undefined);
+  const pendingDuringCleanupFailure = [
+    cleanupFailureThread.startTurn("pending cleanup failure"),
+    cleanupFailureThread.probe(),
+  ];
+  await waitForMethod(
+    cleanupFailure.writes,
+    "account/rateLimits/read",
+    cleanupFailure.drain,
+  );
+  cleanupFailure.events.error(new Error("first spontaneous fault"));
+  const cleanupFailureResults = await Promise.allSettled(pendingDuringCleanupFailure);
+  for (const result of cleanupFailureResults) {
+    assert.equal(result.status, "rejected");
+    assert.equal(
+      (result as PromiseRejectedResult).reason.message,
+      "Codex app-server cleanup failed: Codex owner termination failed",
+    );
+  }
+  await assert.rejects(
+    cleanupFailureThread.probe(),
+    /cleanup failed: Codex owner termination failed/,
+  );
+  assert.equal(cleanupFailure.terminations.length, 1);
+
+  const cleanupBeforeThrow = createHarness({
+    terminate: async () => { throw "non-error cleanup rejection"; },
+  });
+  const cleanupBeforeThrowThread = await cleanupBeforeThrow.open(cleanupBeforeThrow.args());
+  await assert.rejects(
+    cleanupBeforeThrowThread.startTurn(" \t "),
+    /cleanup failed: Codex owner termination failed/,
+  );
+
   const simultaneousTimeouts = createHarness();
   const timeoutThread = await simultaneousTimeouts.open(simultaneousTimeouts.args({ timeoutMs: 23 }));
   simultaneousTimeouts.setResponder(() => undefined);
   const firstTimeout = timeoutThread.startTurn("first timer owns the fault");
-  await waitForMethod(simultaneousTimeouts.writes, "turn/start");
+  await waitForMethod(simultaneousTimeouts.writes, "turn/start", simultaneousTimeouts.drain);
   const secondTimeout = timeoutThread.probe();
-  await waitForMethod(simultaneousTimeouts.writes, "account/rateLimits/read");
+  await waitForMethod(
+    simultaneousTimeouts.writes,
+    "account/rateLimits/read",
+    simultaneousTimeouts.drain,
+  );
   simultaneousTimeouts.clock.advance(23);
   const timedOut = await Promise.allSettled([firstTimeout, secondTimeout]);
   for (const result of timedOut) {
@@ -1337,12 +1999,12 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
       explicitSeen.push(command.timeoutMs);
       return { code: 1, stdout: "", stderr: "" };
     },
-  })));
+  })), /not authenticated/);
   assert.deepEqual(explicitSeen, [17]);
 
   const initialize = createHarness({ responder: () => undefined });
   const initializePending = initialize.open(initialize.args({ timeoutMs: 12 }));
-  await waitForMethod(initialize.writes, "initialize");
+  await waitForMethod(initialize.writes, "initialize", initialize.drain);
   initialize.clock.advance(12);
   await assert.rejects(initializePending, /initialize timed out/);
   assert.equal(initialize.terminations.length, 1);
@@ -1353,7 +2015,7 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
     },
   });
   const threadPending = threadStart.open(threadStart.args({ timeoutMs: 13 }));
-  await waitForMethod(threadStart.writes, "thread/start");
+  await waitForMethod(threadStart.writes, "thread/start", threadStart.drain);
   threadStart.clock.advance(13);
   await assert.rejects(threadPending, /thread\/start timed out/);
   assert.equal(threadStart.terminations.length, 1);
@@ -1362,7 +2024,7 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
   const turnThread = await turn.open(turn.args({ timeoutMs: 14 }));
   turn.setResponder(() => undefined);
   const turnPending = turnThread.startTurn("bounded turn");
-  await waitForMethod(turn.writes, "turn/start");
+  await waitForMethod(turn.writes, "turn/start", turn.drain);
   turn.clock.advance(14);
   await assert.rejects(turnPending, /turn\/start timed out/);
   assert.equal(turn.terminations.length, 1);
@@ -1371,7 +2033,7 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
   const limitsThread = await limits.open(limits.args({ timeoutMs: 16 }));
   limits.setResponder(() => undefined);
   const limitsPending = limitsThread.probe();
-  await waitForMethod(limits.writes, "account/rateLimits/read");
+  await waitForMethod(limits.writes, "account/rateLimits/read", limits.drain);
   limits.clock.advance(16);
   await assert.rejects(limitsPending, /account\/rateLimits\/read timed out/);
   assert.equal(limits.terminations.length, 1);
@@ -1394,6 +2056,7 @@ test("request-timeouts-use-safe-bound-and-clean-up: every request phase expires 
     status: "inProgress",
   });
   await successfulThread.terminate();
+  assert.equal(successfulTimers.clock.pendingTimerCount, 0);
 });
 
 test("turn-prompt-and-response-failures-clean-up: validates prompt and every returned turn field", async () => {
@@ -1517,7 +2180,11 @@ test("probe-tristate-and-same-channel-rate-limits: preserves live, dead, unavail
     },
   }));
   const racedProbe = racedThread.probe();
-  await waitUntil(() => raceLivenessCalls === 1, "raced liveness observation");
+  await waitUntil(
+    () => raceLivenessCalls === 1,
+    "raced liveness observation",
+    racedFault.drain,
+  );
   racedFault.events.error(new Error("fault during liveness"));
   releaseRaceLiveness?.(false);
   await assert.rejects(racedProbe, /process error/);
@@ -1538,6 +2205,21 @@ test("probe-tristate-and-same-channel-rate-limits: preserves live, dead, unavail
 });
 
 test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and rejects every unconfirmed terminal state", async () => {
+  const pendingTermination = createHarness();
+  const pendingTerminationThread = await pendingTermination.open(pendingTermination.args());
+  pendingTermination.setResponder(() => undefined);
+  const terminatedRequest = pendingTerminationThread.startTurn("pending at termination");
+  await waitForMethod(
+    pendingTermination.writes,
+    "turn/start",
+    pendingTermination.drain,
+  );
+  await pendingTerminationThread.terminate();
+  await assert.rejects(terminatedRequest, (error: unknown) => {
+    assert.equal((error as Error).message, "Codex app-server terminated");
+    return true;
+  });
+
   let reads = 0;
   const polling = createHarness({
     terminate: async () => undefined,
@@ -1553,14 +2235,45 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   assert.equal(polling.ended, 1);
   assert.equal(reads, 3);
 
-  const alreadyDead = createHarness();
+  const alreadyDead = createHarness({ includeNativeRoot: true });
   const alreadyDeadThread = await alreadyDead.open(alreadyDead.args());
   alreadyDead.live = false;
   await alreadyDeadThread.terminate();
   assert.deepEqual(alreadyDead.terminations, []);
+  assert.equal(alreadyDead.nativeRootTerminations, 0, "a dead owner is never signalled through its native handle");
+
+  const lateEvents = createHarness();
+  const lateEventsThread = await lateEvents.open(lateEvents.args());
+  await lateEventsThread.terminate();
+  const writesAfterClose = lateEvents.writes.length;
+  const terminationsAfterClose = lateEvents.terminations.length;
+  lateEvents.emitRaw("{malformed after close}\n");
+  lateEvents.events.error(new Error("late error"));
+  lateEvents.events.exit(0, null);
+  await flush();
+  assert.equal(lateEvents.terminations.length, terminationsAfterClose);
+  assert.deepEqual(await lateEventsThread.probe(), { live: false, rateLimits: undefined });
+  await assert.rejects(
+    lateEventsThread.startTurn("after close"),
+    (error: unknown) => {
+      assert.equal((error as Error).message, "Codex app-server is unavailable");
+      return true;
+    },
+  );
+  assert.equal(lateEvents.writes.length, writesAfterClose, "closed controllers never write another request");
+
+  let endDuringClose!: ReturnType<typeof createHarness>;
+  endDuringClose = createHarness({
+    end: () => { endDuringClose.events.error(new Error("synchronous end error")); },
+  });
+  const endDuringCloseThread = await endDuringClose.open(endDuringClose.args());
+  await endDuringCloseThread.terminate();
+  assert.equal(endDuringClose.terminations.length, 1);
+  assert.deepEqual(await endDuringCloseThread.probe(), { live: false, rateLimits: undefined });
 
   const changedOwner = createHarness({
     platform: "windows",
+    includeNativeRoot: true,
     observe: async (expected) => ({
       status: "live",
       owner: { ...expected, token: `${expected.token}-changed` },
@@ -1569,11 +2282,13 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   const changedOwnerThread = await changedOwner.open(changedOwner.args());
   await changedOwnerThread.terminate();
   assert.deepEqual(changedOwner.terminations, []);
+  assert.equal(changedOwner.nativeRootTerminations, 0, "a changed owner is never signalled through its native handle");
 
   let racedObservationCalls = 0;
   let releaseRacedObservation: (() => void) | undefined;
   const exitDuringObservation = createHarness({
     platform: "windows",
+    includeNativeRoot: true,
     observe: async (expected) => {
       racedObservationCalls += 1;
       return await new Promise<CodexDetachedOwnerObservation>((resolve) => {
@@ -1583,29 +2298,71 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   });
   const exitDuringObservationThread = await exitDuringObservation.open(exitDuringObservation.args());
   const racedTermination = exitDuringObservationThread.terminate();
-  await waitUntil(() => racedObservationCalls === 1, "pre-termination owner observation");
+  await waitUntil(
+    () => racedObservationCalls === 1,
+    "pre-termination owner observation",
+    exitDuringObservation.drain,
+  );
   exitDuringObservation.events.exit(0, null);
   releaseRacedObservation?.();
   await racedTermination;
   assert.deepEqual(exitDuringObservation.terminations, [], "root exit during re-observation closes the kill window");
+  assert.equal(
+    exitDuringObservation.nativeRootTerminations,
+    0,
+    "root exit during re-observation also closes the native-handle kill window",
+  );
 
+  let exitDuringTerminateObservations = 0;
   let exitDuringTerminate!: ReturnType<typeof createHarness>;
   exitDuringTerminate = createHarness({
+    platform: "windows",
+    observe: async (expected) => {
+      exitDuringTerminateObservations += 1;
+      return { status: "live", owner: expected };
+    },
     terminate: async () => {
-      exitDuringTerminate.live = false;
       exitDuringTerminate.events.exit(0, "SIGTERM");
     },
   });
   const exitingThread = await exitDuringTerminate.open(exitDuringTerminate.args());
   await exitingThread.terminate();
+  assert.equal(exitDuringTerminateObservations, 1, "root exit ends death polling without another observation");
+  assert.deepEqual(exitDuringTerminate.terminations, [exitDuringTerminate.candidate]);
   assert.deepEqual(await exitingThread.probe(), { live: false, rateLimits: undefined });
+  await exitingThread.terminate();
+  assert.equal(exitDuringTerminateObservations, 1, "closed generation probes never re-observe the pid");
+  assert.deepEqual(exitDuringTerminate.terminations, [exitDuringTerminate.candidate]);
   await assert.rejects(exitingThread.startTurn("already closed"), /app-server is unavailable/);
 
   const terminatorError = createHarness({ terminate: async () => { throw new Error("tree kill failed"); } });
   const terminatorThread = await terminatorError.open(terminatorError.args());
-  await assert.rejects(terminatorThread.terminate(), /cleanup failed.*owner termination failed/);
-  await assert.rejects(terminatorThread.terminate(), /cleanup failed.*owner termination failed/);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await assert.rejects(terminatorThread.terminate(), (error: unknown) => {
+      assert.equal((error as Error).message, "Codex app-server cleanup failed: Codex owner termination failed");
+      return true;
+    });
+  }
   assert.equal(terminatorError.terminations.length, 1);
+
+  const terminationFallback = createHarness({
+    includeNativeRoot: true,
+    terminate: async () => { throw new Error("tree kill failed"); },
+  });
+  const terminationFallbackThread = await terminationFallback.open(terminationFallback.args({ timeoutMs: 31 }));
+  await assert.rejects(terminationFallbackThread.terminate(), (error: unknown) => {
+    assert.equal((error as Error).message, "Codex app-server cleanup failed: Codex owner termination failed");
+    return true;
+  });
+  assert.deepEqual(terminationFallback.terminations, [terminationFallback.candidate]);
+  assert.equal(terminationFallback.nativeRootTerminations, 1);
+  assert.deepEqual(terminationFallback.nativeRootTerminationTimeouts, [31]);
+  assert.deepEqual(
+    terminationFallback.provisionalObservationTimeouts,
+    [31],
+    "native fallback awaits the captured generation's death",
+  );
+  assert.equal(terminationFallback.live, false);
 
   const unavailableBeforeKill = createHarness({
     observe: async () => ({ status: "unavailable" }),
@@ -1616,6 +2373,28 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
     /ownership observation was unavailable before termination/,
   );
   assert.deepEqual(unavailableBeforeKill.terminations, []);
+
+  const unavailableFallback = createHarness({
+    includeNativeRoot: true,
+    observe: async () => ({ status: "unavailable" }),
+  });
+  const unavailableFallbackThread = await unavailableFallback.open(unavailableFallback.args({ timeoutMs: 32 }));
+  await assert.rejects(unavailableFallbackThread.terminate(), (error: unknown) => {
+    assert.equal(
+      (error as Error).message,
+      "Codex app-server cleanup failed: Codex app-server ownership observation was unavailable before termination",
+    );
+    return true;
+  });
+  assert.deepEqual(unavailableFallback.terminations, []);
+  assert.equal(unavailableFallback.nativeRootTerminations, 1);
+  assert.deepEqual(unavailableFallback.nativeRootTerminationTimeouts, [32]);
+  assert.deepEqual(
+    unavailableFallback.provisionalObservationTimeouts,
+    [32],
+    "unavailable exact observation falls back to the captured generation and confirms its death",
+  );
+  assert.equal(unavailableFallback.live, false);
 
   let phase = 0;
   const unavailableAfterKill = createHarness({
@@ -1633,6 +2412,32 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   });
   const stillLiveThread = await stillLive.open(stillLive.args({ timeoutMs: 20 }));
   await assert.rejects(stillLiveThread.terminate(), /did not become dead/);
+  assert.equal(stillLive.clock.delayCallCount, 2);
+
+  let frozenDelayCalls = 0;
+  const frozenClock = createHarness({
+    terminate: async () => undefined,
+    observe: async (expected) => ({ status: "live", owner: expected }),
+  });
+  frozenClock.clock.delay = async () => { frozenDelayCalls += 1; };
+  const frozenClockThread = await frozenClock.open(frozenClock.args({ timeoutMs: 20 }));
+  await assert.rejects(frozenClockThread.terminate(), /did not become dead/);
+  assert.equal(frozenDelayCalls, 3, "fixed polling bounds cleanup even when the collaborator clock stalls");
+
+  const nonErrorClock = createHarness({
+    terminate: async () => undefined,
+    observe: async (expected) => ({ status: "live", owner: expected }),
+  });
+  const nonErrorClockThread = await nonErrorClock.open(nonErrorClock.args());
+  nonErrorClock.clock.now = () => { throw "raw clock detail"; };
+  await assert.rejects(nonErrorClockThread.terminate(), (error: unknown) => {
+    assert.equal(
+      (error as Error).message,
+      "Codex app-server cleanup failed: Codex app-server death observation failed",
+    );
+    assert.equal((error as Error).message.includes("raw clock detail"), false);
+    return true;
+  });
 
   let settleDelay: (() => void) | undefined;
   let delayCalls = 0;
@@ -1646,7 +2451,7 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   };
   const hangingDelayThread = await hangingDelay.open(hangingDelay.args({ timeoutMs: 23 }));
   const hangingDelayCleanup = hangingDelayThread.terminate();
-  await waitUntil(() => delayCalls === 1, "cleanup delay");
+  await waitUntil(() => delayCalls === 1, "cleanup delay", hangingDelay.drain);
   hangingDelay.clock.advance(23);
   await assert.rejects(hangingDelayCleanup, /cleanup failed.*cleanup delay timed out/);
   settleDelay?.();
@@ -1658,13 +2463,20 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
 
   let settleOwnerTermination: (() => void) | undefined;
   const hangingTerminator = createHarness({
+    includeNativeRoot: true,
     terminate: async () => await new Promise<void>((resolve) => { settleOwnerTermination = resolve; }),
   });
   const hangingTerminatorThread = await hangingTerminator.open(hangingTerminator.args({ timeoutMs: 24 }));
   const hangingTermination = hangingTerminatorThread.terminate();
-  await waitUntil(() => hangingTerminator.terminations.length === 1, "owner termination");
+  await waitUntil(
+    () => hangingTerminator.terminations.length === 1,
+    "owner termination",
+    hangingTerminator.drain,
+  );
   hangingTerminator.clock.advance(24);
   await assert.rejects(hangingTermination, /cleanup failed.*owner termination timed out/);
+  assert.equal(hangingTerminator.nativeRootTerminations, 1);
+  assert.deepEqual(hangingTerminator.nativeRootTerminationTimeouts, [24]);
   settleOwnerTermination?.();
 
   let ownerObservations = 0;
@@ -1677,7 +2489,11 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
   });
   const hangingObserverThread = await hangingObserver.open(hangingObserver.args({ timeoutMs: 26 }));
   const hangingObservation = hangingObserverThread.terminate();
-  await waitUntil(() => ownerObservations === 1, "owner observation");
+  await waitUntil(
+    () => ownerObservations === 1,
+    "owner observation",
+    hangingObserver.drain,
+  );
   hangingObserver.clock.advance(26);
   await assert.rejects(hangingObservation, /cleanup failed.*owner observation timed out/);
   settleOwnerObservation?.({ status: "dead" });
@@ -1695,7 +2511,11 @@ test("termination-is-idempotent-bounded-and-confirms-death: shares cleanup and r
     },
   }));
   const livenessProbe = hangingLivenessThread.probe();
-  await waitUntil(() => livenessCalls === 1, "liveness observation");
+  await waitUntil(
+    () => livenessCalls === 1,
+    "liveness observation",
+    hangingLiveness.drain,
+  );
   hangingLiveness.clock.advance(28);
   assert.deepEqual(await livenessProbe, { live: "unavailable", rateLimits: undefined });
   hangLiveness = false;
