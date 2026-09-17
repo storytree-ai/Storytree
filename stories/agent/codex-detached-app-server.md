@@ -165,6 +165,12 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     minted it and has observed that exact generation dead or latch-closed it, that stronger local
     negative fact remains terminal. Durable recovery must not re-open it even when an OS descriptor is
     later observable, and a reused pid or different generation never inherits the old token's authority.
+    Preserve both pre-existing cross-runtime recovery tests and all of their probe, termination,
+    no-signal and collaborator-log assertions, but migrate their frozen token checks to Contract 15's
+    shared valid grammar/helpers. Split POSIX tokens to exactly six fields and Windows tokens to exactly
+    seven; strictly base64url-decode the semantic identity fields and compare the decoded bytes/text with
+    the expected immutable birth identity or creation identity and tasklist row. A raw POSIX generation
+    string or NUL-delimited Windows descriptor is never required to occur literally inside the token.
 15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`.** Exercise one durable
     token grammar across both host kinds. POSIX is exactly six colon-separated fields,
     `codex-owner:v1:p:<canonical-positive-pid>:<lowercase-rfc4122-v4-runtime-uuid>:<unpadded-base64url-birth-id>`;
@@ -181,7 +187,10 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     local-negative row in Contracts 15-21. Shorthand such as `v1:posix:<pid>:birth` or
     `v1:windows:<pid>:creation:row` is rejection-only. Table-drive every malformed field, missing/extra
     field, unsupported version, host mismatch, root mismatch and legacy encoding, and assert typed
-    unavailable with zero ownership-observer, terminator or other OS calls.
+    unavailable with zero ownership-observer, terminator or other OS calls. Positive-token assertions
+    first establish the exact field count, then strictly decode and re-encode each base64url field before
+    comparing its decoded value with the expected semantic identity; raw-identity substring matching is
+    not a valid assertion over the canonical token.
 16. **`posix-owner-requires-immutable-birth-identity`.** Make POSIX acquisition and recovery distinguish
     the exact root process birth from process-group existence. A bare negative group, a sentinel and a
     group-exists result without immutable birth identity all fail closed; only the matching immutable
@@ -341,15 +350,27 @@ after the probe — never the manual clock's fixed epoch. The broad
 rate-limit request; AUTHOR_TEST must change its stale expectation so probe fulfills, leaves the channel
 open, performs no cleanup, and returns exactly `{ live: true, rateLimits: { status: "unavailable",
 reason: "invalid-response", detail: "account/rateLimits/read did not return a rateLimits object" } }`.
-That row must not be converted into a rejection test. The next AUTHOR_TEST red must define shared
-`VALID_POSIX_OWNER_TOKEN` and `VALID_WINDOWS_OWNER_TOKEN` constants with the two literal Contract 15
-fixtures, plus grammar-preserving fixture helpers whose overrides still emit exactly six-field `p` or
+That row must not be converted into a rejection test. The most recent ephemeral AUTHOR_TEST still left
+this broad row stale, so this retry must update it rather than assuming another test covers it. The next
+AUTHOR_TEST red must define shared `VALID_POSIX_OWNER_TOKEN` and `VALID_WINDOWS_OWNER_TOKEN` constants
+with the two literal Contract 15 fixtures, plus grammar-preserving fixture helpers whose overrides still
+emit exactly six-field `p` or
 seven-field `w` tokens. Every valid acquisition/recovery, generation re-observation and same-runtime
 negative-knowledge row in Contracts 15-21 must use those constants/helpers. Short forms such as
 `v1:posix:<pid>:birth`, `v1:windows:<pid>:creation:row`, bare `pgid:<pid>` and any other alternate token
 belong only in malformed/rejection tables; they cannot stand in for a positive owner. AUTHOR_TEST must
-also add a separately titled, substantive failing test under every exact hardening prefix in Contracts
-15-22: strict token grammar, POSIX immutable birth identity, Windows tasklist-plus-creation identity,
+also migrate every pre-existing persisted-owner assertion in both the old Windows and POSIX recovery
+tests: preserve their behavioral assertions, parse the shared Contract 15 token by its exact seven- or
+six-field grammar, strictly base64url-decode the appropriate identity fields, and compare decoded
+bytes/text for exact equality with the expected immutable values. POSIX compares the decoded birth
+identity; Windows separately compares the decoded creation identity and decoded tasklist row. Neither
+`persisted.token.includes(rawDescriptorOrGeneration)` nor any equivalent raw-substring check is
+accepted: a NUL-delimited descriptor or raw generation text need not occur literally in an encoded
+token. Both inherited recovery tests must construct valid owners through the shared Contract 15
+constants/helpers while retaining their existing probe, changed-generation, unavailable, termination,
+idempotence, bounded-call and zero-new-work assertions. AUTHOR_TEST must also add a separately titled,
+substantive failing test under every exact hardening prefix in Contracts 15-22: strict token grammar,
+POSIX immutable birth identity, Windows tasklist-plus-creation identity,
 both platforms' pre-signal generation swap, both platforms' local negative knowledge, the one outer
 deadline over each await, the recovery settlement matrix, and direct canonical rate-limit parser reuse.
 A failure under one prefix cannot discharge another prefix. A broad existing failure, title-only shell,
@@ -599,7 +620,11 @@ even when an assertion fails.
       timeout; exact delay count/poll cap; a hanging delay bounded by the outer timer; and concurrent
       plus later callers sharing both fulfilled and rejected outcomes. Same-runtime rows separately
       prove that a locally closed generation cannot be re-opened through durable fallback, and every
-      row asserts zero authentication, process creation and protocol work.
+      row asserts zero authentication, process creation and protocol work. The inherited Windows and
+      POSIX recovery tests keep all of those behavioral assertions while using Contract 15's shared valid
+      tokens/helpers; each parses the exact seven- or six-field grammar, strictly decodes the semantic
+      identity fields and compares the decoded values exactly, never by requiring the raw descriptor or
+      generation text to be a literal token substring.
 15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`** — durable owner authority
     has one complete grammar, and invalid bytes are rejected before they can name an OS process.
     - **asserts —** POSIX accepts exactly six colon-separated fields with the grammar
@@ -631,7 +656,10 @@ even when an assertion fails.
       The table covers both valid constants and every named malformed/legacy row, asserting the typed
       result and zero calls in all OS logs for each rejection. Every positive, generation re-observation
       and same-runtime local-negative owner input in Contracts 16-21 reuses those constants/helpers;
-      shortened tokens occur only in rejection rows.
+      shortened tokens occur only in rejection rows. The same helpers expose strict field-count parsing
+      and canonical base64url decoding for assertions: POSIX decoded field six equals the expected birth
+      identity; Windows decoded fields six and seven equal the expected creation identity and tasklist row.
+      No positive assertion searches the encoded token for raw identity text.
 16. **`posix-owner-requires-immutable-birth-identity`** — POSIX owner authority identifies a process
     birth, not merely a currently occupied process group.
     - **asserts —** acquisition persists an OS-observed immutable birth identity for the positive root
@@ -644,7 +672,10 @@ even when an assertion fails.
     - **proven by —** `posix-owner-requires-immutable-birth-identity: ...` tests that distinguish two
       births at the same pid/group and separately feed bare-group, sentinel, identity-less and thrown
       observations, asserting only the exact birth is live and no fallback token is minted or accepted.
-      Every valid token in these rows comes from Contract 15's shared POSIX constant/helper.
+      Every valid token in these rows, including the inherited cross-runtime recovery row, comes from
+      Contract 15's shared POSIX constant/helper. Its token assertion parses exactly six fields, strictly
+      decodes the birth field and compares that decoded value with the expected generation; it does not
+      require the raw generation string to occur inside the token.
 17. **`windows-owner-requires-tasklist-and-creation-identity`** — Windows owner authority requires two
     independent observations of the same root generation.
     - **asserts —** acquisition and recovery require both the exact `tasklist` image/pid/session row and
@@ -657,7 +688,10 @@ even when an assertion fails.
     - **proven by —** `windows-owner-requires-tasklist-and-creation-identity: ...` tests for matching
       dual observations, each missing/malformed half, and the discriminating same-tasklist/different-
       creation reuse row, with zero `taskkill` in every non-matching case. Every valid token in these
-      rows comes from Contract 15's shared Windows constant/helper.
+      rows, including the inherited cross-runtime recovery row, comes from Contract 15's shared Windows
+      constant/helper. Its token assertion parses exactly seven fields, strictly decodes creation and
+      tasklist fields, and compares each decoded value exactly with the expected immutable identity and
+      row; it does not search for the raw NUL-delimited descriptor inside the token.
 18. **`both-platforms-reobserve-generation-immediately-before-signal`** — no earlier probe licenses a
     later signal after the pid has changed generations.
     - **asserts —** POSIX and Windows termination each make a fresh immutable-generation observation
@@ -671,7 +705,9 @@ even when an assertion fails.
       `both-platforms-reobserve-generation-immediately-before-signal: posix ...` and
       `both-platforms-reobserve-generation-immediately-before-signal: windows ...` tests whose ordered
       logs show live probe, swapped final generation, fresh observation and zero terminator calls, using
-      only Contract 15's shared valid-token constants/helpers.
+      only Contract 15's shared valid-token constants/helpers. Their initial and swapped identities are
+      compared through the helpers' exact-field parsing and strict decoded-field equality, never through
+      a raw token-substring assertion.
 19. **`same-runtime-negative-owner-knowledge-is-terminal`** — a runtime cannot resurrect an owner it
     minted and then learned was dead or closed.
     - **asserts —** on both platforms, once the minting runtime observes that exact generation dead or
