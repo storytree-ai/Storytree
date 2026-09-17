@@ -30,7 +30,7 @@ proof:
         - "packages/agent/src/codex-rate-limits.ts"
         - "packages/agent/src/index.ts"
     install: true
-    editsExisting: true
+    editsExisting: false
     proofCommand:
       file: pnpm
       args: ["--filter", "@storytree/agent", "test"]
@@ -66,8 +66,8 @@ limits, graphics, GPUs, or whether a caller should accept the observed identity.
 
 ## Proof walkthrough
 
-Extend the existing `packages/agent/src/codex-detached-app-server.test.ts`; do not replace its signed
-happy-path assertion. Use recording low-level adapters for protocol fault cases and a real long-lived
+Create `packages/agent/src/codex-detached-app-server.test.ts`. Use recording low-level adapters for
+protocol fault cases and a real long-lived
 stand-in child for the production process-composition cases. No test spends a Codex turn, contacts a
 database, or reaches the network. Each numbered leg below is one independently coverable contract and
 has its own required test-title prefix; no single broad happy-path title satisfies another leg.
@@ -88,10 +88,9 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    exact generation immediately before signalling the same negative group with bounded `SIGTERM`.
    Observation error is unavailable, never live-by-sentinel. If the generation changes after a probe
    but before the termination check, send no signal. Never target a bare pid, executable name or
-   another group. The inherited positive acquisition row must replace its `execFile: Error("not used")`
-   sentinel and bare `token: "pgid:71"` expectation with a real immutable-birth observation and an
-   exact six-field Contract 15 decode; every other positive POSIX fixture reaches the same shared strict
-   helper rather than spelling an opaque shorthand.
+   another group. Every positive POSIX fixture supplies a real immutable-birth observation, asserts an
+   exact six-field Contract 15 decode, and reaches the same shared strict helper rather than spelling an
+   opaque shorthand.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`.** Through a deterministic Windows OS
    seam, assert acquisition records the exact live root identity and publishes the literal
    `windows-process-tree` owner. Probe and termination re-run `tasklist`, but its image/pid/session row
@@ -100,9 +99,8 @@ has its own required test-title prefix; no single broad happy-path title satisfi
    change after probe but before the termination check is ownership lost and dead-for-controller, so
    it is never signalled even when the tasklist row is identical. The rooted command reaches descendants
    still reachable from that live root; it is not durable containment or proof that escaped descendants
-   died. Rewrite the inherited `expectWindowsOwner` helper: its NUL split and
-   `runtime:<uuid>:generation:<n>` regex are forbidden. Every positive Windows acquisition in the
-   existing low-level, owner, same-pid, in-flight and persisted-recovery rows must pass through a strict
+   died. A NUL split or `runtime:<uuid>:generation:<n>` regex is forbidden. Every positive Windows
+   acquisition in the low-level, owner, same-pid, in-flight and persisted-recovery rows must pass through a strict
    seven-field decoder that separately compares the creation identity and tasklist row. Their fake OS
    responders must supply the independent creation observation; tasklist-only success is not a positive
    fixture, and same-pid replacement rows vary creation identity rather than relying on a runtime counter.
@@ -151,26 +149,23 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     already-initialized app-server and returns the existing public `CodexRateLimitSnapshot` by reusing
     the canonical full-response parser in `codex-rate-limits.ts`; detached tests prove same-channel
     integration and clock ownership, while the canonical parser tests own the nested response-boundary
-    matrix. In the existing broad same-channel row, an RPC frame with `{ result: {} }` fulfills probe as
+    matrix. In the broad same-channel row, an RPC frame with `{ result: {} }` fulfills probe as
     `{ live: true, rateLimits: { status: "unavailable", reason: "invalid-response", detail:
     "account/rateLimits/read did not return a rateLimits object" } }`; it does not reject, close the
     channel or invoke cleanup. Dead starts no request and returns no snapshot; unavailable ownership is
     preserved as typed unavailable rather than collapsed to dead, guessed live or given a fabricated
     snapshot. No case starts a thread, turn or second process.
-    The pre-existing broad loop at committed-test lines 2834-2845 is itself part of this contract: split
-    or amend its `invalid === undefined` / `{ result: {} }` arm so that exact row fulfills with the typed
-    unavailable snapshot, leaves the channel open and performs zero cleanup. Adding a new passing row
-    while leaving that inherited rejection expectation untouched does not satisfy this contract.
+    The `invalid === undefined` / `{ result: {} }` arm is part of this contract: that exact row fulfills
+    with the typed unavailable snapshot, leaves the channel open and performs zero cleanup.
 13. **`termination-is-idempotent-bounded-and-confirms-death`.** Race two terminate calls and call it
     again after settlement. They share one terminal operation and close protocol I/O. POSIX invokes one
     exact-group terminator and confirms group death; Windows invokes `taskkill /PID <root> /T /F` only
     after same-token live-root re-observation, then confirms root disappearance. A root already absent
     or changed is ownership-lost/dead-for-controller and is never signalled; descendant death is not
     inferred from it. Terminator error, observation error, bound expiry and a still-live matching root
-    reject rather than report cleanup. Every inherited cleanup harness starts from a strict owner. The
-    changed-owner rows currently formed by appending `-reused` or `-changed` must instead produce a
-    different but fully valid Contract 15 token, so cleanup is testing identity change rather than parser
-    rejection; the frozen-owner mutation attempt likewise uses a strict replacement token.
+    reject rather than report cleanup. Every cleanup harness starts from a strict owner. Changed-owner
+    rows produce a different but fully valid Contract 15 token, so cleanup tests identity change rather
+    than parser rejection; frozen-owner mutation likewise uses a strict replacement token.
 14. **`persisted-owner-recovers-across-runtime-restart`.** Persist the public opaque owner from one
     Agent runtime, discard every in-memory generation map, child handle and protocol channel, then pass
     it through the public barrel to `recoverCodexDetachedOwner` in a fresh runtime. On both POSIX and
@@ -185,16 +180,13 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     minted it and has observed that exact generation dead or latch-closed it, that stronger local
     negative fact remains terminal. Durable recovery must not re-open it even when an OS descriptor is
     later observable, and a reused pid or different generation never inherits the old token's authority.
-    Preserve both pre-existing cross-runtime recovery tests and all of their probe, termination,
-    no-signal and collaborator-log assertions, but migrate their frozen token checks to Contract 15's
-    shared valid grammar/helpers. Split POSIX tokens to exactly six fields and Windows tokens to exactly
+    Cross-runtime recovery tests retain probe, termination, no-signal and collaborator-log assertions
+    while using Contract 15's shared valid grammar/helpers. Split POSIX tokens to exactly six fields and Windows tokens to exactly
     seven; strictly base64url-decode the semantic identity fields and compare the decoded bytes/text with
     the expected immutable birth identity or creation identity and tasklist row. A raw POSIX generation
     string or NUL-delimited Windows descriptor is never required to occur literally inside the token.
-    This migration applies to the actual inherited assertions at committed-test lines 1553-1697 and
-    3366-3530: replace both `persisted.token.includes(...)` checks, retain every surrounding behavioral
-    assertion, and prove the serialized owner itself passes the shared exact-field decoder before runtime
-    B receives it.
+    Prove the serialized owner itself passes the shared exact-field decoder before runtime B receives it;
+    raw `persisted.token.includes(...)` checks are not accepted.
 15. **`owner-token-grammar-is-strict-versioned-and-os-silent-on-rejection`.** Exercise one durable
     token grammar across both host kinds. POSIX is exactly six colon-separated fields,
     `codex-owner:v1:p:<canonical-positive-pid>:<lowercase-rfc4122-v4-runtime-uuid>:<unpadded-base64url-birth-id>`;
@@ -216,7 +208,7 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     comparing its decoded value with the expected semantic identity; raw-identity substring matching is
     not a valid assertion over the canonical token.
     Add a source-structure regression or an equivalently exhaustive positive-site inventory that proves
-    the committed test file contains no positive legacy owner spelling or parser. Its allowlist may name
+    the test file contains no positive legacy owner spelling or parser. Its allowlist may name
     only individual entries in the explicit malformed-token rejection tables; it may not exclude a whole
     test or helper. Outside that allowlist it rejects `owner-<pid>`, `owned-group`, bare positive `pgid:`,
     the old `runtime:<uuid>:generation:<n>` parser, raw `.token.includes(...)`, and suffix mutation by
@@ -225,13 +217,13 @@ has its own required test-title prefix; no single broad happy-path title satisfi
 16. **`posix-owner-requires-immutable-birth-identity`.** Make POSIX acquisition and recovery distinguish
     the exact root process birth from process-group existence. A bare negative group, a sentinel and a
     group-exists result without immutable birth identity all fail closed; only the matching immutable
-    root birth makes the token live. The original direct POSIX acquisition test must decode and compare
-    that birth identity; its old thrown `"not used"` observer cannot remain as a positive seam.
+    root birth makes the token live. The direct POSIX acquisition test decodes and compares that birth
+    identity; a thrown `"not used"` observer cannot stand in as a positive seam.
 17. **`windows-owner-requires-tasklist-and-creation-identity`.** Make Windows acquisition and recovery
     require the conjunction of the matching `tasklist` image/pid/session row and an independent immutable
     creation identity. The same row with a different creation identity is dead-for-controller and never
-    sufficient ownership. All inherited Windows `execFile` fakes that currently return tasklist-or-
-    `"SUCCESS"` must explicitly model the creation observation, and every acquired owner assertion must
+    sufficient ownership. All Windows `execFile` fakes explicitly model the creation observation, and
+    every acquired owner assertion must
     compare both decoded identities rather than merely accept a non-undefined owner.
 18. **`both-platforms-reobserve-generation-immediately-before-signal`.** On POSIX and Windows, first
     observe the persisted generation live, then swap it before the termination operation's own observation.
@@ -243,8 +235,8 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     runtime, locally observe that exact generation dead or latch it closed, then make the OS descriptor
     look live again. Both probe and termination retain the local negative fact, make no durable fallback
     capable of reopening it, and send no signal; fresh-runtime recovery remains separately available.
-    The inherited local-negative and cleanup cases use the shared strict owner factories, including
-    default `createHarness` candidates, so parser rejection cannot masquerade as remembered death.
+    Local-negative and cleanup cases use the shared strict owner factories, so parser rejection cannot
+    masquerade as remembered death.
 20. **`recovery-outer-deadline-bounds-every-await`.** Under one recovery-termination deadline, separately
     make the initial observer, terminator, post-signal observer and injected delay never settle. Each row
     rejects when that one bound expires, stops scheduling further work, and cannot emit a late signal or
@@ -260,10 +252,9 @@ has its own required test-title prefix; no single broad happy-path title satisfi
     optional/malformed fields distinguish the canonical parser from the detached module's current local
     copy. Assert identical `CodexRateLimitSnapshot` output through the existing channel, a direct-module
     import of the canonical parser, deletion of the local parser implementation, and no new parser export
-    from `packages/agent/src/index.ts`. The pre-existing broad `{ result: {} }` row is part of this proof:
+    from `packages/agent/src/index.ts`. The broad `{ result: {} }` row is part of this proof:
     it fulfills as live with the canonical `invalid-response` unavailable snapshot and performs no
-    rejection or cleanup. The row at committed-test lines 2834-2845 must change in place; a new adjacent
-    test does not compensate for retaining its stale rejection and termination assertions.
+    rejection or cleanup.
 
 Legs 15-22 are separate hardening acceptance units even where they strengthen the same public boundary
 as legs 3-5 or 12-14. A test under an earlier broad prefix, or one test title naming several hardening
@@ -374,136 +365,57 @@ signal, a still-live timeout, and even a delay that never settles reject within 
 death may fulfill. All concurrent callers and every later caller share the one settled fulfillment or
 rejection; they never start a second signal or polling operation.
 
-**The red is an assertion over existing code.** Source and test now exist and carry a signed first
-green, so this `real:` arm is deliberately `editsExisting: true`. AUTHOR_TEST adds regression
-assertions to the existing test file and reaches the existing public value through `./index.js`; at
-least one new substantive assertion must run and fail against the current implementation. A missing
-import, compile failure, deleted old assertion or type-only check is the wrong red. IMPLEMENT edits
-the existing source minimally until the new assertions and every old one pass. `real.scope` retains
-the implementation and barrel, and the package suite remains the explicit `proofCommand` over that
-public surface. AUTHOR_TEST must migrate every existing probe expectation — including the broad
-`jsonl-fragments-and-correlates-responses` test and the `probe-tristate-and-same-channel-rate-limits`
-matrix — to the public `CodexRateLimitSnapshot` semantics;
-no assertion may retain the raw `account/rateLimits/read` payload as `probe().rateLimits`. Clock
-ownership follows explicit injection: only a controller/runtime given a `ManualClock` may assert its
-exact `capturedAt`. Every path with no injected clock uses `SYSTEM_CLOCK` and must assert a valid
-contemporaneous ISO timestamp, such as one bounded by system-clock readings immediately before and
-after the probe — never the manual clock's fixed epoch. The broad
-`probe-tristate-and-same-channel-rate-limits` loop at committed-test lines 2834-2845 already returns
-`{ result: {} }` for its `invalid === undefined` same-channel rate-limit request; AUTHOR_TEST must change
-that inherited row in place so probe fulfills, leaves the channel
-open, performs no cleanup, and returns exactly `{ live: true, rateLimits: { status: "unavailable",
-reason: "invalid-response", detail: "account/rateLimits/read did not return a rateLimits object" } }`.
-That row must not be converted into a rejection test. The most recent ephemeral AUTHOR_TEST still left
-this broad row stale, so this retry must update it rather than assuming another test covers it. The next
-AUTHOR_TEST red must define shared `VALID_POSIX_OWNER_TOKEN` and `VALID_WINDOWS_OWNER_TOKEN` constants
-with the two literal Contract 15 fixtures, plus grammar-preserving fixture helpers whose overrides still
-emit exactly six-field `p` or
-seven-field `w` tokens. Every valid acquisition/recovery, generation re-observation and same-runtime
-negative-knowledge row in Contracts 15-21 must use those constants/helpers. Short forms such as
-`v1:posix:<pid>:birth`, `v1:windows:<pid>:creation:row`, bare `pgid:<pid>` and any other alternate token
-belong only in malformed/rejection tables; they cannot stand in for a positive owner. AUTHOR_TEST must
-also migrate every pre-existing persisted-owner assertion in both the old Windows and POSIX recovery
-tests: preserve their behavioral assertions, parse the shared Contract 15 token by its exact seven- or
-six-field grammar, strictly base64url-decode the appropriate identity fields, and compare decoded
-bytes/text for exact equality with the expected immutable values. POSIX compares the decoded birth
-identity; Windows separately compares the decoded creation identity and decoded tasklist row. Neither
-`persisted.token.includes(rawDescriptorOrGeneration)` nor any equivalent raw-substring check is
-accepted: a NUL-delimited descriptor or raw generation text need not occur literally in an encoded
-token. Both inherited recovery tests must construct valid owners through the shared Contract 15
-constants/helpers while retaining their existing probe, changed-generation, unavailable, termination,
-idempotence, bounded-call and zero-new-work assertions.
+**The red creates the public boundary from a clean checkout.** Current `origin/main` contains
+neither detached-app-server source nor its test file, so this `real:` arm is deliberately
+`editsExisting: false`. AUTHOR_TEST creates the test file, reaches the planned public value through
+`./index.js`, and adds substantive assertions for all twenty-two exact contract ids below. At least
+one assertion must run and fail for missing behaviour; a missing import, compile failure, title-only
+shell, or type-only check is the wrong red. IMPLEMENT creates the source and publishes the narrow
+public surface until the new assertions and the package suite pass.
 
-**Committed-test migration inventory.** These anchors name the complete positive legacy surface in
-`packages/agent/src/codex-detached-app-server.test.ts` at committed baseline `9288062b`; snippets and test
-names remain normative if edits shift the numbers. AUTHOR_TEST changes every item in this one revision:
+The test design is self-contained. Define shared `VALID_POSIX_OWNER_TOKEN` and
+`VALID_WINDOWS_OWNER_TOKEN` constants with Contract 15's literal fixtures, plus
+grammar-preserving helpers whose overrides still emit exactly six-field `p` or seven-field `w`
+tokens. Every valid acquisition/recovery, generation re-observation and same-runtime
+negative-knowledge row in Contracts 15-21 uses those constants/helpers. Short forms, bare
+`pgid:<pid>`, raw token-substring checks, and suffix mutation belong only in individually named
+malformed/rejection rows. A source-structure assertion or equivalently exhaustive positive-site
+inventory proves that no positive helper, acquisition assertion, changed-owner row or cleanup fixture
+uses a legacy form, permissive parser, malformed suffix mutation or raw-token substring test.
 
-- lines 179-203: replace `ownerFor`'s ``owner-${pid}`` default and `expectWindowsOwner`'s NUL split plus
-  `runtime:<uuid>:generation:<n>` regex with grammar-producing and strict-decoding helpers;
-- lines 255-260, 435-445 and 1140-1152: make the default `createHarness` candidate, staged-protocol
-  `"owned-group"` owner, frozen expected owner and attempted replacement all strict tokens;
-- lines 730-984, especially positive acquisitions at 798-802, 849-853, 882, 898, 915, 953 and 973:
-  teach the low-level Windows fixture the independent creation observation and route every acquired
-  owner through the seven-field decoder, including acquisitions previously awaited and discarded;
-- lines 1012-1077: replace the positive POSIX `execFile: Error("not used")` sentinel and bare
-  `token: "pgid:71"` equality with an immutable-birth response and exact six-field decoded equality;
-- lines 1108-1116 and 1335-1343: use valid strict Windows/POSIX tokens for the cross-kind checks, so the
-  host-kind mismatch is isolated rather than accompanied by `"windows-owner"` or bare `pgid:130`;
-- lines 1162-1354, 1356-1445 and 1447-1551: make every Windows tasklist-only fake return creation
-  identity too, run every positive acquisition through the strict decoder, and make same-pid generations
-  differ by immutable creation identity rather than the removed runtime-generation counter;
-- lines 1553-1697 and 3366-3530: keep both inherited cross-runtime matrices intact while replacing the
-  descriptor/generation `.token.includes(...)` checks with exact seven-/six-field decode and semantic
-  equality assertions over the persisted owners;
-- lines 1700-1795: after the real production child is acquired, assert its host-appropriate strict field
-  count, embedded pid, UUID and canonical base64url identities before using it for observe/terminate;
-- lines 2473-2505, 2784-2800 and 2971-2982: replace each `${expected.token}-reused` or `-changed`
-  construction with a grammar-preserving helper that changes one decoded identity while keeping the
-  starting and returned owners valid; and
-- lines 2834-2845: migrate the existing `{ result: {} }` arm itself to the exact fulfilled canonical
-  unavailable snapshot and zero cleanup, rather than adding a new test beside the stale rejection.
+Probe assertions use the public `CodexRateLimitSnapshot` semantics. Clock ownership follows explicit
+injection: only a controller/runtime given a `ManualClock` may assert its exact `capturedAt`; a
+runtime using `SYSTEM_CLOCK` asserts a valid contemporaneous ISO timestamp bounded by system-clock
+readings immediately before and after the probe. The `{ result: {} }` same-channel row fulfills,
+keeps the channel open, performs no cleanup, and returns exactly `{ live: true, rateLimits: { status:
+"unavailable", reason: "invalid-response", detail: "account/rateLimits/read did not return a
+rateLimits object" } }`.
 
-The malformed/invalid rows at lines 1088-1106, 1315-1333, 1797-1830 and 3533-3573 are negative cases,
-not positive fixtures. Any legacy spelling retained there must be an individually named member of a
-malformed-token rejection table. AUTHOR_TEST adds a Contract 15 source-structure assertion over this
-test file (or an explicit executable inventory with the same coverage) whose only allowlist is those
-named individual rejection entries; it proves none of the positive helpers, literals, acquisition
-assertions, changed-owner rows or cleanup fixtures above still uses a legacy form, old regex, suffix
-mutation or raw-token substring test.
-
-AUTHOR_TEST must also add a separately titled,
-substantive failing test under every exact hardening prefix in Contracts 15-22: strict token grammar,
-POSIX immutable birth identity, Windows tasklist-plus-creation identity,
-both platforms' pre-signal generation swap, both platforms' local negative knowledge, the one outer
-deadline over each await, the recovery settlement matrix, and direct canonical rate-limit parser reuse.
-A failure under one prefix cannot discharge another prefix. A broad existing failure, title-only shell,
-renamed old assertion, or indirect high-level assertion is not this red. It also adds a
-discriminating assertion for every non-equivalent branch implicated by the latest survivor/no-coverage
-report; leaving those branches for an unchanged suite to miss again is not an accepted revised test.
-For Contract 12, canonical tests keep the nested parser matrix while the detached test proves the same
-full response reaches that parser on the existing channel, including the exact empty-result unavailable
-snapshot above; do not recreate the matrix around a copy.
-
-**The changed-line mutation rung is a binary ship gate, not a percentage target.** The first gated
-reading counted 455 mutants: 201 killed, 138 survived, 115 with no coverage and one timed out. The
-mutation-bound re-drive then signed `real-mu4pozsf` at `206ecd7`, but it added only one blank-prompt
-cleanup test and five implementation lines; the resulting 456-mutant run had no new production-path
-or parser matrix capable of changing the verdict and was stopped rather than mistaken for progress.
-A signed contract-test verdict does not override that red. The next real drive is complete only when
-`pnpm check:mutation-diff` exits zero: every mutant in this branch's changed lines is killed by this
-branch's tests, or the exact source line carries a narrowly scoped Stryker equivalence annotation
+**The changed-line mutation rung is a binary ship gate, not a percentage target.**
+`pnpm check:mutation-diff` must exit zero: every mutant in this branch's changed lines is killed by
+this branch's tests, or the exact source line carries a narrowly scoped Stryker equivalence annotation
 naming the precise mutator class and explaining why no possible input or observable can distinguish
 the mutant from the original. A timeout is unproven, not a pass. Reachable, merely uncovered,
-expensive, or inconvenient behaviour is not equivalent; do not disable it, do not use a blanket `all`
-annotation, and remove a redundant branch instead of annotating it when deletion preserves the
-contract. The latest refused signed verdict still produced 70 surviving mutants and 41 no-coverage
-mutants; this rework ships with zero survivors and zero no-coverage mutants in changed lines, except
-only a precise equivalence annotation meeting that bar.
+expensive or inconvenient behaviour is not equivalent; do not disable it, do not use a blanket
+`all` annotation, and remove a redundant branch instead of annotating it when deletion preserves the
+contract.
 
-The hardening must exercise the production defaults and their branches directly, not infer them from
+The proof exercises the production defaults and their branches directly, not by inference from
 high-level injected substitutes: bounded authentication and credential scrubbing, pinned detached
 spawn, actual-host owner selection and acquisition, POSIX-group and Windows-tree command composition,
 current-owner liveness, exact POSIX-group termination, live-root-reachable Windows termination, and
 platform-qualified terminal observation. Refactor a hidden default behind a deterministic low-level
-seam when that is needed to make its decisions observable, while keeping the public barrel narrow and
-role-neutral. The remaining protocol, validation, timeout,
-failure-cleanup, idempotence, same-app-server and fresh-runtime owner-recovery branches are subject to
-the same per-mutant rule.
-Strengthen or simplify source together with substantive assertions until the mutation command passes;
-an assertion-title shell, a test that reaches only injected happy paths, or an annotation for a mutant
-that some input could distinguish does not satisfy any of the twenty-two contracts.
+seam when needed to make its decisions observable, while keeping the public barrel narrow and
+role-neutral. Protocol, validation, timeout, failure-cleanup, idempotence, same-app-server and
+fresh-runtime owner-recovery branches are subject to the same per-mutant rule.
 
 **Tests.** Use `node:test` and `node:assert/strict`, with every await bounded and every fake settling
-deterministically. Retain the signed tests, then add at least one substantive test for EACH of the
-twenty-two exact ids below. Every title begins with exactly one id verbatim; sharing a former broad
-prefix, naming several ids in one title, or keeping an old title without the new prefix covers none of
-the new lines. Contracts 15-22 each require a newly authored discriminating red; pre-existing tests
-under Contracts 1-14 remain regression proof but do not count for those eight. For a line that names a
-matrix, every named row needs an assertion under that line's prefix — one representative case is
-incomplete. Literal protocol methods, command argv and platform discriminants appear in assertions
-rather than being read back from production constants. Use focused table-driven cases plus one
-real-child production-composition test. Every spawned stand-in/root/descendant is reaped in `finally`,
-even when an assertion fails.
+deterministically. Author at least one substantive test for each of the twenty-two exact ids below.
+Every title begins with exactly one id verbatim; naming several ids in one title covers none of them.
+For a matrix, every named row needs an assertion under that contract's prefix. Literal protocol
+methods, command argv and platform discriminants appear in assertions rather than being read back from
+production constants. Use focused table-driven cases plus one real-child production-composition test.
+Every spawned stand-in/root/descendant is reaped in `finally`, even when an assertion fails.
 
 ## Contracts (22)
 
@@ -538,8 +450,8 @@ even when an assertion fails.
    - **proven by —** `posix-group-owner-is-observed-probed-and-terminated: ...` tests whose recording
      OS seam asserts literal owner discriminant, persisted process-birth identity, signed target,
      observation-error unavailability, exact pre-signal re-observation, and generation-change TOCTOU
-     with zero signal. The inherited positive acquisition row replaces its `Error("not used")` sentinel
-     and `pgid:71` equality with the shared exact six-field decode.
+     with zero signal. Every positive acquisition supplies the immutable observer result and uses the
+     shared exact six-field decode; an `Error("not used")` sentinel or `pgid:71` equality is invalid.
 4. **`windows-tree-owner-is-observed-probed-and-terminated`** — the Windows production path observes
    the exact live root and terminates only its currently reachable rooted tree.
    - **asserts —** a positive child pid is inspected by `tasklist` as the exact live Windows root,
@@ -554,8 +466,8 @@ even when an assertion fails.
    - **proven by —** `windows-tree-owner-is-observed-probed-and-terminated: ...` tests whose recording
      OS seam asserts literal discriminant, required tasklist plus independent creation observation,
      exact task-kill composition, same-row/different-creation pid reuse, and pre-signal generation-change
-     TOCTOU with zero taskkill. The shared acquisition assertion decodes exactly seven fields and replaces
-     the old NUL separator plus `runtime:<uuid>:generation:<n>` matcher at every inherited call site.
+     TOCTOU with zero taskkill. The shared acquisition assertion decodes exactly seven fields; a NUL
+     separator plus `runtime:<uuid>:generation:<n>` matcher is invalid at every positive call site.
 5. **`owner-validation-rejects-invalid-pid-root-kind-and-token`** — no invalid or mismatched process identity can become the controller's owner.
    - **asserts —** absent, zero, negative, fractional, non-finite and unsafe pids plus missing owner,
      wrong root, host-wrong kind, caller platform assertion contradicting the host, and blank/whitespace
@@ -640,9 +552,9 @@ even when an assertion fails.
       every controller/runtime created without an explicit clock inherits `SYSTEM_CLOCK` and asserts a
       valid contemporaneous ISO timestamp with an equivalent bounded before/after check, never a fixed
       injected epoch. Dead/unavailable starts no request, process, thread or turn and returns no
-      fabricated snapshot. Every existing probe assertion expects this typed public snapshot and the
+      fabricated snapshot. Every probe assertion expects this typed public snapshot and the
       clock actually supplied to its runtime; none expects the raw rate-limit response payload. In the
-      existing broad same-channel row, `{ result: {} }` is a valid RPC response carrying an invalid
+      broad same-channel row, `{ result: {} }` is a valid RPC response carrying an invalid
       rate-limit body: probe fulfills as `{ live: true, rateLimits: { status: "unavailable", reason:
       "invalid-response", detail: "account/rateLimits/read did not return a rateLimits object" } }`,
       leaves the channel usable and performs no cleanup rather than throwing.
@@ -652,10 +564,9 @@ even when an assertion fails.
     - **proven by —** `probe-tristate-and-same-channel-rate-limits: ...` tests for all three liveness
       states plus a spontaneous exit, an asserted full-result-to-`CodexRateLimitSnapshot` parse with
       exact explicitly injected-clock `capturedAt`, a default-clock assertion bounded around
-      `SYSTEM_CLOCK`, and a literal one-channel protocol log, plus migrated typed-snapshot and
-      clock-appropriate expectations in every pre-existing probe assertion, including the broad JSONL
-      correlation test. The existing `probe-tristate-and-same-channel-rate-limits` line-2839
-      `{ result: {} }` arm is changed in place to exact typed-unavailable fulfillment and zero cleanup.
+      `SYSTEM_CLOCK`, and a literal one-channel protocol log, plus typed-snapshot and clock-appropriate
+      expectations in the broad JSONL correlation test. Its `{ result: {} }` arm pins exact
+      typed-unavailable fulfillment and zero cleanup.
       Existing canonical parser
       tests own the nested missing/malformed boundary matrix; detached tests prove only reuse,
       same-channel integration, and clock propagation.
@@ -710,8 +621,8 @@ even when an assertion fails.
       timeout; exact delay count/poll cap; a hanging delay bounded by the outer timer; and concurrent
       plus later callers sharing both fulfilled and rejected outcomes. Same-runtime rows separately
       prove that a locally closed generation cannot be re-opened through durable fallback, and every
-      row asserts zero authentication, process creation and protocol work. The inherited Windows and
-      POSIX recovery tests keep all of those behavioral assertions while using Contract 15's shared valid
+      row asserts zero authentication, process creation and protocol work. The Windows and POSIX
+      recovery tests keep all of those behavioral assertions while using Contract 15's shared valid
       tokens/helpers; each parses the exact seven- or six-field grammar, strictly decodes the semantic
       identity fields and compares the decoded values exactly, never by requiring the raw descriptor or
       generation text to be a literal token substring.
@@ -750,8 +661,8 @@ even when an assertion fails.
       and canonical base64url decoding for assertions: POSIX decoded field six equals the expected birth
       identity; Windows decoded fields six and seven equal the expected creation identity and tasklist row.
       No positive assertion searches the encoded token for raw identity text. A source-structure proof
-      (or executable positive-site inventory of equal coverage) checks all line-anchored inherited sites
-      listed in AUTHOR_TEST and allows legacy text only in individually named rejection-table entries.
+      (or executable positive-site inventory of equal coverage) checks all positive token sites and
+      allows legacy text only in individually named rejection-table entries.
 16. **`posix-owner-requires-immutable-birth-identity`** — POSIX owner authority identifies a process
     birth, not merely a currently occupied process group.
     - **asserts —** acquisition persists an OS-observed immutable birth identity for the positive root
@@ -764,7 +675,7 @@ even when an assertion fails.
     - **proven by —** `posix-owner-requires-immutable-birth-identity: ...` tests that distinguish two
       births at the same pid/group and separately feed bare-group, sentinel, identity-less and thrown
       observations, asserting only the exact birth is live and no fallback token is minted or accepted.
-      Every valid token in these rows, including the inherited cross-runtime recovery row, comes from
+      Every valid token in these rows, including cross-runtime recovery, comes from
       Contract 15's shared POSIX constant/helper. Its token assertion parses exactly six fields, strictly
       decodes the birth field and compares that decoded value with the expected generation; it does not
       require the raw generation string to occur inside the token.
@@ -780,7 +691,7 @@ even when an assertion fails.
     - **proven by —** `windows-owner-requires-tasklist-and-creation-identity: ...` tests for matching
       dual observations, each missing/malformed half, and the discriminating same-tasklist/different-
       creation reuse row, with zero `taskkill` in every non-matching case. Every valid token in these
-      rows, including the inherited cross-runtime recovery row, comes from Contract 15's shared Windows
+      rows, including cross-runtime recovery, comes from Contract 15's shared Windows
       constant/helper. Its token assertion parses exactly seven fields, strictly decodes creation and
       tasklist fields, and compares each decoded value exactly with the expected immutable identity and
       row; it does not search for the raw NUL-delimited descriptor inside the token.
@@ -861,5 +772,5 @@ even when an assertion fails.
       nested response with distinguishable missing and malformed optional fields, asserting exact
       parity with the direct canonical parser and supplied clock, plus a source-structure assertion
       that the detached module imports that parser, defines no local copy, and the barrel exports no
-      parser symbol. The existing `probe-tristate-and-same-channel-rate-limits` loop's line-2839
-      `{ result: {} }` arm separately pins exact typed-unavailable fulfillment and zero cleanup in place.
+      parser symbol. The `probe-tristate-and-same-channel-rate-limits` `{ result: {} }` arm separately
+      pins exact typed-unavailable fulfillment and zero cleanup.
