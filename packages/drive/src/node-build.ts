@@ -1398,7 +1398,9 @@ export function liveInnerLoopReads(): InnerLoopReadHandles & { readonly close: (
   let ledgerPool: Awaited<ReturnType<typeof createPool>> | undefined;
   let ledgerStore: Pick<Store, "readEvents"> | undefined;
   return {
+    // Stryker disable next-line ObjectLiteral: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any lookup (ADR-0302 D3)
     corpus: {
+      // Stryker disable next-line BlockStatement: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any lookup (ADR-0302 D3)
       async getDoc(id: string) {
         // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
         if (corpus === undefined) corpus = await openCorpusStore("build --real");
@@ -1406,7 +1408,9 @@ export function liveInnerLoopReads(): InnerLoopReadHandles & { readonly close: (
         return corpus.store.getDoc(id);
       },
     },
+    // Stryker disable next-line ObjectLiteral: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any ledger read (ADR-0302 D3)
     ledger: {
+      // Stryker disable next-line BlockStatement: NO COVERAGE BY DESIGN — only the live store calls this handle, and the one hermetic path here (a missing increment) is refused before any ledger read (ADR-0302 D3)
       async readEvents(filter?: { id?: string }) {
         // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
         if (ledgerStore === undefined) {
@@ -1418,6 +1422,7 @@ export function liveInnerLoopReads(): InnerLoopReadHandles & { readonly close: (
         return ledgerStore.readEvents(filter);
       },
     },
+    // Stryker disable next-line BlockStatement: EQUIVALENT — close() releases only a handle that opened, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
     close: async () => {
       // Stryker disable next-line all: NO COVERAGE BY DESIGN — the production read handles open the live store, which no hermetic test may reach (ADR-0302 D3)
       if (corpus !== undefined) await corpus.close();
@@ -1468,6 +1473,7 @@ export async function preflightPaidBuild(input: {
   const reads = liveInnerLoopReads();
   try {
     return await runPaidBuildPreflight(reads, input.incrementId, input.unitIds, input.revise);
+    // Stryker disable next-line BlockStatement: EQUIVALENT — close() releases only a handle that opened, and the one hermetic path through these handles (a missing increment) opens none (ADR-0302 D3)
   } finally {
     await reads.close();
   }
@@ -2329,6 +2335,7 @@ export async function nodeBuild(
   // attempt policy, BOTH refused before any spend — before the prompt render, the claim, and the
   // worktree. Every existing cheap refusal above (the revision read included) keeps its precedence.
   let incrementId: string | undefined;
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — renderIncrementLines renders nothing while incrementId is undefined, and the one path that sets incrementId sets these warnings with it
   let incrementWarnings: readonly string[] = [];
   if (real) {
     const preflight = await progress.stage(
@@ -2631,6 +2638,7 @@ export async function nodeBuild(
           "",
           framing,
         ].join("\n"),
+        // Stryker disable next-line ArrayDeclaration: NO COVERAGE BY DESIGN — only a failed --live or --real walk reaches this envelope (a --dry-run walk is synthetic and passes), and NodeBuildOpts has no author seam (ADR-0243 D4)
         next: [...outcome.next, retryCmd],
       };
     }

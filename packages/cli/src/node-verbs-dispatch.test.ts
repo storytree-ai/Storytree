@@ -16,12 +16,14 @@ import test from "node:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { INNER_LOOP_EVENT_KIND, type InnerLoopEventDoc } from "@storytree/proof-protocol";
 import { InMemoryStore, type Store, type StoreEvent } from "@storytree/storage-protocol";
 import {
   adjudicateLanding,
   appendInnerLoopEvent,
+  loadNodeSpec,
   readInnerLoopLedger,
   type LandingObjection,
 } from "@storytree/orchestrator";
@@ -750,4 +752,63 @@ test("unit-strength-signal-reads-its-package: a unit's strength signal is true o
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
+});
+
+// ── strengthening: the branches the mutation rung found unwitnessed ─────────────────────────────
+
+test("node-ledger-writes-need-the-live-store: a writable dispatch with no ledger wired refuses a grant or an adjudication as offline", async () => {
+  const grantArgv = ["node", "grant", "cap-bun", "--attempts", "2", "--kind", "fixed-defect", "--difference", "a fixed defect", "--pg"];
+  const adjudicateArgv = ["node", "adjudicate", "cap-bun", "--run", "r2", "--pg"];
+  assert.deepEqual(await run(grantArgv, { store: new InMemoryStore(), writable: true }), {
+    ok: false,
+    body: LIVE_STORE_REFUSAL,
+    next: [usageGrant("cap-bun")],
+  });
+  assert.deepEqual(await run(adjudicateArgv, { store: new InMemoryStore(), writable: true }), {
+    ok: false,
+    body: LIVE_STORE_REFUSAL,
+    next: [usageAdjudicate("cap-bun")],
+  });
+});
+
+test("unit-strength-signal-reads-its-package: a real source file must sit under packages/ at the path's root, not merely contain it", async () => {
+  const fixture = await buildFixtureRepo();
+  try {
+    const storyDir = path.join(fixture.storiesDir, "fix-story");
+    await writeFile(
+      path.join(storyDir, "cap-nested.md"),
+      fixtureCapDoc("cap-nested", "apps/packages/pkg-bun/src/cap-nested.test.ts", "apps/packages/pkg-bun/src/cap-nested.ts"),
+    );
+    // Ground truth: the spec loads, so a `false` below comes from the path rule, never from a thrown load.
+    assert.equal(loadNodeSpec(path.join(storyDir, "cap-nested.md")).id, "cap-nested");
+    assert.equal(Commands.unitStrengthSignalReach(fixture.storiesDir)("cap-nested"), false);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("node-adjudicate-dispatch-records-the-ruling: with no stories dir injected, the unit's strength signal is read from this checkout's own stories", async () => {
+  const checkoutStories = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..", "stories");
+  const unitId = "node-verbs-dispatch";
+  assert.equal(
+    Commands.unitStrengthSignalReach(checkoutStories)(unitId),
+    true,
+    "ground truth: this checkout's own spec for the unit names a source in a package the rung can run",
+  );
+  const ledger = await buildLedger([attempt(unitId, "inc-a", "r1"), signedPass(unitId, "inc-a", "r1")]);
+  const result = await run(
+    ["node", "adjudicate", unitId, "--run", "r1", "--objection", "test-quality", "--statement", "the asserts are thin", "--pg"],
+    { store: new InMemoryStore(), writable: true, attemptLedger: ledger },
+  );
+  const expected = adjudicateLanding({
+    unitId,
+    signed: true,
+    objection: { kind: "test-quality", statement: "the asserts are thin" },
+    strengthSignalAvailable: true,
+  });
+  assert.deepEqual(result, {
+    ok: true,
+    body: [`adjudicated: ${unitId} run r1 under increment inc-a — ${expected.disposition}`, `reason: ${expected.reason}`].join("\n"),
+    next: [`storytree node attempts ${unitId} --pg`],
+  });
 });

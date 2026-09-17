@@ -668,3 +668,74 @@ test("gate-deps-reach-the-increment-check: the CLI's composed gate driver refuse
     await rm(stories, { recursive: true, force: true });
   }
 });
+
+// ── strengthening: the branches the mutation rung found unwitnessed ─────────────────────────────
+
+test("gate-build-prints-the-increment: a drive with no resolvable signer retries with the increment and asks for one", async () => {
+  const stories = await fixtureStories();
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "storytree-gate-no-signer-"));
+  const emptyGitConfig = path.join(scratch, "empty.gitconfig");
+  await writeFile(emptyGitConfig, "");
+  const keys = ["STORYTREE_SIGNER", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CEILING_DIRECTORIES"] as const;
+  const saved = new Map(keys.map((k) => [k, process.env[k]]));
+  const cwd = process.cwd();
+  try {
+    // No flag, no STORYTREE_SIGNER, and a git with no config naming an email, run from a directory
+    // git may not search above: the signer chain has nothing to resolve (ADR-0020 §2: fail closed).
+    delete process.env["STORYTREE_SIGNER"];
+    process.env["GIT_CONFIG_GLOBAL"] = emptyGitConfig;
+    process.env["GIT_CONFIG_NOSYSTEM"] = "1";
+    process.env["GIT_CEILING_DIRECTORIES"] = os.tmpdir();
+    process.chdir(scratch);
+    const env = await GateDriver.driveBuildTestsGate(buildTestsGate(), undefined, {
+      storiesDir: stories,
+      repoRoot: scratch,
+      increment: "inc-live",
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /^no signer resolved — a verdict must be attributable\./);
+    assert.deepEqual(env.next, [`storytree gate run ${GATE_ID} --real --increment inc-live --pg --signer <email>`]);
+  } finally {
+    process.chdir(cwd);
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await rm(scratch, { recursive: true, force: true });
+    await rm(stories, { recursive: true, force: true });
+  }
+});
+
+test("gate-build-preflights-the-gate-after-the-sweep: a gate under a live grant of another kind proceeds, because a gate drive is never a revision run", async () => {
+  const stories = await fixtureStories();
+  try {
+    const corpus = await fixtureCorpusWithIncrements();
+    const ledger = new InMemoryStore();
+    for (const runId of ["r1", "r2", "r3"]) await appendInnerLoopEvent(ledger, attemptEvt("inc-live", runId));
+    await appendInnerLoopEvent(ledger, {
+      event: "grant",
+      unitId: GATE_ID,
+      incrementId: "inc-live",
+      runId: "r3",
+      attempts: 2,
+      kind: "fixed-defect",
+      difference: "the fixture's defect is fixed",
+    });
+    const { progress, stages } = recordingProgress();
+    const { ensureDb, calls } = spyEnsureDb();
+    const env = await GateDriver.driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      corpusStore: corpus,
+      progress,
+      storiesDir: stories,
+      repoRoot: ".",
+      ensureDb,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger },
+    });
+    assert.equal(env.body, DB_MARKER_BODY);
+    assert.equal(calls.count, 1);
+    assert.deepEqual(stages, [PROMPTS_STAGE, PREFLIGHT_STAGE, DB_STAGE]);
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+  }
+});

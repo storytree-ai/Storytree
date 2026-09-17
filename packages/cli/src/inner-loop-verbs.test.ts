@@ -515,3 +515,62 @@ test("node-attempts-renders-the-fold: a broken or corrupt ledger refuses instead
   if (orphanResult.ok) throw new Error("expected a refusal");
   assert.match(orphanResult.reason, /grant references no recorded attempt: r9/);
 });
+
+/** A store that appends normally until `refuseAppends` is set, then throws on every append. */
+class AppendRefusingStore extends InMemoryStore {
+  refuseAppends = false;
+  override async appendEvent(e: Parameters<InMemoryStore["appendEvent"]>[0]): ReturnType<InMemoryStore["appendEvent"]> {
+    if (this.refuseAppends) throw new Error("append-down-marker");
+    return super.appendEvent(e);
+  }
+}
+
+test("node-grant-binds-the-latest-failed-run: a grant the store cannot append refuses with the store's own error", async () => {
+  const store = new AppendRefusingStore();
+  for (const doc of [attempt("r1", "inc-a"), attempt("r2", "inc-a"), attempt("r3", "inc-a")]) {
+    await appendInnerLoopEvent(store, doc);
+  }
+  store.refuseAppends = true;
+  const result = await recordNodeGrant(store, VALID_GRANT_INPUT);
+  assert.deepEqual(result, { ok: false, reason: "append-down-marker" });
+});
+
+test("node-adjudicate-records-the-landing-ruler: an adjudication the store cannot append refuses with the store's own error", async () => {
+  const store = new AppendRefusingStore();
+  for (const doc of [attempt("r1", "inc-a"), signedPass("r1", "inc-a")]) {
+    await appendInnerLoopEvent(store, doc);
+  }
+  store.refuseAppends = true;
+  const result = await recordNodeAdjudication(store, { unitId, runId: "r1" }, () => true);
+  assert.deepEqual(result, { ok: false, reason: "append-down-marker" });
+});
+
+test("node-adjudicate-records-the-landing-ruler: a refusal records the decision it enforces without its surrounding space", async () => {
+  const store = await buildStore([attempt("r1", "inc-a"), signedPass("r1", "inc-a")]);
+  const result = await recordNodeAdjudication(
+    store,
+    {
+      unitId,
+      runId: "r1",
+      objection: { kind: "rule-violation", statement: "it bypasses the fence", decision: "  ADR-0232 D5  " },
+    },
+    () => true,
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("expected the ruling to be recorded");
+  assert.equal(result.adjudication.disposition, "refuse");
+  assert.equal((result.event as AdjudicationEvent).namedRule, "ADR-0232 D5");
+});
+
+test("node-attempts-renders-the-fold: a failing ledger with no grant renders its summary and attempts and nothing more", async () => {
+  const store = await buildStore([attempt("r1", "inc-a"), attempt("r2", "inc-a")]);
+  const ledger = await freshLedger(store);
+  const result = await readNodeAttempts(store, unitId);
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("expected the fold to render");
+  assert.deepEqual(result.lines, [
+    `u1: 2 attempt(s), 2 consecutive failure(s) — policy ${ledger.policy.disposition}: ${ledger.policy.reason}`,
+    "  r1  increment inc-a  unsigned",
+    "  r2  increment inc-a  unsigned",
+  ]);
+});

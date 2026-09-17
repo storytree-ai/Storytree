@@ -548,3 +548,161 @@ test("one-entry-state-renders-every-outcome: exports the very same functions thr
   assert.equal(Drive.preflightInnerLoop, preflightInnerLoop);
   assert.equal(Drive.renderInnerLoopEntryState, renderInnerLoopEntryState);
 });
+
+// ── strengthening: the branches the mutation rung found unwitnessed ─────────────────────────────
+
+test("a-paid-build-names-a-live-increment: an increment row with no doc body resolves at the default proposal status", async () => {
+  for (const body of [null, undefined]) {
+    const corpus: Pick<Store, "getDoc"> = {
+      getDoc: async (id: string) => ({
+        id,
+        kind: "increment",
+        doc: body,
+        createdAt: "2026-09-17T00:00:00.000Z",
+        updatedAt: "2026-09-17T00:00:00.000Z",
+      }),
+    };
+    const result = await resolveBuildIncrement(corpus, "inc-bodiless");
+    assert.deepEqual(result, { ok: true, incrementId: "inc-bodiless", status: "proposal" }, String(body));
+  }
+});
+
+test("the-attempt-policy-refuses-before-spend: a landing that measures or declares a gap also refuses a rebuild under its increment", async () => {
+  const landings = [
+    { disposition: "land-and-measure" as const, mayRefuse: false, escalates: false },
+    { disposition: "land-and-declare-gap" as const, mayRefuse: false, escalates: true },
+  ];
+  for (const landing of landings) {
+    const ledger = new InMemoryStore();
+    await appendInnerLoopEvent(ledger, attemptEvt("u1", "inc-a", "r1"));
+    await appendInnerLoopEvent(ledger, passEvt("u1", "inc-a", "r1"));
+    await appendInnerLoopEvent(ledger, {
+      event: "adjudication",
+      unitId: "u1",
+      incrementId: "inc-a",
+      runId: "r1",
+      reason: "landed",
+      ...landing,
+    });
+    const result = await preflightInnerLoop({ ledger, incrementId: "inc-a", unitIds: ["u1"] });
+    assert.deepEqual(
+      result,
+      {
+        ok: false,
+        state: {
+          state: "refused",
+          refusals: [
+            {
+              kind: "landed-under-increment",
+              unitId: "u1",
+              reason:
+                "u1 already landed a signed pass under increment inc-a: new work on a landed unit names a new increment (ADR-0576 D4)",
+            },
+          ],
+        },
+      },
+      landing.disposition,
+    );
+  }
+});
+
+test("the-attempt-policy-refuses-before-spend: a relabel warning names every increment the open loop was filed under", async () => {
+  const ledger = await seedLedger(attemptEvt("u1", "inc-a", "r1"), attemptEvt("u1", "inc-b", "r2"));
+  const result = await preflightInnerLoop({ ledger, incrementId: "inc-c", unitIds: ["u1"] });
+  assertOk(result);
+  assert.deepEqual(result.warnings, [
+    "u1: its open loop was filed under inc-a, inc-b, and this build names inc-c — ADR-0563 D5: a retry reuses its own increment",
+  ]);
+});
+
+test("a-live-grant-pairs-with-the-run-shape: the live grant's kind is read from this unit's own latest grant event alone", async () => {
+  const mismatch = (grantKind: string) => ({
+    ok: false,
+    state: {
+      state: "refused",
+      refusals: [
+        {
+          kind: "grant-kind-mismatch",
+          unitId: "u1",
+          reason: `u1 holds a live ${grantKind} grant, and a --revise-test run consumes only a revised-test grant (ADR-0576 D6)`,
+        },
+      ],
+    },
+  });
+  const failuresThenGrant = async (): Promise<InMemoryStore> =>
+    seedLedger(
+      attemptEvt("u1", "inc-a", "r1"),
+      attemptEvt("u1", "inc-a", "r2"),
+      attemptEvt("u1", "inc-a", "r3"),
+      grantEvt("u1", "inc-a", "r3", 2, "fixed-defect"),
+    );
+
+  // A later event of ANOTHER kind that merely looks like a revised-test grant is not a grant.
+  const decoyKind = await failuresThenGrant();
+  await decoyKind.appendEvent({
+    id: "decoy-grant",
+    kind: "verdict",
+    type: "created",
+    doc: { event: "grant", unitId: "u1", incrementId: "inc-a", runId: "r3", kind: "revised-test" },
+  });
+  const plainRun = await preflightInnerLoop({ ledger: decoyKind, incrementId: "inc-a", unitIds: ["u1"] });
+  assertOk(plainRun);
+
+  // A later revised-test grant filed for ANOTHER unit does not change this unit's grant.
+  const otherUnit = await failuresThenGrant();
+  await appendInnerLoopEvent(otherUnit, grantEvt("u2", "inc-a", "q3", 1, "revised-test"));
+  assert.deepEqual(
+    await preflightInnerLoop({ ledger: otherUnit, incrementId: "inc-a", unitIds: ["u1"], revise: true }),
+    mismatch("fixed-defect"),
+  );
+
+  // A later NON-grant event of this unit (an attempt consuming one granted run) keeps the grant's kind.
+  const consumedOne = await failuresThenGrant();
+  await appendInnerLoopEvent(consumedOne, attemptEvt("u1", "inc-a", "r4"));
+  assert.deepEqual(
+    await preflightInnerLoop({ ledger: consumedOne, incrementId: "inc-a", unitIds: ["u1"], revise: true }),
+    mismatch("fixed-defect"),
+  );
+});
+
+test("a-live-grant-pairs-with-the-run-shape: of two grants the one with the higher seq is live, whatever order the ledger returns them in", async () => {
+  const store = await seedLedger(
+    attemptEvt("u1", "inc-a", "r1"),
+    attemptEvt("u1", "inc-a", "r2"),
+    attemptEvt("u1", "inc-a", "r3"),
+    grantEvt("u1", "inc-a", "r3", 1, "fixed-defect"),
+    attemptEvt("u1", "inc-a", "r4"),
+    grantEvt("u1", "inc-a", "r4", 2, "revised-test"),
+  );
+  const inSeqOrder = await store.readEvents();
+  assert.equal(inSeqOrder.length, 6, "fixture: six ledger events");
+  // The revised-test grant (highest seq) first, the consumed fixed-defect grant last.
+  const shuffled: Pick<Store, "readEvents"> = {
+    readEvents: async () => [inSeqOrder[5]!, ...inSeqOrder.slice(0, 3), inSeqOrder[4]!, inSeqOrder[3]!],
+  };
+  const plainRun = await preflightInnerLoop({ ledger: shuffled, incrementId: "inc-a", unitIds: ["u1"] });
+  assert.deepEqual(plainRun, {
+    ok: false,
+    state: {
+      state: "refused",
+      refusals: [
+        {
+          kind: "grant-kind-mismatch",
+          unitId: "u1",
+          reason:
+            "u1 holds a live revised-test grant, so this attempt must be a --revise-test run (ADR-0576 D6)",
+        },
+      ],
+    },
+  });
+});
+
+test("one-entry-state-renders-every-outcome: an increment refusal names no unit and points at the arc list", () => {
+  assert.deepEqual(
+    renderInnerLoopEntryState({
+      state: "refused",
+      refusals: [{ kind: "increment-missing", reason: "no increment was named" }],
+    }),
+    { lines: ["refused before spend (increment-missing): no increment was named"], next: [ARC_LIST_CMD] },
+  );
+});

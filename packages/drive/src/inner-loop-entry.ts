@@ -73,9 +73,10 @@ function errorMessage(err: unknown): string {
 function readIncrementStatus(doc: unknown): "proposal" | "ready" | "active" | "closed" {
   if (typeof doc !== "object" || doc === null) return "proposal";
   const status = (doc as Record<string, unknown>).status;
-  if (status === "proposal" || status === "ready" || status === "active" || status === "closed") {
+  if (status === "ready" || status === "active" || status === "closed") {
     return status;
   }
+  // `proposal` is both the schema default and every other value's answer, so it needs no case of its own.
   return "proposal";
 }
 
@@ -150,13 +151,16 @@ function latestGrantKind(events: readonly StoreEvent[], unitId: string): string 
   let latestKind: string | undefined;
   for (const event of events) {
     if (event.kind !== INNER_LOOP_EVENT_KIND) continue;
-    const doc = event.doc;
-    if (typeof doc !== "object" || doc === null) continue;
-    const record = doc as Record<string, unknown>;
+    // Every inner-loop doc here is an object: the unit's own fold already parsed each doc it did not
+    // skip as another unit's (and skipping needs an object carrying a unitId), and a doc that fails
+    // to parse refuses the preflight as ledger-unreadable before this runs.
+    const record = event.doc as Record<string, unknown>;
     if (record.event !== "grant" || record.unitId !== unitId) continue;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT (the `>=` replacement) for every real store — each appended event gets a unique seq, so two grants never compare equal
     if (event.seq > latestSeq) {
       latestSeq = event.seq;
-      latestKind = typeof record.kind === "string" ? record.kind : undefined;
+      // A grant doc parsed in the fold, so its kind is already a string.
+      latestKind = String(record.kind);
     }
   }
   return latestKind;
@@ -200,6 +204,7 @@ function judgeUnit(
   }
 
   if (fold.remainingGrantCount > 0) {
+    // Stryker disable next-line StringLiteral: EQUIVALENT — an unreachable fallback: a live grant count means this unit's ledger holds a grant
     const grantKind = latestGrantKind(events, unitId) ?? "unknown";
     const wantsRevise = revise === true;
     if (grantKind === "revised-test" && !wantsRevise) {
@@ -310,11 +315,13 @@ function nextForRefusal(r: InnerLoopRefusal): string | undefined {
     case "ledger-unreadable":
       return DB_PROBE_CMD;
     case "decision-point":
+      // Stryker disable next-line StringLiteral: EQUIVALENT — an unreachable fallback: judgeUnit stamps the unit id on every unit refusal
       return grantCommand(r.unitId ?? "");
     case "unresolved-signed-pass":
+      // Stryker disable next-line StringLiteral: EQUIVALENT — unreachable fallbacks: judgeUnit stamps the unit id and run id on an unresolved-signed-pass refusal
       return adjudicateCommand(r.unitId ?? "", r.runId ?? "");
-    case "owner-ceiling":
-    case "grant-kind-mismatch":
+    default:
+      // owner-ceiling and grant-kind-mismatch point at no command: the next call is the owner's, or a rerun of the right shape.
       return undefined;
   }
 }

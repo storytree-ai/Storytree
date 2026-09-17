@@ -2853,19 +2853,26 @@ function usageAdjudicate(unitId: string): string {
  */
 export function unitStrengthSignalReach(storiesDir: string): StrengthSignalReach {
   return (unitId: string): boolean => {
+    // Each guard below narrows a type for the step after it and decides nothing at runtime: without it
+    // that step throws or finds nothing, and the catch answers `false` just as the guard does.
     try {
       const file = findNodeSpecFile(storiesDir, unitId);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — loading a null path throws, and the catch answers false as this guard does
       if (file === null) return false;
       const spec = loadNodeSpec(file);
+      // Stryker disable next-line OptionalChaining: EQUIVALENT — a missing build config or real arm throws without the chaining, and the catch answers false as the undefined does
       const sourceFile = resolveBuildConfig(spec)?.config.real?.sourceFile;
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — the pattern below matches no undefined, so the next guard answers false as this one does
       if (sourceFile === undefined) return false;
       const match = /^packages\/([^/]+)\//.exec(sourceFile);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `false` replacement) — reading a group off a null match throws, and the catch answers false as this guard does
       if (match === null) return false;
       const pkgDir = match[1]!;
       const pkgJsonPath = path.join(path.dirname(storiesDir), "packages", pkgDir, "package.json");
       const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as {
         scripts?: Record<string, string>;
       };
+      // Stryker disable next-line OptionalChaining: EQUIVALENT — a manifest with no scripts throws without the chaining, and the catch answers false as an absent test script does
       return strengthSignalFromTestScript(pkgJson.scripts?.test);
     } catch {
       return false;

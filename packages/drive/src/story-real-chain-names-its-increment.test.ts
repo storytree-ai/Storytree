@@ -759,6 +759,7 @@ test("a chain refused an unknown verdict store prints its paid --real retry nami
   // prompt render and before any pool, claim, worktree or leaf.
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
   const corpus = await fixtureCorpus();
+  const realProgress = recordingProgress();
   try {
     const real = await StoryBuildModule.storyBuild("fix-story", {
       dryRun: false,
@@ -771,11 +772,16 @@ test("a chain refused an unknown verdict store prints its paid --real retry nami
       increment: "inc-live",
       innerLoopReads: { corpus, ledger: new InMemoryStore() },
       verdictStore: "surreal",
-      progress: silentBuildProgress(),
+      progress: realProgress.progress,
     });
     assert.equal(real.ok, false, real.body);
     assert.match(real.body, /^unknown --store "surreal"/);
     assert.deepEqual(real.next, ["storytree story build fix-story --real --increment <increment-id> --store pg"]);
+    assert.deepEqual(realProgress.stages, [
+      PREFLIGHT_STAGE,
+      "library agent prompts (red-builder + green-builder, from the live store)",
+      "verdict store (open the pool, apply the schema)",
+    ]);
 
     const live = await StoryBuildModule.storyBuild("fix-story", {
       dryRun: false,
@@ -791,6 +797,47 @@ test("a chain refused an unknown verdict store prints its paid --real retry nami
     assert.equal(live.ok, false, live.body);
     assert.match(live.body, /^unknown --store "surreal"/);
     assert.deepEqual(live.next, ["storytree story build fix-story --live --store pg"]);
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+  }
+});
+
+test("a REAL chain whose member holds a live grant of another kind proceeds, because a chain is never a revision run", async () => {
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const corpus = await fixtureCorpus();
+  const ledger = new InMemoryStore();
+  for (const runId of ["r1", "r2", "r3"]) {
+    await appendInnerLoopEvent(ledger, { event: "attempt", unitId: "cap-a", incrementId: "inc-live", runId });
+  }
+  await appendInnerLoopEvent(ledger, {
+    event: "grant",
+    unitId: "cap-a",
+    incrementId: "inc-live",
+    runId: "r3",
+    attempts: 2,
+    kind: "fixed-defect",
+    difference: "the fixture's defect is fixed",
+  });
+  const { calls, ensureDb } = spyEnsureDb();
+  try {
+    const envelope = await StoryBuildModule.storyBuild("fix-story", {
+      dryRun: false,
+      real: true,
+      runtime: "claude",
+      actor: "tester@example.com",
+      storiesDir: stories,
+      repoRoot: stories,
+      corpusStore: corpus,
+      increment: "inc-live",
+      innerLoopReads: { corpus, ledger },
+      ensureDb,
+      progress: silentBuildProgress(),
+    });
+    assert.equal(
+      envelope.body,
+      "this build persists to the live store, but the database could not be brought up:\nSTORY_INCREMENT_TEST_DB_MARKER",
+    );
+    assert.equal(calls.count, 1, "the preflight admitted the chain, so it went on to the database");
   } finally {
     await rm(stories, { recursive: true, force: true });
   }

@@ -832,6 +832,7 @@ export async function storyBuild(
   // worktree. A refusing story or member refuses the whole chain; a member's streak or obligation is
   // never stepped around by building it inside a story.
   let incrementId: string | undefined;
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — renderIncrementLines renders nothing while incrementId is undefined, and the one path that sets incrementId sets these warnings with it
   let incrementWarnings: readonly string[] = [];
   if (real) {
     const preflightUnitIds = Array.from(new Set([story.id, ...driveOrder.map((n) => n.id)]));
@@ -896,6 +897,7 @@ export async function storyBuild(
           close: async () => {},
         }
       : await progress.stage("verdict store (open the pool, apply the schema)", () =>
+          // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: NO COVERAGE BY DESIGN — whether a chain is synthetic changes only what `--store pg` does, and telling the two apart means opening the live pool, which no hermetic test may do (ADR-0302 D3)
           resolveVerdictStore(effectiveStore, mode !== "real", retryCmd),
         );
   if (!storeChoice.ok) return storeChoice.refusal;
@@ -993,15 +995,8 @@ export async function storyBuild(
     // members walk WITHOUT an incrementId (see the per-node buildNode below), so no member event is
     // ever appended here.
     let innerLoop: InnerLoopRecording | undefined;
-    if (real) {
-      if (incrementId === undefined) {
-        // Unreachable: a successful REAL preflight above always resolves incrementId. Fail-closed.
-        return {
-          ok: false,
-          body: `internal: incrementId missing for ${story.id} after a successful REAL preflight`,
-          next: ["pnpm db:probe"],
-        };
-      }
+    // incrementId is set exactly when this is a REAL chain whose preflight passed above.
+    if (incrementId !== undefined) {
       try {
         await appendInnerLoopEvent(
           store,
@@ -1344,6 +1339,7 @@ export async function storyBuild(
           ...outcome.next,
           real
             ? `storytree story build ${story.id} --real --increment ${incrementId}`
+            // Stryker disable next-line StringLiteral,ConditionalExpression: NO COVERAGE BY DESIGN — a --dry-run chain walks a synthetic pair that passes, and only the live leaf can halt a --live one, which no hermetic test may spawn
             : `storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`,
         ],
       };

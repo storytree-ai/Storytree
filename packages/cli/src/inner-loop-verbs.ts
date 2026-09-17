@@ -10,7 +10,6 @@ import {
   type AdjudicateLandingSpec,
   type InnerLoopLedger,
   type LandingAdjudication,
-  type LandingObjection,
   type ObjectionKind,
 } from "@storytree/orchestrator";
 import { runnerFor } from "./mutation-diff.js";
@@ -95,10 +94,10 @@ function errorMessage(error: unknown): string {
  * pinned at the decision point exercises exactly those checks without ever reading the real ledger.
  */
 function judgeGrantContent(unitId: string, attempts: number, kind: GrantKind, difference: string) {
-  const syntheticHistory = Array.from({ length: ATTEMPT_DECISION_POINT }, () => ({
-    incrementId: "synthetic",
-    signed: false,
-  }));
+  const syntheticHistory = Array.from({ length: ATTEMPT_DECISION_POINT }, () =>
+    // Stryker disable next-line ObjectLiteral,StringLiteral: EQUIVALENT — the content checks count the failures before the grant; they never read an attempt's increment
+    ({ incrementId: "synthetic", signed: false }),
+  );
   return decideAttempt({
     unitId,
     attempts: syntheticHistory,
@@ -120,11 +119,9 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
   if (contentCheck.disposition === "refused") {
     return { ok: false, reason: contentCheck.reason };
   }
-  if (kind === "better-spec") {
-    // decideAttempt always refuses a better-spec grant's content (ADR-0563 D4), so this is
-    // unreachable at runtime — it exists only to narrow the type before the event is built below.
-    return { ok: false, reason: contentCheck.reason };
-  }
+  // decideAttempt always refuses a better-spec grant's content (ADR-0563 D4), so a kind that gets
+  // past the check above is one the grant event records.
+  const recordedKind = kind as Exclude<GrantKind, "better-spec">;
 
   let events: Awaited<ReturnType<Store["readEvents"]>>;
   let ledger: InnerLoopLedger;
@@ -146,11 +143,10 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
     incrementId: latest.incrementId,
     runId: latest.runId,
     attempts,
-    kind,
+    kind: recordedKind,
     difference,
   };
 
-  const highestSeq = events.reduce((max, event) => Math.max(max, event.seq), -1);
   try {
     foldInnerLoopLedger(
       [
@@ -160,7 +156,8 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
           kind: INNER_LOOP_EVENT_KIND,
           type: "created",
           doc: candidate,
-          seq: highestSeq + 1,
+          // The fold orders by seq, and the candidate must fold after every event already recorded.
+          seq: Number.MAX_SAFE_INTEGER,
         },
       ],
       unitId,
@@ -179,7 +176,7 @@ export async function recordNodeGrant(store: Store, input: NodeGrantInput): Prom
   return { ok: true, event: candidate, ledger: freshLedger };
 }
 
-/** A {@link LandingObjection} under construction: its optional fields are filled only when given. */
+/** A landing objection under construction: its optional fields are filled only when given. */
 interface ObjectionDraft {
   kind: ObjectionKind;
   statement: string;
@@ -187,15 +184,22 @@ interface ObjectionDraft {
   survivors?: number;
 }
 
-function buildObjection(input: NodeAdjudicateObjectionInput | undefined): LandingObjection | undefined {
-  if (input === undefined) return undefined;
+/** The landing ruler's input: an absent objection stays absent rather than becoming an undefined one. */
+function landingSpec(
+  unitId: string,
+  strengthSignalAvailable: boolean,
+  input: NodeAdjudicateObjectionInput | undefined,
+): AdjudicateLandingSpec {
+  if (input === undefined) return { unitId, signed: true, strengthSignalAvailable };
   const objection: ObjectionDraft = {
     kind: input.kind as ObjectionKind,
     statement: input.statement,
   };
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `true` replacement) — the ruler and the recorded event read an absent decision and an undefined one alike
   if (input.decision !== undefined) objection.decision = input.decision;
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `true` replacement) — the ruler reads an absent survivor count and an undefined one alike
   if (input.survivors !== undefined) objection.survivors = input.survivors;
-  return objection;
+  return { unitId, signed: true, objection, strengthSignalAvailable };
 }
 
 function buildAdjudicationEvent(
@@ -220,6 +224,7 @@ function buildAdjudicationEvent(
       ? { ...core, inadmissible: adjudication.inadmissible }
       : core;
   return adjudication.disposition === "refuse"
+    // Stryker disable next-line StringLiteral: EQUIVALENT — an unreachable fallback: the ruler refuses a landing only for an objection that names a decision
     ? { ...withInadmissible, namedRule: (namedRuleSource ?? "").trim() }
     : withInadmissible;
 }
@@ -266,16 +271,10 @@ export async function recordNodeAdjudication(
     };
   }
 
-  const objection = buildObjection(rawObjection);
-  const strengthSignalAvailable = reach(unitId);
-  const spec: AdjudicateLandingSpec =
-    objection === undefined
-      ? { unitId, signed: true, strengthSignalAvailable }
-      : { unitId, signed: true, objection, strengthSignalAvailable };
-  const adjudication = adjudicateLanding(spec);
+  const adjudication = adjudicateLanding(landingSpec(unitId, reach(unitId), rawObjection));
 
   const incrementId = ledger.attempts.find((attempt) => attempt.runId === runId)!.incrementId;
-  const event = buildAdjudicationEvent(unitId, incrementId, runId, adjudication, objection?.decision);
+  const event = buildAdjudicationEvent(unitId, incrementId, runId, adjudication, rawObjection?.decision);
 
   try {
     await appendInnerLoopEvent(store, event, actor);

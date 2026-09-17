@@ -271,14 +271,17 @@ export async function driveBuildTestsGate(
 
   // 5b. ADR-0576 D1: a missing or blank `--increment` is ARGUMENT VALIDATION — refused before the
   //     prompt render or the decision sweep, with no ledger or corpus touched beyond what the
-  //     resolver itself needs to name the refusal.
+  //     resolver itself needs to name the refusal. The same preflight input serves this check and the
+  //     full preflight after the sweep (6c): the gate id is the unit, and a gate drive never revises.
+  const preflightInput = {
+    incrementId: deps.increment,
+    unitIds: [gate.id],
+    revise: false,
+    reads: deps.innerLoopReads,
+  };
   if (deps.increment === undefined || deps.increment.trim().length === 0) {
-    const missing = await preflightPaidBuild({
-      incrementId: deps.increment,
-      unitIds: [gate.id],
-      revise: false,
-      reads: deps.innerLoopReads,
-    });
+    const missing = await preflightPaidBuild(preflightInput);
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT (the `true` replacement) — this call runs only for a missing or blank increment, which the preflight always refuses
     if (!missing.ok) return innerLoopRefusalEnvelope(missing.state);
   }
 
@@ -313,13 +316,7 @@ export async function driveBuildTestsGate(
   //     before any spend (no DB brought up, no worktree cut, no SDK leaf).
   const preflight = await progress.stage(
     "inner-loop preflight (the increment and the attempt ledger, before any spend)",
-    () =>
-      preflightPaidBuild({
-        incrementId: deps.increment,
-        unitIds: [gate.id],
-        revise: false,
-        reads: deps.innerLoopReads,
-      }),
+    () => preflightPaidBuild(preflightInput),
   );
   if (!preflight.ok) return innerLoopRefusalEnvelope(preflight.state);
 

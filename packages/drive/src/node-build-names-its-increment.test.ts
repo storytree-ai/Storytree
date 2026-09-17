@@ -859,3 +859,20 @@ test("printed-real-commands-name-the-increment: a passing dry-run's any-node sug
     `storytree node build ${UNIT_ID} --real --increment <increment-id>   (paid — the live leaf authors the node's real proof)`,
   ]);
 });
+
+test("paid-build-envelopes-render-the-entry-state: a refusal naming several units renders one body line per refusal", () => {
+  const state: InnerLoopRefusedState = {
+    state: "refused",
+    refusals: [
+      { kind: "increment-closed", reason: "the increment is closed" },
+      { kind: "owner-ceiling", unitId: UNIT_ID, reason: "six failures" },
+    ],
+  };
+  assert.deepEqual(NodeBuildModule.innerLoopRefusalEnvelope(state), {
+    ok: false,
+    body:
+      "refused before spend (increment-closed): the increment is closed\n" +
+      `refused before spend (owner-ceiling): ${UNIT_ID} — six failures`,
+    next: ["storytree arc list --pg"],
+  });
+});

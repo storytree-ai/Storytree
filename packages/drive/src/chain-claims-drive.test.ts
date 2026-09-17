@@ -346,3 +346,40 @@ test("a REAL chain refused at a member's claim points at another member's paid b
     rmSync(stories, { recursive: true, force: true });
   }
 });
+
+test("a chain refused at its first member points at the next member, and a one-member chain at a placeholder", async () => {
+  const stories = stageStory();
+  const single = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  try {
+    const firstHeld = await storyBuild("claims-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: stories,
+      progress: silentBuildProgress(),
+      claim: { store: fakeLedger([{ unitId: "cap-a", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(firstHeld.ok, false, firstHeld.body);
+    assert.deepEqual(firstHeld.next, [
+      "storytree noticeboard --pg",
+      "storytree node build cap-b --live   (another member of this story — check the board above first)",
+    ]);
+
+    const onlyMemberHeld = await storyBuild("fix-story", {
+      dryRun: true,
+      actor: "tester@storytree.local",
+      storiesDir: single,
+      progress: silentBuildProgress(),
+      claim: { store: fakeLedger([{ unitId: "cap-a", sessionId: "sibling" }]) },
+      identity: IDENTITY,
+    });
+    assert.equal(onlyMemberHeld.ok, false, onlyMemberHeld.body);
+    assert.deepEqual(onlyMemberHeld.next, [
+      "storytree noticeboard --pg",
+      "storytree node build <other-id> --live   (another member of this story — check the board above first)",
+    ]);
+  } finally {
+    rmSync(stories, { recursive: true, force: true });
+    rmSync(single, { recursive: true, force: true });
+  }
+});
