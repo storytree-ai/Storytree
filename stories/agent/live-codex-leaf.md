@@ -2,8 +2,8 @@
 id: "live-codex-leaf"
 tier: capability
 story: agent
-title: "The live Codex CLI authors one slice per codex exec turn in a disposable replica the spine alone promotes, with no self-verdict"
-outcome: "The live Codex CLI authors one slice per codex exec turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report."
+title: "The live Codex runtime runs through authenticated, pinned, externally owned process boundaries, with no self-verdict"
+outcome: "A caller uses the live Codex runtime only after ChatGPT-managed login is proven with metered credentials scrubbed, through pinned process boundaries whose runtime-produced identity, filesystem effects, ownership, and termination stay externally observable, while red/green and verdicts remain outside the runtime."
 status: proposed
 proof_mode: integration-test
 # Code-derived (ADR-0010 §3): codex-author.ts imports AuthoringPhase/AuthorResult/PhaseAuthor (type)
@@ -19,24 +19,26 @@ depends_on: [phase-author-seam, model-runtime-seam, live-sdk-leaf]
 decisions: [232, 356, 390, 555, 569]
 ---
 
-# The live Codex leaf — CodexPhaseAuthor
+# The live Codex leaf — pinned, externally observed runtime boundaries
 
-**Outcome —** The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed
-login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed
-diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to
-report.
+**Outcome —** A caller uses the live Codex runtime only after ChatGPT-managed login is proven with
+metered credentials scrubbed, through pinned process boundaries whose runtime-produced identity,
+filesystem effects, ownership, and termination stay externally observable, while red/green and
+verdicts remain outside the runtime.
 
 > **Proof status (honest) — `proposed`, with a live leg that is need-gated and operator-attested only.**
 > `codex-author.test.ts` holds 36 tests over an injectable `CodexRunner` process seam; the few that need
 > a real child process drive the production runner against the pinned CLI's `--version` or a stand-in
 > executable, so no test spends a subscription turn. Re-run 2026-09-15 on Windows: 34 pass, 2 skip (the
 > POSIX signal-forwarding test, and a case-distinct-path test that needs a case-sensitive filesystem),
-> 0 fail. Every DECISION is therefore offline-testable: the login proof (`isChatGptManagedLogin`), the
+> 0 fail. Every existing `CodexPhaseAuthor` decision is therefore offline-testable: the login proof (`isChatGptManagedLogin`), the
 > credential scrub (`scrubMeteredCodexAuth`), the pinned command (`buildCodexExecArgs`), the one-turn
 > JSONL contract (`parseCodexJsonl`), manifest validation, replica promotion and its rollback, and the
 > spawn bound (`resolveCodexTimeoutMs`). The genuinely LIVE leg — a real `codex exec` turn drawing on a
 > ChatGPT subscription — is need-gated and operator-attested: live builds have driven it, but no
-> standing test in this package does. No `healthy` — no signed verdict (ADR-0020).
+> standing test in this package does. Contract `codex-detached-app-server` is authored but not yet
+> implemented, proof-registered or signed: its source, named test and `proof.real` arm must land
+> together. No `healthy` — no capability verdict (ADR-0020).
 
 This is the second live `PhaseAuthor` (ADR-0232) and, since ADR-0555, the one the build path binds when
 no runtime is named — `--runtime claude` selects [`live-sdk-leaf`](live-sdk-leaf.md) instead. It runs
@@ -52,6 +54,20 @@ decision and one output framing (ADR-0570 D5). The spine authors each phase's wr
 promotion manifest before either phase starts, so what may be promoted is never the model's to decide.
 
 The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
+
+- **Stage identity before work (`codex-detached-app-server`).** The role-neutral public seam opens one
+  detached app-server from the repository-pinned Codex dependency, initializes it, and obtains a
+  thread without starting a turn. It returns only response-produced thread/model/effort identity plus
+  an OS-observed positive pid and a platform-honest opaque owner: a POSIX process group or a Windows
+  owned process tree, never one mislabeled as the other. Only after a caller has independently checked
+  and persisted those observations may it call the same handle's bounded `startTurn`; bounded `probe`
+  and idempotent `terminate` retain exact POSIX group ownership, or exact Windows root identity only
+  while `tasklist` re-observes the same live token. Windows may then use rooted `taskkill /T`; root exit
+  or token change ends that authority, is dead-for-controller, and proves nothing about escaped
+  descendants. The seam claims no broader Windows containment. This is a **contract**,
+  not a seventh capability: its honest proof is one isolated automated test surface with injected
+  auth, protocol, clock, process and OS collaborators, while its live runtime boundary is already the
+  independently viable capability described here. The seam carries no Mintbox or model-role policy.
 
 - **Subscription or nothing (ADR-0232 D3).** Before every slice, `codex login status` runs with
   `OPENAI_API_KEY`, `CODEX_API_KEY` and `CODEX_ACCESS_TOKEN` removed in every case variant, and only an
@@ -112,10 +128,13 @@ The honesty walls sit OUTSIDE the model (ADR-0020), and each fails closed:
 
 ## Proof
 
-Every decision above is integration-proven offline against the injected `CodexRunner` (ADR-0010 §2):
+The existing `CodexPhaseAuthor` decisions above are integration-proven offline against the injected `CodexRunner` (ADR-0010 §2):
 the exact login proof and the scrub, the pinned command, the one-turn JSONL contract, manifest refusal,
 whole-phase refusal before any copy, multi-file promotion, rollback under injected promotion faults, and
 the bound under an injected clock. A real `codex exec` turn is need-gated and operator-attested, not a
 free/offline standing test — the boundary every live leg in storytree carries (a subscription turn
 cannot be a free standing test). This capability carries no `real:` arm, so it is not in the story's
-buildable set.
+buildable set. The staged detached-process behaviour is authored one grain down in
+[`codex-detached-app-server`](codex-detached-app-server.md), but remains deliberately unregistered and
+unbuildable until its implementation, named test and `proof.real` arm land together. That future child
+proof will not invent the missing capability-level live integration proof.

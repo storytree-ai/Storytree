@@ -180,7 +180,7 @@ table) — so they are NOT in the buildable set, kept honestly `proposed` as doc
 | 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | proposed | **yes** (proof-wired) | `model-runtime-seam` |
 | 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | proposed | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
 | 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam` |
-| 6 | [`live-codex-leaf`](live-codex-leaf.md) | The live Codex CLI authors one slice per `codex exec` turn only after a ChatGPT-managed login is proven with metered credentials scrubbed, inside a bounded disposable replica whose observed diff only the spine promotes against an exact finite manifest, with red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam`, `live-sdk-leaf` |
+| 6 | [`live-codex-leaf`](live-codex-leaf.md) | A caller uses the live Codex runtime only after ChatGPT-managed login is proven with metered credentials scrubbed, through pinned process boundaries whose runtime-produced identity, filesystem effects, ownership, and termination stay externally observable, while red/green and verdicts remain outside the runtime. | proposed | no (operator-attested live leg) | `phase-author-seam`, `model-runtime-seam`, `live-sdk-leaf` |
 
 **Why the two live leaves are separate capabilities (split 2026-09-15).** Until that date
 `repo-manifest.json` homed `codex-*.ts` under `live-sdk-leaf`, whose outcome names only the Claude
@@ -216,13 +216,16 @@ nothing from each other, and neither splitting trigger above rests on the absenc
   leaf). So it has no free, offline red→green to drive under the gate. It also `depends_on:
   [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
   regardless. It stays `proposed`, unwired.
-- **`live-codex-leaf` has the same shape: an operator-attested live leg and an unwired dependency.**
+- **`live-codex-leaf` has the same capability-level shape: an operator-attested live leg and an unwired dependency.**
   Its DECISION functions are offline-proven over an injected `CodexRunner` (the login proof, the
   credential scrub, the pinned command, the one-turn JSONL contract, manifest validation, replica
   promotion and rollback, the spawn bound), but its defining behaviour — a real `codex exec` turn
   drawing on a ChatGPT subscription — is need-gated and operator-attested, never a standing offline
-  test. It also `depends_on` the unwired `phase-author-seam`, so dependency-closure would exclude it
-  from the buildable set regardless. It stays `proposed`, unwired.
+  test. Its role-neutral staged app-server behaviour is authored one grain down as contract
+  `codex-detached-app-server`, but remains deliberately unregistered and unbuildable until its
+  implementation, named test and `proof.real` arm land together; that future isolated contract proof
+  will not substitute for a capability-level live integration proof. It also `depends_on` the unwired `phase-author-seam`, so dependency-closure
+  would exclude it from the buildable set regardless. It stays `proposed`, unwired.
 
 > **The Cursor second-harness leaf remains RETIRED (ADR-0198, superseding ADR-0177; subsequently
 > superseded by ADR-0232 without reversing that retirement).** The former
