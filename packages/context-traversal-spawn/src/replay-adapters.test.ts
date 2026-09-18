@@ -778,3 +778,51 @@ test("the multi-adapter replay states WHO STARTED the session, not only what it 
     removeTempDir(dir);
   }
 });
+
+test("the multi-adapter replay states WHICH HARNESS and WHICH MACHINE wrote the session, and `not recorded` when no line said", () => {
+  // The render `storytree traversal show` actually calls, so a harness or host dropped in the
+  // composition would be recorded on disk, shipped, and invisible on the one surface a reader meets —
+  // leaving the same gap an audit once filled with the wrong box. Both directions are asserted.
+  const dir = makeTempDir();
+  try {
+    const codexSession = "session-provenance-codex";
+    appendTraversalEvents(
+      [
+        {
+          kind: "front_matter_read",
+          eventId: "event:provenance-codex",
+          sessionId: codexSession,
+          at: "2026-09-18T00:00:00.000Z",
+          visitId: "visit-provenance-codex",
+          nodeId: "adr-0484",
+        },
+      ],
+      { dir, sessionId: codexSession, grade: "window", harness: "codex", host: "owner-laptop" },
+    );
+
+    const codex = showTraversalSessionAllAdapters(codexSession, { dir });
+    assert.match(codex.body, /^harness: codex \(detected from the process that wrote each line — never declared\)$/m);
+    assert.match(codex.body, /^host: owner-laptop \(the machine that wrote each line, by hostname — not the agent harness\)$/m);
+
+    const unrecordedSession = "session-provenance-unrecorded";
+    appendTraversalEvents(
+      [
+        {
+          kind: "front_matter_read",
+          eventId: "event:provenance-unrecorded",
+          sessionId: unrecordedSession,
+          at: "2026-09-18T00:00:01.000Z",
+          visitId: "visit-provenance-unrecorded",
+          nodeId: "adr-0484",
+        },
+      ],
+      { dir, sessionId: unrecordedSession, grade: "window" },
+    );
+
+    const unrecorded = showTraversalSessionAllAdapters(unrecordedSession, { dir });
+    assert.match(unrecorded.body, /^harness: not recorded \(/m);
+    assert.match(unrecorded.body, /^host: not recorded \(/m);
+  } finally {
+    removeTempDir(dir);
+  }
+});

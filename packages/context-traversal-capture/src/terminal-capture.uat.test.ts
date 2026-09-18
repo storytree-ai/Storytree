@@ -112,21 +112,28 @@ function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `traversal-uat-${prefix}-`));
 }
 
-/** The env every OFFLINE test starts from: ambient process.env with the four traversal-only
- * variables stripped, so a prior test (or the host machine) can never leak into this one.
+/** The env every OFFLINE test starts from: ambient process.env with the traversal-only variables
+ * stripped, so a prior test (or the host machine) can never leak into this one.
  *
  * `CLAUDE_CODE_SESSION_ID` is the fourth (`linked-session-context-arc-inc-30`): since trace identity
  * is the host CONTEXT WINDOW rather than the worktree slot, that variable is now an identity source,
  * and it is set on every process a Claude Code session spawns — including this suite's. Left in
  * place it would silently resolve an identity for the "no resolvable identity" leg below, which runs
  * from a non-worktree cwd precisely so that leg is decided by the machine's shape rather than faked.
- * Stripping it keeps that determinism intact for exactly the reason the other three are stripped. */
+ * Stripping it keeps that determinism intact for exactly the reason the other three are stripped.
+ *
+ * `CODEX_THREAD_ID` is the fifth, on the same argument one harness over: Codex exports it to every
+ * shell command it runs, so a suite run INSIDE a Codex session would otherwise resolve that session's
+ * thread for the "no resolvable identity" leg. `CLAUDECODE` goes with them because it now DETECTS a
+ * harness: left in, every leg's `harness` would say which harness happened to be running the suite. */
 function baseEnv(): NodeJS.ProcessEnv {
   const {
     STORYTREE_TRAVERSAL_DIR: _dir,
     STORYTREE_SESSION_ID: _session,
     STORYTREE_TRAVERSAL: _toggle,
     CLAUDE_CODE_SESSION_ID: _window,
+    CODEX_THREAD_ID: _thread,
+    CLAUDECODE: _claudeMarker,
     ...rest
   } = process.env;
   // The door the spawned CLI reads its corpus through (see the `before` hook above). Set here so
@@ -537,7 +544,7 @@ test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled w
   // this suite reach the live database, which it must never do.
   assert.equal(listDir(dir).includes(".ship-attempt"), false, "an overridden trace dir is never swept ambiently");
 
-  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId: windowId });
+  const { replay, skipped, identity, slots, harnesses } = readTraversalSession({ dir, sessionId: windowId });
   assert.equal(skipped, 0);
   const visits = visitsOf(replay.events);
   assert.equal(visits.length, 1, "a flag-carrying read is a READ — it was silently discarded before");
@@ -560,6 +567,8 @@ test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled w
   // rather than as a fixed value, so the leg holds in a session worktree and in CI alike.
   assert.equal(identity, "window");
   assert.equal(slots.includes(windowId), false, "the slot is recorded beside the identity, never as it");
+  // The window id that keyed the trace is also what DETECTED the harness, so the two agree.
+  assert.deepEqual(harnesses, ["claude-code"]);
 
   const shown = runCli(["traversal", "show", windowId], env);
   assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
@@ -603,6 +612,60 @@ test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled w
     visitsOf(secondReplay.replay.events)[0]?.priorVisitId,
     undefined,
     "and neither window's read is a revisit of the other's — that link was the inflated count",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 5c. A CODEX SESSION IS VISIBLE, AND EVERY LINE SAYS WHICH HARNESS AND WHICH MACHINE WROTE IT.
+//
+// Unnumbered for the reason 5b is: it strengthens a living criterion rather than adding one. Until
+// `CODEX_THREAD_ID` was read, every read a Codex session made through the real CLI resolved no
+// identity and was dropped without a word — so this is the leg that proves the drop is gone, on a
+// real process, alongside the two provenance attributes that ride every line it writes.
+// ---------------------------------------------------------------------------
+
+test("a real spawned read under CODEX keys its trace by the Codex thread, and stamps the harness and the machine that wrote it", () => {
+  const dir = freshDir("codex-identity");
+  const threadId = "0198de4f-aaaa-bbbb-cccc-codexthread01";
+
+  // Codex's own variable and nothing else: no declared id and no Claude window, both stripped by
+  // `baseEnv`, so the only way this run can resolve an identity is the one being proved.
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, CODEX_THREAD_ID: threadId };
+  const read = runCli(["library", "artifact", "plan"], env);
+  assert.equal(read.status, 0, `expected the Codex read to exit 0: ${read.stderr}`);
+
+  assert.deepEqual(
+    listDir(dir).filter((entry) => entry.endsWith(".jsonl")),
+    [`${threadId}.jsonl`],
+    "the trace is named by the Codex thread — no trace at all here is the drop this leg exists to catch",
+  );
+
+  // On the BYTES the real process wrote, not only through the reader: the harness is DETECTED from
+  // the child's own environment, and the host is the child's own `os.hostname()` — the same machine
+  // this suite runs on, since the child is its own spawn.
+  const [line] = fs
+    .readFileSync(path.join(dir, `${threadId}.jsonl`), "utf8")
+    .trim()
+    .split("\n")
+    .map((raw) => JSON.parse(raw) as Record<string, unknown>);
+  assert.equal(line?.["grade"], "window", "a Codex thread id names one window, exactly as Claude's does");
+  assert.equal(line?.["harness"], "codex");
+  assert.equal(line?.["host"], os.hostname().trim());
+
+  const { replay, identity, harnesses, hosts } = readTraversalSession({ dir, sessionId: threadId });
+  assert.equal(visitsOf(replay.events).length, 1);
+  assert.equal(identity, "window");
+  assert.deepEqual(harnesses, ["codex"]);
+  assert.deepEqual(hosts, [os.hostname().trim()]);
+
+  // ...and the surface a reader meets SAYS both, rather than leaving the harness and the box to be
+  // supplied from habit.
+  const shown = runCli(["traversal", "show", threadId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+  assert.match(shown.stdout, /^harness: codex \(/m);
+  assert.ok(
+    shown.stdout.split("\n").some((row) => row.startsWith(`host: ${os.hostname().trim()} (`)),
+    `the replay must name the machine that wrote it:\n${shown.stdout}`,
   );
 });
 

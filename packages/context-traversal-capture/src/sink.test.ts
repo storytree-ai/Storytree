@@ -418,3 +418,111 @@ test("an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-n
   const summary = summarizeTraversalSession(dir, sessionId);
   assert.equal(summary?.origin.reading, "unknown", "the index row carries the same reading the replay does");
 });
+
+// ---------------------------------------------------------------------------
+// WHICH HARNESS AND WHICH MACHINE WROTE THE LINE
+// ---------------------------------------------------------------------------
+
+/** Every written line of a session's file, parsed, in order. */
+function writtenLines(dir: string, sessionId: string): Record<string, unknown>[] {
+  return fs
+    .readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+test("appended-events-replay-in-a-fresh-reader: an append stamps WHICH HARNESS and WHICH MACHINE on every line it writes, only when supplied, and a fresh reader reports them distinct in first-seen order", () => {
+  const dir = freshDir("provenance");
+  const sessionId = "session-provenance";
+
+  appendTraversalEvents([visit(sessionId, 1), visit(sessionId, 2)], {
+    dir,
+    sessionId,
+    grade: "window",
+    harness: "codex",
+    host: "owner-laptop",
+  });
+  // A second machine and harness later in the same trace — the shape a declared id shared across
+  // processes takes — and then a REPEAT of the first pair, which must not be listed twice.
+  appendTraversalEvents([visit(sessionId, 3)], { dir, sessionId, harness: "claude-code", host: "mint-box" });
+  appendTraversalEvents([visit(sessionId, 4)], { dir, sessionId, harness: "codex", host: "owner-laptop" });
+  // Neither supplied — and a null host is "names nothing", not a value to write.
+  appendTraversalEvents([visit(sessionId, 5)], { dir, sessionId, host: null });
+
+  // On the BYTES, per line: the attributes ride beside the event, never inside it, and an append
+  // that supplies neither writes neither key.
+  const lines = writtenLines(dir, sessionId);
+  assert.deepEqual(
+    lines.map((line) => [line["harness"], line["host"]]),
+    [
+      ["codex", "owner-laptop"],
+      ["codex", "owner-laptop"],
+      ["claude-code", "mint-box"],
+      ["codex", "owner-laptop"],
+      [undefined, undefined],
+    ],
+  );
+  assert.equal("harness" in (lines[4] ?? {}), false, "an unsupplied harness writes no key at all");
+  assert.equal("host" in (lines[4] ?? {}), false, "and a null host writes none either");
+  assert.equal(JSON.stringify(lines[0]?.["event"]).includes("owner-laptop"), false, "never inside the event");
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 5);
+  assert.deepEqual(read.harnesses, ["codex", "claude-code"]);
+  assert.deepEqual(read.hosts, ["owner-laptop", "mint-box"]);
+  // The index row folds through the SAME reader, so it cannot say anything the replay does not.
+  const summary = summarizeTraversalSession(dir, sessionId);
+  assert.deepEqual(summary?.harnesses, ["codex", "claude-code"]);
+  assert.deepEqual(summary?.hosts, ["owner-laptop", "mint-box"]);
+});
+
+test("appended-events-replay-in-a-fresh-reader: a trace no line of which recorded a harness or a machine reads back as NONE, and so does a session with no file", () => {
+  const dir = freshDir("provenance-none");
+  const sessionId = "session-unrecorded";
+
+  // Exactly what every line written before this landing looks like.
+  appendTraversalEvents([visit(sessionId, 1), visit(sessionId, 2)], { dir, sessionId, grade: "window", slot: "slot-a" });
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 2, "an unstamped line is fully readable — additive siblings, not a schema bump");
+  assert.deepEqual(read.harnesses, []);
+  assert.deepEqual(read.hosts, []);
+  assert.deepEqual(summarizeTraversalSession(dir, sessionId)?.harnesses, []);
+  assert.deepEqual(summarizeTraversalSession(dir, sessionId)?.hosts, []);
+
+  const absent = readTraversalSession({ dir, sessionId: "session-never-written" });
+  assert.deepEqual(absent.harnesses, []);
+  assert.deepEqual(absent.hosts, []);
+});
+
+test("tolerant-read-skips-and-counts-bad-lines: an unrecognised harness word or an unusable host is read as NOTHING, and a skipped line contributes neither", () => {
+  const dir = freshDir("provenance-garbage");
+  const sessionId = "session-provenance-garbage";
+  const good = visit(sessionId, 1);
+
+  // Hand-written bytes, because the writer cannot produce any of these.
+  const lines = [
+    // A harness this reader does not know, and an empty host: both name nothing.
+    JSON.stringify({ v: 1, event: good, harness: "gemini", host: "" }),
+    // A host that is not a string at all.
+    JSON.stringify({ v: 1, event: visit(sessionId, 2), host: 42 }),
+    // An unreadable EVENT: skipped, so its harness and host vouch for nothing.
+    JSON.stringify({ v: 1, event: { kind: "nope" }, harness: "codex", host: "ghost-box" }),
+    // A crash-duplicated identity: skipped for the same reason, whatever it claims.
+    JSON.stringify({ v: 1, event: good, harness: "claude-code", host: "duplicate-box" }),
+  ];
+  fs.writeFileSync(path.join(dir, `${sessionId}.jsonl`), `${lines.join("\n")}\n`, "utf8");
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 2, "an unusable attribute never costs the line its EVENT");
+  assert.equal(read.skipped, 2);
+  assert.deepEqual(read.harnesses, [], "an unrecognised word is not coerced into a harness it might not be");
+  assert.deepEqual(read.hosts, [], "and neither an empty host nor a skipped line's host names a machine");
+
+  // The control: a USABLE stamped line is reported, so the empties above are the rule working and
+  // not a reader that reports nothing at all.
+  appendTraversalEvents([visit(sessionId, 3)], { dir, sessionId, harness: "codex", host: "owner-laptop" });
+  const after = readTraversalSession({ dir, sessionId });
+  assert.deepEqual(after.harnesses, ["codex"]);
+  assert.deepEqual(after.hosts, ["owner-laptop"]);
+});

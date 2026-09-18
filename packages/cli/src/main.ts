@@ -1,4 +1,5 @@
 #!/usr/bin/env -S tsx
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -13,6 +14,7 @@ import {
 } from "@storytree/library/store";
 import {
   captureCliInvocation,
+  captureIdentityOf,
   isTraversalCaptureEnabled,
   resolveAgentDescent,
   resolveTraceIdentity,
@@ -297,6 +299,10 @@ interface InvocationIdentities {
    * (`linked-session-context-arc-inc-30`). Deliberately NOT the registry identity above: a slot is
    * pooled across the parent session, its subagents, and every later session handed the same slot,
    * so keying a trace by it reports many windows' reads as one session's.
+   *
+   * It also carries WHICH AGENT HARNESS this process runs under and WHICH MACHINE it runs on — both
+   * DETECTED here, from the process itself, and never declared. The machine is `os.hostname()`: the
+   * box, not the "host" harness the older traversal vocabulary means by that word.
    */
   readonly trace: TraceIdentity | null;
 }
@@ -321,7 +327,14 @@ function resolveInvocationIdentities(): InvocationIdentities {
           : { sessionId: derived.sessionId, branch: derived.branch };
     return {
       registry,
-      trace: resolveTraceIdentity({ env: process.env, slot: derived?.sessionId ?? null }),
+      // Stryker disable next-line ObjectLiteral,OptionalChaining,LogicalOperator: NO COVERAGE BY
+      // DESIGN — this is the composition root's one wire from the process into the pure resolver, and
+      // `main.ts` has no in-process suite (it opens real stores). Both ends ARE tested: the
+      // precedence, the harness detection and the host normalisation in `session-identity.test.ts`,
+      // and this wiring END TO END by the spawned-CLI legs of `terminal-capture.uat.test.ts`, which
+      // the mutation runner excludes by design (`isSpawnUatTest`). The only new operand is the host;
+      // the slot expression beside it predates this change and was simply never on a changed line.
+      trace: resolveTraceIdentity({ env: process.env, slot: derived?.sessionId ?? null, host: os.hostname() }),
     };
   } catch {
     return { registry: null, trace: null };
@@ -393,12 +406,14 @@ async function captureInvocation(
     // `--from-offer` flag the observer's allowlist would have refused. With no flag to carry there is
     // one argv again, and the two-argv seam that existed only to serve it is gone.
     const agentRefIds = await resolveAgentDescent(argv, store);
-    // Each optional field is added only when it is present — `CaptureCliInvocationInput`'s
-    // properties are readonly, so every addition is a fresh literal rather than an assignment.
-    let capture: CaptureCliInvocationInput = {
+    const capture: CaptureCliInvocationInput = {
       argv,
       ok,
-      sessionId: trace?.sessionId ?? null,
+      // WHO is capturing, and what every line it writes will say about that: the session id, what
+      // that id NAMES (its grade), the worktree slot beside it, and the harness and machine that
+      // wrote it. `captureIdentityOf` owns which of those are stamped and which stay ABSENT — a
+      // decision made there, where a test can reach it, rather than by a branch here, where none can.
+      ...captureIdentityOf(trace),
       agentRefIds,
       // What a SEARCH-shaped read returned (ADR-0484 D3). The command computed it; the observer is
       // pure and could only get it by running the ranking a second time. Passed through as-is,
@@ -406,10 +421,6 @@ async function captureInvocation(
       // attribute makes it, in the composition that writes the line.
       resultNodeIds: observedResultIds,
     };
-    // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
-    // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
-    // identity grade rather than inferring it from the id's shape.
-    if (trace !== null) capture = { ...capture, grade: trace.grade, slot: trace.slot };
     captureCliInvocation(capture);
     // The event is now DURABLE LOCALLY. Everything after this point is out of band: the ship is a
     // detached process this command does not wait for, and does not learn the outcome of

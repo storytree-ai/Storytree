@@ -653,6 +653,8 @@ CREATE TABLE IF NOT EXISTS events.traversal_event (
   origin      TEXT,                   -- human|cut; NULL = UNDECLARED, and never read as `human`
   cut_by      TEXT,                   -- the session that cut this one, when it named itself
   cut_for     TEXT,                   -- the arc/increment it was cut to drive (a canonical id)
+  harness     TEXT,                   -- claude-code|codex, DETECTED from the writer; NULL = UNRECORDED
+  host        TEXT,                   -- the writing MACHINE's hostname, not the harness; NULL = UNRECORDED
   event       JSONB NOT NULL,         -- the whole ContextTraversalEvent, validated before it ships
   shipped_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -666,5 +668,19 @@ CREATE TABLE IF NOT EXISTS events.traversal_event (
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS origin  TEXT;
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_by  TEXT;
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_for TEXT;
+
+-- WHICH AGENT HARNESS AND WHICH MACHINE WROTE THE LINE, additive on the same terms as the origin
+-- columns above. `harness` is the agent harness the writing process ran under (`claude-code` or
+-- `codex`); `host` is that process's MACHINE — its hostname — and NOT the "host" harness the older
+-- traversal vocabulary means by that word (`surface:host_transcript`, "the host transcript").
+--
+-- ⚠ BOTH ARE DETECTED FROM THE WRITING PROCESS, NEVER DECLARED, AND NULL IS "UNRECORDED". Every row
+-- written before this landing carries NULL and stays that way: neither is ever inferred after the
+-- fact — not from a slot, a branch name, a clock, or which box the store happens to be read from —
+-- because an inferred provenance cannot be told apart from a recorded one. That inference is the
+-- mistake these columns exist to end: roughly forty hours of Codex work on a Windows laptop were
+-- once read as work done on a second Linux box, because no row said either fact.
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS harness TEXT;
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS host    TEXT;
 
 CREATE INDEX IF NOT EXISTS traversal_event_session_idx ON events.traversal_event (session_id, seq);

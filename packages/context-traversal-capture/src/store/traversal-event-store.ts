@@ -27,8 +27,8 @@
 import { createContextTraversalTrace, ContextTraversalEvent } from "@storytree/context-traversal-telemetry";
 import { z } from "zod";
 
-import { classifyTraceIdentity } from "../session-identity.js";
-import type { TraceIdentityGrade } from "../session-identity.js";
+import { classifyTraceIdentity, SESSION_HARNESSES } from "../session-identity.js";
+import type { SessionHarness, TraceIdentityGrade } from "../session-identity.js";
 import { foldSessionOrigin } from "../session-origin.js";
 import type { SessionOriginClaim, SessionOriginKind } from "../session-origin.js";
 import type { TraversalReadResult, TraversalSessionSummary } from "../sink.js";
@@ -52,6 +52,10 @@ export interface TraversalEventLocation {
   readonly origin?: SessionOriginKind;
   readonly cutBy?: string | null;
   readonly cutFor?: string | null;
+  /** Which agent harness wrote the line, as detected when it was written. Absent = unrecorded. */
+  readonly harness?: SessionHarness;
+  /** Which MACHINE wrote the line — its hostname, not the harness. Absent or null = unrecorded. */
+  readonly host?: string | null;
 }
 
 /**
@@ -91,6 +95,11 @@ const TraversalRowDoc = z.object({
   origin: z.enum(["human", "cut"]).nullish().catch(null),
   cutBy: z.string().nullish().catch(null),
   cutFor: z.string().nullish().catch(null),
+  // The harness and the machine degrade the same way — an unrecognised harness is UNRECORDED rather
+  // than either harness it might have been, and an empty host names no machine — and neither may
+  // reject the row's event.
+  harness: z.enum(SESSION_HARNESSES).nullish().catch(null),
+  host: z.string().min(1).nullish().catch(null),
 });
 
 /** The `session_id` projection the list query returns. */
@@ -98,7 +107,7 @@ const SessionIdRowDoc = z.object({ session_id: z.string().min(1) });
 
 /**
  * Fold rows — in APPEND order, which is what `seq` carries — into the same
- * `{ replay, skipped, identity, slots }` a JSONL read returns.
+ * `{ replay, skipped, identity, slots, harnesses, hosts, origin }` a JSONL read returns.
  *
  * Shared by {@link PgTraversalEventStore.read} and its `list` so the two can never disagree about
  * what a session's events are, the way `summarizeTraversalSession` exists on the JSONL side.
@@ -109,6 +118,8 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
   const seenVisitIds = new Set<string>();
   const grades: (TraceIdentityGrade | undefined)[] = [];
   const slots: string[] = [];
+  const harnesses: SessionHarness[] = [];
+  const hosts: string[] = [];
   // Stryker disable next-line ArrayDeclaration: EQUIVALENT — a seeded junk element answers
   // `undefined` for every field the fold reads, so it changes neither the reading nor either rider
   // list. The same call, and the same reason, as the JSONL reader's.
@@ -121,7 +132,7 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
       skipped += 1;
       continue;
     }
-    const { event, grade, slot, origin, cutBy, cutFor } = parsed.data;
+    const { event, grade, slot, origin, cutBy, cutFor, harness, host } = parsed.data;
     if (seenEventIds.has(event.eventId)) {
       skipped += 1;
       continue;
@@ -144,6 +155,10 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
     // caller that had nothing to say) both name no worktree and must not become an entry a reader
     // could quote back as one.
     if (typeof slot === "string" && slot.length > 0 && !slots.includes(slot)) slots.push(slot);
+    // The harness and the machine on the slot's rule, as the JSONL reader collects them. No length
+    // test on the host: the row schema's `.min(1)` has already turned an empty one into null.
+    if (typeof harness === "string" && !harnesses.includes(harness)) harnesses.push(harness);
+    if (typeof host === "string" && !hosts.includes(host)) hosts.push(host);
     trace.append(event);
   }
 
@@ -152,6 +167,8 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
     skipped,
     identity: classifyTraceIdentity(grades),
     slots,
+    harnesses,
+    hosts,
     origin: foldSessionOrigin(claims),
   };
 }
@@ -162,14 +179,17 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
  * implements that semantic INDEPENDENTLY (which is what lets it answer parity questions honestly),
  * and the consequence is that it cannot notice this text changing. Proved instead END TO END through
  * the CLI against the live store, recorded on the increment.
+ *
+ * `harness` and `host` are APPENDED after `event` rather than slotted in beside `grade`, so every
+ * parameter position that already shipped keeps its number — the double reads them by position too.
  */
 // Stryker disable StringLiteral: EQUIVALENT against the in-memory double by construction — it
 // routes on the INSERT verb and implements the conflict rule itself, so every other clause here is
 // unobservable. The live proof is the witness, and it is named above rather than implied.
 const INSERT_EVENT_SQL = [
   "INSERT INTO events.traversal_event",
-  "  (event_id, session_id, observed_at, grade, slot, origin, cut_by, cut_for, event)",
-  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+  "  (event_id, session_id, observed_at, grade, slot, origin, cut_by, cut_for, event, harness, host)",
+  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
   "ON CONFLICT (event_id) DO NOTHING",
 ].join("\n");
 // Stryker restore StringLiteral
@@ -186,7 +206,7 @@ const INSERT_EVENT_SQL = [
 // `INSERT_EVENT_SQL` above is.
 // Stryker disable StringLiteral
 const SELECT_SESSION_SQL = [
-  'SELECT event, grade, slot, origin, cut_by AS "cutBy", cut_for AS "cutFor"',
+  'SELECT event, grade, slot, origin, cut_by AS "cutBy", cut_for AS "cutFor", harness, host',
   "FROM events.traversal_event WHERE session_id = $1 ORDER BY seq ASC",
 ].join("\n");
 // Stryker restore StringLiteral
@@ -240,6 +260,8 @@ export class PgTraversalEventStore implements TraversalEventStore {
           location.cutBy ?? null,
           location.cutFor ?? null,
           JSON.stringify(event),
+          location.harness ?? null,
+          location.host ?? null,
         ]);
       }
       return true;
@@ -285,7 +307,7 @@ export class PgTraversalEventStore implements TraversalEventStore {
 
     const summaries: TraversalSessionSummary[] = [];
     for (const sessionId of sessionIds) {
-      const { replay, identity, slots, origin } = await this.read(sessionId);
+      const { replay, identity, slots, origin, harnesses, hosts } = await this.read(sessionId);
       if (replay.events.length === 0) continue;
       const lastEvent = replay.events[replay.events.length - 1];
       summaries.push({
@@ -298,6 +320,8 @@ export class PgTraversalEventStore implements TraversalEventStore {
         lastObservedAt: lastEvent?.at,
         identity,
         slots,
+        harnesses,
+        hosts,
       });
     }
     return summaries;

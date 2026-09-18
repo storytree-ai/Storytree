@@ -107,6 +107,9 @@ function capture(
     cutBy?: string;
     /** A string OR a list — one appended batch carries one identity stamp (ADR-0541 D2). */
     cutFor?: string | readonly string[];
+    harness?: "claude-code" | "codex";
+    /** The MACHINE's hostname — not the agent harness. */
+    host?: string;
   },
 ): void {
   ensureShipBaseline(dir, sessionId);
@@ -509,6 +512,64 @@ test("a-line-whose-origin-is-unrecognised-still-ships-as-an-undeclared-one: the 
   assert.equal(outcome.shipped, 1, "the EVENT is never the casualty of an unusable attribute");
   assert.equal(store.appends[0]?.location.origin, undefined, "unrecognised is undeclared, never coerced");
   assert.equal(store.appends[0]?.location.cutBy, null, "and a rider of the wrong shape names nobody");
+});
+
+test("line-identity-changes-mid-trace-are-shipped-as-separate-appends: a HARNESS or a MACHINE that changes mid-trace starts a new run, and one that holds does not", async () => {
+  const dir = freshDir("provenance-runs");
+  const sessionId = "s-provenance";
+
+  // Two lines sharing both attributes are ONE run — a grouping rule that split on every line would
+  // turn each event into its own append.
+  capture(dir, sessionId, 1, { grade: "window", harness: "codex", host: "owner-laptop" });
+  capture(dir, sessionId, 2, { grade: "window", harness: "codex", host: "owner-laptop" });
+  // Only the HARNESS moves, so a rule blind to it would fold this into the run above.
+  capture(dir, sessionId, 3, { grade: "window", harness: "claude-code", host: "owner-laptop" });
+  // Only the MACHINE moves, on the same argument.
+  capture(dir, sessionId, 4, { grade: "window", harness: "claude-code", host: "mint-box" });
+  // Neither recorded.
+  capture(dir, sessionId, 5, { grade: "window" });
+
+  const store = new RecordingStore();
+  await shipTraversalSession(sessionId, { dir, store, now });
+
+  assert.deepEqual(
+    store.appends.map((entry) => [entry.location.harness, entry.location.host, entry.eventIds.length]),
+    [
+      ["codex", "owner-laptop", 2],
+      ["claude-code", "owner-laptop", 1],
+      ["claude-code", "mint-box", 1],
+      [undefined, null, 1],
+    ],
+  );
+  // An unrecorded harness is an ABSENT key, never an explicit `undefined` — the distinction that
+  // keeps "nothing detected it" from reaching the store as a stated value.
+  assert.equal("harness" in (store.appends[3]?.location ?? {}), false);
+  assert.equal("harness" in (store.appends[0]?.location ?? {}), true);
+});
+
+test("a-line-whose-harness-or-host-is-unusable-still-ships-as-an-unrecorded-one: the event is never the casualty", async () => {
+  const dir = freshDir("odd-provenance");
+  const sessionId = "s-odd-provenance";
+  ensureShipBaseline(dir, sessionId);
+  fs.appendFileSync(
+    path.join(dir, `${sessionId}.jsonl`),
+    [
+      JSON.stringify({ v: 1, event: visit(sessionId, 1), harness: "gemini", host: "" }),
+      JSON.stringify({ v: 1, event: visit(sessionId, 2), harness: 7, host: 42 }),
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const store = new RecordingStore();
+  const outcome = await shipTraversalSession(sessionId, { dir, store, now });
+
+  assert.equal(outcome.shipped, 2, "an unusable attribute never costs the line its EVENT");
+  assert.equal(outcome.unshippable, 0);
+  // Both lines degrade to the SAME unrecorded identity, so they ship as one run.
+  assert.equal(store.appends.length, 1);
+  assert.equal("harness" in (store.appends[0]?.location ?? {}), false, "unrecognised is unrecorded, never coerced");
+  assert.equal(store.appends[0]?.location.host, null, "and an empty or non-string host names no machine");
 });
 
 // ---------------------------------------------------------------------------

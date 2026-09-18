@@ -26,10 +26,49 @@
  * slot is precisely the defect above — re-introduced for the runs least able to declare themselves.
  * An uninstrumented run is a normal outcome, not an error (the same posture `captureCliInvocation`
  * already takes for a null identity), so this returns null and the caller silently records nothing.
+ *
+ * TWO HARNESSES NAME A WINDOW, NOT ONE. Claude Code exports its window id as
+ * `CLAUDE_CODE_SESSION_ID`; Codex exports its thread id as `CODEX_THREAD_ID` to every shell command
+ * it runs (`storytree context` already selects a Codex rollout by it). Until the second was read
+ * here, every `storytree` read a Codex session made resolved no identity and was dropped in silence.
+ *
+ * AND AN IDENTITY NOW SAYS WHO WROTE IT, AS WELL AS WHICH WINDOW IT IS. Beside the slot it carries two
+ * PROVENANCE attributes, both DETECTED from the writing process and never self-declared or inferred
+ * backwards: which agent HARNESS the process runs under ({@link resolveSessionHarness}) and which
+ * MACHINE it runs on ({@link TraceIdentity.host}). An audit once read roughly forty hours of Codex
+ * work on the owner's Windows laptop as work done on a second Linux box, because nothing on a trace
+ * line said either fact.
+ *
+ * ⚠ TWO MEANINGS OF "HOST", AND THIS MODULE NOW HOLDS BOTH. The older traversal vocabulary uses
+ * "host" for the AGENT HARNESS — {@link HOST_WINDOW_ID_ENV}, `surface:host_transcript`, "the host
+ * transcript". The `host` ATTRIBUTE added here is the MACHINE: its hostname, as `os.hostname()`
+ * answers it. They are different facts and must never be read for one another; the agent harness
+ * is always called `harness` from here on.
  */
 
-/** The environment variable a harness-run CLI reads its own context window's id from. */
+/**
+ * The environment variable a CLAUDE CODE-run CLI reads its own context window's id from.
+ *
+ * ⚠ "HOST" IN THIS NAME MEANS THE AGENT HARNESS, in the older vocabulary's sense — not the machine,
+ * which is {@link TraceIdentity.host}. It is also no longer the only harness: Codex's equivalent is
+ * {@link CODEX_WINDOW_ID_ENV}. The name is kept because it is exported, not because it is still apt.
+ */
 export const HOST_WINDOW_ID_ENV = "CLAUDE_CODE_SESSION_ID";
+
+/**
+ * The environment variable a CODEX-run CLI reads its own thread's id from. Codex exports it to every
+ * shell command it runs, so it names the window the command belongs to exactly as
+ * {@link HOST_WINDOW_ID_ENV} does for Claude Code — and `storytree context` (`packages/cli/src/
+ * context.ts`) already reads it to select that thread's rollout.
+ */
+export const CODEX_WINDOW_ID_ENV = "CODEX_THREAD_ID";
+
+/**
+ * Claude Code's documented child-process marker, `1` in every process it starts — including versions
+ * that export no session id. It says which HARNESS a process runs under and names no window, so it
+ * is read by {@link resolveSessionHarness} alone and is never an identity.
+ */
+const CLAUDE_CODE_MARKER_ENV = "CLAUDECODE";
 
 /**
  * The explicit override (the secrets-hydration precedent, and the seam a spawned runtime inherits a
@@ -50,6 +89,16 @@ export const DECLARED_SESSION_ID_ENV = "STORYTREE_SESSION_ID";
  */
 export type TraceIdentityGrade = "window" | "declared";
 
+/**
+ * The agent harnesses a process can be DETECTED running under — the closed vocabulary a trace
+ * line's `harness` is read against. A word on disk that is not one of these is read as "declared
+ * nothing", never coerced into one of them.
+ */
+export const SESSION_HARNESSES = ["claude-code", "codex"] as const;
+
+/** One of {@link SESSION_HARNESSES}. */
+export type SessionHarness = (typeof SESSION_HARNESSES)[number];
+
 /** One invocation's resolved trace identity. */
 export interface TraceIdentity {
   /** The trace's session id — one context window, never a pooled slot. */
@@ -61,6 +110,18 @@ export interface TraceIdentity {
    * beside the identity, never used as one.
    */
   readonly slot: string | null;
+  /**
+   * WHICH AGENT HARNESS the invocation's process runs under, detected from its own environment
+   * ({@link resolveSessionHarness}). `null` means NO RECOGNISED HARNESS — never a synonym for a
+   * human at a terminal, which is an inference this attribute exists to stop being made.
+   */
+  readonly harness: SessionHarness | null;
+  /**
+   * WHICH MACHINE the invocation ran on — its hostname, trimmed ({@link normalizeHost}), or null when
+   * the caller supplied none. ⚠ The MACHINE, not the "host" of {@link HOST_WINDOW_ID_ENV}, which is
+   * the older vocabulary's word for the agent harness.
+   */
+  readonly host: string | null;
 }
 
 export interface TraceIdentityInput {
@@ -71,31 +132,89 @@ export interface TraceIdentityInput {
    * primary checkout / CI. Recorded as a grouping attribute; never promoted to an identity.
    */
   readonly slot: string | null;
+  /**
+   * The machine's hostname (`os.hostname()` in the CLI). INJECTED for the reason `env` is: this module
+   * imports no `os` and reads nothing ambiently, so the whole resolution stays decided by values.
+   * Absent is "the caller did not say", which resolves to a null host rather than a guessed one.
+   */
+  readonly host?: string | null;
+}
+
+/** A value trimmed, or null when it is absent or blank: a blank value NAMES nothing here. */
+function nonBlank(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function trimmedEnv(env: TraceIdentityInput["env"], name: string): string | null {
-  const value = env[name];
-  if (value === undefined) return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return nonBlank(env[name]);
+}
+
+/**
+ * A machine's hostname as a trace line records it: trimmed, and null when there is nothing to name —
+ * so a blank answer is recorded as no host at all rather than as a host called "".
+ */
+export function normalizeHost(raw: string | null | undefined): string | null {
+  return nonBlank(raw);
+}
+
+/**
+ * Which agent harness THIS process runs under, DETECTED from its own environment — never declared.
+ *
+ * THE PRECEDENCE MIRRORS {@link resolveTraceIdentity}'s WINDOW PRECEDENCE, and that is the point of
+ * it: whenever a trace line's id is a window id, the harness beside it agrees with the harness that
+ * id belongs to.
+ *   1. `CLAUDE_CODE_SESSION_ID` → `claude-code` (the window rung that wins);
+ *   2. `CODEX_THREAD_ID` → `codex`;
+ *   3. `CLAUDECODE=1` → `claude-code` — Claude Code's documented child-process marker, which covers
+ *      versions that export no session id. It sits BELOW Codex's thread id because it names no
+ *      window, so it must never outvote a harness that does;
+ *   4. otherwise `null` — "no recognised harness", which is NOT a human, a terminal, or anything
+ *      else a reader might supply from habit.
+ * Every value is trimmed, and a blank one counts as absent, exactly as the identity's own are.
+ *
+ * ⚠ THE NESTED CASE IS A STATED LIMIT, NOT A BUG. A Codex leaf launched from inside a Claude session
+ * inherits that session's `CLAUDE_CODE_SESSION_ID`, so its reads resolve to the CLAUDE PARENT's
+ * window and harness — the same way a Claude subagent's reads fold into its parent's trace today.
+ * `storytree context` (`packages/cli/src/context.ts`) deliberately checks Codex FIRST, and that is
+ * not a disagreement: it asks a different question — which window is THE READING PROCESS'S OWN —
+ * and nothing here changes its answer.
+ */
+export function resolveSessionHarness(env: TraceIdentityInput["env"]): SessionHarness | null {
+  if (trimmedEnv(env, HOST_WINDOW_ID_ENV) !== null) return "claude-code";
+  if (trimmedEnv(env, CODEX_WINDOW_ID_ENV) !== null) return "codex";
+  if (trimmedEnv(env, CLAUDE_CODE_MARKER_ENV) === "1") return "claude-code";
+  return null;
 }
 
 /**
  * Resolve the identity this invocation's trace lines are keyed by, or null to capture nothing.
  *
- * Precedence: an explicitly DECLARED id, then the harness-reported WINDOW id, then nothing. The
- * slot rides along in both cases and is never the answer on its own.
+ * Precedence: an explicitly DECLARED id, then Claude Code's WINDOW id, then Codex's THREAD id (also
+ * a window id), then nothing. The slot, the harness and the host ride along whichever rung answers,
+ * and none of them is ever the answer on its own.
+ *
+ * THE ORDER IS WHAT MAKES CODEX PURELY ADDITIVE. Codex's rung sits BELOW both rungs that existed
+ * before it, so every invocation that resolved an identity before resolves to the same session id
+ * and grade after; the only runs that change are the ones that used to resolve nothing at all.
  */
 export function resolveTraceIdentity(input: TraceIdentityInput): TraceIdentity | null {
-  const declared = trimmedEnv(input.env, DECLARED_SESSION_ID_ENV);
-  if (declared !== null) {
-    return { sessionId: declared, grade: "declared", slot: input.slot };
-  }
+  // Computed ONCE, so the three rungs below cannot disagree about what rides beside the identity.
+  const beside = {
+    slot: input.slot,
+    harness: resolveSessionHarness(input.env),
+    host: normalizeHost(input.host),
+  };
 
-  const window = trimmedEnv(input.env, HOST_WINDOW_ID_ENV);
-  if (window !== null) {
-    return { sessionId: window, grade: "window", slot: input.slot };
-  }
+  const declared = trimmedEnv(input.env, DECLARED_SESSION_ID_ENV);
+  if (declared !== null) return { sessionId: declared, grade: "declared", ...beside };
+
+  const claudeWindow = trimmedEnv(input.env, HOST_WINDOW_ID_ENV);
+  if (claudeWindow !== null) return { sessionId: claudeWindow, grade: "window", ...beside };
+
+  const codexWindow = trimmedEnv(input.env, CODEX_WINDOW_ID_ENV);
+  if (codexWindow !== null) return { sessionId: codexWindow, grade: "window", ...beside };
 
   return null;
 }

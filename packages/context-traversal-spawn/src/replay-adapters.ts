@@ -85,8 +85,8 @@ export function showTraversalSessionAllAdapters(
   sessionId: string,
   opts?: TraversalQueryOptions,
 ): TraversalRenderEnvelope {
-  const { replay, skipped, identity, slots, origin, provenance } = composeReplay(sessionId, opts);
-  const rendered = renderTraversalSession(replay, { skipped, identity, slots, origin });
+  const { replay, skipped, identity, slots, origin, harnesses, hosts, provenance } = composeReplay(sessionId, opts);
+  const rendered = renderTraversalSession(replay, { skipped, identity, slots, origin, harnesses, hosts });
   const caveats = renderCoverageCaveats(AGENT_DESCENT_CAVEATS);
   return {
     ...rendered,
@@ -121,13 +121,19 @@ function composeReplay(
   // CLI actually calls, so an origin dropped here would be recorded on disk, shipped to the shared
   // store, and invisible on the one surface a reader meets — which is the shape where a figure gets
   // attributed to the owner's prompt anyway.
-  const { replay, skipped, identity, slots, origin } = readTraversalSession({ dir, sessionId });
+  //
+  // WHICH HARNESS AND WHICH MACHINE wrote the lines ride through on exactly that argument. They are
+  // the facts an audit once supplied from habit and got wrong, so a render that dropped them here
+  // would hand the same reader the same gap.
+  const { replay, skipped, identity, slots, origin, harnesses, hosts } = readTraversalSession({ dir, sessionId });
   return {
     replay: { ...replay, coverage: [AGENT_DESCENT_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     skipped,
     identity,
     slots,
     origin,
+    harnesses,
+    hosts,
     provenance: composeProvenance(dir, sessionId, replay.events),
   };
 }

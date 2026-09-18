@@ -25,9 +25,14 @@ export {
 export {
   classifyTraceIdentity,
   describeTraceIdentity,
+  normalizeHost,
+  resolveSessionHarness,
   resolveTraceIdentity,
+  CODEX_WINDOW_ID_ENV,
   DECLARED_SESSION_ID_ENV,
   HOST_WINDOW_ID_ENV,
+  SESSION_HARNESSES,
+  type SessionHarness,
   type TraceIdentity,
   type TraceIdentityGrade,
   type TraceIdentityInput,
@@ -114,10 +119,12 @@ export {
 
 export {
   captureCliInvocation,
+  captureIdentityOf,
   isTraversalCaptureEnabled,
   showTraversalSession,
   listTraversalSessionsRendered,
   type CaptureCliInvocationInput,
+  type CaptureIdentity,
   type TraversalQueryOptions,
 } from "./terminal-capture.js";
 

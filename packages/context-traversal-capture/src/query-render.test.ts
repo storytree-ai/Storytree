@@ -32,11 +32,18 @@ import { renderTraversalSessions, renderTraversalSession } from "./query-render.
  */
 const UNDECLARED: TraceOriginReading = { reading: "unknown", cutBy: [], cutFor: [] };
 
+/**
+ * The provenance every pre-existing fixture here carries: no line recorded which harness or which
+ * machine wrote it — what every trace written before harness detection says. Named for the same
+ * reason {@link UNDECLARED} is: the fixture states the FACT rather than a shape.
+ */
+const UNRECORDED = { harnesses: [], hosts: [] } as const;
+
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {
   const list: TraversalSessionSummary[] = [
-    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
-    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
-    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined, origin: UNDECLARED, identity: "window", slots: [] },
+    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [], ...UNRECORDED },
+    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [], ...UNRECORDED },
+    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined, origin: UNDECLARED, identity: "window", slots: [], ...UNRECORDED },
   ];
 
   const result = renderTraversalSessions(list);
@@ -79,6 +86,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
       identity: "window",
       slots: ["confident-brahmagupta-b5b8f2"],
       origin: UNDECLARED,
+      ...UNRECORDED,
     },
     {
       sessionId: "clever-mestorf-1041a3",
@@ -87,6 +95,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
       identity: "slot",
       slots: [],
       origin: UNDECLARED,
+      ...UNRECORDED,
     },
   ];
 
@@ -106,7 +115,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
 
   // ...and it is CONDITIONAL: a clean index grows no paragraph announcing an absence.
   const cleanIndex = renderTraversalSessions([
-    { sessionId: "window-a", eventCount: 1, lastObservedAt: "2026-08-22T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
+    { sessionId: "window-a", eventCount: 1, lastObservedAt: "2026-08-22T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [], ...UNRECORDED },
   ]);
   assert.doesNotMatch(cleanIndex.body, /retrofittable/i);
 });
@@ -565,6 +574,7 @@ test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unkn
       identity: "window",
       slots: [],
       origin: declared,
+      ...UNRECORDED,
     },
     {
       sessionId: "session-silent",
@@ -573,6 +583,7 @@ test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unkn
       identity: "window",
       slots: [],
       origin: UNDECLARED,
+      ...UNRECORDED,
     },
   ];
 
@@ -595,7 +606,7 @@ test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unkn
       [
         // Anchored on the row ABOVE it, so the blank separator is pinned as a blank: a notice
         // matched from its own first word would still match with a stray line shoved in front of it.
-        "- session-silent — 9 event(s) — last observed 2026-08-30T00:00:00.000Z — identity: window — origin: unknown",
+        "- session-silent — 9 event(s) — last observed 2026-08-30T00:00:00.000Z — identity: window — origin: unknown — harness: not recorded — host: not recorded",
         "",
         "note: 1 of 2 session(s) above never recorded HOW THEY STARTED.",
         "`origin: unknown` is not `origin: human`. A session cut by a predecessor is briefed by that",
@@ -616,6 +627,7 @@ test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unkn
       identity: "window",
       slots: [],
       origin: declared,
+      ...UNRECORDED,
     },
   ]);
   // ...and the clean index is pinned WHOLE, so an all-declared body cannot grow a stray line where
@@ -625,7 +637,113 @@ test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unkn
     [
       "Captured sessions (newest observed first):",
       "",
-      "- session-a — 1 event(s) — last observed 2026-08-31T00:00:00.000Z — identity: window — origin: cut",
+      "- session-a — 1 event(s) — last observed 2026-08-31T00:00:00.000Z — identity: window — origin: cut — harness: not recorded — host: not recorded",
     ].join("\n"),
   );
+});
+
+// ---------------------------------------------------------------------------
+// WHICH HARNESS AND WHICH MACHINE WROTE THE SESSION
+// ---------------------------------------------------------------------------
+
+test("session-list-is-newest-first-with-counts: every index row states which HARNESS and which MACHINE wrote it — `not recorded` included, never a blank", () => {
+  const list: TraversalSessionSummary[] = [
+    {
+      sessionId: "codex-thread",
+      eventCount: 2,
+      lastObservedAt: "2026-09-18T00:00:02.000Z",
+      identity: "window",
+      slots: ["worktree-alpha"],
+      origin: UNDECLARED,
+      harnesses: ["codex"],
+      hosts: ["owner-laptop"],
+    },
+    {
+      sessionId: "shared-declared-id",
+      eventCount: 3,
+      lastObservedAt: "2026-09-18T00:00:01.000Z",
+      identity: "declared",
+      slots: [],
+      origin: UNDECLARED,
+      harnesses: ["claude-code", "codex"],
+      hosts: ["owner-laptop", "mint-box"],
+    },
+    {
+      sessionId: "legacy-trace",
+      eventCount: 1,
+      lastObservedAt: "2026-09-18T00:00:00.000Z",
+      identity: "window",
+      slots: [],
+      origin: UNDECLARED,
+      ...UNRECORDED,
+    },
+  ];
+
+  const rows = renderTraversalSessions(list).body.split("\n").filter((line) => line.startsWith("- "));
+  // WHOLE rows, so each attribute sits where it should and the slot still closes the row.
+  assert.deepEqual(rows, [
+    "- codex-thread — 2 event(s) — last observed 2026-09-18T00:00:02.000Z — identity: window — origin: unknown — harness: codex — host: owner-laptop — slot worktree-alpha",
+    "- shared-declared-id — 3 event(s) — last observed 2026-09-18T00:00:01.000Z — identity: declared — origin: unknown — harness: claude-code, codex — host: owner-laptop, mint-box",
+    "- legacy-trace — 1 event(s) — last observed 2026-09-18T00:00:00.000Z — identity: window — origin: unknown — harness: not recorded — host: not recorded",
+  ]);
+});
+
+test("replay-renders-chronological-visits-with-read-strength: the replay states which HARNESS and which MACHINE wrote it, says `not recorded` rather than going quiet, and labels an empty replay with neither", () => {
+  const sessionId = "session-provenance";
+  const trace = createContextTraversalTrace();
+  trace.append({
+    kind: "full_payload_read",
+    eventId: "event:provenance-1",
+    sessionId,
+    at: "2026-09-18T00:00:00.000Z",
+    visitId: "visit-provenance-1",
+    nodeId: "plan",
+    surfaceId: "library-artifact",
+  });
+  const replay = trace.replay(sessionId);
+
+  const stamped = renderTraversalSession(replay, {
+    skipped: 0,
+    identity: "window",
+    slots: ["worktree-alpha"],
+    harnesses: ["codex"],
+    hosts: ["owner-laptop"],
+  });
+  const lines = stamped.body.split("\n");
+  const harnessLine = "harness: codex (detected from the process that wrote each line — never declared)";
+  const hostLine = "host: owner-laptop (the machine that wrote each line, by hostname — not the agent harness)";
+  assert.ok(lines.includes(harnessLine), `no harness line in:\n${stamped.body}`);
+  assert.ok(lines.includes(hostLine), `no host line in:\n${stamped.body}`);
+  // They sit with the identity lines, above the event list — a reader meets who wrote a trace
+  // before what it contains.
+  assert.ok(lines.indexOf("worktree slot: worktree-alpha (a grouping attribute, never the identity)") < lines.indexOf(harnessLine));
+  assert.ok(lines.indexOf(hostLine) < lines.indexOf("visits:"));
+
+  // Several of each are listed, never reduced to one.
+  const several = renderTraversalSession(replay, {
+    skipped: 0,
+    harnesses: ["claude-code", "codex"],
+    hosts: ["owner-laptop", "mint-box"],
+  });
+  assert.match(several.body, /^harness: claude-code, codex \(/m);
+  assert.match(several.body, /^host: owner-laptop, mint-box \(/m);
+
+  // ⚠ THE DELIVERABLE. A trace that recorded neither SAYS so, rather than leaving a gap for the
+  // reader to fill with the harness or the box they assumed.
+  const unrecorded = renderTraversalSession(replay, { skipped: 0, identity: "window", slots: [], ...UNRECORDED });
+  assert.match(unrecorded.body, /^harness: not recorded \(detected from the process that wrote each line — never declared\)$/m);
+  assert.match(unrecorded.body, /^host: not recorded \(the machine that wrote each line, by hostname — not the agent harness\)$/m);
+
+  // A caller holding no reading at all renders neither line, and an empty replay has nothing to
+  // label — the two rules `identity:` and `origin:` already follow.
+  const noOpinion = renderTraversalSession(replay, { skipped: 0, identity: "window", slots: [] });
+  assert.doesNotMatch(noOpinion.body, /^harness:/m);
+  assert.doesNotMatch(noOpinion.body, /^host:/m);
+  const empty = renderTraversalSession(createContextTraversalTrace().replay("session-empty-provenance"), {
+    skipped: 0,
+    harnesses: ["codex"],
+    hosts: ["owner-laptop"],
+  });
+  assert.doesNotMatch(empty.body, /^harness:/m);
+  assert.doesNotMatch(empty.body, /^host:/m);
 });

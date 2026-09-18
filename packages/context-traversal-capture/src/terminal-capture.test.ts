@@ -24,7 +24,7 @@ import { test } from "node:test";
 
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
-import { captureCliInvocation, showTraversalSession } from "./terminal-capture.js";
+import { captureCliInvocation, captureIdentityOf, showTraversalSession } from "./terminal-capture.js";
 import { writeSessionOriginDeclaration } from "./origin-declaration.js";
 import { readTraversalSession, appendTraversalEvents } from "./sink.js";
 import { readShipCursor } from "./store/ship.js";
@@ -381,4 +381,124 @@ test("captureCliInvocation: a `human` declaration carries no cut riders onto the
   assert.equal(raw.includes('"origin":"human"'), true);
   assert.equal(raw.includes("cutBy"), false, "a session an operator started was cut by nobody");
   assert.equal(readTraversalSession({ dir, sessionId }).origin.reading, "human");
+});
+
+// ---------------------------------------------------------------------------
+// WHICH HARNESS AND WHICH MACHINE WROTE THE LINE
+// ---------------------------------------------------------------------------
+
+/** The first line a session's trace file holds, parsed. */
+function firstWrittenLine(dir: string, sessionId: string): Record<string, unknown> {
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8");
+  return JSON.parse(raw.split("\n")[0] ?? "{}") as Record<string, unknown>;
+}
+
+test("captureCliInvocation: the harness and the host are stamped only when SUPPLIED, and absence leaves the line unlabelled", () => {
+  const dir = freshDir("provenance");
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-unit-codex",
+    dir,
+    enabled: true,
+    origin: null,
+    nextId: () => "visit-codex",
+    now: () => AT,
+    grade: "window",
+    harness: "codex",
+    host: "owner-laptop",
+  });
+  const line = firstWrittenLine(dir, "session-unit-codex");
+  assert.equal(line["harness"], "codex");
+  assert.equal(line["host"], "owner-laptop");
+  const stamped = readTraversalSession({ dir, sessionId: "session-unit-codex" });
+  assert.deepEqual(stamped.harnesses, ["codex"]);
+  assert.deepEqual(stamped.hosts, ["owner-laptop"]);
+
+  // ...and the same call WITHOUT them invents neither: an absent attribute is what leaves a line
+  // unlabelled, so a default here would make every unstamped trace claim a harness and a machine.
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-unit-bare",
+    dir,
+    enabled: true,
+    origin: null,
+    nextId: () => "visit-bare",
+    now: () => AT,
+    grade: "window",
+  });
+  const bare = firstWrittenLine(dir, "session-unit-bare");
+  assert.equal("harness" in bare, false);
+  assert.equal("host" in bare, false);
+  assert.deepEqual(readTraversalSession({ dir, sessionId: "session-unit-bare" }).harnesses, []);
+});
+
+test("captureIdentityOf: a resolved trace identity becomes the capture's identity, and a NULL harness or host becomes NO KEY", () => {
+  // No identity at all: the run captures nothing, and nothing else rides along.
+  assert.deepEqual(captureIdentityOf(null), { sessionId: null });
+
+  // Everything detected: all of it is carried, the slot included.
+  assert.deepEqual(
+    captureIdentityOf({
+      sessionId: "0198de4f-codex-thread",
+      grade: "window",
+      slot: "worktree-alpha",
+      harness: "codex",
+      host: "owner-laptop",
+    }),
+    {
+      sessionId: "0198de4f-codex-thread",
+      grade: "window",
+      slot: "worktree-alpha",
+      harness: "codex",
+      host: "owner-laptop",
+    },
+  );
+
+  // Nothing detected: the key is ABSENT, never a stated null — the capture input has no way to say
+  // null for either, and an explicit `undefined` would be a value the sink must be trusted to drop.
+  const undetected = captureIdentityOf({
+    sessionId: "declared-id",
+    grade: "declared",
+    slot: null,
+    harness: null,
+    host: null,
+  });
+  assert.deepEqual(undetected, { sessionId: "declared-id", grade: "declared", slot: null });
+  assert.equal("harness" in undetected, false);
+  assert.equal("host" in undetected, false);
+});
+
+test("showTraversalSession: the replay states which HARNESS and which MACHINE wrote the session, and `not recorded` when none did", () => {
+  const dir = freshDir("render-provenance");
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-unit-render",
+    dir,
+    enabled: true,
+    origin: null,
+    nextId: () => "visit-render",
+    now: () => AT,
+    harness: "codex",
+    host: "owner-laptop",
+  });
+  const rendered = showTraversalSession("session-unit-render", { dir }).body;
+  assert.match(rendered, /^harness: codex \(/m);
+  assert.match(rendered, /^host: owner-laptop \(/m);
+
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-unit-render-bare",
+    dir,
+    enabled: true,
+    origin: null,
+    nextId: () => "visit-render-bare",
+    now: () => AT,
+  });
+  const bare = showTraversalSession("session-unit-render-bare", { dir }).body;
+  assert.match(bare, /^harness: not recorded \(/m);
+  assert.match(bare, /^host: not recorded \(/m);
 });

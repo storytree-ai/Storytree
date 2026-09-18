@@ -26,7 +26,7 @@ import { observeCliInvocation } from "./observe-cli.js";
 import { readSessionOriginDeclaration } from "./origin-declaration.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
-import type { TraceIdentityGrade } from "./session-identity.js";
+import type { SessionHarness, TraceIdentity, TraceIdentityGrade } from "./session-identity.js";
 import { lineCutFor, resolveSessionOrigin, resolveSessionUnits } from "./session-origin.js";
 import type { SessionOrigin, SessionOriginKind } from "./session-origin.js";
 import {
@@ -63,6 +63,18 @@ export interface CaptureCliInvocationInput {
    * simply not an identity, which is the whole correction inc-30 makes.
    */
   readonly slot?: string | null;
+  /**
+   * WHICH AGENT HARNESS this invocation's process runs under, DETECTED from its environment by the
+   * CLI (`resolveSessionHarness`) and passed in exactly as `grade` and `slot` are. Stamped on every
+   * line it writes; absent stays absent, which a reader treats as unrecorded.
+   */
+  readonly harness?: SessionHarness;
+  /**
+   * WHICH MACHINE this invocation ran on — its hostname, detected by the CLI (`os.hostname()`) and
+   * passed in. ⚠ The MACHINE, not the agent harness the older traversal vocabulary calls "host".
+   * Absent stays absent, on the same rule as {@link harness}.
+   */
+  readonly host?: string;
   /** Overrides the resolved trace directory; defaults to {@link resolveTraversalDir}. */
   readonly dir?: string;
   /** Overrides the `STORYTREE_TRAVERSAL=off` opt-out check. */
@@ -130,7 +142,7 @@ export function isTraversalCaptureEnabled(override?: boolean): boolean {
   return process.env[TRAVERSAL_TOGGLE_ENV] !== "off";
 }
 
-/** The WRITABLE draft of `TraversalSinkLocation`'s two identity attributes. The sink's own members
+/** The WRITABLE draft of `TraversalSinkLocation`'s identity attributes. The sink's own members
  *  are `readonly`, so an attribute that is only sometimes declared is collected here and spread
  *  into the location — an ABSENT key is what leaves the appended lines unlabelled. */
 interface SinkIdentityDraft {
@@ -139,6 +151,51 @@ interface SinkIdentityDraft {
   origin?: SessionOriginKind;
   cutBy?: string | null;
   cutFor?: string | readonly string[] | null;
+  harness?: SessionHarness;
+  host?: string | null;
+}
+
+/**
+ * The IDENTITY half of a {@link CaptureCliInvocationInput}: who is capturing, and what the lines it
+ * writes are to say about that. See {@link captureIdentityOf}.
+ */
+export type CaptureIdentity = Pick<
+  CaptureCliInvocationInput,
+  "sessionId" | "grade" | "slot" | "harness" | "host"
+>;
+
+/** The WRITABLE draft {@link captureIdentityOf} builds, on {@link SinkIdentityDraft}'s argument. */
+interface CaptureIdentityDraft {
+  sessionId: string | null;
+  grade?: TraceIdentityGrade;
+  slot?: string | null;
+  harness?: SessionHarness;
+  host?: string;
+}
+
+/**
+ * The identity half of a capture input, drawn from ONE resolved trace identity — or from none.
+ *
+ * ⚠ THE ABSENT-VERSUS-NULL DECISION IS MADE HERE, NOT IN THE CLI ENTRY POINT, for the reason
+ * {@link CaptureCliInvocationInput.resultNodeIds} states: a branch in `main.ts` is one nothing can
+ * reach in a test, because that file opens real stores and has no in-process suite. A trace
+ * identity carries `null` for "no recognised harness" and "no hostname", and the capture input
+ * carries NO KEY for either — so the null is dropped here, where the drop is provable, rather than
+ * by a conditional spread in the composition root.
+ *
+ * A null identity resolves to a null `sessionId` and nothing else, which is what makes
+ * {@link captureCliInvocation} a silent no-op for an unidentified run.
+ */
+export function captureIdentityOf(trace: TraceIdentity | null): CaptureIdentity {
+  if (trace === null) return { sessionId: null };
+  const identity: CaptureIdentityDraft = {
+    sessionId: trace.sessionId,
+    grade: trace.grade,
+    slot: trace.slot,
+  };
+  if (trace.harness !== null) identity.harness = trace.harness;
+  if (trace.host !== null) identity.host = trace.host;
+  return identity;
 }
 
 /**
@@ -208,6 +265,18 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   const identity: SinkIdentityDraft = {};
   if (input.grade !== undefined) identity.grade = input.grade;
   if (input.slot !== undefined) identity.slot = input.slot;
+  // WHICH HARNESS AND WHICH MACHINE wrote these lines, on the same absent-stays-absent rule. Both
+  // were detected by the CLI from its own process and are copied, never inferred here.
+  //
+  // Stryker disable ConditionalExpression: EQUIVALENT on the forced-TRUE arm, the one arm no test can
+  // see — it copies an ABSENT attribute as `undefined`, and `appendTraversalEvents` omits `undefined`
+  // exactly as it omits a missing key, so the bytes are identical. The forced-FALSE arm (a supplied
+  // attribute dropped) is still witnessed: the EqualityOperator mutant on each line drops it too, and
+  // `the harness and the host are stamped only when SUPPLIED` kills that.
+  if (input.harness !== undefined) identity.harness = input.harness;
+  if (input.host !== undefined) identity.host = input.host;
+  // Stryker restore ConditionalExpression
+
   // WHO STARTED THIS SESSION (ADR-0484 D7), stamped on the lines this invocation writes. An
   // undeclared session resolves to null and stamps NOTHING, which is what makes the read-back answer
   // `unknown` rather than a reassuring default — the increment's own first fence. Nothing here
@@ -258,10 +327,10 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
-  const { replay, skipped, identity, slots, origin } = readTraversalSession({ dir, sessionId });
+  const { replay, skipped, identity, slots, origin, harnesses, hosts } = readTraversalSession({ dir, sessionId });
   const rendered = renderTraversalSession(
     { ...replay, coverage: [AGENT_DESCENT_COVERAGE] },
-    { skipped, identity, slots, origin },
+    { skipped, identity, slots, origin, harnesses, hosts },
   );
   const caveats = renderCoverageCaveats(AGENT_DESCENT_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
