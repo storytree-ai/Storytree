@@ -21,6 +21,11 @@ export {
   isDataPlaneBlockedSession,
   ALLOW_DATA_PLANE_ENV,
   REMOTE_MARKER_DIR,
+  // The test-process refusal `createPool` also enforces; `storyBuild` reads the predicate to refuse
+  // the live curator from a test before it would render, dial or spawn anything.
+  isTestRunnerProcess,
+  testProcessRefusal,
+  LIVE_DB_TEST_ENV,
 } from "./data-plane.js";
 export type { EnvLike, DataPlaneProbe } from "./data-plane.js";
 export { applySchema, SCHEMA_SQL_PATH } from "./migrate.js";

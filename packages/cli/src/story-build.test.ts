@@ -482,6 +482,7 @@ test("story build --real refuses a STALE NEGATIVE-EXISTENCE CLAIM on a NON-FIRST
   const dir = fixtureStaleClaimStoriesDir();
   try {
     const env = await storyBuild("fixture-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -694,6 +695,7 @@ test("story build ADMITS --runtime pi for --live, and REFUSES it for --real (ADR
   // ADR-0449 authorised ONE trial run through the live smoke. `--real` authors at real repo paths
   // and promotes a commit toward main; that is a separate admission nobody has taken.
   const real = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     runtime: "pi",
@@ -705,6 +707,7 @@ test("story build ADMITS --runtime pi for --live, and REFUSES it for --real (ADR
   // pi meters nothing this process can read, so a USD cap is the phantom ADR-0232 already refuses
   // for Codex. --max-turns stays available: it is the leaf's real cost guard.
   const budget = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "pi",

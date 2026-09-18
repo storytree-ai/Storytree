@@ -28,6 +28,8 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import { silentBuildProgress } from "./build-progress.js";
 import { fixtureStories } from "./real-chain-fixture.js";
 import { storyBuild } from "./story-build.js";
+// A green chain's DEFAULT is the live SDK curator on the live store, refused in a test process.
+import { ScriptedCuratorRunner } from "./curate.js";
 
 const FIXTURE_DIR = "packages/fixture";
 
@@ -322,6 +324,7 @@ test("a REAL chain refused at a member's claim points at another member's paid b
   });
   try {
     const refused = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       runtime: "claude",

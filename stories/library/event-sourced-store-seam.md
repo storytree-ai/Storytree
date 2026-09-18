@@ -163,7 +163,7 @@ remain uncovered — `pg-upsert-transactional-event-projection` and `pg-createpo
 are the honest would-be pair: they are proven only behind the default-skipped live-DB gate, exactly
 as `## Proof` says, and they are earned by story gate 5, not by this repair.
 
-## Contracts (11)
+## Contracts (12)
 
 The test-proven leaf behaviours — each **one isolated leaf behaviour** under one automated test (no stubs: these are collaborator-free `InMemoryStore`/parity/schema tests, matching this capability's integration-test proof mode, ADR-0010 §2). Where a REAL passing test exists, a `proven by` line cites it; otherwise the contract is a would-be test. Contracts 7–9 carry the substrate competence re-homed from the dissolved `stories/store` (ADR-0077): the live Pg write, the keyless connection (`keyless-store-connection`), and the shared `events` schema (`shared-events-schema`).
 
@@ -211,3 +211,7 @@ The test-proven leaf behaviours — each **one isolated leaf behaviour** under o
     - **asserts —** `patchDoc` persists what `validate()` RETURNS (the upcast output, not the raw merge), and a throwing `validate()` refuses the write leaving the stored doc untouched — so a patch can never skip migrate-on-write.
     - **covers —** `packages/storage-protocol/src/store.ts` (`patchDoc`'s validate hook)
     - **proven by —** `packages/storage-protocol/src/store-parity.ts:260-294` (`localStoreParitySuite`, both tests — the `validate` hook is a CLOSURE and cannot cross an HTTP wire, so these are the contracts only an in-process store can meet; `HttpStore.patchDoc` refuses a validator loudly rather than dropping it) (REAL, passing)
+12. **`a-test-process-never-dials-the-live-store`** — `createPool` refuses a test runner's process before it reads any credential, unless the process opts in by name
+    - **asserts —** `createPool` throws `live store refused: this is a test process…` in a test runner's process — `NODE_ENV=test` (set by `bun test` and vitest) or a set `NODE_TEST_CONTEXT` (set by `node --test`), per `isTestRunnerProcess` — BEFORE it resolves the database user, so a refused process never reads the secrets file even when that file holds a real database user (`STORYTREE_DB_USER` stays unset); a process that opts in with exactly `STORYTREE_DB_LIVE=1` (the live-suite gate, whose suites reach a disposable database through `createTestPool`, ADR-0054) and a caller that injects `construction` (fakes that open no socket) both get past it, and an ordinary process is never refused — so the credential-free test leg ADR-0302 D3 promised holds on a box that carries credentials.
+    - **covers —** `packages/library/src/store/data-plane.ts:110-129`, `packages/library/src/store/connection.ts:70-74`
+    - **proven by —** `packages/library/src/store/data-plane.test.ts:85`, `:93` (the predicate, and the refusal text for each mark, with `STORYTREE_DB_LIVE=0` and `=true` refused), `packages/library/src/store/connection.test.ts:264` (at the dialing root: the refusal precedes credential hydration, and both escapes get past it) (REAL, passing). `data-plane.test.ts` lies outside this spec's `coverage:` surface, so the coverage reader credits the contract through `connection.test.ts:264` alone.

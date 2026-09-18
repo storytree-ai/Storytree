@@ -21,6 +21,7 @@ import type { RealBuildArgs, RealBuildResult, RevisionWrite } from "./node-build
 import { fixtureRepo, fixtureStories } from "./real-chain-fixture.js";
 import { parseStoryRevisionTarget, renderStoryRevisionRecord, storyBuild, storyHelp } from "./story-build.js";
 import type { StoryBuildOpts, StoryRealNodeBuilder } from "./story-build.js";
+import { ScriptedCuratorRunner } from "./curate.js";
 
 /**
  * `story-and-gate-builds-carry-test-revisions` — a story chain carries ADR-0571's test revision.
@@ -95,6 +96,8 @@ function realChainOpts(extra: {
   realNodeBuilder: StoryRealNodeBuilder;
 }): StoryBuildOpts {
   const opts: StoryBuildOpts = {
+    // A green chain's DEFAULT is the live SDK curator on the live store, refused in a test process.
+    curatorRunner: new ScriptedCuratorRunner(),
     corpusStore: fx.corpus,
     progress: silentBuildProgress(),
     dryRun: false,
