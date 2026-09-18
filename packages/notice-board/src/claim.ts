@@ -80,6 +80,72 @@ export const ClaimRole = z.enum(["authoring", "proving", "supplementing"]);
 /** The inferred TypeScript type of a claim role. */
 export type ClaimRoleT = z.infer<typeof ClaimRole>;
 
+// ---------------------------------------------------------------------------
+// Who took it, and where — the claiming process's HARNESS and HOST
+// ---------------------------------------------------------------------------
+
+/**
+ * The agent HARNESSES a claim can record: which agent harness ran the process that took it. Two
+ * words, because two harnesses do this repo's work.
+ *
+ * Recorded because a claim used to say WHO (`sessionId`) and never WHAT or WHERE, and the session id
+ * is a worktree's git admin-dir name, which the worktree's author chooses: an audit attributed ~40 h
+ * of Codex work on the owner's laptop to a second machine because the Codex worktree was named after
+ * its work, and nothing on the claim could correct the reading.
+ *
+ * ⚠ NOT a build's `--runtime` leaf. `node build --runtime codex` names the executor that authors the
+ * code, which can differ from the harness running the session that launched the build; a claim
+ * records the latter — the process that wrote the row.
+ */
+export const ClaimHarness = z.enum(["claude-code", "codex"]);
+
+/** The inferred TypeScript type of a claim harness. */
+export type ClaimHarnessT = z.infer<typeof ClaimHarness>;
+
+/**
+ * A claim's HOST: the hostname of the MACHINE the claiming process ran on (`os.hostname()`). The
+ * machine, never the harness — elsewhere in this repo "host" can mean the agent harness, as in "host
+ * transcript", and that is not this. Non-blank, like every attribution field: a blank reading is an
+ * unrecorded host, never a value.
+ */
+export const ClaimHost = nonBlankString;
+
+/** A raw reading trimmed, or `null` when it is absent or blank — blank is never a value here. */
+function presentValue(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
+}
+
+/**
+ * PURE: the agent harness the process owning `env` runs under — DETECTED, never declared. `null`
+ * means NO RECOGNISED HARNESS, and is never a synonym for "a human" or "a terminal": a script, a CI
+ * job and an agent this list does not know all read `null`, and the claim then says exactly that.
+ *
+ * Precedence, with every value trimmed and a blank one read as absent:
+ *   1. `CLAUDE_CODE_SESSION_ID` set → `claude-code` (Claude Code's own session id);
+ *   2. `CODEX_THREAD_ID` set → `codex` (Codex exports it to every shell command it runs);
+ *   3. `CLAUDECODE` = `1` → `claude-code` (Claude Code's child-process marker, for a process that
+ *      inherited the marker without the session id).
+ *
+ * Deliberately a TWIN of `resolveSessionHarness` in `@storytree/context-traversal-capture`, with the
+ * same precedence, so that a claim and a trace line written by one process name the same harness.
+ * This package may not import that one (the organism boundary, ADR-0074), so a parity test in
+ * `packages/cli` — which depends on both — is what holds the two copies together.
+ */
+export function resolveClaimHarness(
+  env: Readonly<Record<string, string | undefined>>,
+): ClaimHarnessT | null {
+  if (presentValue(env["CLAUDE_CODE_SESSION_ID"]) !== null) return "claude-code";
+  if (presentValue(env["CODEX_THREAD_ID"]) !== null) return "codex";
+  if (presentValue(env["CLAUDECODE"]) === "1") return "claude-code";
+  return null;
+}
+
+/** PURE: a hostname reading as a claim records it — trimmed, and `null` when absent or blank. */
+export function normalizeClaimHost(raw: string | null | undefined): string | null {
+  return presentValue(raw);
+}
+
 /**
  * The validated claim doc — the current holder of a unit's build-claim.
  *
@@ -113,6 +179,16 @@ export const ClaimDoc = z
      * raw — the absent case is the majority case until the rows are rewritten.
      */
     role: ClaimRole.optional(),
+    /**
+     * The agent HARNESS of the process that took this claim ({@link ClaimHarness}), DETECTED from
+     * that process's own environment ({@link resolveClaimHarness}) — never declared by a caller.
+     * OPTIONAL with NO default, on `role`'s precedent: ABSENT means UNRECORDED — every row taken
+     * before harness/host were recorded, and every row whose writer detected no harness. Nothing
+     * infers it backwards; render it through {@link describeClaimRuntime}, which says "not recorded".
+     */
+    harness: ClaimHarness.optional(),
+    /** The MACHINE the claiming process ran on ({@link ClaimHost}); absent means unrecorded, as above. */
+    host: ClaimHost.optional(),
     /** When the claim was first taken (ISO 8601). */
     claimedAt: z.string(),
     /** Last liveness bump (ISO 8601); reclaim is measured against this. */
@@ -175,6 +251,29 @@ export function claimRole(doc: Pick<ClaimDocT, "role" | "intent">): ClaimRoleT {
   return doc.role ?? roleFromLegacyIntent(doc.intent);
 }
 
+/**
+ * Which harness took a claim, on which machine — the two things a claim records about the process
+ * that wrote it. "Runtime" in this vocabulary means that pair and nothing else; it is not a build's
+ * `--runtime` leaf. Either half may be absent, and absent means UNRECORDED.
+ */
+export type ClaimRuntime = Pick<ClaimDocT, "harness" | "host">;
+
+/**
+ * PURE: a claim's harness and host as a human reads them — `codex on MicksMSpro` — saying "not
+ * recorded" for whichever half is absent, and never printing an empty string or a guess.
+ *
+ * ONE copy, which every surface renders through (the `describeHolder` / `describeIntent` precedent):
+ * the misreading this field exists to prevent is a session attributed to the wrong machine, and an
+ * unrecorded half rendered two ways is how one surface would come to imply what another denies.
+ */
+export function describeClaimRuntime(runtime: ClaimRuntime): string {
+  const host = normalizeClaimHost(runtime.host);
+  if (runtime.harness === undefined) {
+    return host === null ? "harness and host not recorded" : `harness not recorded, on ${host}`;
+  }
+  return host === null ? `${runtime.harness}, host not recorded` : `${runtime.harness} on ${host}`;
+}
+
 /** What a caller supplies to take a claim — the store stamps `claimedAt` / `heartbeatAt`. */
 export interface ClaimRequest {
   unitId: string;
@@ -187,6 +286,14 @@ export interface ClaimRequest {
   /** The typed role (ADR-0346 D3); omitted leaves the row role-less, and {@link claimRole} then
    * derives it from `intent` — the same answer a pre-split row gets. */
   role?: ClaimRoleT;
+  /**
+   * An EXPLICIT harness, overriding detection — for tests and fixtures. Production callers leave it
+   * unset and the STORE stamps what the claiming process detects, which is the point: six producers
+   * take claims, and a field each of them had to remember is a field one of them would forget.
+   */
+  harness?: ClaimHarnessT;
+  /** An EXPLICIT host (machine hostname), overriding detection — the same test seam as `harness`. */
+  host?: string;
 }
 
 /**
@@ -565,6 +672,16 @@ export interface SessionClaimEntry {
 export interface SessionClaimGroup {
   sessionId: string;
   branch: string;
+  /**
+   * The DISTINCT harness/host pairs across this session's claims, first-seen in the fold's order
+   * (the order of {@link claims}). Usually exactly one — and MORE THAN ONE IS A FINDING, NEVER
+   * NOISE: a session id is a worktree's name, which git keeps unique within one clone and nothing
+   * keeps unique across machines, so two hosts under one id is the cross-machine collision a reader
+   * must be shown rather than have folded away. An unrecorded pair (a row taken before harness/host
+   * were recorded) is listed as itself, never merged into a recorded one — that would infer what the
+   * row never said.
+   */
+  runtimes: ClaimRuntime[];
   claims: SessionClaimEntry[];
   /**
    * Every claim in this group is stale — the session is DARK: it holds rows that still sit in
@@ -708,31 +825,49 @@ export function groupClaimsBySession(
   );
 
   return groups.map(([sessionId, group]) => {
-    const entries = group.docs
+    const docs = group.docs
       .slice()
       .sort(
         (a, b) =>
           GRADE_RANK[claimGrade(a)] - GRADE_RANK[claimGrade(b)] ||
           new Date(a.claimedAt).getTime() - new Date(b.claimedAt).getTime() ||
           (a.unitId < b.unitId ? -1 : a.unitId > b.unitId ? 1 : 0),
-      )
-      .map((doc) => ({
-        unitId: doc.unitId,
-        grade: claimGrade(doc),
-        role: claimRole(doc),
-        intent: doc.intent,
-        ageMs: Math.max(0, now.getTime() - new Date(doc.claimedAt).getTime()),
-        claimedAt: doc.claimedAt,
-        stale: isReclaimable(doc, now, staleMs),
-        heartbeatAgeMs: Math.max(0, now.getTime() - new Date(doc.heartbeatAt).getTime()),
-      }));
+      );
+    const entries = docs.map((doc) => ({
+      unitId: doc.unitId,
+      grade: claimGrade(doc),
+      role: claimRole(doc),
+      intent: doc.intent,
+      ageMs: Math.max(0, now.getTime() - new Date(doc.claimedAt).getTime()),
+      claimedAt: doc.claimedAt,
+      stale: isReclaimable(doc, now, staleMs),
+      heartbeatAgeMs: Math.max(0, now.getTime() - new Date(doc.heartbeatAt).getTime()),
+    }));
     return {
       sessionId,
       branch: group.branch,
+      runtimes: distinctRuntimes(docs),
       claims: entries,
       stale: entries.every((e) => e.stale),
     };
   });
+}
+
+/** The distinct harness/host pairs across `docs`, first-seen — see {@link SessionClaimGroup.runtimes}. */
+function distinctRuntimes(docs: readonly ClaimDocT[]): ClaimRuntime[] {
+  const seen = new Set<string>();
+  const runtimes: ClaimRuntime[] = [];
+  for (const doc of docs) {
+    // An absent half keys as `null`, so an unrecorded pair can never collide with a recorded one.
+    const key = JSON.stringify([doc.harness ?? null, doc.host ?? null]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const runtime: ClaimRuntime = {};
+    if (doc.harness !== undefined) runtime.harness = doc.harness;
+    if (doc.host !== undefined) runtime.host = doc.host;
+    runtimes.push(runtime);
+  }
+  return runtimes;
 }
 
 // ---------------------------------------------------------------------------

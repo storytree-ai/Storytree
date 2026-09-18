@@ -33,6 +33,7 @@ import {
   claimGrade,
   claimRole,
   classifyClaims,
+  describeClaimRuntime,
   exploringClaimRequest,
   liveClaims,
   waitingClaimRequest,
@@ -150,10 +151,11 @@ function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
     const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
     // Role AND prose, both (ADR-0346 D3): the typed word says what KIND of work is under way, the
     // prose says what the holder is actually doing. One column served both until D3, and the
-    // highest-volume writer filled it with a constant.
+    // highest-volume writer filled it with a constant. The session is qualified by its harness and
+    // machine, because its id alone is a worktree name and can point at a machine it never ran on.
     return (
-      `  - [${claimGrade(c)}/${claimRole(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  ` +
-      `branch=${c.branch}  intent ${describeIntent(c.intent)}${mark}`
+      `  - [${claimGrade(c)}/${claimRole(c)}]  ${c.sessionId} (${describeClaimRuntime(c)})  ` +
+      `${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${describeIntent(c.intent)}${mark}`
     );
   });
 }
@@ -322,9 +324,11 @@ export async function claimLedgerCommand(
       `Claims held by this session (${sessionId}, branch ${branch}):`,
       ...marked.map(({ claim: c, stale, heartbeatAgeMs }) => {
         const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
+        // Per ROW, not once for the session: every row here carries this session's id, and a row
+        // taken on another machine or under another harness is exactly the one to notice.
         return (
           `  - ${c.unitId}  [${claimGrade(c)}/${claimRole(c)}]  ${formatAge(c.claimedAt, now)}  ` +
-          `intent ${describeIntent(c.intent)}${mark}`
+          `(${describeClaimRuntime(c)})  intent ${describeIntent(c.intent)}${mark}`
         );
       }),
       "",

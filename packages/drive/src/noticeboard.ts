@@ -22,11 +22,13 @@ import type {
   ClaimDocT,
   ClaimRequest,
   ClaimResult,
+  ClaimRuntime,
   SessionClaimGroup,
 } from "@storytree/notice-board";
 import {
   CLAIM_STALE_RECLAIM_MS,
   claimRole,
+  describeClaimRuntime,
   groupClaimsBySession,
   isReclaimable,
   workClaimRequest,
@@ -283,6 +285,10 @@ export function describeIntent(intent: string): string {
  * string "orchestrate", telling the blocked session nothing. `held` is the claim's own age,
  * distinct from the heartbeat age: a claim taken 6 h ago and beating 2 min ago is a long job in
  * progress, not a ghost, and the two numbers are the only way to tell that from the outside.
+ *
+ * And first, WHAT and WHERE: the holder's harness and machine (`describeClaimRuntime`, "not
+ * recorded" for a row taken before they were). The session id is a worktree name its author chose,
+ * so on its own it can name a machine the work never ran on.
  */
 export function describeHolder(holder: ClaimDocT, now: Date): string {
   const beat = Math.max(0, now.getTime() - new Date(holder.heartbeatAt).getTime());
@@ -291,9 +297,21 @@ export function describeHolder(holder: ClaimDocT, now: Date): string {
     ? `STALE — no heartbeat for ${formatAgeMs(beat)}, reclaimable`
     : `LIVE — heartbeat ${formatAgeMs(beat)} ago`;
   return (
-    `${holder.sessionId} (branch ${holder.branch}, role ${claimRole(holder)}, ` +
-    `intent ${describeIntent(holder.intent)}, held ${formatAgeMs(held)}, ${liveness})`
+    `${holder.sessionId} (${describeClaimRuntime(holder)}, branch ${holder.branch}, ` +
+    `role ${claimRole(holder)}, intent ${describeIntent(holder.intent)}, held ${formatAgeMs(held)}, ` +
+    `${liveness})`
   );
+}
+
+/**
+ * A board section's harness/host, every distinct pair the fold found (`SessionClaimGroup.runtimes`)
+ * — so a session id seen on two machines shows BOTH, which is the collision the reader needs to see.
+ * An empty list renders as the unrecorded pair, never as nothing: a blank would read as "nothing to
+ * say" where the truth is "nothing known".
+ */
+function describeSessionRuntimes(runtimes: readonly ClaimRuntime[]): string {
+  if (runtimes.length === 0) return describeClaimRuntime({});
+  return runtimes.map(describeClaimRuntime).join("; ");
 }
 
 /** One board line — unit id, [grade], role, age, the STALE marker when it is one, intent prose. */
@@ -307,8 +325,9 @@ function renderBoardClaim(claim: SessionClaimGroup["claims"][number]): string {
 
 /**
  * PURE: render the claim ledger as the board (ADR-0200 D7) — one section per session (the
- * {@link groupClaimsBySession} fold decides grouping/order; this only formats), one line per
- * claim: unit id, [grade], age (mm/hh style), staleness, intent prose.
+ * {@link groupClaimsBySession} fold decides grouping/order; this only formats), headed by the
+ * session's branch and its harness/host pair(s), then one line per claim: unit id, [grade], age
+ * (mm/hh style), staleness, intent prose.
  *
  * DARK sessions (every row stale) render in their own trailing section rather than vanishing
  * (ADR-0346 D1 companion work). Vanishing was defensible while a claim only advised; once `waiting`
@@ -329,7 +348,7 @@ export function renderLedgerBoard(groups: SessionClaimGroup[]): string {
     lines.push("", "No LIVE claims on the ledger — but it is not empty; see the stale rows below.");
   }
   for (const group of live) {
-    lines.push(`\n## ${group.sessionId}  branch=${group.branch}`);
+    lines.push(`\n## ${group.sessionId}  branch=${group.branch}  ${describeSessionRuntimes(group.runtimes)}`);
     for (const claim of group.claims) lines.push(renderBoardClaim(claim));
   }
 
@@ -342,7 +361,9 @@ export function renderLedgerBoard(groups: SessionClaimGroup[]): string {
       "work row blocks nobody — the next claimer reclaims it in the same transaction (ADR-0200 D2).",
     );
     for (const group of dark) {
-      lines.push(`\n## ${group.sessionId}  branch=${group.branch}  [STALE]`);
+      lines.push(
+        `\n## ${group.sessionId}  branch=${group.branch}  [STALE]  ${describeSessionRuntimes(group.runtimes)}`,
+      );
       for (const claim of group.claims) lines.push(renderBoardClaim(claim));
     }
   }
