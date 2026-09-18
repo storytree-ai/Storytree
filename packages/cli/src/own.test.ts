@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { type SpawnRegistryIo, registerSpawn, spawnRecordPath } from "@storytree/drive";
 
-import { type OwnDeps, ownCommand, ownHelp } from "./own.js";
+import { type OwnDeps, defaultOwnDeps, machineName, ownCommand, ownHelp } from "./own.js";
 
 const ROOT = path.join("/tmp", "own-test-spawns");
 const NOW = Date.parse("2026-08-14T12:00:00.000Z");
@@ -53,6 +54,7 @@ function deps(over: Partial<OwnDeps> = {}): OwnDeps {
     terminate: () => true,
     sleep: () => {},
     stopTiming: { gracefulWaitMs: 0, forceWaitMs: 0 },
+    machine: () => "test-box",
     ...over,
   };
 }
@@ -146,6 +148,54 @@ test("own --all: works with no session identity, because attribution is not self
   const env = ownCommand(["--all"], deps({ io, sessionId: () => null }));
   assert.equal(env.ok, true);
   assert.match(env.body, /theirs/);
+});
+
+// ─── which machine an inventory covers (`session-harness-and-host-arc`) ──────────────────────────
+//
+// The registry is per-machine local state. Both reports say so on their second line, spelled out in
+// full here rather than rebuilt through `machineScopeLine`, so an edit to the wording is a visible
+// test change rather than a mutation both sides share.
+
+const SCOPE_TAIL = " — only work registered on THIS machine is listed; nothing running on any other machine appears here.";
+
+test("own: names the machine the inventory covers, and says no other machine is listed", () => {
+  const env = ownCommand([], deps({ machine: () => "box-a" }));
+  assert.equal(env.body.split("\n")[1], `  Machine: box-a${SCOPE_TAIL}`);
+});
+
+test("own --all: names the machine too — attribution by owner is still one machine's registry", () => {
+  const env = ownCommand(["--all"], deps({ machine: () => "box-b" }));
+  assert.equal(env.body.split("\n")[1], `  Machine: box-b${SCOPE_TAIL}`);
+});
+
+test("own: an unreadable hostname is said to be unknown, never left blank", () => {
+  const env = ownCommand([], deps({ machine: () => null }));
+  assert.equal(env.body.split("\n")[1], `  Machine: unknown (the hostname could not be read)${SCOPE_TAIL}`);
+});
+
+test("own --all: an empty registry says so, and a listed session suppresses that line", () => {
+  // The empty line used to be gated on the header's LENGTH, so adding the machine line to the header
+  // would have silenced it for good. Both directions are asserted: present when nothing is listed,
+  // absent as soon as one session is.
+  const empty = ownCommand(["--all"], deps());
+  assert.match(empty.body, /No session has registered background work\./);
+
+  const io = memoryIo();
+  seed(io, "theirs", 2);
+  const listed = ownCommand(["--all"], deps({ io }));
+  assert.match(listed.body, /theirs/);
+  assert.doesNotMatch(listed.body, /No session has registered background work/);
+});
+
+test("machineName: a hostname is trimmed, and a blank one names no machine", () => {
+  assert.equal(machineName("  MicksMSpro \n"), "MicksMSpro");
+  assert.equal(machineName("mint"), "mint");
+  assert.equal(machineName("   "), null);
+  assert.equal(machineName(""), null);
+});
+
+test("defaultOwnDeps: the live wiring reads THIS machine's hostname", () => {
+  assert.equal(defaultOwnDeps().machine(), machineName(os.hostname()));
 });
 
 test("own: the primary checkout is REFUSED rather than answered with a false empty", () => {

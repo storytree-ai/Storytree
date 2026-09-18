@@ -30,6 +30,8 @@
 // grows: an inventory that overstated its own coverage would recreate the exact false clear this
 // command exists to remove.
 
+import os from "node:os";
+
 import {
   IDENTITY_REFUSAL_BODY,
   type ClassifiedSpawn,
@@ -70,6 +72,33 @@ export interface OwnDeps {
   readonly terminate: Terminator;
   readonly sleep: (ms: number) => void;
   readonly stopTiming?: StopTiming;
+  /**
+   * WHICH MACHINE this inventory was read on — its hostname ({@link machineName}), or null when it
+   * cannot be read. The registry is per-machine local state, so this names the whole of what the
+   * report can see (`session-harness-and-host-arc`).
+   */
+  readonly machine: () => string | null;
+}
+
+/**
+ * A hostname as the report prints it: trimmed, and null when blank — a machine called "" names none.
+ */
+export function machineName(raw: string): string | null {
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * The line that says which machine an inventory covers. BOTH reports print it, because the registry
+ * is PER-MACHINE and nothing else in either report says so: `second-box-absorbs-the-expensive-work-arc`
+ * closed with exactly this as its named unmet end state — an empty inventory on one box read as an
+ * idle fleet while the other box could be busy — and an audit on 2026-09-18 then read forty hours of
+ * a laptop's work as the Mint box's. Stating the scope costs one line; a fleet-wide census is a
+ * different piece of work and is not claimed here.
+ */
+export function machineScopeLine(machine: string | null): string {
+  const name = machine ?? "unknown (the hostname could not be read)";
+  return `  Machine: ${name} — only work registered on THIS machine is listed; nothing running on any other machine appears here.`;
 }
 
 /** Read one session's inventory, minus the reader itself. The ONE read path, so nothing forgets. */
@@ -98,6 +127,7 @@ export function defaultOwnDeps(): OwnDeps {
     selfPid: process.pid,
     terminate: nodeTerminator,
     sleep: nodeSleep,
+    machine: () => machineName(os.hostname()),
   };
 }
 
@@ -154,7 +184,7 @@ function renderSession(summary: OwnershipSummary, lines: string[]): void {
  */
 function reportSelf(deps: OwnDeps, sessionId: string): Envelope {
   const summary = inventory(deps, sessionId);
-  const lines: string[] = [`storytree own — session "${sessionId}"`, ""];
+  const lines: string[] = [`storytree own — session "${sessionId}"`, machineScopeLine(deps.machine()), ""];
 
   if (!holdsLiveWork(summary) && summary.leaked.length === 0 && summary.unreadable.length === 0) {
     lines.push("  No registered background work. Nothing storytree started is still running.");
@@ -206,19 +236,25 @@ function reportSelf(deps: OwnDeps, sessionId: string): Envelope {
  */
 function reportAll(deps: OwnDeps, mine: string | null): Envelope {
   const sessions = listRegisteredSessions(deps.io, deps.root);
-  const lines: string[] = ["storytree own --all — registered background work, by owning session", ""];
-  let liveTotal = 0;
+  const lines: string[] = [
+    "storytree own --all — registered background work, by owning session",
+    machineScopeLine(deps.machine()),
+    "",
+  ];
+  // Tracked rather than read off `lines.length`: the empty case used to compare the length to the
+  // header's, so any line added to the header silently disabled the empty message.
+  let anyListed = false;
 
   for (const sessionId of sessions) {
     const summary = inventory(deps, sessionId);
     if (summary.live.length + summary.unknown.length + summary.leaked.length === 0) continue;
-    liveTotal += summary.live.length + summary.unknown.length;
+    anyListed = true;
     lines.push(`  ${sessionId}${sessionId === mine ? "  (you)" : ""}`);
     renderSession(summary, lines);
     lines.push("");
   }
 
-  if (liveTotal === 0 && lines.length === 2) {
+  if (!anyListed) {
     lines.push("  No session has registered background work.");
   }
   lines.push(
