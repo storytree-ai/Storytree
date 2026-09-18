@@ -1973,17 +1973,26 @@ test("reads of a fixture row with NO harness/host keys at all parse as unrecorde
   assert.ok(!("harness" in (docs[0] ?? {})) && !("host" in (docs[0] ?? {})));
 });
 
-test("a harness outside the vocabulary, or a blank host, FAILS CLOSED on read — like grade and role", async () => {
-  const cases: Array<[Record<string, string>, RegExp]> = [
-    [{ harness: "cursor" }, /Invalid enum value/],
-    [{ harness: "" }, /Invalid enum value/],
-    [{ host: "" }, /non-blank/],
-    [{ host: "   " }, /non-blank/],
+test("a harness outside the vocabulary, or a blank host, reads as UNRECORDED — never a failed read", async () => {
+  // Unlike grade and role, these two are provenance: a newer checkout may write a harness this one
+  // has never heard of, and the read runs inside another session's take. So each bad value drops
+  // off the doc while the REST of the row — and its sibling attribute — still reads normally.
+  const cases: Array<[Record<string, string>, { harness?: string; host?: string }]> = [
+    [{ harness: "cursor", host: "mint" }, { host: "mint" }],
+    [{ harness: "", host: "mint" }, { host: "mint" }],
+    [{ harness: "codex", host: "" }, { harness: "codex" }],
+    [{ harness: "codex", host: "   " }, { harness: "codex" }],
   ];
-  for (const [corrupt, reason] of cases) {
-    const bad = new FakeReadPool();
-    bad.rows = [{ ...READ_ROW_WORK, ...corrupt }];
-    await assert.rejects(new PgClaimStore(bad as never).listAllClaims(), reason, JSON.stringify(corrupt));
+  for (const [stored, expected] of cases) {
+    const pool = new FakeReadPool();
+    pool.rows = [{ ...READ_ROW_WORK, ...stored }];
+    const [doc] = await new PgClaimStore(pool as never).listAllClaims();
+    const label = JSON.stringify(stored);
+    assert.equal(doc?.unitId, READ_ROW_WORK.unit_id, `the row still reads: ${label}`);
+    assert.equal("harness" in (doc ?? {}), expected.harness !== undefined, `harness key: ${label}`);
+    assert.equal("host" in (doc ?? {}), expected.host !== undefined, `host key: ${label}`);
+    assert.equal(doc?.harness, expected.harness, `harness value: ${label}`);
+    assert.equal(doc?.host, expected.host, `host value: ${label}`);
   }
 });
 

@@ -148,11 +148,18 @@ function rowToDoc(row: ClaimRow): ClaimDocT {
   // `claimRole()` derives it from `intent`, rather than being invented here where the derivation
   // would then live in two places. A present one is validated fail-closed, like grade.
   if (row.role !== undefined && row.role !== null) doc.role = ClaimRole.parse(row.role);
-  // Harness and host follow role exactly: NULL is an UNRECORDED row and stays off the doc (so
-  // `describeClaimRuntime` says "not recorded" instead of this function guessing), and a present
-  // value is validated fail-closed — a corrupt column must never masquerade as a valid doc.
-  if (row.harness !== undefined && row.harness !== null) doc.harness = ClaimHarness.parse(row.harness);
-  if (row.host !== undefined && row.host !== null) doc.host = ClaimHost.parse(row.host);
+  // Harness and host are PROVENANCE, not semantics, so they deliberately do NOT follow grade and
+  // role's fail-closed parse. NULL is an UNRECORDED row and stays off the doc (so
+  // `describeClaimRuntime` says "not recorded" instead of this function guessing) — and so does a
+  // value this reader does not recognise. Nothing any fence decides reads either field, while this
+  // mapping runs INSIDE the take transaction on rows other sessions wrote: the harness vocabulary is
+  // expected to grow, and a strict parse would let one newer checkout's word stop every older
+  // session from claiming — or even listing — any unit that session holds. The trace reader degrades
+  // an unknown harness the same way (`.catch(undefined)` in `context-traversal-capture`).
+  const harness = ClaimHarness.safeParse(row.harness);
+  if (harness.success) doc.harness = harness.data;
+  const host = ClaimHost.safeParse(row.host);
+  if (host.success) doc.host = host.data;
   return doc;
 }
 
