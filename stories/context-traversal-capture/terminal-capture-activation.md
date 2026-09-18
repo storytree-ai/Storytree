@@ -98,8 +98,14 @@ spawned-agent adapter will inherit a parent session id (ADR-0241 D9).
 the environment and the caller's slot injected — so the CLI edit stays glue: `main.ts` resolves
 `deriveIdentity()` ONCE (the ADR-0162 startup budget) and derives both identities from it, the
 worktree one for the spawn registry and the delta footer, and this one for capture. Order:
-`STORYTREE_SESSION_ID`, then the harness-reported window id (`CLAUDE_CODE_SESSION_ID`), then
-**nothing**. There is deliberately NO slot fallback: a slot is shared by the parent session, each
+`STORYTREE_SESSION_ID`, then Claude Code's window id (`CLAUDE_CODE_SESSION_ID`), then Codex's thread
+id (`CODEX_THREAD_ID`, since 2026-09-18, `session-harness-and-host-arc` — until then every read a
+Codex session made resolved nothing and was dropped), then **nothing**. The Codex rung sits below
+both older rungs so that every invocation that resolved before resolves identically after. Beside the
+slot, the identity also carries which agent HARNESS the process runs under and which MACHINE it runs
+on (its hostname — not the "host" harness of `HOST_WINDOW_ID_ENV`), both detected from the process
+and stamped on every line, never declared and never inferred for older lines. There is deliberately
+NO slot fallback: a slot is shared by the parent session, each
 subagent it spawns, and every later session the pool hands it — measured at a median of 2 windows,
 a p90 of 8, and one holding 137 — so keying a trace by it reports many windows' reads as one
 session's, which inflated the corpus-wide re-read share from 13.4% to 32.0% (x2.39). A run that
