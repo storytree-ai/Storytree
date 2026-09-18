@@ -11,6 +11,7 @@ import type {
 
 import {
   deriveIdentity,
+  describeHolder,
   noticeboardCommand,
   renderLedgerBoard,
   type ClaimLedgerReadLike,
@@ -413,10 +414,55 @@ test("board: a live session's own stale row rides through MARKED, in its own sec
   ]);
   const env = await noticeboardCommand(undefined, { nodes: [] }, { identity: null, now: nowFn, ledger });
 
-  assert.match(env.body, /## wt-live  branch=claude\/live$/m, "one live row keeps the session out of the STALE section");
+  assert.match(
+    env.body,
+    /## wt-live {2}branch=claude\/live {2}harness and host not recorded$/m,
+    "one live row keeps the session out of the STALE section",
+  );
   assert.doesNotMatch(env.body, /STALE — /, "no dark-session section: this session is live");
   assert.match(env.body, /- noticeboard-cli  \[work\/supplementing\] {2}10m {2}building/);
   assert.match(env.body, /- abandoned-unit  \[exploring\/supplementing\] {2}20m {2}STALE 4h — reclaimable {2}left behind/);
+});
+
+test("board: each session's header says WHAT ran it and WHERE — and a session id on two machines shows both", async () => {
+  // Through the real fold: the misattribution this corrects was a Codex worktree on the laptop whose
+  // NAME pointed at the second machine. The header now carries what the claims themselves recorded.
+  const ledger = makeFakeLedger([
+    makeClaimDoc({
+      unitId: "cap-a",
+      sessionId: "storytree-mintbox-live-proof-final",
+      branch: "codex/live-proof",
+      grade: "work",
+      harness: "codex",
+      host: "MicksMSpro",
+      claimedAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
+    }),
+    makeClaimDoc({
+      unitId: "cap-b",
+      sessionId: "storytree-mintbox-live-proof-final",
+      branch: "codex/live-proof",
+      grade: "work",
+      harness: "codex",
+      host: "mint",
+      claimedAt: new Date(NOW.getTime() - 4 * 60_000).toISOString(),
+    }),
+    makeClaimDoc({
+      unitId: "cap-c",
+      sessionId: "wt-claude",
+      branch: "claude/wt-claude",
+      grade: "exploring",
+      harness: "claude-code",
+      host: "MicksMSpro",
+      claimedAt: new Date(NOW.getTime() - 2 * 60_000).toISOString(),
+    }),
+  ]);
+  const env = await noticeboardCommand(undefined, { nodes: [] }, { identity: null, now: nowFn, ledger });
+  assert.equal(env.ok, true, env.body);
+  assert.match(
+    env.body,
+    /^## storytree-mintbox-live-proof-final {2}branch=codex\/live-proof {2}codex on MicksMSpro; codex on mint$/m,
+  );
+  assert.match(env.body, /^## wt-claude {2}branch=claude\/wt-claude {2}claude-code on MicksMSpro$/m);
 });
 
 // ---------------------------------------------------------------------------
@@ -444,6 +490,7 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
     {
       sessionId: "wt-old",
       branch: "claude/old-branch",
+      runtimes: [{ harness: "codex", host: "MicksMSpro" }],
       stale: false,
       claims: [
         entry("story-x", "work", "building x", 5, "proving"),
@@ -453,6 +500,7 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
     {
       sessionId: "wt-new",
       branch: "claude/new-branch",
+      runtimes: [{}],
       stale: false,
       claims: [entry("story-z", "waiting", "", 2)],
     },
@@ -463,14 +511,58 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
     [
       "Claim ledger (ADR-0200):",
       "",
-      "## wt-old  branch=claude/old-branch",
+      // The header names WHAT ran the session and WHERE — the id alone is a worktree name.
+      "## wt-old  branch=claude/old-branch  codex on MicksMSpro",
       // grade/ROLE (ADR-0346 D3): the typed word rides beside the grade, the prose after the age.
       "  - story-x  [work/proving]  5m  building x",
       "  - story-y  [exploring/supplementing]  1h  poking around y",
       "",
-      "## wt-new  branch=claude/new-branch",
+      // A session whose rows predate harness/host says so — it is never left blank or guessed.
+      "## wt-new  branch=claude/new-branch  harness and host not recorded",
       "  - story-z  [waiting/supplementing]  2m",
     ].join("\n"),
+  );
+});
+
+test("renderLedgerBoard: ONE session id seen on TWO machines names BOTH in its header — the collision is shown", () => {
+  const body = renderLedgerBoard([
+    {
+      sessionId: "storytree-mintbox-live-proof-final",
+      branch: "codex/live-proof",
+      runtimes: [
+        { harness: "codex", host: "MicksMSpro" },
+        { harness: "codex", host: "mint" },
+      ],
+      stale: false,
+      claims: [],
+    },
+  ]);
+  assert.match(
+    body,
+    /^## storytree-mintbox-live-proof-final {2}branch=codex\/live-proof {2}codex on MicksMSpro; codex on mint$/m,
+  );
+});
+
+test("renderLedgerBoard: a hand-built group with NO runtimes renders as unrecorded — never a trailing blank", () => {
+  const body = renderLedgerBoard([
+    { sessionId: "wt-bare", branch: "claude/bare", runtimes: [], stale: false, claims: [] },
+  ]);
+  assert.match(body, /^## wt-bare {2}branch=claude\/bare {2}harness and host not recorded$/m);
+});
+
+test("renderLedgerBoard: a DARK session's header carries its harness/host after the [STALE] mark", () => {
+  const body = renderLedgerBoard([
+    {
+      sessionId: "wt-dark",
+      branch: "claude/dark",
+      runtimes: [{ harness: "claude-code", host: "mint" }, { host: "mint" }],
+      stale: true,
+      claims: [],
+    },
+  ]);
+  assert.match(
+    body,
+    /^## wt-dark {2}branch=claude\/dark {2}\[STALE\] {2}claude-code on mint; harness not recorded, on mint$/m,
   );
 });
 
@@ -495,6 +587,7 @@ test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclai
     {
       sessionId: "wt-live",
       branch: "claude/live",
+      runtimes: [{ harness: "claude-code", host: "MicksMSpro" }],
       stale: false,
       claims: [
         {
@@ -509,22 +602,25 @@ test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclai
         },
       ],
     },
-    { sessionId: "wt-dead-a", branch: "claude/dead-a", stale: true, claims: [stale("story-p", 234)] },
+    { sessionId: "wt-dead-a", branch: "claude/dead-a", runtimes: [{}], stale: true, claims: [stale("story-p", 234)] },
     {
       sessionId: "wt-dead-b",
       branch: "claude/dead-b",
+      runtimes: [{}],
       stale: true,
       claims: [stale("story-q", 401), stale("story-r", 570)],
     },
   ]);
   const lines = body.split("\n");
+  const liveHeader = lines.indexOf("## wt-live  branch=claude/live  claude-code on MicksMSpro");
+  assert.ok(liveHeader >= 0, "precondition: the live header renders, harness and host included");
   assert.ok(
-    lines.indexOf("## wt-live  branch=claude/live") < lines.findIndex((l) => l.startsWith("STALE — ")),
+    liveHeader < lines.findIndex((l) => l.startsWith("STALE — ")),
     "live sessions render before the stale section",
   );
   assert.match(body, /STALE — 3 rows across 2 sessions with no heartbeat for over 2h\./);
   assert.match(body, /a stale\n?work row blocks nobody/);
-  assert.match(body, /## wt-dead-a  branch=claude\/dead-a  \[STALE\]/);
+  assert.match(body, /## wt-dead-a  branch=claude\/dead-a  \[STALE\]  harness and host not recorded/);
   assert.match(body, /- story-r  \[work\/supplementing\] {2}300h {2}STALE 570h — reclaimable/);
 });
 
@@ -681,6 +777,31 @@ test("declare: EVERY node held → ok:false, the headline says it anchored nothi
   assert.match(env.body, /role supplementing/);
   assert.match(env.body, /intent "orchestrate"/);
   assert.match(env.body, /held 0m/);
+});
+
+test("describeHolder: the holder's harness and MACHINE come first — the id alone is a worktree name", () => {
+  assert.equal(
+    describeHolder({ ...OTHER_HOLDER, harness: "codex", host: "MicksMSpro" }, NOW),
+    'other-session (codex on MicksMSpro, branch claude/other, role supplementing, intent "orchestrate", ' +
+      "held 0m, LIVE — heartbeat 0m ago)",
+  );
+});
+
+test("describeHolder: a holder whose row predates harness/host says so — it is never guessed or left blank", () => {
+  assert.equal(
+    describeHolder(OTHER_HOLDER, NOW),
+    'other-session (harness and host not recorded, branch claude/other, role supplementing, intent "orchestrate", ' +
+      "held 0m, LIVE — heartbeat 0m ago)",
+  );
+  assert.match(describeHolder({ ...OTHER_HOLDER, host: "mint" }, NOW), /^other-session \(harness not recorded, on mint, branch /);
+  assert.match(describeHolder({ ...OTHER_HOLDER, harness: "claude-code" }, NOW), /^other-session \(claude-code, host not recorded, branch /);
+});
+
+test("declare: a HELD node names the holder's harness and machine, so a misleading worktree name cannot mislead", async () => {
+  const claims = makeFakeClaims({ refuseWith: { ...OTHER_HOLDER, harness: "codex", host: "MicksMSpro" } });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  assert.match(env.body, /story-a: HELD by other-session \(codex on MicksMSpro, branch claude\/other, /);
 });
 
 test("declare: the --working-on prose reaches the STORE trimmed, never just the envelope (ADR-0346 D3)", async () => {

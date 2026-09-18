@@ -328,7 +328,10 @@ test("claim --grade work refused: prints the unit's full claim board and the cap
   assert.equal(env.ok, false);
   // grade/ROLE (ADR-0346 D3) — this holder is a PRE-SPLIT row, so its role is derived from the
   // legacy `intent` word. That is the whole point of the derivation: an old row still reads.
-  assert.match(env.body, /\[work\/supplementing\]\s+other-wt\s+10m\s+branch=claude\/other\s+intent "orchestrate"/);
+  assert.match(
+    env.body,
+    /\[work\/supplementing\]\s+other-wt \(harness and host not recorded\)\s+10m\s+branch=claude\/other\s+intent "orchestrate"/,
+  );
   assert.match(env.body, /\[waiting\/supplementing\]\s+waiter-wt/);
   assert.match(env.body, /never an owner question/i);
   // A store that refuses WITHOUT queueing has left this session out of the line, and the message
@@ -365,8 +368,12 @@ test("claim --grade work QUEUED: ok:FALSE, and the session is told it is fenced 
   assert.match(env.body, /QUEUED behind holder-wt/);
   assert.match(env.body, /position 1 of 1 in the LIVE line/);
   assert.match(env.body, /`waiting` BINDS \(ADR-0346 D1\): STOP working "story-x"/);
-  // The holder is described by the ONE shared describer — who, role, prose, age, liveness.
-  assert.match(env.body, /holder-wt \(branch claude\/other, role supplementing, intent "growing it", held 0m, LIVE/);
+  // The holder is described by the ONE shared describer — who (and on what, where), role, prose,
+  // age, liveness. This holder's row predates harness/host, and the line says exactly that.
+  assert.match(
+    env.body,
+    /holder-wt \(harness and host not recorded, branch claude\/other, role supplementing, intent "growing it", held 0m, LIVE/,
+  );
   // D4's fork, and only D4's fork: no "proceed on your own judgment" survives anywhere.
   assert.match(env.body, /work another capability you already hold/);
   assert.match(env.body, /release\s+your claims, and END the session/);
@@ -508,10 +515,52 @@ test("claims: renders every row in queue order with grade, session, age, and int
   assert.equal(env.ok, true, env.body);
   const [header, first, second, third] = env.body.split("\n");
   assert.match(header ?? "", /Claims on "story-x" \(queue order/);
-  assert.match(first ?? "", /\[work\/proving\]\s+holder-wt\s+3h\s+branch=claude\/other\s+intent "real"/);
-  assert.match(second ?? "", /\[waiting\/supplementing\]\s+waiter-wt\s+10m/);
+  assert.match(
+    first ?? "",
+    /\[work\/proving\]\s+holder-wt \(harness and host not recorded\)\s+3h\s+branch=claude\/other\s+intent "real"/,
+  );
+  assert.match(second ?? "", /\[waiting\/supplementing\]\s+waiter-wt \(harness and host not recorded\)\s+10m/);
   assert.match(second ?? "", /intent \(none\)/);
   assert.match(third ?? "", /\[work\/supplementing\]\s+legacy-wt/);
+});
+
+test("claims: each row names its holder's harness and machine beside the session id", async () => {
+  const ledger = makeFakeLedger({
+    rows: [
+      doc({ unitId: "cap-x", sessionId: "holder-wt", grade: "work", harness: "codex", host: "MicksMSpro" }),
+      doc({ unitId: "cap-x", sessionId: "waiter-wt", grade: "waiting", harness: "claude-code", host: "mint" }),
+      doc({ unitId: "cap-x", sessionId: "half-wt", grade: "waiting", host: "mint" }),
+    ],
+  });
+  const env = await claimLedgerCommand("claims", "cap-x", {}, deps(ledger));
+  const [, first, second, third] = env.body.split("\n");
+  assert.match(first ?? "", /^ {2}- \[work\/supplementing\] {2}holder-wt \(codex on MicksMSpro\) {2}0m {2}branch=claude\/other/);
+  assert.match(second ?? "", /^ {2}- \[waiting\/supplementing\] {2}waiter-wt \(claude-code on mint\) {2}0m /);
+  assert.match(third ?? "", /half-wt \(harness not recorded, on mint\)/);
+});
+
+test("claim --grade work refused (not queued): the claim board names every row's harness and machine", async () => {
+  const holder = doc({ unitId: "story-x", sessionId: "other-wt", grade: "work", harness: "codex", host: "MicksMSpro" });
+  const ledger = makeFakeLedger({ nextResult: { acquired: false, heldBy: holder }, rows: [holder] });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /REFUSED — HELD by other-wt \(codex on MicksMSpro, branch claude\/other, /);
+  assert.match(env.body, /\[work\/supplementing\] {2}other-wt \(codex on MicksMSpro\) {2}0m/);
+});
+
+test("claim --grade work QUEUED: the HELD line names the holder's harness and machine", async () => {
+  const holder = doc({ unitId: "story-x", sessionId: "holder-wt", grade: "work", harness: "claude-code", host: "mint" });
+  const ledger = makeFakeLedger({
+    nextResult: {
+      acquired: false,
+      queued: true,
+      waiting: doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting" }),
+      heldBy: holder,
+    },
+    rows: [holder, doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting" })],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.match(env.body, /is HELD by holder-wt \(claude-code on mint, branch claude\/other, /);
 });
 
 test("claims: an empty unit reads as no claims, with the claim command as next", async () => {
@@ -540,7 +589,10 @@ test("claims (THE MEASURED DEFECT, 2026-08-11): a stale row renders MARKED, not 
   });
   const env = await claimLedgerCommand("claims", "forest-world", {}, deps(ledger));
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /\[exploring\/supplementing\]\s+procedural-arch\s+554h.*STALE 4h — reclaimable/);
+  assert.match(
+    env.body,
+    /\[exploring\/supplementing\]\s+procedural-arch \(harness and host not recorded\)\s+554h.*STALE 4h — reclaimable/,
+  );
   assert.match(env.body, /1 of 1 row above is STALE/);
   assert.match(env.body, /blocking nobody/);
 });
@@ -581,7 +633,7 @@ test("refusal: the holder's LIVENESS is stated, not left for the session to gues
   // blocked session, in one line, from the ONE shared describer.
   assert.match(
     env.body,
-    /HELD by other-wt \(branch .*, role proving, intent "real", held 0m, LIVE — heartbeat 5m ago\)/,
+    /HELD by other-wt \(harness and host not recorded, branch .*, role proving, intent "real", held 0m, LIVE — heartbeat 5m ago\)/,
   );
 });
 
@@ -636,10 +688,29 @@ test("mine: needs no unit id — it reads THIS session's rows, asking for the st
     "a session must see its OWN ghosts — they are what other sessions collide with",
   );
   assert.match(env.body, /Claims held by this session \(wt-ledger, branch claude\/ledger\)/);
-  assert.match(env.body, /- noticeboard-cli {2}\[work\/supplementing\] {2}0m {2}intent "building"$/m);
+  assert.match(
+    env.body,
+    /- noticeboard-cli {2}\[work\/supplementing\] {2}0m {2}\(harness and host not recorded\) {2}intent "building"$/m,
+  );
   assert.match(env.body, /- drive-machinery {2}\[exploring\/supplementing\].*STALE 4h — reclaimable/);
   assert.match(env.body, /2 rows: 1 live, 1 stale\./);
   assert.match(env.body, /release it rather than leaving it to age out/);
+});
+
+test("mine: EVERY row says which harness and machine took it — a row taken elsewhere under this id is visible", async () => {
+  // A session id is a worktree name, and nothing keeps it unique across machines, so the self-view
+  // shows each row's own record rather than one line for the session.
+  const ledger = makeFakeLedger({
+    ownRows: [
+      doc({ unitId: "cap-a", sessionId: "wt-ledger", grade: "work", intent: "wiring", harness: "claude-code", host: "MicksMSpro" }),
+      doc({ unitId: "cap-b", sessionId: "wt-ledger", grade: "exploring", intent: "reading", harness: "codex", host: "mint" }),
+      doc({ unitId: "cap-c", sessionId: "wt-ledger", grade: "exploring", intent: "old", harness: "codex" }),
+    ],
+  });
+  const env = await claimLedgerCommand("mine", undefined, {}, deps(ledger));
+  assert.match(env.body, /^ {2}- cap-a {2}\[work\/supplementing\] {2}0m {2}\(claude-code on MicksMSpro\) {2}intent "wiring"$/m);
+  assert.match(env.body, /^ {2}- cap-b {2}\[exploring\/supplementing\] {2}0m {2}\(codex on mint\) {2}intent "reading"$/m);
+  assert.match(env.body, /^ {2}- cap-c {2}\[exploring\/supplementing\] {2}0m {2}\(codex, host not recorded\) {2}intent "old"$/m);
 });
 
 test("mine: a session holding nothing gets a plain no — the merge-ceremony check, not an error", async () => {

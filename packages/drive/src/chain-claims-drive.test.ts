@@ -202,7 +202,7 @@ test("THE RED: a sibling holding a MEMBER's claim now refuses the chain — the 
     assert.equal(env.ok, false, `expected a refusal; got: ${env.body}`);
     // ADR-0270 D3: the refusal names the unit ACTUALLY held.
     assert.match(env.body, /node "cap-b"/);
-    assert.match(env.body, /sibling \(branch claude\/sibling\)/);
+    assert.match(env.body, /sibling \(harness and host not recorded, branch claude\/sibling\)/);
     assert.doesNotMatch(env.body, /story "claims-story" is already being built/);
     // The rollback: cap-a was taken on the way to cap-b and given back, so the ledger is as found.
     assert.deepEqual(ledger.live(), ["cap-b::sibling"]);

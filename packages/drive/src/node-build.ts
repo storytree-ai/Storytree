@@ -63,6 +63,7 @@ import {
 } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import { describeClaimRuntime } from "@storytree/notice-board";
 import type { BuildPhase, StoryBaselineScope } from "@storytree/proof-protocol";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
@@ -2430,7 +2431,7 @@ export async function nodeBuild(
           body: [
             `node "${spec.id}" is already being built by another live session — REFUSED (ADR-0121).`,
             "",
-            `held by:     ${held.sessionId} (branch ${held.branch})`,
+            `held by:     ${held.sessionId} (${describeClaimRuntime(held)}, branch ${held.branch})`,
             `claimed at:  ${held.claimedAt}`,
             "",
             "Two sessions building one unit race to promote duplicate branches (the 2026-06-27 cascade",

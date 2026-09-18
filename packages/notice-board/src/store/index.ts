@@ -24,6 +24,8 @@ export type {
   ClaimPoolClient,
   ClaimOptions,
   ClaimAuditEvent,
+  ClaimRuntimeReading,
+  ClaimStoreOptions,
   SharedClaimGrade,
   UpgradeOptions,
 } from "./claim-store.js";

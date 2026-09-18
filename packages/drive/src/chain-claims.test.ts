@@ -256,12 +256,22 @@ test("THE RED: the refusal names the CAPABILITY actually held, not the story (AD
     requested: ["build-drive-cli", "orchestrate-drive-cli"],
   });
   assert.match(body, /node "build-drive-cli"/);
-  assert.match(body, /sibling \(branch claude\/sib\)/);
+  assert.match(body, /held by: {5}sibling \(harness and host not recorded, branch claude\/sib\)/);
   // The story is named as CONTEXT for the member, never as the thing that is claimed.
   assert.doesNotMatch(body, /story "drive-machinery" is already/);
   // And it tells the reader the disjoint remainder is drivable — the D1 tension, resolved.
   assert.match(body, /orchestrate-drive-cli/);
   assert.match(body, /ADR-0270 D1/);
+});
+
+test("the refusal names the holder's harness and MACHINE — a worktree name alone can point at the wrong one", () => {
+  const body = chainClaimRefusalBody({
+    storyId: "drive-machinery",
+    refusedUnit: "build-drive-cli",
+    heldBy: claimDoc({ sessionId: "storytree-mintbox-live-proof-final", branch: "codex/live", harness: "codex", host: "MicksMSpro" }),
+    requested: ["build-drive-cli"],
+  });
+  assert.match(body, /^held by: {5}storytree-mintbox-live-proof-final \(codex on MicksMSpro, branch codex\/live\)$/m);
 });
 
 test("the refusal is honest when there IS no disjoint remainder", () => {

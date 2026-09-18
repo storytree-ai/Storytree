@@ -333,6 +333,8 @@ CREATE TABLE IF NOT EXISTS events.adr_number (
 -- WAS a work claim. There is no such single right answer for role: a pre-split row's role lives
 -- inside its own `intent` string, so NULL means "derive it" (claimRole() in packages/notice-board)
 -- and the migration stays additive and pull-based — no backfill, no big-bang.
+-- `harness` and `host` say WHO ran the claiming process and WHERE: its agent harness (claude-code /
+-- codex) and its MACHINE's hostname. Both NULLABLE with no default — see their migration below.
 CREATE TABLE IF NOT EXISTS events.node_claim (
   unit_id      TEXT NOT NULL,
   session_id   TEXT NOT NULL,
@@ -340,6 +342,8 @@ CREATE TABLE IF NOT EXISTS events.node_claim (
   branch       TEXT NOT NULL,
   intent       TEXT NOT NULL DEFAULT '',
   role         TEXT,
+  harness      TEXT,
+  host         TEXT,
   claimed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (unit_id, session_id)
@@ -359,6 +363,18 @@ ALTER TABLE events.node_claim
 -- typed role as they are rewritten, one take at a time.
 ALTER TABLE events.node_claim
   ADD COLUMN IF NOT EXISTS role TEXT;
+
+-- MIGRATION (claim harness + host): WHO ran the process that took a claim, and WHERE — its agent
+-- harness (`claude-code` / `codex`) and the hostname of its MACHINE (`host` is the computer, never
+-- the harness). The store stamps both on every take, DETECTED from the claiming process's own
+-- environment and `os.hostname()` — never declared by a caller. NULLABLE and UNBACKFILLED on
+-- purpose, and permanently: NULL means UNRECORDED — every row taken before this landed, and every
+-- row whose writer detected no harness — and it is never inferred backwards. A session id is a
+-- worktree name its author chose, so guessing a machine from it is exactly the misattribution these
+-- columns exist to end.
+ALTER TABLE events.node_claim
+  ADD COLUMN IF NOT EXISTS harness TEXT,
+  ADD COLUMN IF NOT EXISTS host TEXT;
 
 -- Swap the old single-column PK (unit_id) for the composite (unit_id, session_id), guarded on the
 -- catalog: the block acts only when the CURRENT pk column set is exactly (unit_id), so a re-run —
