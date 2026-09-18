@@ -158,14 +158,23 @@ test("own --all: works with no session identity, because attribution is not self
 
 const SCOPE_TAIL = " — only work registered on THIS machine is listed; nothing running on any other machine appears here.";
 
-test("own: names the machine the inventory covers, and says no other machine is listed", () => {
+test("own: names the machine the inventory covers, between the title and the body", () => {
   const env = ownCommand([], deps({ machine: () => "box-a" }));
-  assert.equal(env.body.split("\n")[1], `  Machine: box-a${SCOPE_TAIL}`);
+  // The whole three-line head, so the title and the blank separator are pinned with the new line.
+  assert.deepEqual(env.body.split("\n").slice(0, 3), [
+    'storytree own — session "mine"',
+    `  Machine: box-a${SCOPE_TAIL}`,
+    "",
+  ]);
 });
 
 test("own --all: names the machine too — attribution by owner is still one machine's registry", () => {
   const env = ownCommand(["--all"], deps({ machine: () => "box-b" }));
-  assert.equal(env.body.split("\n")[1], `  Machine: box-b${SCOPE_TAIL}`);
+  assert.deepEqual(env.body.split("\n").slice(0, 3), [
+    "storytree own --all — registered background work, by owning session",
+    `  Machine: box-b${SCOPE_TAIL}`,
+    "",
+  ]);
 });
 
 test("own: an unreadable hostname is said to be unknown, never left blank", () => {
