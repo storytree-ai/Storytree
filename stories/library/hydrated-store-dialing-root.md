@@ -37,9 +37,12 @@ proof:
 
 Make `packages/library/src/store/connection.ts` the composition root it already claims to be. Keep
 ADR-0250's structural data-plane refusal as the first operation in `createPool`: a session that
-cannot carry a direct Cloud SQL connection refuses without reading local credential state. Only
-after that refusal clears, and before resolving the connection options or constructing a Cloud SQL
-`Connector` or pg `Pool`:
+cannot carry a direct Cloud SQL connection refuses without reading local credential state. *(Since
+2026-09-18 a second structural refusal follows it, still before any credential is read: a test
+runner's process — `NODE_ENV=test` or `NODE_TEST_CONTEXT` — is refused unless it opts in with
+`STORYTREE_DB_LIVE=1` or injects its construction; see `event-sourced-store-seam` contract
+`a-test-process-never-dials-the-live-store`.)* Only after those refusals clear, and before resolving
+the connection options or constructing a Cloud SQL `Connector` or pg `Pool`:
 
 1. treat a non-blank `STORYTREE_DB_USER` in the supplied environment as authoritative;
 2. treat an absent, empty, or whitespace-only value as a gap and hydrate that gap from
@@ -55,8 +58,8 @@ it still serves `CLAUDE_CODE_OAUTH_TOKEN`, but it is no longer what makes a data
 
 Keep `createPool`'s current lazy placement at its callers and preserve `CreatePoolOptions.user` as
 an explicit programmatic override. This capability moves no dial earlier: when a caller actually
-invokes `createPool`, the existing data-plane refusal runs first; local DB-user hydration follows,
-then connection-option resolution and raw construction.
+invokes `createPool`, the existing data-plane refusal runs first and the test-process refusal
+second; local DB-user hydration follows, then connection-option resolution and raw construction.
 
 The class fence is mechanical and sits with the connection tests. Scan production TypeScript for
 imports/construction of `@google-cloud/cloud-sql-connector`'s `Connector` and `pg`'s `Pool`; permit

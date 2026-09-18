@@ -85,3 +85,45 @@ export function dataPlaneRefusal(env: EnvLike, probe: DataPlaneProbe): string | 
     `If this environment's egress has since changed, set ${ALLOW_DATA_PLANE_ENV}=1 to dial anyway.`,
   ].join("\n");
 }
+
+// ---------------------------------------------------------------------------------------------
+// THE TEST-PROCESS REFUSAL — a test runner never dials the live store unless it opts in by name.
+//
+// "`pnpm -r test` is credential-free" (ADR-0302 D3) was never true on a box that holds credentials,
+// because the credential is not an environment variable the test leg could leave out: `createPool`
+// hydrates `STORYTREE_DB_USER` LAZILY from `~/.storytree/secrets.json` inside whatever process
+// dials. The one fence that existed (`gate-test-environment.ts`, an unreachable store door) is
+// applied by `pnpm gate` to its own test leg only, so three kinds of test process walked straight
+// past it — the mutation rung's Stryker sandboxes, a paid `--real` build's regression suite, and a
+// direct `pnpm --filter … test`. Measured 2026-09-18: those processes started 3,596 real
+// librarian-curator sessions against the live store in a month on one box, the curator deleted 31
+// owner-answered questions, and tests whose early refusal a mutant removed wrote fake `building` rows.
+//
+// So the refusal keys on the PROCESS, not on any one caller remembering to inject a store: every
+// test runner this repo uses marks its processes (`bun test` and vitest set NODE_ENV=test, and the
+// `node --test` runner exports NODE_TEST_CONTEXT to each file it runs), a child a test spawns
+// inherits the mark, and the Stryker runners are `bun test` / vitest underneath. A deliberately
+// live-gated suite opts back in with the gate those suites already use — and still reaches a
+// disposable database through `createTestPool` (ADR-0054).
+// ---------------------------------------------------------------------------------------------
+
+/** The existing live-suite gate: a test process dials the real store only when this is exactly "1". */
+export const LIVE_DB_TEST_ENV = "STORYTREE_DB_LIVE";
+
+/** Is this process a test runner's (bun test / vitest set NODE_ENV=test; `node --test` sets NODE_TEST_CONTEXT)? */
+export function isTestRunnerProcess(env: EnvLike): boolean {
+  return env["NODE_ENV"] === "test" || isSet(env["NODE_TEST_CONTEXT"]);
+}
+
+/**
+ * `null` when this process may dial the live store, otherwise why not. Checked by `createPool`
+ * BEFORE it hydrates any credential, so a refused test process never even reads the secrets file.
+ */
+export function testProcessRefusal(env: EnvLike): string | null {
+  if (!isTestRunnerProcess(env) || env[LIVE_DB_TEST_ENV] === "1") return null;
+  return [
+    "live store refused: this is a test process, and a test never dials the live store.",
+    "Inject the store the code under test reads instead (an InMemoryStore, a scripted curator, a fake",
+    `ensureDb). A deliberately live-gated suite sets ${LIVE_DB_TEST_ENV}=1 and uses createTestPool (ADR-0054).`,
+  ].join("\n");
+}

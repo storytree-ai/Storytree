@@ -3,9 +3,12 @@ import test from "node:test";
 
 import {
   ALLOW_DATA_PLANE_ENV,
+  LIVE_DB_TEST_ENV,
   REMOTE_MARKER_DIR,
   dataPlaneRefusal,
   isDataPlaneBlockedSession,
+  isTestRunnerProcess,
+  testProcessRefusal,
 } from "./data-plane.js";
 
 /** A probe that reports every directory absent — the laptop default. */
@@ -75,4 +78,36 @@ test("the refusal no longer offers the REST control plane — that identity was 
   assert.doesNotMatch(available, /control plane/);
   assert.match(blocked, /control plane/);
   assert.match(blocked, /ADR-0254/);
+});
+
+// ── a-test-process-never-dials-the-live-store ────────────────────────────────────────────────────
+
+test("a-test-process-never-dials-the-live-store: every test runner's mark makes a process a test process, and nothing else does", () => {
+  assert.equal(isTestRunnerProcess({ NODE_ENV: "test" }), true, "bun test and vitest set NODE_ENV=test");
+  assert.equal(isTestRunnerProcess({ NODE_TEST_CONTEXT: "child-v8" }), true, "node --test sets NODE_TEST_CONTEXT");
+  assert.equal(isTestRunnerProcess({}), false, "an ordinary CLI or server process");
+  assert.equal(isTestRunnerProcess({ NODE_ENV: "production" }), false);
+  assert.equal(isTestRunnerProcess({ NODE_ENV: "development", NODE_TEST_CONTEXT: "  " }), false, "a blank context is unset");
+});
+
+test("a-test-process-never-dials-the-live-store: a test process is refused unless it opts in with exactly STORYTREE_DB_LIVE=1", () => {
+  assert.equal(LIVE_DB_TEST_ENV, "STORYTREE_DB_LIVE");
+  assert.equal(testProcessRefusal({}), null, "an ordinary process is never refused");
+  assert.equal(testProcessRefusal({ STORYTREE_DB_LIVE: "0" }), null, "the opt-in means nothing outside a test");
+  assert.equal(testProcessRefusal({ NODE_ENV: "test", STORYTREE_DB_LIVE: "1" }), null, "a live-gated suite opts in");
+  assert.equal(testProcessRefusal({ NODE_TEST_CONTEXT: "child", STORYTREE_DB_LIVE: "1" }), null);
+  for (const env of [
+    { NODE_ENV: "test" },
+    { NODE_ENV: "test", STORYTREE_DB_LIVE: "0" },
+    { NODE_ENV: "test", STORYTREE_DB_LIVE: "true" },
+    { NODE_TEST_CONTEXT: "child-v8" },
+  ]) {
+    assert.equal(
+      testProcessRefusal(env),
+      "live store refused: this is a test process, and a test never dials the live store.\n" +
+        "Inject the store the code under test reads instead (an InMemoryStore, a scripted curator, a fake\n" +
+        "ensureDb). A deliberately live-gated suite sets STORYTREE_DB_LIVE=1 and uses createTestPool (ADR-0054).",
+      JSON.stringify(env),
+    );
+  }
 });

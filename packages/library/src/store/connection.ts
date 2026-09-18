@@ -4,7 +4,7 @@ import { Pool, type PoolConfig } from "pg";
 import { Connector, AuthTypes } from "@google-cloud/cloud-sql-connector";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 
-import { dataPlaneRefusal } from "./data-plane.js";
+import { dataPlaneRefusal, testProcessRefusal } from "./data-plane.js";
 import { resolveDatabaseUser } from "./db-credential.js";
 
 /**
@@ -67,6 +67,11 @@ export async function createPool(
   // keep skipping exactly as they do offline — only the reason they print gets better.
   const refusal = dataPlaneRefusal(process.env, { dirExists: existsSync });
   if (refusal !== null) throw new Error(refusal);
+  // A test process never dials the live store (see `testProcessRefusal`). Checked BEFORE the user is
+  // resolved, because resolving is what reads `~/.storytree/secrets.json`. An injected construction
+  // replaces both the connector and the pool, so it opens no socket and is not refused.
+  const testRefusal = construction === undefined ? testProcessRefusal(process.env) : null;
+  if (testRefusal !== null) throw new Error(testRefusal);
 
   // Hydration stays lazy at this shared dialing root: a programmatic override wins, otherwise a
   // real environment value wins, and only a missing/blank STORYTREE_DB_USER is filled from disk.

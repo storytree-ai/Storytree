@@ -19,6 +19,9 @@ import type { NodeSpec } from "@storytree/orchestrator";
 import { silentBuildProgress } from "./build-progress.js";
 import { storyBuild } from "./story-build.js";
 import { buildNodeReal, renderLeafPhasePrompts } from "./node-build.js";
+// Every --real chain here injects a scripted curator: a green chain's DEFAULT is the live SDK
+// librarian-curator enacting on the live store, which a test process is refused (`curate.ts`).
+import { ScriptedCuratorRunner } from "./curate.js";
 import type { LeafSlicesObserver, LiveAuthor } from "./node-build.js";
 
 /** What the drive seam hands an observer — the spy records these verbatim. */
@@ -83,6 +86,7 @@ test("the-leaf-slices-observer-fires-with-the-canned-run-accounting: a --real ch
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -120,6 +124,7 @@ test("no-live-author-override-leaves-the-observer-silent: authorOverride alone (
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -154,6 +159,7 @@ test("a-canned-live-author-cannot-move-a-verdict: a canned success-shaped run ac
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -273,6 +279,7 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,

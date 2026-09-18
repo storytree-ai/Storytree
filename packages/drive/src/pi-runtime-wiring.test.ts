@@ -48,6 +48,9 @@ import {
   resolveLiveRuntime,
 } from "./node-build.js";
 import { storyBuild, storyHelp } from "./story-build.js";
+// Every --real/--live storyBuild here injects a scripted curator, so no mutant that lets a refusal
+// through can reach the live SDK curator (a test process is refused it anyway, `curate.ts`).
+import { ScriptedCuratorRunner } from "./curate.js";
 import { cannedLiveAuthor } from "./real-chain-fixture.js";
 
 /** A token shaped like the real subscription credential. NOT a credential — no such account. */
@@ -99,6 +102,7 @@ test("Codex-default help and invalid-runtime recovery are visible on both build 
   assert.match(storyMode.body, /--runtime claude\|codex; Codex default/);
 
   const storyRuntime = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "llama" as never,
@@ -215,6 +219,7 @@ test("the build verbs' argument refusals print every paid --real retry with the 
   assert.deepEqual(nodeLiveTurns.next, ["storytree node build verdict-line --live --runtime codex"]);
 
   const storyRealBudget = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     runtime: "codex",
@@ -223,6 +228,7 @@ test("the build verbs' argument refusals print every paid --real retry with the 
   });
   assert.deepEqual(storyRealBudget.next, ["storytree story build library --real --increment <increment-id> --runtime codex"]);
   const storyLiveBudget = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "codex",
@@ -231,6 +237,7 @@ test("the build verbs' argument refusals print every paid --real retry with the 
   });
   assert.deepEqual(storyLiveBudget.next, ["storytree story build library --live --runtime codex"]);
   const storyRealTurns = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     runtime: "codex",
@@ -239,6 +246,7 @@ test("the build verbs' argument refusals print every paid --real retry with the 
   });
   assert.deepEqual(storyRealTurns.next, ["storytree story build library --real --increment <increment-id> --runtime codex"]);
   const storyLiveTurns = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "codex",
@@ -582,6 +590,7 @@ test("nodeBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", 
 
 test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", async () => {
   const real = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     runtime: "pi",
@@ -596,6 +605,7 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
   );
 
   const budget = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "pi",
@@ -612,6 +622,7 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
 
   // The same free control as the node arm: an unknown story id refuses just past these guards.
   const piNoBudget = await storyBuild("no-such-story-fixture", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     live: true,
     runtime: "pi",
@@ -628,6 +639,7 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
 
   // The same control, for the same reason — see the note in the nodeBuild test above.
   const codexReal = await storyBuild("library", {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     runtime: "codex",

@@ -92,6 +92,7 @@ import {
   CURATOR_ACTOR,
   ScriptedCuratorRunner,
   SdkCuratorRunner,
+  refuseLiveCurationFromATest,
   renderCuratorPrompt,
   runCurationPass,
 } from "./curate.js";
@@ -317,9 +318,9 @@ export function honestFramingStoryReal(
 /**
  * ADR-0067 — the LIVE curation pass for `--live`/`--real`: spawn the SDK librarian-curator against
  * the live library + comment stores. Entirely best-effort: it opens its OWN pool (the verdict store
- * keeps its own), renders the agent from the seed, runs ONE read-only SDK session, enacts kind-fenced
- * — and any failure (unrenderable agent, unreachable store, SDK error) returns a single `skipped`
- * line, NEVER a thrown build. Curation runs only after the gate has already signed green.
+ * keeps its own), renders the agent from the live store, runs ONE read-only SDK session, enacts
+ * kind-fenced — and any failure (unrenderable agent, unreachable store, SDK error) returns a single
+ * `skipped` line, NEVER a thrown build. Curation runs only after the gate has already signed green.
  */
 async function runLiveCuration(
   story: NodeSpec,
@@ -614,12 +615,14 @@ export interface StoryBuildOpts {
   /** PR title for `openPr` (defaults to `real: <story-id> proven via the gate`). */
   prTitle?: string;
   /**
-   * ADR-0067 — the post-green curation pass. `curatorRunner` defaults to a no-op
-   * {@link ScriptedCuratorRunner} (the live SDK-spawned librarian-curator lands in a follow-up
-   * slice). `curationStores.library` is what the pass reads OQs/proposals from and enacts against:
-   * absent on a `--dry-run` defaults to a fresh in-memory store (the offline GLUE proof); absent on
-   * `--live`/`--real` defaults to `null` (deferred — the live runner wires the live stores). Tests
-   * inject both to exercise enactment. The ADR context is read from `curationStores.library`.
+   * ADR-0067 — the post-green curation pass. With NEITHER injected, a `--live`/`--real` chain runs
+   * the LIVE SDK librarian-curator against the live stores, which a test process is refused
+   * (`refuseLiveCurationFromATest`) — so every test of a green live/real chain injects at least a
+   * {@link ScriptedCuratorRunner}. With either injected, `curatorRunner` defaults to a no-op
+   * scripted runner and `curationStores.library` is what the pass reads open-questions from and
+   * enacts against: absent on a `--dry-run` it is a fresh in-memory store (the offline GLUE proof),
+   * absent on `--live`/`--real` it is `null` (the pass reports itself deferred). The ADR context is
+   * read from `curationStores.library`.
    */
   curatorRunner?: CuratorRunner;
   curationStores?: { library: Store | null; comments?: CommentSink | null };
@@ -1476,13 +1479,15 @@ export async function storyBuild(
     // ADR-0067: the curation pass runs ONLY after a green build (never on a halt) and is advisory —
     // runCurationPass never throws, so it can never fail or block the build (never-bypass-the-gate
     // holds: curation happens AFTER the gate signed). Dry-run exercises the GLUE against an in-memory
-    // library store; --live/--real defer to the live SDK curator (follow-up slice) unless stores are
-    // injected. A scoped librarian-curator judges the story's open-questions / proposals.
+    // library store; --live/--real run the live SDK curator unless a runner or stores are injected.
+    // The curator judges the store's open-questions still waiting on an answer.
     let curationLines: string[];
     const curationInjected = opts.curationStores !== undefined || opts.curatorRunner !== undefined;
     if (!curationInjected && (live || real)) {
       // Live/real default: the SDK-spawned librarian-curator against the live library/comment stores.
       // Curation remains a separate Claude role; a Codex leaf model slug must never leak into it.
+      // A TEST that forgot to inject is refused here, loudly, before anything renders, dials or spawns.
+      refuseLiveCurationFromATest(process.env);
       curationLines = await runLiveCuration(
         story,
         driveOrder,

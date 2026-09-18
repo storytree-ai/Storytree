@@ -7,7 +7,7 @@ import type { DeleteDocOpts, Store, StoredDoc } from "@storytree/storage-protoco
 import { upcastAndValidate } from "@storytree/library";
 import type { Comment, CommentAnchor } from "@storytree/library/store";
 
-import { renderAgentPrompt } from "@storytree/library/store";
+import { isTestRunnerProcess, renderAgentPrompt } from "@storytree/library/store";
 import { openCorpusStore } from "./corpus-store.js";
 
 /**
@@ -39,6 +39,43 @@ export const WRITABLE_KINDS = { openQuestion: "open-question" } as const;
 
 /** The event/comment actor a curator write is attributed to. */
 export const CURATOR_ACTOR = "librarian-curator";
+
+/**
+ * Does this open-question carry the owner's answer? `question settle` writes `lifecycle: settled`
+ * together with the `answer` (ADR-0434 D1/D2); either one alone is enough to make the row a record
+ * of a decision rather than a question still waiting on one.
+ */
+export function carriesAnAnswer(doc: unknown): boolean {
+  if (typeof doc !== "object" || doc === null) return false;
+  const d = doc as Record<string, unknown>;
+  return d.lifecycle === "settled" || (typeof d.answer === "string" && d.answer.trim() !== "");
+}
+
+/**
+ * The fields only `storytree question settle` writes. A reframe naming one would settle, unsettle or
+ * rewrite the owner's answer without the verb that requires the answer (ADR-0434 D2).
+ */
+export const SETTLEMENT_FIELDS = ["answer", "lifecycle", "settledAt", "settledByRef"] as const;
+
+/**
+ * THE LIVE CURATOR NEVER RUNS FROM A TEST. `storyBuild` defaults a green `--live`/`--real` chain to
+ * the live SDK curator unless the caller injects `curatorRunner` or `curationStores`, and a test that
+ * forgot to inject ran a REAL Claude session over the live store's open-questions and enacted what it
+ * said. Measured 2026-09-18: 3,596 such sessions in a month from test processes on one box (62 more
+ * on the second box) and 31 owner-answered questions deleted. CI never saw it: it holds no
+ * credential, and the pass swallowed "store unreachable" as a best-effort skip. So the omission is
+ * refused LOUDLY, in every test process, credential or not — a test that reaches this throws instead
+ * of passing.
+ */
+export const LIVE_CURATION_FROM_A_TEST =
+  "storyBuild reached the LIVE librarian-curator from a test process. Inject `curatorRunner` (a " +
+  "ScriptedCuratorRunner) or `curationStores` — the default runs a real SDK session that enacts " +
+  "its judgment on the live store.";
+
+/** Throw {@link LIVE_CURATION_FROM_A_TEST} when `env` is a test runner's process; a no-op otherwise. */
+export function refuseLiveCurationFromATest(env: NodeJS.ProcessEnv): void {
+  if (isTestRunnerProcess(env)) throw new Error(LIVE_CURATION_FROM_A_TEST);
+}
 
 /**
  * One intent the curator emits. The union is deliberately kind-specific: there is NO
@@ -177,6 +214,14 @@ export async function enactCuration(
             );
             break;
           }
+          // ADR-0434 D5: deletion is for a question that was WRONG, never one that was answered — an
+          // answered question is settled and stays on its arc, and deleting it deletes the answer.
+          if (carriesAnAnswer(existing.doc)) {
+            out.refused.push(
+              `retire ${action.id}: it carries the owner's answer — an answered question is settled and stays on its arc; retiring it would destroy the answer (ADR-0434 D5)`,
+            );
+            break;
+          }
           const opts: DeleteDocOpts = { actor, reason: action.reason };
           if (action.supersededBy !== undefined) opts.supersededBy = action.supersededBy;
           await deps.store.deleteDoc(action.id, opts);
@@ -189,6 +234,22 @@ export async function enactCuration(
           break;
         }
         case "reframe-open-question": {
+          // The answer is the owner's, written only by `question settle` (ADR-0434 D2): a reframe may
+          // neither name a settlement field nor rewrite a question that already carries an answer.
+          const named = SETTLEMENT_FIELDS.filter((f) => Object.hasOwn(action.set, f));
+          if (named.length > 0) {
+            out.refused.push(
+              `reframe ${action.id}: ${named.join(", ")} — only \`storytree question settle\` writes a settlement, and it requires the owner's answer (ADR-0434 D2)`,
+            );
+            break;
+          }
+          const target = await isKind(action.id, WRITABLE_KINDS.openQuestion);
+          if (target !== null && carriesAnAnswer(target.doc)) {
+            out.refused.push(
+              `reframe ${action.id}: it carries the owner's answer — a settled question is a record, not a question to reword (ADR-0434 D3)`,
+            );
+            break;
+          }
           const result = await patchKindFenced(
             deps.store,
             action.id,
@@ -326,7 +387,11 @@ export async function runCurationPass(input: CurationPassInput): Promise<string[
   }
   try {
     const library = input.library;
-    const openQuestions = await library.queryDocs({ kind: WRITABLE_KINDS.openQuestion });
+    // A settled question is a record of the owner's answer, not something to clean up (ADR-0434 D3),
+    // so the curator is shown only the questions still waiting on one.
+    const openQuestions = (await library.queryDocs({ kind: WRITABLE_KINDS.openQuestion })).filter(
+      (q) => !carriesAnAnswer(q.doc),
+    );
     const ctx: CurationContext = {
       storyId: input.context.storyId,
       nodeIds: input.context.nodeIds,
@@ -371,16 +436,20 @@ const CURATOR_OUTPUT_CONTRACT = [
   "",
   "Emit your decisions as a SINGLE fenced ```json block containing an array of action objects, and",
   "NOTHING else (no prose before or after). Each object is one of:",
-  '  { "type": "retire-open-question", "id": "<oq-id>", "reason": "<why it is clearly overtaken — cite what landed>", "supersededBy": "<doc:decisions/NNNN-... | optional>" }',
+  '  { "type": "retire-open-question", "id": "<oq-id>", "reason": "<why it was wrong or withdrawn — cite what overtook it>", "supersededBy": "<asset:adr-NNNN | optional>" }',
   '  { "type": "reframe-open-question", "id": "<oq-id>", "set": { "<field>": "<new value>" } }',
   '  { "type": "raise-open-question", "doc": { "id": "...", "kind": "open-question", "title": "...", "description": "...", "stakes": "...", "statement": "...", "context": "...", "options": "...", "createdAt": "<iso>", "updatedAt": "<iso>" } }',
   '  { "type": "comment", "artifactId": "<id>", "body": "<observation>" }',
   '  { "type": "escalate", "artifactId": "<id>", "body": "<discrepancy the owner should decide>" }',
   "",
   "Rules:",
-  "- RETIRE only an open-question you are CONFIDENT is overtaken — its blocking premise has been",
-  "  settled by a landed decision. Give a concrete reason naming what overtook it. When unsure,",
-  "  REFRAME or COMMENT instead; never retire on a hunch.",
+  "- RETIRE only a question NOBODY ANSWERED that turned out to be wrong: misconceived, withdrawn, or",
+  "  superseded before anyone answered it. Give a concrete reason naming what overtook it. When",
+  "  unsure, REFRAME or COMMENT instead; never retire on a hunch.",
+  "- NEVER retire an ANSWERED question. An answered question is SETTLED and stays on its arc under",
+  "  its answer; retiring it destroys the answer (ADR-0434 D5), and the spine refuses it. If a landed",
+  "  decision answered a question that is still open, ESCALATE it: the session holding the answer",
+  "  settles it with `storytree question settle`, and settling is not yours to do.",
   "- You may WRITE only open-question artifacts. Any concern about a definition / principle /",
   "  guardrail / techstack / process / agent is a COMMENT, and an ESCALATE if it needs an owner",
   "  decision — never an edit.",

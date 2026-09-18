@@ -17,7 +17,9 @@ import {
 } from "@storytree/orchestrator";
 import type { NodeSpec } from "@storytree/orchestrator";
 
-import { silentBuildProgress, storyBuild } from "@storytree/drive";
+// Every --real chain here injects a scripted curator: a green chain's DEFAULT is the live SDK
+// librarian-curator enacting on the live store, which a test process is refused.
+import { LIVE_CURATION_FROM_A_TEST, ScriptedCuratorRunner, silentBuildProgress, storyBuild } from "@storytree/drive";
 
 /**
  * The corpus the leaf's per-phase system prompts render from, INJECTED rather than opened.
@@ -214,6 +216,7 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -245,6 +248,46 @@ test("--real chains capabilities topo-ordered over ONE worktree; cap-b builds on
   }
 });
 
+test("a GREEN --real chain in a test process that injects no curator is refused LOUDLY at curation, never reaching the live curator", async () => {
+  // The defect this pins: a green chain with no curator injected defaulted to the LIVE SDK curator,
+  // which read the owner's real open-questions and deleted answered ones — while the test passed,
+  // because an unreachable store (CI) was swallowed as a best-effort "skipped" line.
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const saved = new Map(["STORYTREE_SECRETS_FILE", "STORYTREE_STORE_URL"].map((k) => [k, process.env[k]]));
+  try {
+    // Should the refusal ever go, nothing the live path could reach holds a credential or a door.
+    process.env["STORYTREE_SECRETS_FILE"] = path.join(repo.root, "no-such-dir", "secrets.json");
+    delete process.env["STORYTREE_STORE_URL"];
+    assert.equal(process.env["NODE_ENV"], "test", "premise: bun test marks its process");
+    const corpus = await fixtureCorpus();
+    await assert.rejects(
+      storyBuild("fix-story", {
+        corpusStore: corpus,
+        progress: silentBuildProgress(),
+        dryRun: false,
+        real: true,
+        actor: "tester@example.com",
+        storiesDir: stories,
+        repoRoot: repo.root,
+        verdictStore: "memory",
+        increment: "inc-live",
+        innerLoopReads: { corpus, ledger: new InMemoryStore() },
+        promote: false,
+        authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
+      }),
+      { message: LIVE_CURATION_FROM_A_TEST },
+    );
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
 test("--real HALTS the chain when a node fails closed; the later node never runs", async () => {
   const stories = await fixtureStories([
     { id: "cap-a", dependsOn: [] },
@@ -255,6 +298,7 @@ test("--real HALTS the chain when a node fails closed; the later node never runs
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -294,6 +338,7 @@ test("--real promotes ONCE at the stacked HEAD; cap-a's verdict commit is an anc
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -346,6 +391,7 @@ test("--real HALT parks the proven prefix LOCAL-ONLY — never pushed, never a l
   try {
     const corpus = await fixtureCorpus();
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: corpus,
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -438,6 +484,7 @@ test("--real refuses a story with a non-real-buildable driven node BEFORE any wo
   );
   try {
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: await fixtureCorpus(),
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,
@@ -469,6 +516,7 @@ test("--real refuses a machine-witnessed story whose UAT node is not real-builda
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }], { uatWitness: "machine" });
   try {
     const env = await storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       corpusStore: await fixtureCorpus(),
       progress: silentBuildProgress(), // offline: assert the ENVELOPE, not the liveness chatter
       dryRun: false,

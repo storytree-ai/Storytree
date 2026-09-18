@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
@@ -9,11 +11,15 @@ import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import {
   CURATOR_ACTOR,
+  LIVE_CURATION_FROM_A_TEST,
   WRITABLE_KINDS,
   ScriptedCuratorRunner,
   SdkCuratorRunner,
+  carriesAnAnswer,
+  composeCuratorSystemPrompt,
   enactCuration,
   parseCuratorActions,
+  refuseLiveCurationFromATest,
   renderCuratorPrompt,
   runCurationPass,
   serializeCurationContext,
@@ -21,6 +27,9 @@ import {
   type CurationAction,
   type CurationContext,
 } from "./curate.js";
+import { silentBuildProgress } from "./build-progress.js";
+import { fixtureRepo, fixtureStories, scopeFor, scriptedAuthors } from "./real-chain-fixture.js";
+import { storyBuild } from "./story-build.js";
 
 const ISO = "2026-01-01T00:00:00.000Z";
 
@@ -402,5 +411,189 @@ test("renderCuratorPrompt assembles the librarian-curator with the output contra
   if (res.ok) {
     assert.match(res.systemPrompt, /retire-open-question/, "the JSON output contract is appended");
     assert.match(res.systemPrompt, /post-build curation pass/);
+  }
+});
+
+// --- ADR-0434: the curator can neither destroy nor forge the owner's answer ----------------------
+//
+// Measured 2026-09-18: a curator started by test processes deleted 31 owner-ANSWERED questions from
+// the live store. The model was never shown the answer, and the output contract told it to retire a
+// question "settled by a landed decision" — the very case ADR-0434 D5 says is settled, never retired.
+
+const ANSWERED = { lifecycle: "settled", answer: "Option B, in the owner's words.", settledAt: ISO };
+
+test("the-curator-never-destroys-an-answer: a question carries an answer when it is settled OR holds a non-blank answer", () => {
+  assert.equal(carriesAnAnswer(oqDoc("q")), false, "an open question");
+  assert.equal(carriesAnAnswer(oqDoc("q", { lifecycle: "open" })), false);
+  assert.equal(carriesAnAnswer(oqDoc("q", { lifecycle: "settled" })), true, "settled alone");
+  assert.equal(carriesAnAnswer(oqDoc("q", { answer: "B" })), true, "an answer alone");
+  assert.equal(carriesAnAnswer(oqDoc("q", { answer: "  \n" })), false, "a blank answer is no answer");
+  assert.equal(carriesAnAnswer(oqDoc("q", { answer: 42 })), false, "a non-string answer is no answer");
+  assert.equal(carriesAnAnswer(null), false);
+  assert.equal(carriesAnAnswer(undefined), false);
+});
+
+test("the-curator-never-destroys-an-answer: a retire of an ANSWERED question is refused and the answer survives", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "oq-answered", kind: "open-question", doc: oqDoc("oq-answered", ANSWERED) });
+  await store.upsertDoc({ id: "oq-settled", kind: "open-question", doc: oqDoc("oq-settled", { lifecycle: "settled" }) });
+  await store.upsertDoc({ id: "oq-open", kind: "open-question", doc: oqDoc("oq-open") });
+  const out = await enactCuration({ store }, [
+    { type: "retire-open-question", id: "oq-answered", reason: "overtaken by ADR-9999" },
+    { type: "retire-open-question", id: "oq-settled", reason: "overtaken" },
+    { type: "retire-open-question", id: "oq-open", reason: "withdrawn: it was misconceived" },
+  ]);
+  const why =
+    "it carries the owner's answer — an answered question is settled and stays on its arc; retiring it would destroy the answer (ADR-0434 D5)";
+  assert.deepEqual(out.refused, [`retire oq-answered: ${why}`, `retire oq-settled: ${why}`]);
+  assert.deepEqual(out.enacted, ["retired open-question oq-open — withdrawn: it was misconceived"]);
+  const answered = (await store.getDoc("oq-answered"))?.doc as { answer?: string } | undefined;
+  assert.equal(answered?.answer, ANSWERED.answer, "the owner's answer is still on the row");
+  assert.ok(await store.getDoc("oq-settled"), "a settled question stays on its arc");
+  for (const id of ["oq-answered", "oq-settled"]) {
+    const events = await store.readEvents({ id });
+    assert.equal(events.some((e) => e.type === "deleted"), false, `${id}: no deletion event`);
+  }
+  assert.equal(await store.getDoc("oq-open"), null, "a question nobody answered may still be retired");
+});
+
+test("the-curator-never-destroys-an-answer: a reframe can neither reword an answered question nor write a settlement field", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "oq-answered", kind: "open-question", doc: oqDoc("oq-answered", ANSWERED) });
+  await store.upsertDoc({ id: "oq-open", kind: "open-question", doc: oqDoc("oq-open") });
+  const out = await enactCuration({ store }, [
+    { type: "reframe-open-question", id: "oq-answered", set: { statement: "reworded?" } },
+    { type: "reframe-open-question", id: "oq-open", set: { answer: "forged", lifecycle: "settled" } },
+    { type: "reframe-open-question", id: "oq-open", set: { settledAt: ISO } },
+    { type: "reframe-open-question", id: "oq-open", set: { settledByRef: "asset:adr-0001" } },
+    { type: "reframe-open-question", id: "ghost", set: { statement: "x" } },
+    { type: "reframe-open-question", id: "oq-open", set: { statement: "a sharper question?" } },
+  ]);
+  const settleOnly =
+    "only `storytree question settle` writes a settlement, and it requires the owner's answer (ADR-0434 D2)";
+  assert.deepEqual(out.refused, [
+    "reframe oq-answered: it carries the owner's answer — a settled question is a record, not a question to reword (ADR-0434 D3)",
+    `reframe oq-open: answer, lifecycle — ${settleOnly}`,
+    `reframe oq-open: settledAt — ${settleOnly}`,
+    `reframe oq-open: settledByRef — ${settleOnly}`,
+    'reframed open-question: "ghost" does not exist',
+  ]);
+  assert.deepEqual(out.enacted, ["reframed open-question oq-open"]);
+  const answered = (await store.getDoc("oq-answered"))?.doc as { statement?: string } | undefined;
+  assert.equal(answered?.statement, "the question?", "the answered question was not reworded");
+  const open = (await store.getDoc("oq-open"))?.doc as Record<string, unknown> | undefined;
+  assert.deepEqual(
+    [open?.answer, open?.lifecycle, open?.settledAt, open?.settledByRef],
+    [undefined, undefined, undefined, undefined],
+    "no settlement field was forged onto the open question",
+  );
+  assert.equal(open?.statement, "a sharper question?");
+});
+
+test("the-curator-is-never-invited-to-retire-an-answer: the pass shows the curator only questions still waiting, and refuses one it names anyway", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "oq-open", kind: "open-question", doc: oqDoc("oq-open") });
+  await store.upsertDoc({ id: "oq-answered", kind: "open-question", doc: oqDoc("oq-answered", ANSWERED) });
+  // Another kind carries no answer either, so only the kind-scoped query keeps it out of the list.
+  await store.upsertDoc({ id: "g-other", kind: "guardrail", doc: { id: "g-other", kind: "guardrail" } });
+  let shown: string[] = [];
+  const runner = new ScriptedCuratorRunner((ctx): CurationAction[] => {
+    shown = ctx.openQuestions.map((oq) => oq.id);
+    return [{ type: "retire-open-question", id: "oq-answered", reason: "the model names it regardless" }];
+  });
+  const lines = await runCurationPass({
+    runner,
+    library: store,
+    context: { storyId: "s", nodeIds: ["s"], decisions: [], adrs: [] },
+  });
+  assert.deepEqual(shown, ["oq-open"]);
+  assert.ok(await store.getDoc("oq-answered"), "the spine's wall holds even when the model reaches past the filter");
+  assert.ok(lines.some((l) => l.includes("✗ retire oq-answered: it carries the owner's answer")));
+});
+
+test("the-curator-is-never-invited-to-retire-an-answer: the output contract says escalate an answered question, never retire it", () => {
+  const prompt = composeCuratorSystemPrompt("AGENT BODY");
+  const rules = [
+    "- RETIRE only a question NOBODY ANSWERED that turned out to be wrong: misconceived, withdrawn, or",
+    "  superseded before anyone answered it. Give a concrete reason naming what overtook it. When",
+    "  unsure, REFRAME or COMMENT instead; never retire on a hunch.",
+    "- NEVER retire an ANSWERED question. An answered question is SETTLED and stays on its arc under",
+    "  its answer; retiring it destroys the answer (ADR-0434 D5), and the spine refuses it. If a landed",
+    "  decision answered a question that is still open, ESCALATE it: the session holding the answer",
+    "  settles it with `storytree question settle`, and settling is not yours to do.",
+  ].join("\n");
+  assert.ok(prompt.includes(rules), "the retire rules, verbatim and contiguous");
+  assert.ok(
+    prompt.includes(
+      '  { "type": "retire-open-question", "id": "<oq-id>", "reason": "<why it was wrong or withdrawn — cite what overtook it>", "supersededBy": "<asset:adr-NNNN | optional>" }',
+    ),
+    "the retire schema asks why the question was wrong, not what settled it",
+  );
+  assert.doesNotMatch(prompt, /settled by a landed decision/, "the instruction to retire a settled question is gone");
+});
+
+// --- the live curator never runs from a test ------------------------------------------------------
+
+test("the-live-curator-never-runs-from-a-test: every test runner's process is refused, an ordinary process is not", () => {
+  assert.equal(
+    LIVE_CURATION_FROM_A_TEST,
+    "storyBuild reached the LIVE librarian-curator from a test process. Inject `curatorRunner` (a " +
+      "ScriptedCuratorRunner) or `curationStores` — the default runs a real SDK session that enacts " +
+      "its judgment on the live store.",
+  );
+  for (const env of [
+    { NODE_ENV: "test" },
+    { NODE_TEST_CONTEXT: "child-v8" },
+    // The live-suite opt-in does not reach the curator: `runLiveCuration` dials PRODUCTION, never the
+    // disposable database a live-gated suite points at.
+    { NODE_ENV: "test", STORYTREE_DB_LIVE: "1" },
+  ]) {
+    assert.throws(() => refuseLiveCurationFromATest(env), { message: LIVE_CURATION_FROM_A_TEST }, JSON.stringify(env));
+  }
+  assert.doesNotThrow(() => refuseLiveCurationFromATest({}));
+  assert.doesNotThrow(() => refuseLiveCurationFromATest({ NODE_ENV: "production" }));
+});
+
+test("the-live-curator-never-runs-from-a-test: a GREEN --real chain that injects no curator throws at curation instead of passing", async () => {
+  const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
+  const repo = await fixtureRepo(false);
+  const saved = new Map(["STORYTREE_SECRETS_FILE", "STORYTREE_STORE_URL"].map((k) => [k, process.env[k]]));
+  try {
+    // Should the refusal ever go, nothing the live path could reach holds a credential or a door.
+    process.env["STORYTREE_SECRETS_FILE"] = path.join(repo.root, "no-such-dir", "secrets.json");
+    delete process.env["STORYTREE_STORE_URL"];
+    assert.equal(process.env["NODE_ENV"], "test", "premise: bun test marks its process");
+    const corpus = new InMemoryStore();
+    await loadFixtureCorpus(corpus);
+    await corpus.upsertDoc({
+      id: "inc-live",
+      kind: "increment",
+      doc: { kind: "increment", arcRef: "asset:some-arc", status: "active" },
+    });
+    await corpus.upsertDoc({ id: "some-arc", kind: "arc", doc: { kind: "arc" } });
+    await assert.rejects(
+      storyBuild("fix-story", {
+        corpusStore: corpus,
+        progress: silentBuildProgress(),
+        dryRun: false,
+        real: true,
+        actor: "tester@example.com",
+        storiesDir: stories,
+        repoRoot: repo.root,
+        verdictStore: "memory",
+        increment: "inc-live",
+        innerLoopReads: { corpus, ledger: new InMemoryStore() },
+        promote: false,
+        authorOverride: scriptedAuthors({ "cap-a": scopeFor("cap-a") }),
+      }),
+      { message: LIVE_CURATION_FROM_A_TEST },
+    );
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo.root, { recursive: true, force: true });
   }
 });
