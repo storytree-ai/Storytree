@@ -49,8 +49,8 @@ never one merged batch. The directory defaults to increment 2's `resolveTraversa
 **Consume increment 2, never edit it.** `appendTraversalEvents` and `resolveTraversalDir` come from
 the `@storytree/context-traversal-capture` barrel — that is the public seam and importing it is both
 fine and required. Nothing under `packages/context-traversal-capture/**` is modified by this story;
-that package is held under another session's work claim, and its public barrels already export every
-symbol needed here — the root barrel, plus `ensureShipBaseline` from its `./store` subpath, the one
+that package belongs to its own capabilities (`terminal-capture-activation`, `traversal-trace-sink`),
+and its public barrels already export every symbol needed here — the root barrel, plus `ensureShipBaseline` from its `./store` subpath, the one
 function a capture path reaches there.
 
 **Identity in, never derived (ADR-0241 D9).** `parentSessionId` — and beside it `parentIdentity`,

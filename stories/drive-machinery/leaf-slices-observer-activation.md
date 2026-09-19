@@ -214,7 +214,7 @@ The observer is a spy the test owns.
   - `packages/drive/src/story-build.ts:737` — the live-smoke arm, reachable only with a real leaf.
 
   The residual is BOUNDED because both are fed by the SAME single object literal —
-  `nodeStoryBuildOpts`, `packages/cli/src/commands.ts:1454` — which is also what feeds the proven
+  `nodeStoryBuildOpts` in `packages/cli/src/commands.ts` — which is also what feeds the proven
   site. Proving the drive side is composed therefore leaves one reviewed line, not a class of
   failure.
 - **The end-to-end "wrote the expected bytes" assertion is DEFERRED, deliberately.**
