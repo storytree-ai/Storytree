@@ -91,7 +91,9 @@ function runCli(args: readonly string[], env: NodeJS.ProcessEnv): CliResult {
 /** Ambient env with every override this suite controls stripped, so the host machine cannot leak in.
  * `CLAUDE_CODE_SESSION_ID` joined the list when trace identity became the host context WINDOW
  * (`linked-session-context-arc-inc-30`): it is set on every process a Claude Code session spawns, so
- * leaving it would let the RUNNING session's id key a child's trace. */
+ * leaving it would let the RUNNING session's id key a child's trace. `CODEX_THREAD_ID` joined it when
+ * a Codex thread became an identity source too — Codex exports it to every shell command, so the
+ * same leak runs one harness over — and `CLAUDECODE` because it now DETECTS a harness. */
 function baseEnv(): NodeJS.ProcessEnv {
   const {
     STORYTREE_TRAVERSAL_DIR: _traceDir,
@@ -99,6 +101,8 @@ function baseEnv(): NodeJS.ProcessEnv {
     STORYTREE_SESSION_ID: _session,
     STORYTREE_TRAVERSAL: _toggle,
     CLAUDE_CODE_SESSION_ID: _window,
+    CODEX_THREAD_ID: _thread,
+    CLAUDECODE: _claudeMarker,
     ...rest
   } = process.env;
   return rest;

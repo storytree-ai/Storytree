@@ -72,6 +72,7 @@
  */
 
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import { describeClaimRuntime } from "@storytree/notice-board";
 
 import { decideClaimExit, releaseClaimWithNotice } from "./claim-release.js";
 
@@ -269,7 +270,7 @@ export function chainClaimRefusalBody(input: {
   return [
     `node "${input.refusedUnit}" — a member of story "${input.storyId}" — is already claimed by another live session. REFUSED (ADR-0121).`,
     "",
-    `held by:     ${input.heldBy.sessionId} (branch ${input.heldBy.branch})`,
+    `held by:     ${input.heldBy.sessionId} (${describeClaimRuntime(input.heldBy)}, branch ${input.heldBy.branch})`,
     `claimed at:  ${input.heldBy.claimedAt}`,
     `this chain wanted: ${input.requested.join(", ")}`,
     "",

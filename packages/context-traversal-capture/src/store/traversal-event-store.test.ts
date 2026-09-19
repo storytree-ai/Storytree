@@ -54,7 +54,14 @@ interface FakeRow {
   origin: string | null;
   cut_by: string | null;
   cut_for: string | null;
+  harness: string | null;
+  host: string | null;
   event: unknown;
+}
+
+/** A nullable text column's value, as the driver would store it. */
+function column(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
 }
 
 /**
@@ -72,6 +79,8 @@ export class FakeTraversalPool implements TraversalPool {
   readonly calls: string[] = [];
   /** The session ids the per-session SELECT was issued for, so a phantom id is observable. */
   readonly selectedSessionIds: string[] = [];
+  /** The parameters of every INSERT issued, so a test can assert what reached each POSITION. */
+  readonly insertParams: unknown[][] = [];
 
   async query(text: string, values: unknown[] = []): Promise<{ rows: unknown[] }> {
     this.calls.push(text);
@@ -81,6 +90,7 @@ export class FakeTraversalPool implements TraversalPool {
     }
 
     if (text.includes("INSERT INTO events.traversal_event")) {
+      this.insertParams.push([...values]);
       const eventId = String(values[0]);
       // ON CONFLICT (event_id) DO NOTHING — the idempotence a retry rests on.
       if (this.rows.some((row) => row.event_id === eventId)) return { rows: [] };
@@ -89,12 +99,15 @@ export class FakeTraversalPool implements TraversalPool {
         event_id: eventId,
         session_id: String(values[1]),
         observed_at: String(values[2]),
-        grade: values[3] === null || values[3] === undefined ? null : String(values[3]),
-        slot: values[4] === null || values[4] === undefined ? null : String(values[4]),
-        origin: values[5] === null || values[5] === undefined ? null : String(values[5]),
-        cut_by: values[6] === null || values[6] === undefined ? null : String(values[6]),
-        cut_for: values[7] === null || values[7] === undefined ? null : String(values[7]),
+        grade: column(values[3]),
+        slot: column(values[4]),
+        origin: column(values[5]),
+        cut_by: column(values[6]),
+        cut_for: column(values[7]),
         event: JSON.parse(String(values[8])),
+        // $10 and $11 — appended AFTER the event, exactly as `INSERT_EVENT_SQL` lists the columns.
+        harness: column(values[9]),
+        host: column(values[10]),
       });
       return { rows: [] };
     }
@@ -121,6 +134,8 @@ export class FakeTraversalPool implements TraversalPool {
             origin: row.origin,
             cutBy: row.cut_by,
             cutFor: row.cut_for,
+            harness: row.harness,
+            host: row.host,
           })),
       };
     }
@@ -143,6 +158,8 @@ export class FakeTraversalPool implements TraversalPool {
       origin?: string | null;
       cutBy?: string | null;
       cutFor?: string | null;
+      harness?: string | null;
+      host?: string | null;
     },
   ): void {
     const row = this.rows.find((candidate) => candidate.event_id === eventId);
@@ -152,6 +169,8 @@ export class FakeTraversalPool implements TraversalPool {
     if (columns.origin !== undefined) row.origin = columns.origin;
     if (columns.cutBy !== undefined) row.cut_by = columns.cutBy;
     if (columns.cutFor !== undefined) row.cut_for = columns.cutFor;
+    if (columns.harness !== undefined) row.harness = columns.harness;
+    if (columns.host !== undefined) row.host = columns.host;
   }
 }
 
@@ -165,6 +184,8 @@ export function jsonlTraversalEventStore(dir: string): TraversalEventStore {
       if (location.origin !== undefined) sink = { ...sink, origin: location.origin };
       if (location.cutBy !== undefined) sink = { ...sink, cutBy: location.cutBy };
       if (location.cutFor !== undefined) sink = { ...sink, cutFor: location.cutFor };
+      if (location.harness !== undefined) sink = { ...sink, harness: location.harness };
+      if (location.host !== undefined) sink = { ...sink, host: location.host };
       return appendTraversalEvents(events, sink);
     },
     read: async (sessionId: string) => readTraversalSession({ dir, sessionId }),
@@ -351,6 +372,59 @@ async function sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(
   assert.equal((await contradictory.read("s-both")).origin.reading, "mixed");
 }
 
+/**
+ * WHICH HARNESS AND WHICH MACHINE wrote the session, held over BOTH backends.
+ *
+ * Parity matters here for the reason it matters for the origin: the shared store is where a
+ * cross-machine reading is taken, so a Postgres backend that dropped either attribute would leave
+ * exactly the question these exist to answer — "which box, which harness?" — unanswerable where it is
+ * asked, while the local trace that nobody queries across machines kept it and looked fine.
+ */
+async function lineProvenanceIsCarriedAndAnUnrecordedOneReadsAsNone(
+  makeStore: () => TraversalEventStore,
+): Promise<void> {
+  const stamped = makeStore();
+  await stamped.append(
+    [
+      visit({ eventId: "p1", at: "2026-09-18T00:00:00.000Z", sessionId: "s-prov", visitId: "v1", nodeId: "n" }),
+      visit({ eventId: "p2", at: "2026-09-18T00:00:01.000Z", sessionId: "s-prov", visitId: "v2", nodeId: "n" }),
+    ],
+    { sessionId: "s-prov", grade: "window", harness: "codex", host: "owner-laptop" },
+  );
+  await stamped.append(
+    [visit({ eventId: "p3", at: "2026-09-18T00:00:02.000Z", sessionId: "s-prov", visitId: "v3", nodeId: "n" })],
+    { sessionId: "s-prov", grade: "declared", harness: "claude-code", host: "mint-box" },
+  );
+  // A repeat of the first pair must not be listed twice, and an unrecorded append adds nothing.
+  await stamped.append(
+    [visit({ eventId: "p4", at: "2026-09-18T00:00:03.000Z", sessionId: "s-prov", visitId: "v4", nodeId: "n" })],
+    { sessionId: "s-prov", harness: "codex", host: "owner-laptop" },
+  );
+  await stamped.append(
+    [visit({ eventId: "p5", at: "2026-09-18T00:00:04.000Z", sessionId: "s-prov", visitId: "v5", nodeId: "n" })],
+    { sessionId: "s-prov", host: null },
+  );
+
+  const read = await stamped.read("s-prov");
+  assert.equal(read.replay.events.length, 5);
+  assert.deepEqual(read.harnesses, ["codex", "claude-code"]);
+  assert.deepEqual(read.hosts, ["owner-laptop", "mint-box"]);
+  // ...and it reaches the INDEX row too, which is where a cross-session reading is taken.
+  const [row] = await stamped.list();
+  assert.deepEqual(row?.harnesses, ["codex", "claude-code"]);
+  assert.deepEqual(row?.hosts, ["owner-laptop", "mint-box"]);
+
+  const unrecorded = makeStore();
+  await unrecorded.append(
+    [visit({ eventId: "u1", at: "2026-09-18T00:00:00.000Z", sessionId: "s-bare", visitId: "v1", nodeId: "n" })],
+    { sessionId: "s-bare", grade: "window", slot: "worktree-alpha" },
+  );
+  const bare = await unrecorded.read("s-bare");
+  assert.equal(bare.replay.events.length, 1);
+  assert.deepEqual(bare.harnesses, [], "an unrecorded harness is none, never a default");
+  assert.deepEqual(bare.hosts, []);
+}
+
 async function listReportsEachSessionOnce(store: TraversalEventStore): Promise<void> {
   await store.append(
     [
@@ -411,6 +485,11 @@ test("session-origin-is-carried-and-an-unstated-origin-is-never-human [jsonl]: d
   sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(jsonl));
 test("session-origin-is-carried-and-an-unstated-origin-is-never-human [postgres]: declared, undeclared, late and contradictory", () =>
   sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(postgres));
+
+test("line-provenance-is-carried-and-an-unrecorded-one-reads-as-none [jsonl]: which harness and which machine wrote it", () =>
+  lineProvenanceIsCarriedAndAnUnrecordedOneReadsAsNone(jsonl));
+test("line-provenance-is-carried-and-an-unrecorded-one-reads-as-none [postgres]: which harness and which machine wrote it", () =>
+  lineProvenanceIsCarriedAndAnUnrecordedOneReadsAsNone(postgres));
 
 test("list-reports-each-session-once-with-its-count-and-last-observed-time [jsonl]: one row per session", () =>
   listReportsEachSessionOnce(jsonl()));
@@ -484,6 +563,78 @@ test("an-append-with-no-identity-stores-nulls-not-strings: an unstated grade is 
   );
   assert.equal(pool.rows[0]?.grade, null);
   assert.equal(pool.rows[0]?.slot, null);
+  // An unrecorded harness and machine are NULL columns — "unrecorded", never an empty string a
+  // reader could quote back as a harness or a box.
+  assert.equal(pool.rows[0]?.harness, null);
+  assert.equal(pool.rows[0]?.host, null);
+});
+
+test("an-append-carries-the-harness-and-host-in-the-parameter-positions-the-insert-names: $10 and $11, after the event", async () => {
+  const pool = new FakeTraversalPool();
+  const store = new PgTraversalEventStore(pool);
+  const event = visit({ eventId: "prov", at: "2026-09-18T00:00:00.000Z", sessionId: "s-prov", visitId: "v", nodeId: "n" });
+  await store.append([event], {
+    sessionId: "s-prov",
+    grade: "window",
+    slot: "worktree-alpha",
+    origin: "cut",
+    cutBy: "parent-window",
+    cutFor: "some-arc",
+    harness: "codex",
+    host: "owner-laptop",
+  });
+
+  // EVERY position, so a parameter slotted in the wrong place — the harness where the event belongs,
+  // say — shows here rather than as a row the live INSERT would reject. The event ($9) is compared by
+  // VALUE: it is serialised after the vocabulary's parse, which fixes its own key order.
+  assert.equal(pool.insertParams.length, 1);
+  const [params] = pool.insertParams;
+  assert.deepEqual(params?.slice(0, 8), [
+    "prov",
+    "s-prov",
+    "2026-09-18T00:00:00.000Z",
+    "window",
+    "worktree-alpha",
+    "cut",
+    "parent-window",
+    "some-arc",
+  ]);
+  assert.deepEqual(JSON.parse(String(params?.[8])), event);
+  assert.deepEqual(params?.slice(9), ["codex", "owner-laptop"]);
+  assert.equal(params?.length, 11);
+  // ...and the ROW the double built from them, so what the reader reads back is what was sent.
+  assert.equal(pool.rows[0]?.harness, "codex");
+  assert.equal(pool.rows[0]?.host, "owner-laptop");
+
+  // An unrecorded pair is sent as NULLs in the same two positions, never dropped from the list.
+  await store.append(
+    [visit({ eventId: "prov-bare", at: "2026-09-18T00:00:01.000Z", sessionId: "s-prov", visitId: "v2", nodeId: "n" })],
+    { sessionId: "s-prov" },
+  );
+  assert.deepEqual(pool.insertParams[1]?.slice(9), [null, null]);
+  assert.equal(pool.insertParams[1]?.length, 11);
+});
+
+test("a-row-with-an-unrecognised-harness-or-an-empty-host-reads-as-unrecorded: the event still lands", async () => {
+  const pool = new FakeTraversalPool();
+  const store = new PgTraversalEventStore(pool);
+  await store.append(
+    [
+      visit({ eventId: "odd-1", at: "2026-09-18T00:00:00.000Z", sessionId: "s-odd", visitId: "v1", nodeId: "n" }),
+      visit({ eventId: "odd-2", at: "2026-09-18T00:00:01.000Z", sessionId: "s-odd", visitId: "v2", nodeId: "n" }),
+    ],
+    { sessionId: "s-odd", harness: "codex", host: "owner-laptop" },
+  );
+  // A harness this reader does not know and a host that names nothing — a newer writer, or a
+  // hand-edited row. Neither may cost the event, and neither may be coerced into a value.
+  pool.restamp("odd-1", { harness: "gemini", host: "" });
+  pool.restamp("odd-2", { harness: null, host: null });
+
+  const read = await store.read("s-odd");
+  assert.equal(read.replay.events.length, 2, "an unusable attribute must never cost the event");
+  assert.equal(read.skipped, 0);
+  assert.deepEqual(read.harnesses, []);
+  assert.deepEqual(read.hosts, []);
 });
 
 test("a-row-whose-payload-no-longer-parses-is-skipped-and-counted: honestly partial, never thrown on", async () => {
@@ -591,6 +742,8 @@ test("the-session-list-ignores-a-row-that-does-not-name-a-session: a projection 
     origin: null,
     cut_by: null,
     cut_for: null,
+    harness: null,
+    host: null,
     event: {},
   });
 
@@ -637,6 +790,8 @@ test("the-visit-identity-dedups-independently-of-the-event-identity: two rows, t
     origin: null,
     cut_by: null,
     cut_for: null,
+    harness: null,
+    host: null,
     event: visit({ eventId: "same", at: "2026-08-30T00:00:01.000Z", sessionId: "s-event", visitId: "v2", nodeId: "n" }),
   });
   const byEvent = await otherStore.read("s-event");

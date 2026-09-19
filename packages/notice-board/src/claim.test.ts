@@ -268,6 +268,113 @@ test("claimRole: an unrecognised intent falls through to supplementing, never a 
   assert.equal(claimRole(ClaimDoc.parse(sample())), "proving", "sample()'s intent is 'real'");
 });
 
+// ── who took it, and where: the claiming process's harness + host ─────────────
+
+import {
+  ClaimHarness,
+  ClaimHost,
+  describeClaimRuntime,
+  normalizeClaimHost,
+  resolveClaimHarness,
+} from "./claim.js";
+
+test("resolveClaimHarness: the precedence table — claude session id, then codex thread id, then the CLAUDECODE marker", () => {
+  // Each row is one process environment; the harness is DETECTED from it, never declared.
+  const rows: Array<[Record<string, string | undefined>, ReturnType<typeof resolveClaimHarness>, string]> = [
+    [{ CODEX_THREAD_ID: "019a2b-thread" }, "codex", "Codex alone"],
+    [{ CLAUDE_CODE_SESSION_ID: "e1b5a64c-55d7" }, "claude-code", "Claude Code alone"],
+    [
+      { CLAUDE_CODE_SESSION_ID: "e1b5a64c-55d7", CODEX_THREAD_ID: "019a2b-thread" },
+      "claude-code",
+      "both session ids: rule 1 outranks rule 2",
+    ],
+    [{ CLAUDECODE: "1" }, "claude-code", "the child-process marker on its own"],
+    [
+      { CODEX_THREAD_ID: "019a2b-thread", CLAUDECODE: "1" },
+      "codex",
+      "a codex thread id outranks the bare marker: rule 2 before rule 3",
+    ],
+    [{ CLAUDECODE: "0" }, null, "the marker counts only as exactly 1"],
+    [{ CLAUDECODE: "true" }, null, "…not as any truthy-looking word"],
+    [{ CLAUDECODE: "11" }, null, "…and not as a string that merely contains 1"],
+    [{ CLAUDECODE: " 1\n" }, "claude-code", "values are trimmed before they are read"],
+    [{}, null, "no recognised harness"],
+    [{ CODEX_HOME: "C:/Users/me/.codex", CLAUDE_CONFIG_DIR: "C:/cfg" }, null, "neighbouring variables are not the markers"],
+  ];
+  for (const [env, expected, why] of rows) {
+    assert.equal(resolveClaimHarness(env), expected, why);
+  }
+});
+
+test("resolveClaimHarness: a BLANK value is an absent one — it never selects a harness, and never masks the next rule", () => {
+  assert.equal(resolveClaimHarness({ CLAUDE_CODE_SESSION_ID: "" }), null);
+  assert.equal(resolveClaimHarness({ CLAUDE_CODE_SESSION_ID: "   " }), null);
+  assert.equal(resolveClaimHarness({ CODEX_THREAD_ID: " \t " }), null);
+  assert.equal(resolveClaimHarness({ CLAUDECODE: "  " }), null);
+  assert.equal(resolveClaimHarness({ CLAUDE_CODE_SESSION_ID: undefined, CODEX_THREAD_ID: undefined }), null);
+  // A blank claude id falls THROUGH to the codex rule rather than claiming claude-code.
+  assert.equal(resolveClaimHarness({ CLAUDE_CODE_SESSION_ID: "  ", CODEX_THREAD_ID: "t-1" }), "codex");
+  // …and a blank codex id falls through to the marker.
+  assert.equal(resolveClaimHarness({ CODEX_THREAD_ID: "", CLAUDECODE: "1" }), "claude-code");
+});
+
+test("normalizeClaimHost: trimmed, and null — never '' — when absent or blank", () => {
+  assert.equal(normalizeClaimHost("MicksMSpro"), "MicksMSpro");
+  assert.equal(normalizeClaimHost("  mint\n"), "mint");
+  assert.equal(normalizeClaimHost(""), null);
+  assert.equal(normalizeClaimHost("   "), null);
+  assert.equal(normalizeClaimHost(null), null);
+  assert.equal(normalizeClaimHost(undefined), null);
+});
+
+test("ClaimHarness: exactly the two harnesses — anything else is refused, the leaf runtimes included", () => {
+  assert.equal(ClaimHarness.parse("claude-code"), "claude-code");
+  assert.equal(ClaimHarness.parse("codex"), "codex");
+  for (const bad of ["claude", "Claude-Code", "pi", "cursor", ""]) {
+    assert.throws(() => ClaimHarness.parse(bad), `${JSON.stringify(bad)} is not a harness`);
+  }
+});
+
+test("ClaimHost: a non-blank hostname, refused when blank", () => {
+  assert.equal(ClaimHost.parse("MicksMSpro"), "MicksMSpro");
+  assert.throws(() => ClaimHost.parse(""), /non-blank/);
+  assert.throws(() => ClaimHost.parse("  "), /non-blank/);
+});
+
+test("ClaimDoc: harness and host are OPTIONAL — present they parse, absent they stay absent (an unrecorded row)", () => {
+  const recorded = ClaimDoc.parse({ ...sample(), harness: "codex", host: "MicksMSpro" });
+  assert.equal(recorded.harness, "codex");
+  assert.equal(recorded.host, "MicksMSpro");
+
+  // `sample()` carries neither — exactly the shape of every row taken before they were recorded.
+  const unrecorded = ClaimDoc.parse(sample());
+  assert.equal(unrecorded.harness, undefined, "no invented default: absent means unrecorded");
+  assert.equal(unrecorded.host, undefined);
+  assert.ok(!("harness" in unrecorded) && !("host" in unrecorded), "not even an undefined-valued key");
+});
+
+test("ClaimDoc: a harness outside the vocabulary and a blank host are REFUSED, never stored", () => {
+  assert.throws(() => ClaimDoc.parse({ ...sample(), harness: "cursor" }));
+  assert.throws(() => ClaimDoc.parse({ ...sample(), harness: "" }));
+  assert.throws(() => ClaimDoc.parse({ ...sample(), host: "" }), /non-blank/);
+  assert.throws(() => ClaimDoc.parse({ ...sample(), host: " \t" }), /non-blank/);
+});
+
+test("describeClaimRuntime: every combination says what is known and names what is not — never '' and never a guess", () => {
+  assert.equal(describeClaimRuntime({ harness: "codex", host: "MicksMSpro" }), "codex on MicksMSpro");
+  assert.equal(describeClaimRuntime({ harness: "claude-code", host: "mint" }), "claude-code on mint");
+  assert.equal(describeClaimRuntime({ host: "MicksMSpro" }), "harness not recorded, on MicksMSpro");
+  assert.equal(describeClaimRuntime({ harness: "codex" }), "codex, host not recorded");
+  assert.equal(describeClaimRuntime({ harness: "claude-code" }), "claude-code, host not recorded");
+  assert.equal(describeClaimRuntime({}), "harness and host not recorded");
+});
+
+test("describeClaimRuntime: a blank host is an UNRECORDED one — it can never render as 'codex on '", () => {
+  assert.equal(describeClaimRuntime({ harness: "codex", host: "  " }), "codex, host not recorded");
+  assert.equal(describeClaimRuntime({ host: "" }), "harness and host not recorded");
+  assert.equal(describeClaimRuntime({ harness: "codex", host: " mint " }), "codex on mint", "trimmed as recorded");
+});
+
 // ── claim grades (ADR-0200 D2): exploring / waiting / work on the one ledger ──
 
 test("ClaimGrade: accepts exactly the three grades, refuses anything else", () => {
@@ -564,6 +671,115 @@ test("groupClaimsBySession: empty in, empty out; deterministic session tie-break
     now,
   );
   assert.deepEqual(groups.map((g) => g.sessionId), ["aa-first", "zz-later"], "equal oldest ages tie-break alphabetically");
+});
+
+// ── groupClaimsBySession: the session's DISTINCT harness/host pairs ──────────
+
+test("groupClaimsBySession: one runtime across a session's claims is listed ONCE", () => {
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "cap-a", sessionId: "s1", grade: "work", harness: "codex", host: "MicksMSpro", claimedAt: "2026-09-18T10:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "s1", grade: "exploring", harness: "codex", host: "MicksMSpro", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.deepEqual(groups[0]?.runtimes, [{ harness: "codex", host: "MicksMSpro" }]);
+});
+
+test("groupClaimsBySession: ONE session id on TWO hosts shows BOTH — the cross-machine collision is never folded away", () => {
+  // The collision a later increment has to decide about: a worktree name is unique within one clone
+  // and nothing keeps it unique across machines. Collapsing it here would make it undecidable.
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "cap-a", sessionId: "storytree7", grade: "work", harness: "codex", host: "MicksMSpro", claimedAt: "2026-09-18T10:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "storytree7", grade: "work", harness: "codex", host: "mint", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.equal(groups.length, 1, "still ONE session — the id is what the ledger keys on");
+  assert.deepEqual(groups[0]?.runtimes, [
+    { harness: "codex", host: "MicksMSpro" },
+    { harness: "codex", host: "mint" },
+  ]);
+});
+
+test("groupClaimsBySession: one host under TWO harnesses is two pairs too — a pair is harness AND host", () => {
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "cap-a", sessionId: "s1", grade: "work", harness: "claude-code", host: "MicksMSpro", claimedAt: "2026-09-18T10:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "s1", grade: "work", harness: "codex", host: "MicksMSpro", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.deepEqual(groups[0]?.runtimes, [
+    { harness: "claude-code", host: "MicksMSpro" },
+    { harness: "codex", host: "MicksMSpro" },
+  ]);
+});
+
+test("groupClaimsBySession: an UNRECORDED row is listed as itself — never merged into a recorded pair", () => {
+  // Merging it would infer, backwards, that the old row ran where the new one did — the one thing
+  // the owner ruled out. Its absent halves stay ABSENT keys, not undefined-valued ones.
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "cap-a", sessionId: "s1", grade: "work", harness: "claude-code", host: "MicksMSpro", claimedAt: "2026-09-18T10:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "s1", grade: "work", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-c", sessionId: "s1", grade: "work", host: "mint", claimedAt: "2026-09-18T11:10:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-d", sessionId: "s1", grade: "work", harness: "codex", claimedAt: "2026-09-18T11:20:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.deepEqual(groups[0]?.runtimes, [
+    { harness: "claude-code", host: "MicksMSpro" },
+    {},
+    { host: "mint" },
+    { harness: "codex" },
+  ]);
+});
+
+test("groupClaimsBySession: runtimes are first-seen in the FOLD's order (work before exploring), not the input's", () => {
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      // Listed first and claimed first — but exploring, so the fold renders it second.
+      sample({ unitId: "cap-a", sessionId: "s1", grade: "exploring", harness: "codex", host: "mint", claimedAt: "2026-09-18T09:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "s1", grade: "work", harness: "claude-code", host: "MicksMSpro", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.deepEqual(groups[0]?.claims.map((c) => c.unitId), ["cap-b", "cap-a"], "precondition: the fold's order");
+  assert.deepEqual(groups[0]?.runtimes, [
+    { harness: "claude-code", host: "MicksMSpro" },
+    { harness: "codex", host: "mint" },
+  ]);
+});
+
+test("groupClaimsBySession: each session's runtimes are its own — nothing bleeds across groups", () => {
+  const now = new Date("2026-09-18T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "cap-a", sessionId: "laptop-wt", grade: "work", harness: "codex", host: "MicksMSpro", claimedAt: "2026-09-18T10:00:00.000Z", heartbeatAt: fresh }),
+      sample({ unitId: "cap-b", sessionId: "mint-wt", grade: "work", harness: "claude-code", host: "mint", claimedAt: "2026-09-18T11:00:00.000Z", heartbeatAt: fresh }),
+    ],
+    now,
+  );
+  assert.deepEqual(
+    groups.map((g) => [g.sessionId, g.runtimes]),
+    [
+      ["laptop-wt", [{ harness: "codex", host: "MicksMSpro" }]],
+      ["mint-wt", [{ harness: "claude-code", host: "mint" }]],
+    ],
+  );
 });
 
 // ── digestOverlapDeltas (ADR-0200 D4): the pure cursor-once delta digest ──────

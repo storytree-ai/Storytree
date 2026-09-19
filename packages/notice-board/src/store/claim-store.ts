@@ -1,8 +1,14 @@
+import { hostname } from "node:os";
+
 import {
   ClaimDoc,
   ClaimGrade,
+  ClaimHarness,
+  ClaimHost,
   ClaimRole,
   isReclaimable,
+  normalizeClaimHost,
+  resolveClaimHarness,
   CLAIM_STALE_RECLAIM_MS,
   type ActivityStamp,
   type BranchActivityStamp,
@@ -10,6 +16,7 @@ import {
   type ClaimDeparture,
   type ClaimDocT,
   type ClaimGradeT,
+  type ClaimHarnessT,
   type ClaimRequest,
   type ClaimResult,
   type OverlapDelta,
@@ -47,6 +54,22 @@ import type { ClaimAuditQuery, ClaimAuditRow } from "../claim-history.js";
  * still-live `waiting` row (order by `claimed_at`, staleness skipped by heartbeat — the SQL mirror
  * of the pure `oldestLiveWaiter`) and flips it to `grade='work'` IN THE SAME TRANSACTION, audited
  * `promoted`. The freed slot is never observable as empty while a live waiter queues.
+ *
+ * WHO TOOK IT, AND WHERE (`harness` / `host`). A claim records the agent harness and the MACHINE of
+ * the process that took it, and the STORE stamps them — detected from the process doing the write
+ * ({@link ClaimStoreOptions.runtime}), or a request's explicit override — because six producers take
+ * claims and a field every one of them must remember is a field one of them forgets. Which writes
+ * stamp is a policy, applied per statement:
+ *   - STAMPED: every row the store INSERTS (claim, take, the waiting-line join, upgrade's take), and
+ *     a session re-taking or upgrading its OWN row — that session's process is doing the write.
+ *   - PRESERVED: every write made on ANOTHER session's behalf or that is not a take. Promotion runs
+ *     inside the RELEASER's transaction but the row is the waiter's; downgrade, the two activity
+ *     stamps and the heartbeat bump change liveness or grade, not who holds it; the refused-take
+ *     restore is an undo, verbatim; and a release deletes. So every `claim_event` doc carries the
+ *     values of the claim it describes — a refusal's the BLOCKER's, a promotion's the WAITER's —
+ *     and never the actor's.
+ * NULL in either column means UNRECORDED: every row taken before they existed, and every row whose
+ * writer detected nothing. Nothing here, or anywhere, back-fills it.
  *
  * The structural seams are duck-typed so the offline test injects a `FakePool` without `pg` types,
  * exactly like the presence store.
@@ -97,6 +120,10 @@ interface ClaimRow {
    * caller took without naming one — {@link rowToDoc} leaves the doc field absent, and `claimRole`
    * derives it from `intent`. Optional at the type level for the pre-split fixtures too. */
   role?: string | null;
+  /** The claiming process's harness and MACHINE hostname. NULL = unrecorded (see the class header);
+   * {@link rowToDoc} then leaves the doc field absent. Optional at the type level for older fixtures. */
+  harness?: string | null;
+  host?: string | null;
   claimed_at: Date | string;
   heartbeat_at: Date | string;
 }
@@ -121,12 +148,32 @@ function rowToDoc(row: ClaimRow): ClaimDocT {
   // `claimRole()` derives it from `intent`, rather than being invented here where the derivation
   // would then live in two places. A present one is validated fail-closed, like grade.
   if (row.role !== undefined && row.role !== null) doc.role = ClaimRole.parse(row.role);
+  // Harness and host are PROVENANCE, not semantics, so they deliberately do NOT follow grade and
+  // role's fail-closed parse. NULL is an UNRECORDED row and stays off the doc (so
+  // `describeClaimRuntime` says "not recorded" instead of this function guessing) — and so does a
+  // value this reader does not recognise. Nothing any fence decides reads either field, while this
+  // mapping runs INSIDE the take transaction on rows other sessions wrote: the harness vocabulary is
+  // expected to grow, and a strict parse would let one newer checkout's word stop every older
+  // session from claiming — or even listing — any unit that session holds. The trace reader degrades
+  // an unknown harness the same way (`.catch(undefined)` in `context-traversal-capture`).
+  const harness = ClaimHarness.safeParse(row.harness);
+  if (harness.success) doc.harness = harness.data;
+  const host = ClaimHost.safeParse(row.host);
+  if (host.success) doc.host = host.data;
   return doc;
 }
 
 /** The row's effective grade — `work` when absent, mirroring {@link claimGrade}. */
 function rowGrade(row: ClaimRow): ClaimGradeT {
   return row.grade === undefined ? "work" : ClaimGrade.parse(row.grade);
+}
+
+/**
+ * A validated take's three NULLABLE columns as the SQL binds them: `null`, never `""`, for an absent
+ * one — every one of them reads back through a fail-closed parse, and `""` is a member of none.
+ */
+function nullableColumns(doc: ClaimDocT) {
+  return { role: doc.role ?? null, harness: doc.harness ?? null, host: doc.host ?? null };
 }
 
 /** One row from the delta read over `events.claim_event` (ADR-0200 D4). */
@@ -162,7 +209,7 @@ function rowToDelta(row: DeltaRow): OverlapDelta {
 }
 
 const CLAIM_COLUMNS =
-  "unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at";
+  "unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at";
 
 /**
  * {@link CLAIM_COLUMNS} qualified to the claim table's alias `c` — required by any statement that
@@ -221,13 +268,44 @@ export interface UpgradeOptions extends ClaimOptions {
   intent?: string;
 }
 
+/**
+ * The claiming process as a stamping write records it: the agent harness it runs under and the
+ * hostname of the MACHINE it runs on. `null` in either = not detected, written as SQL NULL — the
+ * unrecorded state, never a guess.
+ */
+export interface ClaimRuntimeReading {
+  harness: ClaimHarnessT | null;
+  host: string | null;
+}
+
+/** Construction options for {@link PgClaimStore}. */
+export interface ClaimStoreOptions {
+  /**
+   * Reads the claiming process's harness and host — called on each stamping write, never on a read.
+   * Defaults to {@link processClaimRuntime}. A test injects a fixed reading so the SQL parameters it
+   * asserts on do not depend on the harness and machine it happens to run under.
+   */
+  runtime?: () => ClaimRuntimeReading;
+}
+
+/**
+ * The DEFAULT runtime reading: THIS process's environment ({@link resolveClaimHarness}) and THIS
+ * machine's hostname (`os.hostname()`, via {@link normalizeClaimHost}). What production stamps, so
+ * a claim's harness and host are detected from the process that wrote it and declared by nobody.
+ */
+export function processClaimRuntime(): ClaimRuntimeReading {
+  return { harness: resolveClaimHarness(process.env), host: normalizeClaimHost(hostname()) };
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export class PgClaimStore {
   readonly #pool: ClaimPool;
+  readonly #runtime: () => ClaimRuntimeReading;
 
-  constructor(pool: ClaimPool) {
+  constructor(pool: ClaimPool, opts: ClaimStoreOptions = {}) {
     this.#pool = pool;
+    this.#runtime = opts.runtime ?? processClaimRuntime;
   }
 
   /**
@@ -255,10 +333,11 @@ export class PgClaimStore {
       heartbeatAt: now.toISOString(),
     };
     if (req.role !== undefined) draft.role = req.role;
+    this.#stampDraft(draft, req);
     const candidate = ClaimDoc.parse(draft);
     // NULL, not "": the column's absent state means "derive from intent" (ADR-0346 D3), and an
     // empty string is not a member of the role enum — it would fail-close rowToDoc on the next read.
-    const role = candidate.role ?? null;
+    const { role, harness, host } = nullableColumns(candidate);
 
     const client = await this.#pool.connect();
     try {
@@ -278,7 +357,7 @@ export class PgClaimStore {
         existing.session_id !== candidate.sessionId &&
         !isReclaimable({ heartbeatAt: toIso(existing.heartbeat_at) }, now, staleMs)
       ) {
-        const refused = await this.#refuse(client, candidate, role, rowToDoc(existing), opts);
+        const refused = await this.#refuse(client, candidate, rowToDoc(existing), opts);
         await client.query("COMMIT");
         return refused;
       }
@@ -306,11 +385,11 @@ export class PgClaimStore {
         // INSERT. 0 returned rows = we lost that race → restore our folded shared row (the wisp
         // must not vanish as collateral of a refused take), re-read the winner, and refuse.
         const ins = await client.query(
-          `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
-           VALUES ($1, $2, 'work', $3, $4, $5, now(), now())
+          `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at)
+           VALUES ($1, $2, 'work', $3, $4, $5, $6, $7, now(), now())
            ON CONFLICT (unit_id) WHERE grade = 'work' DO NOTHING
            RETURNING ${CLAIM_COLUMNS}`,
-          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role],
+          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role, harness, host],
         );
         acquiredRow = (ins.rows as ClaimRow[])[0];
         if (acquiredRow === undefined) {
@@ -322,7 +401,7 @@ export class PgClaimStore {
           const heldBy = rowToDoc((winner.rows as ClaimRow[])[0] as ClaimRow);
           // The restore above puts our shared row back before #refuse may flip it to `waiting` —
           // order matters: a queued session must end this transaction holding exactly ONE row.
-          const refused = await this.#refuse(client, candidate, role, heldBy, opts);
+          const refused = await this.#refuse(client, candidate, heldBy, opts);
           await client.query("COMMIT");
           return refused;
         }
@@ -330,16 +409,17 @@ export class PgClaimStore {
       } else {
         // Re-entrant (same session) OR reclaim (stale other session): take/refresh ownership.
         // The UPDATE keys on THE work row (unit + grade), not the composite PK — a reclaim flips
-        // its session_id to ours (PK slot freed by the fold above).
+        // its session_id to ours (PK slot freed by the fold above). Both arms STAMP harness/host:
+        // either way the row is now this session's, and this process is the one writing it.
         reclaimed = existing.session_id !== candidate.sessionId;
         eventType = reclaimed ? "reclaimed" : "claimed";
         const upd = await client.query(
           `UPDATE events.node_claim
-             SET session_id = $2, branch = $3, intent = $4, role = $5,
+             SET session_id = $2, branch = $3, intent = $4, role = $5, harness = $6, host = $7,
                  claimed_at = now(), heartbeat_at = now()
            WHERE unit_id = $1 AND grade = 'work'
            RETURNING ${CLAIM_COLUMNS}`,
-          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role],
+          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role, harness, host],
         );
         acquiredRow = (upd.rows as ClaimRow[])[0];
       }
@@ -398,32 +478,31 @@ export class PgClaimStore {
       heartbeatAt: now.toISOString(),
     };
     if (req.role !== undefined) draft.role = req.role;
+    this.#stampDraft(draft, req);
     const candidate = ClaimDoc.parse(draft);
+    const { role, harness, host } = nullableColumns(candidate);
 
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
+      // The upsert's UPDATE arm is this SAME session re-taking its own row, so it stamps harness
+      // and host like the insert does — including over a work row it keeps (a plain refresh).
       const ins = await client.query(
-        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
-         VALUES ($1, $2, $3, $4, $5, $6, now(), now())
+        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())
          ON CONFLICT (unit_id, session_id) DO UPDATE
            SET grade = CASE WHEN events.node_claim.grade = 'work'
                             THEN events.node_claim.grade ELSE EXCLUDED.grade END,
                branch = EXCLUDED.branch,
                intent = EXCLUDED.intent,
                role = EXCLUDED.role,
+               harness = EXCLUDED.harness,
+               host = EXCLUDED.host,
                claimed_at = CASE WHEN events.node_claim.grade IN (EXCLUDED.grade, 'work')
                                  THEN events.node_claim.claimed_at ELSE now() END,
                heartbeat_at = now()
          RETURNING ${CLAIM_COLUMNS}`,
-        [
-          candidate.unitId,
-          candidate.sessionId,
-          grade,
-          candidate.branch,
-          candidate.intent,
-          candidate.role ?? null,
-        ],
+        [candidate.unitId, candidate.sessionId, grade, candidate.branch, candidate.intent, role, harness, host],
       );
       const claim = rowToDoc((ins.rows as ClaimRow[])[0] as ClaimRow);
       const eventSeq = await this.#appendEvent(
@@ -464,6 +543,10 @@ export class PgClaimStore {
   async upgrade(unitId: string, sessionId: string, opts: UpgradeOptions = {}): Promise<ClaimResult> {
     const now = opts.now ?? new Date();
     const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
+    // Every write below is this session taking a row FOR ITSELF, so each stamps who and where — the
+    // opposite of `role` below, which is inherited: an upgrade changes what grade a claim holds,
+    // never what its holder is doing, but it is always this process doing the writing.
+    const stamp = this.#stamp({});
 
     const client = await this.#pool.connect();
     try {
@@ -501,10 +584,10 @@ export class PgClaimStore {
       if (existing !== undefined && existing.session_id === sessionId) {
         const upd = await client.query(
           `UPDATE events.node_claim
-             SET branch = $2, intent = $3, claimed_at = now(), heartbeat_at = now()
+             SET branch = $2, intent = $3, harness = $4, host = $5, claimed_at = now(), heartbeat_at = now()
            WHERE unit_id = $1 AND grade = 'work'
            RETURNING ${CLAIM_COLUMNS}`,
-          [unitId, branch, intent],
+          [unitId, branch, intent, stamp.harness, stamp.host],
         );
         const claim = rowToDoc((upd.rows as ClaimRow[])[0] as ClaimRow);
         await this.#appendEvent(client, unitId, "upgraded", sessionId, claim);
@@ -518,7 +601,7 @@ export class PgClaimStore {
         !isReclaimable({ heartbeatAt: toIso(existing.heartbeat_at) }, now, staleMs)
       ) {
         const heldBy = rowToDoc(existing);
-        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role);
+        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role, stamp);
         await this.#appendEvent(client, unitId, "queued", sessionId, waiting);
         await client.query("COMMIT");
         return { acquired: false, queued: true, waiting, heldBy };
@@ -544,11 +627,11 @@ export class PgClaimStore {
         );
       }
       const ins = await client.query(
-        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
-         VALUES ($1, $2, 'work', $3, $4, $5, now(), now())
+        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at)
+         VALUES ($1, $2, 'work', $3, $4, $5, $6, $7, now(), now())
          ON CONFLICT (unit_id) WHERE grade = 'work' DO NOTHING
          RETURNING ${CLAIM_COLUMNS}`,
-        [unitId, sessionId, branch, intent, role],
+        [unitId, sessionId, branch, intent, role, stamp.harness, stamp.host],
       );
       const acquiredRow = (ins.rows as ClaimRow[])[0];
       if (acquiredRow === undefined) {
@@ -559,7 +642,7 @@ export class PgClaimStore {
           [unitId],
         );
         const heldBy = rowToDoc((winner.rows as ClaimRow[])[0] as ClaimRow);
-        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role);
+        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role, stamp);
         await this.#appendEvent(client, unitId, "queued", sessionId, waiting);
         await client.query("COMMIT");
         return { acquired: false, queued: true, waiting, heldBy };
@@ -601,6 +684,8 @@ export class PgClaimStore {
         return false;
       }
       const wasWork = rowGrade(own) === "work";
+      // harness/host deliberately untouched: a downgrade is not a take, so the row keeps saying
+      // which process took it (the class header's PRESERVED list).
       const upd = await client.query(
         `UPDATE events.node_claim
            SET grade = $3,
@@ -1205,7 +1290,9 @@ export class PgClaimStore {
    * row otherwise — fail-closed, never a silent double-holder). `claimed_at` restamps to now (the
    * work claim starts at promotion); `heartbeat_at` is deliberately untouched — liveness is the
    * session's OWN signal (ADR-0200 D5), promotion must not forge a beat for a session that may
-   * have died since it queued. No-op (returns undefined) when no live waiter remains.
+   * have died since it queued. `harness`/`host` are untouched for the same reason: this runs in the
+   * RELEASER's transaction, so stamping here would record the releaser's process as the one that
+   * took the waiter's claim. No-op (returns undefined) when no live waiter remains.
    */
   async #promoteOldestWaiter(client: ClaimClient, unitId: string): Promise<ClaimDocT | undefined> {
     const pick = await client.query(
@@ -1248,16 +1335,19 @@ export class PgClaimStore {
    * and a fence whose refusals stopped being recorded the moment it started binding would be
    * unmeasurable exactly when it began to matter. `queued` then records what the session got
    * INSTEAD. The caller COMMITs.
+   *
+   * The refusal's doc is `heldBy` — the BLOCKER's row as read, its harness and host included —
+   * while the queue join is this session's own row, stamped from the refused candidate.
    */
   async #refuse(
     client: ClaimClient,
     candidate: ClaimDocT,
-    role: string | null,
     heldBy: ClaimDocT,
     opts: ClaimOptions,
   ): Promise<ClaimResult> {
     await this.#appendEvent(client, candidate.unitId, "conflict-refused", candidate.sessionId, heldBy);
     if (opts.queueOnRefusal !== true) return { acquired: false, heldBy };
+    const { role, harness, host } = nullableColumns(candidate);
     const waiting = await this.#upsertWaiting(
       client,
       candidate.unitId,
@@ -1265,6 +1355,7 @@ export class PgClaimStore {
       candidate.branch,
       candidate.intent,
       role,
+      { harness, host },
     );
     await this.#appendEvent(client, candidate.unitId, "queued", candidate.sessionId, waiting);
     return { acquired: false, queued: true, waiting, heldBy };
@@ -1273,7 +1364,8 @@ export class PgClaimStore {
   /**
    * Flip/insert the session's row on `unitId` to `waiting` — the queue join (ADR-0200 D2).
    * `claimed_at` (the queue POSITION) moves to now only when the grade actually changes: joining
-   * the line is when you start waiting, while an already-waiting re-join keeps its spot.
+   * the line is when you start waiting, while an already-waiting re-join keeps its spot. Either arm
+   * is the session writing its OWN row, so both stamp `stamp`'s harness and host.
    */
   async #upsertWaiting(
     client: ClaimClient,
@@ -1282,29 +1374,36 @@ export class PgClaimStore {
     branch: string,
     intent: string,
     role: string | null,
+    stamp: ClaimRuntimeReading,
   ): Promise<ClaimDocT> {
     const res = await client.query(
-      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
-       VALUES ($1, $2, 'waiting', $3, $4, $5, now(), now())
+      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at)
+       VALUES ($1, $2, 'waiting', $3, $4, $5, $6, $7, now(), now())
        ON CONFLICT (unit_id, session_id) DO UPDATE
          SET grade = 'waiting',
              branch = EXCLUDED.branch,
              intent = EXCLUDED.intent,
              role = EXCLUDED.role,
+             harness = EXCLUDED.harness,
+             host = EXCLUDED.host,
              claimed_at = CASE WHEN events.node_claim.grade = 'waiting'
                                THEN events.node_claim.claimed_at ELSE now() END,
              heartbeat_at = now()
        RETURNING ${CLAIM_COLUMNS}`,
-      [unitId, sessionId, branch, intent, role],
+      [unitId, sessionId, branch, intent, role, stamp.harness, stamp.host],
     );
     return rowToDoc((res.rows as ClaimRow[])[0] as ClaimRow);
   }
 
-  /** Restore a folded shared row verbatim (the refused-take path — the wisp must survive). */
+  /**
+   * Restore a folded shared row verbatim (the refused-take path — the wisp must survive). Verbatim
+   * INCLUDES its harness and host: this is an undo of the fold, not a take, so the row must read
+   * afterwards exactly as though the refused take had never touched it.
+   */
   async #restoreRow(client: ClaimClient, row: ClaimRow): Promise<void> {
     await client.query(
-      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, harness, host, claimed_at, heartbeat_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         row.unit_id,
         row.session_id,
@@ -1312,10 +1411,29 @@ export class PgClaimStore {
         row.branch,
         row.intent,
         row.role ?? null,
+        row.harness ?? null,
+        row.host ?? null,
         toIso(row.claimed_at),
         toIso(row.heartbeat_at),
       ],
     );
+  }
+
+  /**
+   * Stamp a take's draft with who took it and where: the request's explicit `harness`/`host` when it
+   * names them, else what this process detects. Called BEFORE the draft is validated, so an explicit
+   * blank host is refused by the same parse that refuses a blank branch — before any query runs.
+   */
+  #stampDraft(draft: ClaimDocT, req: ClaimRequest): void {
+    const stamp = this.#stamp(req);
+    if (stamp.harness !== null) draft.harness = stamp.harness;
+    if (stamp.host !== null) draft.host = stamp.host;
+  }
+
+  /** Who is writing and where: each of `overrides` when given, else the {@link ClaimStoreOptions.runtime} reading. */
+  #stamp(overrides: Pick<ClaimRequest, "harness" | "host">): ClaimRuntimeReading {
+    const detected = this.#runtime();
+    return { harness: overrides.harness ?? detected.harness, host: overrides.host ?? detected.host };
   }
 
   /**

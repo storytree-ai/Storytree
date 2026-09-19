@@ -821,6 +821,42 @@ test("printed-real-commands-name-the-increment: a REAL build refused at its clai
   assert.equal(calls.count, 0, "the in-memory store seam never starts the database");
 });
 
+test("a build refused at its claim names the holder's harness and MACHINE, and says so when they were never recorded", async () => {
+  // The holder's session id is a worktree name its author chose, so it can point at a machine the
+  // work never ran on; the refusal carries what the claim itself recorded instead.
+  const refusedBy = async (held: ClaimDocT) => {
+    const { ensureDb } = spyEnsureDb();
+    const { progress } = recordingProgress();
+    return NodeBuildModule.nodeBuild(UNIT_ID, {
+      ...realOpts({ ledger: new InMemoryStore(), increment: "inc-live", ensureDb, progress }),
+      verdictStore: "memory",
+      claim: { store: { claim: async () => ({ acquired: false, heldBy: held }), release: async () => false } },
+      identity: { sessionId: "mine", branch: "claude/mine" },
+    });
+  };
+  const base: ClaimDocT = {
+    unitId: UNIT_ID,
+    sessionId: "storytree-mintbox-live-proof-final",
+    branch: "codex/live-proof",
+    intent: "real",
+    claimedAt: "2026-09-17T00:00:00.000Z",
+    heartbeatAt: "2026-09-17T00:00:00.000Z",
+  };
+
+  const recorded = await refusedBy({ ...base, harness: "codex", host: "MicksMSpro" });
+  assert.equal(recorded.ok, false, recorded.body);
+  assert.match(
+    recorded.body,
+    /^held by: {5}storytree-mintbox-live-proof-final \(codex on MicksMSpro, branch codex\/live-proof\)$/m,
+  );
+
+  const unrecorded = await refusedBy(base);
+  assert.match(
+    unrecorded.body,
+    /^held by: {5}storytree-mintbox-live-proof-final \(harness and host not recorded, branch codex\/live-proof\)$/m,
+  );
+});
+
 test("printed-real-commands-name-the-increment: a synthetic walk refused the live store points at the paid build that may persist, naming the increment", async () => {
   const { progress } = recordingProgress();
   const refused = await NodeBuildModule.nodeBuild(UNIT_ID, {

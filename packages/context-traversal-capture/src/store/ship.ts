@@ -45,7 +45,8 @@ import path from "node:path";
 import { ContextTraversalEvent } from "@storytree/context-traversal-telemetry";
 import { z } from "zod";
 
-import type { TraceIdentityGrade } from "../session-identity.js";
+import { SESSION_HARNESSES } from "../session-identity.js";
+import type { SessionHarness, TraceIdentityGrade } from "../session-identity.js";
 import type { SessionOriginKind } from "../session-origin.js";
 import { TRAVERSAL_TRACE_EXT } from "../sink.js";
 import type { TraversalEventLocation, TraversalEventStore } from "./traversal-event-store.js";
@@ -137,6 +138,12 @@ const TraceLineDoc = z.object({
   // the two answers it produces are different decisions and only one of them is a degradation: a
   // single-unit line still ships its unit, and a MULTI-unit line ships none — see `locationOf`.
   cutFor: z.union([z.string(), z.array(z.string())]).nullish().catch(null),
+  // WHICH HARNESS and WHICH MACHINE wrote the line, degrading on the same rule: an unrecognised
+  // harness ships as UNRECORDED rather than as either harness it might have been, and a host that is
+  // not a non-empty string names no machine. Neither may ever cost the line its EVENT. (`host` is the
+  // machine's hostname — not the agent harness the older vocabulary calls "host".)
+  harness: z.enum(SESSION_HARNESSES).optional().catch(undefined),
+  host: z.string().min(1).nullish().catch(null),
 });
 
 type TraceLine = z.infer<typeof TraceLineDoc>;
@@ -317,23 +324,26 @@ interface IdentityRun {
 interface OptionalLineAttributes {
   grade?: TraceIdentityGrade;
   origin?: SessionOriginKind;
+  harness?: SessionHarness;
 }
 
 /**
  * The location a line's identity attributes name, in the shape the store's append takes.
  *
- * The two OPTIONAL attributes are drafted into their own bag and spread, rather than branched over:
+ * The OPTIONAL attributes are drafted into their own bag and spread, rather than branched over:
  * with `exactOptionalPropertyTypes` an absent key and an explicit `undefined` are different values,
- * and `grade` alone already needed a ternary — a second optional would have made it four arms, one
- * of which nothing would ever exercise.
+ * and `grade` alone already needed a ternary — each further optional would have doubled the arms,
+ * most of which nothing would ever exercise.
  */
 function locationOf(sessionId: string, line: TraceLine): TraversalEventLocation {
   const optional: OptionalLineAttributes = {};
   if (line.grade !== undefined) optional.grade = line.grade;
   if (line.origin !== undefined) optional.origin = line.origin;
+  if (line.harness !== undefined) optional.harness = line.harness;
   return {
     sessionId,
     slot: line.slot ?? null,
+    host: line.host ?? null,
     cutBy: line.cutBy ?? null,
     cutFor: shippableCutFor(line.cutFor),
     ...optional,
@@ -363,10 +373,11 @@ function shippableCutFor(cutFor: TraceLine["cutFor"]): string | null {
  * Group consecutive lines into runs sharing ONE identity, so each run is one append.
  *
  * The store's append takes one location for a batch, exactly as the JSONL sink stamps one identity
- * per append — so a trace whose attributes changed mid-file (a window that moved worktree, or a
- * session that declared its origin partway through) must be shipped as several appends rather than
- * have one line's attributes silently applied to its neighbours. Order is preserved, which is the
- * property `seq` then records.
+ * per append — so a trace whose attributes changed mid-file (a window that moved worktree, a session
+ * that declared its origin partway through, or a declared id shared by processes under different
+ * harnesses or on different machines) must be shipped as several appends rather than have one
+ * line's attributes silently applied to its neighbours. Order is preserved, which is the property
+ * `seq` then records.
  *
  * ⚠ EVERY attribute is compared, not just the two that existed first. A comparison that ignored the
  * origin would take the FIRST line's answer and apply it to the whole run — which for the ordinary
@@ -377,6 +388,8 @@ function sameIdentity(a: TraversalEventLocation, b: TraversalEventLocation): boo
   return (
     a.grade === b.grade &&
     a.slot === b.slot &&
+    a.harness === b.harness &&
+    a.host === b.host &&
     a.origin === b.origin &&
     a.cutBy === b.cutBy &&
     a.cutFor === b.cutFor

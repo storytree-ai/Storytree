@@ -333,6 +333,8 @@ CREATE TABLE IF NOT EXISTS events.adr_number (
 -- WAS a work claim. There is no such single right answer for role: a pre-split row's role lives
 -- inside its own `intent` string, so NULL means "derive it" (claimRole() in packages/notice-board)
 -- and the migration stays additive and pull-based — no backfill, no big-bang.
+-- `harness` and `host` say WHO ran the claiming process and WHERE: its agent harness (claude-code /
+-- codex) and its MACHINE's hostname. Both NULLABLE with no default — see their migration below.
 CREATE TABLE IF NOT EXISTS events.node_claim (
   unit_id      TEXT NOT NULL,
   session_id   TEXT NOT NULL,
@@ -340,6 +342,8 @@ CREATE TABLE IF NOT EXISTS events.node_claim (
   branch       TEXT NOT NULL,
   intent       TEXT NOT NULL DEFAULT '',
   role         TEXT,
+  harness      TEXT,
+  host         TEXT,
   claimed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (unit_id, session_id)
@@ -359,6 +363,18 @@ ALTER TABLE events.node_claim
 -- typed role as they are rewritten, one take at a time.
 ALTER TABLE events.node_claim
   ADD COLUMN IF NOT EXISTS role TEXT;
+
+-- MIGRATION (claim harness + host): WHO ran the process that took a claim, and WHERE — its agent
+-- harness (`claude-code` / `codex`) and the hostname of its MACHINE (`host` is the computer, never
+-- the harness). The store stamps both on every take, DETECTED from the claiming process's own
+-- environment and `os.hostname()` — never declared by a caller. NULLABLE and UNBACKFILLED on
+-- purpose, and permanently: NULL means UNRECORDED — every row taken before this landed, and every
+-- row whose writer detected no harness — and it is never inferred backwards. A session id is a
+-- worktree name its author chose, so guessing a machine from it is exactly the misattribution these
+-- columns exist to end.
+ALTER TABLE events.node_claim
+  ADD COLUMN IF NOT EXISTS harness TEXT,
+  ADD COLUMN IF NOT EXISTS host TEXT;
 
 -- Swap the old single-column PK (unit_id) for the composite (unit_id, session_id), guarded on the
 -- catalog: the block acts only when the CURRENT pk column set is exactly (unit_id), so a re-run —
@@ -653,6 +669,8 @@ CREATE TABLE IF NOT EXISTS events.traversal_event (
   origin      TEXT,                   -- human|cut; NULL = UNDECLARED, and never read as `human`
   cut_by      TEXT,                   -- the session that cut this one, when it named itself
   cut_for     TEXT,                   -- the arc/increment it was cut to drive (a canonical id)
+  harness     TEXT,                   -- claude-code|codex, DETECTED from the writer; NULL = UNRECORDED
+  host        TEXT,                   -- the writing MACHINE's hostname, not the harness; NULL = UNRECORDED
   event       JSONB NOT NULL,         -- the whole ContextTraversalEvent, validated before it ships
   shipped_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -666,5 +684,19 @@ CREATE TABLE IF NOT EXISTS events.traversal_event (
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS origin  TEXT;
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_by  TEXT;
 ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_for TEXT;
+
+-- WHICH AGENT HARNESS AND WHICH MACHINE WROTE THE LINE, additive on the same terms as the origin
+-- columns above. `harness` is the agent harness the writing process ran under (`claude-code` or
+-- `codex`); `host` is that process's MACHINE — its hostname — and NOT the "host" harness the older
+-- traversal vocabulary means by that word (`surface:host_transcript`, "the host transcript").
+--
+-- ⚠ BOTH ARE DETECTED FROM THE WRITING PROCESS, NEVER DECLARED, AND NULL IS "UNRECORDED". Every row
+-- written before this landing carries NULL and stays that way: neither is ever inferred after the
+-- fact — not from a slot, a branch name, a clock, or which box the store happens to be read from —
+-- because an inferred provenance cannot be told apart from a recorded one. That inference is the
+-- mistake these columns exist to end: roughly forty hours of Codex work on a Windows laptop were
+-- once read as work done on a second Linux box, because no row said either fact.
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS harness TEXT;
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS host    TEXT;
 
 CREATE INDEX IF NOT EXISTS traversal_event_session_idx ON events.traversal_event (session_id, seq);

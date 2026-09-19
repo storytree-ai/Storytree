@@ -17,8 +17,8 @@ import path from "node:path";
 import { ContextTraversalEvent, createContextTraversalTrace } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalReplay } from "@storytree/context-traversal-telemetry";
 
-import { classifyTraceIdentity } from "./session-identity.js";
-import type { TraceIdentityGrade, TraceIdentityKind } from "./session-identity.js";
+import { classifyTraceIdentity, SESSION_HARNESSES } from "./session-identity.js";
+import type { SessionHarness, TraceIdentityGrade, TraceIdentityKind } from "./session-identity.js";
 import { foldSessionOrigin } from "./session-origin.js";
 import type { SessionOriginClaim, SessionOriginKind, TraceOriginReading } from "./session-origin.js";
 
@@ -66,6 +66,22 @@ export interface TraversalLineIdentity {
    * `foldSessionOrigin`, which is the one place that decides what a rider names.
    */
   readonly cutFor?: string | readonly string[] | null;
+  /**
+   * WHICH AGENT HARNESS wrote this line — DETECTED from the writing process's environment
+   * (`resolveSessionHarness`), never self-declared and never inferred after the fact.
+   *
+   * Two more additive siblings, on the argument above, and they inherit the absence rule unchanged:
+   * absent is UNRECORDED — every line written before this existed, and every line from a process no
+   * recognised harness ran — and it is never read as any particular harness, least of all "a human
+   * at a terminal".
+   */
+  readonly harness?: SessionHarness;
+  /**
+   * WHICH MACHINE wrote this line — its hostname. ⚠ The MACHINE, not the agent harness the older
+   * traversal vocabulary calls "host" (`HOST_WINDOW_ID_ENV`, "the host transcript"). Absent or null
+   * is unrecorded, on the same rule as {@link harness}.
+   */
+  readonly host?: string | null;
 }
 
 export interface TraversalSinkLocation extends TraversalLineIdentity {
@@ -86,6 +102,16 @@ export interface TraversalReadResult {
   readonly slots: readonly string[];
   /** Who started the session, as its own lines declared it — `unknown` when none did. */
   readonly origin: TraceOriginReading;
+  /**
+   * Every distinct agent harness the session's lines recorded, in first-seen order. EMPTY means no
+   * line recorded one — never that the session had none.
+   */
+  readonly harnesses: readonly SessionHarness[];
+  /**
+   * Every distinct MACHINE (hostname) the session's lines recorded, in first-seen order — the
+   * machine, not the harness. Empty on the same rule as {@link harnesses}.
+   */
+  readonly hosts: readonly string[];
 }
 
 export interface TraversalSessionSummary {
@@ -98,6 +124,10 @@ export interface TraversalSessionSummary {
   readonly slots: readonly string[];
   /** Who started the session ({@link TraversalReadResult.origin}). */
   readonly origin: TraceOriginReading;
+  /** Which agent harness(es) wrote it ({@link TraversalReadResult.harnesses}). */
+  readonly harnesses: readonly SessionHarness[];
+  /** Which machine(s) wrote it ({@link TraversalReadResult.hosts}). */
+  readonly hosts: readonly string[];
 }
 
 /**
@@ -132,11 +162,13 @@ export function appendTraversalEvents(events: readonly unknown[], location: Trav
   // a crash-truncated read replays whatever IS readable (ADR-0241 D5) — a header would be the one
   // line whose loss silently re-labelled the whole trace.
   //
-  // ONE RULE FOR ALL FIVE ATTRIBUTES, not five near-identical guards. An attribute is stamped when
+  // ONE RULE FOR ALL SEVEN ATTRIBUTES, not seven near-identical guards. An attribute is stamped when
   // it NAMES something and is omitted otherwise, and the omission is the load-bearing half: an
-  // absent `origin` key is what makes a line read back `unknown` rather than `human`, and an absent
-  // `grade` is what makes a legacy line legible as one (ADR-0484 D7 / inc-30). Written five times
-  // over, that rule had five places to drift and no single place to test.
+  // absent `origin` key is what makes a line read back `unknown` rather than `human`, an absent
+  // `grade` is what makes a legacy line legible as one (ADR-0484 D7 / inc-30), and an absent
+  // `harness` or `host` is what keeps an unrecorded line from reading as any particular harness or
+  // machine. Written seven times over, that rule had seven places to drift and no single place to
+  // test.
   // `unknown` values rather than `string`, because `cutFor` may be a LIST (ADR-0541 D2). The RULE is
   // untouched — an attribute is stamped when it NAMES something — and the list form reaches here
   // already collapsed by `lineCutFor`, which returns null for "names nothing", so this guard still
@@ -155,6 +187,8 @@ export function appendTraversalEvents(events: readonly unknown[], location: Trav
   stamp("origin", location.origin);
   stamp("cutBy", location.cutBy);
   stamp("cutFor", location.cutFor);
+  stamp("harness", location.harness);
+  stamp("host", location.host);
 
   const lines: string[] = [];
   for (const candidate of events) {
@@ -184,6 +218,8 @@ interface ParsedLine {
   readonly origin?: unknown;
   readonly cutBy?: unknown;
   readonly cutFor?: unknown;
+  readonly harness?: unknown;
+  readonly host?: unknown;
 }
 
 function isParsedLineShape(value: unknown): value is ParsedLine {
@@ -197,6 +233,16 @@ function isParsedLineShape(value: unknown): value is ParsedLine {
  */
 function gradeOf(line: ParsedLine): TraceIdentityGrade | undefined {
   return line.grade === "window" || line.grade === "declared" ? line.grade : undefined;
+}
+
+/**
+ * A line's agent harness, on the {@link gradeOf} rule: a word that is not one of
+ * {@link SESSION_HARNESSES} is read as "this line declared nothing", never coerced into a harness it
+ * might not be. Looked up in the vocabulary itself rather than spelled here, so the writer and this
+ * reader cannot come to know different harnesses.
+ */
+function harnessOf(line: ParsedLine): SessionHarness | undefined {
+  return SESSION_HARNESSES.find((harness) => harness === line.harness);
 }
 
 /**
@@ -235,6 +281,8 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
       skipped: 0,
       identity: classifyTraceIdentity([]),
       slots: [],
+      harnesses: [],
+      hosts: [],
       // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fold reads `.origin` / `.cutBy`
       // / `.cutFor` off each element, and every element of a junk array answers `undefined`, so any
       // non-empty literal here folds to the same `unknown` with no riders. Called rather than
@@ -252,9 +300,11 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
   const seenEventIds = new Set<string>();
   const seenVisitIds = new Set<string>();
   // Collected from the lines that were actually USED: a skipped line vouches for nothing, so a
-  // corrupt tail can neither add an identity grade nor invent a slot.
+  // corrupt tail can neither add an identity grade nor invent a slot, a harness or a machine.
   const grades: (TraceIdentityGrade | undefined)[] = [];
   const slots: string[] = [];
+  const harnesses: SessionHarness[] = [];
+  const hosts: string[] = [];
   // Stryker disable next-line ArrayDeclaration: EQUIVALENT — a seeded junk element answers
   // `undefined` for all three fields it is read for, so it contributes to neither the reading nor
   // either rider list. The empty start is what makes the accumulator honest, not what makes it work.
@@ -299,6 +349,14 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
     if (typeof candidate.slot === "string" && candidate.slot.length > 0 && !slots.includes(candidate.slot)) {
       slots.push(candidate.slot);
     }
+    // The harness and the machine are collected on the slot's own rule — distinct, in first-seen
+    // order — because they are the same KIND of fact: a grouping attribute recorded beside the
+    // identity. A host is a MACHINE NAME or it is nothing, so `""` names no machine.
+    const harness = harnessOf(candidate);
+    if (harness !== undefined && !harnesses.includes(harness)) harnesses.push(harness);
+    if (typeof candidate.host === "string" && candidate.host.length > 0 && !hosts.includes(candidate.host)) {
+      hosts.push(candidate.host);
+    }
     trace.append(event);
   }
 
@@ -307,6 +365,8 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
     skipped,
     identity: classifyTraceIdentity(grades),
     slots,
+    harnesses,
+    hosts,
     origin: foldSessionOrigin(claims),
   };
 }
@@ -330,7 +390,7 @@ export function summarizeTraversalSession(
   dir: string,
   sessionId: string,
 ): TraversalSessionSummary | null {
-  const { replay, identity, slots, origin } = readTraversalSession({ dir, sessionId });
+  const { replay, identity, slots, origin, harnesses, hosts } = readTraversalSession({ dir, sessionId });
   if (replay.events.length === 0) return null;
   const lastEvent = replay.events[replay.events.length - 1];
   return {
@@ -343,6 +403,8 @@ export function summarizeTraversalSession(
     lastObservedAt: lastEvent?.at,
     identity,
     slots,
+    harnesses,
+    hosts,
   };
 }
 

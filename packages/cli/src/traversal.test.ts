@@ -435,17 +435,43 @@ test("traversal origin: the DISPATCH threads every flag through, under the same 
 
 test("traversal origin: with no session id in the environment the dispatch resolves NONE, rather than assuming one", async () => {
   // The identity half of the same wiring, and the only place it is observable: with neither the
-  // explicit override nor the harness's own window id, `resolveTraceIdentity` answers nothing — and
-  // a resolver that fell back to the worktree, or crashed on the absence, would both be visible here.
+  // explicit override nor either harness's own window id, `resolveTraceIdentity` answers nothing —
+  // and a resolver that fell back to the worktree, or crashed on the absence, would both be visible
+  // here. `CODEX_THREAD_ID` is cleared with the other two because it is an identity source now: a
+  // suite run inside a Codex session would otherwise resolve that session's own thread.
   const dir = freshDir("dispatch-anon");
   const envelope = await withEnv(
-    { [TRAVERSAL_DIR_ENV]: dir, [SESSION_ID_ENV]: undefined, CLAUDE_CODE_SESSION_ID: undefined },
+    {
+      [TRAVERSAL_DIR_ENV]: dir,
+      [SESSION_ID_ENV]: undefined,
+      CLAUDE_CODE_SESSION_ID: undefined,
+      CODEX_THREAD_ID: undefined,
+    },
     () => run(["traversal", "origin", "--origin", "human"], { store: new InMemoryStore() }),
   );
 
   assert.equal(envelope.ok, false);
   assert.match(envelope.body, /resolves no session identity/);
   assert.deepEqual(fs.readdirSync(dir), [], "and nothing is filed under a session that has no id");
+});
+
+test("traversal origin: a CODEX session's declaration is filed under its own thread id — the id its reads are keyed by", async () => {
+  // ONE ANSWER, THREE CALLERS (`resolveDeclaringSessionId`): the declaration must land under the SAME
+  // id the capture path keys a Codex session's reads by, or it describes a trace nobody's reads
+  // belong to. Before a Codex thread was an identity source this refused outright, like the case above.
+  const dir = freshDir("dispatch-codex");
+  const envelope = await withEnv(
+    {
+      [TRAVERSAL_DIR_ENV]: dir,
+      [SESSION_ID_ENV]: undefined,
+      CLAUDE_CODE_SESSION_ID: undefined,
+      CODEX_THREAD_ID: "0198de4f-codex-thread",
+    },
+    () => run(["traversal", "origin", "--origin", "human"], { store: new InMemoryStore() }),
+  );
+
+  assert.equal(envelope.ok, true, envelope.body);
+  assert.equal(readSessionOriginDeclaration(dir, "0198de4f-codex-thread")?.origin, "human");
 });
 
 test("traversal ship: the injected store reaches the verb, and its absence is what refuses", async () => {

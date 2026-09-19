@@ -1,8 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { hostname } from "node:os";
 
-import { claimGrade, claimRole, CLAIM_STALE_RECLAIM_MS, type ClaimDocT } from "../claim.js";
-import { PgClaimStore } from "./claim-store.js";
+import {
+  claimGrade,
+  claimRole,
+  normalizeClaimHost,
+  CLAIM_STALE_RECLAIM_MS,
+  type ClaimDocT,
+} from "../claim.js";
+import { PgClaimStore, processClaimRuntime, type ClaimRuntimeReading } from "./claim-store.js";
 
 /**
  * Offline: drive `PgClaimStore` through a FAKE pool that records every query and returns canned
@@ -29,6 +36,9 @@ interface ClaimRow {
   intent: string;
   /** The typed role column (ADR-0346 D3) — NULL on every pre-split row, hence `| null`. */
   role?: string | null;
+  /** The claiming process's harness / machine hostname — NULL on every unrecorded row. */
+  harness?: string | null;
+  host?: string | null;
   claimed_at: string;
   heartbeat_at: string;
 }
@@ -44,12 +54,12 @@ interface AppendedEvent {
   sessionId: string;
 }
 
-/** A bound role parameter as the DB would echo it back: the enum string, or NULL. */
-function roleFromValue(value: unknown): string | null {
+/** A bound nullable-text parameter (role / harness / host) as the DB echoes it back: the string, or NULL. */
+function textFromValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-/** The work-path writes carry values [unit, session, branch, intent, role] (grade is a literal). */
+/** The work-path writes carry values [unit, session, branch, intent, role, harness, host] (grade is a literal). */
 function rowFromWriteValues(values: unknown[], heartbeatAt: string = NOW_ISO): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -57,13 +67,15 @@ function rowFromWriteValues(values: unknown[], heartbeatAt: string = NOW_ISO): C
     grade: "work",
     branch: String(values[2]),
     intent: String(values[3]),
-    role: roleFromValue(values[4]),
+    role: textFromValue(values[4]),
+    harness: textFromValue(values[5]),
+    host: textFromValue(values[6]),
     claimed_at: NOW_ISO,
     heartbeat_at: heartbeatAt,
   };
 }
 
-/** The shared take upsert carries values [unit, session, grade, branch, intent, role]. */
+/** The shared take upsert carries values [unit, session, grade, branch, intent, role, harness, host]. */
 function rowFromSharedTakeValues(values: unknown[]): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -71,13 +83,15 @@ function rowFromSharedTakeValues(values: unknown[]): ClaimRow {
     grade: String(values[2]),
     branch: String(values[3]),
     intent: String(values[4]),
-    role: roleFromValue(values[5]),
+    role: textFromValue(values[5]),
+    harness: textFromValue(values[6]),
+    host: textFromValue(values[7]),
     claimed_at: NOW_ISO,
     heartbeat_at: NOW_ISO,
   };
 }
 
-/** The waiting (queue-join) upsert carries values [unit, session, branch, intent, role]. */
+/** The waiting (queue-join) upsert carries values [unit, session, branch, intent, role, harness, host]. */
 function rowFromWaitingValues(values: unknown[]): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -85,7 +99,9 @@ function rowFromWaitingValues(values: unknown[]): ClaimRow {
     grade: "waiting",
     branch: String(values[2]),
     intent: String(values[3]),
-    role: roleFromValue(values[4]),
+    role: textFromValue(values[4]),
+    harness: textFromValue(values[5]),
+    host: textFromValue(values[6]),
     claimed_at: NOW_ISO,
     heartbeat_at: NOW_ISO,
   };
@@ -95,6 +111,8 @@ function rowFromWaitingValues(values: unknown[]): ClaimRow {
 class FakeClaimClient {
   readonly calls: QueryCall[] = [];
   readonly events: AppendedEvent[] = [];
+  /** The claim DOC each appended audit event carried, parallel to {@link events}. */
+  readonly eventDocs: ClaimDocT[] = [];
   released = false;
 
   /** The row the WORK-holder read (`grade = 'work' … FOR UPDATE`) returns; undefined = slot free. */
@@ -155,6 +173,7 @@ class FakeClaimClient {
         type: String(values[1]),
         sessionId: String(values[2]),
       });
+      this.eventDocs.push(JSON.parse(String(values[3])) as ClaimDocT);
       // ADR-0350 D1: the audit row's own seq, when this client honours `RETURNING seq`. Left
       // undefined by default so the no-identity path stays the tested default (see below).
       return { rows: this.claimEventSeq === undefined ? [] : [{ seq: this.claimEventSeq }] };
@@ -202,10 +221,20 @@ class FakeClaimClient {
         ],
       };
     }
-    // Upgrade's re-entrant refresh of an already-ours work row.
+    // Upgrade's re-entrant refresh of an already-ours work row: [unit, branch, intent, harness, host].
     if (head.startsWith("UPDATE") && text.includes("SET branch = $2")) {
       const base = this.existingForUpdate as ClaimRow;
-      return { rows: [{ ...base, branch: String(values[1]), intent: String(values[2]) }] };
+      return {
+        rows: [
+          {
+            ...base,
+            branch: String(values[1]),
+            intent: String(values[2]),
+            harness: textFromValue(values[3]),
+            host: textFromValue(values[4]),
+          },
+        ],
+      };
     }
     if (head.startsWith("UPDATE") && text.includes("events.node_claim")) {
       return { rows: [rowFromWriteValues(values)] };
@@ -248,8 +277,16 @@ class FakePool {
   }
 }
 
-function storeWith(client: FakeClaimClient): PgClaimStore {
-  return new PgClaimStore(new FakePool(client) as never);
+/**
+ * The runtime every transactional test's store stamps — FIXED, so the SQL parameters asserted below
+ * never depend on the harness and machine this suite happens to run under (a dev box carries
+ * `CLAUDE_CODE_SESSION_ID`; CI carries nothing). The host is one no real machine answers to, so a
+ * store that ignored its injected runtime and read the real one could not pass by coincidence.
+ */
+const FIXED_RUNTIME: ClaimRuntimeReading = { harness: "codex", host: "fixture-host.invalid" };
+
+function storeWith(client: FakeClaimClient, runtime: ClaimRuntimeReading = FIXED_RUNTIME): PgClaimStore {
+  return new PgClaimStore(new FakePool(client) as never, { runtime: () => runtime });
 }
 
 function heldRow(over: Partial<ClaimRow> = {}): ClaimRow {
@@ -394,6 +431,450 @@ test("take (shared): the typed role rides through the upsert too", async () => {
   if (res.acquired) assert.equal(res.claim.role, "authoring");
   const upsert = client.calls.find((c) => c.text.includes("ON CONFLICT (unit_id, session_id) DO UPDATE"));
   assert.ok(upsert?.text.includes("role = EXCLUDED.role"), "a re-take refreshes the role like the prose");
+});
+
+// ── who took it, and where: the store STAMPS harness + host ──────────────────
+//
+// The claiming process's harness and machine are stamped BY THE STORE, detected from the process
+// doing the write, so none of the six claim producers can forget them. The policy is per statement
+// (claim-store.ts's class header): a take stamps; a write on another session's behalf, or one that is
+// not a take, preserves. Each rule below is pinned from both sides — what is written, and what is not.
+
+/** The first recorded statement matching `pred`, asserted present. */
+function callWhere(client: FakeClaimClient, pred: (c: QueryCall) => boolean, what: string): QueryCall {
+  const call = client.calls.find(pred);
+  assert.ok(call !== undefined, `precondition: ${what} was issued`);
+  return call;
+}
+
+/**
+ * An UPDATE's SET clause — the columns it WRITES. Asserted on instead of the whole statement because
+ * every claim write RETURNS the full column list, harness and host included, so a whole-text check
+ * that the columns are "absent" could never pass for the right reason.
+ */
+function setClause(text: string): string {
+  const clause = /\bSET\b([\s\S]*?)\bWHERE\b/.exec(text)?.[1];
+  assert.ok(clause !== undefined, "precondition: the statement has a SET … WHERE");
+  return clause;
+}
+
+const isWorkInsert = (c: QueryCall): boolean =>
+  c.text.includes("INSERT INTO events.node_claim") && c.text.includes("ON CONFLICT (unit_id) WHERE grade = 'work'");
+const isWaitingUpsert = (c: QueryCall): boolean =>
+  c.text.includes("INSERT INTO events.node_claim") && c.text.includes("'waiting'");
+
+test("claim (fresh): the work INSERT binds the runtime's harness and host, and the doc + audit event carry them", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  const insert = callWhere(client, isWorkInsert, "the fresh work insert");
+  assert.match(insert.text, /role, harness, host, claimed_at/, "both columns are named in the insert");
+  assert.equal(insert.values[5], "codex", "harness bound positionally after role");
+  assert.equal(insert.values[6], "fixture-host.invalid", "host bound after harness");
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(res.claim.harness, "codex");
+    assert.equal(res.claim.host, "fixture-host.invalid");
+  }
+  assert.equal(client.eventDocs[0]?.harness, "codex", "the `claimed` audit doc records who took it");
+  assert.equal(client.eventDocs[0]?.host, "fixture-host.invalid");
+});
+
+test("claim: a request's explicit harness/host override detection — FIELD BY FIELD", async () => {
+  const both = new FakeClaimClient();
+  await storeWith(both).claim({ ...REQ_B, harness: "claude-code", host: "override-host" }, { now: NOW });
+  const bothInsert = callWhere(both, isWorkInsert, "the work insert");
+  assert.deepEqual(bothInsert.values.slice(5), ["claude-code", "override-host"]);
+
+  // Naming ONE half overrides that half only — the other is still what the process detected.
+  const hostOnly = new FakeClaimClient();
+  await storeWith(hostOnly).claim({ ...REQ_B, host: "override-host" }, { now: NOW });
+  assert.deepEqual(callWhere(hostOnly, isWorkInsert, "the work insert").values.slice(5), ["codex", "override-host"]);
+
+  const harnessOnly = new FakeClaimClient();
+  await storeWith(harnessOnly).claim({ ...REQ_B, harness: "claude-code" }, { now: NOW });
+  assert.deepEqual(
+    callWhere(harnessOnly, isWorkInsert, "the work insert").values.slice(5),
+    ["claude-code", "fixture-host.invalid"],
+  );
+});
+
+test("claim: a process with NO recognised harness, or no readable host, binds SQL NULL — never '' and never a guess", async () => {
+  const noHarness = new FakeClaimClient();
+  const res = await storeWith(noHarness, { harness: null, host: "fixture-host.invalid" }).claim(REQ_B, { now: NOW });
+  assert.deepEqual(callWhere(noHarness, isWorkInsert, "the work insert").values.slice(5), [null, "fixture-host.invalid"]);
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.ok(!("harness" in res.claim), "an unrecorded half stays OFF the doc");
+    assert.equal(res.claim.host, "fixture-host.invalid");
+  }
+
+  const noHost = new FakeClaimClient();
+  await storeWith(noHost, { harness: "claude-code", host: null }).claim(REQ_B, { now: NOW });
+  assert.deepEqual(callWhere(noHost, isWorkInsert, "the work insert").values.slice(5), ["claude-code", null]);
+
+  const neither = new FakeClaimClient();
+  const bare = await storeWith(neither, { harness: null, host: null }).claim(REQ_B, { now: NOW });
+  assert.deepEqual(callWhere(neither, isWorkInsert, "the work insert").values.slice(5), [null, null]);
+  if (bare.acquired) assert.ok(!("host" in bare.claim) && !("harness" in bare.claim));
+});
+
+test("claim: an explicit BLANK host is refused before any query — the same fail-closed parse as a blank branch", async () => {
+  const client = new FakeClaimClient();
+  await assert.rejects(() => storeWith(client).claim({ ...REQ_B, host: "   " }, { now: NOW }), /non-blank/);
+  assert.equal(client.calls.length, 0, "validation precedes any query");
+});
+
+test("claim (RECLAIM): the takeover UPDATE re-stamps harness/host — the row is now THIS process's", async () => {
+  const client = new FakeClaimClient();
+  const stale = new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS - 1).toISOString();
+  client.existingForUpdate = heldRow({
+    session_id: "session-A",
+    heartbeat_at: stale,
+    harness: "claude-code",
+    host: "evicted-host",
+  });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  const upd = callWhere(
+    client,
+    (c) => c.text.trimStart().toUpperCase().startsWith("UPDATE") && c.text.includes("SET session_id = $2"),
+    "the takeover update",
+  );
+  assert.match(upd.text, /harness = \$6, host = \$7/);
+  assert.deepEqual(upd.values.slice(5), ["codex", "fixture-host.invalid"]);
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(res.reclaimed, true);
+    assert.equal(res.claim.host, "fixture-host.invalid", "never the evicted holder's machine");
+  }
+});
+
+test("claim (RE-ENTRANT): the same session's refresh stamps too, and `displaced` keeps what the row said BEFORE", async () => {
+  const client = new FakeClaimClient();
+  client.existingForUpdate = heldRow({ session_id: "session-B", harness: "claude-code", host: "earlier-host" });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  const upd = callWhere(
+    client,
+    (c) => c.text.trimStart().toUpperCase().startsWith("UPDATE") && c.text.includes("SET session_id = $2"),
+    "the refresh update",
+  );
+  assert.deepEqual(upd.values.slice(5), ["codex", "fixture-host.invalid"]);
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(res.claim.harness, "codex", "this process wrote the row just now");
+    assert.equal(res.displaced?.harness, "claude-code", "the borrowed row is reported as it WAS");
+    assert.equal(res.displaced?.host, "earlier-host");
+  }
+});
+
+test("claim (REFUSED): the conflict-refused doc is the BLOCKER's harness/host — never the refused actor's", async () => {
+  const client = new FakeClaimClient();
+  client.existingForUpdate = heldRow({ harness: "claude-code", host: "blocker-host" }); // session-A, live
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, false);
+  if (!res.acquired) {
+    assert.equal(res.heldBy.harness, "claude-code");
+    assert.equal(res.heldBy.host, "blocker-host");
+  }
+  assert.deepEqual(client.events.map((e) => e.type), ["conflict-refused"]);
+  assert.equal(client.eventDocs[0]?.sessionId, "session-A", "the refusal's doc is the holder's row");
+  assert.equal(client.eventDocs[0]?.harness, "claude-code");
+  assert.equal(client.eventDocs[0]?.host, "blocker-host");
+});
+
+test("claim (REFUSED → queued): the waiting row is the REFUSED session's own, so it IS stamped — with its runtime", async () => {
+  const client = new FakeClaimClient();
+  client.existingForUpdate = heldRow({ harness: "claude-code", host: "blocker-host" });
+  const res = await storeWith(client).claim(REQ_B, { now: NOW, queueOnRefusal: true });
+
+  assert.ok("queued" in res && res.queued === true);
+  const join = callWhere(client, isWaitingUpsert, "the queue join");
+  assert.match(join.text, /harness = EXCLUDED\.harness/, "an existing own row is re-stamped too");
+  assert.match(join.text, /host = EXCLUDED\.host/);
+  assert.deepEqual(join.values.slice(5), ["codex", "fixture-host.invalid"]);
+  // Two events, two different claims — each doc says who took ITS claim.
+  assert.deepEqual(
+    client.eventDocs.map((d) => [d.sessionId, d.harness, d.host]),
+    [
+      ["session-A", "claude-code", "blocker-host"],
+      ["session-B", "codex", "fixture-host.invalid"],
+    ],
+  );
+});
+
+test("claim (race lost): the folded row is restored VERBATIM — its own harness/host, not the refused take's", async () => {
+  const client = new FakeClaimClient();
+  client.insertRaceLost = true;
+  client.winnerRow = heldRow({ session_id: "session-A" });
+  client.foldDeleteReturns = [
+    heldRow({ session_id: "session-B", grade: "exploring", harness: "claude-code", host: "earlier-host" }),
+  ];
+  await storeWith(client).claim(REQ_B, { now: NOW });
+
+  const restore = callWhere(
+    client,
+    (c) => c.text.includes("INSERT INTO events.node_claim") && !c.text.includes("ON CONFLICT"),
+    "the plain restore insert",
+  );
+  assert.match(restore.text, /role, harness, host, claimed_at/);
+  assert.deepEqual(restore.values.slice(5, 8), [null, "claude-code", "earlier-host"], "role, harness, host as they were");
+  assert.deepEqual(restore.values.slice(8), [NOW_ISO, NOW_ISO], "the timestamps are the row's own, too");
+});
+
+test("claim (race lost): an UNRECORDED folded row is restored unrecorded — NULL, not the refused take's runtime", async () => {
+  const client = new FakeClaimClient();
+  client.insertRaceLost = true;
+  client.winnerRow = heldRow({ session_id: "session-A" });
+  client.foldDeleteReturns = [heldRow({ session_id: "session-B", grade: "exploring" })]; // no harness/host keys
+  await storeWith(client).claim(REQ_B, { now: NOW });
+
+  const restore = callWhere(
+    client,
+    (c) => c.text.includes("INSERT INTO events.node_claim") && !c.text.includes("ON CONFLICT"),
+    "the plain restore insert",
+  );
+  assert.deepEqual(restore.values.slice(6, 8), [null, null]);
+});
+
+test("take (shared): the upsert stamps on INSERT and on the conflict arm — the same session re-taking its own row", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).take({ ...REQ_B, grade: "exploring", intent: "reading" }, { now: NOW });
+
+  const upsert = callWhere(client, (c) => c.text.includes("ON CONFLICT (unit_id, session_id) DO UPDATE"), "the upsert");
+  assert.match(upsert.text, /role, harness, host, claimed_at/);
+  assert.match(upsert.text, /harness = EXCLUDED\.harness/);
+  assert.match(upsert.text, /host = EXCLUDED\.host/);
+  assert.deepEqual(upsert.values.slice(6), ["codex", "fixture-host.invalid"]);
+  if (res.acquired) {
+    assert.equal(res.claim.harness, "codex");
+    assert.equal(res.claim.host, "fixture-host.invalid");
+  }
+});
+
+test("take (shared): a request override wins here too, and a blank explicit host is refused before any query", async () => {
+  const client = new FakeClaimClient();
+  await storeWith(client).take({ ...REQ_B, grade: "waiting", harness: "claude-code", host: "override-host" }, { now: NOW });
+  const upsert = callWhere(client, (c) => c.text.includes("ON CONFLICT (unit_id, session_id) DO UPDATE"), "the upsert");
+  assert.deepEqual(upsert.values.slice(6), ["claude-code", "override-host"]);
+
+  const refused = new FakeClaimClient();
+  await assert.rejects(
+    () => storeWith(refused).take({ ...REQ_B, grade: "exploring", host: "" }, { now: NOW }),
+    /non-blank/,
+  );
+  assert.equal(refused.calls.length, 0);
+});
+
+test("take (shared): no harness detected binds NULL on the shared upsert too", async () => {
+  const client = new FakeClaimClient();
+  await storeWith(client, { harness: null, host: null }).take({ ...REQ_B, grade: "exploring" }, { now: NOW });
+  const upsert = callWhere(client, (c) => c.text.includes("ON CONFLICT (unit_id, session_id) DO UPDATE"), "the upsert");
+  assert.deepEqual(upsert.values.slice(6), [null, null]);
+});
+
+test("upgrade (slot free): the work INSERT stamps THIS process — the role is inherited, the runtime never is", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({
+    session_id: "session-B",
+    grade: "exploring",
+    branch: "claude/b",
+    role: "authoring",
+    harness: "claude-code",
+    host: "earlier-host",
+  });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  const insert = callWhere(client, isWorkInsert, "the upgrade's work insert");
+  assert.match(insert.text, /role, harness, host, claimed_at/);
+  assert.equal(insert.values[4], "authoring", "role: inherited from the prior row");
+  assert.deepEqual(insert.values.slice(5), ["codex", "fixture-host.invalid"], "harness/host: stamped, not inherited");
+  if (res.acquired) assert.equal(res.claim.host, "fixture-host.invalid");
+});
+
+test("upgrade (already ours): the re-entrant refresh stamps harness/host too", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", branch: "claude/b" });
+  client.existingForUpdate = heldRow({ session_id: "session-B", branch: "claude/b", harness: "claude-code", host: "earlier-host" });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  const refresh = callWhere(client, (c) => c.text.includes("SET branch = $2"), "the re-entrant refresh");
+  assert.match(refresh.text, /harness = \$4, host = \$5/);
+  assert.deepEqual(refresh.values.slice(3), ["codex", "fixture-host.invalid"]);
+  if (res.acquired) {
+    assert.equal(res.claim.harness, "codex");
+    assert.equal(res.claim.host, "fixture-host.invalid");
+  }
+});
+
+test("upgrade (held by a LIVE other session): the queue join stamps the UPGRADING session's runtime", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  client.existingForUpdate = heldRow({ harness: "claude-code", host: "holder-host" }); // session-A, live
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  const join = callWhere(client, isWaitingUpsert, "the queue join");
+  assert.deepEqual(join.values.slice(5), ["codex", "fixture-host.invalid"]);
+  assert.ok("queued" in res);
+  if ("queued" in res) {
+    assert.equal(res.waiting.host, "fixture-host.invalid", "the waiter is this session");
+    assert.equal(res.heldBy.host, "holder-host", "the holder is shown as it is");
+  }
+});
+
+test("upgrade (race lost): the fallback queue join stamps too", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  client.insertRaceLost = true;
+  client.winnerRow = heldRow({ session_id: "session-A" });
+  await storeWith(client, { harness: "claude-code", host: "upgrader-host" }).upgrade("chat-session-stream", "session-B", {
+    now: NOW,
+  });
+  assert.deepEqual(callWhere(client, isWaitingUpsert, "the queue join").values.slice(5), ["claude-code", "upgrader-host"]);
+});
+
+test("release → PROMOTION: the waiter keeps ITS harness/host — the releaser's runtime is never stamped on it", async () => {
+  // Promotion runs inside the RELEASER's transaction, on the WAITER's row. Stamping there would
+  // record the releasing process as the one that took the waiter's claim.
+  const client = new FakeClaimClient();
+  client.deleteReturns = heldRow({ session_id: "session-B", grade: "work", harness: "codex", host: "releaser-host" });
+  client.waiterRows = [
+    heldRow({ session_id: "session-C", grade: "waiting", branch: "claude/c", harness: "claude-code", host: "waiter-host" }),
+  ];
+  await storeWith(client, { harness: "codex", host: "releaser-host" }).release("chat-session-stream", "session-B");
+
+  const promote = callWhere(client, (c) => c.text.includes("SET grade = 'work'"), "the promotion flip");
+  assert.match(promote.text, /RETURNING[\s\S]*\bharness\b/, "precondition: it still READS them back");
+  assert.doesNotMatch(setClause(promote.text), /harness|host/, "the promotion writes neither column");
+  assert.deepEqual(promote.values, ["chat-session-stream", "session-C"], "and binds no runtime");
+  assert.deepEqual(
+    client.eventDocs.map((d) => [d.sessionId, d.harness, d.host]),
+    [
+      ["session-B", "codex", "releaser-host"], // released: the HOLDER's row, as deleted
+      ["session-C", "claude-code", "waiter-host"], // promoted: the WAITER's row, untouched
+    ],
+  );
+});
+
+test("downgrade: the row keeps who took it — a downgrade is not a take, and binds no runtime", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-A", grade: "work", harness: "claude-code", host: "taker-host" });
+  await storeWith(client).downgrade("chat-session-stream", "session-A", "exploring");
+
+  const flip = callWhere(client, (c) => c.text.includes("SET grade = $3"), "the downgrade flip");
+  assert.doesNotMatch(setClause(flip.text), /harness|host/);
+  assert.deepEqual(flip.values, ["chat-session-stream", "session-A", "exploring"]);
+  assert.equal(client.eventDocs[0]?.harness, "claude-code", "the `downgraded` doc says who took the row");
+  assert.equal(client.eventDocs[0]?.host, "taker-host");
+});
+
+test("bulk releases: every `released` doc is the HOLDER's row, harness and host included", async () => {
+  const byBranch = new FakeClaimClient();
+  byBranch.branchDeleteReturns = [
+    heldRow({ unit_id: "unit-alpha", session_id: "sess-A", branch: "claude/x", harness: "codex", host: "MicksMSpro" }),
+    heldRow({ unit_id: "unit-beta", session_id: "sess-B", branch: "claude/x", harness: "claude-code", host: "mint" }),
+  ];
+  await storeWith(byBranch).releaseClaimsByBranch("claude/x");
+  assert.deepEqual(
+    byBranch.eventDocs.map((d) => [d.sessionId, d.harness, d.host]),
+    [
+      ["sess-A", "codex", "MicksMSpro"],
+      ["sess-B", "claude-code", "mint"],
+    ],
+  );
+
+  const bySession = new FakeClaimClient();
+  bySession.sessionDeleteReturns = [heldRow({ unit_id: "unit-alpha", session_id: "sess-A" })]; // unrecorded
+  await storeWith(bySession).releaseClaimsBySession("sess-A");
+  assert.ok(!("harness" in (bySession.eventDocs[0] ?? {})), "an unrecorded row is released unrecorded");
+});
+
+test("THE POLICY, at the seam: only a TAKE consults the runtime — reads, releases, promotion, downgrade and liveness writes never do", async () => {
+  // A preserve rule that quietly started stamping would have to call the runtime to do it, so
+  // counting calls pins the policy without the fake having to evaluate SQL.
+  let calls = 0;
+  const counting: ClaimRuntimeReading = { harness: "codex", host: "fixture-host.invalid" };
+  const client = new FakeClaimClient();
+  client.deleteReturns = heldRow({ session_id: "session-B", grade: "work" });
+  client.waiterRows = [heldRow({ session_id: "session-C", grade: "waiting" })];
+  client.ownRowForUpdate = heldRow({ session_id: "session-A", grade: "work" });
+  client.branchDeleteReturns = [heldRow({ unit_id: "unit-alpha", session_id: "sess-A", grade: "work" })];
+  client.sessionDeleteReturns = [heldRow({ unit_id: "unit-beta", session_id: "sess-B", grade: "work" })];
+  client.bumpReturns = heldRow({ session_id: "session-B" });
+  const store = new PgClaimStore(new FakePool(client) as never, {
+    runtime: () => {
+      calls += 1;
+      return counting;
+    },
+  });
+
+  await store.release("chat-session-stream", "session-B"); // + promotion
+  await store.downgrade("chat-session-stream", "session-A", "exploring"); // + promotion
+  await store.releaseClaimsByBranch("claude/x");
+  await store.releaseClaimsBySession("sess-B");
+  await store.stampActivity([{ sessionId: "sess-A", observedAt: "2026-09-18T10:00:00.000Z" }]);
+  await store.stampBranchActivity([{ branch: "claude/x", observedAt: "2026-09-18T10:00:00.000Z" }]);
+  await store.bumpHeartbeat("chat-session-stream", "session-B");
+  await store.current("chat-session-stream");
+  await store.claimsFor("chat-session-stream");
+  await store.listAllClaims();
+  await store.listLiveClaims();
+  await store.claimsBySession("sess-A");
+  assert.equal(calls, 0, "no preserve-side write and no read consults the runtime");
+
+  // …and every take consults it exactly once.
+  await store.claim(REQ_B, { now: NOW });
+  assert.equal(calls, 1, "claim");
+  await store.take({ ...REQ_B, grade: "exploring", intent: "x" }, { now: NOW });
+  assert.equal(calls, 2, "take");
+  await store.upgrade("chat-session-stream", "session-B", { now: NOW, branch: "claude/b" });
+  assert.equal(calls, 3, "upgrade");
+});
+
+// ── processClaimRuntime: the DEFAULT reading — this process, this machine ─────
+
+/** The three variables the harness resolver reads, saved and restored around a probe. */
+const HARNESS_VARS = ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CLAUDECODE"] as const;
+
+/** Run `probe` with exactly `env` set for the harness variables (the rest cleared), then restore. */
+async function withHarnessEnv<T>(env: Partial<Record<(typeof HARNESS_VARS)[number], string>>, probe: () => Promise<T> | T): Promise<T> {
+  const saved = HARNESS_VARS.map((name) => [name, process.env[name]] as const);
+  try {
+    for (const name of HARNESS_VARS) {
+      const value = env[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    return await probe();
+  } finally {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+}
+
+test("processClaimRuntime: reads THIS process's environment for the harness and THIS machine's hostname", async () => {
+  const machine = normalizeClaimHost(hostname());
+  assert.deepEqual(await withHarnessEnv({ CODEX_THREAD_ID: "probe-thread" }, processClaimRuntime), {
+    harness: "codex",
+    host: machine,
+  });
+  assert.deepEqual(await withHarnessEnv({ CLAUDE_CODE_SESSION_ID: "probe-session" }, processClaimRuntime), {
+    harness: "claude-code",
+    host: machine,
+  });
+  assert.deepEqual(await withHarnessEnv({}, processClaimRuntime), { harness: null, host: machine });
+});
+
+test("a store built WITHOUT a runtime stamps processClaimRuntime's reading — the production default is wired", async () => {
+  const client = new FakeClaimClient();
+  const store = new PgClaimStore(new FakePool(client) as never); // no options: what every producer builds
+  await withHarnessEnv({ CODEX_THREAD_ID: "probe-thread" }, () => store.claim(REQ_B, { now: NOW }));
+  const insert = callWhere(client, isWorkInsert, "the work insert");
+  assert.deepEqual(insert.values.slice(5), ["codex", normalizeClaimHost(hostname())]);
 });
 
 test("claim-contention-refuses-or-queues-naming-the-holder: claim (REFUSED — the red→green): a different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write to node_claim", async () => {
@@ -1073,7 +1554,7 @@ test("stampActivity: every RETURNING column is QUALIFIED — an UPDATE…FROM ha
   const stamp = client.calls.find((c) => c.text.includes("SET heartbeat_at = v.observed"));
   const returning = /RETURNING ([\s\S]*)$/.exec(stamp?.text ?? "")?.[1] ?? "";
   assert.notEqual(returning, "", "precondition: the statement has a RETURNING clause");
-  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "claimed_at", "heartbeat_at"]) {
+  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "harness", "host", "claimed_at", "heartbeat_at"]) {
     assert.match(
       returning,
       new RegExp(`\\bc\\.${col}\\b`),
@@ -1206,7 +1687,7 @@ test("stampBranchActivity: every RETURNING column is QUALIFIED — here the ambi
   const stamp = client.calls.find((c) => c.text.includes("c.branch = v.branch"));
   const returning = /RETURNING ([\s\S]*)$/.exec(stamp?.text ?? "")?.[1] ?? "";
   assert.notEqual(returning, "", "precondition: the statement has a RETURNING clause");
-  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "claimed_at", "heartbeat_at"]) {
+  for (const col of ["unit_id", "session_id", "grade", "branch", "intent", "role", "harness", "host", "claimed_at", "heartbeat_at"]) {
     assert.match(
       returning,
       new RegExp(`\\bc\\.${col}\\b`),
@@ -1462,6 +1943,57 @@ test("listAllClaims: a corrupt ROLE fails closed too — a wisp is never painted
   const bad = new FakeReadPool();
   bad.rows = [{ ...READ_ROW_WORK, role: "orchestrating" }];
   await assert.rejects(new PgClaimStore(bad as never).listAllClaims(), /invalid/i);
+});
+
+test("reads map harness/host onto the doc; a NULL one is ABSENT — the unrecorded row, never back-filled", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [
+    { ...READ_ROW_WORK, harness: "codex", host: "MicksMSpro" },
+    { ...READ_ROW_EXPLORING, harness: null, host: null }, // every row taken before these existed
+    { ...READ_ROW_EXPLORING, unit_id: "story-c", harness: "claude-code", host: null },
+    { ...READ_ROW_EXPLORING, unit_id: "story-d", harness: null, host: "mint" },
+  ];
+  const docs = await new PgClaimStore(pool as never).listAllClaims();
+  assert.match(pool.calls[0]?.text ?? "", /role, harness, host, claimed_at/, "the read asks for both columns");
+
+  assert.equal(docs[0]?.harness, "codex");
+  assert.equal(docs[0]?.host, "MicksMSpro");
+  assert.ok(!("harness" in (docs[1] ?? {})) && !("host" in (docs[1] ?? {})), "NULL is an absent key, not an undefined one");
+  assert.equal(docs[2]?.harness, "claude-code");
+  assert.ok(!("host" in (docs[2] ?? {})));
+  assert.ok(!("harness" in (docs[3] ?? {})));
+  assert.equal(docs[3]?.host, "mint");
+});
+
+test("reads of a fixture row with NO harness/host keys at all parse as unrecorded", async () => {
+  // READ_ROW_WORK predates the columns entirely — the shape a pre-migration fixture has.
+  const pool = new FakeReadPool();
+  pool.rows = [READ_ROW_WORK];
+  const docs = await new PgClaimStore(pool as never).claimsBySession("sess-A");
+  assert.ok(!("harness" in (docs[0] ?? {})) && !("host" in (docs[0] ?? {})));
+});
+
+test("a harness outside the vocabulary, or a blank host, reads as UNRECORDED — never a failed read", async () => {
+  // Unlike grade and role, these two are provenance: a newer checkout may write a harness this one
+  // has never heard of, and the read runs inside another session's take. So each bad value drops
+  // off the doc while the REST of the row — and its sibling attribute — still reads normally.
+  const cases: Array<[Record<string, string>, { harness?: string; host?: string }]> = [
+    [{ harness: "cursor", host: "mint" }, { host: "mint" }],
+    [{ harness: "", host: "mint" }, { host: "mint" }],
+    [{ harness: "codex", host: "" }, { harness: "codex" }],
+    [{ harness: "codex", host: "   " }, { harness: "codex" }],
+  ];
+  for (const [stored, expected] of cases) {
+    const pool = new FakeReadPool();
+    pool.rows = [{ ...READ_ROW_WORK, ...stored }];
+    const [doc] = await new PgClaimStore(pool as never).listAllClaims();
+    const label = JSON.stringify(stored);
+    assert.equal(doc?.unitId, READ_ROW_WORK.unit_id, `the row still reads: ${label}`);
+    assert.equal("harness" in (doc ?? {}), expected.harness !== undefined, `harness key: ${label}`);
+    assert.equal("host" in (doc ?? {}), expected.host !== undefined, `host key: ${label}`);
+    assert.equal(doc?.harness, expected.harness, `harness value: ${label}`);
+    assert.equal(doc?.host, expected.host, `host value: ${label}`);
+  }
 });
 
 // ── recentDepartures (ADR-0200 D7): the wisp-out departure read ───────────────

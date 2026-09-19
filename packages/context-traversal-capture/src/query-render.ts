@@ -17,7 +17,7 @@ import type {
 
 import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
 import { describeTraceIdentity } from "./session-identity.js";
-import type { TraceIdentityKind } from "./session-identity.js";
+import type { SessionHarness, TraceIdentityKind } from "./session-identity.js";
 import { describeSessionOrigin } from "./session-origin.js";
 import type { TraceOriginReading } from "./session-origin.js";
 import type { TraversalSessionSummary } from "./sink.js";
@@ -170,6 +170,17 @@ function renderCapacityLine(events: readonly ContextTraversalEvent[]): string {
   return `capacity: ${latest.contextWindowCapacity} tokens (model=${latest.modelId ?? "unknown"})`;
 }
 
+/**
+ * A provenance attribute's recorded values as one phrase, or `not recorded` — SAID, never left blank.
+ *
+ * Shared by the index row and the replay line so the two cannot come to spell an absence differently.
+ * `not recorded` is the whole truth an unstamped trace can offer: every line written before harness
+ * and machine detection existed says nothing about either, and nothing infers them after the fact.
+ */
+function recordedOrNot(values: readonly string[]): string {
+  return values.length > 0 ? values.join(", ") : "not recorded";
+}
+
 /** Always prints every declared coverage — supported AND omitted — never just one side. */
 function renderCoverageBlock(coverage: readonly ContextTraversalCoverage[]): string {
   if (coverage.length === 0) {
@@ -205,7 +216,13 @@ export function renderTraversalSessions(list: readonly TraversalSessionSummary[]
     // `origin:` rides EVERY row, `unknown` included — the one value a reader would otherwise supply
     // from habit. A row that simply omitted it would read as "not applicable" rather than "nobody
     // recorded how this session started" (ADR-0484 D7).
-    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed} — identity: ${session.identity} — origin: ${session.origin.reading}${slots}`;
+    //
+    // `harness:` and `host:` ride every row for the same reason, `not recorded` included: which agent
+    // harness and which MACHINE wrote a session are exactly the facts an audit once supplied from
+    // habit — and got wrong, reading a laptop's Codex work as another box's. (`host` is the machine's
+    // hostname, not the agent harness the older vocabulary calls "host".)
+    const provenance = ` — harness: ${recordedOrNot(session.harnesses)} — host: ${recordedOrNot(session.hosts)}`;
+    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed} — identity: ${session.identity} — origin: ${session.origin.reading}${provenance}${slots}`;
   });
 
   // WHY EVERY ROW CARRIES ITS IDENTITY KIND, and why the legacy note is CONDITIONAL
@@ -285,6 +302,15 @@ export function renderTraversalSession(
      * skipped when the caller passes nothing at all.
      */
     readonly origin?: TraceOriginReading;
+    /**
+     * The agent harness(es) the session's lines recorded, from the reader. On `origin`'s rule, not
+     * `identity`'s: an EMPTY list is printed as `not recorded` rather than omitted, because a missing
+     * line would be filled in from habit — and the line is skipped only when the caller passes
+     * nothing at all.
+     */
+    readonly harnesses?: readonly SessionHarness[];
+    /** The MACHINE(s) — hostnames — the session's lines recorded, on the same rule as `harnesses`. */
+    readonly hosts?: readonly string[];
   },
 ): TraversalRenderEnvelope {
   const lines: string[] = [];
@@ -307,6 +333,20 @@ export function renderTraversalSession(
   }
   if (opts.slots !== undefined && opts.slots.length > 0) {
     lines.push(`worktree slot: ${opts.slots.join(", ")} (a grouping attribute, never the identity)`);
+  }
+
+  // WHICH AGENT HARNESS AND WHICH MACHINE WROTE THESE LINES, said on the picture beside the slot,
+  // because they are the same kind of fact: provenance recorded beside the identity, never part of
+  // it. Both were DETECTED from the writing process, so the render states them and never infers them;
+  // `not recorded` is printed rather than a silent gap, since a gap is exactly where a reader puts
+  // the harness or the box they assumed. An empty replay is labelled with nothing, as above.
+  //
+  // ⚠ `host` IS THE MACHINE — its hostname — not the "host" the older vocabulary uses for the harness.
+  if (opts.harnesses !== undefined && replay.events.length > 0) {
+    lines.push(`harness: ${recordedOrNot(opts.harnesses)} (detected from the process that wrote each line — never declared)`);
+  }
+  if (opts.hosts !== undefined && replay.events.length > 0) {
+    lines.push(`host: ${recordedOrNot(opts.hosts)} (the machine that wrote each line, by hostname — not the agent harness)`);
   }
 
   // HOW THIS SESSION CAME TO EXIST, said on the picture (ADR-0484 D7). It sits beside `identity:`
