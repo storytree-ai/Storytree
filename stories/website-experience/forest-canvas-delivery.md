@@ -99,7 +99,7 @@ the only place in the renderer that holds all three at once. Nothing imports thi
 the package: it is the sink, and that is what lets rendering cost and mount behaviour be worked
 while all three art lanes are being worked by other sessions.
 
-> **Proof status (honest) — UNPROVEN as a capability, and only PARTLY covered as code.** The three
+> **Proof status (honest) — PROVEN ONLY IN PART, and only PARTLY covered as code.** The three
 > Studio mount files carry real suites (`LandView.test.tsx`, `landView.test.ts`,
 > `canvasRegistration.test.ts`, run by `pnpm --filter studio test`). The package half carries
 > `forest-ground-is-one-mesh.test.ts` plus the existing `ground-dependency.test.ts`, both run by
@@ -108,8 +108,9 @@ while all three art lanes are being worked by other sessions.
 > invention: a React-Three canvas has no honest headless oracle, its appearance is owner-witnessed
 > (ADR-0070), and the one machine assertion that reaches it is a SOURCE PARSE inside the draw-call
 > test — which that test's own header flags as its weakest claim, deliberately. The two cache
-> contracts below are armed but not yet built; the older tests carry no contract id (ADR-0122), so
-> no signed verdict names this unit yet.
+> contracts below are the only part a signed verdict reaches: they were first built and signed
+> together, as a cluster, by `batched-test-authoring-arc-inc-07`. The older tests carry no contract
+> id (ADR-0122), so no verdict covers the Studio mount or the canvas.
 
 ## The lane — 2 package modules + the Studio mount
 
