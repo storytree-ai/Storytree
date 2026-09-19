@@ -32,6 +32,9 @@ import {
   traceArcLabel,
   traceArcState,
   traceArcTitle,
+  traceRuntimeLabel,
+  traceRuntimeState,
+  traceRuntimeTitle,
   type TraversalIndexState,
   type TraversalTraceRow,
 } from '../lib/traversalIndex';
@@ -85,13 +88,15 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
   const newest = rows[0];
   const chosen = rows.find((row) => row.sessionId === selected) ?? null;
 
-  // The tab strip's right-hand meta line. Derived from the SELECTED row rather than composed from
-  // the replay payload, so it is truthful the instant a selection is made and cannot disagree with
-  // the rail about how many events the index counted.
+  // The tab strip's right-hand meta line — the replay's HEADER, naming the selected trace. Derived
+  // from the SELECTED row rather than composed from the replay payload, so it is truthful the instant
+  // a selection is made and cannot disagree with the rail about how many events the index counted —
+  // nor about which harness and machine wrote the trace (ADR-0579), which it says in the rail's own
+  // words, "not recorded" included.
   useEffect(() => {
     onMeta(
       chosen
-        ? `${chosen.sessionId} · ${chosen.eventCount} event${chosen.eventCount === 1 ? '' : 's'}`
+        ? `${chosen.sessionId} · ${chosen.eventCount} event${chosen.eventCount === 1 ? '' : 's'} · ${traceRuntimeLabel(chosen)}`
         : null,
     );
   }, [chosen, onMeta]);
@@ -142,6 +147,19 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
                     replay is KEYED by — an operator matching a row against `storytree traversal
                     show <id>` needs it exact. It is simply no longer what the row is called. */}
                 <span className="traversal-tab-row-sid">{row.sessionId}</span>
+                {/* WHICH HARNESS WROTE IT, ON WHICH MACHINE (ADR-0579) — under the trace id it
+                    qualifies, because a session id is a name somebody chose and this line is what
+                    stops it being read as a machine. Every trace written before detection existed
+                    says "not recorded" here in words: a blank is where a reader puts the box they
+                    assumed. `data-runtime` carries the classification so the stylesheet can tone an
+                    absence without re-deriving it. */}
+                <span
+                  className="traversal-tab-row-runtime"
+                  data-runtime={traceRuntimeState(row)}
+                  title={traceRuntimeTitle(row)}
+                >
+                  {traceRuntimeLabel(row)}
+                </span>
                 <span className="traversal-tab-row-sub">{traceAgeLabel(row, newest)}</span>
               </button>
             ))}

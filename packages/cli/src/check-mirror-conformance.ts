@@ -122,6 +122,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appendTraversalEvents } from "@storytree/context-traversal-capture";
+import type { TraversalLineIdentity } from "@storytree/context-traversal-capture";
 // The criterion binding the `tree-fixtures` stories carry. Computed rather than typed: a
 // `(revision-id:)` that does not bind its item's content is a spec-load ERROR, and two surfaces
 // failing identically is a comparison that passes having proved nothing.
@@ -719,7 +720,12 @@ function buildFloorHealthFixtures() {
  *
  * THE ARMS, and what each is the only way to catch:
  *   `populated` — two readable traces (one multi-event, so `eventCount`/`lastObservedAt` are
- *     exercised), an ALL-CORRUPT trace, and one host transcript carrying two real readings.
+ *     exercised), an ALL-CORRUPT trace, and one host transcript carrying two real readings. The
+ *     multi-event trace's lines are stamped with TWO different harness/machine pairs and the other
+ *     with none (ADR-0579), so the index's `harnesses`/`hosts` lists are compared populated, ordered
+ *     and empty — a mirror that dropped them, kept only the first, or answered `[]` where its reference
+ *     answered values diverges here. Without the stamps both surfaces would compare two empty lists,
+ *     which is the vacuous pass this harness exists to refuse.
  *   `empty` — the ADVISORY-ABSENCE arm: no traces and no transcripts. It is the only arm that
  *     catches a mirror answering an ERROR where its reference answers an honest empty list, or
  *     inventing a series where its reference reports `absence`. The SAME requests are replayed
@@ -780,7 +786,12 @@ function buildTraversalFixtures() {
   };
 
   let visit = 0;
-  const appendVisit = (traceDir: string, sessionId: string, at: string): void => {
+  const appendVisit = (
+    traceDir: string,
+    sessionId: string,
+    at: string,
+    identity: Pick<TraversalLineIdentity, "harness" | "host"> = {},
+  ): void => {
     visit += 1;
     const ok = appendTraversalEvents(
       [
@@ -794,15 +805,23 @@ function buildTraversalFixtures() {
           at,
         },
       ],
-      { dir: traceDir, sessionId },
+      { dir: traceDir, sessionId, ...identity },
     );
     if (!ok) throw new Error("traversal fixture: the sink refused a fixture event");
   };
 
   const inputs = [
     arm("populated", (traceDir, transcriptRoot) => {
-      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:00.000Z");
-      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:05.000Z");
+      // Two DIFFERENT pairs on one trace: first-seen order and plurality both reach the wire.
+      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:00.000Z", {
+        harness: "claude-code",
+        host: "fixture-laptop",
+      });
+      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:05.000Z", {
+        harness: "codex",
+        host: "fixture-desktop",
+      });
+      // No stamp: the pre-detection trace, whose lists must travel EMPTY on both surfaces (D5).
       appendVisit(traceDir, "session-beta", "2026-08-28T11:00:00.000Z");
       // Every line garbage: the tolerant reader skips all of them, so the session is omitted from
       // the index and its replay is a 200 with `skipped > 0` rather than a 404.

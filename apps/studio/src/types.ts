@@ -857,6 +857,13 @@ export interface ActivityPayload {
 
 // ---------- claim-ledger dock view (GET /api/claims, ADR-0200 D7) ----------
 
+// IMPORTED, not mirrored like the grade below — and on purpose. `ClaimRuntime` is what the one
+// renderer every surface goes through (`describeClaimRuntime`, ADR-0579) takes, and the dock calls
+// that renderer rather than re-wording it; a local copy of its input type would be the one piece of
+// the pair free to drift. Type-only, so it is erased from the bundle; the package is pure zod either
+// way (the `@storytree/studio-members` import above is the precedent).
+import type { ClaimHarnessT, ClaimRuntime } from '@storytree/notice-board';
+
 /**
  * The claim GRADES — mirrors `ClaimGradeT` from `@storytree/notice-board` locally (like
  * {@link BuildPhase}/{@link SubagentColourState} above mirror proof-protocol/drive enums rather
@@ -923,6 +930,17 @@ export interface SessionClaimEntry {
 export interface SessionClaimGroup {
   sessionId: string;
   branch: string;
+  /**
+   * Which HARNESS took this session's claims, on which MACHINE (ADR-0579) — every distinct pair the
+   * server's fold found, first-seen. Usually one; MORE THAN ONE IS A FINDING: a session id is a
+   * worktree's name, and nothing keeps it unique across machines. A pair with a missing half is a
+   * claim taken before detection existed (or by a process no recognised harness ran) — rendered
+   * "not recorded", never inferred (D5).
+   *
+   * OPTIONAL on the wire's back-compat idiom ({@link ClaimActivity.grade}): a server that predates
+   * the field sends no key, and the dock renders that as the unrecorded pair rather than a blank.
+   */
+  runtimes?: ClaimRuntime[];
   claims: SessionClaimEntry[];
   /** Every claim in this group is stale — the session is DARK. Held rows, nobody heard from. */
   stale: boolean;
@@ -969,6 +987,19 @@ export interface TraversalSessionEntry {
   units: string[];
   /** Every arc those units resolve to. Several are LISTED, never reduced to one. */
   arcs: string[];
+  /**
+   * WHICH AGENT HARNESS(ES) wrote this trace's lines (ADR-0579), detected from the writing process
+   * and never declared, first-seen. EMPTY means NOT RECORDED — every line written before detection
+   * existed carries none, and nothing infers one afterwards (D5).
+   *
+   * Typed through the claim ledger's vocabulary rather than the trace's own `SessionHarness`,
+   * because the trace's package reaches `node:fs` and cannot enter this bundle, while ADR-0579 D7
+   * holds the two vocabularies identical by test (`session-harness-parity.test.ts`). That identity is
+   * also what lets the rail word a trace through the ledger's renderer.
+   */
+  harnesses: ClaimHarnessT[];
+  /** Which MACHINE(S) wrote them, by hostname — the machine, never the harness (D8). Same rule. */
+  hosts: string[];
 }
 
 /**

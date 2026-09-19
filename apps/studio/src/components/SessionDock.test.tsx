@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
+import { describeClaimRuntime } from '@storytree/notice-board';
 import { SessionDock } from './TreeView';
 import type { SessionClaimGroup } from '../types';
 
@@ -186,5 +187,98 @@ describe('SessionDock — three bands (ADR-0535 D1)', () => {
       <SessionDock claimGroups={[held('live', claim('story-a', 60_000))]} now={NOW} onClose={vi.fn()} />,
     );
     expect(container.querySelector('details.claim-tidy-up')).toBeNull();
+  });
+});
+
+// ── ADR-0579: which harness each session runs under, and on which machine ───────────────────────
+//
+// A claim used to say WHO (a session id — a worktree's name, chosen by its author) and never WHAT or
+// WHERE, and an audit read ~40 h of Codex work on the owner's laptop as another machine's because the
+// worktree was named after its work. The ledger now records both, detected from the claiming process;
+// the dock's job is to say them beside the branch, in the ledger's OWN words — `describeClaimRuntime`
+// is the one renderer every surface goes through, so an unrecorded half cannot read two ways.
+describe('SessionDock — each session’s harness and machine, beside its branch (ADR-0579)', () => {
+  const claim = {
+    unitId: 'story-a',
+    grade: 'work' as const,
+    intent: 'real',
+    ageMs: 60_000,
+    claimedAt: '2026-07-16T11:59:00.000Z',
+    stale: false,
+    heartbeatAgeMs: 60_000,
+  };
+  const group = (runtimes?: SessionClaimGroup['runtimes']): SessionClaimGroup => ({
+    sessionId: 'sess-a',
+    branch: 'claude/sess-a',
+    stale: false,
+    claims: [claim],
+    ...(runtimes === undefined ? {} : { runtimes }),
+  });
+  const runtimeOf = (container: HTMLElement): Element | null =>
+    container.querySelector('.claim-session-header .claim-session-runtime');
+
+  it('prints the pair in the claim ledger’s own words, right after the branch', () => {
+    const { container } = render(
+      <SessionDock
+        claimGroups={[group([{ harness: 'codex', host: 'MicksMSpro' }])]}
+        now={NOW}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(runtimeOf(container)?.textContent).toBe(
+      describeClaimRuntime({ harness: 'codex', host: 'MicksMSpro' }),
+    );
+    // BESIDE the branch — after it, in the session's own header line, not somewhere a reader has to
+    // hunt for it.
+    expect(container.querySelector('.claim-session-header')?.textContent).toMatch(
+      /claude\/sess-a.*codex on MicksMSpro/,
+    );
+  });
+
+  it('says "not recorded" for a session whose claims predate detection — never blank, never a guess', () => {
+    // The fold lists an unrecorded row as the EMPTY pair (D5): nothing is inferred from the session
+    // id, the branch or the machine the store happens to be read from.
+    const { container } = render(
+      <SessionDock claimGroups={[group([{}])]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(runtimeOf(container)?.textContent).toBe('harness and host not recorded');
+    expect(runtimeOf(container)?.getAttribute('data-runtime')).toBe('unrecorded');
+  });
+
+  it('still says "not recorded" when the wire carries no runtimes at all', () => {
+    // A server that predates the field sends no key. The dock says what it does not know rather
+    // than printing nothing where a reader would supply the harness they assumed.
+    const { container } = render(<SessionDock claimGroups={[group()]} now={NOW} onClose={vi.fn()} />);
+    expect(runtimeOf(container)?.textContent).toBe('harness and host not recorded');
+  });
+
+  it('names the missing half and keeps the recorded one', () => {
+    const { container } = render(
+      <SessionDock claimGroups={[group([{ host: 'MicksMSpro' }])]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(runtimeOf(container)?.textContent).toBe('harness not recorded, on MicksMSpro');
+    expect(runtimeOf(container)?.getAttribute('data-runtime')).toBe('partial');
+  });
+
+  it('lists EVERY distinct pair under one session id — a collision across machines is shown, not folded away', () => {
+    // A session id is a worktree's name: unique within one clone, and nothing keeps it unique across
+    // machines. Two machines under one id is the finding the fold refuses to merge, so the dock must
+    // not merge it either — the same `; ` join the CLI board prints.
+    const { container } = render(
+      <SessionDock
+        claimGroups={[
+          group([
+            { harness: 'codex', host: 'MicksMSpro' },
+            { harness: 'codex', host: 'mint-desktop' },
+          ]),
+        ]}
+        now={NOW}
+        onClose={vi.fn()}
+      />,
+    );
+    const runtime = runtimeOf(container);
+    expect(runtime?.textContent).toBe('codex on MicksMSpro; codex on mint-desktop');
+    expect(runtime?.getAttribute('data-runtime-count')).toBe('2');
+    expect(runtime?.getAttribute('title')).toMatch(/not unique across machines/i);
   });
 });

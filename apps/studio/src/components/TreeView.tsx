@@ -47,6 +47,7 @@ import {
   useState,
 } from 'react';
 import dagre from '@dagrejs/dagre';
+import { describeClaimRuntime, type ClaimRuntime } from '@storytree/notice-board';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { unresolvedAssetReason, unresolvedDocReason } from '../lib/docsIndex';
@@ -5122,7 +5123,7 @@ function ClaimGroupList({
             <code>{g.sessionId}</code>
             <span className="muted small">
               {' '}
-              · <code>{g.branch}</code>
+              · <code>{g.branch}</code> · <ClaimSessionRuntime runtimes={g.runtimes} />
             </span>
           </p>
           <ul className="claim-list">
@@ -5145,6 +5146,44 @@ function ClaimGroupList({
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * WHICH HARNESS took a session's claims, ON WHICH MACHINE (ADR-0579) — printed beside the session's
+ * branch, because the session id before it is a worktree's NAME, chosen by its author, and an audit
+ * once read ~40 hours of Codex work on the owner's laptop as another machine's on the strength of one.
+ *
+ * WORDED BY THE LEDGER'S ONE RENDERER, `describeClaimRuntime`, never re-worded here: the CLI board,
+ * the refusal and this dock all print through it, so an unrecorded half cannot read two ways on two
+ * surfaces. Several pairs are joined with `; `, the CLI board's own join, and never merged — a session
+ * id under two machines is the collision a reader must be shown. An empty or absent list renders as
+ * the UNRECORDED pair, not as nothing: a blank reads as "nothing to say" where the truth is "nothing
+ * known", and nothing may be inferred to fill it (D5).
+ */
+function ClaimSessionRuntime({
+  runtimes,
+}: {
+  runtimes: readonly ClaimRuntime[] | undefined;
+}): React.JSX.Element {
+  const pairs: readonly ClaimRuntime[] = runtimes !== undefined && runtimes.length > 0 ? runtimes : [{}];
+  const halves = pairs.map((pair) => Number(pair.harness !== undefined) + Number(pair.host !== undefined));
+  const state = halves.every((n) => n === 2) ? 'recorded' : halves.every((n) => n === 0) ? 'unrecorded' : 'partial';
+  const title =
+    pairs.length > 1
+      ? `Claims under this one session id came from ${pairs.length} harness/machine pairs. A session id is a worktree's name — unique within one clone, not unique across machines — so this is a collision to look at, not noise (ADR-0579).`
+      : state === 'unrecorded'
+        ? 'These claims recorded neither the harness nor the machine that took them. Claims taken before detection existed carry neither, and nothing infers them — not the session id, the branch, or the machine you are reading this on (ADR-0579).'
+        : 'Detected from the process that took the claim, never declared (ADR-0579). A missing harness is a process no recognised agent harness ran — never read as a human at a keyboard.';
+  return (
+    <span
+      className="claim-session-runtime"
+      data-runtime={state}
+      data-runtime-count={runtimes?.length ?? 0}
+      title={title}
+    >
+      {pairs.map(describeClaimRuntime).join('; ')}
+    </span>
   );
 }
 

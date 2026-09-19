@@ -38,7 +38,11 @@ import { HttpError, sendJson } from './httpUtil';
 // resolve (only the .ts files exist). `pnpm gate` does not run `vite build`, so a static import here
 // would break the dev server with only CI Build to catch it.
 import type { TraversalReplayView } from '@storytree/context-traversal-spawn';
-import type { DecisionPointReport, TraversalSessionSummary } from '@storytree/context-traversal-capture';
+import type {
+  DecisionPointReport,
+  SessionHarness,
+  TraversalSessionSummary,
+} from '@storytree/context-traversal-capture';
 import type { Store } from '@storytree/storage-protocol';
 
 type SpawnModule = typeof import('@storytree/context-traversal-spawn');
@@ -183,6 +187,20 @@ export interface TraversalSessionWire {
    * editorial claim the record does not support.
    */
   readonly arcs: readonly string[];
+  /**
+   * WHICH AGENT HARNESS(ES) WROTE THIS TRACE'S LINES (ADR-0579) — detected from the writing process,
+   * never declared — in first-seen order, exactly as the sink's summary folded them.
+   *
+   * ⚠ EMPTY IS "NOT RECORDED", never "none": every line written before detection existed carries no
+   * harness, and nothing may fill one in afterwards (D5) — least of all from the machine serving this
+   * request. It travels as an empty list rather than a missing key so the panel never has to guess.
+   */
+  readonly harnesses: readonly SessionHarness[];
+  /**
+   * WHICH MACHINE(S) WROTE THEM — hostnames, on the same rule as {@link harnesses}. ⚠ `host` is the
+   * MACHINE (D8), not the agent harness the older traversal vocabulary calls "host".
+   */
+  readonly hosts: readonly string[];
 }
 
 /**
@@ -266,6 +284,11 @@ export async function handleTraversal(
           lastObservedAt: session.lastObservedAt ?? null,
           units: resolved.units,
           arcs: resolved.arcs,
+          // Folded by the sink's own summary since ADR-0579 landed, and dropped here until this
+          // increment — the ADR-0541 D1 shape again: computed, then thrown away one line short of
+          // the panel. Carried verbatim; nothing is derived, so an empty list stays "not recorded".
+          harnesses: session.harnesses,
+          hosts: session.hosts,
         };
       }),
     };

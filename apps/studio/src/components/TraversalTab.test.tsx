@@ -48,13 +48,15 @@ function answer(
     lastObservedAt: string | null;
     units?: string[];
     arcs?: string[];
+    harnesses?: string[];
+    hosts?: string[];
   }>,
   arcsResolved = true,
 ) {
   return {
     dir: TRACE_DIR,
     arcsResolved,
-    sessions: sessions.map((s) => ({ units: [], arcs: [], ...s })),
+    sessions: sessions.map((s) => ({ units: [], arcs: [], harnesses: [], hosts: [], ...s })),
   };
 }
 
@@ -68,6 +70,8 @@ const THREE = answer([
     lastObservedAt: '2026-08-12T10:00:00.000Z',
     units: ['map-arc-inc-01'],
     arcs: ['map-arc'],
+    harnesses: ['codex'],
+    hosts: ['MicksMSpro'],
   },
   {
     sessionId: 'bravo-2',
@@ -143,10 +147,37 @@ describe('TraversalTab — the whole local index, newest first (ttl-lists-the-wh
     // DOM order, so the ordering is pinned by something a reorder has to mean to change — the arc
     // led as the third line when it shipped, and that is the thing being corrected.
     expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
-      'map-arc' + '12' + 'alpha-1' + 'newest',
-      'no arc · forest-scene-model' + '386' + 'bravo-2' + '5m earlier',
-      'arc not recorded' + '4' + 'charlie-3' + '1d earlier',
+      'map-arc' + '12' + 'alpha-1' + 'codex on MicksMSpro' + 'newest',
+      'no arc · forest-scene-model' + '386' + 'bravo-2' + 'harness and host not recorded' + '5m earlier',
+      'arc not recorded' + '4' + 'charlie-3' + 'harness and host not recorded' + '1d earlier',
     ]);
+  });
+
+  it('names the HARNESS and MACHINE each trace recorded, and says "not recorded" where it recorded none (ADR-0579)', async () => {
+    // The misreading this exists to stop: an audit put ~40 h of Codex work on the wrong machine
+    // because a worktree was named after its work and nothing on the record said otherwise. A trace
+    // written before detection existed carries neither value, and the row SAYS so — a blank is where
+    // a reader puts the harness or the box they assumed (D5).
+    renderTab({ active: true });
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
+    const cells = screen
+      .getAllByRole('option')
+      .map((row) => row.querySelector('.traversal-tab-row-runtime'));
+    expect(cells.map((c) => c?.textContent)).toEqual([
+      'codex on MicksMSpro',
+      'harness and host not recorded',
+      'harness and host not recorded',
+    ]);
+    // The classification rides as data so the stylesheet can tone an ABSENCE without re-deriving it.
+    expect(cells.map((c) => c?.getAttribute('data-runtime'))).toEqual([
+      'recorded',
+      'unrecorded',
+      'unrecorded',
+    ]);
+    // …and the long form says the values were detected, never declared — or that nothing will be
+    // inferred to fill a blank.
+    expect(cells[0]?.getAttribute('title')).toMatch(/never declared/i);
+    expect(cells[1]?.getAttribute('title')).toMatch(/nothing (?:infers|fills)/i);
   });
 
   it('leads each row with the ARC and demotes the trace id to a subtitle', () => {
@@ -257,8 +288,17 @@ describe('TraversalTab — selection (ttl-mounts-the-replay-on-selection)', () =
     renderTab({ active: true, onMeta });
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
     fireEvent.click(screen.getByRole('option', { name: /bravo-2/ }));
-    // Derived from the RAIL's row, so the strip and the rail can never disagree about the count.
-    expect(onMeta).toHaveBeenLastCalledWith('bravo-2 · 386 events');
+    // Derived from the RAIL's row, so the strip and the rail can never disagree about the count —
+    // nor about which harness and machine wrote the trace (ADR-0579).
+    expect(onMeta).toHaveBeenLastCalledWith('bravo-2 · 386 events · harness and host not recorded');
+  });
+
+  it('heads the replay with the selected trace’s harness and machine (ADR-0579)', async () => {
+    const onMeta = vi.fn();
+    renderTab({ active: true, onMeta });
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
+    fireEvent.click(screen.getByRole('option', { name: /alpha-1/ }));
+    expect(onMeta).toHaveBeenLastCalledWith('alpha-1 · 12 events · codex on MicksMSpro');
   });
 
   it('does not say "1 events" — a real local trace holds exactly one', async () => {
@@ -269,7 +309,7 @@ describe('TraversalTab — selection (ttl-mounts-the-replay-on-selection)', () =
     renderTab({ active: true, onMeta });
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1));
     fireEvent.click(screen.getByRole('option', { name: /solo-1/ }));
-    expect(onMeta).toHaveBeenLastCalledWith('solo-1 · 1 event');
+    expect(onMeta).toHaveBeenLastCalledWith('solo-1 · 1 event · harness and host not recorded');
   });
 
   it('reports NO selection before one is made', async () => {
