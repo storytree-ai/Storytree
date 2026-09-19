@@ -116,12 +116,10 @@ function instanceDigest(d: InstanceDescriptor): string {
 
 /** Copy a descriptor's complete ground-visible state before it enters the one-slot cache. */
 function snapshotInstance(d: InstanceDescriptor): InstanceDescriptor {
-  return {
-    ...d,
-    transform: { ...d.transform },
-    ...(d.points === undefined ? {} : { points: d.points.map((point) => ({ ...point })) }),
-    ...(d.edges === undefined ? {} : { edges: [...d.edges] }),
-  };
+  const snapshot: InstanceDescriptor = { ...d, transform: { ...d.transform } };
+  if (d.points !== undefined) snapshot.points = d.points.map((point) => ({ ...point }));
+  if (d.edges !== undefined) snapshot.edges = [...d.edges];
+  return snapshot;
 }
 
 function snapshotGroundDependencies(descriptors: readonly Descriptor3D[]): Descriptor3D[] {
