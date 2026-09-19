@@ -23,6 +23,7 @@
 //
 // Pure: an index read in, a list out. No fetch, no clock, no React (the component owns all three).
 
+import { describeClaimRuntime, type ClaimHarnessT, type ClaimRuntime } from '@storytree/notice-board';
 import type { TraversalSessionEntry, TraversalSessionsPayload } from '../types';
 
 /**
@@ -44,6 +45,10 @@ export interface TraversalTraceRow {
   readonly units: readonly string[];
   /** The arcs those units resolve to. Several are LISTED, never reduced to one. */
   readonly arcs: readonly string[];
+  /** Which agent harness(es) wrote the trace (ADR-0579). EMPTY is "not recorded" — see {@link traceRuntimeLabel}. */
+  readonly harnesses: readonly ClaimHarnessT[];
+  /** Which MACHINE(S) wrote it, by hostname — never the harness. Empty on the same rule. */
+  readonly hosts: readonly string[];
 }
 
 /** The list the rail renders, and the four states it may honestly be in. */
@@ -117,6 +122,11 @@ function toRow(entry: TraversalSessionEntry): TraversalTraceRow {
     lastObservedAt: entry.lastObservedAt,
     units: entry.units ?? [],
     arcs: entry.arcs ?? [],
+    // `?? []` for a server that predates ADR-0579: no key is the same fact as an empty list — the
+    // trace told this reader nothing — and the rail says so in words rather than reading `.length`
+    // off undefined.
+    harnesses: entry.harnesses ?? [],
+    hosts: entry.hosts ?? [],
   };
 }
 
@@ -262,4 +272,104 @@ export function traceArcTitle(row: TraversalTraceRow, arcsResolved: boolean): st
     case 'unrecorded':
       return 'This session never recorded what it was working on. Traces are attributed going forward only — no arc is ever inferred from a pooled worktree slot (ADR-0541 D3).';
   }
+}
+
+// ---------------------------------------------------------------------------
+// WHICH HARNESS WROTE THE TRACE, AND ON WHICH MACHINE (ADR-0579)
+// ---------------------------------------------------------------------------
+//
+// An audit read ~40 hours of Codex work on the owner's laptop as a second machine's, because the
+// worktree was named after its WORK and nothing on the record could correct the reading. Every trace
+// line now records the agent harness and the machine that wrote it, DETECTED from the writing process
+// and never declared; these three functions are how the rail says them. The absence rule is the
+// decision's fifth clause: a trace written before detection existed carries neither value, and the
+// rail says "not recorded" — never a blank, and never a value inferred from anything else.
+
+/**
+ * How much of the pair a trace recorded — the classification the stylesheet tones by, so an ABSENCE
+ * can be dimmed without the stylesheet re-deriving which kind it is (the `data-arc` precedent):
+ * `recorded` has a harness AND a machine, `partial` one of the two (most often a process no
+ * recognised harness ran), `unrecorded` neither.
+ */
+export type TraceRuntimeState = 'recorded' | 'partial' | 'unrecorded';
+
+export function traceRuntimeState(row: TraversalTraceRow): TraceRuntimeState {
+  const harness = row.harnesses.length > 0;
+  const host = row.hosts.length > 0;
+  if (harness && host) return 'recorded';
+  if (harness || host) return 'partial';
+  return 'unrecorded';
+}
+
+/**
+ * The rail's line for WHICH HARNESS wrote a trace and ON WHICH MACHINE — and the tail of the replay's
+ * header, which names the selected trace from the same row.
+ *
+ * THE ORDINARY CASE IS WORDED BY THE CLAIM LEDGER'S OWN RENDERER. One harness on one machine — every
+ * trace written since detection landed — goes through `describeClaimRuntime`, the one copy every claim
+ * surface prints through, so this rail and the claim dock say "codex on MicksMSpro" and "not
+ * recorded" in the same words. That is the renderer's whole reason for being one copy: an unrecorded
+ * half worded two ways is how one surface comes to imply what another denies. It is legal because the
+ * trace and the ledger share one vocabulary, held identical by test (ADR-0579 D7).
+ *
+ * SEVERAL ARE LISTED, never reduced to one — two machines under one trace id is the cross-machine
+ * collision a reader must be shown — in the same sentence shape, each half joined the way `storytree
+ * traversal list` joins it. They are listed APART and never paired: the trace records the two facts
+ * apart, so which harness ran on which machine is not on the record ({@link traceRuntimeTitle} says so).
+ */
+export function traceRuntimeLabel(row: TraversalTraceRow): string {
+  const [harness, ...otherHarnesses] = row.harnesses;
+  const [host, ...otherHosts] = row.hosts;
+  if (otherHarnesses.length === 0 && otherHosts.length === 0) {
+    const runtime: ClaimRuntime = {};
+    // Stryker disable ConditionalExpression: EQUIVALENT, both guards. They exist for
+    // `exactOptionalPropertyTypes`, which refuses an explicit `undefined` on an optional key; at run
+    // time an assigned `undefined` and an absent key read identically through `describeClaimRuntime`
+    // (`runtime.harness === undefined`, `normalizeClaimHost(undefined)`), so forcing either guard true
+    // prints the same words and no assertion can separate them. The four answers they feed ARE pinned.
+    if (harness !== undefined) runtime.harness = harness;
+    if (host !== undefined) runtime.host = host;
+    // Stryker restore ConditionalExpression
+    return describeClaimRuntime(runtime);
+  }
+  const harnesses = row.harnesses.join(', ');
+  const hosts = row.hosts.join(', ');
+  if (row.harnesses.length === 0) return `harness not recorded, on ${hosts}`;
+  if (row.hosts.length === 0) return `${harnesses}, host not recorded`;
+  return `${harnesses} on ${hosts}`;
+}
+
+/**
+ * The full sentence behind {@link traceRuntimeLabel}, for the row's `title`. It says what the short
+ * form cannot fit: that both values were DETECTED rather than declared, that a missing harness is
+ * never a human at a keyboard, that a blank is permanent rather than pending, and — when there are
+ * several — that no pairing between them is on the record.
+ *
+ * ⚠ `host` IS THE MACHINE (ADR-0579 D8), so the sentence says "machine" in words: older traversal
+ * prose uses "host" for the agent harness, and a hover that said "host" would inherit the ambiguity.
+ */
+export function traceRuntimeTitle(row: TraversalTraceRow): string {
+  const { harnesses, hosts } = row;
+  if (harnesses.length === 0 && hosts.length === 0) {
+    return (
+      'This trace recorded neither the agent harness that wrote it nor the machine it ran on. Lines ' +
+      'written before detection existed carry neither, and nothing fills them in afterwards — not a ' +
+      'worktree name, a branch, or the machine you are reading this on (ADR-0579).'
+    );
+  }
+  const who =
+    harnesses.length > 0
+      ? harnesses.join(', ')
+      : 'a process no recognised agent harness ran — a terminal, a script or CI, never read as a human at a keyboard —';
+  const where =
+    hosts.length > 0
+      ? `${hosts.length > 1 ? 'the machines' : 'the machine'} ${hosts.join(', ')}`
+      : 'a machine that was not recorded, and none is inferred';
+  // The pairing caveat needs BOTH halves recorded and one of them plural: with no harness at all there
+  // is no "which harness ran where" to disclaim, and one of each is a pair the record does state.
+  const apart =
+    harnesses.length > 0 && hosts.length > 0 && (harnesses.length > 1 || hosts.length > 1)
+      ? ' The trace records the harness and the machine apart, so which harness ran on which machine is not recorded.'
+      : '';
+  return `Written by ${who} on ${where}. Detected from the process that wrote each line, never declared (ADR-0579).${apart}`;
 }

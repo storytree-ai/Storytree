@@ -50,7 +50,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 // Type-only, so all three are fully erased under `verbatimModuleSyntax`; the runtime values come
 // from the lazy loaders below.
 import type { TraversalReplayView } from "@storytree/context-traversal-spawn";
-import type { DecisionPointReport } from "@storytree/context-traversal-capture";
+import type { DecisionPointReport, SessionHarness } from "@storytree/context-traversal-capture";
 
 type SpawnModule = typeof import("@storytree/context-traversal-spawn");
 let spawnModulePromise: Promise<SpawnModule> | null = null;
@@ -181,6 +181,14 @@ interface TraversalSessionsWire {
     readonly units: readonly string[];
     /** Every arc those units resolve to. Several are LISTED, never reduced to one. */
     readonly arcs: readonly string[];
+    /**
+     * Which agent harness(es) wrote the trace's lines (ADR-0579), first-seen, as the sink's summary
+     * folded them. EMPTY is "not recorded" — never "none", and never filled in from the machine this
+     * sidecar runs on (D5).
+     */
+    readonly harnesses: readonly SessionHarness[];
+    /** Which MACHINE(S) wrote them, by hostname — the machine, not the harness (D8). Same rule. */
+    readonly hosts: readonly string[];
   }[];
 }
 
@@ -233,6 +241,10 @@ async function serveSessions(res: ServerResponse, deps: TraversalCorpusDeps): Pr
         lastObservedAt: session.lastObservedAt ?? null,
         units: resolved.units,
         arcs: resolved.arcs,
+        // Carried verbatim from the sink's summary, exactly as the studio's copy does — a mirror that
+        // dropped these would answer 200 and render every trace "not recorded" on the owner's machine.
+        harnesses: session.harnesses,
+        hosts: session.hosts,
       };
     }),
   };

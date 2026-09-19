@@ -10,12 +10,16 @@
 //      the epoch — the failure mode the nullable `lastObservedAt` exists to prevent.
 
 import { describe, it, expect } from 'vitest';
+import { describeClaimRuntime } from '@storytree/notice-board';
 import {
   buildTraversalTraceList,
   traceAgeLabel,
   traceArcLabel,
   traceArcState,
   traceArcTitle,
+  traceRuntimeLabel,
+  traceRuntimeState,
+  traceRuntimeTitle,
   type TraversalIndexState,
   type TraversalTraceRow,
 } from './traversalIndex';
@@ -35,7 +39,7 @@ function entry(
   lastObservedAt: string | null,
   eventCount = 10,
 ): TraversalSessionsPayload['sessions'][number] {
-  return { sessionId, eventCount, lastObservedAt, units: [], arcs: [] };
+  return { sessionId, eventCount, lastObservedAt, units: [], arcs: [], harnesses: [], hosts: [] };
 }
 
 describe('buildTraversalTraceList — the three absences stay three', () => {
@@ -139,10 +143,12 @@ describe('traceAgeLabel — relative to the newest trace, never to the wall cloc
     lastObservedAt: '2026-08-12T10:00:00.000Z',
     units: [],
     arcs: [],
+    harnesses: [],
+    hosts: [],
   };
 
   function rowAt(at: string | null): TraversalTraceRow {
-    return { sessionId: 'row', eventCount: 1, lastObservedAt: at, units: [], arcs: [] };
+    return { sessionId: 'row', eventCount: 1, lastObservedAt: at, units: [], arcs: [], harnesses: [], hosts: [] };
   }
 
   it('labels the newest row as such rather than "0s earlier"', () => {
@@ -172,7 +178,7 @@ describe('traceAgeLabel — relative to the newest trace, never to the wall cloc
 
 describe('traceArcState — the four honest answers, and the two that must never collapse', () => {
   function row(units: string[], arcs: string[]): TraversalTraceRow {
-    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs };
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs, harnesses: [], hosts: [] };
   }
 
   it('ONE arc reads as that arc', () => {
@@ -250,6 +256,8 @@ describe('buildTraversalTraceList — the arc fields survive the fold', () => {
           lastObservedAt: '2026-09-05T10:00:00.000Z',
           units: ['map-arc-inc-01'],
           arcs: ['map-arc'],
+          harnesses: [],
+          hosts: [],
         },
       ]),
     );
@@ -269,7 +277,7 @@ describe('buildTraversalTraceList — the arc fields survive the fold', () => {
 
 describe('traceArcLabel / traceArcTitle — the exact words, because the words ARE the distinction', () => {
   function row(units: string[], arcs: string[]): TraversalTraceRow {
-    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs };
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units, arcs, harnesses: [], hosts: [] };
   }
 
   it('ONE arc: the label is the arc name alone, and the title names the unit that placed it there', () => {
@@ -358,5 +366,160 @@ describe('buildTraversalTraceList — a payload from before these fields still r
     // corpus must not license "worked on no arc", which is a positive claim about the work.
     expect(list.arcsResolved).toBe(false);
     expect(traceArcLabel(list.rows[0]!, list.arcsResolved)).toBe('arc not recorded');
+  });
+
+  it('an entry with no harnesses/hosts keys reads as NOT RECORDED, never as undefined', () => {
+    // The same argument one field over (ADR-0579 D5): a server that predates the two lists sends no
+    // keys, and the rail must say "not recorded" in words rather than crash on `.length` or print
+    // nothing — a blank is exactly where a reader puts the harness or the box they assumed.
+    const legacy = { sessionId: 'old', eventCount: 3, lastObservedAt: null } as TraversalSessionEntry;
+    const list = buildTraversalTraceList({
+      status: 'read',
+      payload: { dir: TRACE_DIR, sessions: [legacy] } as TraversalSessionsPayload,
+    });
+    if (list.state !== 'listed') throw new Error('expected a listed index');
+    expect(list.rows[0]?.harnesses).toEqual([]);
+    expect(list.rows[0]?.hosts).toEqual([]);
+    expect(traceRuntimeLabel(list.rows[0]!)).toBe('harness and host not recorded');
+  });
+});
+
+// ── ADR-0579: which harness wrote a trace, and on which machine ─────────────────────────────────
+//
+// An audit read ~40 h of Codex work on the owner's laptop as a second machine's, because a worktree
+// was named after its WORK and nothing on the record could correct the reading. The trace now
+// records both facts, detected from the writing process; the rail's whole job is to say them — and,
+// for every trace written before detection existed, to say "not recorded" rather than a blank or a
+// guess (D5).
+describe('buildTraversalTraceList — the harness and host lists survive the fold', () => {
+  it('carries both lists onto the row exactly as the index recorded them', () => {
+    const list = buildTraversalTraceList(
+      read([
+        {
+          ...entry('a', '2026-09-19T10:00:00.000Z'),
+          harnesses: ['codex'],
+          hosts: ['MicksMSpro'],
+        },
+      ]),
+    );
+    if (list.state !== 'listed') throw new Error('expected a listed index');
+    expect(list.rows[0]?.harnesses).toEqual(['codex']);
+    expect(list.rows[0]?.hosts).toEqual(['MicksMSpro']);
+  });
+});
+
+describe('traceRuntimeLabel — the rail line, in the claim ledger’s own words', () => {
+  function row(harnesses: TraversalTraceRow['harnesses'], hosts: string[]): TraversalTraceRow {
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units: [], arcs: [], harnesses, hosts };
+  }
+
+  it('ONE harness on ONE machine reads exactly as the claim dock prints it', () => {
+    // Rendered THROUGH `describeClaimRuntime`, not in parallel with it: the renderer is one copy so
+    // an unrecorded half cannot be worded two ways on two surfaces of the same app.
+    expect(traceRuntimeLabel(row(['codex'], ['MicksMSpro']))).toBe('codex on MicksMSpro');
+    expect(traceRuntimeLabel(row(['claude-code'], ['mint-desktop']))).toBe(
+      describeClaimRuntime({ harness: 'claude-code', host: 'mint-desktop' }),
+    );
+  });
+
+  it('a trace that recorded NEITHER says so in words — never a blank, never a guess', () => {
+    expect(traceRuntimeLabel(row([], []))).toBe('harness and host not recorded');
+  });
+
+  it('a half that is missing is NAMED as missing, and the recorded half still shows', () => {
+    // No recognised harness is "not recorded", never a human: a terminal, a script and CI all read so.
+    expect(traceRuntimeLabel(row([], ['MicksMSpro']))).toBe('harness not recorded, on MicksMSpro');
+    expect(traceRuntimeLabel(row(['claude-code'], []))).toBe('claude-code, host not recorded');
+  });
+
+  it('SEVERAL are LISTED, never reduced to one — two machines under one id is a finding', () => {
+    expect(traceRuntimeLabel(row(['claude-code', 'codex'], ['MicksMSpro']))).toBe(
+      'claude-code, codex on MicksMSpro',
+    );
+    expect(traceRuntimeLabel(row(['codex'], ['MicksMSpro', 'mint-desktop']))).toBe(
+      'codex on MicksMSpro, mint-desktop',
+    );
+    expect(traceRuntimeLabel(row([], ['MicksMSpro', 'mint-desktop']))).toBe(
+      'harness not recorded, on MicksMSpro, mint-desktop',
+    );
+    expect(traceRuntimeLabel(row(['claude-code', 'codex'], []))).toBe(
+      'claude-code, codex, host not recorded',
+    );
+  });
+});
+
+describe('traceRuntimeState / traceRuntimeTitle — the classification and the sentence behind it', () => {
+  function row(harnesses: TraversalTraceRow['harnesses'], hosts: string[]): TraversalTraceRow {
+    return { sessionId: 's', eventCount: 1, lastObservedAt: null, units: [], arcs: [], harnesses, hosts };
+  }
+
+  it('classifies by what was recorded, so the stylesheet can tone an absence without re-deriving it', () => {
+    expect(traceRuntimeState(row(['codex'], ['MicksMSpro']))).toBe('recorded');
+    expect(traceRuntimeState(row([], ['MicksMSpro']))).toBe('partial');
+    expect(traceRuntimeState(row(['codex'], []))).toBe('partial');
+    expect(traceRuntimeState(row([], []))).toBe('unrecorded');
+  });
+
+  // THE WHOLE SENTENCE, pinned per case rather than probed with a regex: a hover is read in full,
+  // and every clause is a claim — detected-not-declared, a missing harness is never a human, a blank
+  // is permanent, and (only when there is a pairing to disclaim) that none is on the record. A regex
+  // per clause let a mutant empty the clause beside it and pass (check:mutation-diff, 27 survivors).
+  const DETECTED = 'Detected from the process that wrote each line, never declared (ADR-0579).';
+  const APART =
+    ' The trace records the harness and the machine apart, so which harness ran on which machine is not recorded.';
+  const NO_HARNESS =
+    'a process no recognised agent harness ran — a terminal, a script or CI, never read as a human at a keyboard —';
+
+  it('NEITHER recorded: says the blank is permanent and that nothing — least of all the reader’s own machine — fills it', () => {
+    expect(traceRuntimeTitle(row([], []))).toBe(
+      'This trace recorded neither the agent harness that wrote it nor the machine it ran on. Lines ' +
+        'written before detection existed carry neither, and nothing fills them in afterwards — not a ' +
+        'worktree name, a branch, or the machine you are reading this on (ADR-0579).',
+    );
+  });
+
+  it('ONE of each: names both, calls the host a MACHINE, and says the values were detected, not declared', () => {
+    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro']))).toBe(
+      `Written by codex on the machine MicksMSpro. ${DETECTED}`,
+    );
+  });
+
+  it('NO HARNESS: a process no recognised harness ran — never read as a human at a keyboard', () => {
+    expect(traceRuntimeTitle(row([], ['MicksMSpro']))).toBe(
+      `Written by ${NO_HARNESS} on the machine MicksMSpro. ${DETECTED}`,
+    );
+  });
+
+  it('NO MACHINE: says the machine was not recorded and that none is inferred', () => {
+    expect(traceRuntimeTitle(row(['claude-code'], []))).toBe(
+      `Written by claude-code on a machine that was not recorded, and none is inferred. ${DETECTED}`,
+    );
+  });
+
+  it('SEVERAL harnesses on one machine: lists them, and disclaims any pairing', () => {
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], ['MicksMSpro']))).toBe(
+      `Written by claude-code, codex on the machine MicksMSpro. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('SEVERAL machines under one harness: "machines", listed, and the same disclaimer', () => {
+    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by codex on the machines MicksMSpro, mint-desktop. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('SEVERAL of both: every value listed, none paired', () => {
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by claude-code, codex on the machines MicksMSpro, mint-desktop. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('no pairing disclaimer when one half is MISSING — there is no "which harness ran where" to disclaim', () => {
+    expect(traceRuntimeTitle(row([], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by ${NO_HARNESS} on the machines MicksMSpro, mint-desktop. ${DETECTED}`,
+    );
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], []))).toBe(
+      `Written by claude-code, codex on a machine that was not recorded, and none is inferred. ${DETECTED}`,
+    );
   });
 });

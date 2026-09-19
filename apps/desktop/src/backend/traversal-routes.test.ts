@@ -628,3 +628,54 @@ test("traversal-routes: a backend with NO document store reports arcsResolved:fa
     await h.close();
   }
 });
+
+// ---------- 6. WHICH HARNESS WROTE EACH TRACE, ON WHICH MACHINE (ADR-0579) ----------
+//
+// The summary folds both lists; this copy assembles its wire field by field exactly as the studio's
+// does, so the two lines that carry them must be added HERE as well — a mirror that dropped them would
+// answer 200, render every trace "not recorded" on the owner's own machine, and look healthy.
+
+/** A trace whose lines carry the harness and host a real capture stamps beside each one. */
+function writeStampedTrace(
+  dir: string,
+  sessionId: string,
+  identity: { harness?: "claude-code" | "codex"; host?: string },
+): void {
+  visit += 1;
+  const ok = appendTraversalEvents(
+    [
+      {
+        kind: "front_matter_read",
+        eventId: `event:visit-${visit}`,
+        sessionId,
+        visitId: `visit-${visit}`,
+        nodeId: "node-a",
+        surfaceId: "tree",
+        at: "2026-09-19T10:00:00.000Z",
+      },
+    ],
+    { dir, sessionId, ...identity },
+  );
+  assert.equal(ok, true, "the fixture must be written through the sink's own append");
+}
+
+test("traversal-routes: the sessions index names the HARNESS and MACHINE each trace recorded", async () => {
+  const h = await harness();
+  try {
+    writeStampedTrace(h.traceDir, "session-stamped", { harness: "codex", host: "MicksMSpro" });
+    writeTrace(h.traceDir, "session-unstamped", "2026-09-19T09:00:00.000Z");
+    const body = (await (await fetch(`${h.base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string; harnesses: string[]; hosts: string[] }[];
+    };
+    const stamped = body.sessions.find((s) => s.sessionId === "session-stamped");
+    const unstamped = body.sessions.find((s) => s.sessionId === "session-unstamped");
+    assert.deepEqual(stamped?.harnesses, ["codex"]);
+    assert.deepEqual(stamped?.hosts, ["MicksMSpro"]);
+    // Absent is UNRECORDED and travels as an EMPTY list — never a missing key, and never filled in
+    // from the machine this sidecar happens to run on (ADR-0579 D5).
+    assert.deepEqual(unstamped?.harnesses, []);
+    assert.deepEqual(unstamped?.hosts, []);
+  } finally {
+    await h.close();
+  }
+});

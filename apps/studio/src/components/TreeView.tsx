@@ -36,6 +36,7 @@
 
 import {
   createContext,
+  Fragment,
   memo,
   useCallback,
   useContext,
@@ -47,6 +48,7 @@ import {
   useState,
 } from 'react';
 import dagre from '@dagrejs/dagre';
+import { describeClaimRuntime, type ClaimRuntime } from '@storytree/notice-board';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { unresolvedAssetReason, unresolvedDocReason } from '../lib/docsIndex';
@@ -5122,7 +5124,7 @@ function ClaimGroupList({
             <code>{g.sessionId}</code>
             <span className="muted small">
               {' '}
-              · <code>{g.branch}</code>
+              · <code>{g.branch}</code> · <ClaimSessionRuntime runtimes={g.runtimes} />
             </span>
           </p>
           <ul className="claim-list">
@@ -5145,6 +5147,74 @@ function ClaimGroupList({
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * WHICH HARNESS took a session's claims, ON WHICH MACHINE (ADR-0579) — printed beside the session's
+ * branch, because the session id before it is a worktree's NAME, chosen by its author, and an audit
+ * once read ~40 hours of Codex work on the owner's laptop as another machine's on the strength of one.
+ *
+ * WORDED BY THE LEDGER'S ONE RENDERER, `describeClaimRuntime`, never re-worded here: the CLI board,
+ * the refusal and this dock all print through it, so an unrecorded half cannot read two ways on two
+ * surfaces. Several pairs are joined with `; `, the CLI board's own join, and never merged — a session
+ * id under two machines is the collision a reader must be shown. An empty or absent list renders as
+ * the UNRECORDED pair, not as nothing: a blank reads as "nothing to say" where the truth is "nothing
+ * known", and nothing may be inferred to fill it (D5).
+ */
+function ClaimSessionRuntime({
+  runtimes,
+}: {
+  runtimes: readonly ClaimRuntime[] | undefined;
+}): React.JSX.Element {
+  const pairs: readonly ClaimRuntime[] = runtimes !== undefined && runtimes.length > 0 ? runtimes : [{}];
+  const halves = pairs.map((pair) => Number(pair.harness !== undefined) + Number(pair.host !== undefined));
+  const state = halves.every((n) => n === 2) ? 'recorded' : halves.every((n) => n === 0) ? 'unrecorded' : 'partial';
+  // Two DIFFERENT things make a session carry several pairs, and the hover must not blur them. Two
+  // RECORDED pairs is the collision — one id, two harnesses or machines. A recorded pair beside the
+  // EMPTY one is only a session some of whose claims predate detection (measured on the live ledger
+  // the day this landed), and calling that a collision would send a reader hunting for a second box.
+  const recordedPairs = halves.filter((n) => n > 0).length;
+  const sentences: string[] = [];
+  if (recordedPairs > 1) {
+    sentences.push(
+      `These claims came from ${recordedPairs} different harness/machine pairs under one session id. A session id is a worktree's name — unique within one clone, not unique across machines — so this is a finding to look at, not noise.`,
+    );
+  }
+  if (recordedPairs === 0) {
+    sentences.push(
+      'These claims record neither the harness nor the machine that took them. Claims taken before detection existed carry neither, and nothing infers them — not the session id, the branch, or the machine you are reading this on.',
+    );
+  } else {
+    if (recordedPairs < pairs.length) {
+      sentences.push('Some of these claims were taken before detection existed and record neither; nothing infers them.');
+    }
+    sentences.push(
+      'Recorded values are detected from the process that took the claim, never declared; a missing harness is a process no recognised agent harness ran — never read as a human at a keyboard.',
+    );
+  }
+  const title = `${sentences.join(' ')} (ADR-0579)`;
+  return (
+    <span
+      className="claim-session-runtime"
+      data-runtime={state}
+      data-runtime-count={runtimes?.length ?? 0}
+      title={title}
+    >
+      {/* One unbreakable span per pair, the `;` glued to the pair it closes: the text is exactly the
+          CLI board's `; `-join, but a line can only break BETWEEN pairs. Measured in the staged dock,
+          a plain run wrapped mid-name at the hyphen ("claude-" / "code") — the one word the line
+          exists to be read for. */}
+      {pairs.map((pair, i) => (
+        <Fragment key={i}>
+          {i > 0 && ' '}
+          <span className="claim-session-runtime-pair">
+            {describeClaimRuntime(pair)}
+            {i < pairs.length - 1 ? ';' : ''}
+          </span>
+        </Fragment>
+      ))}
+    </span>
   );
 }
 

@@ -3742,6 +3742,19 @@ a.stat:hover {
   font-style: italic;
   color: var(--lp-ink-soft, var(--muted));
 }
+/* ADR-0579 — which harness took the session's claims, on which machine, beside its branch. It
+   inherits the header's muted small type; only the UNRECORDED pair is italicised, the `claim-unheard`
+   convention for "this is an absence of evidence", so a recorded machine name never reads as one. */
+.claim-session-runtime[data-runtime='unrecorded'] {
+  font-style: italic;
+}
+/* Each pair stays whole — the dock is 300px and a plain run broke "claude-code" at its hyphen. An
+   inline-block rather than `nowrap`: a pair that does not fit the rest of the line moves down whole,
+   and only a pair wider than the WHOLE line (an unusually long hostname) wraps inside itself, so
+   nothing can ever push the dock into a horizontal scroll. */
+.claim-session-runtime-pair {
+  display: inline-block;
+}
 /* ADR-0535 D1 — the tidy-up fold: claims old enough that "we don't know" about them is noise. Shut
    by default and never hidden, which is the whole distinction being drawn. */
 .claim-tidy-up {
@@ -4154,6 +4167,23 @@ button.legend-tile:hover {
 .traversal-tab-row-arc[data-arc='unresolved'] {
   color: var(--muted);
   opacity: 0.7;
+}
+/* WHICH HARNESS WROTE THE TRACE, ON WHICH MACHINE (ADR-0579) — its own full-width line under the
+   trace id it qualifies. Ellipsis rather than wrap: the row's `title` carries the whole sentence, and
+   a row that grew a line whenever a hostname ran long would reflow the rail between two reads.
+
+   ⚠ ONLY `unrecorded` FADES, and it keeps its words. Every trace written before detection existed
+   lands here, and "harness and host not recorded" is a statement, not a placeholder — dimmed like the
+   arc's absences so a recorded pair reads first, never hidden and never blank (D5). */
+.traversal-tab-row-runtime {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.traversal-tab-row-runtime[data-runtime='unrecorded'] {
+  opacity: 0.6;
 }
 .traversal-tab-row-sub {
   grid-column: 1 / -1;

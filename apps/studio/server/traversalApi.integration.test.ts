@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { appendTraversalEvents, computeDecisionPoints } from '@storytree/context-traversal-capture';
+import type { TraversalLineIdentity } from '@storytree/context-traversal-capture';
 import { replayTraversalSessionAllAdapters } from '@storytree/context-traversal-spawn';
 
 import { InMemoryStore } from '@storytree/storage-protocol';
@@ -45,7 +46,11 @@ function traceFile(dir: string, sessionId: string): string {
  * draws is honestly attributed, and the `model_context` carries NO `residentInputTokens` — the shape a
  * never-ingested session actually has, which is what the occupancy honesty below is about.
  */
-function writeFixture(dir: string, sessionId: string): void {
+function writeFixture(
+  dir: string,
+  sessionId: string,
+  identity: Pick<TraversalLineIdentity, 'harness' | 'host'> = {},
+): void {
   const ok = appendTraversalEvents(
     [
       {
@@ -98,7 +103,9 @@ function writeFixture(dir: string, sessionId: string): void {
         ok: true,
       },
     ],
-    { dir, sessionId },
+    // The identity attributes ride beside each line exactly as the capture stamps them — so a
+    // harness or host on the wire can only have come from the bytes, never from the route.
+    { dir, sessionId, ...identity },
   );
   expect(ok).toBe(true);
 }
@@ -488,6 +495,9 @@ describe('GET /api/traversal/sessions', () => {
         // to no arc (ADR-0541 D4).
         units: [],
         arcs: [],
+        // Nor any harness or machine: EMPTY, which the panel says as "not recorded" (ADR-0579 D5).
+        harnesses: [],
+        hosts: [],
       },
     ]);
 
@@ -497,6 +507,26 @@ describe('GET /api/traversal/sessions', () => {
       sessions: { sessionId: string }[];
     };
     expect(after.sessions.map((s) => s.sessionId).sort()).toEqual(['session-after-priming', SESSION]);
+  });
+
+  // ADR-0579: the index names WHICH HARNESS wrote each trace and ON WHICH MACHINE. The summary
+  // already folded both; this route assembles its wire field by field, so without these two lines the
+  // fold is computed and then dropped one step short of the panel — the ADR-0541 D1 shape again.
+  it('carries the harness and machine each trace recorded, and EMPTY lists for one that recorded neither', async () => {
+    writeFixture(traceDir, 'session-stamped', { harness: 'codex', host: 'MicksMSpro' });
+    writeFixture(traceDir, 'session-unstamped');
+
+    const body = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string; harnesses: string[]; hosts: string[] }[];
+    };
+    const stamped = body.sessions.find((s) => s.sessionId === 'session-stamped');
+    const unstamped = body.sessions.find((s) => s.sessionId === 'session-unstamped');
+    expect(stamped?.harnesses).toEqual(['codex']);
+    expect(stamped?.hosts).toEqual(['MicksMSpro']);
+    // Absent is UNRECORDED and travels as an empty list — never as a missing key the panel would
+    // have to guess about, and never filled in from the machine serving the request (D5).
+    expect(unstamped?.harnesses).toEqual([]);
+    expect(unstamped?.hosts).toEqual([]);
   });
 
   it('sees a trace file that did not exist when an earlier request answered', async () => {
