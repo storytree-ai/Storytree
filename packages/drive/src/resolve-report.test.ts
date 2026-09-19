@@ -8,6 +8,7 @@ import { loadNodeSpec, findNodeSpecFile } from "@storytree/orchestrator";
 // This import fails until the implementation is written — the right-kind red for this unit.
 import { resolveReport } from "./resolve-report.js";
 import type { ResolveReport, ResolveRealReport } from "./resolve-report.js";
+import { nodeResolve } from "./node-build.js";
 
 /**
  * Contract tests for `resolveReport(spec: NodeSpec): ResolveReport`.
@@ -97,6 +98,14 @@ test("resolveReport reports a SUITE proof command's route basis without refusing
   assert.ok(report.real !== null);
   assert.equal(report.real.proofCommand, "pnpm --filter @storytree/uat-criterion test");
   assert.equal(report.real.proofRouteBasis, "suite-scoped");
+});
+
+test("node resolve PRINTS the route basis, so an operator reads it before paying for a build", () => {
+  // The report field above is only half of it: `node resolve` is where a person reads the route. Its
+  // shape is all a route carries now — ADR-0580 D1 removed the assertion accounting it used to print.
+  const env = nodeResolve("verdict-line", { storiesDir: STORIES_DIR, repoRoot: REPO_ROOT });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /^ {2}proof route: +default-node-test$/m);
 });
 
 // ── Contract 1 (continued): spec-borne node with install + typecheck declared ────────────────────
