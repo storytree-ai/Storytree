@@ -114,6 +114,77 @@ function instanceDigest(d: InstanceDescriptor): string {
   ].join(FIELD);
 }
 
+/** Equal as the key reads them: `String(NaN)` is one spelling, so two NaNs are one ground, and an
+ *  absent number is equal only to another absent one (`Number.isNaN(undefined)` is false). */
+const sameNumber = (left: number | undefined, right: number | undefined) =>
+  left === right || (Number.isNaN(left) && Number.isNaN(right));
+
+function samePoints(
+  left: readonly { x: number; y: number; z: number }[] | undefined,
+  right: readonly { x: number; y: number; z: number }[] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftPoint = left[index]!;
+    const rightPoint = right[index]!;
+    if (!sameNumber(leftPoint.x, rightPoint.x) || !sameNumber(leftPoint.y, rightPoint.y) || !sameNumber(leftPoint.z, rightPoint.z)) return false;
+  }
+  return true;
+}
+
+/** ⚠ PAIRED OFF WITH `every`, NOT WALKED WITH A COUNTER: past either end a string list reads
+ *  `undefined` on BOTH sides, so a counter that overran or ran backwards would compare equal forever
+ *  rather than fail — an off-by-one no test can see and a reversed step that never ends. */
+function sameStrings(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+function sameInstanceDependency(left: InstanceDescriptor, right: InstanceDescriptor): boolean {
+  return left.kind === right.kind
+    && sameNumber(left.transform.x, right.transform.x)
+    && sameNumber(left.transform.y, right.transform.y)
+    && sameNumber(left.transform.z, right.transform.z)
+    && left.group === right.group
+    && left.material === right.material
+    && samePoints(left.points, right.points)
+    && sameNumber(left.width, right.width)
+    && sameNumber(left.usage, right.usage)
+    && left.hidden === right.hidden
+    && left.segment === right.segment
+    && sameStrings(left.edges, right.edges)
+    && sameNumber(left.bearing, right.bearing)
+    && left.island === right.island
+    && left.criterion === right.criterion
+    && left.parcel === right.parcel;
+}
+
+const isGroundVisible = (descriptor: Descriptor3D): descriptor is InstanceDescriptor =>
+  descriptor.kind !== 'skipped' && !GROUND_BLIND_KINDS.has(descriptor.kind);
+
+/** The descriptors the ground reads, in stream order, produced one at a time so a caller that stops
+ *  early never looks at the rest. ⚠ A GENERATOR RATHER THAN TWO INDEX CURSORS: a cursor walk whose
+ *  skip loop is broken spins forever, which no test can score, while a broken generator ends. */
+function* groundVisible(stream: readonly Descriptor3D[]): Generator<InstanceDescriptor, void, undefined> {
+  for (const descriptor of stream) if (isGroundVisible(descriptor)) yield descriptor;
+}
+
+/**
+ * Compare the exact dependency stream without serializing it. This is also the cache's equality
+ * seam: it reads in order, so a visible mismatch stops before any trailing descriptor is touched.
+ * It must agree with {@link groundDependencyKey} on every pair of streams, and the test holds it to
+ * that over every case the key's own tests distinguish.
+ */
+export function sameGroundDependencies(left: readonly Descriptor3D[], right: readonly Descriptor3D[]): boolean {
+  const rightVisible = groundVisible(right);
+  for (const leftDescriptor of groundVisible(left)) {
+    const next = rightVisible.next();
+    if (next.done === true || !sameInstanceDependency(leftDescriptor, next.value)) return false;
+  }
+  return rightVisible.next().done === true;
+}
+
 /**
  * THE CONTENT KEY THE GROUND IS REBUILT ON — everything in the stream except
  * {@link GROUND_BLIND_KINDS}, in stream order, as one string.
@@ -200,14 +271,15 @@ export function createGroundInputCache(
   // ⚠ ONE SLOT HOLDING BOTH, not two variables holding one each. A key and an answer that can be
   // assigned separately are a cache that can be asked whether an answer it does not have matches a
   // key it does — and the guard against that is then a line no input can exercise.
-  let cached: { readonly key: string; readonly input: GroundInput } | null = null;
+  let cached: { readonly dependencies: readonly Descriptor3D[]; readonly input: GroundInput } | null = null;
   let revision = 0;
   return (descriptors) => {
-    const key = groundDependencyKey(descriptors);
-    if (cached !== null && cached.key === key) return cached.input;
+    if (cached !== null && sameGroundDependencies(descriptors, cached.dependencies)) return cached.input;
     const input = groundInput(descriptors, opts, revision);
     revision += 1;
-    cached = { key, input };
+    // A deep copy of the WHOLE stream, so a caller mutating a descriptor it already handed over
+    // still reads as a change — and total by construction, with no field list to fall behind.
+    cached = { dependencies: structuredClone(descriptors), input };
     return input;
   };
 }

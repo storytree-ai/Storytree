@@ -35,6 +35,7 @@ import {
   groundInput,
   type GroundInputOptions,
 } from './ground-dependency.js';
+import * as groundDependency from './ground-dependency.js';
 import { groundCasters, placementCasters } from './ground-casters.js';
 import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, isDressingRole } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
@@ -194,6 +195,77 @@ test('a scene rebuilt with the same content is the same ground — the poll that
   assert.equal(third.revision, 0, 'the third stream rebuilt the ground');
   assert.equal(again, first, 'React keys on identity, so the object itself must be the same one');
   assert.equal(third, first);
+});
+
+test('fcd-ground-cache-compares-content-without-serializing: an equal fresh stream reuses the warmed ground without String conversion', () => {
+  // Build both streams before replacing String: fixture construction is deliberately outside the
+  // observation, so the count belongs only to the cache's equal-content comparison.
+  const warmedStream = forest();
+  const equalFreshStream = forest();
+  const cache = createGroundInputCache(OPTS);
+  const warmed = cache(warmedStream);
+  const originalString = globalThis.String;
+  let conversions = 0;
+
+  try {
+    globalThis.String = ((value?: unknown) => {
+      conversions += 1;
+      return originalString(value);
+    }) as StringConstructor;
+
+    const reused = cache(equalFreshStream);
+    assert.equal(reused, warmed, 'equal fresh content must reuse the exact warmed GroundInput');
+    assert.equal(conversions, 0, 'comparing equal ground dependencies serialized descriptor fields');
+  } finally {
+    globalThis.String = originalString;
+  }
+});
+
+test('fcd-ground-cache-short-circuits-on-first-change: the first ground-visible mismatch decides before trailing fields are read', () => {
+  type GroundDependencyModule = typeof groundDependency & {
+    readonly sameGroundDependencies?: (left: readonly Descriptor3D[], right: readonly Descriptor3D[]) => boolean;
+  };
+  const sameGroundDependencies = (groundDependency as GroundDependencyModule).sameGroundDependencies;
+
+  // This is intentionally an assertion red, rather than an import failure: the eventual export is
+  // an observation seam for the exact comparator the cache uses.
+  assert.equal(typeof sameGroundDependencies, 'function', 'the cache must expose its dependency comparator');
+  if (typeof sameGroundDependencies !== 'function') return;
+
+  const caveAt = (x: number): InstanceDescriptor => ({
+    kind: 'cave-arch',
+    transform: { x, y: 0, z: 0 },
+    group: 'cave-arch',
+  });
+  let groupReads = 0;
+  const observedTrailGhost: InstanceDescriptor = {
+    kind: 'trail-ghost-strip',
+    transform: { x: 4, y: 0, z: 0 },
+    get group() {
+      groupReads += 1;
+      return 'trail-ghost-strip';
+    },
+  };
+  const plainTrailGhost: InstanceDescriptor = {
+    kind: 'trail-ghost-strip',
+    transform: { x: 4, y: 0, z: 0 },
+    group: 'trail-ghost-strip',
+  };
+
+  assert.equal(
+    sameGroundDependencies([caveAt(0), observedTrailGhost], [caveAt(0), plainTrailGhost]),
+    true,
+    'equal streams are equal',
+  );
+  assert.ok(groupReads > 0, 'the equal control proves the comparator reads the trailing descriptor');
+
+  groupReads = 0;
+  assert.equal(
+    sameGroundDependencies([caveAt(0), observedTrailGhost], [caveAt(1), plainTrailGhost]),
+    false,
+    'the first cave position mismatch makes the streams unequal',
+  );
+  assert.equal(groupReads, 0, 'the comparator read a trailing descriptor after the first mismatch');
 });
 
 test('a wisp arriving, moving or leaving is not a ground change', () => {
@@ -464,4 +536,101 @@ test('a drawable family LEAVING the stream is still a ground change', () => {
   const cave: InstanceDescriptor = { kind: 'cave-arch', transform: { x: 0, y: 0, z: 0 }, group: 'cave-arch' };
   assert.notEqual(groundDependencyKey([cave]), groundDependencyKey([]));
   assert.notEqual(groundDependencyKey([cave]), groundDependencyKey([{ kind: 'skipped', sceneKind: 'cave' }]));
+});
+
+// ---------------------------------------------------------------------------
+// THE CACHE COMPARES WITHOUT THE KEY — and must still mean exactly what the key means
+// ---------------------------------------------------------------------------
+
+test('the cache comparator agrees with the ground key on every pair the key tells apart, both ways round', () => {
+  // ⚠⚠ THE KEY IS THE ORACLE, AND THAT IS WHY THIS TEST CAN FAIL. The cache no longer builds the key:
+  // it compares descriptors field by field (`sameGroundDependencies`), so every rule the key's own
+  // tests pin above — totality, absent versus empty, NaN, list and ring boundaries, order, skips,
+  // wisps — is now a rule this second comparison has to keep separately. A field it forgot, or a
+  // branch that answered wrongly, would serve a stale ground with every key test still green. So
+  // each pair below is asked of BOTH, and they must agree.
+  const same = groundDependency.sameGroundDependencies;
+  const plain: InstanceDescriptor = { kind: 'cave-arch', transform: { x: 0, y: 0, z: 0 }, group: 'g' };
+  const at = (x: number, y: number, z: number): InstanceDescriptor => ({ ...plain, transform: { x, y, z } });
+  const ringed = (points: { x: number; y: number; z: number }[]): InstanceDescriptor => ({ ...plain, points });
+  const edged = (edges: string[]): InstanceDescriptor => ({ ...plain, kind: 'trail-strip', edges });
+  const cell = (island: string): InstanceDescriptor => ({ kind: 'cell-ground', transform: { x: 0, y: 0, z: 0 }, group: 'g', island });
+  const wisp: InstanceDescriptor = { kind: 'wisp-sprite', transform: { x: 0, y: 0, z: 0 }, group: 'wisp-sprite' };
+  const skip = (sceneKind: string): Descriptor3D => ({ kind: 'skipped', sceneKind });
+
+  const pairs: [string, readonly Descriptor3D[], readonly Descriptor3D[]][] = [
+    ...Object.entries(OTHER).map(
+      ([field, patch]): [string, readonly Descriptor3D[], readonly Descriptor3D[]] => [
+        `\`${field}\` alone`,
+        [FULL],
+        [{ ...FULL, ...patch }],
+      ],
+    ),
+    ['a fully-populated copy', [FULL], [structuredClone(FULL)]],
+    ['position x alone', [at(0, 0, 0)], [at(1, 0, 0)]],
+    ['position y alone', [at(0, 0, 0)], [at(0, 1, 0)]],
+    ['an empty string against an absent one', [plain], [{ ...plain, material: '' }]],
+    ['an empty ring against an absent one', [plain], [{ ...plain, points: [] }]],
+    ['an empty edge list against an absent one', [plain], [{ ...plain, edges: [] }]],
+    ['a zero width against an absent one', [plain], [{ ...plain, width: 0 }]],
+    ['a parcel spelled "undefined"', [plain], [{ ...plain, parcel: 'undefined' }]],
+    ['two NaN positions', [at(Number.NaN, 0, 0)], [at(Number.NaN, 0, 0)]],
+    ['a NaN position against zero', [at(Number.NaN, 0, 0)], [at(0, 0, 0)]],
+    ['two NaN widths', [{ ...plain, width: Number.NaN }], [{ ...plain, width: Number.NaN }]],
+    ['a NaN width against an absent one', [{ ...plain, width: Number.NaN }], [plain]],
+    ['two rings holding NaN', [ringed([{ x: Number.NaN, y: 1, z: 2 }])], [ringed([{ x: Number.NaN, y: 1, z: 2 }])]],
+    ['a ring point differing in x alone', [ringed([{ x: 1, y: 2, z: 3 }])], [ringed([{ x: 9, y: 2, z: 3 }])]],
+    ['a ring point differing in y alone', [ringed([{ x: 1, y: 2, z: 3 }])], [ringed([{ x: 1, y: 9, z: 3 }])]],
+    ['a ring point differing in z alone', [ringed([{ x: 1, y: 2, z: 3 }])], [ringed([{ x: 1, y: 2, z: 9 }])]],
+    ['a ring one point longer', [ringed([{ x: 1, y: 2, z: 3 }])], [ringed([{ x: 1, y: 2, z: 3 }, { x: 1, y: 2, z: 3 }])]],
+    ['a ring differing only at its last point', [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])], [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 7 }])]],
+    ['two equal rings built separately', [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])], [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])]],
+    ['an edge list one entry longer', [edged(['a', 'b'])], [edged(['a,b'])]],
+    ['an edge list that is a prefix of the other', [edged(['a'])], [edged(['a', 'b'])]],
+    ['an edge moved across a boundary', [edged(['a', 'bc'])], [edged(['ab', 'c'])]],
+    ['an edge list differing only at its last entry', [edged(['a', 'b'])], [edged(['a', 'c'])]],
+    ['two equal edge lists built separately', [edged(['a', 'b'])], [edged(['a', 'b'])]],
+    ['two empty streams', [], []],
+    ['a drawable against nothing', [plain], []],
+    ['one record against two', [cell('atlas')], [cell('atlas'), cell('beacon')]],
+    ['the same two records in the other order', [cell('atlas'), cell('beacon')], [cell('beacon'), cell('atlas')]],
+    ['two skips of different scene kinds', [skip('tree')], [skip('wisp-dot')]],
+    ['a skip against nothing', [cell('atlas'), skip('tree')], [cell('atlas')]],
+    ['a drawable against a skip in its place', [plain], [skip('cave')]],
+    ['a wisp that moved', [wisp], [{ ...wisp, transform: { x: 99, y: 0, z: 0 } }]],
+    ['a wisp against nothing', [cell('atlas'), wisp], [cell('atlas')]],
+    ['the real forest, rebuilt', forest(), forest()],
+    ['the real forest, with wisps arriving', forest(), forest({ wispsA: ['run-1', 'run-2'] })],
+    ['the real forest, with a criterion signed', forest(), forest({ signedA: 5 })],
+  ];
+
+  for (const [name, left, right] of pairs) {
+    const expected = groundDependencyKey(left) === groundDependencyKey(right);
+    assert.equal(same(left, right), expected, `${name}: the comparator disagrees with the ground key`);
+    assert.equal(same(right, left), expected, `${name}, reversed: the comparator disagrees with the ground key`);
+  }
+  // NON-VACUITY: the table holds both answers, so a comparator that always said one of them fails it.
+  const answers = new Set(pairs.map(([, left, right]) => groundDependencyKey(left) === groundDependencyKey(right)));
+  assert.equal(answers.size, 2, 'the pair table must hold equal AND unequal streams');
+});
+
+test('a descriptor edited in place after the cache saw it is still a ground change', () => {
+  // ⚠ THE CACHE HOLDS A COPY, NOT THE CALLER'S OBJECTS. Holding the objects it was handed, an edit made
+  // to one of them in place would change both sides of the comparison at once, and the next call
+  // would be served the stale ground. Each nested part a descriptor carries is edited on its own.
+  const edits: [string, (d: InstanceDescriptor) => void][] = [
+    ['its position', (d) => { d.transform.x += 1; }],
+    ['a point of its ring', (d) => { d.points![0]!.x += 1; }],
+    ['an entry of its edge list', (d) => { d.edges![0] = 'z->y'; }],
+  ];
+  for (const [part, edit] of edits) {
+    const strip = structuredClone(FULL);
+    const stream: Descriptor3D[] = [...forest(), strip];
+    const cache = createGroundInputCache(OPTS);
+    const first = cache(stream);
+    edit(strip);
+    const next = cache(stream);
+    assert.notEqual(next, first, `${part}, edited in place, came back as the stale ground`);
+    assert.equal(next.revision, first.revision + 1, `${part}, edited in place, must rebuild exactly once`);
+  }
 });
