@@ -16,57 +16,45 @@ depends_on: [red-green-phase-machine]
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md)
 
 > **Proof status (honest) — `proposed`.** Covered by a real, passing, offline suite that spawns real
-> Node child processes (`packages/orchestrator/src/shell-test-executor.test.ts` — 44 cases: all 43
-> applicable Windows cases passed and the POSIX-only case was platform-skipped on 2026-09-16). This
+> Node child processes (`packages/orchestrator/src/shell-test-executor.test.ts` — 35 cases: all 34
+> applicable Windows cases passed and the POSIX-only case was platform-skipped on 2026-09-19). This
 > greenfield capability has no current signed pass; the standing suite does not make it brownfield
 > (ADR-0395).
 
 ## Guidance
 
 The LIVE `TestExecutor` (ADR-0020 §3): `ShellTestExecutor`
-(`packages/orchestrator/src/shell-test-executor.ts:221-300`) spawns a resolved `ShellCommand`
+(`packages/orchestrator/src/shell-test-executor.ts:153-198`) spawns a resolved `ShellCommand`
 (file + argv via `spawn`, with no shell for ordinary proof commands — injection-safe) and maps
 `exit 0 → green`, non-zero → red with a classified `kind`. A red is DATA — `run` never throws on a
 non-zero exit. Observation infrastructure rejects distinctly when the command never starts, when a
 started command exceeds one stream's capture ceiling before its deadline, or when force-stop delivery
 to a still-live root's owned process scope cannot be confirmed.
 
-**A red's `kind` has two BASES, and only one of them may gate anything.** Every red carries a
-`kindBasis` (`phase-machine.ts:66`) recording how its `kind` was arrived at:
+**Red and green are the exit code, and nothing else (ADR-0020 §3, ADR-0580 D1).** A green is an
+`exit 0` and is never downgraded; a red is any non-zero exit. Until ADR-0580 D1 the resolver also wired
+an assert-oracle cross-check onto some proof routes (ADR-0211 / ADR-0249); it was removed entirely.
+What checks a new test individually is the per-test report below, on the routes
+[`prove-spec-resolution`](prove-spec-resolution.md) arms.
 
-- `"oracle-count"` — MEASURED, through the resolver's `measureRedKind` seam
-  (`shell-test-executor.ts:117-176`): the assert-oracle report says how many assertions really RAN, so
-  0 means the run never reached one (structural → `compile`) and ≥1 means the oracle ran and refused
-  (assertion → `runtime`). This is the ONLY basis ADR-0020 §3's right-kind-red gate refuses on
-  ([`red-green-phase-machine`](red-green-phase-machine.md));
-- `"output-text"` — INFERRED by `defaultClassifyKind` (`shell-test-executor.ts:197-209`) from stdout+stderr:
-  missing-symbol / unresolved-module / syntax / TS-diagnostic shapes read as `compile`, everything
-  else `runtime`. It is the REPORTING basis (the evidence note on the verdict) and refuses nothing.
+**A red's `kind` is a REPORTING value, and nothing gates on it.** `defaultClassifyKind`
+(`shell-test-executor.ts:129-141`) infers it from stdout+stderr: missing-symbol / unresolved-module /
+syntax / TS-diagnostic shapes read as `compile`, everything else `runtime`. It rides on the verdict's
+evidence note; whether a new test's red is an assertion or a crash is judged by the per-test review
+from the runner's own report (ADR-0573 C5), never from this heuristic.
 
-That split is not fastidiousness. `defaultClassifyKind`'s module-resolution alternatives were
+The heuristic's history is the reason. `defaultClassifyKind`'s module-resolution alternatives were
 TypeScript's wording (`cannot find name`, `no such module`) and matched **none** of what Node prints,
 so a net-new node's unresolved import — the commonest structural red in the corpus — classified as
 `runtime` and was stamped that way on every verdict's evidence. It survived because nothing DEPENDED
 on the answer: the value was dead to control flow but live to the attestation, so no test could go
 red over it being wrong. The patterns are fixed (`Cannot find module` / `Cannot find package` /
 `ERR_MODULE_NOT_FOUND` / `ERR_UNKNOWN_FILE_EXTENSION` / `MODULE_NOT_FOUND` now read as `compile`,
-while a real assertion failure stays `runtime`) — and the gate still arms only on the measured basis,
-because a heuristic that was wrong for months unnoticed is the wrong instrument to refuse real work
-with.
-
-**The three optional cross-check seams** (`shell-test-executor.ts:117-176`) are wired together at one
-site by [`prove-spec-resolution`](prove-spec-resolution.md), and only for oracle-accounted proof
-commands (`classifyProofRoute` decides which; the default `node --import tsx --test` one among them) — any
-other command has none of them, and is observed by its exit code plus, where its route is armed, the
-per-test report below. `beforeRun` (ADR-0249) clears the oracle report before the spawn, so what
-is read back can only be THIS run's; `verifyGreen` (ADR-0211) downgrades an `exit 0` that never
-exercised the oracle to a fail-closed red; `measureRedKind` reads the same cleared-then-read report
-for the kind. The third depends on the first for exactly the reason the second does — an uncleared
-report's count is not attributable to this observation.
+while a real assertion failure stays `runtime`).
 
 **The child-env scrubs live here, the forged-green fix (PR #29) among them**: `scrubbedChildEnv`
-and its key predicate `isScrubbedEnvKey` (`shell-test-executor.ts:326-382`) apply THREE scrubs to
-every spawned child — two KEY families and one VALUE strip:
+and its key predicate `isScrubbedEnvKey` (`shell-test-executor.ts:211-228`) apply TWO key scrubs to
+every spawned child:
 
 - `NODE_TEST*` (the forged-green fix): when the spine itself runs under `node --test`, the runner
   exports `NODE_TEST_CONTEXT` to children; a spawned `node --test <file>` inheriting it behaves as a
@@ -74,14 +62,11 @@ every spawned child — two KEY families and one VALUE strip:
   GREEN at CONFIRM_RED;
 - secret-shaped names (TOKEN/SECRET/PASSWORD/CREDENTIAL/API_KEY/ACCESS_KEY): the leaf authors the
   test file this command executes, and with the ADR-0035 feedback tool its OUTPUT flows back to
-  the model — a test that prints `process.env` must find no credentials there;
-- an inherited assert-oracle guard (the VALUE strip): every inherited `--import` / `--import=` of
-  `assert-oracle-guard.mjs` is removed from `NODE_OPTIONS`, while the rest of that variable still
-  passes through (it is dropped only when nothing else is left). A spine running under its own
-  oracle guard would otherwise hand that guard to every process it spawns. The spine's own chosen
-  instrument is unaffected: it arrives through `cmd.env`, which `runShellCommand` merges after this
-  scrub (contract [`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md), signed run
-  `real-mu0zz0sc`).
+  the model — a test that prints `process.env` must find no credentials there.
+
+A third scrub — a strip of an inherited assert-oracle guard out of `NODE_OPTIONS`, contract
+[`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md) — retired with the guard (ADR-0580
+D1); `NODE_OPTIONS` now passes through like any other unscrubbed key.
 
 `runShellCommand` is exported as the SHARED runner: the gate's
 CONFIRM observations spawn through it, and the leaf's bounded `run_proof`/`run_typecheck` feedback
@@ -132,15 +117,15 @@ the phase machine's observation seam.
 **Original-command refusal detail.** A `ShellTestExecutor` observation made from a spawned command
 sets `TestObservation.originalProcessResult` to that command's own `stdout`, `stderr`, and
 `exitCode` (including `null` for a signal-terminated child), alongside its red/green classification.
-It is the one result already obtained for this observation, never a diagnostic rerun. A `beforeRun`
-refusal is deliberately different: it prevents the spawn, so it has no original subprocess result to
-attach. This detail neither reaches the leaf nor changes the classification, `kind`, phase
-transition, signed evidence, event schema, or stored history; the gate may expose it only on the
-final refused CONFIRM result.
+It is the one result already obtained for this observation, never a diagnostic rerun. A per-test
+report that could not be cleared is deliberately different: it refuses before the spawn, so it has no
+original subprocess result to attach. This detail neither reaches the leaf nor changes the
+classification, `kind`, phase transition, signed evidence, event schema, or stored history; the gate
+may expose it only on the final refused CONFIRM result.
 
-**The per-test report seam (ADR-0573 D1–D2).** `ShellTestResolver.perTestReport` is one more optional
-seam, held to `beforeRun`'s clear-then-read discipline (ADR-0249): the report is cleared before the
-spawn, and a report that survives the clear refuses the observation without spawning; after the run it
+**The per-test report seam (ADR-0573 D1–D2).** `ShellTestResolver.perTestReport` is an optional seam
+held to a clear-then-read discipline (ADR-0249's rule): the report is cleared before the spawn, and a
+report that survives the clear refuses the observation without spawning; after the run it
 is read and rides on the observation as `TestObservation.perTest`, changing neither `result` nor
 `originalProcessResult`. The readers for node's reporter JSONL, bun junit and vitest json live in
 `packages/orchestrator/src/proof/per-test-report.ts`. [`prove-spec-resolution`](prove-spec-resolution.md) arms it on
@@ -154,62 +139,56 @@ whole-package suites and other runners are observed exactly as before.
 a real authored test file and the spine's CONFIRM_RED/CONFIRM_GREEN decisions ride its
 observations — a genuinely failing then genuinely passing child process, exit codes only.
 
-## Contracts (15)
+## Contracts (15 → 13 surviving; ADR-0580 D1)
 
 1. **`exit-code-is-the-verdict-channel`** — exit 0 observes green; exit 1 observes a runtime red; a compile-shaped message + exit 1 observes a compile red
    - **asserts —** the three observation shapes off real spawned scripts.
-   - **covers —** `packages/orchestrator/src/shell-test-executor.ts:221-300`
-   - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:27`, `:37`, `:45` (REAL, passing)
+   - **covers —** `packages/orchestrator/src/shell-test-executor.ts:153-198`
+   - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:25`, `:32`, `:40` (REAL, passing)
 2. **`node-test-env-never-inherited`** — THE FORGED-GREEN FIX: the spawned observer never inherits `NODE_TEST*`
    - **asserts —** a child that would forge a green via `NODE_TEST_CONTEXT` is observed honestly.
-   - **covers —** `shell-test-executor.ts:326-382`
-   - **proven by —** `shell-test-executor.test.ts:54` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:211-228`
+   - **proven by —** `shell-test-executor.test.ts:49` (REAL, passing)
 3. **`secrets-never-reach-the-child`** — secret-shaped env names are scrubbed (the leaf sees the output)
    - **asserts —** TOKEN/SECRET/… vars are absent in the child; benign names survive; the scrub predicate's name list is exact.
-   - **covers —** `shell-test-executor.ts:326-382`
-   - **proven by —** `shell-test-executor.test.ts:211` and `:352` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:211-228`
+   - **proven by —** `shell-test-executor.test.ts:175` and `:222` (REAL, passing)
 4. **`red-is-data-not-an-error`** — a non-zero exit resolves normally with the observation
    - **asserts —** `run` resolves on a red; never throws.
-   - **covers —** `shell-test-executor.ts:221-300`
-   - **proven by —** `shell-test-executor.test.ts:70` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:153-198`
+   - **proven by —** `shell-test-executor.test.ts:65` (REAL, passing)
 5. **`spawn-failure-rejects`** — ENOENT (the command never ran) rejects rather than reading as a silent green
    - **asserts —** a missing executable rejects with the could-not-observe reason.
-   - **covers —** `shell-test-executor.ts:623-631`, `:788-803`
-   - **proven by —** `shell-test-executor.test.ts:158` and `:204` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:473-480`, `:641-657`
+   - **proven by —** `shell-test-executor.test.ts:122` and `:168` (REAL, passing)
 6. **`classification-is-pluggable`** — stdout-only compile shapes classify as compile; a custom `classifyKind` overrides the default
    - **asserts —** both classifier paths.
-   - **covers —** `shell-test-executor.ts:197-209`, `:278-296`
-   - **proven by —** `shell-test-executor.test.ts:75`, `:85`, `:978` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:129-141`, `:186-191`
+   - **proven by —** `shell-test-executor.test.ts:72`, `:80`, `:861` (REAL, passing)
 7. **`cwd-reaches-the-child`** — the resolved command's cwd is the spawned process's cwd
    - **asserts —** a cwd-sensitive script observes the right directory.
-   - **covers —** `shell-test-executor.ts:554-566`
-   - **proven by —** `shell-test-executor.test.ts:165` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:404-416`
+   - **proven by —** `shell-test-executor.test.ts:129` (REAL, passing)
 8. **`shared-runner-captures-everything`** — `runShellCommand` captures stdout, stderr, and the exit code as data
    - **asserts —** the full `ShellRunResult` off a real child.
-   - **covers —** `shell-test-executor.ts:539-806`
-   - **proven by —** `shell-test-executor.test.ts:194` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:389-659`
+   - **proven by —** `shell-test-executor.test.ts:158` (REAL, passing)
 9. **`node-module-resolution-reads-as-compile`** — the default classifier reads NODE's real unresolved-import wording as `compile`, and a genuine assertion failure still as `runtime`
    - **asserts —** `Cannot find module` / `Cannot find package` / `ERR_MODULE_NOT_FOUND` / `ERR_UNKNOWN_FILE_EXTENSION` / `SyntaxError` / a `TS####` diagnostic all classify `compile`; an `AssertionError` stays `runtime` (the widening swallows nothing).
-   - **covers —** `shell-test-executor.ts:197-209`
-   - **proven by —** `shell-test-executor.test.ts:95` (REAL, passing)
-10. **`measured-kind-wins-and-the-basis-is-recorded`** — a MEASURED red kind overrides the text heuristic and is stamped `oracle-count`; an unmeasurable red degrades to the heuristic and is stamped `output-text`
-    - **asserts —** with `measureRedKind` returning a kind, that kind wins over contradicting output text and `kindBasis === "oracle-count"`; returning `undefined` means "cannot measure" (never a kind) and yields the heuristic's kind with `kindBasis === "output-text"`, which the phase gate will not refuse on.
-    - **covers —** `shell-test-executor.ts:278-296`
-    - **proven by —** `shell-test-executor.test.ts:127` and `:143` (REAL, passing)
-11. **`a-green-declares-whether-it-was-vetted`** — an unvetted green SAYS so, and a cross-checked one reports what it measured
-    - **asserts —** a green observed with no `verifyGreen` wired carries `UNVETTED_GREEN_NOTE`; a green whose `verifyGreen` returns `{ok:true, note}` carries that note instead and never reads as unvetted; a `{ok:false}` veto is still a fail-closed RED carrying the veto reason (ADR-0211 unchanged).
-    - **covers —** the green branch of `ShellTestExecutor.run` + `UNVETTED_GREEN_NOTE` (`packages/orchestrator/src/shell-test-executor.ts`)
-    - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:1000`, `:1042`, and `:1054` (REAL, passing)
+   - **covers —** `shell-test-executor.ts:129-141`
+   - **proven by —** `shell-test-executor.test.ts:92` (REAL, passing)
+10. ~~`measured-kind-wins-and-the-basis-is-recorded`~~ — *(RETIRED by ADR-0580 D1, 2026-09-19 — the measured red kind and its `kindBasis` stamp went with the assert-oracle guard, and a red's kind is now the text heuristic's alone and gates nothing. Struck history, not a live contract: the id is left un-bolded so the contract parser no longer declares it, and its tests were deleted.)* — a MEASURED red kind overrode the text heuristic and was stamped `oracle-count`
+11. ~~`a-green-declares-whether-it-was-vetted`~~ — *(RETIRED by ADR-0580 D1, 2026-09-19 — with no cross-check left, there is no vetted or unvetted green to distinguish: every green is an exit 0 and carries no note. Struck history, not a live contract: the id is left un-bolded so the contract parser no longer declares it, and its tests were deleted.)* — an unvetted green said so, and a cross-checked one reported what it measured
 12. **`spawned-observation-keeps-its-original-process-result`** — a spawned observation can carry `originalProcessResult` from the exact process the spine already read, without another command
-    - **asserts —** ordinary child commands emitting distinct stdout and stderr preserve those exact strings and their exit status for both a green and a red observation, including `exitCode: null` on signal termination; each assertion observes exactly one child spawn. A `beforeRun` veto, ENOENT rejection, and any non-shell executor have no fabricated subprocess payload.
+    - **asserts —** ordinary child commands emitting distinct stdout and stderr preserve those exact strings and their exit status for both a green and a red observation, including `exitCode: null` on signal termination; each assertion observes exactly one child spawn. An ENOENT rejection and any non-shell executor have no fabricated subprocess payload.
     - **covers —** `ShellTestExecutor.run` and its `ShellRunResult` hand-off (`packages/orchestrator/src/shell-test-executor.ts`)
-    - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:1065` (ordinary real child processes; pending the capability's normal red→green proof)
+    - **proven by —** `packages/orchestrator/src/shell-test-executor.test.ts:876` (ordinary real child processes; pending the capability's normal red→green proof)
 13. **`runner-reports-read-per-test`** — each runner's report reads into one row per leaf test, with its full title path and outcome
     - **asserts —** node's reporter JSONL (`readNodeTestReport`), bun junit (`readBunJunitReport`) and vitest json (`readVitestJsonReport`) each yield one row per leaf test, carrying its full title path and outcome; a skip or a todo never reads as passed or failed, though node reports a skip as `test:pass` and a failing todo as `test:fail`; suites are containers, never rows; a duplicate title stays two rows; a load failure or an early exit leaves node a single file-level row and vitest a file row; an unnamed vitest status reads `other`; and `nodeTestReporterArgs` names `spec` to stdout beside the spine's reporter.
     - **covers —** `packages/orchestrator/src/proof/per-test-report.ts`, `packages/orchestrator/src/proof/per-test-reporter.mjs`
     - **proven by —** `packages/orchestrator/src/proof/per-test-report.test.ts`, over reports captured 2026-09-15 on Node 24.15.0, Bun 1.4.0 and vitest 3.2.6 (session-authored; pending the capability's normal red→green proof)
 14. **`per-test-report-rides-the-observation`** — a resolver's per-test report is cleared before the spawn and read after, and the observation carries what the run wrote
-    - **asserts —** a report that survives the clear refuses the observation without spawning; a stale report never reads as this run's; what the run wrote rides on the observation as `perTest`, red and green, without changing its `result` or its `originalProcessResult`; a `beforeRun` refusal comes first and leaves the report untouched; and a resolver with no `perTestReport` source yields no `perTest`.
+    - **asserts —** a report that survives the clear refuses the observation without spawning; a stale report never reads as this run's; what the run wrote rides on the observation as `perTest`, red and green, without changing its `result` or its `originalProcessResult`; and a resolver with no `perTestReport` source yields no `perTest`.
     - **covers —** `ShellTestExecutor.run` and `ShellTestResolver.perTestReport` (`packages/orchestrator/src/shell-test-executor.ts`); `perTestReportFile` (`packages/orchestrator/src/proof/per-test-report.ts`)
     - **proven by —** `packages/orchestrator/src/shell-test-executor.per-test.test.ts`, and the report-file cases in `packages/orchestrator/src/proof/per-test-report.test.ts` (session-authored; pending the capability's normal red→green proof)
 15. **`timeout-stops-owned-process-scope`** — a timed-out `runShellCommand` targets only the still-live root's owned POSIX process group or taskkill-reachable Windows tree, reports undelivered termination, and never treats an observed-exited root's number as ownership

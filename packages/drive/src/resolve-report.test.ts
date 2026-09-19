@@ -8,6 +8,7 @@ import { loadNodeSpec, findNodeSpecFile } from "@storytree/orchestrator";
 // This import fails until the implementation is written — the right-kind red for this unit.
 import { resolveReport } from "./resolve-report.js";
 import type { ResolveReport, ResolveRealReport } from "./resolve-report.js";
+import { nodeResolve } from "./node-build.js";
 
 /**
  * Contract tests for `resolveReport(spec: NodeSpec): ResolveReport`.
@@ -73,17 +74,14 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
     "node --import tsx --test packages/orchestrator/src/proof/verdict-line.test.ts",
   );
 
-  // `custom-proof-command-red-accounting`: the accounting posture is reported HERE, on the free
-  // read-only surface, because it is the one fact a `--real` build used to charge authoring turns to
-  // discover. The default route is oracle-accounted and has nothing to disclose.
-  assert.equal(report.real.proofAccounting, "oracle");
+  // `custom-proof-command-red-accounting`: the route's basis is reported HERE, on the free read-only
+  // surface, before any `--real` build is paid for.
   assert.equal(report.real.proofRouteBasis, "default-node-test");
-  assert.equal(report.real.proofAccountingNote, null);
 });
 
-test("resolveReport discloses a SUITE proof command's accounting posture without refusing it", () => {
-  // A suite-scoped command is exit-code-only and stays buildable (ADR-0098 R2 is structurally this
-  // shape). What changes is that an operator can see it BEFORE paying for a build.
+test("resolveReport reports a SUITE proof command's route basis without refusing it", () => {
+  // A suite-scoped command stays buildable (ADR-0098 R2 is structurally this shape), and an operator
+  // can see its route BEFORE paying for a build.
   //
   // RE-GROUNDED 2026-08-31 (`model-uat-family-consolidation-arc` inc-01). This case was written
   // against the `model-judged-uat` story, whose package ADR-0247 D5 has now retired and this
@@ -91,17 +89,23 @@ test("resolveReport discloses a SUITE proof command's accounting posture without
   // the old assertion would have gone on passing on a pure string comparison while naming a
   // `pnpm --filter` target that no longer resolves: a green assertion about a dead command.
   // `uat-criterion-detail` reproduces the condition exactly (story tier, spec-borne real arm,
-  // whole-package `pnpm --filter … test`, accounting `none`, basis `suite-scoped`) and is the LIVE
-  // story of the same family — the one package the consolidation keeps.
+  // whole-package `pnpm --filter … test`, basis `suite-scoped`) and is the LIVE story of the same
+  // family — the one package the consolidation keeps.
   const file = findNodeSpecFile(STORIES_DIR, "uat-criterion-detail");
   assert.ok(file !== null, "a LIVE story reproducing the 2026-08-09 node-5/5 condition");
   const report = resolveReport(loadNodeSpec(file));
 
   assert.ok(report.real !== null);
   assert.equal(report.real.proofCommand, "pnpm --filter @storytree/uat-criterion test");
-  assert.equal(report.real.proofAccounting, "none");
   assert.equal(report.real.proofRouteBasis, "suite-scoped");
-  assert.match(report.real.proofAccountingNote ?? "", /no oracle is POSSIBLE/);
+});
+
+test("node resolve PRINTS the route basis, so an operator reads it before paying for a build", () => {
+  // The report field above is only half of it: `node resolve` is where a person reads the route. Its
+  // shape is all a route carries now — ADR-0580 D1 removed the assertion accounting it used to print.
+  const env = nodeResolve("verdict-line", { storiesDir: STORIES_DIR, repoRoot: REPO_ROOT });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /^ {2}proof route: +default-node-test$/m);
 });
 
 // ── Contract 1 (continued): spec-borne node with install + typecheck declared ────────────────────

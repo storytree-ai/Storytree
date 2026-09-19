@@ -13,7 +13,6 @@
       "packages/drive/src/uat-drive*.ts": "drive-machinery",
       "packages/drive/src/write-authority-rules.ts": "drive-machinery",
       "packages/orchestrator/src/index.ts": "drive-machinery",
-      "packages/orchestrator/src/proof/assert-oracle-guard.mjs": "drive-machinery",
       "packages/orchestrator/src/proof/contract-coverage.ts": "drive-machinery",
       "packages/orchestrator/src/proof/inner-loop-exit*.ts": "drive-machinery",
       "packages/orchestrator/src/store/index.ts": "drive-machinery"

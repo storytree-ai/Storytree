@@ -10,7 +10,6 @@ import { parseContracts } from "@storytree/library";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { loadNodeSpec } from "./node-spec.js";
-import { assertOracleGuardUrl } from "./proof/oracle-accounting.js";
 import { perTestReporterUrl } from "./proof/per-test-report.js";
 import { classifyProofRoute, perTestChannelOf, withPerTestReport } from "./proof/proof-route.js";
 import type { RealProofConfig } from "./proof-config.js";
@@ -62,16 +61,15 @@ test("real-routes-arm-per-test-observation: only a route running this node's OWN
   assert.equal(channelFor({ file: "node", args: ["--test", "packages/unit/src/*.test.ts"] }), undefined, "a node:test glob");
 });
 
-test("real-routes-arm-per-test-observation: a bun own-file route is single-file and carries the assert-oracle guard through --preload", () => {
+test("real-routes-arm-per-test-observation: a bun own-file route is single-file, not a package-manager suite, and is spawned as declared", () => {
   const real = realConfig({ file: "bun", args: ["test", "--timeout", "300000", `./${TEST_FILE}`] });
-  assert.deepEqual(classifyProofRoute(real), { accounting: "oracle", basis: "bun-test-own-file", guardArgIndex: 1 });
-  const { command, accounted } = realProofCommand(real, REPO_ROOT);
-  assert.equal(accounted, true);
-  assert.deepEqual(command.args, ["test", "--preload", fileURLToPath(assertOracleGuardUrl()), "--timeout", "300000", `./${TEST_FILE}`]);
+  assert.deepEqual(classifyProofRoute(real), { basis: "bun-test-own-file" });
+  const { command } = realProofCommand(real, REPO_ROOT);
+  assert.deepEqual(command.args, ["test", "--timeout", "300000", `./${TEST_FILE}`]);
 
   // A single bun test file that is NOT the one AUTHOR_TEST writes can never observe its red.
   const elsewhere = realConfig({ file: "bun", args: ["test", "./packages/unit/src/other.test.ts"] });
-  assert.equal(classifyProofRoute(elsewhere).accounting, "refused");
+  assert.equal(classifyProofRoute(elsewhere).basis, "observes-another-file");
 });
 
 test("real-routes-arm-per-test-observation: each channel's flags ride the one command where its runner reads them", () => {

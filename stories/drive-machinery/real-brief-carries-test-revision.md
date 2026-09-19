@@ -192,7 +192,8 @@ Only `packages/orchestrator/src/resolve-prove-spec.ts` changes, plus one type ex
   containment. The connecting words are the implementer's to choose; a test that pinned one phrasing
   would refuse an implementation that states the same facts.
 - **The red is an assertion red.** The node declares `editsExisting` and its focused proof is
-  oracle-accounted, so CONFIRM_RED refuses a red in which no assertion ran. The test imports only what
+  observed per test, so CONFIRM_RED refuses unless every new test's red is an assertion (ADR-0573
+  C5). The test imports only what
   the package exports today:
   - `realPrompts`, `realProofCommand` and `resolveProveSpec` from `./resolve-prove-spec.js`, and
     `loadNodeSpec` from `./node-spec.js`;
@@ -214,7 +215,8 @@ what the signed test checks in place of each step. Beyond that:
 - The wording that says no observation is attached, that nothing from the failed run is present, and
   that the outcome and contracts are unchanged. These are confirmed by reading.
 - Byte-identity with today's briefs when no revision is passed. The unchanged
-  `resolve-prove-spec.test.ts` holds it through the pre-signature package suite. The new test checks
+  `resolve-prove-spec.test.ts` holds it through the orchestrator package suite, which the landing gate
+  runs (ADR-0580 D2 took it out of the build). The new test checks
   only that a plain brief carries no `ADR-0563`.
 - Six further clauses are confirmed in `testRevisionSection` by reading, not by the test:
   - either kind literal;

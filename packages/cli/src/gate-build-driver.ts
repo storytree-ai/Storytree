@@ -448,7 +448,6 @@ export async function driveBuildTestsGate(
           spec: gateSpec,
           worktree: cut,
           baseSha: cut.headSha,
-          buildConfig,
           realConfig,
           store,
           runId,
@@ -490,7 +489,7 @@ export async function driveBuildTestsGate(
       ...renderIncrementLines(preflight.incrementId, preflight.warnings),
       `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
     ];
-    const promotionLines = buildPromotionLines(built.regression, built.typecheck, built.promotion, built.promotionSkipped);
+    const promotionLines = buildPromotionLines(built.typecheck, built.promotion, built.promotionSkipped);
 
     if (!built.result.ok) {
       return {
@@ -538,19 +537,16 @@ export async function driveBuildTestsGate(
 
 /** The promotion/backstop report lines, shared with `node build --real`'s shape (when promoting). */
 function buildPromotionLines(
-  regression: "green" | "red" | undefined,
   typecheck: "green" | "red" | undefined,
   promotion: PromotionResult | undefined,
   promotionSkipped: string | undefined,
 ): string[] {
   return [
-    // Since `sign-after-typecheck` both observations run BEFORE the signature, so a red is why
-    // there is no verdict — not a push withheld over one that was signed anyway.
+    // Since `sign-after-typecheck` the typecheck runs BEFORE the signature, so a red is why there is
+    // no verdict — not a push withheld over one that was signed anyway. The package suite is not a
+    // build observation at all (ADR-0580 D2).
     ...(typecheck !== undefined
       ? [`typecheck:   package typecheck ${typecheck.toUpperCase()} in the worktree${typecheck === "red" ? " — verdict REFUSED before signing" : ""}`]
-      : []),
-    ...(regression !== undefined
-      ? [`regression:  package suite ${regression.toUpperCase()} in the worktree${regression === "red" ? " — verdict REFUSED before signing" : ""}`]
       : []),
     ...(promotion !== undefined
       ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]

@@ -35,8 +35,8 @@
 // THIS IS STRICTLY STRONGER THAN THE CHAIN IT REPLACES, and that is the property to preserve when
 // editing: MORE steps actually execute, no check's own semantics change, no ceiling moves, and any
 // red still fails the gate. {@link gateExitCode} is deliberately "green only if EVERY step passed" —
-// a `not-run` step can never bank a pass, because a gate that cannot go red is not a gate
-// (`asset:an-assert-oracle-proof-that-cannot-fail-is-not-a-proof`, and this arc's whole subject).
+// a `not-run` step can never bank a pass, because a check that cannot fail proves nothing — a gate
+// that cannot go red is not a gate, and that is this arc's whole subject.
 //
 // REPORT-EVERYTHING, WITH NO HARD PRECONDITIONS — a deliberate call, not an omission. The
 // alternative design is a plan where some step's failure makes later results MEANINGLESS, so they

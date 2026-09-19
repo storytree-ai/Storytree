@@ -3,7 +3,12 @@ import type { PromotionResult } from "@storytree/orchestrator";
 /** Maximum rendered size of each captured package-command stream. */
 export const BACKSTOP_STREAM_LIMIT = 4_000;
 
-export type BackstopKind = "typecheck" | "regression";
+/**
+ * Which package command the backstop observed. The package typecheck is the only one a build runs:
+ * the regression-suite kind left with ADR-0580 D2, and package-suite regression now belongs to the
+ * landing gate and CI.
+ */
+export type BackstopKind = "typecheck";
 
 /** The process fact returned by an install-bearing package command. */
 export interface BackstopCommandObservation {
@@ -16,7 +21,7 @@ export interface BackstopCommandObservation {
   timeoutMs: number;
 }
 
-/** The first package command whose observed red refused a REAL-build signature. */
+/** The package command whose observed red refused a REAL-build signature. */
 export interface BackstopRefusalObservation {
   kind: BackstopKind;
   result: "red";
@@ -86,9 +91,7 @@ export function makeBackstopRefusal(
     timeoutMs: observed.timeoutMs,
   };
   const headline =
-    kind === "typecheck"
-      ? "the package typecheck is RED in the worktree (the proof run is tsx-driven — types stripped — so only the typecheck sees type-illegal code)"
-      : "the package regression suite is RED in the worktree (a green leaf must not break its package)";
+    "the package typecheck is RED in the worktree (the proof run is tsx-driven — types stripped — so only the typecheck sees type-illegal code)";
   return {
     observation,
     ok: false,

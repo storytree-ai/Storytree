@@ -11,7 +11,7 @@ arc: verification-integrity-arc
 # declared command-bearing observe gate, or a refusal. It does not revise that rule, create gates,
 # or turn an existing unbound claim into evidence.
 depends_on: [drive-machinery]
-decisions: [180, 184, 249]
+decisions: [180, 184]
 capabilities: [proof-binding-outcome-contract, machine-leg-binding-audit, runtime-proof-binding-projection]
 ---
 

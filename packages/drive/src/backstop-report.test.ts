@@ -50,18 +50,18 @@ test("renderBackstopRefusalObservation renders numeric and null exits exactly", 
   );
   assert.equal(
     renderBackstopRefusalObservation({
-      kind: "regression",
+      kind: "typecheck",
       result: "red",
       originalProcessResult: { stdout: "", stderr: "", exitCode: null },
       timeoutMs: 600_000,
     }),
-    "backstop observation (regression): exit none (killed or timed out after 600000ms); effective timeout 600000ms\n" +
+    "backstop observation (typecheck): exit none (killed or timed out after 600000ms); effective timeout 600000ms\n" +
       "stdout:\n(empty)\n" +
       "stderr:\n(empty)",
   );
 });
 
-test("makeBackstopRefusal binds each exact headline to its exact structured observation", () => {
+test("makeBackstopRefusal binds the typecheck headline to its exact structured observation", () => {
   const process = { stdout: "out", stderr: "err", exitCode: 9 };
   const observed = { result: "red" as const, originalProcessResult: process, timeoutMs: 44_000 };
 
@@ -76,20 +76,6 @@ test("makeBackstopRefusal binds each exact headline to its exact structured obse
     reason:
       "the package typecheck is RED in the worktree (the proof run is tsx-driven — types stripped — so only the typecheck sees type-illegal code)\n" +
       "backstop observation (typecheck): exit 9; effective timeout 44000ms\n" +
-      "stdout:\nout\n" +
-      "stderr:\nerr",
-  });
-  assert.deepEqual(makeBackstopRefusal("regression", observed), {
-    observation: {
-      kind: "regression",
-      result: "red",
-      originalProcessResult: process,
-      timeoutMs: 44_000,
-    },
-    ok: false,
-    reason:
-      "the package regression suite is RED in the worktree (a green leaf must not break its package)\n" +
-      "backstop observation (regression): exit 9; effective timeout 44000ms\n" +
       "stdout:\nout\n" +
       "stderr:\nerr",
   });

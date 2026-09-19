@@ -37,7 +37,6 @@ import {
 } from "./proof/per-test-review.js";
 import type { PerTestFinding, PerTestPolicy } from "./proof/per-test-review.js";
 import type {
-  ExpectedRed,
   Phase,
   TestExecutor,
   TestObservation,
@@ -151,20 +150,10 @@ export interface ProveSpec {
    */
   onPhase?: (phase: Phase) => void | Promise<void>;
   /**
-   * `gate-the-right-kind-red` (optional): the kind of red this node DECLARES its CONFIRM_RED should
-   * be — `"structural"` for a net-new seam or an ADR-0098 R2 refactor, `"assertion"` for ADR-0057 C's
-   * `editsExisting`. When present, a MEASURED red of the wrong kind is refused fail-closed at
-   * CONFIRM_RED instead of advancing.
-   *
-   * Absent on every dry-run / live-smoke walk and every pre-ADR caller, so their behaviour is
-   * unchanged: those arms prove a SYNTHETIC pair with no node-declared shape behind it, and a gate
-   * with nothing to check against must not invent an expectation.
-   */
-  expectedRed?: ExpectedRed;
-  /**
    * `sign-after-typecheck` (optional): the package-level backstop this verdict must not out-run —
-   * in a REAL build, the installed worktree's package typecheck plus its regression suite, observed
-   * over the very commit about to be attested. The gate runs it inside GATE, AFTER the cheap
+   * in a REAL build, the installed worktree's package typecheck, observed over the very commit about
+   * to be attested. The package's regression suite is not part of it: that runs at landing, in the
+   * gate and CI (ADR-0580 D2). The gate runs this backstop inside GATE, AFTER the cheap
    * refusals (clean tree, resolved signer) and BEFORE the signing append, and a red outcome refuses
    * fail-closed like any other GATE refusal — so NO signing row is written at all.
    *
@@ -325,13 +314,12 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   visited.push("CONFIRM_RED");
   await spec.onPhase?.("CONFIRM_RED");
   const redObs = await spec.testExecutor.run(spec.testId);
-  const redGate = nextPhase("CONFIRM_RED", redObs, spec.expectedRed);
+  const redGate = nextPhase("CONFIRM_RED", redObs);
   if (!redGate.ok) {
     // If the slice was exhausted AND no red landed, the actionable signal is "raise the ceiling and
     // retry", not just "not red" — preserve that context the fall-through would otherwise swallow.
-    // A note is present when the observation was DOWNGRADED (a cleared/unattributable oracle report,
-    // ADR-0249), so surface it here for the same reason CONFIRM_GREEN does: the refusal should say
-    // WHY, not just "not red".
+    // An observation's note says why it reads as it does, so surface it here for the same reason
+    // CONFIRM_GREEN does: the refusal should say WHY, not just "not red".
     const redNote = redObs.note !== undefined ? ` — ${redObs.note}` : "";
     return fail(
       "CONFIRM_RED",
@@ -340,8 +328,8 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       { failedObservation: redObs.originalProcessResult },
     );
   }
-  // ADR-0573 D1: the review point between red and green, consulted only now that the exit code and its
-  // kind check would advance — so it can refuse this red, and can never rescue a refused one.
+  // ADR-0573 D1: the review point between red and green, consulted only now that the exit code would
+  // advance — so it can refuse this red, and can never rescue a refused one.
   const redReview = spec.perTest?.confirmRed?.(redObs);
   if (redReview !== undefined && !redReview.ok) {
     return fail(
@@ -392,9 +380,9 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const greenObs = await spec.testExecutor.run(spec.testId);
   const greenGate = nextPhase("CONFIRM_GREEN", greenObs);
   if (!greenGate.ok) {
-    // ADR-0211: when the green was DOWNGRADED by the assert-oracle cross-check, `greenObs.note` says
-    // WHY (the proof exited 0 but did not exercise the oracle) — surface it so the refusal is forensic,
-    // not just "not green".
+    // When the executor produced this red without a run behind it (a per-test report that could not be
+    // cleared, ADR-0573 D2), `greenObs.note` says WHY — surface it so the refusal is forensic, not just
+    // "not green".
     const noteSuffix = greenObs.note !== undefined ? ` — ${greenObs.note}` : "";
     // ADR-0569 D3: a STANDING (confirmed) IMPLEMENT escalation names itself AFTER every existing
     // suffix above — the ordinary refusal a leaf-free twin would give is unchanged byte for byte;
@@ -408,8 +396,8 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     );
   }
   // ADR-0573 D1: completeness at green — every declared test reported once and individually passed —
-  // consulted only once the exit code and the oracle floor would advance. A refusal here leaves an
-  // IMPLEMENT escalation STANDING (no green observation overruled it), exactly as a red does.
+  // consulted only once the exit code would advance. A refusal here leaves an IMPLEMENT escalation
+  // STANDING (no green observation overruled it), exactly as a red does.
   const greenReview = spec.perTest?.confirmGreen(greenObs);
   if (greenReview !== undefined && !greenReview.ok) {
     const escalationSuffix =
@@ -623,10 +611,8 @@ function toEvidence(obs: TestObservation, disclosure?: string): EvidenceRef {
   const base = obs.kind === undefined
     ? `observed ${obs.result}`
     : `observed ${obs.result} (${obs.kind})`;
-  // `oracle-veto-covers-custom-proof-commands`: the observation's own note rides through into the
-  // verdict. `note` is where the spine records WHY an observation reads as it does — ADR-0211's
-  // downgrade reason, and now whether a green was cross-checked by the assert oracle at all. Without
-  // this the distinction dies at the gate and every signed green looks equally vetted.
+  // The observation's own note rides through into the verdict: `note` is where the spine records WHY
+  // an observation reads as it does, and without this the reason dies at the gate.
   const noted = obs.note === undefined ? base : `${base} — ${obs.note}`;
   // ADR-0573 D5: whether this observation was per test rides the same channel, after the note.
   const note = disclosure === undefined ? noted : `${noted} — ${disclosure}`;

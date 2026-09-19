@@ -21,7 +21,14 @@ import type { PathWriteScopeConfig } from "./phase-machine.js";
  * residual registry). Commands are file+argv (execFile, never a shell).
  */
 export interface NodeBuildConfig {
-  /** The proof command `ShellTestExecutor` would spawn for this node in a live build. */
+  /**
+   * The node's package-level test command — typically `pnpm --filter <pkg> test`, the package's
+   * regression suite. No build runs it (ADR-0580 D2): a `--real` build proves the node with its REAL
+   * proof command and typechecks the package before signing, while package-suite regression belongs
+   * to the landing gate and CI. It stays a binding and display field: `check:verification-decay`'s
+   * contract-binding sweep reads it to find the node's package, and `node resolve` and the `adopt`
+   * preview show it.
+   */
   command: ShellCommand;
   /** Per-phase write walls: tests writable only in AUTHOR_TEST, source only in IMPLEMENT. */
   scope: PathWriteScopeConfig;
@@ -82,12 +89,12 @@ export interface CoverageSurfaceConfig {
  * authored test/impl may import ONLY `node:` builtins and relative files (type-only imports are
  * erased and fine) — the right shape for NET-NEW, dependency-free leaves. With `install: true`,
  * the worktree gets a LOCKFILE-ONLY `pnpm install` first (shared-store cheap), the authored files
- * may import workspace dependencies, and promotion additionally requires the node's package suite
- * (the registry `command`) AND the package typecheck (`typecheck`) green in the worktree — a green
- * leaf must not break its package, and the proof run is tsx-driven (types STRIPPED), so only a
- * real `tsc --noEmit` can see type-illegal-but-runtime-green code. The leaf can never ADD a
- * dependency either way: `package.json`/`pnpm-lock.yaml` sit outside every write scope
- * (deny-by-default).
+ * may import workspace dependencies, and the verdict additionally requires the package typecheck
+ * (`typecheck`) green in the worktree before it is signed — the proof run is tsx-driven (types
+ * STRIPPED), so only a real `tsc --noEmit` can see type-illegal-but-runtime-green code. The
+ * package's test suite is not run by the build: the landing gate and CI own package-suite
+ * regression (ADR-0580 D2). The leaf can never ADD a dependency either way:
+ * `package.json`/`pnpm-lock.yaml` sit outside every write scope (deny-by-default).
  */
 export interface RealProofConfig {
   /** Repo-relative TS test file the REAL proof runs. AUTHOR_TEST may write exactly this. */
@@ -100,7 +107,7 @@ export interface RealProofConfig {
   install?: boolean;
   /**
    * The package typecheck command (`tsc --noEmit` via the package's `typecheck` script), run in the
-   * installed worktree alongside the regression suite before a promotion may push. REQUIRED when
+   * installed worktree before the verdict is signed (ADR-0315). REQUIRED when
    * `install` is true (the schema's refine + the CLI both refuse an install-bearing config without
    * it): the proof command runs under tsx, which strips types, so a leaf can author runtime-green
    * code that violates the repo's strict flags (it happened — exactOptionalPropertyTypes,

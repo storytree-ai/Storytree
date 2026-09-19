@@ -61,11 +61,13 @@ not B — B widens the OBSERVATION vocabulary, never the single-pair authoring m
 `platformShellCommand` shims `pnpm` on Windows; widening it to `npm`/`yarn`/`npx` is a one-line
 follow-up (expansion C territory), so B stays on `pnpm`/`node`.
 
-B widens the **proof oracle** (the red→green observation) only. The promotion BACKSTOPS are
-unchanged and independent: an install-bearing node's `--real` promotion still runs the package
-regression suite (`buildConfig.command`) AND the package typecheck (ADR-0031 §2) in the worktree
-before pushing — "don't break the package" / "no type-illegal-but-runtime-green" remain separate
-gates a custom `proofCommand` does not replace.
+B widens the **proof oracle** (the red→green observation) only. The pre-signature BACKSTOP is
+unchanged and independent: an install-bearing node's `--real` build still runs the package
+typecheck (ADR-0031 §2, ADR-0315) in the worktree before it signs —
+"no type-illegal-but-runtime-green" remains a separate gate a custom `proofCommand` does not
+replace. The package regression suite (`buildConfig.command`) is no longer a build gate at all
+(ADR-0580 D2): "don't break the package" is the landing gate's and CI's, which run every affected
+package's full test leg.
 
 Trust note: a node declaring its own proof command is a wider authorship surface than A's scope —
 but it cannot weaken any honesty wall (a forged-green command is self-defeating: the spine spawns the
