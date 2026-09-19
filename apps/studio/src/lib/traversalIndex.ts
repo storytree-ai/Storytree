@@ -322,8 +322,14 @@ export function traceRuntimeLabel(row: TraversalTraceRow): string {
   const [host, ...otherHosts] = row.hosts;
   if (otherHarnesses.length === 0 && otherHosts.length === 0) {
     const runtime: ClaimRuntime = {};
+    // Stryker disable ConditionalExpression: EQUIVALENT, both guards. They exist for
+    // `exactOptionalPropertyTypes`, which refuses an explicit `undefined` on an optional key; at run
+    // time an assigned `undefined` and an absent key read identically through `describeClaimRuntime`
+    // (`runtime.harness === undefined`, `normalizeClaimHost(undefined)`), so forcing either guard true
+    // prints the same words and no assertion can separate them. The four answers they feed ARE pinned.
     if (harness !== undefined) runtime.harness = harness;
     if (host !== undefined) runtime.host = host;
+    // Stryker restore ConditionalExpression
     return describeClaimRuntime(runtime);
   }
   const harnesses = row.harnesses.join(', ');
@@ -351,23 +357,19 @@ export function traceRuntimeTitle(row: TraversalTraceRow): string {
       'worktree name, a branch, or the machine you are reading this on (ADR-0579).'
     );
   }
-  const machines = hosts.length === 1 ? `the machine ${hosts.join('')}` : `the machines ${hosts.join(', ')}`;
-  const sentences: string[] = [];
-  if (harnesses.length === 0) {
-    sentences.push(
-      `Written on ${machines} by a process no recognised agent harness ran — a terminal, a script or ` +
-        'CI — which is never read as a human at a keyboard.',
-    );
-  } else if (hosts.length === 0) {
-    sentences.push(`Written by ${harnesses.join(', ')}; the machine was not recorded, and none is inferred.`);
-  } else {
-    sentences.push(`Written by ${harnesses.join(', ')} on ${machines}.`);
-  }
-  sentences.push('Detected from the process that wrote each line, never declared (ADR-0579).');
-  if (harnesses.length > 1 || hosts.length > 1) {
-    sentences.push(
-      'The trace records the harness and the machine apart, so which harness ran on which machine is not recorded.',
-    );
-  }
-  return sentences.join(' ');
+  const who =
+    harnesses.length > 0
+      ? harnesses.join(', ')
+      : 'a process no recognised agent harness ran — a terminal, a script or CI, never read as a human at a keyboard —';
+  const where =
+    hosts.length > 0
+      ? `${hosts.length > 1 ? 'the machines' : 'the machine'} ${hosts.join(', ')}`
+      : 'a machine that was not recorded, and none is inferred';
+  // The pairing caveat needs BOTH halves recorded and one of them plural: with no harness at all there
+  // is no "which harness ran where" to disclaim, and one of each is a pair the record does state.
+  const apart =
+    harnesses.length > 0 && hosts.length > 0 && (harnesses.length > 1 || hosts.length > 1)
+      ? ' The trace records the harness and the machine apart, so which harness ran on which machine is not recorded.'
+      : '';
+  return `Written by ${who} on ${where}. Detected from the process that wrote each line, never declared (ADR-0579).${apart}`;
 }

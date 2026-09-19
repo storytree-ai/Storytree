@@ -460,26 +460,66 @@ describe('traceRuntimeState / traceRuntimeTitle — the classification and the s
     expect(traceRuntimeState(row([], []))).toBe('unrecorded');
   });
 
-  it('a recorded trace says the values were DETECTED from the writing process, never declared', () => {
-    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro']))).toMatch(/detected/i);
-    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro']))).toMatch(/never declared/i);
-  });
+  // THE WHOLE SENTENCE, pinned per case rather than probed with a regex: a hover is read in full,
+  // and every clause is a claim — detected-not-declared, a missing harness is never a human, a blank
+  // is permanent, and (only when there is a pairing to disclaim) that none is on the record. A regex
+  // per clause let a mutant empty the clause beside it and pass (check:mutation-diff, 27 survivors).
+  const DETECTED = 'Detected from the process that wrote each line, never declared (ADR-0579).';
+  const APART =
+    ' The trace records the harness and the machine apart, so which harness ran on which machine is not recorded.';
+  const NO_HARNESS =
+    'a process no recognised agent harness ran — a terminal, a script or CI, never read as a human at a keyboard —';
 
-  it('an unrecorded trace says nothing will be inferred to fill the blank', () => {
-    expect(traceRuntimeTitle(row([], []))).toMatch(/nothing (?:infers|fills)/i);
-  });
-
-  it('a missing harness is never read as a human at a keyboard', () => {
-    expect(traceRuntimeTitle(row([], ['MicksMSpro']))).toMatch(/never (?:read as|means) a human/i);
-  });
-
-  it('SEVERAL values say the trace records the two facts apart, so no pairing is implied', () => {
-    expect(traceRuntimeTitle(row(['claude-code', 'codex'], ['MicksMSpro', 'mint-desktop']))).toMatch(
-      /which harness ran on which machine is not recorded/i,
+  it('NEITHER recorded: says the blank is permanent and that nothing — least of all the reader’s own machine — fills it', () => {
+    expect(traceRuntimeTitle(row([], []))).toBe(
+      'This trace recorded neither the agent harness that wrote it nor the machine it ran on. Lines ' +
+        'written before detection existed carry neither, and nothing fills them in afterwards — not a ' +
+        'worktree name, a branch, or the machine you are reading this on (ADR-0579).',
     );
   });
 
-  it('`host` is the MACHINE — the sentence says so, because older traversal prose uses it for the harness', () => {
-    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro']))).toMatch(/machine/i);
+  it('ONE of each: names both, calls the host a MACHINE, and says the values were detected, not declared', () => {
+    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro']))).toBe(
+      `Written by codex on the machine MicksMSpro. ${DETECTED}`,
+    );
+  });
+
+  it('NO HARNESS: a process no recognised harness ran — never read as a human at a keyboard', () => {
+    expect(traceRuntimeTitle(row([], ['MicksMSpro']))).toBe(
+      `Written by ${NO_HARNESS} on the machine MicksMSpro. ${DETECTED}`,
+    );
+  });
+
+  it('NO MACHINE: says the machine was not recorded and that none is inferred', () => {
+    expect(traceRuntimeTitle(row(['claude-code'], []))).toBe(
+      `Written by claude-code on a machine that was not recorded, and none is inferred. ${DETECTED}`,
+    );
+  });
+
+  it('SEVERAL harnesses on one machine: lists them, and disclaims any pairing', () => {
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], ['MicksMSpro']))).toBe(
+      `Written by claude-code, codex on the machine MicksMSpro. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('SEVERAL machines under one harness: "machines", listed, and the same disclaimer', () => {
+    expect(traceRuntimeTitle(row(['codex'], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by codex on the machines MicksMSpro, mint-desktop. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('SEVERAL of both: every value listed, none paired', () => {
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by claude-code, codex on the machines MicksMSpro, mint-desktop. ${DETECTED}${APART}`,
+    );
+  });
+
+  it('no pairing disclaimer when one half is MISSING — there is no "which harness ran where" to disclaim', () => {
+    expect(traceRuntimeTitle(row([], ['MicksMSpro', 'mint-desktop']))).toBe(
+      `Written by ${NO_HARNESS} on the machines MicksMSpro, mint-desktop. ${DETECTED}`,
+    );
+    expect(traceRuntimeTitle(row(['claude-code', 'codex'], []))).toBe(
+      `Written by claude-code, codex on a machine that was not recorded, and none is inferred. ${DETECTED}`,
+    );
   });
 });
