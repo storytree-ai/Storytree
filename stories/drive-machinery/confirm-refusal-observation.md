@@ -49,12 +49,14 @@ Given a real `ShellTestExecutor` and a recording signing store:
 
 1. run a command that is unexpectedly green at CONFIRM_RED; observe one spawn, its original
    exit-0 output in the failed result, and no signing row;
-2. set an explicit `expectedRed`, return a measured `oracle-count` wrong-kind red, and observe one
-   spawn, its original red output in the failed result, and no signing row;
-3. advance on the expected red, leave the implementation red, and observe two total spawns with
-   only the CONFIRM_GREEN result attached to the final failure; and
-4. pass the walk and separately refuse at authoring, GATE, and backstop; observe no failed
+2. advance on the red, leave the implementation red, and observe two total spawns with only the
+   CONFIRM_GREEN result attached to the final failure; and
+3. pass the walk and separately refuse at authoring, GATE, and backstop; observe no failed
    observation payload in all four cases.
+
+*(Amended in place by ADR-0580 D1, 2026-09-19: a second CONFIRM_RED case — a measured wrong-kind red
+refused against an explicit `expectedRed` — went with the kind gate. CONFIRM_RED now refuses only a
+green.)*
 
 The observable is the discriminated `ProveResult`, the shell spawn count, and the signing store. The
 tests use ordinary shell children, never a fabricated `RecordingTestExecutor` observation.
@@ -64,13 +66,11 @@ tests use ordinary shell children, never a fabricated `RecordingTestExecutor` ob
 `proveUnit` transports `TestObservation.originalProcessResult` as `ProveResult.failedObservation`
 only after `nextPhase` has already refused the CONFIRM phase. It neither re-observes nor modifies
 that decision. The payload is in memory and failure-only: it is not verdict evidence, event/history
-data, a leaf feedback response, or permission to rerun a command. `expectedRed` remains meaningful
-only when the red kind is measured by `oracle-count`; output-text classification still never refuses
-work.
+data, a leaf feedback response, or permission to rerun a command.
 
 ## Contracts (1)
 
 1. **`final-confirm-refusal-carries-one-original-observation`** — only a refused CONFIRM result carries the shell result that caused that refusal.
-   - **asserts —** unexpected CONFIRM_RED green and measured wrong-kind red each spawn once and return their original result; expected red followed by CONFIRM_GREEN red spawns twice and returns only the second result; each refusal has zero signing rows; passes and authoring/GATE/backstop/non-shell failures carry none.
+   - **asserts —** an unexpected CONFIRM_RED green spawns once and returns its original result; a red followed by a CONFIRM_GREEN red spawns twice and returns only the second result; each refusal has zero signing rows; passes and authoring/GATE/backstop/non-shell failures carry none.
    - **covers —** `packages/orchestrator/src/prove-it-gate.ts`.
    - **proven by —** authored additions to `packages/orchestrator/src/prove-it-gate.test.ts` through the declared ordinary package-suite REAL proof.

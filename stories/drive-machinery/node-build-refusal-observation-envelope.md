@@ -76,8 +76,7 @@ contains an eligible original observation:
 The observable is the normal returned envelope and the command counter. The test file is NEW:
 `packages/drive/src/node-build-refusal-observation.test.ts`; the existing broad CLI tests remain at
 `packages/cli/src/node-build.test.ts` and are neither moved nor placed in this contract's write scope.
-The REAL typecheck and regression backstop is a different failure path and is not an input to this
-contract.
+The REAL typecheck backstop is a different failure path and is not an input to this contract.
 
 ## Guidance
 

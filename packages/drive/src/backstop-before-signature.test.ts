@@ -50,12 +50,16 @@ interface FixtureNodeOutcome {
   reason?: string;
   signingRows: number;
   promoted: boolean;
+  /** Whether the build observed the package typecheck at all. */
+  typecheckObserved: boolean;
 }
 
 /** Drive one fixture `cap-a` through `buildNodeReal` with an injected backstop configuration. */
 async function runFixtureNode(args: {
   typecheck: ShellCommand;
   promote: boolean;
+  /** Whether the node declares a worktree install. Default true: install is what makes a backstop owed. */
+  install?: boolean;
 }): Promise<FixtureNodeOutcome> {
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
   const repo = await fixtureRepo(false);
@@ -68,11 +72,11 @@ async function runFixtureNode(args: {
     const resolved = resolveBuildConfig(spec);
     assert.ok(resolved !== null && resolved.config.real !== undefined, "cap-a must carry a real: arm");
     const buildConfig = resolved!.config;
-    // install:true is what makes a backstop owed; the fixture's own proof command doubles as the
-    // (green) regression suite, so only the typecheck varies between the red and green cases.
+    // install:true is what makes a backstop owed, and the typecheck is the only package command a
+    // build runs (ADR-0580 D2), so only the typecheck and the install flag vary between the cases.
     const realConfig: RealProofConfig = {
       ...(buildConfig.real as RealProofConfig),
-      install: true,
+      install: args.install ?? true,
       typecheck: args.typecheck,
     };
     const signer = resolveSignerFromEnv({ flag: "tester@example.com" });
@@ -86,7 +90,6 @@ async function runFixtureNode(args: {
       spec,
       worktree,
       baseSha: worktree.headSha,
-      buildConfig,
       realConfig,
       store,
       runId: "backstop-order-test",
@@ -102,6 +105,7 @@ async function runFixtureNode(args: {
       ok: built.result.ok,
       signingRows,
       promoted: built.promotion !== undefined,
+      typecheckObserved: built.typecheck !== undefined,
     };
     if (!built.result.ok) {
       outcome.failedAt = built.result.failedAt;
@@ -139,10 +143,20 @@ test("the-chain-path-pays-it-too: a chain node (promote:false) with a RED packag
   assert.equal(outcome.signingRows, 0);
 });
 
-test("a-green-backstop-still-signs: a GREEN package typecheck plus a GREEN suite signs exactly one verdict and promotes", async () => {
+test("a-green-backstop-still-signs: a GREEN package typecheck signs exactly one verdict and promotes", async () => {
   const outcome = await runFixtureNode({ typecheck: GREEN_COMMAND, promote: true });
 
   assert.equal(outcome.ok, true, `the green path must be unchanged (${outcome.reason ?? ""})`);
+  assert.equal(outcome.typecheckObserved, true, "an install-bearing node's typecheck is observed");
+  assert.equal(outcome.signingRows, 1);
+  assert.equal(outcome.promoted, true);
+});
+
+test("a-bare-worktree-owes-no-backstop: a no-install node signs even with a RED typecheck declared, because it has no node_modules to typecheck against", async () => {
+  const outcome = await runFixtureNode({ typecheck: RED_COMMAND, promote: true, install: false });
+
+  assert.equal(outcome.ok, true, `a no-install node is never typechecked (${outcome.reason ?? ""})`);
+  assert.equal(outcome.typecheckObserved, false, "no backstop was owed, so none ran");
   assert.equal(outcome.signingRows, 1);
   assert.equal(outcome.promoted, true);
 });

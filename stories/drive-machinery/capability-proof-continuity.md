@@ -5,10 +5,20 @@ story: drive-machinery
 arc: rendering-engine-structure-arc
 title: "A capability rename resolves its original proof without refreshing it"
 outcome: "A reader resolving a reviewed capability rename receives its unchanged original evidence with an explicit qualification of that evidence against the current obligation."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [work-verdict-event-log]
 decisions: [559, 40, 253, 416]
+# RETIRED by ADR-0580 D3 (2026-09-19), never built. Neither
+# `packages/orchestrator/src/proof/capability-continuity.ts` nor its test was ever authored; its arc,
+# `rendering-engine-structure-arc`, is closed; and ADR-0562 met its purpose without it. What it still
+# held was the single slot of the one-contract limit (`unboundCeiling: 1` in
+# `packages/cli/src/coverage-drain.ts`): a registered `real.testFile` absent from disk counts against
+# that ceiling, and this capability's arm is what filled it. The `real:` arm is DROPPED so the slot is
+# free — the coverage sweep keys on the `real:` arm, not on `status`, so the status flip alone would
+# have freed nothing — and dropping it also removes the node from the REAL-buildable set.
+# proof.command + proof.scope are kept as history. The body below is kept as history of what the
+# capability specified.
 proof:
   command:
     file: pnpm
@@ -16,22 +26,15 @@ proof:
   scope:
     testGlobs: ["packages/orchestrator/src/proof/capability-continuity.test.ts"]
     sourceGlobs: ["packages/orchestrator/src/proof/capability-continuity.ts"]
-  real:
-    testFile: "packages/orchestrator/src/proof/capability-continuity.test.ts"
-    sourceFile: "packages/orchestrator/src/proof/capability-continuity.ts"
-    scope:
-      testGlobs: ["packages/orchestrator/src/proof/capability-continuity.test.ts"]
-      sourceGlobs: ["packages/orchestrator/src/proof/capability-continuity.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "typecheck"]
 ---
 
 # A capability rename resolves its original proof without refreshing it
+
+> **RETIRED by ADR-0580 D3 (2026-09-19), never built.** Its resolver and test were never authored,
+> its arc (`rendering-engine-structure-arc`) is closed, and ADR-0562 met its purpose without it. It
+> was retired to free the single slot of the one-contract limit, which its registered-but-absent test
+> file held. The `real:` arm was dropped on retirement; the body below is kept as history of what the
+> capability specified.
 
 **Outcome —** A reader resolving a reviewed capability rename receives its unchanged original
 evidence with an explicit qualification of that evidence against the current obligation.

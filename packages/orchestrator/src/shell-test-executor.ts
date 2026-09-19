@@ -91,86 +91,19 @@ export function shellObserveCommand(command: string, cwd: string): ShellCommand 
  *  - `classifyKind(out)` optionally classifies a RED's `kind` from the captured output; when absent,
  *    {@link defaultClassifyKind} is used.
  */
-/**
- * `oracle-veto-covers-custom-proof-commands`: the note stamped on a green that had NO assert-oracle
- * cross-check available, so a reader of the signed verdict can tell an UNVETTED green from a vetted
- * one. It is a disclosure, never a downgrade — the observation stays green, because exit-code-only
- * is the honest observation this proof command supports, not a failure of it.
- */
-export const UNVETTED_GREEN_NOTE =
-  "unvetted: exit-code-only — no assert-oracle cross-check is wired for this proof command " +
-  "(ADR-0211's guard measures a SINGLE-FILE node:test run, default or declared; a suite's report is " +
-  "overwritten by its runner parent and a foreign runner asserts through APIs the guard does not count)";
-
-/**
- * `custom-proof-command-red-accounting`: the ROUTE-SPECIFIC form of the note above. The generic
- * constant says a cross-check is absent; it cannot say WHY, and after the resolver started wiring the
- * guard onto every custom command it could carry one, "why" became the whole content — an unaccounted
- * route now means no oracle is POSSIBLE here (a suite whose report the runner parent zeroes, a runner
- * that asserts through another API), never merely that nobody wired one. A reader of the signed verdict
- * gets the classifier's own sentence rather than a standing disclaimer.
- */
-export function unvettedGreenNote(disclosure: string): string {
-  return `unvetted: exit-code-only — ${disclosure}`;
-}
-
 export interface ShellTestResolver {
   command: (testId: string) => ShellCommand;
   classifyKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
   /**
-   * ADR-0211: an optional GREEN cross-check. On an exit-0 (green) observation the executor consults
-   * this out-of-band oracle report; a non-ok result DOWNGRADES the green to a fail-closed RED (with a
-   * forensic note). It closes the forged-green hole where the IMPLEMENT-phase source — which runs in
-   * the proof process — neutralises the assertion oracle or truncates the run yet still exits 0
-   * (see {@link ./proof/oracle-accounting.ts}). Absent ⇒ exit-code-only observation (unchanged).
-   */
-  verifyGreen?: (
-    out: ShellRunResult,
-  ) => { ok: true; note?: string } | { ok: false; reason: string };
-  /**
-   * ADR-0249: an optional PRE-observation step, run before the command is spawned, that establishes
-   * the out-of-band evidence {@link ShellTestResolver.verifyGreen} will read belongs to THIS
-   * observation — the oracle wiring clears the stale assertion report here. A non-ok result makes the
-   * observation a fail-closed RED WITHOUT spawning: if the spine cannot trust what it is about to
-   * read, it must not go on to read it. Absent ⇒ spawn immediately (unchanged).
-   *
-   * It is the necessary counterpart to `verifyGreen`: a cross-check against evidence of unknown
-   * provenance can be satisfied by a PREVIOUS observation's evidence, which turns a fail-closed check
-   * into a fail-open one.
-   */
-  beforeRun?: () => { ok: true } | { ok: false; reason: string };
-  /**
-   * `gate-the-right-kind-red`: a MEASURED red-kind classifier, consulted on every red BEFORE
-   * {@link ShellTestResolver.classifyKind}. When it returns a kind, that kind wins and the
-   * observation is stamped `kindBasis: "oracle-count"` — which is the only basis
-   * {@link nextPhase}'s right-kind-red gate will refuse on. Returning `undefined` means "cannot
-   * measure this one" and falls back to the text heuristic (stamped `"output-text"`, never gated).
-   *
-   * Wired by the resolver to the assert-oracle report for oracle-accounted proof commands: the report
-   * says how many assertions really RAN, so 0 means the proof never reached an assertion (structural)
-   * and >=1 means one ran and failed (assertion). That is a measurement of the thing the kind is
-   * actually about, where the text heuristic is a guess about how a toolchain phrased itself.
-   */
-  measureRedKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
-  /**
-   * `custom-proof-command-red-accounting`: the note stamped on a green observed with NO
-   * {@link ShellTestResolver.verifyGreen} wired. Absent ⇒ the generic {@link UNVETTED_GREEN_NOTE}, so
-   * every existing caller keeps its exact wording. The resolver supplies the classified route's own
-   * disclosure instead, so the verdict says which flavour of unaccounted it was.
-   *
-   * Ignored when `verifyGreen` IS wired — a vetted green reports what it measured, and an executor
-   * carrying both would be declaring a cross-check it also says it does not have.
-   */
-  unvettedNote?: string;
-  /**
    * ADR-0573 D2 (optional): the per-test report this proof command writes. The executor CLEARS it before
    * the spawn — a report that survives the clear makes the observation a fail-closed red without
-   * spawning, exactly as `beforeRun` does (ADR-0249) — and READS it right after, attaching what this run
-   * wrote to the observation as `perTest`, red or green.
+   * spawning, because a report the spine could not clear cannot be attributed to the run that follows
+   * (ADR-0249's rule) — and READS it right after, attaching what this run wrote to the observation as
+   * `perTest`, red or green.
    *
-   * It changes nothing the executor decides: red/green stays the exit code and its cross-checks. The
-   * gate's per-test review is what reads the report, and it can only refuse (ADR-0573 D1). Absent ⇒ the
-   * observation carries no `perTest` (unchanged).
+   * It changes nothing the executor decides: red/green stays the exit code. The gate's per-test review
+   * is what reads the report, and it can only refuse (ADR-0573 D1). Absent ⇒ the observation carries no
+   * `perTest` (unchanged).
    */
   perTestReport?: PerTestReportSource;
 }
@@ -189,10 +122,9 @@ export interface ShellTestResolver {
  *
  * It survived because nothing DEPENDED on the answer: the value was dead to control flow but live to
  * the attestation, so it was exercised on every red and published on every verdict while no test
- * could ever go red over it being wrong. Fixing the patterns is a precondition for
- * {@link nextPhase} gating on the kind at all — and even then the gate arms only on the MEASURED
- * basis (see {@link classifyRedByOracle}), because a heuristic is the wrong instrument to refuse
- * real work with.
+ * could ever go red over it being wrong. It is still a REPORTING value only — no phase transition
+ * refuses on it (ADR-0580 D1). Whether a red is an assertion or a crash is judged by the per-test
+ * review from the runner's own report (ADR-0573 C5), never from this heuristic.
  */
 export function defaultClassifyKind(
   out: ShellRunResult,
@@ -226,17 +158,9 @@ export class ShellTestExecutor implements TestExecutor {
   }
 
   async run(testId: string): Promise<TestObservation> {
-    // ADR-0249: establish the provenance of the out-of-band evidence BEFORE spawning — the oracle
-    // wiring clears the previous observation's assertion report here, so a count read back after this
-    // run can only have been written BY this run. Fail-closed: if the evidence cannot be made
-    // attributable, the observation is a red and the command is never spawned.
-    const prepared = this.resolver.beforeRun?.();
-    if (prepared !== undefined && !prepared.ok) {
-      return { result: "red", kind: "runtime", testId, note: prepared.reason };
-    }
-
-    // ADR-0573 D2, under ADR-0249's rule: the per-test report is cleared before the spawn for the same
-    // reason the oracle report is — a report that survives would be read back as this run's.
+    // ADR-0573 D2, under ADR-0249's rule: the per-test report is cleared before the spawn — a report
+    // that survives would be read back as this run's. Fail-closed: if it cannot be cleared, the
+    // observation is a red and the command is never spawned.
     const perTestCleared = this.resolver.perTestReport?.reset();
     if (perTestCleared !== undefined && !perTestCleared.ok) {
       return { result: "red", kind: "runtime", testId, note: perTestCleared.reason };
@@ -256,41 +180,15 @@ export class ShellTestExecutor implements TestExecutor {
     if (perTest !== undefined) spawned.perTest = perTest;
 
     if (out.code === 0) {
-      // ADR-0211: a green is trusted only if the assert-oracle actually ran. The source-under-test
-      // shares this proof process and could force a hollow `exit 0` (monkeypatch the oracle, or
-      // process.exit(0) before any assertion). The out-of-band cross-check catches that and DOWNGRADES
-      // the green to a fail-closed red, so the spine never signs a forged pass. Absent ⇒ exit-code only.
-      const veto = this.resolver.verifyGreen?.(out);
-      if (veto !== undefined && !veto.ok) {
-        return { result: "red", kind: "runtime", testId, note: veto.reason, ...spawned };
-      }
-      // `oracle-veto-covers-custom-proof-commands`: SAY which kind of green this is. ADR-0211's veto
-      // is wired only for the default node:test command, so a custom-`proofCommand` node (package
-      // suite, vitest, and structurally every ADR-0098 R2 `refactorForTests` node) is observed on the
-      // exit code alone. That narrowing is defensible; leaving it invisible is not — a vetted green
-      // and an unvetted one were byte-identical in the signed verdict, so no reader could tell which
-      // they were holding. An absent cross-check now stamps itself, and a passing one reports what it
-      // actually measured. This never changes red/green: it records how the green was reached.
-      const note =
-        veto === undefined ? (this.resolver.unvettedNote ?? UNVETTED_GREEN_NOTE) : veto.note;
-      return note === undefined
-        ? { result: "green", testId, ...spawned }
-        : { result: "green", testId, note, ...spawned };
+      return { result: "green", testId, ...spawned };
     }
 
-    // `gate-the-right-kind-red`: prefer a MEASURED kind (the assert-oracle count) over the text
-    // heuristic, and record WHICH it was — `nextPhase` refuses a wrong-kind red only on the measured
-    // basis, so the basis is part of the observation, not a detail of how it was computed.
-    const measured = this.resolver.measureRedKind?.(out);
-    if (measured !== undefined) {
-      return { result: "red", kind: measured, testId, kindBasis: "oracle-count", ...spawned };
-    }
     const classify = this.resolver.classifyKind ?? defaultClassifyKind;
     const kind = classify(out);
     // exactOptionalPropertyTypes: only attach `kind` when it is defined.
     return kind === undefined
       ? { result: "red", testId, ...spawned }
-      : { result: "red", kind, testId, kindBasis: "output-text", ...spawned };
+      : { result: "red", kind, testId, ...spawned };
   }
 
   /** Spawn via the shared {@link runShellCommand} (env-scrubbed, exit-code-as-data). */
@@ -309,19 +207,6 @@ export class ShellTestExecutor implements TestExecutor {
  *  - secret-shaped names (TOKEN/SECRET/PASSWORD/CREDENTIAL/API_KEY/ACCESS_KEY): the leaf authors
  *    the test file this command executes, and with the spine feedback tool its OUTPUT flows back
  *    to the model — a test that prints `process.env` must find no credentials there.
- *
- * A THIRD scrub — `inherited-oracle-guard-scrub` — strips a VALUE rather than a key, so it is not
- * expressed here: {@link scrubbedChildEnv} strips any `--import` of `assert-oracle-guard.mjs` out
- * of an inherited `NODE_OPTIONS`, because that key must otherwise still pass through untouched
- * (`isScrubbedEnvKey` deliberately does not gain a `NODE_OPTIONS` case). When the spine itself runs
- * a `--real` proof under its own oracle guard, `NODE_OPTIONS` carries the guard's `--import` and
- * every process THIS spine spawns inherits it. A nested spawned observation that loads a second,
- * different copy counts nothing — the first copy has already frozen `node:assert`, so the second
- * cannot install its counter — and its exit hook then overwrites that process's own report with
- * zero; a spawn deliberately left unguarded picks up an oracle it never asked for. The spine's OWN chosen instrument for the command being spawned
- * still reaches the child normally: it travels through `cmd.env`, which is merged over
- * {@link scrubbedChildEnv}'s output in {@link runShellCommand}, so this strip only ever removes an
- * import the CURRENT process inherited, never one the spine is deliberately wiring onto this spawn.
  */
 export function isScrubbedEnvKey(key: string): boolean {
   return (
@@ -330,50 +215,11 @@ export function isScrubbedEnvKey(key: string): boolean {
   );
 }
 
-/**
- * Matches one `--import <specifier>` or `--import=<specifier>` token inside a `NODE_OPTIONS`
- * string, including the whitespace (or start-of-string) immediately before `--import` — so
- * removing a match also closes the gap it leaves behind instead of leaving a double space. The
- * specifier itself is captured so the caller can decide, per occurrence, whether THIS particular
- * `--import` is the one to strip.
- */
-const NODE_OPTIONS_IMPORT_RE = /(^|\s)--import(?:=(\S+)|\s+(\S+))/g;
-
-/** True when an `--import` specifier names a copy of the assert-oracle guard, any directory. */
-function isOracleGuardSpecifier(specifier: string): boolean {
-  return specifier.replace(/^["']|["']$/g, "").endsWith("assert-oracle-guard.mjs");
-}
-
-/**
- * Strip every `--import`/`--import=` of `assert-oracle-guard.mjs` out of an inherited
- * `NODE_OPTIONS` value. Each removed import takes the whitespace just before it along (see
- * {@link NODE_OPTIONS_IMPORT_RE}); every other option is left as it was — no whitespace
- * normalisation, no re-quoting. Returns `undefined` when nothing but whitespace remains, so the
- * caller can drop the variable entirely rather than leave behind an empty/whitespace `NODE_OPTIONS`.
- */
-function stripInheritedOracleGuard(nodeOptions: string): string | undefined {
-  const stripped = nodeOptions.replace(
-    NODE_OPTIONS_IMPORT_RE,
-    (match: string, _lead: string, eqSpecifier?: string, spaceSpecifier?: string) => {
-      const specifier = eqSpecifier ?? spaceSpecifier ?? "";
-      return isOracleGuardSpecifier(specifier) ? "" : match;
-    },
-  );
-  return stripped.trim() === "" ? undefined : stripped;
-}
-
 /** The child env every spawned test/feedback process gets: the parent env minus the scrub list. */
 export function scrubbedChildEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (isScrubbedEnvKey(key)) {
-      continue;
-    }
-    if (key === "NODE_OPTIONS" && value !== undefined) {
-      const stripped = stripInheritedOracleGuard(value);
-      if (stripped !== undefined) {
-        env[key] = stripped;
-      }
       continue;
     }
     env[key] = value;

@@ -1154,7 +1154,7 @@ export async function storyBuild(
           if (real) {
             // The REAL per-node build in the SHARED worktree (promote:false — the chain promotes once
             // at the end). Each node walks the full prove-it-gate, INCLUDING its own pre-signature
-            // backstop (`sign-after-typecheck`); honesty walls are per node.
+            // package typecheck (`sign-after-typecheck`); honesty walls are per node.
             const cfg = resolveBuildConfig(spec)?.config ?? null;
             if (cfg === null || cfg.real === undefined || worktree === undefined || phasePrompts === undefined) {
               // Unreachable past the real precheck + prompt assembly, but stays fail-closed.
@@ -1174,7 +1174,6 @@ export async function storyBuild(
               spec,
               worktree,
               baseSha: currentHead,
-              buildConfig: cfg,
               realConfig: cfg.real,
               store,
               runId,
@@ -1274,18 +1273,20 @@ export async function storyBuild(
       if (currentHead === worktree.headSha) {
         promotionSkipped = storyNoCommitPromotionReason(run.passed, forensicPreservations.size);
       } else if (run.passed && (opts.promote ?? true)) {
-        // The PUSH gate: re-observe each DISTINCT install-bearing node's typecheck + package suite
-        // over the whole stack (tsx strips types — only tsc sees them; a green leaf must not break
-        // its package). A red of either keeps the branch LOCAL-ONLY. This is NOT redundant with the
-        // per-node backstop `sign-after-typecheck` added inside each node's GATE: that one gates the
-        // SIGNATURE against the one commit its verdict attests, this one gates the PUSH over the
-        // whole stack — a stack can regress in a way no single commit's observation would catch. The
-        // observations are READ-ONLY over INDEPENDENT packages, so they run CONCURRENTLY (bounded —
-        // the dev-box OOM trap; chain-backstop.ts). Latency-only: `anyRed` is still the OR over every
-        // observation and the lines keep their order, so a red in ANY package withholds the push
-        // exactly as the serial loop did.
+        // The PUSH gate: re-observe each DISTINCT install-bearing node's package typecheck over the
+        // whole stack (tsx strips types — only tsc sees them). A red keeps the branch LOCAL-ONLY.
+        // This is NOT redundant with the per-node backstop `sign-after-typecheck` added inside each
+        // node's GATE: that one gates the SIGNATURE against the one commit its verdict attests, this
+        // one gates the PUSH over the whole stack — a later node can break the types of an earlier
+        // node's package in a way no single commit's observation would catch. The package test
+        // SUITES are not re-run here (ADR-0580 D2): the landing gate and CI own package-suite
+        // regression. The observations are READ-ONLY over INDEPENDENT packages, so they run
+        // CONCURRENTLY (bounded — the dev-box OOM trap; chain-backstop.ts). Latency-only: `anyRed`
+        // is still the OR over every observation and the lines keep their order, so a red in ANY
+        // package withholds the push exactly as the serial loop did.
         const backstop = await progress.stage(
-          "chain-end push gate (typecheck + package suite over the stacked HEAD)",
+          // Stryker disable next-line StringLiteral: NOT OBSERVED BY DESIGN — a stage name is stderr liveness chatter; every hermetic chain test injects `silentBuildProgress` and asserts the envelope, never the chatter
+          "chain-end push gate (package typecheck over the stacked HEAD)",
           () => observeBackstop(backstopJobs(driveOrder), (worktree as BuildWorktree).root),
         );
         backstopLines.push(...backstop.lines);

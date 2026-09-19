@@ -1,8 +1,0 @@
-{
-  "sourceOwnership": {
-    "subtrees": {
-      "packages/orchestrator/src/proof/capability-continuity.test.ts": "capability-proof-continuity",
-      "packages/orchestrator/src/proof/capability-continuity.ts": "capability-proof-continuity"
-    }
-  }
-}

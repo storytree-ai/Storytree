@@ -255,8 +255,8 @@ test("the tree-view entry is REAL-buildable with install and walls excluding the
 });
 
 test("every install-bearing REAL entry registers a typecheck command (the registry-wide invariant)", () => {
-  // tsx strips types in both the proof run and the regression suite; without a registered
-  // `tsc --noEmit` an install:true node's promotion would push type-illegal code to PR CI.
+  // tsx strips types in the proof run; without a registered `tsc --noEmit` an install:true node's
+  // promotion would push type-illegal code to PR CI.
   for (const id of realBuildableNodeIds()) {
     const real = lookupNodeBuildConfig(id)?.real;
     assert.ok(real !== undefined, `${id} carries a real config`);
@@ -1381,125 +1381,11 @@ test("B — a trivially-green declared proofCommand still fails CONFIRM_RED (no 
   }
 });
 
-// ── `custom-proof-command-red-accounting` (parallel-red-green-arc): the custom route's accounting ──
-// ADR-0211's guard was wired by ROUTE (default vs custom) rather than by CAPABILITY, so a declared
-// command that runs node:test over the node's OWN test file — the exact shape the guard measures —
-// silently kept exit-code-only observation. These prove the wiring end-to-end on the spine's OWN
-// observation channel, which is the only channel that decides anything.
+// ── `custom-proof-command-red-accounting` (parallel-red-green-arc): the declared route's shape ──────
+// ONE classifier decides what a declared proof command is. A suite stays buildable, and a command that
+// cannot observe the authored test is refused before a single authoring turn is spent.
 
-/** A temp workspace holding ONE CommonJS test file, plus a spec whose custom command runs exactly it. */
-async function ownFileProofSpec(
-  body: string,
-): Promise<{ ws: string; spec: ReturnType<typeof loadById> }> {
-  const ws = await fs.mkdtemp(path.join(os.tmpdir(), "own-file-oracle-"));
-  await fs.writeFile(path.join(ws, "unit.test.cjs"), body, "utf8");
-  const base = loadById("verdict-line");
-  const bc = base.buildConfig;
-  assert.ok(bc?.real !== undefined);
-  const real = {
-    ...bc.real,
-    testFile: "unit.test.cjs",
-    // NODE, named (literal): `--test` is node's own runner and this leg asserts the command reaches
-    // the oracle-ACCOUNTED node branch — see `NODE_BINARY` in `proof/proof-route.ts`.
-    proofCommand: { file: "node", args: ["--test", "unit.test.cjs"] },
-  };
-  return { ws, spec: { ...base, id: "own-file-proof", buildConfig: { ...bc, real } } };
-}
-
-test("a declared own-file node:test proof is now oracle-ACCOUNTED — its green reports the measured count", async () => {
-  const { ws, spec } = await ownFileProofSpec(
-    'const { test } = require("node:test");\n' +
-      'const assert = require("node:assert/strict");\n' +
-      'test("green", () => { assert.equal(1, 1); assert.equal(2, 2); });\n',
-  );
-  try {
-    const resolved = resolveProveSpec(spec, {
-      mode: "real",
-      workspace: ws,
-      store: new InMemoryStore(),
-      runId: "own-file-green",
-      signerInputs: { flag: "tester@example.com" },
-      authorOverride: NOOP_AUTHOR,
-    });
-    assert.equal(resolved.ok, true);
-    if (!resolved.ok) return;
-    const obs = await resolved.spec.testExecutor.run(spec.id);
-    assert.equal(obs.result, "green");
-    assert.match(
-      obs.note ?? "",
-      /assert-oracle: 2 assertion\(s\) executed/,
-      "a custom command that runs the node's own test file must be CROSS-CHECKED, not merely trusted",
-    );
-  } finally {
-    await fs.rm(ws, { recursive: true, force: true });
-  }
-});
-
-test("a declared own-file node:test proof can PROVE a red BY ASSERTION — the measured kind, not a text guess", async () => {
-  // The increment's headline. Before this, every custom-command red carried kindBasis "output-text",
-  // which `nextPhase` refuses to gate on — so an editsExisting node declaring an ASSERTION red had no
-  // instrument that could tell one from a run that died in setup.
-  const { ws, spec } = await ownFileProofSpec(
-    'const { test } = require("node:test");\n' +
-      'const assert = require("node:assert/strict");\n' +
-      'test("red", () => { assert.equal(1, 2); });\n',
-  );
-  try {
-    const resolved = resolveProveSpec(spec, {
-      mode: "real",
-      workspace: ws,
-      store: new InMemoryStore(),
-      runId: "own-file-red",
-      signerInputs: { flag: "tester@example.com" },
-      authorOverride: NOOP_AUTHOR,
-    });
-    assert.equal(resolved.ok, true);
-    if (!resolved.ok) return;
-    const obs = await resolved.spec.testExecutor.run(spec.id);
-    assert.equal(obs.result, "red");
-    assert.equal(obs.kind, "runtime", "one assertion ran and refused → an ASSERTION red");
-    assert.equal(obs.kindBasis, "oracle-count", "only this basis arms nextPhase's right-kind-red gate");
-  } finally {
-    await fs.rm(ws, { recursive: true, force: true });
-  }
-});
-
-test("a declared own-file node:test proof distinguishes a STRUCTURAL red from an assertion one", async () => {
-  const { ws, spec } = await ownFileProofSpec('require("./nope.cjs");\n');
-  try {
-    const resolved = resolveProveSpec(spec, {
-      mode: "real",
-      workspace: ws,
-      store: new InMemoryStore(),
-      runId: "own-file-structural",
-      signerInputs: { flag: "tester@example.com" },
-      authorOverride: NOOP_AUTHOR,
-    });
-    assert.equal(resolved.ok, true);
-    if (!resolved.ok) return;
-    const obs = await resolved.spec.testExecutor.run(spec.id);
-    assert.equal(obs.result, "red");
-    assert.equal(obs.kind, "compile", "zero assertions executed → the run never reached one");
-    assert.equal(obs.kindBasis, "oracle-count");
-  } finally {
-    await fs.rm(ws, { recursive: true, force: true });
-  }
-});
-
-test("the guard rides the SPAWNED arg vector, never the display or the author's declared command", () => {
-  const base = loadById("verdict-line").buildConfig?.real;
-  assert.ok(base !== undefined);
-  const declared = { file: "node", args: ["--test", base.testFile] };
-  const real = { ...base, proofCommand: declared };
-  const resolved = realProofCommand(real, "/ws");
-  assert.equal(resolved.accounted, true);
-  assert.equal(resolved.command.args[0], "--import");
-  assert.match(String(resolved.command.args[1]), /assert-oracle-guard\.mjs$/);
-  assert.deepEqual(declared.args, ["--test", base.testFile], "the declared config is never mutated");
-  assert.equal(resolved.display, `node --test ${base.testFile}`, "the display stays the human command");
-});
-
-test("a SUITE proof command stays unaccounted and BUILDABLE — refusing it would unbuild every ADR-0098 R2 node", () => {
+test("a SUITE proof command stays BUILDABLE — refusing it would unbuild every ADR-0098 R2 node", () => {
   const base = loadById("verdict-line").buildConfig?.real;
   assert.ok(base !== undefined);
   const real = {
@@ -1509,51 +1395,8 @@ test("a SUITE proof command stays unaccounted and BUILDABLE — refusing it woul
     proofCommand: { file: "pnpm", args: ["--filter", "@storytree/cli", "test"] },
   };
   const resolved = realProofCommand(real, "/ws");
-  assert.equal(resolved.accounted, false);
-  assert.equal(resolved.route.accounting, "none");
   assert.equal(resolved.route.basis, "suite-scoped");
-  // No guard is spliced into a suite: measured on Node 24, node:test's runner PARENT overwrites the
-  // report LAST with its own count of zero, so an accounted suite would false-RED every green.
   assert.deepEqual(resolved.command, platformShellCommand({ ...real.proofCommand, cwd: "/ws" }));
-});
-
-test("an unaccounted route stamps the CLASSIFIER's own sentence on its green, not a standing disclaimer", async () => {
-  const ws = await fs.mkdtemp(path.join(os.tmpdir(), "unaccounted-note-"));
-  try {
-    const base = loadById("verdict-line");
-    const bc = base.buildConfig;
-    assert.ok(bc?.real !== undefined);
-    const real = {
-      ...bc.real,
-      // NODE, named (literal): this leg pins the disclosure for a NODE command the classifier cannot
-      // read. `process.execPath` is `bun.exe` under `bun test`, which takes the package-manager
-      // branch instead and stamps a different sentence — see `NODE_BINARY` in `proof/proof-route.ts`.
-      proofCommand: { file: "node", args: ["-e", "process.exit(0)"] },
-    };
-    const resolved = resolveProveSpec(
-      { ...base, id: "unaccounted-note", buildConfig: { ...bc, real } },
-      {
-        mode: "real",
-        workspace: ws,
-        store: new InMemoryStore(),
-        runId: "unaccounted-note-1",
-        signerInputs: { flag: "tester@example.com" },
-        authorOverride: NOOP_AUTHOR,
-      },
-    );
-    assert.equal(resolved.ok, true);
-    if (!resolved.ok) return;
-    const obs = await resolved.spec.testExecutor.run("unaccounted-note");
-    assert.equal(obs.result, "green");
-    assert.match(obs.note ?? "", /^unvetted: exit-code-only/);
-    assert.match(
-      obs.note ?? "",
-      /names no runner this spine can read/,
-      "the verdict must say WHICH flavour of unaccounted this was, not just THAT it was",
-    );
-  } finally {
-    await fs.rm(ws, { recursive: true, force: true });
-  }
 });
 
 test("REFUSED before a turn is spent: a proof command that runs a file the leaf is not authoring", async () => {
@@ -1582,7 +1425,7 @@ test("REFUSED before a turn is spent: a proof command that runs a file the leaf 
   assert.match(resolved.reason, /cannot prove a red/);
   assert.match(resolved.reason, /rollup\.test\.ts/, "it names the file the command actually runs");
   assert.match(resolved.reason, /verdict-line\.test\.ts/, "…and the file AUTHOR_TEST would write");
-  assert.match(resolved.reason, /node --import tsx --test/, "…and the oracle-accounted remedy");
+  assert.match(resolved.reason, /node --import tsx --test/, "…and the default-route remedy");
 });
 
 test("every real-buildable node in the corpus resolves to a route that is NOT refused", () => {
@@ -1593,8 +1436,8 @@ test("every real-buildable node in the corpus resolves to a route that is NOT re
     const real = loadById(id).buildConfig?.real;
     if (real === undefined) continue;
     assert.notEqual(
-      classifyProofRoute(real).accounting,
-      "refused",
+      classifyProofRoute(real).basis,
+      "observes-another-file",
       `${id}: its declared proof command cannot observe its own testFile`,
     );
   }
@@ -2175,99 +2018,74 @@ test("ADR-0104 — the declared budget reaches the spine's OWN proof command (a 
   assert.equal(obs.result, "red", "a proof outrunning its declared budget is SIGKILLed → fail-closed red");
 });
 
-// ── ADR-0211: the assert-oracle guard closes the in-process forged-green hole (real default command) ──
-// The IMPLEMENT-phase source runs in the SAME process as the test, so it could force a hollow exit 0 —
-// monkeypatch the shared assert oracle, or process.exit(0) before any assertion runs. The guard (freeze)
-// + out-of-band accounting (assertion count) turn each into a fail-closed RED at CONFIRM_GREEN, so the
-// walk NEVER reaches a signed pass. These are the highest-fidelity regressions: the SAME wiring a real
-// `--real` build uses (default node:test command, spine-committed clean tree), only the leaf is scripted.
+// ── An early process.exit(0) during IMPLEMENT: the per-test review is the wall (ADR-0580 D1) ─────────
+// The IMPLEMENT-phase source runs in the SAME process as the test, so it can end the run with exit 0
+// before any declared test reports. With the assert-oracle guard gone, that exit code alone reads as
+// green; on the DEFAULT route the per-test review refuses it at CONFIRM_GREEN, because the declared test
+// never reported. The SAME wiring a real `--real` build uses (default node:test command, spine-committed
+// clean tree) — only the leaf is scripted.
 
-/** A fresh temp git repo with NOTHING at HEAD but package.json — a net-new node's precondition. */
-async function netNewOracleFixture(): Promise<{ root: string; testFile: string; sourceFile: string }> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-oracle-e2e-"));
+test("an early process.exit(0) green is refused by the per-test review, not signed", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-early-exit-"));
   await execFileP("git", ["init", "-b", "main"], { cwd: root });
   await execFileP("git", ["config", "user.email", "fixture@storytree.invalid"], { cwd: root });
   await execFileP("git", ["config", "user.name", "fixture"], { cwd: root });
   await fs.writeFile(path.join(root, "package.json"), '{\n  "type": "module"\n}\n');
   await execFileP("git", ["add", "-A"], { cwd: root });
-  await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: empty net-new"], {
-    cwd: root,
-  });
-  return { root, testFile: "unit.test.ts", sourceFile: "impl.ts" };
-}
-
-/** A spec-borne net-new real config (the DEFAULT node:test command — the accounted path). */
-function netNewOracleSpec(fix: { testFile: string; sourceFile: string }, id: string) {
-  const scope = { testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] };
-  return {
-    ...loadById("verdict-line"),
-    id,
-    buildConfig: {
-      command: { file: "node", args: ["--version"] },
-      scope,
-      real: { testFile: fix.testFile, sourceFile: fix.sourceFile, scope },
-    },
-  };
-}
-
-/** The honest RED test the leaf authors in AUTHOR_TEST — imports the (missing) impl, asserts behaviour. */
-const ORACLE_HONEST_TEST =
-  'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
-  'import { add } from "./impl.js";\ntest("add(2,3)===5", () => assert.equal(add(2, 3), 5));\n';
-
-for (const attack of [
-  {
-    slug: "monkeypatch",
-    label: "monkeypatches the shared assert oracle",
-    // Frozen by the guard → the reassignment throws at import → the proof reds directly.
-    impl:
-      'import assert from "node:assert/strict";\nassert.equal = () => {};\n' +
-      "export const add = (_a: number, _b: number): number => 0;\n",
-  },
-  {
-    slug: "process-exit",
-    label: "truncates the run with process.exit(0)",
-    // Exit code is 0, but the guard's exit-hook reports 0 assertions → the green is vetoed.
-    impl: "export const add = (_a: number, _b: number): number => 0;\nprocess.exit(0);\n",
-  },
-] as const) {
-  test(`ADR-0211 — a leaf that authors an honest red then forges the green (${attack.label}) fails closed at CONFIRM_GREEN, no signing row`, async () => {
-    const fix = await netNewOracleFixture();
-    const store = new InMemoryStore();
-    try {
-      const spec = netNewOracleSpec(fix, `oracle-forge-${attack.slug}`);
-      // The scripted leaf: AUTHOR_TEST writes the honest failing test (red — impl missing at HEAD),
-      // IMPLEMENT writes the FORGING source. The write walls are the same the live leaf gets.
-      const author = new OwnedLoopAuthor({
-        model: scriptedWriterModel([
-          { path: fix.testFile, content: ORACLE_HONEST_TEST },
-          { path: fix.sourceFile, content: attack.impl },
-        ]),
-        tools: new FileToolExecutor({ rootDir: fix.root }),
-        scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
-        writeTools: FILE_WRITE_TOOLS,
-      });
-      const resolved = resolveProveSpec(spec, {
-        mode: "real",
-        workspace: fix.root,
-        store,
-        runId: `oracle-forge-${attack.slug}-1`,
-        signerInputs: { flag: "tester@example.com" },
-        authorOverride: author,
-        // NO treeState injected: the default real seam commits spine-side and reads real git.
-      });
-      assert.equal(resolved.ok, true);
-      if (!resolved.ok) return;
-      const result = await proveUnit(resolved.spec);
-      assert.equal(result.ok, false, "a forged green must NOT yield a signed pass");
-      if (result.ok) return;
-      // The honest test reds correctly at CONFIRM_RED (impl missing); the forgery is caught at the GREEN.
-      assert.equal(result.failedAt, "CONFIRM_GREEN");
-      // Proof is non-authorable: NO signing row was ever appended.
-      const events = await store.readEvents();
-      assert.equal(events.filter((e) => e.kind === "signing").length, 0, "no forged verdict was signed");
-    } finally {
-      await fs.rm(fix.root, { recursive: true, force: true });
-    }
-  });
-}
+  await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: empty net-new"], { cwd: root });
+  const store = new InMemoryStore();
+  try {
+    const scope = { testGlobs: ["unit.test.ts"], sourceGlobs: ["impl.ts"] };
+    const spec = {
+      ...loadById("verdict-line"),
+      id: "early-exit-green",
+      // No declared proofCommand: the DEFAULT route, whose per-test channel is what this pins.
+      buildConfig: {
+        command: { file: "node", args: ["--version"] },
+        scope,
+        real: { testFile: "unit.test.ts", sourceFile: "impl.ts", scope },
+      },
+    };
+    // AUTHOR_TEST writes an honest red (the impl is missing at HEAD); IMPLEMENT writes source that exits
+    // 0 at import, before the declared test can run.
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([
+        {
+          path: "unit.test.ts",
+          content:
+            'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+            'import { add } from "./impl.js";\ntest("add(2,3)===5", () => assert.equal(add(2, 3), 5));\n',
+        },
+        { path: "impl.ts", content: "export const add = (_a: number, _b: number): number => 0;\nprocess.exit(0);\n" },
+      ]),
+      tools: new FileToolExecutor({ rootDir: root }),
+      scope: new PathWriteScope(scope),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: root,
+      store,
+      runId: "early-exit-green-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, false, "an early exit(0) must NOT yield a signed pass");
+    if (result.ok) return;
+    assert.equal(result.failedAt, "CONFIRM_GREEN", result.reason);
+    // The exit code alone read green, so the refusal is the per-test review's and nothing else's…
+    assert.equal(result.failedObservation?.exitCode, 0, "the run exited 0 — the exit code alone would sign it");
+    // …and it names the declared test that never reported.
+    assert.ok(
+      (result.perTestFindings ?? []).some((f) => f.check === "C2" && f.test?.join(" > ") === "add(2,3)===5"),
+      result.reason,
+    );
+    const events = await store.readEvents();
+    assert.equal(events.filter((e) => e.kind === "signing").length, 0, "no verdict was signed");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

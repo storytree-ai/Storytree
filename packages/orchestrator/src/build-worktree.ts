@@ -417,8 +417,8 @@ export async function promoteRealPass(args: {
   purpose?: "signed-promotion" | "unsigned-forensics";
   /**
    * Default true. `false` parks the branch LOCALLY only — preservation without spread, e.g. when
-   * the package regression suite came back red before signing: the authored commit must not be
-   * lost, but an unsigned branch known to break its package must not reach origin as a landing
+   * the package typecheck came back red before signing: the authored commit must not be lost, but
+   * an unsigned branch known to break its package's types must not reach origin as a landing
    * candidate.
    */
   push?: boolean;
@@ -518,12 +518,12 @@ export async function promoteRealPass(args: {
   return { branch, commitSha: args.commitSha, pushed: true, detail: `pushed to ${origin}` };
 }
 
-// ── The regression suite (ADR-0031 §2: a green node must not break its package) ─
+// ── The package typecheck backstop (ADR-0315; ADR-0580 D2 dropped its regression-suite half) ─
 
 /**
- * The exact process fact behind an install-bearing worktree backstop. `result` remains the only
- * transition input; the original output and effective timeout are diagnostics for a refusal that
- * would otherwise say only RED after the disposable worktree has gone.
+ * The exact process fact behind the install-bearing worktree backstop, the package typecheck.
+ * `result` remains the only transition input; the original output and effective timeout are
+ * diagnostics for a refusal that would otherwise say only RED after the disposable worktree has gone.
  */
 export interface WorktreeCommandObservation {
   result: "green" | "red";
@@ -537,26 +537,14 @@ export interface WorktreeCommandObservation {
 }
 
 /**
- * Run a package-suite regression command in the (installed) worktree and observe green/red the
- * same honest way the gate does — exit code only, `NODE_TEST*` scrubbed (the forged-green fix).
- * The V1 lesson adapted to package grain: a node's own proof going green never proves it didn't
- * break the package around it; promotion requires this suite green too.
- */
-export async function runRegressionSuite(args: {
-  command: ShellCommand;
-  cwd: string;
-}): Promise<WorktreeCommandObservation> {
-  return observeWorktreeCommand("regression-suite", args);
-}
-
-/**
- * Run the package typecheck (`tsc --noEmit` via the registry's `typecheck` command) in the
- * (installed) worktree and observe green/red by exit code, exactly like {@link runRegressionSuite}.
- * The hole it closes: the node's proof command and the regression suite both run under tsx, which
- * STRIPS types — a leaf can author type-illegal code that is runtime-green and would otherwise
- * surface only at PR-time CI (declare-presence, 2026-06-11: explicit-undefined patch literals vs
- * `exactOptionalPropertyTypes`). A red here is treated like a red suite: promotion parks the
- * branch local-only, the push is withheld.
+ * Run the package typecheck (`tsc --noEmit` via the node's `real.typecheck` command) in the
+ * (installed) worktree and observe green/red the same honest way the gate does — exit code only.
+ * The hole it closes: the node's proof command runs under tsx, which STRIPS types — a leaf can
+ * author type-illegal code that is runtime-green and would otherwise surface only at PR-time CI
+ * (declare-presence, 2026-06-11: explicit-undefined patch literals vs `exactOptionalPropertyTypes`).
+ * A red refuses the verdict before it is signed (ADR-0315); over a story chain's stacked HEAD it
+ * withholds the push. It is the only package-level command a build runs: the package's test suite
+ * belongs to the landing gate and CI (ADR-0580 D2).
  */
 export async function runWorktreeTypecheck(args: {
   command: ShellCommand;

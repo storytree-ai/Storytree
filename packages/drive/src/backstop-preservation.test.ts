@@ -8,9 +8,9 @@ import {
 import type { BackstopRefusalObservation } from "./backstop-report.js";
 
 const observation: BackstopRefusalObservation = {
-  kind: "regression",
+  kind: "typecheck",
   result: "red",
-  originalProcessResult: { stdout: "suite out", stderr: "suite err", exitCode: 1 },
+  originalProcessResult: { stdout: "typecheck out", stderr: "typecheck err", exitCode: 1 },
   timeoutMs: 600_000,
 };
 

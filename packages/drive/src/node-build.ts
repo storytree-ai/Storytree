@@ -31,7 +31,6 @@ import {
   resolveProveSpec,
   resolveSignerFromEnv,
   rollupStatus,
-  runRegressionSuite,
   runWorktreeTypecheck,
   verdictLine,
   workEvent,
@@ -335,7 +334,6 @@ export function honestFramingReal(
   persisted: boolean,
   outcome: WalkOutcome,
   promotion: PromotionResult | undefined,
-  regression: "green" | "red" | undefined,
   typecheck: "green" | "red" | undefined,
   runtime: LiveRuntime,
 ): string {
@@ -353,10 +351,10 @@ export function honestFramingReal(
       : reachedGate
         ? "the authored commit was not promoted (see the promotion line above)"
         : "no commit was made, so there was nothing to promote";
-  // "BEFORE the gate ruled", never "BEFORE the verdict was signed": the same backstops run ahead of a
+  // "BEFORE the gate ruled", never "BEFORE the verdict was signed": the same backstop runs ahead of a
   // refusal, and a refused build signed nothing.
   // The proof command is first run in CONFIRM_RED, so a walk that refused at AUTHOR_TEST never ran
-  // it — and the backstops run INSIDE gate, so it ran neither of those either. Saying "only the
+  // it — and the typecheck backstop runs INSIDE gate, so it did not run either. Saying "only the
   // node's registered proof command ran" there contradicted the opening in the same sentence.
   const ranProofCommand =
     outcome.ok ||
@@ -364,20 +362,19 @@ export function honestFramingReal(
     outcome.failedAt === "IMPLEMENT" ||
     outcome.failedAt === "CONFIRM_GREEN" ||
     outcome.failedAt === "GATE";
-  const suiteClause =
-    typecheck !== undefined && regression === undefined
-      ? `the node's proof command ran AND the package typecheck was observed ${typecheck.toUpperCase()}\nin the installed worktree BEFORE the gate ruled; the package suite did not run because the first red\nbackstop is the actionable refusal`
-      : regression === undefined
-        ? ranProofCommand
-          ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
-          : "neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them"
-      : typecheck === undefined
-        ? `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree BEFORE the gate ruled`
-        : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nand the package typecheck ${typecheck.toUpperCase()} in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code)`;
+  const backstopClause =
+    typecheck !== undefined
+      ? `the node's proof command ran AND the package typecheck was observed ${typecheck.toUpperCase()}\nin the installed worktree BEFORE the gate ruled, so no signed PASS can out-run it (the proof run is\ntsx-driven — types stripped — so only the typecheck sees type-illegal code)`
+      : ranProofCommand
+        ? "only the\nnode's registered proof command ran (no package typecheck — a no-install, builtins-only\ntarget, or a walk that stopped before the gate's backstop)"
+        : "the package typecheck never ran either — the walk refused\nbefore the gate could reach it";
   return (
     `honest framing: a REAL build (ADR-0031). ${realWalkReached(outcome, leaf)} ${commitFate}` +
     (outcome.ok && !persisted ? "; the verdict\nlanded in an in-memory store and is gone" : "") +
-    `; and ${suiteClause}.` +
+    `; and ${backstopClause}.` +
+    // ADR-0580 D2: said on EVERY real framing, because a signed PASS no longer attests the package
+    // around the unit — that regression is the landing gate's and CI's to catch.
+    "\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2)." +
     (!outcome.ok
       ? `\nNo verdict was signed: ${refusalRecord(persisted)}.`
       : persisted
@@ -1609,8 +1606,7 @@ export interface RealBuildArgs {
    * the stale original cut (`worktree.headSha`) — the chain bug-trap.
    */
   baseSha: string;
-  /** The node's build config (for the package regression command) and its resolved real arm. */
-  buildConfig: NodeBuildConfig;
+  /** The node's resolved real arm: its install flag and package typecheck drive the backstop. */
   realConfig: RealProofConfig;
   store: Store;
   runId: string;
@@ -1669,7 +1665,7 @@ export interface RealBuildArgs {
    * Promote a signed pass (default true). The story chain passes `false`: it drives + signs +
    * commits each node into the shared worktree, then promotes ONCE at the stacked HEAD (so a halt
    * never leaves a pushed partial story). It governs PROMOTION only — since `sign-after-typecheck`
-   * the per-node typecheck/regression backstop runs inside every install-bearing node's GATE
+   * the per-node package-typecheck backstop runs inside every install-bearing node's GATE
    * regardless, because a verdict must never out-run the observation that backs it.
    */
   promote?: boolean;
@@ -1715,9 +1711,9 @@ export interface RealBuildResult {
   commitSha?: string;
   promotion?: PromotionResult;
   promotionSkipped?: string;
-  regression?: "green" | "red";
+  /** The package typecheck the backstop observed inside the gate (install-bearing nodes only). */
   typecheck?: "green" | "red";
-  /** The first red install-bearing command, including the process fact already observed by the gate. */
+  /** The red package typecheck that refused the signature, with the process fact the gate observed. */
   backstopObservation?: BackstopRefusalObservation;
   /** Local-only retention of an authored HEAD that the package backstop refused before signing. */
   forensicPreservation?: PromotionResult;
@@ -1732,9 +1728,10 @@ export interface RealBuildResult {
 /**
  * Drive ONE node through the REAL gate in a caller-owned worktree: append `building`, resolve the
  * REAL ProveSpec (the leaf authors the node's real test/impl at real paths under hook-enforced
- * scope), walk `proveUnit` (the spine observes red/green and commits the authored files itself), and
- * — when `promote !== false` — re-observe the package typecheck + suite (install-bearing) and park
- * the proven commit on a `claude/real/<id>-<run>` branch (ADR-0031). Honesty walls are unchanged:
+ * scope), walk `proveUnit` (the spine observes red/green and commits the authored files itself; an
+ * install-bearing node's GATE also observes the package typecheck before it signs), and — when
+ * `promote !== false` — park the proven commit on a `claude/real/<id>-<run>` branch (ADR-0031). The
+ * package's own test suite is not run here (ADR-0580 D2). Honesty walls are unchanged:
  * one `unitId`, one `PathWriteScope`, the spine's own observation; `buildNodeReal` orchestrates, it
  * never reaches inside `proveUnit`.
  *
@@ -1747,7 +1744,7 @@ export interface RealBuildResult {
  * reported as `displaced`, and then LEAKED on exit by the borrow-vs-take rule.
  */
 export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResult> {
-  const { spec, worktree, baseSha, buildConfig, realConfig, store, runId, signer } = args;
+  const { spec, worktree, baseSha, realConfig, store, runId, signer } = args;
   await store.appendEvent(
     workEvent({ unitId: spec.id, event: "building", runId, tier: spec.tier }, signer),
   );
@@ -1785,50 +1782,36 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   const phaseTarget: PhaseActivityTarget = { unitId: spec.id, runId, signer };
   if (spec.tier !== undefined) phaseTarget.tier = spec.tier;
   resolved.spec.onPhase = withPhaseReport(phaseActivityWriter(store, phaseTarget), args.onPhase);
-  // `sign-after-typecheck`: the ADR-0031 backstop moves AHEAD of the signature. It is injected as
-  // the gate's `backstop` seam (run inside GATE, after the clean-tree + signer refusals, before the
-  // signing append), so a red package typecheck or suite refuses the VERDICT rather than only
-  // withholding the push. Install-bearing nodes only — a bare worktree has no node_modules, which is
-  // the same condition the post-hoc backstop used.
+  // `sign-after-typecheck` (ADR-0315): the package TYPECHECK runs AHEAD of the signature. It is
+  // injected as the gate's `backstop` seam (run inside GATE, after the clean-tree + signer refusals,
+  // before the signing append), so a red package typecheck refuses the VERDICT rather than only
+  // withholding the push. Install-bearing nodes only — a bare worktree has no node_modules to
+  // typecheck against — and only when a typecheck is declared (`realConfigRefusal` requires one of
+  // every install-bearing arm): a gate with nothing to observe is given no backstop.
   //
   // This fires for the CHAIN too (`promote: false`), which is where the defect bit hardest: the
   // chain deferred the backstop to one pass at the stacked HEAD, so every chained verdict was signed
   // with no package observation of its own commit at all. Per-node is also strictly more honest than
   // chain-end — a verdict attests ONE commit, and the stacked HEAD says nothing rigorous about
-  // commit 1. Measured cost on `@storytree/orchestrator`: ~96 s typecheck + ~63 s suite, immaterial
-  // against a live `--real` node's authoring. The chain-end backstop stays where it is as the PUSH
-  // gate over the whole stack (chain-backstop.ts) — the two gate different things.
-  let regression: "green" | "red" | undefined;
+  // commit 1. The chain-end typecheck stays where it is as the PUSH gate over the whole stack
+  // (chain-backstop.ts) — the two gate different things.
+  //
+  // The package's regression SUITE is deliberately NOT run here (ADR-0580 D2). The landing
+  // `pnpm gate` and CI run every affected package's full test leg on every PR, and automerge requires
+  // it; the accepted cost is a signed pass over a package whose suite is red, visible until CI.
   let typecheck: "green" | "red" | undefined;
   let backstopRefusal: BackstopPreservationRefusal | undefined;
-  if (realConfig.install === true) {
-    const typecheckCommand = realConfig.typecheck;
+  const typecheckCommand = realConfig.install === true ? realConfig.typecheck : undefined;
+  if (typecheckCommand !== undefined) {
     resolved.spec.backstop = async (): Promise<BackstopOutcome> => {
-      // The gate has just found this tree clean. Capture the authored HEAD BEFORE a package command
-      // runs so even a misbehaving test cannot move the forensic ref to a different commit.
+      // The gate has just found this tree clean. Capture the authored HEAD BEFORE the typecheck runs
+      // so even a misbehaving command cannot move the forensic ref to a different commit.
       const authoredCommitSha = (await resolved.spec.treeState()).commitSha;
-      if (typecheckCommand !== undefined) {
-        const observed = await runWorktreeTypecheck({ command: typecheckCommand, cwd: worktree.root });
-        typecheck = observed.result;
-        // Short-circuit: this is a refusal path, the first red is the actionable one, and the suite
-        // costs a minute nobody can act on.
-        if (observed.result === "red") {
-          const refusal = makeBackstopRefusal(
-            "typecheck",
-            observed as Parameters<typeof makeBackstopRefusal>[1],
-          );
-          backstopRefusal = {
-            observation: refusal.observation,
-            authoredCommitSha,
-          };
-          return { ok: refusal.ok, reason: refusal.reason };
-        }
-      }
-      const observed = await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root });
-      regression = observed.result;
+      const observed = await runWorktreeTypecheck({ command: typecheckCommand, cwd: worktree.root });
+      typecheck = observed.result;
       if (observed.result === "red") {
         const refusal = makeBackstopRefusal(
-          "regression",
+          "typecheck",
           observed as Parameters<typeof makeBackstopRefusal>[1],
         );
         backstopRefusal = {
@@ -1916,10 +1899,9 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   const out: RealBuildResult = { result };
   if (innerLoop !== undefined) out.innerLoop = innerLoop;
   if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
-  // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
-  // alike, so the report can say WHICH observation refused the verdict.
+  // The typecheck the backstop observed before the gate ruled — reported for a PASS and a refusal
+  // alike, so the report can say whether it is WHY the verdict was refused.
   if (typecheck !== undefined) out.typecheck = typecheck;
-  if (regression !== undefined) out.regression = regression;
   Object.assign(
     out,
     assembleBackstopResultEvidence({
@@ -1947,7 +1929,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   if (args.promote === false) return out;
 
   // node build --real: single-node promotion. No `push: false` arm survives here — a red backstop
-  // now refuses the verdict itself, so reaching this line means both observations were green.
+  // now refuses the verdict itself, so reaching this line means any owed typecheck was green.
   out.promotion = await promoteRealPass({
     repoRoot: args.repoRoot,
     unitId: spec.id,
@@ -2454,7 +2436,6 @@ export async function nodeBuild(
     let innerLoop: InnerLoopRecording | undefined;
     let revisionWrite: RevisionWrite | undefined;
     let promotionSkipped: string | undefined;
-    let regression: "green" | "red" | undefined;
     let typecheck: "green" | "red" | undefined;
     let forensicPreservation: PromotionResult | undefined;
 
@@ -2472,7 +2453,7 @@ export async function nodeBuild(
       );
       const cut = worktree;
       try {
-        // The single-node real lifecycle (resolve → proveUnit → spine commit → ADR-0031 backstop +
+        // The single-node real lifecycle (resolve → proveUnit → spine commit → typecheck backstop +
         // promotion) is buildNodeReal — the same function story build --real chains. baseSha is the
         // worktree cut (a single node builds on HEAD), promote: true (the default).
         if (buildConfig === null || realConfig === undefined || phasePrompts === undefined) {
@@ -2483,7 +2464,6 @@ export async function nodeBuild(
           spec,
           worktree: cut,
           baseSha: cut.headSha,
-          buildConfig,
           realConfig,
           store,
           runId,
@@ -2512,7 +2492,6 @@ export async function nodeBuild(
         innerLoop = built.innerLoop;
         revisionWrite = built.revisionWrite;
         promotionSkipped = built.promotionSkipped;
-        regression = built.regression;
         typecheck = built.typecheck;
         forensicPreservation = built.forensicPreservation;
       } finally {
@@ -2592,16 +2571,11 @@ export async function nodeBuild(
       `phase trail: ${result.phasesVisited.join(" → ")}`,
     ];
     const promotionLines = [
-      // Both observations now run BEFORE the signature (`sign-after-typecheck`), so a red is not a
-      // withheld push over a signed pass — it is why there is no verdict at all.
+      // The typecheck runs BEFORE the signature (`sign-after-typecheck`), so a red is not a withheld
+      // push over a signed pass — it is why there is no verdict at all.
       ...(typecheck !== undefined
         ? [
             `typecheck:   package typecheck ${typecheck.toUpperCase()} in the worktree${typecheck === "red" ? " — verdict REFUSED before signing (tsx strips types; only tsc sees type-illegal code)" : ""}`,
-          ]
-        : []),
-      ...(regression !== undefined
-        ? [
-            `regression:  package suite ${regression.toUpperCase()} in the worktree${regression === "red" ? " — verdict REFUSED before signing (a green leaf must not break its package)" : ""}`,
           ]
         : []),
       ...(promotion !== undefined
@@ -2613,7 +2587,7 @@ export async function nodeBuild(
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
     const framing = real
-      ? honestFramingReal(persisted, result, promotion, regression, typecheck, runtime)
+      ? honestFramingReal(persisted, result, promotion, typecheck, runtime)
       : live
       ? honestFramingLive(persisted, result, runtime, spec.id)
         : HONEST_FRAMING_DRY;
@@ -2623,8 +2597,8 @@ export async function nodeBuild(
         ok: false,
         body: [
           ...header,
-          // Since `sign-after-typecheck` a REFUSAL can carry backstop observations too — a red
-          // typecheck/suite is now WHY there is no verdict, so the lines belong on this path as well.
+          // Since `sign-after-typecheck` a REFUSAL can carry the backstop observation too — a red
+          // typecheck is now WHY there is no verdict, so the lines belong on this path as well.
           ...promotionLines,
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
           ...renderEscalation(spec.id, runId, result),
@@ -2807,13 +2781,10 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
       `  typecheck:    ${r.typecheck ?? "(none — builtins-only, no install)"}`,
       `  proof cmd:    ${r.proofCommand ?? "(default: node:test on the test file)"}`,
       `  real proof:   ${r.proofDisplay}`,
-      // `custom-proof-command-red-accounting`: the accounting posture is the one fact a `--real` build
-      // used to reveal only by SPENDING authoring turns against it. It is free here.
-      `  accounting:   ${r.proofAccounting} (${r.proofRouteBasis})`,
+      // `custom-proof-command-red-accounting`: the route is free to read here, before a `--real` build
+      // is paid for.
+      `  proof route:  ${r.proofRouteBasis}`,
     );
-    if (r.proofAccountingNote !== null) {
-      lines.push(`                ${r.proofAccountingNote}`);
-    }
   } else {
     lines.push(
       "",
@@ -2870,9 +2841,10 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      command for red/green, commits the authored files, and the GATE reads genuine git",
       "      state. Needs the selected runtime's subscription auth. A signed PASS is PROMOTED (ADR-0031): the proven",
       "      commit is parked on claude/real/<id>-<run> and pushed when origin exists — land it",
-      "      via PR with a NON-SQUASH merge. Registry nodes with real.install get a lockfile-only",
-      "      pnpm install in the worktree plus a package typecheck (tsx strips types; tsc must",
-      "      agree) and a package-suite regression run — a red of either withholds the push.",
+      "      via PR with a NON-SQUASH merge. Nodes with real.install get a lockfile-only pnpm",
+      "      install in the worktree plus a package typecheck before signing (tsx strips types; tsc",
+      "      must agree) — a red refuses the verdict. The build never runs the package's own test",
+      "      suite; the landing gate and CI do (ADR-0580 D2).",
       "      --increment <id> is REQUIRED with --real and refused without it: the arc increment the attempt",
       "      is filed under. The unit's attempt ledger is read before any spend and can refuse the build (ADR-0576).",
       "",

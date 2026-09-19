@@ -26,13 +26,14 @@ const TYPECHECK_RED: ShellCommand = {
   timeoutMs: 60_000,
 };
 const GREEN: ShellCommand = { file: process.execPath, args: ["--version"] };
-const REGRESSION_RED: ShellCommand = {
+/**
+ * A package-suite command that is RED. Declared as the node's `proof.command`, it proves the build
+ * never runs that command: ADR-0580 D2 took the package suite out of the build, so a red one here
+ * must change nothing about the verdict.
+ */
+const SUITE_RED: ShellCommand = {
   file: process.execPath,
-  args: [
-    "-e",
-    "process.stdout.write('REGRESSION-STDOUT'); process.stderr.write('REGRESSION-STDERR'); process.exit(9)",
-  ],
-  timeoutMs: 70_000,
+  args: ["-e", "process.stdout.write('SUITE-STDOUT'); process.exit(9)"],
 };
 
 interface ScenarioResult {
@@ -47,7 +48,8 @@ interface ScenarioResult {
 interface ScenarioArgs {
   runId: string;
   typecheck: ShellCommand;
-  regression?: ShellCommand;
+  /** Replaces the spec's declared package-suite command (`proof.command`). */
+  suiteCommand?: ShellCommand;
   promote: boolean;
 }
 
@@ -74,10 +76,13 @@ async function runScenario(args: ScenarioArgs): Promise<ScenarioResult> {
           resolved !== null && resolved.config.real !== undefined,
           "cap-a must carry a real: arm",
         );
+        // The spec itself carries the replaced suite command, so it is in front of every reader the
+        // build has — the resolver, the gate and the backstop alike.
         const buildConfig =
-          args.regression === undefined
+          args.suiteCommand === undefined
             ? resolved.config
-            : { ...resolved.config, command: args.regression };
+            : { ...resolved.config, command: args.suiteCommand };
+        const drivenSpec: NodeSpec = { ...spec, buildConfig };
         const realConfig: RealProofConfig = {
           ...(buildConfig.real as RealProofConfig),
           install: true,
@@ -85,14 +90,13 @@ async function runScenario(args: ScenarioArgs): Promise<ScenarioResult> {
         };
         const signer = resolveSignerFromEnv({ flag: "tester@example.com" });
         assert.equal(signer.ok, true, "the fixture signer must resolve");
-        const author = scriptedAuthors({ "cap-a": scopeFor("cap-a") })(spec, worktree.root);
+        const author = scriptedAuthors({ "cap-a": scopeFor("cap-a") })(drivenSpec, worktree.root);
         assert.ok(author !== undefined, "the scripted author must resolve for cap-a");
 
         const built = await buildNodeReal({
-          spec,
+          spec: drivenSpec,
           worktree,
           baseSha: worktree.headSha,
-          buildConfig,
           realConfig,
           store,
           runId: args.runId,
@@ -148,10 +152,6 @@ test(
     const typecheckRed = await runScenario({
       runId: "typecheck-red-forensics",
       typecheck: TYPECHECK_RED,
-      // This must never run: a typecheck red is the first actionable refusal. Keeping the sentinel
-      // fast also makes a broken short-circuit fail this assertion instead of timing out in the
-      // fixture's broad default suite.
-      regression: REGRESSION_RED,
       promote: true,
     });
     assert.equal(typecheckRed.built.result.ok, false);
@@ -184,57 +184,51 @@ test(
 );
 
 test(
-  "a red regression retains the exact authored HEAD after a green typecheck",
+  "a red typecheck on the chain path (promote:false) retains the exact authored HEAD too",
   { timeout: 180_000 },
   async () => {
-    const regressionRed = await runScenario({
-      runId: "regression-red-forensics",
-      typecheck: GREEN,
-      regression: REGRESSION_RED,
+    const chainRed = await runScenario({
+      runId: "chain-typecheck-red-forensics",
+      typecheck: TYPECHECK_RED,
       promote: false,
     });
-    assert.equal(regressionRed.built.result.ok, false);
-    if (regressionRed.built.result.ok) assert.fail("the red regression unexpectedly signed");
-    assert.equal(regressionRed.built.result.failedAt, "GATE");
-    assert.match(
-      regressionRed.built.result.reason,
-      /the package regression suite is RED in the worktree/,
-    );
-    assert.equal(regressionRed.signingRows, 0);
-    assert.equal(regressionRed.built.typecheck, "green");
-    assert.equal(regressionRed.built.regression, "red");
-    assert.deepEqual(regressionRed.built.backstopObservation, {
-      kind: "regression",
+    assert.equal(chainRed.built.result.ok, false);
+    if (chainRed.built.result.ok) assert.fail("the red typecheck unexpectedly signed");
+    assert.equal(chainRed.built.result.failedAt, "GATE");
+    assert.equal(chainRed.signingRows, 0);
+    assert.equal(chainRed.built.typecheck, "red");
+    assert.deepEqual(chainRed.built.backstopObservation, {
+      kind: "typecheck",
       result: "red",
       originalProcessResult: {
-        stdout: "REGRESSION-STDOUT",
-        stderr: "REGRESSION-STDERR",
-        exitCode: 9,
+        stdout: "TYPECHECK-STDOUT",
+        stderr: "TYPECHECK-STDERR",
+        exitCode: 7,
       },
-      timeoutMs: 70_000,
+      timeoutMs: 60_000,
     });
-    const regressionForensic = regressionRed.built.forensicPreservation;
-    assert.ok(regressionForensic !== undefined);
-    assert.equal(
-      regressionForensic.branch,
-      "claude/real-forensics/cap-a-regression-red-forensics",
-    );
-    assert.equal(regressionForensic.pushed, false);
-    assert.equal(regressionRed.preservedShaAfterRemoval, regressionForensic.commitSha);
-    assert.equal(regressionRed.remoteForensicRef, "");
+    const chainForensic = chainRed.built.forensicPreservation;
+    assert.ok(chainForensic !== undefined);
+    assert.equal(chainForensic.branch, "claude/real-forensics/cap-a-chain-typecheck-red-forensics");
+    assert.equal(chainForensic.pushed, false);
+    assert.equal(chainRed.preservedShaAfterRemoval, chainForensic.commitSha);
+    assert.equal(chainRed.remoteForensicRef, "");
   },
 );
 
 test(
-  "a green install-bearing backstop still signs and pushes ordinary promotion",
+  "a green install-bearing backstop still signs and pushes ordinary promotion, even over a red package suite no build runs",
   { timeout: 180_000 },
   async () => {
     const green = await runScenario({
       runId: "green-still-promotes",
       typecheck: GREEN,
+      // ADR-0580 D2: the node's declared package suite is RED, and it must change nothing.
+      suiteCommand: SUITE_RED,
       promote: true,
     });
     assert.equal(green.built.result.ok, true, green.built.result.ok ? "" : green.built.result.reason);
+    assert.equal(green.built.typecheck, "green");
     assert.equal(green.signingRows, 1);
     assert.ok(green.built.promotion !== undefined);
     assert.equal(green.built.promotion.pushed, true);

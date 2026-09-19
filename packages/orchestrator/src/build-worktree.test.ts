@@ -11,7 +11,6 @@ import {
   commitAuthored,
   promoteRealPass,
   platformShellCommand,
-  runRegressionSuite,
   runWorktreeTypecheck,
   isWindowsFileLockError,
   retryOnWindowsFileLock,
@@ -247,7 +246,7 @@ test("promoteRealPass pushes to origin when one exists; push:false withholds but
     const originTip = (await git(["rev-parse", "refs/heads/" + promoted.branch], bare)).trim();
     assert.equal(originTip, fixture.sha);
 
-    // push:false (regression-red preservation): local branch exists, origin never sees it.
+    // push:false (backstop-red preservation): local branch exists, origin never sees it.
     const withheld = await promoteRealPass({
       repoRoot: fixture.root,
       unitId: "pushed-node",
@@ -500,7 +499,7 @@ test("teardown drops ONLY its own registration — never a repo-global sweep tha
   }
 });
 
-test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", { timeout: 120_000 }, async () => {
+test("runWorktreeTypecheck observes green/red by exit code only (offline node -e)", { timeout: 120_000 }, async () => {
   // The same honest observation the gate makes — exit 0 is the only green channel. Offline by
   // construction: the command IS the seam (any file+argv), so a `node -e` stands in for tsc/pnpm.
   const cmd = (script: string) => ({
@@ -513,7 +512,7 @@ test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code o
   assert.equal(tcGreen.originalProcessResult.exitCode, 0);
   assert.ok(tcGreen.timeoutMs > 0, "the implicit spine timeout is made explicit in the observation");
   // The declare-presence lesson: a type error is a RED (exit non-zero), never an exception — the
-  // caller turns it into push-withheld, not a crash.
+  // caller turns it into a refused verdict, not a crash.
   const tcRed = await runWorktreeTypecheck({
     command: {
       ...cmd(
@@ -530,20 +529,6 @@ test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code o
     exitCode: 2,
   });
   assert.equal(tcRed.timeoutMs, 60_000);
-
-  const suiteGreen = await runRegressionSuite({ command: cmd("process.exit(0)"), cwd: os.tmpdir() });
-  assert.equal(suiteGreen.result, "green");
-  const suiteRed = await runRegressionSuite({
-    command: cmd(
-      "console.log('REGRESSION-STDOUT-MARKER'); console.error('REGRESSION-STDERR-MARKER'); process.exit(3)",
-    ),
-    cwd: os.tmpdir(),
-  });
-  assert.equal(suiteRed.result, "red");
-  assert.match(suiteRed.originalProcessResult.stdout, /REGRESSION-STDOUT-MARKER/);
-  assert.match(suiteRed.originalProcessResult.stderr, /REGRESSION-STDERR-MARKER/);
-  assert.equal(suiteRed.originalProcessResult.exitCode, 3);
-
 });
 
 test("platformShellCommand wraps pnpm via cmd.exe on win32 and passes everything else through", () => {

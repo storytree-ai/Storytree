@@ -228,6 +228,11 @@ quoted text if they have moved.
 - **Why:** the spine's backstop bound is fixed at 600 s. `node-build-names-its-increment` measured
   both whole suites at 844 s together, and its attempt 4 was killed at that bound.
 
+> **Overtaken 2026-09-19 (ADR-0580 D2):** no `--real` build runs `proof.command` any more, narrowed
+> or not; the pre-signature backstop is the package typecheck alone, per node and at chain end. The
+> narrowing above is kept as the record of this unit's build input. `proof.command` still names its
+> test files for the binding sweep and `node resolve`.
+
 **Decided by ADR-0576 D7** (`storytree library artifact adr-0576`), with D1, D2, D5 and D8. **A story
 chain is ONE unit on the ledger, the story id.** The chain records one attempt against the story before
 its first member's walk, and walks its members through `buildNodeReal` WITHOUT an increment id, so U2's

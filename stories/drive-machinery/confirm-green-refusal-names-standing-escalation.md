@@ -66,15 +66,16 @@ whose renderer reads the escalation records and no reason.
 ## Proof walkthrough
 
 Given real `ShellTestExecutor` child commands (never a `RecordingTestExecutor`), an inline scripted
-`PhaseAuthor` whose two slices return fixed results, and an `InMemoryStore` signing store, over three
+`PhaseAuthor` whose two slices return fixed results, and an `InMemoryStore` signing store, over two
 children:
 
 - an **always-red** child: a `nodeEvalExecutor` script that prints one line to stdout and exits 1;
 - a **red-then-green** child: a `nodeEvalExecutor` script that exits 1 until a file the scripted
-  IMPLEMENT slice writes exists, then exits 0, with a fresh temporary directory per walk;
-- a **vetoed** child: an exit-0 script run through a `ShellTestExecutor` constructed with a
-  `verifyGreen` that returns `{ ok: false, reason: <a fixed veto text> }`, so every observation is a
-  red carrying that text as its `note`. CONFIRM_RED advances on it and CONFIRM_GREEN refuses on it.
+  IMPLEMENT slice writes exists, then exits 0, with a fresh temporary directory per walk.
+
+*(Amended in place by ADR-0580 D1, 2026-09-19: a third, **vetoed** child — an exit-0 script whose
+`verifyGreen` veto made every observation a red carrying a note — went with the assert-oracle guard,
+and with it step 3's case (b).)*
 
 Steps 1, 3 and 5(b) compare a walk with its **twin**. The twin is the identical walk (same child,
 `testId`, `now`, `runId`, signer inputs, tree and slice writes), except for the escalating slice. In
@@ -95,12 +96,10 @@ it returns the same `{ ok: false, error, exhausted: true }` without the `escalat
    fixture's `error` must not contain its `statement`. At HEAD this reason is
    `leaf escalated at AUTHOR_TEST (<kind>): <error>`, so a fixture whose `error` repeated the
    statement would pass against the unchanged code and prove nothing.
-3. **Existing suffixes are kept.** Run step 1's walk twice more and read only its `reason`.
-   (a) With the IMPLEMENT slice also `exhausted: true`, the twin's reason is the CONFIRM_GREEN refusal
-   followed by the raise-the-ceiling note `exhaustionNote` writes today. (b) Over the vetoed child,
-   the twin's reason is the CONFIRM_GREEN refusal followed by ` — ` and the veto text. Each time, read
-   a `reason` that begins, byte for byte, with the twin's, and whose remainder contains the kind and
-   the `statement`.
+3. **Existing suffixes are kept.** Run step 1's walk once more and read only its `reason`: with the
+   IMPLEMENT slice also `exhausted: true`, the twin's reason is the CONFIRM_GREEN refusal followed by
+   the raise-the-ceiling note `exhaustionNote` writes today. Read a `reason` that begins, byte for
+   byte, with the twin's, and whose remainder contains the kind and the `statement`.
 4. **Mismatch reasons name both phases.** An IMPLEMENT escalation returned from the AUTHOR_TEST slice
    refuses at AUTHOR_TEST; an AUTHOR_TEST escalation returned from the IMPLEMENT slice, over the
    always-red child, refuses at IMPLEMENT. Read each `reason` containing both `AUTHOR_TEST` and
@@ -130,7 +129,7 @@ Only the refusal `reason` strings that `proveUnit` builds in
 
 - **A standing IMPLEMENT escalation (ADR-0569 D3).** When CONFIRM_GREEN refuses a walk whose
   IMPLEMENT slice escalated, the reason begins with the reason that refusal gives today. That is the
-  `nextPhase` refusal, then the oracle note and the raise-the-ceiling note wherever each applies.
+  `nextPhase` refusal, then the observation's note and the raise-the-ceiling note wherever each applies.
   Text naming the escalation's `kind` and quoting its `statement` verbatim follows. The new text goes
   after every existing suffix, not straight after the CONFIRM_GREEN refusal. That order lets a test
   compare the whole existing reason byte for byte without knowing the new words, and it moves nothing
@@ -149,7 +148,8 @@ Only the refusal `reason` strings that `proveUnit` builds in
   implementer's to choose. A test that pinned one phrasing would refuse an implementation that names
   the same two facts.
 - **The red is an assertion red.** The node declares `editsExisting` and its focused proof is
-  oracle-accounted, so CONFIRM_RED refuses a red in which no assertion ran. The test imports only
+  observed per test, so CONFIRM_RED refuses unless every new test's red is an assertion (ADR-0573
+  C5). The test imports only
   what exists today:
   - `proveUnit`, `nodeEvalExecutor` and `ShellTestExecutor` from this package;
   - `InMemoryStore` from `@storytree/storage-protocol`;
@@ -168,6 +168,6 @@ evidence.
 ## Contracts (1)
 
 1. **`standing-escalation-is-named-in-its-refusal-reason`** — a refusal names the authoring escalation it carries or rejects in its reason, after the reason it gives without one.
-   - **asserts —** Over real `ShellTestExecutor` children and an inline scripted author, an IMPLEMENT escalation whose child stays red refuses at CONFIRM_GREEN with `failedObservation`, the `{ raised, testId }` record and no signing row, as contract `gate-routes-authoring-escalation` specifies them. Its reason begins byte for byte with the same walk's reason without the escalation, which is exactly `CONFIRM_GREEN requires an observed green (got 'red' for test <testId>)`, and continues with the kind `unsatisfiable-test` and the statement verbatim. When the slice is also exhausted, that prefix also carries the raise-the-ceiling note; when a `verifyGreen` veto made the red, it carries the veto note. In both cases the kind and statement still follow it. An AUTHOR_TEST escalation's reason contains the kind `untestable-contract` and the statement verbatim, from a slice whose `error` does not contain the statement. Each phase-mismatch reason names both the slice's phase and the escalation's declared phase. A walk with no escalation refuses with exactly `CONFIRM_GREEN requires an observed green (got 'red' for test <testId>)`. The dirty-tree GATE refusal after an overruled escalation carries exactly the reason of the same walk without it.
+   - **asserts —** Over real `ShellTestExecutor` children and an inline scripted author, an IMPLEMENT escalation whose child stays red refuses at CONFIRM_GREEN with `failedObservation`, the `{ raised, testId }` record and no signing row, as contract `gate-routes-authoring-escalation` specifies them. Its reason begins byte for byte with the same walk's reason without the escalation, which is exactly `CONFIRM_GREEN requires an observed green (got 'red' for test <testId>)`, and continues with the kind `unsatisfiable-test` and the statement verbatim. When the slice is also exhausted, that prefix also carries the raise-the-ceiling note, and the kind and statement still follow it. An AUTHOR_TEST escalation's reason contains the kind `untestable-contract` and the statement verbatim, from a slice whose `error` does not contain the statement. Each phase-mismatch reason names both the slice's phase and the escalation's declared phase. A walk with no escalation refuses with exactly `CONFIRM_GREEN requires an observed green (got 'red' for test <testId>)`. The dirty-tree GATE refusal after an overruled escalation carries exactly the reason of the same walk without it.
    - **covers —** the refusal reasons `proveUnit` builds on its escalation paths in `packages/orchestrator/src/prove-it-gate.ts`.
-   - **proven by —** a new `packages/orchestrator/src/prove-it-gate.escalation-reason.test.ts` over ordinary `ShellTestExecutor` child commands, through the declared focused REAL proof; the full orchestrator package suite and typecheck remain pre-signature backstops.
+   - **proven by —** a new `packages/orchestrator/src/prove-it-gate.escalation-reason.test.ts` over ordinary `ShellTestExecutor` child commands, through the declared focused REAL proof; the orchestrator package typecheck remains the pre-signature backstop, and the package suite runs at landing, not in the build (ADR-0580 D2).

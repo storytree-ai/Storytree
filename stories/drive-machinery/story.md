@@ -6,11 +6,13 @@ outcome: "The spine drives any registered node through a genuine red→green pro
 status: proposed
 proof_mode: UAT
 arc: story-green-monotonicity-arc
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write, capability-proof-continuity]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write]
 # `oq-hygiene-gate` was DROPPED from this list on 2026-08-30 when it retired (ADR-0477 removed the
 # library `references` field its input lived in). The drop is required, not cosmetic: rollupStoryGreen
 # iterates this array with no retired filter, so a retired id left here computes null and DROPS the
 # story's crown. Its doc survives as history at oq-hygiene-gate.md.
+# `capability-proof-continuity` was DROPPED on 2026-09-19 for the same reason when it retired unbuilt
+# (ADR-0580 D3). Its doc survives as history at capability-proof-continuity.md.
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/drive/src/node-build.ts:44-49 (events.work_event/verdict are its OWN tables). The edge
@@ -131,7 +133,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (27)
+## Capabilities (26)
 
 Listed roots-first (a capability appears after everything it depends on). `proposed` means this
 greenfield unit lacks a current signed pass; the Proof blockquote in each file records the standing
@@ -166,7 +168,7 @@ evidence and any unsigned live arms without treating either as brownfield proven
 | 25 | [`post-build-curation-pass`](post-build-curation-pass.md) | A green story build ends by enacting a scoped curator's open-question judgments behind a kind fence the curator cannot open. | proposed | — |
 | 26 | [`build-usage-accounting`](build-usage-accounting.md) | A build's per-slice token accounting lands on its own event stream as a kind no verdict reads. | proposed | `work-verdict-event-log` |
 | 27 | [`phase-activity-write`](phase-activity-write.md) | Each phase the spine commits to is recorded as a fresh phase-stamped `building` event by an observer that lives outside the gate. | proposed | `work-verdict-event-log` |
-| 28 | [`capability-proof-continuity`](capability-proof-continuity.md) | A reader resolving a reviewed capability rename receives its unchanged original evidence with an explicit qualification of that evidence against the current obligation. | proposed | `work-verdict-event-log` |
+| ~~28~~ | ~~[`capability-proof-continuity`](capability-proof-continuity.md)~~ | **RETIRED 2026-09-19 (ADR-0580 D3), never built.** The pure capability-rename resolver was specified but neither its source nor its test was ever authored; its arc (`rendering-engine-structure-arc`) is closed and ADR-0562 met its purpose without it. Its registered-but-absent test file held the one-contract limit's single slot, which the retirement frees. | — | ~~`work-verdict-event-log`~~ |
 
 Capabilities 24–27 were authored on 2026-08-07 (`capability-layer-coverage-arc`) over greenfield drive
 code that was already implemented and already had a passing colocated suite, but which no node's
@@ -177,11 +179,9 @@ without current signed passes. Like capabilities 19–23, they are deliberately 
 frozen covers-list changes what an already-signed verdict claims, so it stays a separate, id-aware
 decision.
 
-Capability 28 is the net-new pure resolver in `rendering-engine-structure-arc` (ADR-0559). Its
-capability boundary is the event-log integration: one supplied raw specification/event snapshot set
-resolves into immutable historical evidence and explicit current-obligation qualification. It is
-unproven until its own spine-observed red→green; no existing reliability gate covers it. Its contract
-does not claim that Git provenance, persistence or production proof consumers are already wired.
+Capability 28 was the net-new pure resolver specified in `rendering-engine-structure-arc` (ADR-0559).
+It RETIRED unbuilt on 2026-09-19 (ADR-0580 D3): its arc closed and ADR-0562 met its purpose without
+it, so it is no longer in this story's capability list. Its doc survives as history.
 
 ## Dependency graph (code-derived)
 
@@ -190,12 +190,10 @@ need. The graph is acyclic; `halt-aware-sequence`, `red-green-phase-machine`, an
 `work-verdict-event-log` are the roots. Type-only imports are counted (the contract shape IS the
 coupling) and marked.
 
-- `capability-proof-continuity` → `work-verdict-event-log` *(authored, ADR-0559)*
-  - consumes the existing `RollupEvent` protocol in the planned pure
-    `packages/orchestrator/src/proof/capability-continuity.ts` resolver. Its integration proof uses
-    real `workEvent` construction and the unchanged exact-ID `rollupStatus` semantics. This is the
-    declared input boundary; it does not reverse the edge by teaching the event store to rename
-    immutable events. No loader or consumer dependency is claimed before that integration exists.
+- ~~`capability-proof-continuity` → `work-verdict-event-log`~~ — **edge gone with the capability's
+  retirement (2026-09-19, ADR-0580 D3).** It was an authored edge to a planned resolver
+  (`packages/orchestrator/src/proof/capability-continuity.ts`) that was never built, so no import
+  ever evidenced it.
 
 - `phase-scoped-write-wall` → `red-green-phase-machine`
   - `write-scoped-executor.ts:16` imports `Phase` + `WriteScope` (type-only); the wall's whole
@@ -247,7 +245,7 @@ coupling) and marked.
   - `node-build.ts:16` imports `proveUnit` — every mode's walk (`node-build.ts:499`, `:661`).
 - `build-drive-cli` → `real-build-worktree`
   - `node-build.ts:11-25` imports `createBuildWorktree`, `promoteRealPass`,
-    `runRegressionSuite`, `runWorktreeTypecheck` — the `--real` lifecycle (`:634-702`).
+    `runWorktreeTypecheck` — the `--real` lifecycle (`:634-702`).
 - `build-drive-cli` → `story-topo-build`
   - `story-build.ts:20-22` imports `runStoryBuild` + `topoOrderStoryNodes` (`:584`, `:424`).
 - ~~`build-drive-cli` → `oq-hygiene-gate`~~ — **edge gone with the capability's retirement
@@ -363,11 +361,12 @@ the now-settled modeling call.
 - [`node-build-refusal-observation-envelope`](node-build-refusal-observation-envelope.md) —
   contract grain, spec-borne, edit-existing proof over the drive envelope. It renders the returned
   observation and its run/unit attribution without adding a command path or covering the separate
-  typecheck/regression backstop.
-- [`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md) — contract grain, spec-borne,
-  edit-existing proof over `scrubbedChildEnv`, through the whole orchestrator package suite. It keeps
-  an assert-oracle guard inherited through `NODE_OPTIONS` out of every spawned child, while every
-  other inherited option and the command's own `cmd.env` still reach it.
+  typecheck backstop.
+- ~~[`inherited-oracle-guard-scrub`](inherited-oracle-guard-scrub.md)~~ — **RETIRED 2026-09-19
+  (ADR-0580 D1).** Contract grain, spec-borne; it proved that `scrubbedChildEnv` stripped an
+  assert-oracle guard inherited through `NODE_OPTIONS` out of every spawned child. The guard is gone
+  from the build spine, so the strip and its tests were deleted and the contract's `real:` arm dropped;
+  its doc survives as history.
 - [`gate-routes-authoring-escalation`](gate-routes-authoring-escalation.md) — contract grain,
   spec-borne, edit-existing proof over `proveUnit`, proposed (ADR-0569). An authoring escalation ends
   a walk without a verdict, or is overruled by a green CONFIRM observation; it never enters or becomes
@@ -508,12 +507,12 @@ claim the system no longer makes. For the other three rows and the first half of
 > 2 and 3 — redundant, not dishonest. Retiring it is a separate, id-aware change.
 
 
-3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
+3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:2c824f725293af5e)_ _(previous-revision-id: uatr1:48ac587ee38977f9)_
    detached worktree; the live leaf authors the REAL test under the write wall; the spine observes
    the genuine red, the leaf implements, the spine observes the genuine green, commits the
    authored files, signs on the genuinely clean tree; the verdict persists to `events.verdict`;
-   the proven commit is parked on `claude/real/<id>-<run>` and pushed (typecheck + regression
-   green first for install-bearing nodes). *(proven: `drive-machinery#gate-6` —
+   the proven commit is parked on `claude/real/<id>-<run>` and pushed (package typecheck green
+   first for install-bearing nodes; the package suites run at landing, ADR-0580 D2). *(proven: `drive-machinery#gate-6` —
    `witnessable-verdict.check.ts` reads `events.verdict` and asserts a spine-driven DRIVEN-tier
    (`contract`/`capability`/`story`, never `adopted`) passing verdict for a drive-machinery node
    exists, recent (≤90d, the ADR-0016 ageing floor) and on a commit in `main`'s ancestry; the

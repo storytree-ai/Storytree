@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import type { AuthorResult, AuthoringPhase, PhaseAuthor } from "@storytree/agent";
 import { parseContracts } from "@storytree/library";
@@ -11,14 +10,6 @@ import type { ContractDecl } from "@storytree/library";
 import { Verdict } from "@storytree/proof-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
-import {
-  PROOF_REPORT_ENV,
-  allocateOracleReportPath,
-  assertOracleGuardUrl,
-  classifyRedByOracle,
-  resetOracleReport,
-  verifyOracleExercised,
-} from "./proof/oracle-accounting.js";
 import { allocatePerTestReportPath, nodeTestReporterArgs, perTestReportFile } from "./proof/per-test-report.js";
 import type { PerTestChannel } from "./proof/per-test-report.js";
 import { EARLY_PASS_ROUTES, perTestPolicy } from "./proof/per-test-review.js";
@@ -36,8 +27,8 @@ import type { ShellCommand, ShellTestResolver } from "./shell-test-executor.js";
  * a brief naming a contract that no new vouching test names does not advance CONFIRM_RED (C7).
  *
  * Everything that OBSERVES is real: the gate, a real `ShellTestExecutor` spawning `node --test` (through
- * the spine's reporter module) or `bun test` (junit), the ADR-0211 assert-oracle guard preloaded on both,
- * ADR-0249's clear-before-trust, and a real story `## Contracts` block run through `parseContracts`. Only
+ * the spine's reporter module) or `bun test` (junit), the per-test report cleared before every trusted
+ * observation (ADR-0249's rule), and a real story `## Contracts` block run through `parseContracts`. Only
  * the leaf is doubled: it writes the phase's files and stops. The fixtures are the probe's
  * (`docs/research/batched-red-attribution-probe-2026-09-14.md`, Appendix A.1), for an assertion-red unit
  * whose source already exists as a non-throwing skeleton.
@@ -89,8 +80,8 @@ export function parsePort(text: string): number {
 `;
 
 /**
- * ADR-0211's honest limit, written by IMPLEMENT: one real assertion lifts the oracle's count to 1, then
- * the process exits before a single declared test runs. The exports stay, so the test file still links.
+ * A forged green, written by IMPLEMENT: one real assertion, then the process exits 0 before a single
+ * declared test runs. The exports stay, so the test file still links.
  */
 const FORGED_SUBJECT = `import assert from "node:assert/strict";
 
@@ -192,7 +183,7 @@ function contracts(guardRail: boolean): ContractDecl[] {
 ${declaration}`);
 }
 
-/** A proof runner, and the command that runs the ONE test file with its per-test channel and the oracle guard. */
+/** A proof runner, and the command that runs the ONE test file with its per-test channel. */
 interface Runner {
   readonly name: "node" | "bun";
   readonly channel: PerTestChannel;
@@ -208,8 +199,6 @@ const RUNNERS: readonly Runner[] = [
       args: [
         "--import",
         import.meta.resolve("tsx"),
-        "--import",
-        assertOracleGuardUrl(),
         "--test",
         ...nodeTestReporterArgs(reportPath),
         path.join(workspace, TEST),
@@ -222,14 +211,7 @@ const RUNNERS: readonly Runner[] = [
     channel: "bun-junit",
     command: (workspace, reportPath) => ({
       file: "bun",
-      args: [
-        "test",
-        "--preload",
-        fileURLToPath(assertOracleGuardUrl()),
-        "--reporter=junit",
-        `--reporter-outfile=${reportPath}`,
-        `./${TEST}`,
-      ],
+      args: ["test", "--reporter=junit", `--reporter-outfile=${reportPath}`, `./${TEST}`],
       cwd: workspace,
     }),
   },
@@ -273,7 +255,6 @@ async function walk(args: {
 }): Promise<Walk> {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), `storytree-per-test-e2e-${args.runner.name}-`));
   const reportPath = allocatePerTestReportPath("per-test-e2e", args.runner.name, args.runner.channel);
-  const oraclePath = allocateOracleReportPath("per-test-e2e", args.runner.name);
   try {
     await fs.writeFile(
       path.join(workspace, "package.json"),
@@ -281,17 +262,8 @@ async function walk(args: {
     );
     await fs.writeFile(path.join(workspace, SUBJECT), SKELETON_SUBJECT);
 
-    const command: ShellCommand = {
-      ...args.runner.command(workspace, reportPath),
-      env: { [PROOF_REPORT_ENV]: oraclePath },
-    };
-    // Wired as the resolver wires an oracle-accounted route (ADR-0211, ADR-0249, gate-the-right-kind-red).
-    const resolver: ShellTestResolver = {
-      command: () => command,
-      beforeRun: () => resetOracleReport(oraclePath),
-      verifyGreen: (out) => verifyOracleExercised(oraclePath, out),
-      measureRedKind: () => classifyRedByOracle(oraclePath),
-    };
+    const command: ShellCommand = args.runner.command(workspace, reportPath);
+    const resolver: ShellTestResolver = { command: () => command };
     if (args.perTest) resolver.perTestReport = perTestReportFile(args.runner.channel, reportPath);
 
     const author = new WritingAuthor(workspace, {
@@ -311,7 +283,6 @@ async function walk(args: {
       now: () => "2026-09-15T00:00:00.000Z",
       prompts: { authorTest: "write the cluster", implement: "implement it" },
       runId: "per-test-e2e",
-      expectedRed: "assertion",
     };
     if (args.perTest) {
       const policy = { testFile: path.join(workspace, TEST), contracts: args.contracts, observeRed: true };
@@ -330,7 +301,6 @@ async function walk(args: {
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
     await fs.rm(reportPath, { force: true });
-    resetOracleReport(oraclePath);
   }
 }
 
@@ -418,7 +388,7 @@ for (const runner of RUNNERS) {
     assert.equal(
       today.result.ok,
       true,
-      `the negative control — the oracle's floor of one assertion signs this green (ADR-0211's honest limit): ${refusal(today.result)}`,
+      `the negative control — the exit code alone signs this green: ${refusal(today.result)}`,
     );
 
     const { result, signingRows } = await walk({

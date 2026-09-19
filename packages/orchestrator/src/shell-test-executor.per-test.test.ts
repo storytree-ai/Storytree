@@ -101,20 +101,6 @@ test("per-test-report-rides-the-observation: a report that survives the clear re
   });
 });
 
-test("per-test-report-rides-the-observation: a beforeRun refusal comes first, and the per-test report is then never touched", async () => {
-  await withDir(async (dir) => {
-    const source = countingSource({ ok: true });
-    const obs = await new ShellTestExecutor({
-      command: () => childCommand(join(dir, "spawned"), 0, true),
-      beforeRun: () => ({ ok: false, reason: "oracle report could not be cleared" }),
-      perTestReport: source,
-    }).run("unit");
-    assert.equal(obs.result, "red");
-    assert.equal(source.resets, 0);
-    assert.equal(source.reads, 0);
-  });
-});
-
 test("per-test-report-rides-the-observation: an executor with no per-test source attaches nothing", async () => {
   await withDir(async (dir) => {
     const obs = await new ShellTestExecutor({ command: () => childCommand(join(dir, "report.jsonl"), 0, true) }).run("unit");

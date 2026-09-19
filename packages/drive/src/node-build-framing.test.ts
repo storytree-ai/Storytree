@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { honestFramingLive, honestFramingReal } from "./node-build.js";
+import { honestFramingLive, honestFramingReal, nodeHelp } from "./node-build.js";
 
 const REFUSED = { ok: false };
 const SIGNED = { ok: true };
@@ -25,25 +25,25 @@ const PERSISTED = true;
 const IN_MEMORY = false;
 
 test("a REFUSED real build on the shared store claims no signed verdict, and says none was signed", () => {
-  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, undefined, undefined, "codex");
+  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, undefined, "codex");
   assert.doesNotMatch(framing, /signed verdict/, framing);
   assert.doesNotMatch(framing, /What DID persist/, framing);
   assert.match(framing, /No verdict was signed/, framing);
 });
 
 test("a SIGNED real build on the shared store still names the signed verdict that persisted", () => {
-  const framing = honestFramingReal(PERSISTED, SIGNED, undefined, "green", "green", "codex");
+  const framing = honestFramingReal(PERSISTED, SIGNED, undefined, "green", "codex");
   assert.match(framing, /What DID persist: the signed verdict — events\.verdict in the shared store/, framing);
 });
 
 test("a REFUSED real build in memory does not say a verdict landed there", () => {
-  const framing = honestFramingReal(IN_MEMORY, REFUSED, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(IN_MEMORY, REFUSED, undefined, undefined, "claude");
   assert.doesNotMatch(framing, /the verdict\s+landed/, framing);
   assert.match(framing, /No verdict was signed/, framing);
 });
 
-test("a real build refused by its backstop does not say the verdict was signed after the suite ran", () => {
-  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, "red", "red", "claude");
+test("a real build refused by its backstop does not say the verdict was signed after the typecheck ran", () => {
+  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, "red", "claude");
   assert.doesNotMatch(framing.replace(/\s+/g, " "), /BEFORE the verdict was signed/, framing);
 });
 
@@ -87,7 +87,7 @@ const AT_CONFIRM_GREEN = { ok: false, failedAt: "CONFIRM_GREEN" } as const;
 const AT_GATE = { ok: false, failedAt: "GATE" } as const;
 
 test("a real build refused at AUTHOR_TEST does not claim the proof command ran or a gate read the tree", () => {
-  const framing = honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, undefined, "codex");
+  const framing = honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, "codex");
   assert.doesNotMatch(framing, /run by the spine for\s+both red and green/, framing);
   assert.doesNotMatch(framing, /a GATE that read genuine/, framing);
   assert.match(framing, /never ran the proof command/, framing);
@@ -95,55 +95,55 @@ test("a real build refused at AUTHOR_TEST does not claim the proof command ran o
 
 test("a real build refused BEFORE the gate does not speak of an authored commit", () => {
   for (const outcome of [AT_AUTHOR_TEST, AT_CONFIRM_RED, AT_IMPLEMENT, AT_CONFIRM_GREEN]) {
-    const framing = honestFramingReal(PERSISTED, outcome, undefined, undefined, undefined, "claude");
+    const framing = honestFramingReal(PERSISTED, outcome, undefined, undefined, "claude");
     assert.doesNotMatch(framing, /the authored commit was not promoted/, framing);
     assert.match(framing, /no commit was made/, framing);
   }
 });
 
 test("a real build refused at CONFIRM_RED says the red was not observed, and claims no implementation", () => {
-  const framing = honestFramingReal(PERSISTED, AT_CONFIRM_RED, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(PERSISTED, AT_CONFIRM_RED, undefined, undefined, "claude");
   assert.match(framing, /did not observe the required red/, framing);
   assert.doesNotMatch(framing, /test\/impl files/, framing);
 });
 
 test("a real build refused at CONFIRM_GREEN credits the red it DID observe and denies the green", () => {
-  const framing = honestFramingReal(PERSISTED, AT_CONFIRM_GREEN, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(PERSISTED, AT_CONFIRM_GREEN, undefined, undefined, "claude");
   assert.match(framing, /did not observe the green/, framing);
   assert.doesNotMatch(framing, /both red and green/, framing);
 });
 
 test("a real build refused at GATE is the one refusal that DID commit and DID read the tree", () => {
-  const framing = honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, "claude");
   assert.match(framing, /a GATE that read genuine/, framing);
   assert.doesNotMatch(framing, /no commit was made/, framing);
 });
 
 test("a PASSING real build keeps its original opening", () => {
-  const framing = honestFramingReal(PERSISTED, SIGNED, PROMOTED, "green", "green", "codex");
+  const framing = honestFramingReal(PERSISTED, SIGNED, PROMOTED, "green", "codex");
   assert.match(framing, /run by the spine for\s+both red and green/, framing);
   assert.match(framing, /a GATE that read genuine/, framing);
 });
 
 test("a refusal with NO recorded phase says so rather than narrating a walk it cannot vouch for", () => {
-  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(PERSISTED, REFUSED, undefined, undefined, "claude");
   assert.match(framing, /which phase it\s+reached was not recorded/, framing);
   assert.doesNotMatch(framing, /a GATE that read genuine/, framing);
 });
 
-// The suite clause sat in the SAME sentence and asserted the proof command had run. Fixing the
+// The backstop clause sat in the SAME sentence and asserted the proof command had run. Fixing the
 // opening made it a self-contradiction a reader meets in one breath: "the spine never ran the proof
-// command … ; and only the node's registered proof command ran". The backstops run INSIDE gate, so a
-// walk that refused before CONFIRM_RED ran neither them nor the proof command.
+// command … ; and only the node's registered proof command ran". The typecheck backstop runs INSIDE
+// gate, so a walk that refused before CONFIRM_RED ran neither it nor the proof command.
 test("a real build refused at AUTHOR_TEST does not also claim its proof command ran", () => {
-  const framing = honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, undefined, "claude");
+  const framing = honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, "claude");
   assert.doesNotMatch(framing, /only the\s+node's registered proof command ran/, framing);
-  assert.match(framing, /neither the package suite nor the package typecheck ran/, framing);
+  assert.match(framing, /the package typecheck never ran either/, framing);
 });
 
 // Every phase from CONFIRM_RED onward DID run the proof command, so each must still say so — and
 // each needs its OWN case with NO backstop, because a backstop observation takes a different arm of
-// the suite clause entirely and leaves `ranProofCommand` unconsulted. (`check:mutation-diff` found
+// the backstop clause entirely and leaves `ranProofCommand` unconsulted. (`check:mutation-diff` found
 // exactly that hole: the only CONFIRM_GREEN case here passed a red backstop, so deleting the
 // `CONFIRM_GREEN` arm changed nothing any test could see.)
 for (const [phase, outcome] of [
@@ -153,9 +153,9 @@ for (const [phase, outcome] of [
   ["GATE", AT_GATE],
 ] as const) {
   test(`a real build refused at ${phase} DID run its proof command, and still says so`, () => {
-    const framing = honestFramingReal(PERSISTED, outcome, undefined, undefined, undefined, "claude");
+    const framing = honestFramingReal(PERSISTED, outcome, undefined, undefined, "claude");
     assert.match(framing, /only the\s+node's registered proof command ran/, framing);
-    assert.doesNotMatch(framing, /neither the package suite nor the package typecheck ran/, framing);
+    assert.doesNotMatch(framing, /the package typecheck never ran either/, framing);
   });
 }
 
@@ -194,57 +194,57 @@ const PROMOTED = {
 const GOLDENS = [
   {
     name: "real, REFUSED at AUTHOR_TEST on the shared store, no backstop",
-    render: () => honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, undefined, "codex"),
+    render: () => honestFramingReal(PERSISTED, AT_AUTHOR_TEST, undefined, undefined, "codex"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, and the ChatGPT-subscription Codex leaf via exact replica promotion\nasked to author the test. The walk stopped there: the spine never ran the proof command,\nnothing was committed, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them.\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, and the ChatGPT-subscription Codex leaf via exact replica promotion\nasked to author the test. The walk stopped there: the spine never ran the proof command,\nnothing was committed, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and the package typecheck never ran either — the walk refused\nbefore the gate could reach it.\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
   },
   {
     name: "real, REFUSED at CONFIRM_RED on the shared store",
-    render: () => honestFramingReal(PERSISTED, AT_CONFIRM_RED, undefined, undefined, undefined, "claude"),
+    render: () => honestFramingReal(PERSISTED, AT_CONFIRM_RED, undefined, undefined, "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, a test authored at its real repo\npath by the Claude Agent SDK leaf under hook-enforced write scope, and the node's declared REAL proof command run by the\nspine — which did not observe the required red. No implementation was authored, nothing was\ncommitted, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, a test authored at its real repo\npath by the Claude Agent SDK leaf under hook-enforced write scope, and the node's declared REAL proof command run by the\nspine — which did not observe the required red. No implementation was authored, nothing was\ncommitted, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and only the\nnode's registered proof command ran (no package typecheck — a no-install, builtins-only\ntarget, or a walk that stopped before the gate's backstop).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
   },
   {
     name: "real, REFUSED at IMPLEMENT in memory",
-    render: () => honestFramingReal(IN_MEMORY, AT_IMPLEMENT, undefined, undefined, undefined, "claude"),
+    render: () => honestFramingReal(IN_MEMORY, AT_IMPLEMENT, undefined, undefined, "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, a test authored at its real repo\npath by the Claude Agent SDK leaf under hook-enforced write scope, and a genuine RED observed by the spine. The walk\nstopped at the implementation: the proof command was never re-run for green, nothing was\ncommitted, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target).\nNo verdict was signed: this run's own events landed in an in-memory store and are gone.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, a test authored at its real repo\npath by the Claude Agent SDK leaf under hook-enforced write scope, and a genuine RED observed by the spine. The walk\nstopped at the implementation: the proof command was never re-run for green, nothing was\ncommitted, and the GATE never read that worktree. no commit was made, so there was nothing to promote; and only the\nnode's registered proof command ran (no package typecheck — a no-install, builtins-only\ntarget, or a walk that stopped before the gate's backstop).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: this run's own events landed in an in-memory store and are gone.",
   },
   {
     name: "real, REFUSED at CONFIRM_GREEN on the shared store by a red backstop",
-    render: () => honestFramingReal(PERSISTED, AT_CONFIRM_GREEN, undefined, "red", "red", "claude"),
+    render: () => honestFramingReal(PERSISTED, AT_CONFIRM_GREEN, undefined, "red", "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, and the proof command re-run\nby the spine — which did not observe the green. Nothing was committed, and the GATE never\nread that worktree. no commit was made, so there was nothing to promote; and the node's proof command ran AND the package regression suite was observed RED\nand the package typecheck RED in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, and the proof command re-run\nby the spine — which did not observe the green. Nothing was committed, and the GATE never\nread that worktree. no commit was made, so there was nothing to promote; and the node's proof command ran AND the package typecheck was observed RED\nin the installed worktree BEFORE the gate ruled, so no signed PASS can out-run it (the proof run is\ntsx-driven — types stripped — so only the typecheck sees type-illegal code).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
   },
   {
     name: "real, REFUSED at GATE — the one refusal that DID commit and DID read the tree",
-    render: () => honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, undefined, "claude"),
+    render: () => honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, the node's declared REAL proof\ncommand run by the spine for both red and green, a spine-side commit of the authored files,\nand a GATE that read genuine `git status` off that worktree — and refused. the authored commit was not promoted (see the promotion line above); and only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, the node's declared REAL proof\ncommand run by the spine for both red and green, a spine-side commit of the authored files,\nand a GATE that read genuine `git status` off that worktree — and refused. the authored commit was not promoted (see the promotion line above); and only the\nnode's registered proof command ran (no package typecheck — a no-install, builtins-only\ntarget, or a walk that stopped before the gate's backstop).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
   },
   {
     name: "real, REFUSED with NO recorded phase, in memory",
-    render: () => honestFramingReal(IN_MEMORY, REFUSED, undefined, undefined, undefined, "claude"),
+    render: () => honestFramingReal(IN_MEMORY, REFUSED, undefined, undefined, "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo. The walk then refused, and which phase it\nreached was not recorded — so nothing about the authoring, the observations or the commit is\nclaimed here. no commit was made, so there was nothing to promote; and neither the package suite nor the package typecheck ran — the walk refused\nbefore the gate could reach them.\nNo verdict was signed: this run's own events landed in an in-memory store and are gone.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo. The walk then refused, and which phase it\nreached was not recorded — so nothing about the authoring, the observations or the commit is\nclaimed here. no commit was made, so there was nothing to promote; and the package typecheck never ran either — the walk refused\nbefore the gate could reach it.\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: this run's own events landed in an in-memory store and are gone.",
   },
   {
-    name: "real, REFUSED on the shared store by typecheck before the suite",
-    render: () => honestFramingReal(PERSISTED, AT_GATE, undefined, undefined, "red", "claude"),
+    name: "real, REFUSED at GATE on the shared store by a red typecheck",
+    render: () => honestFramingReal(PERSISTED, AT_GATE, undefined, "red", "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, the node's declared REAL proof\ncommand run by the spine for both red and green, a spine-side commit of the authored files,\nand a GATE that read genuine `git status` off that worktree — and refused. the authored commit was not promoted (see the promotion line above); and the node's proof command ran AND the package typecheck was observed RED\nin the installed worktree BEFORE the gate ruled; the package suite did not run because the first red\nbackstop is the actionable refusal.\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the node's REAL test/impl files at\ntheir real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope, the node's declared REAL proof\ncommand run by the spine for both red and green, a spine-side commit of the authored files,\nand a GATE that read genuine `git status` off that worktree — and refused. the authored commit was not promoted (see the promotion line above); and the node's proof command ran AND the package typecheck was observed RED\nin the installed worktree BEFORE the gate ruled, so no signed PASS can out-run it (the proof run is\ntsx-driven — types stripped — so only the typecheck sees type-illegal code).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nNo verdict was signed: the shared store holds only this run's own events (its building mark, and any claim,\nusage and write-fence rows it wrote), never a verdict.",
   },
   {
-    name: "real, SIGNED on the shared store, promoted, both backstops green",
-    render: () => honestFramingReal(PERSISTED, SIGNED, PROMOTED, "green", "green", "codex"),
+    name: "real, SIGNED on the shared store, promoted, typecheck green",
+    render: () => honestFramingReal(PERSISTED, SIGNED, PROMOTED, "green", "codex"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\nnode's REAL test/impl files at their real repo paths authored by the ChatGPT-subscription Codex leaf via exact replica promotion,\nthe node's declared REAL proof command run by the spine for\nboth red and green, a spine-side commit of the authored files, and a GATE that read genuine\n`git status` off that worktree. the authored commit is PARKED on claude/real/verdict-line-real-fixture\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main); and the node's proof command ran AND the package regression suite was observed GREEN\nand the package typecheck GREEN in the installed worktree — both BEFORE the gate\nruled, so no signed PASS can out-run them (the proof run is tsx-driven — types stripped — so\nonly the typecheck sees type-illegal code).\nWhat DID persist: the signed verdict — events.verdict in the shared store (the rollup can\nderive from it across sessions).",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\nnode's REAL test/impl files at their real repo paths authored by the ChatGPT-subscription Codex leaf via exact replica promotion,\nthe node's declared REAL proof command run by the spine for\nboth red and green, a spine-side commit of the authored files, and a GATE that read genuine\n`git status` off that worktree. the authored commit is PARKED on claude/real/verdict-line-real-fixture\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main); and the node's proof command ran AND the package typecheck was observed GREEN\nin the installed worktree BEFORE the gate ruled, so no signed PASS can out-run it (the proof run is\ntsx-driven — types stripped — so only the typecheck sees type-illegal code).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).\nWhat DID persist: the signed verdict — events.verdict in the shared store (the rollup can\nderive from it across sessions).",
   },
   {
-    name: "real, SIGNED in memory, suite only",
-    render: () => honestFramingReal(IN_MEMORY, SIGNED, undefined, "green", undefined, "claude"),
+    name: "real, SIGNED in memory, no typecheck (a no-install node)",
+    render: () => honestFramingReal(IN_MEMORY, SIGNED, undefined, undefined, "claude"),
     expected:
-      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\nnode's REAL test/impl files at their real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope,\nthe node's declared REAL proof command run by the spine for\nboth red and green, a spine-side commit of the authored files, and a GATE that read genuine\n`git status` off that worktree. the authored commit was not promoted (see the promotion line above); the verdict\nlanded in an in-memory store and is gone; and the node's proof command ran AND the package regression suite was observed GREEN\nin the installed worktree BEFORE the gate ruled.",
+      "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\nnode's REAL test/impl files at their real repo paths authored by the Claude Agent SDK leaf under hook-enforced write scope,\nthe node's declared REAL proof command run by the spine for\nboth red and green, a spine-side commit of the authored files, and a GATE that read genuine\n`git status` off that worktree. the authored commit was not promoted (see the promotion line above); the verdict\nlanded in an in-memory store and is gone; and only the\nnode's registered proof command ran (no package typecheck — a no-install, builtins-only\ntarget, or a walk that stopped before the gate's backstop).\nNo build runs the package's own test suite: the landing gate and CI do (ADR-0580 D2).",
   },
   {
     name: "live, REFUSED at AUTHOR_TEST in memory",
@@ -301,3 +301,23 @@ for (const golden of GOLDENS) {
     assert.equal(golden.render(), golden.expected);
   });
 }
+
+// ---------- the help text promises the same backstop the framing reports ----------
+//
+// ADR-0580 D2 took the package suite out of the build. The help text used to promise "a package-suite
+// regression run", so it is pinned here, beside the framing that reports what a run actually did:
+// the operator reads the promise before a paid build and the framing after it, and the two must agree.
+
+test("node help says a --real build typechecks its package before signing and never runs the package suite", () => {
+  const body = nodeHelp().body.replace(/\s+/g, " ");
+  assert.ok(
+    body.includes(
+      "via PR with a NON-SQUASH merge. Nodes with real.install get a lockfile-only pnpm install in " +
+        "the worktree plus a package typecheck before signing (tsx strips types; tsc must agree) — a " +
+        "red refuses the verdict. The build never runs the package's own test suite; the landing gate " +
+        "and CI do (ADR-0580 D2).",
+    ),
+    body,
+  );
+  assert.doesNotMatch(body, /regression run/, "the help must not promise a package-suite run");
+});
