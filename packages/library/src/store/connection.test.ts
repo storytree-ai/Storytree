@@ -260,3 +260,57 @@ test("store-dialers-cross-the-hydration-root: raw Connector and Pool imports are
     "the audit must reject a production source fixture that bypasses connection.ts",
   );
 });
+
+test("a-test-process-never-dials-the-live-store: createPool refuses a test process before it reads any credential", async () => {
+  const keys = [
+    "NODE_ENV",
+    "NODE_TEST_CONTEXT",
+    "STORYTREE_DB_LIVE",
+    "STORYTREE_ALLOW_DATA_PLANE",
+    "STORYTREE_DB_USER",
+    "STORYTREE_DB_IMPERSONATE_SERVICE_ACCOUNT",
+    "STORYTREE_SECRETS_FILE",
+    "STORYTREE_INSTANCE_CONNECTION_NAME",
+  ] as const;
+  const saved = new Map<string, string | undefined>(keys.map((key) => [key, process.env[key]]));
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-test-process-"));
+  const secretsFile = path.join(fixtureDir, "secrets.json");
+  fs.writeFileSync(secretsFile, JSON.stringify({ STORYTREE_DB_USER: "file@example.com" }));
+  try {
+    // Exactly the process the defect ran in: a test runner's (bun test and vitest set NODE_ENV=test),
+    // on a box whose secrets file holds a real database user.
+    process.env["NODE_ENV"] = "test";
+    delete process.env["NODE_TEST_CONTEXT"];
+    delete process.env["STORYTREE_DB_LIVE"];
+    process.env["STORYTREE_ALLOW_DATA_PLANE"] = "1"; // so the ADR-0250 refusal cannot be what fires
+    delete process.env["STORYTREE_DB_USER"];
+    delete process.env["STORYTREE_DB_IMPERSONATE_SERVICE_ACCOUNT"];
+    process.env["STORYTREE_SECRETS_FILE"] = secretsFile;
+    // Should the refusal ever go, the dial dies HERE — the connector parses the instance name before
+    // its first network call — so no version of this test can reach the real instance.
+    process.env["STORYTREE_INSTANCE_CONNECTION_NAME"] = "not-an-instance-connection-name";
+
+    await assert.rejects(createPool(), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /^live store refused: this is a test process/);
+      return true;
+    });
+    assert.equal(process.env["STORYTREE_DB_USER"], undefined, "refused BEFORE the secrets file was read");
+
+    // An injected construction opens no socket, so a test process may still exercise createPool.
+    const events: Event[] = [];
+    await createPool(undefined, recordingConstruction(events));
+    assert.deepEqual(events.map((event) => event.type), ["connector", "getOptions", "pool"]);
+
+    // The live-gated suites' opt-in gets past the refusal — to the connector, which then refuses the
+    // malformed name locally.
+    process.env["STORYTREE_DB_LIVE"] = "1";
+    await assert.rejects(createPool(), /[Mm]alformed [Ii]nstance connection name/);
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  }
+});

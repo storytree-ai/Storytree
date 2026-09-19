@@ -20,6 +20,9 @@ import { silentBuildProgress } from "./build-progress.js";
 import type { BuildProgress } from "./build-progress.js";
 import type { EnsureDbResult } from "./db-control.js";
 import { fixtureRepo, fixtureStories, scriptedAuthors, scopeFor } from "./real-chain-fixture.js";
+// Every --real/--live chain here injects a scripted curator: a green chain's DEFAULT is the live SDK
+// librarian-curator enacting on the live store, which a test process is refused (`curate.ts`).
+import { ScriptedCuratorRunner } from "./curate.js";
 
 // The module under test, reached only through the namespace (ADR-0057 C): the fields this node adds
 // (`StoryBuildOpts.increment`, `.innerLoopReads`, `.store`) are structural — at HEAD `storyBuild`
@@ -202,6 +205,7 @@ test("story-chain-increment-is-real-only: --increment is refused before any spen
     assert.deepEqual(dryRun, expected, "a --dry-run with --increment must be refused before spend");
 
     const live = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       live: true,
       increment: "inc-live",
@@ -240,6 +244,7 @@ test("story-chain-preflights-every-unit-before-spend: a REAL chain refuses a mis
   const corpus = await fixtureCorpus();
   const unitIds = ["fix-story", "cap-a", "cap-b"];
   const baseOpts = {
+    curatorRunner: new ScriptedCuratorRunner(),
     dryRun: false,
     real: true,
     actor: "tester@example.com",
@@ -411,6 +416,7 @@ test("story-chain-records-one-attempt-for-the-story: a passing chain records exa
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -455,6 +461,7 @@ test("a REAL chain on an injected verdict store names that store in its header a
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -492,6 +499,7 @@ test("story-chain-records-one-attempt-for-the-story: promote:false records only 
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -530,6 +538,7 @@ test("story-chain-records-one-attempt-for-the-story: a halted chain records only
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -578,6 +587,7 @@ test("story-chain-records-one-attempt-for-the-story: a halted chain reports exac
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -621,6 +631,7 @@ test("story-chain-records-one-attempt-for-the-story: a second chain over a signe
   const corpus = await fixtureCorpus();
   try {
     const first = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -639,6 +650,7 @@ test("story-chain-records-one-attempt-for-the-story: a second chain over a signe
     const { calls, ensureDb } = spyEnsureDb();
     const { progress, stages } = recordingProgress();
     const second = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -691,6 +703,7 @@ test("story-chain-recording-fails-closed: an unrecordable story attempt refuses 
   });
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -731,6 +744,7 @@ test("story-chain-recording-fails-closed: an unrecordable signed pass is reporte
   const corpus = await fixtureCorpus();
   try {
     const env = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -770,6 +784,7 @@ test("story-chain-envelopes-render-the-entry-state: a REAL chain's header, outco
   const corpus = await fixtureCorpus();
   try {
     const passEnv = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -809,6 +824,7 @@ test("story-chain-envelopes-render-the-entry-state: a REAL chain's header, outco
   const haltCorpus = await fixtureCorpus();
   try {
     const haltEnv = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       actor: "tester@example.com",
@@ -843,6 +859,7 @@ test("a chain refused an unknown verdict store prints its paid --real retry nami
   const realProgress = recordingProgress();
   try {
     const real = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       runtime: "claude",
@@ -865,6 +882,7 @@ test("a chain refused an unknown verdict store prints its paid --real retry nami
     ]);
 
     const live = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       live: true,
       runtime: "claude",
@@ -902,6 +920,7 @@ test("a REAL chain whose member holds a live grant of another kind proceeds, bec
   const { calls, ensureDb } = spyEnsureDb();
   try {
     const envelope = await StoryBuildModule.storyBuild("fix-story", {
+      curatorRunner: new ScriptedCuratorRunner(),
       dryRun: false,
       real: true,
       runtime: "claude",

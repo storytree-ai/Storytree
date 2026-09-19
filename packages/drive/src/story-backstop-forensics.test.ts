@@ -22,6 +22,8 @@ import {
   storyNoCommitPromotionReason,
 } from "./story-build.js";
 import type { StoryRealNodeBuilder } from "./story-build.js";
+// A green chain's DEFAULT is the live SDK curator on the live store, refused in a test process.
+import { ScriptedCuratorRunner } from "./curate.js";
 
 /**
  * The refusal-recovery contract at the actual `storyBuild` caller.
@@ -282,6 +284,7 @@ test(
 
       const corpus = await fixtureCorpus();
       const result = await storyBuild("fix-story", {
+        curatorRunner: new ScriptedCuratorRunner(),
         corpusStore: corpus,
         progress: silentBuildProgress(),
         dryRun: false,
@@ -353,6 +356,7 @@ test(
 
       const corpus = await fixtureCorpus();
       const result = await storyBuild("fix-story", {
+        curatorRunner: new ScriptedCuratorRunner(),
         corpusStore: corpus,
         progress: silentBuildProgress(),
         dryRun: false,
