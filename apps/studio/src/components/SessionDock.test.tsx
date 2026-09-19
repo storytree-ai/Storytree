@@ -207,13 +207,17 @@ describe('SessionDock — each session’s harness and machine, beside its branc
     stale: false,
     heartbeatAgeMs: 60_000,
   };
-  const group = (runtimes?: SessionClaimGroup['runtimes']): SessionClaimGroup => ({
-    sessionId: 'sess-a',
-    branch: 'claude/sess-a',
-    stale: false,
-    claims: [claim],
-    ...(runtimes === undefined ? {} : { runtimes }),
-  });
+  const group = (runtimes?: SessionClaimGroup['runtimes']): SessionClaimGroup => {
+    const built: SessionClaimGroup = {
+      sessionId: 'sess-a',
+      branch: 'claude/sess-a',
+      stale: false,
+      claims: [claim],
+    };
+    // Absent stays ABSENT — the old-server shape — rather than becoming an explicit empty list.
+    if (runtimes !== undefined) built.runtimes = runtimes;
+    return built;
+  };
   const runtimeOf = (container: HTMLElement): Element | null =>
     container.querySelector('.claim-session-header .claim-session-runtime');
 
@@ -280,5 +284,24 @@ describe('SessionDock — each session’s harness and machine, beside its branc
     expect(runtime?.textContent).toBe('codex on MicksMSpro; codex on mint-desktop');
     expect(runtime?.getAttribute('data-runtime-count')).toBe('2');
     expect(runtime?.getAttribute('title')).toMatch(/not unique across machines/i);
+  });
+
+  it('a recorded pair beside the EMPTY one is older claims, NOT a collision — the hover says which', () => {
+    // Measured on the live ledger the day this landed: a session some of whose claims were taken
+    // before detection folds to `[recorded, {}]`. Both pairs are listed — the older claims really do
+    // record nothing — but calling it a cross-machine collision would send a reader hunting for a
+    // second machine that does not exist.
+    const { container } = render(
+      <SessionDock
+        claimGroups={[group([{ harness: 'claude-code', host: 'MicksMSpro' }, {}])]}
+        now={NOW}
+        onClose={vi.fn()}
+      />,
+    );
+    const runtime = runtimeOf(container);
+    expect(runtime?.textContent).toBe('claude-code on MicksMSpro; harness and host not recorded');
+    expect(runtime?.getAttribute('data-runtime')).toBe('partial');
+    expect(runtime?.getAttribute('title')).toMatch(/before detection existed/i);
+    expect(runtime?.getAttribute('title')).not.toMatch(/not unique across machines/i);
   });
 });

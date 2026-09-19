@@ -143,10 +143,12 @@ describe('traceAgeLabel — relative to the newest trace, never to the wall cloc
     lastObservedAt: '2026-08-12T10:00:00.000Z',
     units: [],
     arcs: [],
+    harnesses: [],
+    hosts: [],
   };
 
   function rowAt(at: string | null): TraversalTraceRow {
-    return { sessionId: 'row', eventCount: 1, lastObservedAt: at, units: [], arcs: [] };
+    return { sessionId: 'row', eventCount: 1, lastObservedAt: at, units: [], arcs: [], harnesses: [], hosts: [] };
   }
 
   it('labels the newest row as such rather than "0s earlier"', () => {
@@ -254,6 +256,8 @@ describe('buildTraversalTraceList — the arc fields survive the fold', () => {
           lastObservedAt: '2026-09-05T10:00:00.000Z',
           units: ['map-arc-inc-01'],
           arcs: ['map-arc'],
+          harnesses: [],
+          hosts: [],
         },
       ]),
     );

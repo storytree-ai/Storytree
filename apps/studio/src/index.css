@@ -3748,6 +3748,13 @@ a.stat:hover {
 .claim-session-runtime[data-runtime='unrecorded'] {
   font-style: italic;
 }
+/* Each pair stays whole — the dock is 300px and a plain run broke "claude-code" at its hyphen. An
+   inline-block rather than `nowrap`: a pair that does not fit the rest of the line moves down whole,
+   and only a pair wider than the WHOLE line (an unusually long hostname) wraps inside itself, so
+   nothing can ever push the dock into a horizontal scroll. */
+.claim-session-runtime-pair {
+  display: inline-block;
+}
 /* ADR-0535 D1 — the tidy-up fold: claims old enough that "we don't know" about them is noise. Shut
    by default and never hidden, which is the whole distinction being drawn. */
 .claim-tidy-up {

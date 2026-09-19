@@ -36,6 +36,7 @@
 
 import {
   createContext,
+  Fragment,
   memo,
   useCallback,
   useContext,
@@ -5169,12 +5170,30 @@ function ClaimSessionRuntime({
   const pairs: readonly ClaimRuntime[] = runtimes !== undefined && runtimes.length > 0 ? runtimes : [{}];
   const halves = pairs.map((pair) => Number(pair.harness !== undefined) + Number(pair.host !== undefined));
   const state = halves.every((n) => n === 2) ? 'recorded' : halves.every((n) => n === 0) ? 'unrecorded' : 'partial';
-  const title =
-    pairs.length > 1
-      ? `Claims under this one session id came from ${pairs.length} harness/machine pairs. A session id is a worktree's name — unique within one clone, not unique across machines — so this is a collision to look at, not noise (ADR-0579).`
-      : state === 'unrecorded'
-        ? 'These claims recorded neither the harness nor the machine that took them. Claims taken before detection existed carry neither, and nothing infers them — not the session id, the branch, or the machine you are reading this on (ADR-0579).'
-        : 'Detected from the process that took the claim, never declared (ADR-0579). A missing harness is a process no recognised agent harness ran — never read as a human at a keyboard.';
+  // Two DIFFERENT things make a session carry several pairs, and the hover must not blur them. Two
+  // RECORDED pairs is the collision — one id, two harnesses or machines. A recorded pair beside the
+  // EMPTY one is only a session some of whose claims predate detection (measured on the live ledger
+  // the day this landed), and calling that a collision would send a reader hunting for a second box.
+  const recordedPairs = halves.filter((n) => n > 0).length;
+  const sentences: string[] = [];
+  if (recordedPairs > 1) {
+    sentences.push(
+      `These claims came from ${recordedPairs} different harness/machine pairs under one session id. A session id is a worktree's name — unique within one clone, not unique across machines — so this is a finding to look at, not noise.`,
+    );
+  }
+  if (recordedPairs === 0) {
+    sentences.push(
+      'These claims record neither the harness nor the machine that took them. Claims taken before detection existed carry neither, and nothing infers them — not the session id, the branch, or the machine you are reading this on.',
+    );
+  } else {
+    if (recordedPairs < pairs.length) {
+      sentences.push('Some of these claims were taken before detection existed and record neither; nothing infers them.');
+    }
+    sentences.push(
+      'Recorded values are detected from the process that took the claim, never declared; a missing harness is a process no recognised agent harness ran — never read as a human at a keyboard.',
+    );
+  }
+  const title = `${sentences.join(' ')} (ADR-0579)`;
   return (
     <span
       className="claim-session-runtime"
@@ -5182,7 +5201,19 @@ function ClaimSessionRuntime({
       data-runtime-count={runtimes?.length ?? 0}
       title={title}
     >
-      {pairs.map(describeClaimRuntime).join('; ')}
+      {/* One unbreakable span per pair, the `;` glued to the pair it closes: the text is exactly the
+          CLI board's `; `-join, but a line can only break BETWEEN pairs. Measured in the staged dock,
+          a plain run wrapped mid-name at the hyphen ("claude-" / "code") — the one word the line
+          exists to be read for. */}
+      {pairs.map((pair, i) => (
+        <Fragment key={i}>
+          {i > 0 && ' '}
+          <span className="claim-session-runtime-pair">
+            {describeClaimRuntime(pair)}
+            {i < pairs.length - 1 ? ';' : ''}
+          </span>
+        </Fragment>
+      ))}
     </span>
   );
 }
