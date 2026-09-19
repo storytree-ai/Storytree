@@ -133,13 +133,12 @@ function samePoints(
   return true;
 }
 
+/** ⚠ PAIRED OFF WITH `every`, NOT WALKED WITH A COUNTER: past either end a string list reads
+ *  `undefined` on BOTH sides, so a counter that overran or ran backwards would compare equal forever
+ *  rather than fail — an off-by-one no test can see and a reversed step that never ends. */
 function sameStrings(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
   if (left === undefined || right === undefined) return left === right;
-  if (left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) return false;
-  }
-  return true;
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
 function sameInstanceDependency(left: InstanceDescriptor, right: InstanceDescriptor): boolean {

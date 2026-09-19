@@ -586,6 +586,7 @@ test('the cache comparator agrees with the ground key on every pair the key tell
     ['a ring differing only at its last point', [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])], [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 7 }])]],
     ['two equal rings built separately', [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])], [ringed([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }])]],
     ['an edge list one entry longer', [edged(['a', 'b'])], [edged(['a,b'])]],
+    ['an edge list that is a prefix of the other', [edged(['a'])], [edged(['a', 'b'])]],
     ['an edge moved across a boundary', [edged(['a', 'bc'])], [edged(['ab', 'c'])]],
     ['an edge list differing only at its last entry', [edged(['a', 'b'])], [edged(['a', 'c'])]],
     ['two equal edge lists built separately', [edged(['a', 'b'])], [edged(['a', 'b'])]],
