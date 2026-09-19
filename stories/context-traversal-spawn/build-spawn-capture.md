@@ -40,7 +40,7 @@ through `leaf-slice-spawn-observations`, then routes each event to the trace of 
 belongs to, through increment 2's public barrel.
 
 **Shape.**
-`captureBuildSpawn({ parentSessionId, runId, unitId, runs, dir?, enabled?, now?, nextId? }): void`.
+`captureBuildSpawn({ parentSessionId, parentIdentity?, runId, unitId, runs, dir?, enabled?, now?, nextId? }): void`.
 Parent-lane events (`spawn_handoff`, `result_return`) append to the parent's file; each child's
 `model_context` appends to THAT child's own file — one `appendTraversalEvents` call per session id,
 never one merged batch. The directory defaults to increment 2's `resolveTraversalDir()`; an explicit
@@ -49,16 +49,24 @@ never one merged batch. The directory defaults to increment 2's `resolveTraversa
 **Consume increment 2, never edit it.** `appendTraversalEvents` and `resolveTraversalDir` come from
 the `@storytree/context-traversal-capture` barrel — that is the public seam and importing it is both
 fine and required. Nothing under `packages/context-traversal-capture/**` is modified by this story;
-that package is held under another session's work claim, and its barrel already exports every symbol
-needed here.
+that package belongs to its own capabilities (`terminal-capture-activation`, `traversal-trace-sink`),
+and its public barrels already export every symbol needed here — the root barrel, plus `ensureShipBaseline` from its `./store` subpath, the one
+function a capture path reaches there.
 
-**Identity in, never derived (ADR-0241 D9).** `parentSessionId` is supplied by the caller. This
-package must NOT import `@storytree/drive` for `deriveIdentity()` — that would make
-`drive → spawn → drive` a cycle. The resolution PRECEDENCE at the caller matters and belongs in a
-comment at the caller's resolution site: the CLI resolves `STORYTREE_SESSION_ID` first, then
-`deriveIdentity()?.sessionId`, and the build glue must match it or a session's build lane lands in a
+**Identity in, never derived (ADR-0241 D9).** `parentSessionId` — and beside it `parentIdentity`,
+the parent lane's `grade` / `slot` / `harness` / `host` — is supplied by the caller. This package
+must NOT import `@storytree/drive` for `deriveIdentity()` — that would make `drive → spawn → drive` a
+cycle. The resolution PRECEDENCE at the caller matters and belongs in a comment at the caller's
+resolution site: the CLI keys the parent lane by exactly the trace identity its reads are keyed by —
+`resolveTraceIdentity` (`STORYTREE_SESSION_ID`, then `CLAUDE_CODE_SESSION_ID`, then `CODEX_THREAD_ID`;
+never the worktree slot, which rides along as a grouping attribute only), mapped onto the lane by
+`buildSpawnParentOf` — and the build glue must match it or a session's build lane lands in a
 different file from its CLI reads, silently breaking the one-session-one-trace property increment 2
-proved.
+proved. The attributes are stamped on the PARENT lane's lines only: a child lane is the leaf
+runtime's own window, not the session's, and stays unstamped. *(This paragraph said the CLI resolved
+`STORYTREE_SESSION_ID`, then `deriveIdentity()?.sessionId`, until `build-lane-ships-with-its-session`.
+That second rung is the worktree SLOT, and once `linked-session-context-arc-inc-30` moved the reads to
+the window it produced exactly the split this paragraph warns against.)*
 
 **Additive and fail-silent (ADR-0241 D3), never fail-closed.** A null, empty, or unresolvable
 `parentSessionId` is a total no-op: no directory resolved, no file created, no error. `enabled:
@@ -113,7 +121,11 @@ which case the unit is test-only and its red comes from the missing assertions �
 legitimate red; do not manufacture a source change to justify one.
 
 **Fences.** No retention, rotation, eviction, compaction, pruning, or size cap. No shared-database
-or hosted path. No reading of prompts, phase-prompt bodies, tool results, file contents,
+or hosted path in this composition: it writes local files only — the lanes, and for the PARENT lane
+the forward-only ship cursor a CLI read also stamps, before the append (ADR-0484 D6). That cursor is
+what lets increment 2's out-of-band shipper carry the parent lane to the shared store (ADR-0484 D4);
+this composition never starts the shipper and never waits on it, and a child lane gets no cursor. No
+reading of prompts, phase-prompt bodies, tool results, file contents,
 credentials, spawn payloads, or returned result content — this composition never sees them and must
 never be given a parameter that could carry them.
 

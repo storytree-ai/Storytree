@@ -284,7 +284,7 @@ import { orchestrate, type OrchestrateArgs } from "@storytree/drive";
 import { planActivitySweep } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
-import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
+import { buildSpawnParentOf, captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
@@ -3043,9 +3043,17 @@ async function nodeLedgerCommand(
  * `context-traversal-capture` → `context-traversal-telemetry`, whose UAT proves itself against
  * drive's real `createOrientationRunner`, so a direct `drive → spawn` import closes a cross-story
  * cycle `check:boundaries` refuses. The CLI is the declared consumer of every organism it surfaces
- * (ADR-0074 §4), so it is the right owner of this edge — and of the session identity, resolved with
- * exactly `captureInvocation`'s precedence in `main.ts` (`STORYTREE_SESSION_ID`, then the worktree
- * derivation) so a session's build lane and its CLI reads land in the SAME trace file.
+ * (ADR-0074 §4), so it is the right owner of this edge — and of the session identity.
+ *
+ * THE PARENT LANE IS KEYED BY THE SAME TRACE IDENTITY EVERY CLI READ USES: `resolveTraceIdentity`,
+ * handed exactly what `resolveInvocationIdentities` in `main.ts` hands it — the process environment,
+ * the worktree slot (a grouping attribute, never the identity) and the machine's hostname — so the
+ * lane is keyed by ONE context window and lands in the SAME trace file as the session's reads,
+ * carrying the same grade, slot, harness and host (`build-lane-ships-with-its-session`). This comment
+ * used to claim that parity while the code resolved `STORYTREE_SESSION_ID` and then the worktree
+ * SLOT: `linked-session-context-arc-inc-30` had moved the reads to the window, so the lane sat in a
+ * different file, unlabelled, with no ship cursor — and no build lane reached the shared store. A null
+ * identity captures nothing, the rule every read follows: an uninstrumented run is not an error.
  *
  * Additive and fail-silent (ADR-0241 D3): `captureBuildSpawn` never throws, and the `catch` here is
  * the belt-and-braces the envelope deserves — telemetry must never change a build's outcome.
@@ -3056,14 +3064,25 @@ function captureBuildLeafSlices(args: {
   readonly runs: readonly LeafSliceRun[];
 }): void {
   try {
-    const override = process.env["STORYTREE_SESSION_ID"];
-    const parentSessionId =
-      override !== undefined && override.trim().length > 0
-        ? override
-        : (deriveIdentity()?.sessionId ?? null);
-    captureBuildSpawn({ parentSessionId, runId: args.runId, unitId: args.unitId, runs: args.runs });
+    // Stryker disable next-line ObjectLiteral,OptionalChaining,LogicalOperator: NO COVERAGE BY
+    // DESIGN — this is the build path's one wire from the process into the pure resolver, the same
+    // wire `resolveInvocationIdentities` in `main.ts` carries for the reads. It runs only when drive's
+    // `onLeafSlices` seam hands over a LIVE leaf's accounting, which no offline suite produces, and the
+    // story declares this wiring un-asserted connective glue (ADR-0158); its slot operand is also
+    // git-derived, so a suite asserting it would be asserting this checkout's worktree shape (a linked
+    // worktree locally, the primary checkout in CI). Both ends ARE tested: the precedence, the harness
+    // detection and the host normalisation in `session-identity.test.ts`, and the mapping, the parent
+    // lane's stamps and its ship baseline in `build-capture.test.ts`.
+    const trace = resolveTraceIdentity({ env: process.env, slot: deriveIdentity()?.sessionId ?? null, host: os.hostname() });
+    // Stryker disable next-line ObjectLiteral,CallExpression: NO COVERAGE BY DESIGN — the same glue,
+    // reached only by a live build: the argument is `buildSpawnParentOf`'s tested output plus the
+    // three fields drive hands over, and `build-capture.test.ts` proves what `captureBuildSpawn`
+    // writes from it.
+    captureBuildSpawn({ ...buildSpawnParentOf(trace), runId: args.runId, unitId: args.unitId, runs: args.runs });
   } catch {
-    // A trace is a courtesy; the build's envelope is the payload.
+    // Telemetry never breaks a build — the envelope is the payload. "A courtesy", which this used to
+    // say, was withdrawn as too weak once the lane began to SHIP (ADR-0484 D4, `main.ts`'s own catch):
+    // what stands is that it never BLOCKS.
   }
 }
 
