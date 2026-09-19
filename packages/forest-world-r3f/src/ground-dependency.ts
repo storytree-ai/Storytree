@@ -114,6 +114,93 @@ function instanceDigest(d: InstanceDescriptor): string {
   ].join(FIELD);
 }
 
+/** Copy a descriptor's complete ground-visible state before it enters the one-slot cache. */
+function snapshotInstance(d: InstanceDescriptor): InstanceDescriptor {
+  return {
+    ...d,
+    transform: { ...d.transform },
+    ...(d.points === undefined ? {} : { points: d.points.map((point) => ({ ...point })) }),
+    ...(d.edges === undefined ? {} : { edges: [...d.edges] }),
+  };
+}
+
+function snapshotGroundDependencies(descriptors: readonly Descriptor3D[]): Descriptor3D[] {
+  return descriptors.map((descriptor) =>
+    descriptor.kind === 'skipped' ? { ...descriptor } : snapshotInstance(descriptor),
+  );
+}
+
+const sameNumber = (left: number, right: number) => left === right || (Number.isNaN(left) && Number.isNaN(right));
+
+const sameOptionalNumber = (left: number | undefined, right: number | undefined) =>
+  left === undefined || right === undefined ? left === right : sameNumber(left, right);
+
+function samePoints(
+  left: readonly { x: number; y: number; z: number }[] | undefined,
+  right: readonly { x: number; y: number; z: number }[] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftPoint = left[index]!;
+    const rightPoint = right[index]!;
+    if (!sameNumber(leftPoint.x, rightPoint.x) || !sameNumber(leftPoint.y, rightPoint.y) || !sameNumber(leftPoint.z, rightPoint.z)) return false;
+  }
+  return true;
+}
+
+function sameStrings(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function sameInstanceDependency(left: InstanceDescriptor, right: InstanceDescriptor): boolean {
+  return left.kind === right.kind
+    && sameNumber(left.transform.x, right.transform.x)
+    && sameNumber(left.transform.y, right.transform.y)
+    && sameNumber(left.transform.z, right.transform.z)
+    && left.group === right.group
+    && left.material === right.material
+    && samePoints(left.points, right.points)
+    && sameOptionalNumber(left.width, right.width)
+    && sameOptionalNumber(left.usage, right.usage)
+    && left.hidden === right.hidden
+    && left.segment === right.segment
+    && sameStrings(left.edges, right.edges)
+    && sameOptionalNumber(left.bearing, right.bearing)
+    && left.island === right.island
+    && left.criterion === right.criterion
+    && left.parcel === right.parcel;
+}
+
+const isGroundVisible = (descriptor: Descriptor3D): descriptor is InstanceDescriptor =>
+  descriptor.kind !== 'skipped' && !GROUND_BLIND_KINDS.has(descriptor.kind);
+
+/**
+ * Compare the exact dependency stream without serializing it. This is also the cache's equality
+ * seam: it reads in order, so a visible mismatch stops before any trailing descriptor is touched.
+ */
+export function sameGroundDependencies(left: readonly Descriptor3D[], right: readonly Descriptor3D[]): boolean {
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (true) {
+    while (leftIndex < left.length && !isGroundVisible(left[leftIndex]!)) leftIndex += 1;
+    while (rightIndex < right.length && !isGroundVisible(right[rightIndex]!)) rightIndex += 1;
+    const leftDescriptor = left[leftIndex];
+    const rightDescriptor = right[rightIndex];
+    if (leftDescriptor === undefined || rightDescriptor === undefined) return leftDescriptor === rightDescriptor;
+    // The loops above establish this at runtime; retain the narrowing for strict indexed access.
+    if (!isGroundVisible(leftDescriptor) || !isGroundVisible(rightDescriptor)) continue;
+    if (!sameInstanceDependency(leftDescriptor, rightDescriptor)) return false;
+    leftIndex += 1;
+    rightIndex += 1;
+  }
+}
+
 /**
  * THE CONTENT KEY THE GROUND IS REBUILT ON — everything in the stream except
  * {@link GROUND_BLIND_KINDS}, in stream order, as one string.
@@ -125,7 +212,7 @@ function instanceDigest(d: InstanceDescriptor): string {
  */
 export function groundDependencyKey(descriptors: readonly Descriptor3D[]): string {
   const parts: string[] = [];
-  for (const d of descriptors) {
+  for (const d of snapshotGroundDependencies(descriptors)) {
     // Two exclusions, one line: the skip by its own discriminant (which is also what narrows the
     // rest of this loop to an instance), the live families by the set. Both are justified in
     // {@link GROUND_BLIND_KINDS} and both are held by `ground-dependency.test.ts` — drop either
@@ -200,14 +287,13 @@ export function createGroundInputCache(
   // ⚠ ONE SLOT HOLDING BOTH, not two variables holding one each. A key and an answer that can be
   // assigned separately are a cache that can be asked whether an answer it does not have matches a
   // key it does — and the guard against that is then a line no input can exercise.
-  let cached: { readonly key: string; readonly input: GroundInput } | null = null;
+  let cached: { readonly dependencies: readonly Descriptor3D[]; readonly input: GroundInput } | null = null;
   let revision = 0;
   return (descriptors) => {
-    const key = groundDependencyKey(descriptors);
-    if (cached !== null && cached.key === key) return cached.input;
+    if (cached !== null && sameGroundDependencies(descriptors, cached.dependencies)) return cached.input;
     const input = groundInput(descriptors, opts, revision);
     revision += 1;
-    cached = { key, input };
+    cached = { dependencies: snapshotGroundDependencies(descriptors), input };
     return input;
   };
 }

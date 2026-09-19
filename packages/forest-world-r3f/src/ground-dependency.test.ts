@@ -35,6 +35,7 @@ import {
   groundInput,
   type GroundInputOptions,
 } from './ground-dependency.js';
+import * as groundDependency from './ground-dependency.js';
 import { groundCasters, placementCasters } from './ground-casters.js';
 import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, isDressingRole } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
@@ -194,6 +195,77 @@ test('a scene rebuilt with the same content is the same ground — the poll that
   assert.equal(third.revision, 0, 'the third stream rebuilt the ground');
   assert.equal(again, first, 'React keys on identity, so the object itself must be the same one');
   assert.equal(third, first);
+});
+
+test('fcd-ground-cache-compares-content-without-serializing: an equal fresh stream reuses the warmed ground without String conversion', () => {
+  // Build both streams before replacing String: fixture construction is deliberately outside the
+  // observation, so the count belongs only to the cache's equal-content comparison.
+  const warmedStream = forest();
+  const equalFreshStream = forest();
+  const cache = createGroundInputCache(OPTS);
+  const warmed = cache(warmedStream);
+  const originalString = globalThis.String;
+  let conversions = 0;
+
+  try {
+    globalThis.String = ((value?: unknown) => {
+      conversions += 1;
+      return originalString(value);
+    }) as StringConstructor;
+
+    const reused = cache(equalFreshStream);
+    assert.equal(reused, warmed, 'equal fresh content must reuse the exact warmed GroundInput');
+    assert.equal(conversions, 0, 'comparing equal ground dependencies serialized descriptor fields');
+  } finally {
+    globalThis.String = originalString;
+  }
+});
+
+test('fcd-ground-cache-short-circuits-on-first-change: the first ground-visible mismatch decides before trailing fields are read', () => {
+  type GroundDependencyModule = typeof groundDependency & {
+    readonly sameGroundDependencies?: (left: readonly Descriptor3D[], right: readonly Descriptor3D[]) => boolean;
+  };
+  const sameGroundDependencies = (groundDependency as GroundDependencyModule).sameGroundDependencies;
+
+  // This is intentionally an assertion red, rather than an import failure: the eventual export is
+  // an observation seam for the exact comparator the cache uses.
+  assert.equal(typeof sameGroundDependencies, 'function', 'the cache must expose its dependency comparator');
+  if (typeof sameGroundDependencies !== 'function') return;
+
+  const caveAt = (x: number): InstanceDescriptor => ({
+    kind: 'cave-arch',
+    transform: { x, y: 0, z: 0 },
+    group: 'cave-arch',
+  });
+  let groupReads = 0;
+  const observedTrailGhost: InstanceDescriptor = {
+    kind: 'trail-ghost-strip',
+    transform: { x: 4, y: 0, z: 0 },
+    get group() {
+      groupReads += 1;
+      return 'trail-ghost-strip';
+    },
+  };
+  const plainTrailGhost: InstanceDescriptor = {
+    kind: 'trail-ghost-strip',
+    transform: { x: 4, y: 0, z: 0 },
+    group: 'trail-ghost-strip',
+  };
+
+  assert.equal(
+    sameGroundDependencies([caveAt(0), observedTrailGhost], [caveAt(0), plainTrailGhost]),
+    true,
+    'equal streams are equal',
+  );
+  assert.ok(groupReads > 0, 'the equal control proves the comparator reads the trailing descriptor');
+
+  groupReads = 0;
+  assert.equal(
+    sameGroundDependencies([caveAt(0), observedTrailGhost], [caveAt(1), plainTrailGhost]),
+    false,
+    'the first cave position mismatch makes the streams unequal',
+  );
+  assert.equal(groupReads, 0, 'the comparator read a trailing descriptor after the first mismatch');
 });
 
 test('a wisp arriving, moving or leaving is not a ground change', () => {
