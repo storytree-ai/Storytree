@@ -478,6 +478,8 @@ test("node resolve on a spec-borne REAL node shows source=spec, REAL-buildable +
   assert.match(env.body, /REAL-buildable: yes/);
   // The real proof display is the orchestrator's one-true display, not hand-formatted.
   assert.match(env.body, /real proof: +node --import tsx --test packages\/orchestrator\/src\/proof\/verdict-line\.test\.ts/);
+  // The route's shape is readable before a `--real` build is paid for (ADR-0580 D1: shape only).
+  assert.match(env.body, /proof route: +default-node-test/);
   // Read-only: zero-cost next steps, no spend implied by the resolve itself.
   assert.ok(env.next?.some((n) => n.includes("--dry-run")));
   assert.ok(env.next?.some((n) => n.includes("--real")));
