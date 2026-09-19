@@ -76,7 +76,8 @@ other.
   import edges: every emitted event parses through increment 1's `ContextTraversalEvent` vocabulary
   and its coverage domain, and both capture and replay go through increment 2's
   `appendTraversalEvents` / `readTraversalSession` / `renderTraversalSession` barrel. Increment 2's
-  package is CONSUMED through its public barrel and is never edited by this story.
+  package is CONSUMED through its public barrels — the root barrel, plus its `./store` subpath for
+  `ensureShipBaseline`, the parent lane's ship baseline — and is never edited by this story.
 - `consumed_by: [cli]` — the PROVIDER-side declaration of the ONE remaining cross-story import edge:
   `@storytree/cli` runtime-depends on `@storytree/context-traversal-spawn`. It is code-backed (a real
   `dependencies` entry plus the wiring in `packages/cli/src/commands.ts` and the swapped
@@ -309,9 +310,17 @@ green a capability that never went red, which is the inverse theater ADR-0085 / 
   leg 6 above, bound to gate 2" until 2026-08-21; leg 6 was deleted under ADR-0294 D2 because that
   capability already proves it, and the gate now stands unclaimed.)* Three named things stay
   outside this story, and nothing beyond them:
-  - **(a) The CLI's ONE injection line.** `onLeafSlices: captureBuildLeafSlices` in
-    `nodeStoryBuildOpts` (`packages/cli/src/commands.ts:1454`) — un-asserted connective glue
-    (ADR-0158) in the CLI's own building, reviewed in the diff and claimed by no capability.
+  - **(a) The CLI's ONE injection line.** `opts.onLeafSlices = captureBuildLeafSlices` in
+    `nodeStoryBuildOpts` (`packages/cli/src/commands.ts`) — un-asserted connective glue (ADR-0158)
+    in the CLI's own building, reviewed in the diff and claimed by no capability. The identity it
+    keys the parent lane by is the SAME trace identity the CLI's reads are keyed by —
+    `resolveTraceIdentity` over the process environment, the worktree slot (a grouping attribute
+    only) and the hostname — so the lane joins the session's own window trace, carrying its grade,
+    slot, harness and host. The mapping from that identity onto the lane (`buildSpawnParentOf`) is
+    asserted by `build-spawn-capture`; only the one wire from the process into the resolver stays
+    glue. *(Until `build-lane-ships-with-its-session` this glue keyed the lane by
+    `STORYTREE_SESSION_ID`, then the worktree SLOT, so a session's lane and its reads sat in
+    different files and the lane never shipped.)*
   - **(b) The end-to-end BYTES assertion,** deferred with its reason stated rather than hidden:
     bytes-from-run-accounting is ALREADY proven red→green on signed `--real` verdicts by this
     story's own `build-spawn-capture` (its contract 1
@@ -356,13 +365,16 @@ green a capability that never went red, which is the inverse theater ADR-0085 / 
   adapters. This story adds ONE adapter — the build spawn boundary — and declares every other
   surface omitted.
 - Forest playback, gauges, drill-down UI, icons, colours, and the 500k danger-region rendering.
-- Any shared-database or hosted-studio read path for traces. Storage stays local per-machine
-  (ADR-0241 D8), behind increment 2's seam.
+- Any shared-database or hosted-studio READ path for traces. The lanes are written locally per
+  machine (ADR-0241 D8), behind increment 2's seam; the PARENT lane is additionally enrolled, by a
+  forward-only ship cursor, in increment 2's out-of-band shipper, which carries it to the shared
+  store exactly as it carries the session's reads (ADR-0484 D4 / D6). This story stamps the cursor
+  and never runs the shipper, and child lanes are not enrolled.
 - Retention, rotation, eviction, compaction, pruning, ranking, prefetch, guidance, size caps, and
   traversal limits. Traces stay deliberately unbounded (ADR-0241 D7); a "helpful" trim would destroy
   the long-session evidence this arc exists to gather.
 - Any causal edge inferred from timestamps, adjacency, or invocation order. Parent/child linkage is
   explicit-id only.
-- Editing `packages/context-traversal-capture/**` (consumed through its barrel only) or collapsing
+- Editing `packages/context-traversal-capture/**` (consumed through its public barrels only) or collapsing
   its single-adapter `showTraversalSession`, which stays in place and simply stops being the CLI's
   caller.

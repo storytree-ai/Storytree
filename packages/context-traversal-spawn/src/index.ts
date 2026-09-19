@@ -16,8 +16,12 @@ export { observeLeafSlices, BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf
 export type { LeafSliceRun, LeafSliceUsage, ObserveLeafSlicesArgs } from "./observe-leaf-slices.js";
 
 // capability `build-spawn-capture`
-export { captureBuildSpawn } from "./build-capture.js";
-export type { CaptureBuildSpawnArgs } from "./build-capture.js";
+export { buildSpawnParentOf, captureBuildSpawn } from "./build-capture.js";
+export type {
+  BuildSpawnParent,
+  BuildSpawnParentIdentity,
+  CaptureBuildSpawnArgs,
+} from "./build-capture.js";
 
 // capability `multi-adapter-replay`
 export { replayTraversalSessionAllAdapters, showTraversalSessionAllAdapters } from "./replay-adapters.js";
