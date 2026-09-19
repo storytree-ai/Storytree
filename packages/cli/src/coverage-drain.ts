@@ -193,14 +193,15 @@ export interface CoverageDrainConfig {
  * Any OTHER upward move is the named gaming failure mode on `process:verification-decay-detection`.
  * Raising it to admit work being landed is exactly what this instrument exists to catch.
  *
- * `unboundCeiling: 1` admits the single instance the sweep has carried since 2026-07-05:
- * `backend-chat-reset-route`, a `status: proposed` OPTIONAL/STRETCH capability that registered a full
- * `proof.real` block before its `chat-reset-route.test.ts` was authored. Its drain is either building
- * the unit or a story-author edit withdrawing the premature `real` block — the work hierarchy is
- * story-author's to write, so neither belongs in the increment that bounds the ceiling. This is the axis
- * that most deserves zero and the one with the shortest route to it: it has been 0 (before 2026-07-05)
- * and has been exactly 1 on every sampled day since, so the SECOND unbound capability reds the gate on
- * its first appearance.
+ * `unboundCeiling: 1` is a deliberate ALLOWANCE, not a measured backlog (ADR-0580 D3). The axis counts
+ * capabilities whose registered `real.testFile` does not exist on disk, and its population is ZERO
+ * since ADR-0580 D3 retired `capability-proof-continuity` — the slot's last holder, never built, on a
+ * closed arc. The ceiling is deliberately NOT lowered to that zero: the owner kept ONE slot so a single
+ * capability may be specced, `real:` arm and all, ahead of its build. That departs from tightening a
+ * drain ceiling as its population drains, for this axis only; raising it stays forbidden (ADR-0252 D3,
+ * ADR-0269), so the SECOND unbound capability reds the gate on its first appearance. Since ADR-0580 D2
+ * no `--real` build runs the cli suite this count lives in, so the limit binds only at landing
+ * (`pnpm gate` / CI), where a breach is attributable to the branch that caused it.
  *
  * NO WARN BAND WAS OPENED BENEATH EITHER CEILING. `formatCoverageGate` is untouched: it still WARNs on a
  * single uncovered contract and still names every capability and every contract id, so nothing that

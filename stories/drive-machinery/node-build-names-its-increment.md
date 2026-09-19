@@ -263,6 +263,11 @@ touches: `node-build-names-its-increment.test.ts` and `node-build-revise-test.te
 What the build no longer observes before signing — the rest of both suites, and the cli package's
 `validate-corpus.ts` step — the landing gate re-runs in full.
 
+> **Overtaken 2026-09-19 (ADR-0580 D2):** no `--real` build runs `proof.command` any more, narrowed
+> or not; the pre-signature backstop is the package typecheck alone. The narrowing above is kept as
+> the record of attempt 5's input. `proof.command` still names this unit's test files for the
+> binding sweep and `node resolve`.
+
 **Where the wiring goes.** Line numbers are approximate, as of this spec's commit; search for the
 quoted text if they have moved.
 - `packages/drive/src/node-build.ts`:

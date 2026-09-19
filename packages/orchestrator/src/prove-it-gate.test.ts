@@ -426,11 +426,12 @@ test("(m) the coverage seam is NEVER consulted when the walk fails before GATE (
 });
 
 // ── (n)–(r) `sign-after-typecheck`: the verdict never out-runs its backstop ───────────────────────
-// A signed PASS is the durable claim "this commit passes". Until now the package typecheck +
-// regression suite that backs that claim ran AFTER the signature (single node) or once at the
-// stacked HEAD (chain), and a red withheld only the PUSH — leaving `events.verdict` free to hold a
-// signed PASS over code the repo's own typecheck rejects. The backstop is now a GATE seam: it runs
-// before the signing append, and a red refuses fail-closed like any other GATE refusal.
+// A signed PASS is the durable claim "this commit passes". The package typecheck that backs that
+// claim used to run AFTER the signature (single node) or once at the stacked HEAD (chain), and a red
+// withheld only the PUSH — leaving `events.verdict` free to hold a signed PASS over code the repo's
+// own typecheck rejects. The backstop is now a GATE seam: it runs before the signing append, and a red
+// refuses fail-closed like any other GATE refusal. It is the typecheck alone; the package's regression
+// suite runs at landing, in the gate and CI (ADR-0580 D2).
 
 test("(n) a RED backstop refuses at GATE and writes NO signing row (the verdict never out-runs it)", async () => {
   const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
@@ -502,18 +503,14 @@ test("(r) the backstop is NEVER consulted when the walk dies before GATE", async
   assert.equal(await signingRows(store), 0);
 });
 
-// ── (s)–(t) `oracle-veto-covers-custom-proof-commands`: the verdict CARRIES the vetting status ────
-// An observation's `note` is where the spine records WHY an observation reads as it does — ADR-0211's
-// downgrade reason, and now whether a green was cross-checked by the assert oracle at all. The
-// verdict's evidence must carry that through, or the distinction dies at the gate and every signed
-// green looks equally vetted.
+// ── (s)–(t) the verdict CARRIES an observation's note ──────────────────────────────────────────────
+// An observation's `note` is where an executor records WHY an observation reads as it does — today, the
+// fail-closed red the shell executor produces when a per-test report could not be cleared before the
+// spawn. The verdict's evidence must carry that through, or the reason dies at the gate.
 
 test("(s) an observation's note rides through into the signed verdict's evidence", async () => {
   const { spec, store } = freshSpec({
-    observations: [
-      RED,
-      { result: "green", testId: "T", note: "no assert-oracle cross-check for this proof command" },
-    ],
+    observations: [{ ...RED, note: "per-test report: could not be cleared" }, GREEN],
     tree: CLEAN,
     signerInputs: SIGNER,
   });
@@ -522,19 +519,19 @@ test("(s) an observation's note rides through into the signed verdict's evidence
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  const green = result.verdict.evidence.find((e) => e.kind === "observation:green");
-  assert.ok(green !== undefined);
+  const red = result.verdict.evidence.find((e) => e.kind === "observation:red");
+  assert.ok(red !== undefined);
   assert.match(
-    green.note ?? "",
-    /no assert-oracle cross-check for this proof command/,
-    "a reader of the signed verdict must be able to tell a vetted green from an unvetted one",
+    red.note ?? "",
+    /per-test report: could not be cleared/,
+    "a reader of the signed verdict must be able to see why the observation reads as it does",
   );
 
   // On the PERSISTED row too, not only the returned verdict — the rollups read the row.
   const signing = (await store.readEvents()).find((e) => e.kind === "signing");
   assert.ok(signing !== undefined);
-  const persisted = (signing.doc as Verdict).evidence.find((e) => e.kind === "observation:green");
-  assert.match(persisted?.note ?? "", /no assert-oracle cross-check/);
+  const persisted = (signing.doc as Verdict).evidence.find((e) => e.kind === "observation:red");
+  assert.match(persisted?.note ?? "", /per-test report: could not be cleared/);
 });
 
 test("(t) an observation with NO note keeps the bare evidence wording (back-compat)", async () => {

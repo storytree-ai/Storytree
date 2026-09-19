@@ -2,10 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { pathToFileURL } from "node:url";
 
 import {
   DEFAULT_PROOF_TIMEOUT_MS,
@@ -13,7 +12,6 @@ import {
   ShellCommandMaxBufferError,
   ShellCommandTreeTerminationError,
   ShellTestExecutor,
-  UNVETTED_GREEN_NOTE,
   defaultClassifyKind,
   isScrubbedEnvKey,
   nodeEvalExecutor,
@@ -27,9 +25,6 @@ import {
 test("nodeEvalExecutor: a green script (exit 0) is observed as green", async () => {
   const exec = nodeEvalExecutor({ ok: "process.exit(0)" });
   const obs = await exec.run("ok");
-  // The shape gained a `note` under `oracle-veto-covers-custom-proof-commands`: this executor wires
-  // no assert-oracle cross-check, so its green now says so. What this case asserts — exit 0 is
-  // observed GREEN, under this testId — is unchanged; the vetting stamp is asserted on its own below.
   assert.equal(obs.result, "green");
   assert.equal(obs.testId, "ok");
 });
@@ -122,37 +117,6 @@ test("defaultClassifyKind reads Node's REAL module-resolution errors as compile,
     }),
     "runtime",
   );
-});
-
-test("ShellTestExecutor: a MEASURED red-kind wins over the text heuristic and is stamped oracle-count", async () => {
-  const exec = new ShellTestExecutor({
-    // Output that the TEXT heuristic would read as `compile`...
-    command: () => ({
-      file: process.execPath,
-      args: ["-e", 'console.error("Cannot find module \'./x.js\'"); process.exit(1)'],
-    }),
-    // ...while the MEASUREMENT says an assertion really ran and failed. The measurement wins.
-    measureRedKind: () => "runtime",
-  });
-  const obs = await exec.run("any");
-  assert.equal(obs.result, "red");
-  assert.equal(obs.kind, "runtime");
-  assert.equal(obs.kindBasis, "oracle-count");
-});
-
-test("ShellTestExecutor: an UNMEASURABLE red falls back to the heuristic and is stamped output-text", async () => {
-  // `measureRedKind` returning undefined means "cannot measure" — NOT a kind. It must degrade to the
-  // heuristic with the honest basis, so the phase gate stays disarmed rather than refusing on a guess.
-  const exec = new ShellTestExecutor({
-    command: () => ({
-      file: process.execPath,
-      args: ["-e", 'console.error("Cannot find module \'./x.js\'"); process.exit(1)'],
-    }),
-    measureRedKind: () => undefined,
-  });
-  const obs = await exec.run("any");
-  assert.equal(obs.kind, "compile");
-  assert.equal(obs.kindBasis, "output-text");
 });
 
 test("ShellTestExecutor: a genuine spawn failure (ENOENT) rejects, not a silent green", async () => {
@@ -253,100 +217,6 @@ test("ADR-0064 ENV FORCE: cmd.env injects a var the parent never set", async () 
     env: { STORYTREE_INJECTED_ONLY: "from-spine" },
   });
   assert.equal(out.stdout, "from-spine");
-});
-
-// ── an-inherited-oracle-guard-never-reaches-the-child: NODE_OPTIONS strips a foreign guard ──
-// When the SPINE itself runs under a `--real` proof, its own assert-oracle guard reaches child
-// processes through NODE_OPTIONS. A nested spawned observation that inherits it loads a SECOND,
-// different copy of the guard, which counts nothing (the first copy already froze `node:assert`)
-// and overwrites the report with zero — or a spawn deliberately left unguarded inherits a guard
-// it never asked for. Only the GUARD IMPORT must be stripped; every other byte of
-// NODE_OPTIONS, and the command's own `cmd.env`, still reach the child (asserted elsewhere).
-
-test("an-inherited-oracle-guard-never-reaches-the-child: a spawned command strips a foreign guard import from NODE_OPTIONS while preserving everything else", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "storytree-oracle-guard-scrub-"));
-  try {
-    // Two independent "copies" of the guard, in two different directories — "any directory, any
-    // copy" per the node spec, so a single hardcoded path could never prove the rule.
-    const copyADir = join(dir, "copy-a");
-    const copyBDir = join(dir, "copy-b");
-    await mkdir(copyADir, { recursive: true });
-    await mkdir(copyBDir, { recursive: true });
-    const guardA = join(copyADir, "assert-oracle-guard.mjs");
-    const guardB = join(copyBDir, "assert-oracle-guard.mjs");
-    // Harmless stand-ins: the point is the SPECIFIER, not the real guard's behaviour. A real file is
-    // required so an un-fixed spawn can actually import it and run to completion instead of crashing
-    // on ERR_MODULE_NOT_FOUND, which would prove nothing about the scrub.
-    await writeFile(guardA, "// harmless stand-in for the real assert-oracle guard\n");
-    await writeFile(guardB, "// harmless stand-in for the real assert-oracle guard\n");
-
-    const original = process.env["NODE_OPTIONS"];
-    // Both the space-separated and `=`-joined `--import` forms, interleaved with unrelated flags.
-    process.env["NODE_OPTIONS"] =
-      `--enable-source-maps --import ${pathToFileURL(guardA).href} --import=${pathToFileURL(guardB).href} --max-old-space-size=4096`;
-    try {
-      const out = await runShellCommand({
-        file: process.execPath,
-        args: ["-e", "process.stdout.write(process.env.NODE_OPTIONS ?? '<absent>')"],
-      });
-      assert.doesNotMatch(
-        out.stdout,
-        /assert-oracle-guard\.mjs/,
-        "an inherited assert-oracle guard import must never reach the spawned child",
-      );
-      assert.match(
-        out.stdout,
-        /--enable-source-maps/,
-        "unrelated NODE_OPTIONS content must still pass through",
-      );
-      assert.match(
-        out.stdout,
-        /--max-old-space-size=4096/,
-        "unrelated NODE_OPTIONS content must still pass through",
-      );
-    } finally {
-      if (original === undefined) {
-        delete process.env["NODE_OPTIONS"];
-      } else {
-        process.env["NODE_OPTIONS"] = original;
-      }
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("an-inherited-oracle-guard-never-reaches-the-child: NODE_OPTIONS is dropped entirely when only the guard import remains", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "storytree-oracle-guard-scrub-only-"));
-  try {
-    const guard = join(dir, "assert-oracle-guard.mjs");
-    await writeFile(guard, "// harmless stand-in for the real assert-oracle guard\n");
-
-    const original = process.env["NODE_OPTIONS"];
-    process.env["NODE_OPTIONS"] = `--import ${pathToFileURL(guard).href}`;
-    try {
-      const out = await runShellCommand({
-        file: process.execPath,
-        args: [
-          "-e",
-          "process.stdout.write(process.env.NODE_OPTIONS === undefined ? '<absent>' : process.env.NODE_OPTIONS)",
-        ],
-      });
-      assert.equal(
-        out.stdout,
-        "<absent>",
-        "NODE_OPTIONS must be dropped, not left behind as an empty/whitespace string",
-      );
-    } finally {
-      if (original === undefined) {
-        delete process.env["NODE_OPTIONS"];
-      } else {
-        process.env["NODE_OPTIONS"] = original;
-      }
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
 });
 
 test("isScrubbedEnvKey: the real credential names are scrubbed; benign names are not", () => {
@@ -1003,78 +873,6 @@ test("defaultClassifyKind: classifies TS-diagnostic and missing-symbol shapes as
   );
 });
 
-// ── `oracle-veto-covers-custom-proof-commands`: a green says whether it was VETTED ────────────────
-// ADR-0211's assert-oracle veto is wired only for the DEFAULT `node --import tsx --test <file>`
-// command. Custom-`proofCommand` nodes — package suites, vitest, and structurally EVERY ADR-0098 R2
-// `refactorForTests` node, whose schema refine REQUIRES a proofCommand — keep exit-code-only
-// observation. That narrowing is defensible; leaving it INVISIBLE is not. A vetted green and an
-// unvetted one were byte-identical in the signed verdict, so no reader could tell which they held.
-
-test("a green with NO oracle cross-check is stamped UNVETTED (the gap is visible, not silent)", async () => {
-  // nodeEvalExecutor wires no verifyGreen — the exit-code-only shape a custom proofCommand gets.
-  const exec = nodeEvalExecutor({ ok: "process.exit(0)" });
-  const obs = await exec.run("ok");
-
-  assert.equal(obs.result, "green");
-  assert.equal(
-    obs.note,
-    UNVETTED_GREEN_NOTE,
-    "an unvetted green must SAY it is unvetted rather than look like a vetted one",
-  );
-});
-
-// `custom-proof-command-red-accounting`: the note above is now a FALLBACK. Once the resolver started
-// wiring the guard onto every custom command that could carry one, an unaccounted route stopped meaning
-// "nobody wired an oracle" and started meaning "no oracle is POSSIBLE here" — which is a different fact
-// per route, so the executor takes the classifier's own sentence instead of a standing disclaimer.
-
-test("a resolver-supplied unvetted note replaces the generic one, and still reads as unvetted", async () => {
-  const exec = new ShellTestExecutor({
-    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
-    unvettedNote: "unvetted: exit-code-only — the proof runs vitest, which asserts through chai",
-  });
-  const obs = await exec.run("t");
-
-  assert.equal(obs.result, "green");
-  assert.match(obs.note ?? "", /^unvetted: exit-code-only/);
-  assert.match(obs.note ?? "", /vitest/, "the route's OWN reason, not the standing disclaimer");
-  assert.notEqual(obs.note, UNVETTED_GREEN_NOTE);
-});
-
-test("a supplied unvetted note is IGNORED when a cross-check IS wired — a green cannot claim both", async () => {
-  const exec = new ShellTestExecutor({
-    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
-    verifyGreen: () => ({ ok: true, note: "assert-oracle: 3 assertion(s) executed" }),
-    unvettedNote: "unvetted: exit-code-only — should never be reached",
-  });
-  const obs = await exec.run("t");
-
-  assert.equal(obs.note, "assert-oracle: 3 assertion(s) executed");
-});
-
-test("a green WITH a passing oracle cross-check carries that check's own note (vetted, and says how)", async () => {
-  const exec = new ShellTestExecutor({
-    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
-    verifyGreen: () => ({ ok: true, note: "assert-oracle: 7 assertion(s) executed" }),
-  });
-  const obs = await exec.run("t");
-
-  assert.equal(obs.result, "green");
-  assert.equal(obs.note, "assert-oracle: 7 assertion(s) executed");
-  assert.notEqual(obs.note, UNVETTED_GREEN_NOTE, "a VETTED green must never read as unvetted");
-});
-
-test("a vetoed green is still a fail-closed RED carrying the veto reason (ADR-0211 unchanged)", async () => {
-  const exec = new ShellTestExecutor({
-    command: () => ({ file: process.execPath, args: ["-e", "process.exit(0)"] }),
-    verifyGreen: () => ({ ok: false, reason: "0 assertions executed" }),
-  });
-  const obs = await exec.run("t");
-
-  assert.equal(obs.result, "red");
-  assert.equal(obs.note, "0 assertions executed");
-});
-
 test("original-shell-result-is-preserved-without-a-rerun: every spawned observation retains its original process result", async () => {
   const dir = await mkdtemp(join(tmpdir(), "storytree-original-shell-result-"));
   const marker = join(dir, "children.log");
@@ -1102,10 +900,6 @@ test("original-shell-result-is-preserved-without-a-rerun: every spawned observat
       command: () =>
         command("signal", "setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100)"),
     }).run("signal");
-    const downgraded = await new ShellTestExecutor({
-      command: () => command("downgraded", "process.exit(0)"),
-      verifyGreen: () => ({ ok: false, reason: "oracle refused this otherwise-green run" }),
-    }).run("downgraded");
 
     assert.deepEqual(green.originalProcessResult, {
       stdout: "green-stdout",
@@ -1129,29 +923,13 @@ test("original-shell-result-is-preserved-without-a-rerun: every spawned observat
       // session's gate on a file that session had not touched, while CI stayed green on Linux.
       exitCode: process.platform === "win32" ? 1 : null,
     });
-    assert.deepEqual(downgraded.originalProcessResult, {
-      stdout: "downgraded-stdout",
-      stderr: "downgraded-stderr",
-      exitCode: 0,
-    });
-    assert.equal(downgraded.result, "red", "verifyGreen still downgrades the exit-0 observation");
 
     assert.deepEqual(
       (await readFile(marker, "utf8")).trim().split("\n").sort(),
-      ["downgraded", "green", "red", "signal"],
+      ["green", "red", "signal"],
       "each assertion is backed by exactly one child-written marker, not resolver-call counts",
     );
 
-    const vetoed = await new ShellTestExecutor({
-      command: () => command("before-run-should-not-spawn", "process.exit(0)"),
-      beforeRun: () => ({ ok: false, reason: "evidence cannot be prepared" }),
-    }).run("before-run");
-    assert.equal(vetoed.originalProcessResult, undefined, "a beforeRun veto has no spawned result");
-    assert.deepEqual(
-      (await readFile(marker, "utf8")).trim().split("\n").sort(),
-      ["downgraded", "green", "red", "signal"],
-      "beforeRun vetoes before a child can write a marker",
-    );
     await assert.rejects(
       () =>
         new ShellTestExecutor({

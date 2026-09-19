@@ -115,8 +115,8 @@ the test file by ABSOLUTE worktree path: `realProofCommand`'s default route pass
 `path.join(opts.workspace, DRY_RUN_TEST_REL)`. Moving `cwd` alone would still run the worktree's test,
 which in AUTHOR_TEST does not exist yet. So a feedback run executes the registered command with its
 `cwd` and every absolute argument at or inside the worktree moved to the same relative place under the
-replica. Everything else is the object the spine observes, unchanged: the assert-oracle guard in `env`,
-the report path, and the command's own bound.
+replica. Everything else is the object the spine observes, unchanged: its `env`, the report path, and
+the command's own bound.
 
 **The two exports.** Both are added to `resolve-prove-spec.ts`, beside `feedbackCommandsFor`.
 
@@ -151,9 +151,11 @@ rewrites the briefs. `feedbackCommandsFor`, the Claude leaf's commands, every br
 it lands.
 
 **The red must be an assertion.** This contract edits a file that already exists, and its focused
-proof is oracle-accounted, so CONFIRM_RED refuses a red in which no assertion ran. Neither export exists
-at HEAD, so importing either BY NAME fails to load and runs no assertion. Import the module as a
-namespace (`import * as resolver from "./resolve-prove-spec.js"`), and open EVERY test with
+proof is observed per test, so CONFIRM_RED refuses unless every new test's red is an assertion
+(ADR-0573 C5) — and a test file that fails to load reports no test at all, which the review refuses
+too. Neither export exists at HEAD, so importing either BY NAME fails to load and runs no assertion.
+Import the module as a namespace (`import * as resolver from "./resolve-prove-spec.js"`), and open
+EVERY test with
 `assert.equal(typeof resolver.retargetShellCommand, "function")` and
 `assert.equal(typeof resolver.codexFeedbackCommandsFor, "function")` before calling either. Type-only
 imports (`import type { ShellCommand } from "./shell-test-executor.js"`) are erased and are fine.

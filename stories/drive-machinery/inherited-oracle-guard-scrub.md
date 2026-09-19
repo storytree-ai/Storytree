@@ -6,9 +6,15 @@ capability: shell-test-observer
 arc: inner-loop-exit-arc
 title: "A spawned proof never inherits another observation's assert-oracle guard"
 outcome: "A command the spine spawns runs with only the oracle instrumentation its own spine chose, never an assert-oracle guard inherited through NODE_OPTIONS."
-status: proposed
+status: retired
 proof_mode: contract-test
 depends_on: []
+# RETIRED by ADR-0580 D1 (2026-09-19), which removed the assert-oracle guard from the build spine
+# entirely. There is no guard left to inherit, so the value strip this contract proved was deleted from
+# `scrubbedChildEnv` in the same landing, with its two tests in `shell-test-executor.test.ts`. The
+# `real:` arm is DROPPED so this node no longer registers a REAL proof — the coverage sweep and
+# contract-binding drift key on that arm, and `status` alone changes neither. proof.command +
+# proof.scope are kept as history (the node stays visible, never REAL-buildable), and so is the body.
 proof:
   command:
     file: pnpm
@@ -16,23 +22,16 @@ proof:
   scope:
     testGlobs: ["packages/orchestrator/src/shell-test-executor.test.ts"]
     sourceGlobs: ["packages/orchestrator/src/shell-test-executor.ts"]
-  real:
-    testFile: "packages/orchestrator/src/shell-test-executor.test.ts"
-    sourceFile: "packages/orchestrator/src/shell-test-executor.ts"
-    scope:
-      testGlobs: ["packages/orchestrator/src/shell-test-executor.test.ts"]
-      sourceGlobs: ["packages/orchestrator/src/shell-test-executor.ts"]
-    install: true
-    editsExisting: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/orchestrator", "typecheck"]
 ---
 
 # A spawned proof never inherits another observation's assert-oracle guard
+
+> **RETIRED by ADR-0580 D1 (2026-09-19).** The assert-oracle guard is gone from the build spine, so
+> no process can inherit one. The `NODE_OPTIONS` strip this contract proved (signed run
+> `real-mu0zz0sc`) was deleted from `scrubbedChildEnv` with its tests; the key scrubs (`NODE_TEST*`
+> and secret-shaped names) are unchanged. The `real:` arm was dropped on retirement, and the body below
+> is kept as history of what the scrub WAS — its `proven by —` tests no longer exist in this checkout,
+> and the `scrubbedChildEnv` its `covers —` names no longer carries the strip.
 
 **Outcome —** A command the spine spawns runs with only the oracle instrumentation its own spine
 chose, never an assert-oracle guard inherited through NODE_OPTIONS.

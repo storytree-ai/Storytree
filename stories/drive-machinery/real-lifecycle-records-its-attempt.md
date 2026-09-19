@@ -182,7 +182,7 @@ grants and never adjudicates. Only `buildNodeReal` and two type declarations in
   - **Trap 2: keep every existing test title byte-for-byte.** This unit's test file is NEW, and no
     existing test file is in its write scope. `build-node-real-revision.test.ts`,
     `backstop-before-signature.test.ts`, `leaf-slices-activation.test.ts` and every other caller pass
-    no `incrementId` and must stay green, unchanged, in the package suite that runs before signing.
+    no `incrementId` and must stay green, unchanged, in the package suite.
   - **Trap 3: the leaf writes only its declared globs.** IMPLEMENT edits `node-build.ts` alone.
 - **The red is an ASSERTION red, reviewed per test.** The node declares `editsExisting`.
   - Import `./node-build.js` as a namespace (`import * as NodeBuildModule`), never by name. A named

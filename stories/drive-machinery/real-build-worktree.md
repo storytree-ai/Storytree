@@ -3,7 +3,7 @@ id: "real-build-worktree"
 tier: capability
 story: drive-machinery
 title: "REAL build worktrees and promotion (ADR-0031)"
-outcome: "An install-bearing REAL build whose committed authored head is refused before signing by a red package typecheck or regression preserves that unsigned head on a run-unique local-only forensic branch."
+outcome: "An install-bearing REAL build whose committed authored head is refused before signing by a red package typecheck preserves that unsigned head on a run-unique local-only forensic branch."
 status: proposed
 proof_mode: integration-test
 depends_on: [shell-test-observer]
@@ -11,13 +11,13 @@ depends_on: [shell-test-observer]
 
 # REAL build worktrees and promotion (ADR-0031)
 
-**Outcome —** An install-bearing REAL build whose committed authored head is refused before signing by a red package typecheck or regression preserves that unsigned head on a run-unique local-only forensic branch.
+**Outcome —** An install-bearing REAL build whose committed authored head is refused before signing by a red package typecheck preserves that unsigned head on a run-unique local-only forensic branch.
 
 **Depends on —** [`shell-test-observer`](shell-test-observer.md)
 
 > **Proof status (honest) — `proposed`, with two live arms and this newly specified refusal-recovery arm still unsigned.** The existing lifecycle — worktree cut,
-> spine commit, promotion branch, push/withhold, install-failure teardown, exit-code regression and
-> typecheck observation, the Windows pnpm shim — is covered by a real, passing, offline suite that
+> spine commit, promotion branch, push/withhold, install-failure teardown, exit-code typecheck
+> observation, the Windows pnpm shim — is covered by a real, passing, offline suite that
 > runs real git against throwaway repos (`packages/orchestrator/src/build-worktree.test.ts`, part
 > of `@storytree/orchestrator` 99/99 — I ran it 2026-06-13). The real `defaultPnpmInstall` spawn is
 > now a standing test: `packages/orchestrator/src/build-worktree-defaults.test.ts` runs the frozen
@@ -33,7 +33,7 @@ depends_on: [shell-test-observer]
 ## Guidance
 
 The REAL-mode workspace + the ADR-0031 survival rule: after `commitAuthored`, when an
-install-bearing build's pre-signature package typecheck or regression backstop returns red, that
+install-bearing build's pre-signature package typecheck backstop returns red, that
 unsigned authored head is preserved under the run-unique `claude/real-forensics/*` namespace
 locally for diagnosis, never pushed or described as proven, promoted, or landable. Signed promotion
 and a halted chain's proven prefix remain categorically separate under `claude/real/*`. This is
@@ -78,9 +78,9 @@ still promotes toward the merge gate.
   **forensic preservation, not promotion**: it creates no verdict, spreads nothing, and cannot
   collide with the same unit/run's signed prefix. A signer, tree-state, other GATE, or pre-commit
   refusal does not enter this arm.
-- **`runRegressionSuite` / `runWorktreeTypecheck`**
-  (`packages/orchestrator/src/build-worktree.ts`): promotion
-  pre-checks in the installed worktree, observed the same honest way the gate observes — red/green
+- **`runWorktreeTypecheck`**
+  (`packages/orchestrator/src/build-worktree.ts`): the pre-signature
+  package check in the installed worktree, observed the same honest way the gate observes — red/green
   is decided from the exit code only, while `WorktreeCommandObservation` keeps the same captured
   `originalProcessResult` (stdout, stderr and an exit code that may be `null`) plus the command's
   effective `timeoutMs` available to the refusal caller for bounded diagnosis; env scrubbed by the
@@ -88,7 +88,9 @@ still promotes toward the merge gate.
   `ShellTestExecutor` import.
   The typecheck closes a real hole: the proof run is
   tsx-driven (types STRIPPED), so only `tsc --noEmit` sees type-illegal-but-runtime-green code
-  (it happened — declare-presence, 2026-06-11).
+  (it happened — declare-presence, 2026-06-11). It is the only package command a build runs: ADR-0580
+  D2 deleted the regression-suite observer (`runRegressionSuite`) and left package-suite regression to
+  the landing gate and CI.
 - **`platformShellCommand`** (`packages/orchestrator/src/build-worktree.ts`): on Windows `pnpm` is a `.cmd` shim
   `execFile` cannot spawn — wrapped as `cmd.exe /d /s /c pnpm …`; injectable platform for offline
   tests of both shapes.
@@ -121,14 +123,14 @@ story-node red where the signed prefix and unsigned attempt must survive under d
    - **covers —** `promoteRealPass` in `packages/orchestrator/src/build-worktree.ts`
    - **proven by —** `packages/orchestrator/src/build-worktree.test.ts`, `"promoteRealPass parks the proven commit on a run-unique branch…"` (REAL, passing)
 4. **`push-when-origin-withhold-on-demand`** — signed promotion/proven-prefix refs stay under `claude/real/*`, while an unsigned backstop head is retained under a collision-free local-only forensic namespace
-   - **asserts —** a signed green head is pushed to a (local bare) origin; a signed/proven prefix withheld locally still uses exactly `claude/real/<unit>-<run>`. Only an install-bearing pre-signature regression/typecheck red with an already-committed authored HEAD requests `purpose: "unsigned-forensics"`, which parks that head at exactly `claude/real-forensics/<unit>-<run>`, requires `push:false`, refuses a PR, and leaves origin without that ref. The two categories may coexist for the same unit/run at distinct SHAs, and the caller labels only the forensic branch as unsigned evidence rather than a promotion or landing candidate. A signer, dirty-tree, other GATE, or pre-commit refusal creates no forensic branch under this contract.
+   - **asserts —** a signed green head is pushed to a (local bare) origin; a signed/proven prefix withheld locally still uses exactly `claude/real/<unit>-<run>`. Only an install-bearing pre-signature typecheck red with an already-committed authored HEAD requests `purpose: "unsigned-forensics"`, which parks that head at exactly `claude/real-forensics/<unit>-<run>`, requires `push:false`, refuses a PR, and leaves origin without that ref. The two categories may coexist for the same unit/run at distinct SHAs, and the caller labels only the forensic branch as unsigned evidence rather than a promotion or landing candidate. A signer, dirty-tree, other GATE, or pre-commit refusal creates no forensic branch under this contract.
    - **covers —** purpose selection and namespace/guard handling in `promoteRealPass` (`packages/orchestrator/src/build-worktree.ts`); `planBackstopPreservation` and `assembleBackstopResultEvidence` in `packages/drive/src/backstop-preservation.ts`; the lifecycle call site in `packages/drive/src/node-build.ts`; signed-prefix/forensic propagation in `packages/drive/src/story-build.ts`; and unsigned-ref rendering in `packages/drive/src/backstop-report.ts`.
    - **proven by —** `packages/orchestrator/src/build-worktree.test.ts` covers signed push/withhold mechanics, proves that `unsigned-forensics` and the same run's signed prefix produce distinct `claude/real-forensics/*` and `claude/real/*` refs, and rejects an unsigned request that omits explicit push withholding through the guard that also forbids a PR (the real GitHub-origin leg remains a `proposed` pocket, live-verified by PR #32 et al.); `packages/drive/src/backstop-preservation.test.ts` covers the refusal/HEAD decision, explicit purpose and evidence shape; `packages/drive/src/backstop-report.test.ts` covers the exact unsigned warning; and `packages/drive/src/story-backstop-forensics.test.ts` proves at the public `storyBuild` caller that first-node and later-story-node reds retain the intended trees under collision-free local refs, render them honestly, tear down the disposable worktree and spread neither halted-chain ref to origin.
 5. **`install-failure-tears-down`** — the injected installer runs in the worktree; a failure removes the worktree and throws
    - **asserts —** installRunner sees the worktree root; on failure nothing buildable remains.
    - **covers —** the install arm of `createBuildWorktree` in `packages/orchestrator/src/build-worktree.ts`
    - **proven by —** `packages/orchestrator/src/build-worktree.test.ts`, `"createBuildWorktree install seam…"`, proves the injected-runner success and teardown-on-failure composition; `packages/orchestrator/src/build-worktree-defaults.test.ts`, `"defaultPnpmInstall runs the real frozen installer…"`, executes the production default against an offline locked local dependency, observes the dependency materialise, and proves frozen-lockfile refusal when the manifest is made stale (REAL, passing)
-6. **`promotion-prechecks-observe-exit-codes`** — regression suite and typecheck read green/red off exit codes while retaining the captured process diagnostics; pnpm is platform-shimmed
-   - **asserts —** green/red is derived only from the exit code via the shared observer; each `WorktreeCommandObservation` also carries `originalProcessResult` with captured stdout, stderr and the numeric-or-`null` exit code, plus the effective `timeoutMs` (`command.timeoutMs` or today's shared default), for the caller to bound when rendering. A `null` exit remains distinguishable from an ordinary non-zero assertion failure and is paired with the budget after which the command may have been killed. This observation widens no budget: ADR-0104 still governs only the resolved node proof command, and changing which timeout the package backstop receives is outside this repair. `platformShellCommand` wraps pnpm on win32 and passes everything else through.
-   - **covers —** `WorktreeCommandObservation`, `runRegressionSuite`, `runWorktreeTypecheck` and `platformShellCommand` in `packages/orchestrator/src/build-worktree.ts`; bounded refusal rendering in `packages/drive/src/backstop-report.ts`.
-   - **proven by —** `packages/orchestrator/src/build-worktree.test.ts` proves exact captured stdout/stderr, numeric exit code and explicit/default effective-timeout propagation plus the platform shim; `packages/drive/src/backstop-report.test.ts` proves the numeric and `null` rendering shapes without inventing a retry; and `packages/drive/src/backstop-forensic-integration.test.ts` proves exact typecheck and regression observation payloads in the real lifecycle.
+6. **`promotion-prechecks-observe-exit-codes`** — the package typecheck reads green/red off its exit code while retaining the captured process diagnostics; pnpm is platform-shimmed
+   - **asserts —** green/red is derived only from the typecheck's exit code via the worktree command observer; each `WorktreeCommandObservation` also carries `originalProcessResult` with captured stdout, stderr and the numeric-or-`null` exit code, plus the effective `timeoutMs` (`command.timeoutMs` or today's shared default), for the caller to bound when rendering. A `null` exit remains distinguishable from an ordinary non-zero assertion failure and is paired with the budget after which the command may have been killed. This observation widens no budget: ADR-0104 still governs only the resolved node proof command, and changing which timeout the package backstop receives is outside this repair. The typecheck is the only precheck a build makes: ADR-0580 D2 took the package regression suite out of the build, so there is no suite observation to assert. `platformShellCommand` wraps pnpm on win32 and passes everything else through.
+   - **covers —** `WorktreeCommandObservation`, `runWorktreeTypecheck` and `platformShellCommand` in `packages/orchestrator/src/build-worktree.ts`; bounded refusal rendering in `packages/drive/src/backstop-report.ts`.
+   - **proven by —** `packages/orchestrator/src/build-worktree.test.ts` (`"runWorktreeTypecheck observes green/red by exit code only…"`) proves exact captured stdout/stderr, numeric exit code and explicit/default effective-timeout propagation plus the platform shim; `packages/drive/src/backstop-report.test.ts` proves the numeric and `null` rendering shapes without inventing a retry; and `packages/drive/src/backstop-forensic-integration.test.ts` proves exact typecheck observation payloads in the real lifecycle, on both the single-node and the chain (`promote: false`) paths.

@@ -7,7 +7,6 @@ export { runSequence, runLoop } from "./sequence.js";
 export type {
   ExpectedRed,
   Phase,
-  RedKindBasis,
   TestObservation,
   PhaseTransition,
   WriteScope,
@@ -29,8 +28,6 @@ export type {
 } from "./shell-test-executor.js";
 export {
   ShellTestExecutor,
-  UNVETTED_GREEN_NOTE,
-  unvettedGreenNote,
   defaultClassifyKind,
   nodeEvalExecutor,
   runShellCommand,
@@ -132,7 +129,6 @@ export {
   createBuildWorktree,
   commitAuthored,
   promoteRealPass,
-  runRegressionSuite,
   runWorktreeTypecheck,
   platformShellCommand,
 } from "./build-worktree.js";
@@ -158,16 +154,11 @@ export {
 // constructs/signs/hashes/classifies/derives verdict-DATA, moved out of @storytree/core. The DATA
 // SHAPES it reads/returns live in @storytree/proof-protocol; this is the COMPUTE half. ──────────
 // The ONE proof-command classifier (`custom-proof-command-red-accounting` on `parallel-red-green-arc`):
-// what a declared `real.proofCommand` IS, and whether the ADR-0211 assert-oracle can measure it. The
-// arc's standing instruction is that ONE classifier serves every finding over this population — never
-// a second one, or they can disagree about the same command.
-export type { ProofRoute, ProofRouteBasis, ClassifyProofRouteOpts } from "./proof/proof-route.js";
-export {
-  classifyProofRoute,
-  namesTestFile,
-  withOracleGuard,
-  withOracleGuardEnv,
-} from "./proof/proof-route.js";
+// what a declared `real.proofCommand` IS, by shape alone (ADR-0580 D1). The arc's standing instruction
+// is that ONE classifier serves every finding over this population — never a second one, or they can
+// disagree about the same command.
+export type { ProofRoute, ProofRouteBasis } from "./proof/proof-route.js";
+export { classifyProofRoute, namesTestFile } from "./proof/proof-route.js";
 export type { SignerInputs, SignerResult } from "./proof/signer.js";
 export { resolveSigner } from "./proof/signer.js";
 export { resolveSignerFromEnv } from "./proof/signer-env.js";

@@ -37,24 +37,12 @@ import {
   DEFAULT_PROOF_TIMEOUT_MS,
   ShellTestExecutor,
   runShellCommand,
-  unvettedGreenNote,
 } from "./shell-test-executor.js";
-import type { ShellCommand, ShellRunResult, ShellTestResolver } from "./shell-test-executor.js";
-import {
-  PROOF_REPORT_ENV,
-  assertOracleGuardUrl,
-  allocateOracleReportPath,
-  classifyRedByOracle,
-  resetOracleReport,
-  verifyOracleExercised,
-} from "./proof/oracle-accounting.js";
+import type { ShellCommand, ShellTestResolver } from "./shell-test-executor.js";
 import {
   NODE_BINARY,
   classifyProofRoute,
   perTestChannelOf,
-  withOracleGuard,
-  withOracleGuardEnv,
-  withOraclePreload,
   withPerTestReport,
 } from "./proof/proof-route.js";
 import { allocatePerTestReportPath, perTestReportFile } from "./proof/per-test-report.js";
@@ -722,14 +710,13 @@ function resolveReal(
   }
 
   // `custom-proof-command-red-accounting`: REFUSE a declared proof route that cannot prove this node's
-  // red, HERE — before the worktree, before the leaf, before the first paid authoring turn. The
-  // resolver already knew the accounting posture; what it did with it was nothing, so the failure was
-  // discovered by spending turns against a phase that could not be satisfied (measured 2026-08-09: 450s
-  // and $2.19 of a 25.9-min story build, all AFTER this point). Only the two UNPROVABLE bases refuse —
-  // a route with no oracle POSSIBLE (a suite, a foreign runner) still builds and is disclosed instead,
+  // red, HERE — before the worktree, before the leaf, before the first paid authoring turn. Before this
+  // refusal the failure was discovered by spending turns against a phase that could not be satisfied
+  // (measured 2026-08-09: 450s and $2.19 of a 25.9-min story build, all AFTER this point). Only the
+  // UNPROVABLE basis refuses — a suite or a foreign runner still builds, observed by its exit code,
   // because ADR-0098's R2 arm is structurally suite-scoped and a blanket refusal would unbuild it.
-  const route = classifyProofRoute(real, { workspaceRoot: opts.workspace });
-  if (route.accounting === "refused") {
+  const route = classifyProofRoute(real);
+  if (route.basis === "observes-another-file") {
     return {
       ok: false,
       reason: `node "${spec.id}": the declared proof route cannot prove a red — ${route.reason}`,
@@ -747,20 +734,7 @@ function resolveReal(
   // spine-wide DEFAULT_PROOF_TIMEOUT_MS applies); the db-env spread below preserves it.
   const base = realProofCommand(real, opts.workspace);
   const proofDisplay = base.display;
-  // ADR-0211: oracle accounting for every SINGLE-FILE node:test command — the default one, and (since
-  // `custom-proof-command-red-accounting`) a DECLARED one that runs the node's own test file. A
-  // per-build report path (in the OS temp dir, OUTSIDE the worktree — so the guard writing it never
-  // dirties the tree the GATE proves clean) is FORCED onto the ONE proof command both the spine's
-  // CONFIRM observation and the leaf's run_proof spawn, and the spine cross-checks it on every green: a
-  // proof that exits 0 without exercising the assert oracle is downgraded to a fail-closed red. A route
-  // the oracle cannot measure — a suite, a foreign runner — is NOT accounted (base.accounted === false
-  // → reportPath undefined → no report env, no green-veto) and stamps the classifier's disclosure
-  // instead of a veto.
-  // ALLOCATED ONCE HERE and closed over below — the allocator returns a path unique to this call, so no
-  // concurrent proof of the same unit can clear the report this build is about to read (see its doc).
-  const reportPath = base.accounted ? allocateOracleReportPath(opts.runId, spec.id) : undefined;
   const proofEnv: NonNullable<ShellCommand["env"]> = { ...(base.command.env ?? {}) };
-  if (reportPath !== undefined) proofEnv[PROOF_REPORT_ENV] = reportPath;
   // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
   if (real.db === true && opts.dbProofEnv !== undefined) Object.assign(proofEnv, opts.dbProofEnv);
   const commandWithEnv: ShellCommand =
@@ -783,40 +757,7 @@ function resolveReal(
     perTestChannel === undefined || perTestReportPath === undefined
       ? commandWithEnv
       : withPerTestReport(commandWithEnv, perTestChannel, perTestReportPath);
-  // ADR-0249: the cross-check is only fail-closed if the report it reads is attributable to the
-  // observation that just ran. `reportPath` is ONE fixed path shared by CONFIRM_RED, every leaf
-  // feedback run, and CONFIRM_GREEN, and the report body carries no run identity — so the spine CLEARS
-  // it before each observation it will trust. After that, a report exists only because the guard wrote
-  // it during THIS run, and "the guard's exit hook never fired" (source can simply
-  // `process.removeAllListeners("exit")`) reads as the missing report it actually is instead of
-  // inheriting the previous observation's positive count. beforeRun and verifyGreen are wired as a
-  // PAIR — never one without the other.
-  //
-  // `gate-the-right-kind-red` is wired NARROWER than the green veto (`custom-proof-command-red-accounting`
-  // residual): a WHOLE-SUITE route's aggregated count sums EVERY process's assertions, including every
-  // OTHER test file in the package — a sibling test's real assertions make the aggregate >= 1 even when
-  // THIS node's own test never reached one (a structural red), which would measure a genuine structural
-  // red as "runtime" and wrongly refuse to advance CONFIRM_RED (ADR-0098 R2's regression-wall shape:
-  // the pre-existing sibling test always contributes real assertions). The GREEN veto stays meaningful
-  // at suite grain (a suite exiting 0 with a genuinely ZERO aggregate is still a hollow run worth
-  // refusing); the KIND measurement does not, because it cannot attribute the count to the ONE file
-  // whose red is being classified. Only the single-explicit-file bases get it: node's two, and bun's.
-  const redKindMeasurable =
-    base.route.accounting === "oracle" &&
-    (base.route.basis === "default-node-test" ||
-      base.route.basis === "custom-node-test-own-file" ||
-      base.route.basis === "bun-test-own-file");
   const resolver: ShellTestResolver = { command: (): ShellCommand => realProofCmd };
-  if (reportPath !== undefined) {
-    resolver.beforeRun = () => resetOracleReport(reportPath);
-    resolver.verifyGreen = (out: ShellRunResult) => verifyOracleExercised(reportPath, out);
-    if (redKindMeasurable) resolver.measureRedKind = () => classifyRedByOracle(reportPath);
-  } else if (base.route.accounting === "none") {
-    // `custom-proof-command-red-accounting`: an unaccounted route stamps the CLASSIFIER's own
-    // sentence on its green, not a standing disclaimer — so the verdict records which flavour of
-    // "no oracle" this was, and a reader can tell a suite from a foreign runner.
-    resolver.unvettedNote = unvettedGreenNote(base.route.disclosure);
-  }
   if (perTestChannel !== undefined && perTestReportPath !== undefined) {
     resolver.perTestReport = perTestReportFile(perTestChannel, perTestReportPath);
   }
@@ -983,10 +924,6 @@ function resolveReal(
     // Real mode only: dry-run / live-smoke prove a SYNTHETIC pair unrelated to the node's contracts, so
     // they carry no axis (their proveSpec omits the seam).
     contractCoverage: () => computeContractCoverage(spec, real.testFile, opts.workspace),
-    // `gate-the-right-kind-red`: the node's DECLARED red, so CONFIRM_RED can refuse a measured red of
-    // the wrong kind instead of advancing on any non-zero exit. Real mode only, for the same reason
-    // the coverage axis is: the synthetic arms have no declared shape to be judged against.
-    expectedRed: declaredExpectedRed(real),
   };
   // ADR-0416 D6: forwarded only when the caller supplied it (a story node). The gate then consults
   // the thunk at GATE, so an aborted walk establishes no baseline.
@@ -1019,14 +956,14 @@ function resolveReal(
 }
 
 /**
- * The node's DECLARED CONFIRM_RED kind (`gate-the-right-kind-red`), read off the two brief-axis flags
- * that already exist on {@link RealProofConfig} — no new authoring surface, and nothing for a node
- * author to keep in sync.
+ * The node's DECLARED CONFIRM_RED kind, read off the two brief-axis flags that already exist on
+ * {@link RealProofConfig} — no new authoring surface, and nothing for a node author to keep in sync.
+ * It shapes the briefs and decides where red is reviewed per test and a cluster admitted; no phase
+ * transition gates on it (ADR-0580 D1).
  *
- *  - `editsExisting` (ADR-0057 C) ⇒ `"assertion"`. Its brief already DEMANDS a runtime assertion
- *    against current behaviour and explicitly forbids a missing-symbol red; until now nothing checked
- *    that the leaf complied, so a test that merely failed to resolve an import advanced the phase and
- *    the "regression" proved nothing about the behaviour it claimed to fix.
+ *  - `editsExisting` (ADR-0057 C) ⇒ `"assertion"`. Its brief DEMANDS a runtime assertion against
+ *    current behaviour and explicitly forbids a missing-symbol red; on a route observed per test, the
+ *    per-test review refuses any new test whose red is not an assertion (ADR-0573 C5).
  *  - everything else ⇒ `"structural"`. That covers both the NET-NEW default (the missing symbol IS
  *    the point) and ADR-0098's R2 `refactorForTests`, whose red is structural BY DESIGN — the seam
  *    under test has not been introduced yet. R2 is not a separate case here even though it is a
@@ -1150,7 +1087,7 @@ function tsxLoaderUrl(): string {
   return import.meta.resolve("tsx");
 }
 
-export interface RealProofCommandResult { command: ShellCommand; display: string; accounted: boolean; route: ProofRoute }
+export interface RealProofCommandResult { command: ShellCommand; display: string; route: ProofRoute }
 
 /**
  * The REAL proof command for a node (ADR-0057 §3, expansion B): the node's DECLARED
@@ -1171,69 +1108,30 @@ export function realProofCommand(
   // so a node that declares none keeps the key OFF the command: runShellCommand then applies the
   // default, and the migrated-node deepEqual parity (which omits it) holds byte-for-byte.
   const budget = real.timeoutMs !== undefined ? { timeoutMs: real.timeoutMs } : {};
-  // ONE classifier decides the accounting posture for BOTH arms (`custom-proof-command-red-accounting`).
-  // ADR-0211's narrowing used to be applied by ROUTE — every declared command was `accounted: false` —
-  // but the guard's actual precondition is a SINGLE-FILE node:test run, which a declared command can
-  // satisfy just as well as the default one. See {@link classifyProofRoute} for the measurement.
-  const route = classifyProofRoute(real, { workspaceRoot: workspace });
+  // ONE classifier decides the route for BOTH arms (`custom-proof-command-red-accounting`), and it
+  // rides out with the command so every caller reads the classification the observations run under.
+  const route = classifyProofRoute(real);
   if (real.proofCommand !== undefined) {
-    // The guard is spliced into the DECLARED arg vector (never the display, never the stored config),
-    // so an oracle-accountable custom command carries the same instrument the default route does. The
-    // one exception is `package-script-node-test-suite` (`custom-proof-command-red-accounting`
-    // residual): a `pnpm --filter <pkg> test` invocation never forwards an arg splice to the node
-    // process it spawns for the target package's own suite, so that route is wired via `NODE_OPTIONS`
-    // instead — guardArgIndex stays null for it, same as the "resolver builds it" default route, and
-    // the two are distinguished by `basis`.
-    // ADR-0573 D2: bun takes the same guard through `--preload`.
-    const guardArgIndex = route.accounting === "oracle" ? route.guardArgIndex : null;
-    const args =
-      guardArgIndex === null
-        ? [...real.proofCommand.args]
-        : route.basis === "bun-test-own-file"
-          ? withOraclePreload(real.proofCommand.args, guardArgIndex, assertOracleGuardUrl())
-          : withOracleGuard(real.proofCommand.args, guardArgIndex, assertOracleGuardUrl());
-    const command = platformShellCommand({ ...real.proofCommand, args, cwd: workspace });
-    const commandWithGuardEnv =
-      route.accounting === "oracle" && route.basis === "package-script-node-test-suite"
-        ? {
-            ...command,
-            env: {
-              ...(command.env ?? {}),
-              NODE_OPTIONS: withOracleGuardEnv(command.env?.["NODE_OPTIONS"], assertOracleGuardUrl()),
-            },
-          }
-        : command;
+    // Spawned as declared: a COPY of the declared arg vector, so the stored config is never mutated
+    // and the display below still reads the author's own command.
+    const command = platformShellCommand({ ...real.proofCommand, args: [...real.proofCommand.args], cwd: workspace });
     return {
-      command: { ...commandWithGuardEnv, ...budget },
+      command: { ...command, ...budget },
       display: `${real.proofCommand.file} ${real.proofCommand.args.join(" ")}`.trim(),
-      accounted: route.accounting === "oracle",
       route,
     };
   }
-  // ADR-0211: the DEFAULT node:test command gets the assert-oracle guard PRELOADED (--import), so the
-  // spine can tamper-check the green out-of-band (the IMPLEMENT-phase source runs in this proof
-  // process and could otherwise force a hollow exit 0). The guard imports only node: builtins, so its
-  // order relative to tsx is irrelevant; it is loaded from the spine's OWN copy (assertOracleGuardUrl),
-  // never a worktree file. `display` stays the human-facing command (the guard is spine plumbing).
   return {
     command: {
       // NODE, named: `--import` and `--test` are node's own flags and `display` below has always
       // said `node`, so the command must not inherit whatever runtime happens to run the spine —
       // see the note on `PACKAGE_MANAGERS` in `proof/proof-route.ts`.
       file: NODE_BINARY,
-      args: [
-        "--import",
-        tsxLoaderUrl(),
-        "--import",
-        assertOracleGuardUrl(),
-        "--test",
-        path.join(workspace, real.testFile),
-      ],
+      args: ["--import", tsxLoaderUrl(), "--test", path.join(workspace, real.testFile)],
       cwd: workspace,
       ...budget,
     },
     display: `node --import tsx --test ${real.testFile}`,
-    accounted: true,
     route,
   };
 }

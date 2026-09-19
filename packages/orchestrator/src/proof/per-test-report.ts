@@ -29,10 +29,10 @@
  *  - duplicate titles come back as two rows — kept as two, so the review can refuse the ambiguity;
  *  - bun's console omits passing tests when redirected — the junit report is read, never the console.
  *
- * FRESHNESS (ADR-0249) is the rule the assert-oracle report lives by: the path is per build and
- * outside the worktree, it is CLEARED before every observation the spine trusts, and a report that
- * survives the clear refuses that observation rather than being read. After a successful clear, a
- * report can exist only because the proof run wrote it.
+ * FRESHNESS (ADR-0249's rule): the path is per build and outside the worktree, it is CLEARED before
+ * every observation the spine trusts, and a report that survives the clear refuses that observation
+ * rather than being read. After a successful clear, a report can exist only because the proof run
+ * wrote it.
  */
 
 import { randomUUID } from "node:crypto";
@@ -75,7 +75,8 @@ export interface PerTestReport {
 
 /**
  * The seam a {@link import("../shell-test-executor.js").ShellTestExecutor} reads through: clear before
- * the spawn, read after it. Wired as a PAIR, exactly as the oracle report's reset and read are.
+ * the spawn, read after it. Wired as a PAIR — a read with no clear before it could return a previous
+ * run's report as this one's.
  */
 export interface PerTestReportSource {
   readonly channel: PerTestChannel;
@@ -373,9 +374,8 @@ export function readPerTestReportText(channel: PerTestChannel, text: string): Re
 
 /**
  * ALLOCATE a per-test report path for ONE build, in the OS temp dir so writing it never dirties the
- * tree the GATE proves clean. Unique per call, for the reason `allocateOracleReportPath` is: two
- * observers deriving the same path would each clear the other's evidence. Allocate once per build and
- * close over it.
+ * tree the GATE proves clean. Unique per call, because two observers deriving the same path would each
+ * clear the other's evidence. Allocate once per build and close over it.
  */
 export function allocatePerTestReportPath(runId: string, unitId: string, channel: PerTestChannel): string {
   const safe = `${runId}-${unitId}`.replace(/[^A-Za-z0-9._-]/g, "_");

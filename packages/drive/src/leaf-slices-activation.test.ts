@@ -222,7 +222,6 @@ test("the-canned-accounting-dies-in-the-injected-store: buildNodeReal appends th
       spec,
       worktree,
       baseSha: worktree.headSha,
-      buildConfig,
       realConfig: buildConfig.real!,
       store,
       runId: "leaf-slices-store-test",

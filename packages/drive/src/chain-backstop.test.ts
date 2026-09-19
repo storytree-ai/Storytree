@@ -20,16 +20,17 @@ import type { BackstopJob } from "./chain-backstop.js";
  * (latency-only, ADR-0031 honesty untouched). These offline tests pin the invariants a naive
  * parallelisation could break: a red in ANY package is never swallowed, a thrown observation
  * propagates (never silently a green), the report lines keep their original order regardless of
- * completion order, and the concurrency stays bounded (the dev-box gate-OOM trap).
+ * completion order, and the concurrency stays bounded (the dev-box gate-OOM trap). The jobs are
+ * package typechecks only: ADR-0580 D2 took the package test suite out of every build.
  */
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
 /** A synthetic job whose command carries its index and whose line is `L<i>:<result>`. */
-function job(kind: "typecheck" | "regression", i: number): BackstopJob {
+function job(i: number): BackstopJob {
   return {
     key: `k${i}`,
-    kind,
+    kind: "typecheck",
     command: { file: "c", args: [String(i)] },
     line: (result) => `L${i}:${result}`,
   };
@@ -49,13 +50,13 @@ function deferred<T>() {
 // ── observeBackstop: the concurrent core (the changed behaviour) ──────────────────────────────────
 
 test("observeBackstop: all green → no red, lines in order, command+cwd passed through", async () => {
-  const jobs = Array.from({ length: 3 }, (_, i) => job("regression", i));
+  const jobs = Array.from({ length: 3 }, (_, i) => job(i));
   const calls: { file: string; arg: string; cwd: string }[] = [];
   const runner = async ({ command, cwd }: { command: ShellCommand; cwd: string }) => {
     calls.push({ file: command.file, arg: command.args[0] ?? "", cwd });
     return { result: "green" as const };
   };
-  const { anyRed, lines } = await observeBackstop(jobs, "/my/wt", { runRegression: runner });
+  const { anyRed, lines } = await observeBackstop(jobs, "/my/wt", { runTypecheck: runner });
   assert.equal(anyRed, false);
   assert.deepEqual(lines, ["L0:green", "L1:green", "L2:green"]);
   assert.equal(calls.length, 3);
@@ -71,12 +72,12 @@ test("observeBackstop with no jobs is a no-op (no red, no lines)", async () => {
 // The load-bearing honesty wall: parallelism must not let a red slip past, wherever it lands.
 for (const redAt of [0, 2, 4]) {
   test(`observeBackstop never swallows a red — red at job ${redAt} of 5`, async () => {
-    const jobs = Array.from({ length: 5 }, (_, i) => job("regression", i));
+    const jobs = Array.from({ length: 5 }, (_, i) => job(i));
     const runner = async ({ command }: { command: ShellCommand; cwd: string }) => ({
       result: (Number(command.args[0]) === redAt ? "red" : "green") as "green" | "red",
     });
     const { anyRed, lines } = await observeBackstop(jobs, "/wt", {
-      runRegression: runner,
+      runTypecheck: runner,
       concurrency: 3,
     });
     assert.equal(anyRed, true, "a red anywhere must set anyRed");
@@ -91,8 +92,8 @@ test("observeBackstop keeps report lines in JOB order even when observations com
     await gates[Number(command.args[0])]!.promise;
     return { result: "green" as const };
   };
-  const jobs = Array.from({ length: N }, (_, i) => job("regression", i));
-  const p = observeBackstop(jobs, "/wt", { runRegression: runner, concurrency: N });
+  const jobs = Array.from({ length: N }, (_, i) => job(i));
+  const p = observeBackstop(jobs, "/wt", { runTypecheck: runner, concurrency: N });
   // Complete the observations in the OPPOSITE order to the job list.
   for (let i = N - 1; i >= 0; i -= 1) gates[i]!.resolve();
   const { lines } = await p;
@@ -112,8 +113,8 @@ test("observeBackstop bounds concurrency and genuinely reaches the cap", async (
     active -= 1;
     return { result: "green" as const };
   };
-  const jobs = Array.from({ length: N }, (_, i) => job("regression", i));
-  const p = observeBackstop(jobs, "/wt", { runRegression: runner, concurrency: LIMIT });
+  const jobs = Array.from({ length: N }, (_, i) => job(i));
+  const p = observeBackstop(jobs, "/wt", { runTypecheck: runner, concurrency: LIMIT });
   await Promise.resolve();
   await Promise.resolve();
   assert.equal(active, LIMIT, "only `limit` observations run at once (not all 5)");
@@ -124,39 +125,21 @@ test("observeBackstop bounds concurrency and genuinely reaches the cap", async (
 });
 
 test("observeBackstop propagates a thrown observation (never silently a green)", async () => {
-  const jobs = Array.from({ length: 3 }, (_, i) => job("regression", i));
+  const jobs = Array.from({ length: 3 }, (_, i) => job(i));
   const boom = async (): Promise<{ result: "green" | "red" }> => {
     throw new Error("observer boom");
   };
   await assert.rejects(
-    observeBackstop(jobs, "/wt", { runRegression: boom, concurrency: 2 }),
+    observeBackstop(jobs, "/wt", { runTypecheck: boom, concurrency: 2 }),
     /observer boom/,
   );
-});
-
-test("observeBackstop routes typecheck vs regression jobs to the right observer", async () => {
-  const seen: string[] = [];
-  const jobs = [job("typecheck", 0), job("regression", 1)];
-  const { anyRed } = await observeBackstop(jobs, "/wt", {
-    runTypecheck: async ({ command }) => {
-      seen.push(`tc:${command.args[0]}`);
-      return { result: "green" };
-    },
-    runRegression: async ({ command }) => {
-      seen.push(`re:${command.args[0]}`);
-      return { result: "green" };
-    },
-    concurrency: 2,
-  });
-  assert.equal(anyRed, false);
-  assert.deepEqual(seen.sort(), ["re:1", "tc:0"]);
 });
 
 test("the default backstop concurrency is a small bounded cap (the OOM trap)", () => {
   assert.ok(DEFAULT_BACKSTOP_CONCURRENCY >= 1 && DEFAULT_BACKSTOP_CONCURRENCY <= 4);
 });
 
-// ── backstopJobs: the ordered, de-duplicated job builder (unchanged logic, now covered) ───────────
+// ── backstopJobs: the ordered, de-duplicated job builder ──────────────────────────────────────────
 
 function mkSpec(id: string, buildConfig: NodeBuildConfig | undefined): NodeSpec {
   return {
@@ -209,25 +192,28 @@ function noInstallCfg(pkg: string): NodeBuildConfig {
   };
 }
 
-test("backstopJobs: install-bearing only, deduped by command, typecheck-before-suite, verbatim wording", () => {
+test("backstopJobs: install-bearing typechecks only, deduped by command, never the package suite, verbatim wording", () => {
   const jobs = backstopJobs([
-    mkSpec("cap-a", installCfg("drive")), //   → typecheck(drive) + suite(drive)
-    mkSpec("cap-b", installCfg("drive")), //   same package → both dedupe away
-    mkSpec("cap-c", installCfg("cli")), //     → typecheck(cli) + suite(cli)
+    mkSpec("cap-a", installCfg("drive")), //   → typecheck(drive)
+    mkSpec("cap-b", installCfg("drive")), //   same package → dedupes away
+    mkSpec("cap-c", installCfg("cli")), //     → typecheck(cli)
     mkSpec("cap-x", noInstallCfg("drive")), // non-install → no worktree backstop, skipped
     mkSpec("cap-none", undefined), //          no proof config → skipped
   ]);
   assert.deepEqual(
     jobs.map((j) => j.kind),
-    ["typecheck", "regression", "typecheck", "regression"],
+    ["typecheck", "typecheck"],
   );
+  // The declared package suite (`proof.command`, `pnpm --filter … test`) is not a job: ADR-0580 D2.
   assert.deepEqual(
     jobs.map((j) => j.key),
+    ["tc:pnpm --filter @storytree/drive typecheck", "tc:pnpm --filter @storytree/cli typecheck"],
+  );
+  assert.deepEqual(
+    jobs.map((j) => j.command.args),
     [
-      "tc:pnpm --filter @storytree/drive typecheck",
-      "suite:pnpm --filter @storytree/drive test",
-      "tc:pnpm --filter @storytree/cli typecheck",
-      "suite:pnpm --filter @storytree/cli test",
+      ["--filter", "@storytree/drive", "typecheck"],
+      ["--filter", "@storytree/cli", "typecheck"],
     ],
   );
   // The report wording is the serial loop's, byte-for-byte.
@@ -237,15 +223,10 @@ test("backstopJobs: install-bearing only, deduped by command, typecheck-before-s
   );
   assert.equal(
     jobs[1]!.line("red"),
-    "regression:  pnpm --filter @storytree/drive test RED at the stacked HEAD",
+    "typecheck:   pnpm --filter @storytree/cli typecheck RED at the stacked HEAD",
   );
 });
 
-test("backstopJobs: an install node without a typecheck contributes only its suite", () => {
-  const jobs = backstopJobs([mkSpec("cap-a", installCfg("drive", { typecheck: false }))]);
-  assert.deepEqual(
-    jobs.map((j) => j.kind),
-    ["regression"],
-  );
-  assert.equal(jobs[0]!.key, "suite:pnpm --filter @storytree/drive test");
+test("backstopJobs: an install node without a typecheck contributes no job (its suite is not the build's to run)", () => {
+  assert.deepEqual(backstopJobs([mkSpec("cap-a", installCfg("drive", { typecheck: false }))]), []);
 });
