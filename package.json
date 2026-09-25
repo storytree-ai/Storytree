@@ -1,0 +1,28 @@
+{
+  "name": "storytree",
+  "private": true,
+  "license": "PolyForm-Shield-1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node scripts/test.mjs",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ]
+    }
+  }
+}
