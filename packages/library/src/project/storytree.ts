@@ -11,17 +11,28 @@ import { SchemaRecords } from "../schema/records.js";
 import { PgTransactions } from "../transactions/pg.js";
 import type { Transactions } from "../transactions/types.js";
 import { WorkModel } from "../work/work-model.js";
+import { cloudSqlServer, type CloudSqlConfig, type CloudSqlSeams } from "./cloud-sql.js";
 import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
 import { PROJECT_SCHEMA } from "./schema.js";
 
-/** Where the Postgres server is. */
-export interface ConnectOptions {
-  /**
-   * A postgres:// URL for the server. Its own database is only used to create and list project
-   * databases; each project's records live in that project's database.
-   */
-  readonly url: string;
-}
+/** Where the Postgres server is: at a URL, or a Cloud SQL instance reached with Google sign-in. */
+export type ConnectOptions =
+  | {
+      /**
+       * A postgres:// URL for the server. Its own database is only used to create and list project
+       * databases; each project's records live in that project's database.
+       */
+      readonly url: string;
+      readonly cloudSql?: undefined;
+    }
+  | {
+      /**
+       * A Cloud SQL for PostgreSQL instance, signed in to as your own Google account (capability 8).
+       * Its `postgres` database is only used to create and list project databases.
+       */
+      readonly cloudSql: CloudSqlConfig;
+      readonly url?: undefined;
+    };
 
 /** A connection to one Postgres server and the storytree projects on it. */
 export interface Storytree {
@@ -58,8 +69,15 @@ export interface Project {
   close(): Promise<void>;
 }
 
-/** Connect to a Postgres server. Nothing touches the server until a call needs it. */
-export async function connect(options: ConnectOptions): Promise<Storytree> {
+/**
+ * Connect to a Postgres server. Nothing touches the server until a call needs it. `seams` is
+ * internal: tests hand the cloud path a fake connector through it.
+ */
+export async function connect(options: ConnectOptions, seams: CloudSqlSeams = {}): Promise<Storytree> {
+  if (options.cloudSql !== undefined) {
+    await cloudSqlServer(options.cloudSql, seams);
+    throw new Error("not implemented");
+  }
   return new ServerConnection(new URL(options.url));
 }
 

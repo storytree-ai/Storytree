@@ -58,8 +58,14 @@ const LIBRARY_API = [
   "close",
 ];
 
-/** What the package's entry exports at run time: connect, and the errors callers catch by class. */
+/**
+ * What the package's entry exports at run time: connect, and the errors callers catch by class.
+ * ConnectionError joined the list with capability 8: it is how connect() refuses a server it cannot
+ * reach or use as it is set up (a Cloud SQL instance without a Google sign-in, say), with a message
+ * saying what to fix, so a caller catches every such refusal by its class.
+ */
 const RUNTIME_EXPORTS = [
+  "ConnectionError",
   "DependencyLoopError",
   "MissingReferenceError",
   "NewerSchemaError",
@@ -326,6 +332,8 @@ test("7.3 the package's public entry exports exactly the API and nothing else, a
     }
 
     // What the API throws is what the entry exports, so callers can catch each error by its class.
+    // (A Cloud SQL setting that names no instance is refused before anything reaches the network.)
+    await assert.rejects(connect({ cloudSql: { instance: "storytree-pg", user: "you@example.com" } }), errorClass("ConnectionError"));
     await assert.rejects(storytree.openProject("Not A Project"), errorClass("ProjectNameError"));
     await assert.rejects(lib.addStory(untyped({ titel: "Visitor can sign up" })), errorClass("SchemaError"));
     await assert.rejects(lib.addCapability({ title: "Email form", story: "story_000000000000" }), errorClass("MissingReferenceError"));
