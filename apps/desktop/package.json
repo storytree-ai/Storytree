@@ -1,0 +1,12 @@
+{
+  "name": "@storytree/desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "typescript": "~7.0.2"
+  }
+}
