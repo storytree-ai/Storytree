@@ -6,3 +6,7 @@ dist/
 *.log
 .DS_Store
 .pgtest/
+
+# the desktop app: its packaged builds and the smoke check's screenshots
+apps/desktop/release/
+apps/desktop/smoke*.png

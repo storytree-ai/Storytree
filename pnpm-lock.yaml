@@ -22,6 +22,10 @@ importers:
         version: 4.23.15
 
   apps/desktop:
+    optionalDependencies:
+      '@embedded-postgres/windows-x64':
+        specifier: 17.10.0-beta.17
+        version: 17.10.0-beta.17
     devDependencies:
       '@storytree/library':
         specifier: workspace:*

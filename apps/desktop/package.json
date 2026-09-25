@@ -4,7 +4,11 @@
   "version": "0.3.0",
   "description": "storytree 0.3 desktop app: a project's stories and their health, read from the local library",
   "type": "module",
+  "main": "dist/main.cjs",
   "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "smoke": "node build.mjs && electron . --smoke --screenshot smoke.png",
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
@@ -14,5 +18,8 @@
     "electron": "44.4.5",
     "esbuild": "^0.28.2",
     "typescript": "~7.0.2"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/windows-x64": "17.10.0-beta.17"
   }
 }
