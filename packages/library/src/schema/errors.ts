@@ -1,0 +1,78 @@
+/**
+ * The refusals of the data schema (capability 3). Each one names what is wrong, so whoever wrote
+ * the record, an agent included, can put it right.
+ */
+import { SCHEMA_VERSIONS } from "./types.js";
+
+/** One thing wrong with a record's fields. */
+export interface FieldProblem {
+  /** The field at fault, or undefined when it is the fields as a whole (they are not an object). */
+  readonly field: string | undefined;
+  /** What is wrong, naming the field: `missing required field "title"`. */
+  readonly problem: string;
+}
+
+/**
+ * A record's fields do not fit its type. The message starts with the type and names every field
+ * at fault: `story: missing required field "title"; unknown field "titel"`.
+ */
+export class SchemaError extends Error {
+  /** The type the fields were checked against. */
+  readonly type: string;
+  /** The fields at fault, each once, in the order their problems were found. */
+  readonly fields: readonly string[];
+
+  constructor(type: string, problems: readonly FieldProblem[]) {
+    super(`${type}: ${problems.map(({ problem }) => problem).join("; ")}`);
+    this.name = "SchemaError";
+    this.type = type;
+    this.fields = [...new Set(problems.flatMap(({ field }) => (field === undefined ? [] : [field])))];
+  }
+}
+
+/** A record type the schema does not declare: asked for by a caller, or found on a stored record. */
+export class UnknownTypeError extends Error {
+  /** The type that is not known. */
+  readonly type: string;
+  /** The stored record carrying it, when it was found on one. */
+  readonly id: string | undefined;
+
+  constructor(type: string, id?: string) {
+    const known = `the record types are ${Object.keys(SCHEMA_VERSIONS).join(", ")}`;
+    super(
+      id === undefined
+        ? `unknown record type ${JSON.stringify(type)}: ${known}`
+        : `record ${JSON.stringify(id)} has type ${JSON.stringify(type)}, which this code does not know (${known})`,
+    );
+    this.name = "UnknownTypeError";
+    this.type = type;
+    this.id = id;
+  }
+}
+
+/**
+ * A stored record was written on a schema version newer than this code knows for its type. It is
+ * refused, never guessed at: read by an older version's rules, it could be silently misread.
+ */
+export class NewerSchemaError extends Error {
+  /** The record's id. */
+  readonly id: string;
+  /** The record's type. */
+  readonly type: string;
+  /** The schema version the record was written on. */
+  readonly version: number;
+  /** The newest version of the type this code knows. */
+  readonly knownVersion: number;
+
+  constructor(id: string, type: string, version: number, knownVersion: number) {
+    super(
+      `record ${JSON.stringify(id)} (${type}) was written on schema version ${version}, which is newer than ` +
+        `version ${knownVersion}, the newest ${type} version this code knows: it is refused rather than guessed at`,
+    );
+    this.name = "NewerSchemaError";
+    this.id = id;
+    this.type = type;
+    this.version = version;
+    this.knownVersion = knownVersion;
+  }
+}

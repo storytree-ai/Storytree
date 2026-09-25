@@ -5,6 +5,7 @@
 import pg from "pg";
 import type { Pool } from "pg";
 
+import { SchemaRecords } from "../schema/records.js";
 import { PgTransactions } from "../transactions/pg.js";
 import type { Transactions } from "../transactions/types.js";
 import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
@@ -42,6 +43,8 @@ export interface Project {
   readonly pool: Pool;
   /** This project's records: the only data actions the library allows (capability 2). */
   readonly transactions: Transactions;
+  /** The same records, typed and checked against the data schema (capability 3). */
+  readonly records: SchemaRecords;
   /** Close this project's connections. */
   close(): Promise<void>;
 }
@@ -110,6 +113,7 @@ class ProjectLibrary implements Project {
   readonly name: string;
   readonly pool: Pool;
   readonly transactions: Transactions;
+  readonly records: SchemaRecords;
   readonly #forget: () => void;
   #closing: Promise<void> | undefined;
 
@@ -117,6 +121,7 @@ class ProjectLibrary implements Project {
     this.name = name;
     this.pool = pool;
     this.transactions = new PgTransactions(pool);
+    this.records = new SchemaRecords(this.transactions);
     this.#forget = forget;
   }
 
