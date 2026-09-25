@@ -2,6 +2,7 @@
 // Its public API grows capability by capability (stories/library.md); capability 7 fixes the list.
 export { connect } from "./project/index.js";
 export type { ConnectOptions, Project, Storytree } from "./project/index.js";
+export { DependencyLoopError, MissingReferenceError } from "./references.js";
 export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
 export type {
   CreateOptions,
@@ -23,3 +24,16 @@ export type {
   Transactions,
   Validate,
 } from "./transactions/index.js";
+export type {
+  ArcNode,
+  CapabilityEdit,
+  CapabilityNode,
+  ContractNode,
+  NewArc,
+  NewCapability,
+  NewContract,
+  NewStory,
+  ProjectTree,
+  StoryNode,
+  WorkModel,
+} from "./work/index.js";

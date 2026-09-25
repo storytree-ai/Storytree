@@ -8,6 +8,7 @@ import type { Pool } from "pg";
 import { SchemaRecords } from "../schema/records.js";
 import { PgTransactions } from "../transactions/pg.js";
 import type { Transactions } from "../transactions/types.js";
+import { WorkModel } from "../work/work-model.js";
 import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
 import { PROJECT_SCHEMA } from "./schema.js";
 
@@ -45,6 +46,8 @@ export interface Project {
   readonly transactions: Transactions;
   /** The same records, typed and checked against the data schema (capability 3). */
   readonly records: SchemaRecords;
+  /** The project's plan of work: stories, capabilities, contracts and arcs (capability 4). */
+  readonly work: WorkModel;
   /** Close this project's connections. */
   close(): Promise<void>;
 }
@@ -114,6 +117,7 @@ class ProjectLibrary implements Project {
   readonly pool: Pool;
   readonly transactions: Transactions;
   readonly records: SchemaRecords;
+  readonly work: WorkModel;
   readonly #forget: () => void;
   #closing: Promise<void> | undefined;
 
@@ -122,6 +126,7 @@ class ProjectLibrary implements Project {
     this.pool = pool;
     this.transactions = new PgTransactions(pool);
     this.records = new SchemaRecords(this.transactions);
+    this.work = new WorkModel(this.records);
     this.#forget = forget;
   }
 
