@@ -15,7 +15,7 @@ export type ConnectionProblem =
   | "instance"
   /** The account is not a database user on the Cloud SQL instance. */
   | "database-user"
-  /** A new project's database cannot be made: the server's user may not create databases. */
+  /** A new project's database cannot be made: the server's user may not create databases, nor take on a role that may. */
   | "create-database"
   /** The server did not answer in time. */
   | "timeout";
@@ -34,17 +34,24 @@ export class ConnectionError extends Error {
 }
 
 /**
- * The refusal of a new project's database: the server's user `user` may not create databases
- * (Postgres refused CREATE DATABASE with `cause`, SQLSTATE 42501). It names the one grant that
- * fixes it for good, and the other way out: the database made by someone who may, owned by the
- * user, since only a database's owner may create tables in it (Postgres 15 and later).
+ * The role the refusal below has the owner make: one that may create databases, which the server's
+ * user then borrows. Any such role granted to the user serves; this is only the name suggested.
  */
-export function cannotCreateDatabases(
-  server: "postgres" | "cloud-sql",
-  user: string,
-  database: string,
-  cause: unknown,
-): ConnectionError {
+const CREATOR_ROLE = "storytree_creator";
+
+/**
+ * The refusal of a new project's database: the server's user `user` may not create databases, and
+ * may take on no role that may (Postgres refused CREATE DATABASE with `cause`, SQLSTATE 42501). It
+ * gives the two lines that fix it for good, and who may run them: a role that may create databases,
+ * granted to the user, which storytree then borrows to make each project's database.
+ *
+ * Not `ALTER ROLE <user> CREATEDB`, and not a database made for the user and owned by it: from
+ * Postgres 16, both need rights over the user that only a role holding ADMIN OPTION on it has. On
+ * Cloud SQL that is Google's cloudsqladmin alone, which made the IAM user, so the instance's
+ * `postgres` user can do neither. It can make a role, though, and holds ADMIN OPTION on the role it
+ * made, so it may grant that one.
+ */
+export function cannotCreateDatabases(server: "postgres" | "cloud-sql", user: string, cause: unknown): ConnectionError {
   const role = quoteIdentifier(user);
   const [whose, grantor] =
     server === "cloud-sql"
@@ -52,8 +59,9 @@ export function cannotCreateDatabases(
       : ["Your Postgres user", "as a superuser (such as `postgres`)"];
   return new ConnectionError(
     "create-database",
-    `${whose} cannot create databases, and storytree keeps one database per project. Grant it once, ${grantor}: ` +
-      `\`ALTER ROLE ${role} CREATEDB;\` — or create the database \`${database}\` yourself, owned by ${role}.`,
+    `${whose} cannot create databases, and storytree keeps one database per project. Run these two lines once, ` +
+      `${grantor}, to give it a role that can: \`CREATE ROLE ${CREATOR_ROLE} NOLOGIN CREATEDB;\` ` +
+      `\`GRANT ${CREATOR_ROLE} TO ${role};\` Storytree then borrows that role to create each project's database.`,
     cause,
   );
 }

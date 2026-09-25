@@ -21,8 +21,8 @@ export interface Storytree {
   /**
    * Open the library of the project called `name`, creating its database the first time. A name
    * that breaks the project-name rule is refused (ProjectNameError) before anything touches the
-   * server. A server user that may not create databases is refused (ConnectionError) with the
-   * grant that lets it.
+   * server. A server user that may not create databases borrows a role granted to it that may;
+   * with none to borrow, it is refused (ConnectionError) with the two lines that grant one.
    */
   openProject(name: string): Promise<Library>;
   /** The names of the storytree projects on the server, sorted. No other database is listed. */

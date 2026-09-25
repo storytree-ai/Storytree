@@ -9,7 +9,10 @@
  *   STORYTREE_TEST_CLOUDSQL_INSTANCE  the instance's connection name, project:region:instance
  *   STORYTREE_TEST_CLOUDSQL_USER      the Google account signed in with
  *                                     `gcloud auth application-default login`: a Cloud SQL IAM
- *                                     database user on the instance, allowed to create databases
+ *                                     database user on the instance that may create databases,
+ *                                     itself or through a role granted to it (an IAM user cannot
+ *                                     be given CREATEDB, so the owner runs the two lines that
+ *                                     opening a project without one prints)
  * Without them it is skipped, visibly and with the reason, never passed. With only one of them it
  * fails, rather than skip a proof someone meant to run.
  */
@@ -24,7 +27,7 @@ import { PgTransactions } from "./pg.js";
 const CONTRACT =
   "8.1 capability 2's behaviour suite, unchanged, passes against a real Cloud SQL instance reached with Google sign-in";
 const OWNER_GATED =
-  "live Cloud SQL proof needs STORYTREE_TEST_CLOUDSQL_INSTANCE/USER and a database user allowed to create databases — owner-gated";
+  "live Cloud SQL proof needs STORYTREE_TEST_CLOUDSQL_INSTANCE/USER and a database user that may create databases, itself or through a granted role — owner-gated";
 
 const instance = process.env.STORYTREE_TEST_CLOUDSQL_INSTANCE ?? "";
 const user = process.env.STORYTREE_TEST_CLOUDSQL_USER ?? "";
@@ -67,7 +70,11 @@ function liveProof(cloudSql: CloudSqlConfig): void {
   });
 }
 
-/** Drop a test's databases on the instance, over a connection of their own to its `postgres` database. */
+/**
+ * Drop a test's databases on the instance, over a connection of their own to its `postgres`
+ * database. One the user made by borrowing a role is that role's, and is dropped as the user all the
+ * same (dropTestDatabases says why), as src/project/cloud-connection.test.ts proves offline.
+ */
 async function dropOnInstance(cloudSql: CloudSqlConfig, databases: readonly string[]): Promise<void> {
   const server = await cloudSqlServer(cloudSql);
   try {

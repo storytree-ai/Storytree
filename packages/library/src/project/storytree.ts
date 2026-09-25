@@ -3,8 +3,12 @@
  * projects, each in its own database, created the first time the project is opened. The server is
  * at a URL, or it is a Cloud SQL instance reached with Google sign-in (capability 8): either way it
  * is reached through a ServerAccess, and everything here works the same on both.
+ *
+ * A server user that may not create databases (as a Cloud SQL IAM user may not, and cannot be let
+ * to) borrows a role granted to it that may, for the CREATE DATABASE alone. With none to borrow,
+ * opening a new project is refused with the two lines that grant one.
  */
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import { HealthRecord } from "../health/health-record.js";
 import { Knowledge } from "../knowledge/knowledge.js";
@@ -143,22 +147,44 @@ class ServerConnection implements Storytree {
     const existing = await admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [database]);
     if (existing.rows.length > 0) return;
     try {
-      await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`);
+      await createDatabase(admin, database);
     } catch (error) {
-      // Another open of the same project created it first: the outcome we wanted.
-      if (isDuplicateDatabase(error)) return;
-      // The server's user may not create databases: say how to let it, or how to do without.
-      if (isInsufficientPrivilege(error)) {
-        const user = await this.#serverUser().catch(() => undefined);
-        if (user !== undefined) throw cannotCreateDatabases(this.#server.kind, user, database, error);
-      }
+      if (!isInsufficientPrivilege(error)) throw error;
+      // The server's user may not create databases. Whether it may is CREATEDB, an attribute of a
+      // role that membership never passes on, so a role granted to the user that may is taken on
+      // (SET ROLE) for the CREATE DATABASE itself.
+      const creator = await this.#creatorRole();
+      if (creator !== undefined) return createDatabaseAs(admin, creator, database);
+      // None to borrow: say how to grant one.
+      const user = await this.#serverUser().catch(() => undefined);
+      if (user !== undefined) throw cannotCreateDatabases(this.#server.kind, user, error);
       throw error;
     }
   }
 
-  /** The role the server's connections are signed in as. */
+  /**
+   * A role that may create databases and that the server's user may take on with SET ROLE, which
+   * Postgres judges against the session's user: what a user that may not create databases borrows
+   * to make a project's database. pg_has_role(…, 'SET') follows pg_auth_members recursively,
+   * through grants that carry SET only, exactly as SET ROLE will (Postgres 16 and later; before 16
+   * any member may SET ROLE, so MEMBER asks the same there). When the user may take on more than
+   * one such role, the first by name, in byte order, is borrowed, so that it is always the same one.
+   */
+  async #creatorRole(): Promise<string | undefined> {
+    const { rows } = await this.#server.admin.query<{ name: string }>(
+      `SELECT rolname AS name FROM pg_roles
+        WHERE rolcreatedb
+          AND pg_has_role(session_user, oid,
+                CASE WHEN current_setting('server_version_num')::int >= 160000 THEN 'SET' ELSE 'MEMBER' END)
+        ORDER BY rolname COLLATE "C"
+        LIMIT 1`,
+    );
+    return rows[0]?.name;
+  }
+
+  /** The role the server's connections sign in as: the session's user, whom a role is granted to. */
   async #serverUser(): Promise<string | undefined> {
-    const { rows } = await this.#server.admin.query<{ name: string }>("SELECT current_user AS name");
+    const { rows } = await this.#server.admin.query<{ name: string }>("SELECT session_user AS name");
     return rows[0]?.name;
   }
 }
@@ -214,6 +240,44 @@ async function applySchema(pool: Pool, name: string): Promise<void> {
     throw error;
   } finally {
     client.release(failed);
+  }
+}
+
+/**
+ * Create `database`. Another open of the same project creating it first is the outcome wanted, so
+ * losing that race is not a failure.
+ */
+async function createDatabase(client: Pool | PoolClient, database: string): Promise<void> {
+  try {
+    await client.query(`CREATE DATABASE ${quoteIdentifier(database)}`);
+  } catch (error) {
+    if (!isDuplicateDatabase(error)) throw error;
+  }
+}
+
+/**
+ * Create `database` as `role`, borrowed on one connection of the admin pool: SET ROLE, CREATE
+ * DATABASE, RESET ROLE. The database is then the role's. The server's user, a member of it, holds
+ * its owner's rights there by inheritance, among them CREATE on the public schema (from Postgres 15
+ * the owner's alone), so the project's tables are still made as the user, with no further grant. A
+ * connection that cannot be handed back to the user's own role is closed, never pooled, so no later
+ * query runs as the borrowed role.
+ */
+async function createDatabaseAs(admin: Pool, role: string, database: string): Promise<void> {
+  const client = await admin.connect();
+  let handedBack = false;
+  try {
+    await client.query(`SET ROLE ${quoteIdentifier(role)}`);
+    try {
+      await createDatabase(client, database);
+    } finally {
+      handedBack = await client.query("RESET ROLE").then(
+        () => true,
+        () => false,
+      );
+    }
+  } finally {
+    client.release(!handedBack);
   }
 }
 
