@@ -5,6 +5,7 @@
 import pg from "pg";
 import type { Pool } from "pg";
 
+import { Knowledge } from "../knowledge/knowledge.js";
 import { SchemaRecords } from "../schema/records.js";
 import { PgTransactions } from "../transactions/pg.js";
 import type { Transactions } from "../transactions/types.js";
@@ -48,6 +49,8 @@ export interface Project {
   readonly records: SchemaRecords;
   /** The project's plan of work: stories, capabilities, contracts and arcs (capability 4). */
   readonly work: WorkModel;
+  /** What the project has learned: memory notes, decisions and definitions (capability 6). */
+  readonly knowledge: Knowledge;
   /** Close this project's connections. */
   close(): Promise<void>;
 }
@@ -118,6 +121,7 @@ class ProjectLibrary implements Project {
   readonly transactions: Transactions;
   readonly records: SchemaRecords;
   readonly work: WorkModel;
+  readonly knowledge: Knowledge;
   readonly #forget: () => void;
   #closing: Promise<void> | undefined;
 
@@ -127,6 +131,7 @@ class ProjectLibrary implements Project {
     this.transactions = new PgTransactions(pool);
     this.records = new SchemaRecords(this.transactions);
     this.work = new WorkModel(this.records);
+    this.knowledge = new Knowledge(this.records);
     this.#forget = forget;
   }
 

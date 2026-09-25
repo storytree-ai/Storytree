@@ -2,6 +2,7 @@
 // Its public API grows capability by capability (stories/library.md); capability 7 fixes the list.
 export { connect } from "./project/index.js";
 export type { ConnectOptions, Project, Storytree } from "./project/index.js";
+export type { Knowledge, NewDecision, NewDefinition, NewMemory, Note, NoteEdit, NoteType } from "./knowledge/index.js";
 export { DependencyLoopError, MissingReferenceError } from "./references.js";
 export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
 export type {
