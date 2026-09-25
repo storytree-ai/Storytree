@@ -9,17 +9,52 @@
     "build": "node build.mjs",
     "start": "node build.mjs && electron .",
     "smoke": "node build.mjs && electron . --smoke --screenshot smoke.png",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "dist": "node build.mjs && node dist.mjs"
   },
   "devDependencies": {
     "@storytree/library": "workspace:*",
     "@storytree/local-postgres": "workspace:*",
     "@types/node": "^24.13.6",
     "electron": "44.4.5",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.2",
     "typescript": "~7.0.2"
   },
   "optionalDependencies": {
     "@embedded-postgres/windows-x64": "17.10.0-beta.17"
+  },
+  "build": {
+    "appId": "ai.storytree.desktop-0-3",
+    "productName": "storytree-0.3",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.map",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/@embedded-postgres/windows-x64/native",
+        "to": "postgres"
+      }
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "storytree-0.3-${version}-portable-${arch}.${ext}"
+    }
   }
 }

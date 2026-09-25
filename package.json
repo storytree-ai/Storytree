@@ -12,7 +12,8 @@
     "typecheck": "pnpm -r typecheck",
     "seed:library-story": "node --import tsx scripts/seed-library-story.mjs",
     "desktop": "pnpm --filter @storytree/desktop start",
-    "desktop:smoke": "pnpm --filter @storytree/desktop smoke"
+    "desktop:smoke": "pnpm --filter @storytree/desktop smoke",
+    "desktop:dist": "pnpm --filter @storytree/desktop dist"
   },
   "devDependencies": {
     "@storytree/library": "workspace:*",
