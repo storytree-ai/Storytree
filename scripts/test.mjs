@@ -1,6 +1,6 @@
-// `pnpm test`: run every packages/*/src/**/*.test.ts and scripts/*.test.mjs with node:test
-// (through tsx) against a real Postgres. Run it as `pnpm test` (node --import tsx
-// scripts/test.mjs): it imports @storytree/local-postgres, which is TypeScript.
+// `pnpm test`: run every packages/*/src/**/*.test.ts, apps/*/src/**/*.test.ts and
+// scripts/*.test.mjs with node:test (through tsx) against a real Postgres. Run it as `pnpm test`
+// (node --import tsx scripts/test.mjs): it imports @storytree/local-postgres, which is TypeScript.
 //
 // With STORYTREE_TEST_PG_URL set, the tests use that server and nothing is started or stopped.
 // Otherwise this runs a throwaway local server through @storytree/local-postgres, from the
@@ -27,7 +27,7 @@ const work = path.join(root, ".pgtest");
 const dataDir = path.join(work, "data");
 const serverLog = path.join(work, "pg.log");
 const toolLog = path.join(work, "tools.log");
-const ALL_TESTS = ["packages/*/src/**/*.test.ts", "scripts/*.test.mjs"];
+const ALL_TESTS = ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts", "scripts/*.test.mjs"];
 
 const testArgs = process.argv.slice(2);
 if (testArgs[0] === "--") testArgs.shift();

@@ -1,12 +1,18 @@
 {
   "name": "@storytree/desktop",
   "private": true,
+  "version": "0.3.0",
+  "description": "storytree 0.3 desktop app: a project's stories and their health, read from the local library",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
+    "@storytree/library": "workspace:*",
+    "@storytree/local-postgres": "workspace:*",
     "@types/node": "^24.13.6",
+    "electron": "44.4.5",
+    "esbuild": "^0.28.2",
     "typescript": "~7.0.2"
   }
 }
