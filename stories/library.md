@@ -146,6 +146,9 @@ Every story, capability and contract has a health record with two separate colum
 states: `passing`, `failing` or `not-checked`. A missing entry always reads as `not-checked`, never
 as `passing`.
 
+- **As built:** health is *recorded* on contracts and *derived* for capabilities and stories (the
+  roll-up in contract 4 below), so a story or capability never carries a second, conflicting source of
+  health; writing health straight onto one is refused with a message saying it rolls up.
 - **Depends on:** 4.
 - **Leaves out (vs 0.2):** signed verdicts, the prove-it spine, anchors, drift and attestations.
   Also left out is **running the tests**: the library only *stores* the verified result, and a later
@@ -207,6 +210,9 @@ works the same, and each project still gets its own database, now on the cloud s
 
 - **Depends on:** 1. It is built after 1–7 work on the local path, and no test of 1–7 depends on it.
 - **Leaves out:** every cloud except Google, and sharing one cloud library between several people.
+- **Live proof status:** built and proven OFFLINE (every refusal of contract 8.2). Contract 8.1's live run
+  waits on the owner: it needs a Cloud SQL user allowed to create databases (one database per
+  project), and the only instance available belongs to storytree 0.2.
 
 **Contracts:**
 1. Capability 2's behaviour suite, unchanged, passes against a real Cloud SQL instance reached with
