@@ -373,7 +373,7 @@ for (const backend of [memory, postgres]) {
     );
   });
 
-  contract("4.5", "a dependency loop between capabilities, A → B → A or longer, is refused and nothing is written", async ({ work, transactions }) => {
+  contract("4.5", "a dependency loop between capabilities, A → B → A or longer, is refused and nothing is written", async ({ work, records, transactions }) => {
     const story = await work.addStory({ title: "Visitor can sign up" });
     const add = (title: string, dependsOn?: string[]) =>
       work.addCapability({ title, story: story.id, ...(dependsOn === undefined ? {} : { dependsOn }) });
@@ -419,10 +419,25 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual((await work.editCapability(b.id, { dependsOn: [] }))?.fields.dependsOn, []);
     assert.deepEqual((await work.editCapability(a.id, { dependsOn: [b.id] }))?.fields.dependsOn, [b.id]);
 
+    // A loop already stored, as a second process racing this one could store it (a work model
+    // queues only its own writes), does not trap the check: an edit leading into the loop but not
+    // back out of it goes through, one closing a new loop through it is refused, and the stored
+    // loop can be broken.
+    const l1 = await add("L1");
+    const l2 = await add("L2", [l1.id]);
+    await records.edit(l1.id, { dependsOn: [l2.id] }); // L1 → L2 → L1, written around the work model
+    const into = await add("Into");
+    assert.deepEqual((await work.editCapability(into.id, { dependsOn: [l1.id] }))?.fields.dependsOn, [l1.id]);
+    await assert.rejects(work.editCapability(l1.id, { dependsOn: [into.id] }), dependencyLoop([l1.id, into.id, l1.id]));
+    assert.deepEqual((await work.editCapability(l2.id, { dependsOn: [] }))?.fields.dependsOn, []);
+
     // Two edits racing each other, each fine alone, that together would close a loop: exactly
-    // one of them is written, and the other is refused as a loop.
+    // one of them is written, and the other is refused as a loop. The connection pool is warmed
+    // first, as capability 2's race checks do, so that neither racer has to wait for a new
+    // connection and the edits genuinely overlap.
     const p = await add("P");
     const q = await add("Q");
+    await Promise.all(Array.from({ length: 8 }, () => transactions.get("warm-up")));
     const raceStart = await transactions.history();
     const [first, second] = await Promise.allSettled([
       work.editCapability(p.id, { dependsOn: [q.id] }),

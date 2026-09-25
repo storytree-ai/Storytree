@@ -198,8 +198,8 @@ function textsIn(value: unknown, where: string): [where: string, text: string][]
 /** A high surrogate with no low one after it, or a low surrogate with no high one before it. */
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
-/** What in `text` cannot be stored, or undefined if it all can. */
-function unstorable(text: string): string | undefined {
+/** What in `text` cannot be stored, or undefined if it all can. (Capabilities 4 and 6 reuse it for ids.) */
+export function unstorable(text: string): string | undefined {
   if (text.includes("\u0000")) return "a NUL character (U+0000)";
   const lone = LONE_SURROGATE.exec(text)?.[0];
   return lone === undefined ? undefined : `a lone UTF-16 surrogate (U+${lone.charCodeAt(0).toString(16).toUpperCase()})`;

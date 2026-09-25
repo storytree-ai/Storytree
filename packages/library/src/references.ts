@@ -1,8 +1,11 @@
 /**
  * References between records (capabilities 4 and 6): a capability names its story, a contract its
  * capability, an arc the stories it grows, a capability the capabilities it depends on, and a note
- * the records it links to. A write whose references are broken is refused, and writes nothing.
+ * the records it links to. A write whose references are broken is refused, and writes nothing:
+ * the checks here run before the write, and throw.
  */
+import { unstorable, type SchemaRecord, type SchemaRecords } from "./schema/records.js";
+import type { RecordType } from "./schema/types.js";
 
 /**
  * A reference that names no record it may name: the record is missing, retired, or of the wrong
@@ -50,6 +53,60 @@ export class DependencyLoopError extends Error {
     this.name = "DependencyLoopError";
     this.path = [...path];
   }
+}
+
+/**
+ * Check that `value`, the reference held in `field`, names a live (stored, not retired) record
+ * whose type is `expected`, or of any type when `expected` is "record". Throws
+ * MissingReferenceError when it does not.
+ *
+ * Only an id that could name a record is looked up. Anything else (undefined because the field is
+ * absent, a value that is not a string, or text the library cannot store, which Postgres will not
+ * even be asked about) is left to the schema check inside the write, which refuses whatever needs
+ * refusing with a SchemaError naming the field, the same on both backends.
+ */
+export async function checkReference(
+  records: SchemaRecords,
+  field: string,
+  value: unknown,
+  expected: RecordType | "record",
+): Promise<void> {
+  if (!couldBeId(value)) return;
+  const target = await records.get(value);
+  if (target === null) throw new MissingReferenceError(field, value, expected);
+  if (expected !== "record" && target.type !== expected) {
+    throw new MissingReferenceError(field, value, expected, target.type);
+  }
+}
+
+/**
+ * checkReference for every id in a list field, in list order, so the first broken reference is
+ * the one reported. A value that is not a list is left to the schema check inside the write.
+ */
+export async function checkReferences(
+  records: SchemaRecords,
+  field: string,
+  values: unknown,
+  expected: RecordType | "record",
+): Promise<void> {
+  if (!Array.isArray(values)) return;
+  for (const value of values) await checkReference(records, field, value, expected);
+}
+
+/** The live record `id` if its type is one of `types`, and null otherwise (missing, retired, or another type). */
+export async function liveRecord<T extends RecordType>(
+  records: SchemaRecords,
+  id: unknown,
+  types: readonly T[],
+): Promise<SchemaRecord<T> | null> {
+  if (!couldBeId(id)) return null;
+  const record = await records.get(id);
+  return record !== null && (types as readonly RecordType[]).includes(record.type) ? (record as SchemaRecord<T>) : null;
+}
+
+/** Whether `value` could be the id of a stored record: a string of text the library can store. */
+function couldBeId(value: unknown): value is string {
+  return typeof value === "string" && unstorable(value) === undefined;
 }
 
 function article(word: string): string {

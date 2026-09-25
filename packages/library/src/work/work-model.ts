@@ -2,7 +2,15 @@
  * Capability 4 · Work model (stories/library.md): each project's plan of work. Stories belong to
  * the project; a capability points at its story, a contract at its capability, and an arc may list
  * the stories it grows. The library refuses broken structure.
+ *
+ * WorkModel is a layer over capability 3's SchemaRecords, so it runs unchanged on the in-memory
+ * twin and on Postgres. Every write checks its references (and, for an edit of a capability's
+ * dependencies, the would-be dependency graph) BEFORE writing, and a refusal throws with nothing
+ * written. The record itself is then checked against its type inside the write, as capability 3
+ * checks every write.
  */
+import { byCreation } from "../creation-order.js";
+import { checkReference, checkReferences, DependencyLoopError, liveRecord } from "../references.js";
 import type { SchemaRecord, SchemaRecords } from "../schema/index.js";
 import type { FieldsOf } from "../schema/types.js";
 
@@ -57,38 +65,178 @@ export interface ArcNode {
   stories: string[];
 }
 
+/** A record the tree shows by id, title and description: a story, capability, contract or arc. */
+type PlanRecord = SchemaRecord<"story" | "capability" | "contract" | "arc">;
+
 export class WorkModel {
   readonly #records: SchemaRecords;
+  /** The last write queued through this model; the next one starts once it has settled. */
+  #lastWrite: Promise<unknown> = Promise.resolve();
 
   constructor(records: SchemaRecords) {
     this.#records = records;
   }
 
-  async addStory(story: NewStory): Promise<SchemaRecord<"story">> {
-    throw new Error("not implemented");
+  /**
+   * Add a story to the project. Its id is generated: an `id` in `story` is refused as an unknown
+   * field, as is any other field a story does not have.
+   */
+  addStory(story: NewStory): Promise<SchemaRecord<"story">> {
+    return this.#serially(() => this.#records.create("story", story));
   }
 
-  async createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
-    throw new Error("not implemented");
+  /**
+   * Create an arc. Every story it lists must be a live story (MissingReferenceError otherwise,
+   * naming the first one that is not); it may list none at all.
+   */
+  createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
+    return this.#serially(async () => {
+      await checkReferences(this.#records, "stories", arc.stories, "story");
+      return this.#records.create("arc", arc);
+    });
   }
 
-  async addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
-    throw new Error("not implemented");
+  /**
+   * Add a capability to a story. The story, and every capability it depends on, must be live
+   * records of those types (MissingReferenceError otherwise). A new capability cannot close a
+   * dependency loop, since nothing can depend on it yet.
+   */
+  addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
+    return this.#serially(async () => {
+      await checkReference(this.#records, "story", capability.story, "story");
+      await checkReferences(this.#records, "dependsOn", capability.dependsOn, "capability");
+      return this.#records.create("capability", capability);
+    });
   }
 
-  async editCapability(id: string, fields: CapabilityEdit): Promise<SchemaRecord<"capability"> | null> {
-    throw new Error("not implemented");
+  /**
+   * Change only the named fields of a capability, as capability 3's edit does. A new story or new
+   * dependencies are checked as addCapability checks them, and new dependencies are also checked
+   * against the dependency graph as it would be after the edit: one that would make the capability
+   * depend on itself, directly or through others, is refused with a DependencyLoopError naming the
+   * loop. Returns null, and writes nothing, if `id` is not a live capability.
+   */
+  editCapability(id: string, fields: CapabilityEdit): Promise<SchemaRecord<"capability"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["capability"])) === null) return null;
+      await checkReference(this.#records, "story", fields.story, "story");
+      await checkReferences(this.#records, "dependsOn", fields.dependsOn, "capability");
+      if (Array.isArray(fields.dependsOn)) await this.#refuseLoop(id, fields.dependsOn);
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"capability"> | null;
+    });
   }
 
-  async addContract(contract: NewContract): Promise<SchemaRecord<"contract">> {
-    throw new Error("not implemented");
+  /** Add a contract to a capability, which must be a live capability (MissingReferenceError otherwise). */
+  addContract(contract: NewContract): Promise<SchemaRecord<"contract">> {
+    return this.#serially(async () => {
+      await checkReference(this.#records, "capability", contract.capability, "capability");
+      return this.#records.create("contract", contract);
+    });
   }
 
+  /**
+   * The plan as it is now: every story holding its capabilities, each holding its contracts, and
+   * every arc, all in creation order. A capability or contract whose parent is not a live record
+   * has no place in it.
+   */
   async projectTree(): Promise<ProjectTree> {
-    throw new Error("not implemented");
+    const [stories, capabilities, contracts, arcs] = await Promise.all([
+      this.#records.list("story"),
+      this.#records.list("capability"),
+      this.#records.list("contract"),
+      this.#records.list("arc"),
+    ]);
+    const capabilitiesOf = childrenByParent(capabilities, (capability) => capability.fields.story);
+    const contractsOf = childrenByParent(contracts, (contract) => contract.fields.capability);
+    return {
+      stories: stories.sort(byCreation).map((story) => ({
+        ...nodeOf(story),
+        capabilities: (capabilitiesOf.get(story.id) ?? []).map((capability) => ({
+          ...nodeOf(capability),
+          dependsOn: [...(capability.fields.dependsOn ?? [])],
+          contracts: (contractsOf.get(capability.id) ?? []).map(nodeOf),
+        })),
+      })),
+      arcs: arcs.sort(byCreation).map((arc) => ({ ...nodeOf(arc), stories: [...(arc.fields.stories ?? [])] })),
+    };
   }
 
+  /** The live arcs listing the story `storyId`, in creation order. */
   async arcsFor(storyId: string): Promise<SchemaRecord<"arc">[]> {
-    throw new Error("not implemented");
+    const arcs = await this.#records.list("arc");
+    return arcs.filter((arc) => arc.fields.stories?.includes(storyId) === true).sort(byCreation);
   }
+
+  /**
+   * Throw a DependencyLoopError if capability `id` depending on `dependsOn` would close a loop:
+   * that is, if the would-be graph (every live capability's dependencies as stored, with `id`'s
+   * replaced by `dependsOn`) leads from `id` back round to `id`.
+   */
+  async #refuseLoop(id: string, dependsOn: readonly unknown[]): Promise<void> {
+    const graph = new Map<string, readonly unknown[]>();
+    for (const capability of await this.#records.list("capability")) {
+      graph.set(capability.id, capability.fields.dependsOn ?? []);
+    }
+    graph.set(id, dependsOn);
+    const loop = loopThrough(id, graph);
+    if (loop !== undefined) throw new DependencyLoopError(loop);
+  }
+
+  /**
+   * Run `write` once every write queued through this model before it has settled, so that a
+   * write's checks and the write itself happen together: no other write through this model
+   * comes between them. (Without this, two edits racing each other could each pass their loop
+   * check against a graph without the other's edge, and together store a loop.)
+   */
+  #serially<T>(write: () => Promise<T>): Promise<T> {
+    const result = this.#lastWrite.then(() => write());
+    this.#lastWrite = result.catch(() => undefined);
+    return result;
+  }
+}
+
+/** What every node of the tree starts with. */
+type NodeHead = Pick<StoryNode, "id" | "title" | "description">;
+
+/** The id, title and, when it has one, description of a record in the tree. */
+function nodeOf(record: PlanRecord): NodeHead {
+  const { title, description } = record.fields;
+  return { id: record.id, title, ...(description === undefined ? {} : { description }) };
+}
+
+/** `children` grouped by the id of the parent each points at, each group in creation order. */
+function childrenByParent<R extends PlanRecord>(children: readonly R[], parentOf: (child: R) => string): Map<string, R[]> {
+  const groups = new Map<string, R[]>();
+  for (const child of [...children].sort(byCreation)) {
+    const parent = parentOf(child);
+    const siblings = groups.get(parent);
+    if (siblings === undefined) groups.set(parent, [child]);
+    else siblings.push(child);
+  }
+  return groups;
+}
+
+/**
+ * A path along `graph`'s dependency edges from `start` back round to `start`, or undefined if
+ * there is none. Depth-first, following each capability's dependencies in their stored order, so
+ * the same loop is reported every time; iterative, so a long chain cannot overflow the stack.
+ */
+function loopThrough(start: string, graph: ReadonlyMap<string, readonly unknown[]>): string[] | undefined {
+  const dependenciesOf = (id: string): Iterator<unknown> => (graph.get(id) ?? []).values();
+  // The path walked from `start`, each step with the dependencies it has still to follow.
+  const path = [{ id: start, next: dependenciesOf(start) }];
+  const reached = new Set([start]);
+  for (let step = path.at(-1); step !== undefined; step = path.at(-1)) {
+    const next = step.next.next();
+    if (next.done === true) {
+      path.pop(); // every dependency of this step followed: back up
+      continue;
+    }
+    const dependency = next.value;
+    if (dependency === start) return [...path.map(({ id }) => id), start];
+    if (typeof dependency !== "string" || reached.has(dependency)) continue;
+    reached.add(dependency);
+    path.push({ id: dependency, next: dependenciesOf(dependency) });
+  }
+  return undefined;
 }
