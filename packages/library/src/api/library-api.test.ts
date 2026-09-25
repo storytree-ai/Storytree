@@ -164,7 +164,9 @@ test("7.1 an agent's day against a real local Postgres: every step is visible wh
     assertIncreasing(day.changes);
     assert.equal(day.cursor, at(day.changes, 6).seq, "the cursor handed back is the last change's");
     assert.deepEqual(await lib.changesSince(day.cursor), { changes: [], cursor: day.cursor }, "and nothing came after it");
+    // The day ends: the library is closed, and takes no more calls.
     await lib.close();
+    await assert.rejects(lib.projectTree(), "a closed library is not read");
 
     // The next session, on a fresh connection, finds the day's work where it was left.
     const tomorrow = await connect({ url: testServerUrl() });
@@ -201,6 +203,14 @@ test("7.2 changesSince(n) returns only the changes after n, in order, each carry
     const story = await lib.addStory({ title: "Visitor can sign up" });
     assert.deepEqual(withoutSeq(await follow()), [{ recordId: story.id, type: "story", action: "created", record: story }]);
     assert.deepEqual(await follow(), [], "nothing new since: nothing is handed out twice");
+
+    // A write that rolls back after taking its number in the history (a crash, say) leaves a gap:
+    // seqs are strictly increasing, not contiguous, so a cursor is a seq and never a count.
+    await withTestClient(async (client) => {
+      await client.query("BEGIN");
+      await client.query("INSERT INTO record_event (record_id, type, action, record) VALUES ('rolled-back', 'story', 'created', '{}')");
+      await client.query("ROLLBACK");
+    }, `storytree_${name}`);
 
     // Many writes between two reads, of every kind: records created, edited and retired, a health
     // column saved twice, a note edited. Writes that change nothing add no change.
@@ -243,6 +253,13 @@ test("7.2 changesSince(n) returns only the changes after n, in order, each carry
       { recordId: decision.id, type: "decision", action: "created", record: decision },
     ]);
     assert.deepEqual(await follow(), []);
+    // A change carries no reason, but the history keeps the one retire was given (seen from outside the library).
+    const reasons = await withTestClient(
+      async (client) =>
+        (await client.query<{ reason: string }>("SELECT reason FROM record_event WHERE record_id = $1 AND action = 'retired'", [memory.id])).rows,
+      `storytree_${name}`,
+    );
+    assert.deepEqual(reasons, [{ reason: "folded into a decision" }]);
 
     // No gap and no repeat: what the reader followed is exactly the whole history, in order.
     const whole = await lib.changesSince(0);

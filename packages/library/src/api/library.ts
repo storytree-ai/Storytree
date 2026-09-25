@@ -11,6 +11,7 @@
 import type { AnnotatedTree, HealthEntry, HealthOptions, HealthState, NodeHealth } from "../health/index.js";
 import type { NewDecision, NewDefinition, NewMemory, Note, NoteEdit } from "../knowledge/index.js";
 import { connect as connectServer, type ConnectOptions, type Project, type Storytree as Server } from "../project/index.js";
+import { couldBeId } from "../references.js";
 import type { SchemaRecord } from "../schema/index.js";
 import type { HistoryEntry, RecordEnvelope } from "../transactions/index.js";
 import type { CapabilityEdit, NewArc, NewCapability, NewContract, NewStory } from "../work/index.js";
@@ -132,6 +133,10 @@ class ServerHandle implements Storytree {
   }
 }
 
+/**
+ * A Library over one project's internals. It holds the project in a private field, so nothing
+ * reaches them through it, and each method hands a call to the layer that owns it.
+ */
 class LibraryHandle implements Library {
   readonly name: string;
   readonly #project: Project;
@@ -141,80 +146,102 @@ class LibraryHandle implements Library {
     this.#project = project;
   }
 
-  async addStory(story: NewStory): Promise<SchemaRecord<"story">> {
-    throw new Error("not implemented");
+  addStory(story: NewStory): Promise<SchemaRecord<"story">> {
+    return this.#project.work.addStory(story);
   }
 
-  async createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
-    throw new Error("not implemented");
+  createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
+    return this.#project.work.createArc(arc);
   }
 
-  async addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
-    throw new Error("not implemented");
+  addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
+    return this.#project.work.addCapability(capability);
   }
 
-  async editCapability(id: string, fields: CapabilityEdit): Promise<SchemaRecord<"capability"> | null> {
-    throw new Error("not implemented");
+  editCapability(id: string, fields: CapabilityEdit): Promise<SchemaRecord<"capability"> | null> {
+    return this.#project.work.editCapability(id, fields);
   }
 
-  async addContract(contract: NewContract): Promise<SchemaRecord<"contract">> {
-    throw new Error("not implemented");
+  addContract(contract: NewContract): Promise<SchemaRecord<"contract">> {
+    return this.#project.work.addContract(contract);
   }
 
-  async projectTree(): Promise<AnnotatedTree> {
-    throw new Error("not implemented");
+  /** The work model's tree, annotated with health (capability 5 reads the plan through capability 4). */
+  projectTree(): Promise<AnnotatedTree> {
+    return this.#project.health.annotate();
   }
 
-  async arcsFor(storyId: string): Promise<SchemaRecord<"arc">[]> {
-    throw new Error("not implemented");
+  arcsFor(storyId: string): Promise<SchemaRecord<"arc">[]> {
+    return this.#project.work.arcsFor(storyId);
   }
 
-  async reportHealth(contractId: string, state: HealthState, options?: HealthOptions): Promise<HealthEntry> {
-    throw new Error("not implemented");
+  reportHealth(contractId: string, state: HealthState, options?: HealthOptions): Promise<HealthEntry> {
+    return this.#project.health.reportHealth(contractId, state, options);
   }
 
-  async recordVerified(contractId: string, state: HealthState, options?: HealthOptions): Promise<HealthEntry> {
-    throw new Error("not implemented");
+  recordVerified(contractId: string, state: HealthState, options?: HealthOptions): Promise<HealthEntry> {
+    return this.#project.health.recordVerified(contractId, state, options);
   }
 
-  async health(nodeId: string): Promise<NodeHealth> {
-    throw new Error("not implemented");
+  health(nodeId: string): Promise<NodeHealth> {
+    return this.#project.health.health(nodeId);
   }
 
-  async healthHistory(contractId: string): Promise<HealthEntry[]> {
-    throw new Error("not implemented");
+  healthHistory(contractId: string): Promise<HealthEntry[]> {
+    return this.#project.health.healthHistory(contractId);
   }
 
-  async writeMemory(memory: NewMemory): Promise<SchemaRecord<"memory">> {
-    throw new Error("not implemented");
+  writeMemory(memory: NewMemory): Promise<SchemaRecord<"memory">> {
+    return this.#project.knowledge.writeMemory(memory);
   }
 
-  async recordDecision(decision: NewDecision): Promise<SchemaRecord<"decision">> {
-    throw new Error("not implemented");
+  recordDecision(decision: NewDecision): Promise<SchemaRecord<"decision">> {
+    return this.#project.knowledge.recordDecision(decision);
   }
 
-  async defineTerm(definition: NewDefinition): Promise<SchemaRecord<"definition">> {
-    throw new Error("not implemented");
+  defineTerm(definition: NewDefinition): Promise<SchemaRecord<"definition">> {
+    return this.#project.knowledge.defineTerm(definition);
   }
 
-  async editNote(id: string, fields: NoteEdit): Promise<Note | null> {
-    throw new Error("not implemented");
+  editNote(id: string, fields: NoteEdit): Promise<Note | null> {
+    return this.#project.knowledge.editNote(id, fields);
   }
 
-  async search(query: string): Promise<Note[]> {
-    throw new Error("not implemented");
+  search(query: string): Promise<Note[]> {
+    return this.#project.knowledge.search(query);
   }
 
-  async relatedNotes(nodeId: string): Promise<Note[]> {
-    throw new Error("not implemented");
+  relatedNotes(nodeId: string): Promise<Note[]> {
+    return this.#project.knowledge.relatedNotes(nodeId);
   }
 
+  /**
+   * Capability 2's retire. An id holding text the library cannot store names no record, so
+   * retiring it is the same harmless no-op as retiring a missing one; it is never looked up, since
+   * Postgres cannot even be asked for one.
+   */
   async retire(id: string, reason: string): Promise<void> {
-    throw new Error("not implemented");
+    if (!couldBeId(id)) return;
+    await this.#project.records.retire(id, reason);
   }
 
+  /**
+   * The history entries after `cursor`, each as { seq, recordId, type, action, record }. The
+   * history's seq order is the order its changes committed (capability 2), so a reader passing
+   * back each cursor it is handed never misses a change or sees one twice.
+   */
   async changesSince(cursor: number): Promise<Changes> {
-    throw new Error("not implemented");
+    if (!Number.isSafeInteger(cursor) || cursor < 0) {
+      throw new RangeError(
+        `changesSince takes a cursor: 0 to read from the start, or a cursor an earlier call handed back ` +
+          `(a whole number, 0 or more), not ${typeof cursor === "string" ? JSON.stringify(cursor) : String(cursor)}`,
+      );
+    }
+    const entries = await this.#project.records.history({ since: cursor });
+    return {
+      changes: entries.map(({ seq, recordId, type, action, record }) => ({ seq, recordId, type, action, record })),
+      cursor: entries.at(-1)?.seq ?? cursor,
+    };
   }
 
   close(): Promise<void> {
