@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "node --import tsx scripts/test.mjs",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "seed:library-story": "node --import tsx scripts/seed-library-story.mjs"
   },
   "devDependencies": {
     "@storytree/library": "workspace:*",
