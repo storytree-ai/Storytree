@@ -12,7 +12,9 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "@storytree/library": "workspace:*",
     "@storytree/local-postgres": "workspace:*",
+    "pg": "^8.23.0",
     "tsx": "^4.23.15"
   },
   "pnpm": {

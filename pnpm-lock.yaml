@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:packages/library
       '@storytree/local-postgres':
         specifier: workspace:*
         version: link:packages/local-postgres
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
