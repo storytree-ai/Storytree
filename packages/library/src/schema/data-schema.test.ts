@@ -103,6 +103,22 @@ const FULL: { readonly [T in RecordType]: FieldsOf<T> } = {
   definition: { term: "arc", meaning: "An initiative that grows stories", links: [] },
 };
 
+/**
+ * The emptiest record of every type the brief allows: only a title, text, term or meaning must be
+ * non-empty, so every other string may be "" and every list may be empty or hold "". (Whether an
+ * id names a record that exists is for later capabilities, not for this layer.)
+ */
+const EMPTIEST: { readonly [T in RecordType]: FieldsOf<T> } = {
+  arc: { title: "A", description: "", stories: [] },
+  story: { title: "S", description: "" },
+  capability: { title: "C", story: "", description: "", dependsOn: [""] },
+  contract: { title: "K", capability: "", description: "" },
+  health: { node: "", column: "verified", state: "passing", by: "", note: "" },
+  memory: { text: "M", links: [""] },
+  decision: { title: "D", text: "T", links: [] },
+  definition: { term: "X", meaning: "Y", links: [""] },
+};
+
 const TYPES = Object.keys(MINIMAL) as RecordType[];
 
 for (const backend of [memory, postgres]) {
@@ -275,10 +291,11 @@ for (const backend of [memory, postgres]) {
       definition: 1,
     });
 
-    // A record of every type, with only its required fields and with every field, none given an id.
+    // A record of every type, with only its required fields, with every field, and as empty as the
+    // brief allows, none given an id.
     const created: RecordEnvelope[] = [];
     for (const type of TYPES) {
-      for (const fields of [MINIMAL[type], FULL[type]]) {
+      for (const fields of [MINIMAL[type], FULL[type], EMPTIEST[type]]) {
         const record = await records.create(type, fields, { actor: "agent-a" });
         assert.deepEqual(
           record,
@@ -302,7 +319,7 @@ for (const backend of [memory, postgres]) {
     for (const type of TYPES) {
       const listed = await records.list(type);
       assert.deepEqual(listed, await transactions.list(type), `list("${type}") is the stored ${type} records`);
-      assert.deepEqual(listed.map((record) => record.version), [1, 1]);
+      assert.deepEqual(listed.map((record) => record.version), [1, 1, 1]);
     }
 
     // A given id is used as given, an edit keeps the stamp, and retire and history pass straight through.
