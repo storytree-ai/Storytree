@@ -1,7 +1,18 @@
-// @storytree/library: the project library every later storytree story reads and writes.
-// Its public API grows capability by capability (stories/library.md); capability 7 fixes the list.
-export { connect } from "./project/index.js";
-export type { ConnectOptions, Project, Storytree } from "./project/index.js";
+// @storytree/library: the project library every later storytree story reads and writes, and the
+// only way to reach it (capability 7 · Library API, stories/library.md). At run time this entry
+// exports connect() and the errors a caller may need to catch by class. Everything else it exports
+// is a type, and none of them reaches a connection pool, a store or a table. The package exports
+// nothing but this entry, so the internals behind it cannot be imported at all.
+export { connect } from "./api/index.js";
+export type { Change, Changes, Library, Storytree } from "./api/index.js";
+export type { ConnectOptions } from "./project/index.js";
+
+export { DependencyLoopError, MissingReferenceError } from "./references.js";
+export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
+
+export type { FieldsOf, RecordType, SchemaRecord } from "./schema/index.js";
+export type { RecordEnvelope } from "./transactions/index.js";
+export type { ArcNode, CapabilityEdit, NewArc, NewCapability, NewContract, NewStory } from "./work/index.js";
 export type {
   AnnotatedCapability,
   AnnotatedContract,
@@ -11,43 +22,7 @@ export type {
   HealthColumnName,
   HealthEntry,
   HealthOptions,
-  HealthRecord,
   HealthState,
   NodeHealth,
 } from "./health/index.js";
-export type { Knowledge, NewDecision, NewDefinition, NewMemory, Note, NoteEdit, NoteType } from "./knowledge/index.js";
-export { DependencyLoopError, MissingReferenceError } from "./references.js";
-export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
-export type {
-  CreateOptions,
-  FieldEdit,
-  FieldProblem,
-  FieldsOf,
-  RecordType,
-  SchemaRecord,
-  SchemaRecords,
-  WriteOptions,
-} from "./schema/index.js";
-export type {
-  EditInput,
-  HistoryEntry,
-  HistoryFilter,
-  RecordEnvelope,
-  RetireInput,
-  SaveInput,
-  Transactions,
-  Validate,
-} from "./transactions/index.js";
-export type {
-  ArcNode,
-  CapabilityEdit,
-  CapabilityNode,
-  ContractNode,
-  NewArc,
-  NewCapability,
-  NewContract,
-  NewStory,
-  ProjectTree,
-  StoryNode,
-  WorkModel,
-} from "./work/index.js";
+export type { NewDecision, NewDefinition, NewMemory, Note, NoteEdit, NoteType } from "./knowledge/index.js";
