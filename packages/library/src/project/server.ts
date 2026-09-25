@@ -4,7 +4,8 @@
  * there (capability 1). Wherever the server is, every database on it is reached through a pool its
  * PoolFactory makes.
  */
-import type { Pool } from "pg";
+import pg from "pg";
+import type { Pool, PoolConfig } from "pg";
 
 /** Makes a connection pool for one database on the server. */
 export type PoolFactory = (database: string) => Pool;
@@ -24,4 +25,36 @@ export interface ServerAccess {
   explain(error: unknown): unknown;
   /** Release what reaching the server holds besides its pools (the Cloud SQL connector). */
   close(): void;
+}
+
+/**
+ * The server at a postgres:// URL. Its own database (the URL's) is the admin pool's, and each
+ * project's pool is the same URL with the database swapped: user, host, port and options stay.
+ * Its failures are left as they are: the one it explains, a user that may not create databases,
+ * is explained where databases are created, on either kind of server.
+ */
+export function localServer(url: URL): ServerAccess {
+  return {
+    kind: "postgres",
+    admin: newPool({ connectionString: url.href }),
+    pool: (database) => newPool({ connectionString: databaseUrl(url, database) }),
+    explain: (error) => error,
+    close: () => {},
+  };
+}
+
+/** A pool for `config`. */
+export function newPool(config: PoolConfig): Pool {
+  const pool = new pg.Pool(config);
+  // An idle connection that drops (a server restart, a dropped database) is discarded by the pool
+  // and the next query reconnects or fails loudly. Without a listener Node would crash instead.
+  pool.on("error", () => {});
+  return pool;
+}
+
+/** The server URL with its database swapped for `database`; user, host, port and options stay. */
+function databaseUrl(server: URL, database: string): string {
+  const url = new URL(server.href);
+  url.pathname = `/${encodeURIComponent(database)}`;
+  return url.href;
 }

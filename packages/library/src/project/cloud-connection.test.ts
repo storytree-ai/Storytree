@@ -15,6 +15,7 @@
  * and dropped at the end, pass or fail.
  */
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { createServer, connect as openSocket, type AddressInfo, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { mock, test } from "node:test";
@@ -75,9 +76,18 @@ test("8.2 a cloudSql setting that is not an instance's connection name and a Goo
       42,
     ].map((instance): [unknown, string] => [settings(instance, USER), badInstance(instance)]),
     // The user, anything but an email address.
-    ...["", "you", "you@", "@example.com", "you @example.com", "you@example.com\n", "you@home@example.com", undefined, 7].map(
-      (user): [unknown, string] => [settings(INSTANCE, user), badUser(user)],
-    ),
+    ...[
+      "",
+      "you",
+      "you@",
+      "@example.com",
+      "you @example.com",
+      "you@example.com\n",
+      "you\u0000@example.com",
+      "you@home@example.com",
+      undefined,
+      7,
+    ].map((user): [unknown, string] => [settings(INSTANCE, user), badUser(user)]),
     // Settings that are not an instance and a user at all, or a url given as well.
     [{ cloudSql: null }, notSettings],
     [{ cloudSql: INSTANCE }, notSettings],
@@ -98,6 +108,7 @@ test("8.2 a cloudSql setting that is not an instance's connection name and a Goo
     );
   }
   assert.equal(google.made, 0, "no connector was made, so nothing reached the network");
+  assert.deepEqual(googleCodeLoaded(), [], "no Google code was even loaded");
 
   // Control: settings in the right form are accepted, and reach the connector, which signs in by
   // IAM (no password) over the instance's public IP. A project in a domain keeps its domain, and a
@@ -132,6 +143,7 @@ test("8.2 no Google sign-in found is refused with the command that signs in, nev
   );
   assert.equal(refused.cause, noSignIn, "the failure it explains is kept as its cause");
   assert.equal(google.calls.length, 1, "it was the sign-in that failed");
+  assertNotClosed(google);
 });
 
 test("8.2 an expired or revoked Google sign-in is refused with the command that signs in again", async () => {
@@ -160,6 +172,7 @@ test("8.2 an expired or revoked Google sign-in is refused with the command that 
       failure.message,
     );
     assert.equal(refused.cause, failure);
+    assertNotClosed(google);
   }
 });
 
@@ -184,6 +197,7 @@ test("8.2 an instance that does not exist, or that the account may not use, is r
         `(Google said: ${failure.message})`,
     );
     assert.equal(refused.cause, failure);
+    assertNotClosed(google);
   }
 });
 
@@ -260,7 +274,9 @@ test("8.2 opening a new project on Cloud SQL as a user that may not create datab
 test("8.2 on the local path too, opening a new project as a server user that may not create databases is refused with the grant that fixes it", async () => {
   const run = uniqueProjectName();
   const role = `${run}-user`;
+  const reader = `${run}-reader`;
   let storytree: Storytree | undefined;
+  let readOnly: Storytree | undefined;
   try {
     await createTestRole(role, { createdb: false });
     const url = new URL(testServerUrl());
@@ -280,10 +296,26 @@ test("8.2 on the local path too, opening a new project as a server user that may
     await withTestClient((client) => client.query(grantIn(refused.message)));
     assert.equal((await storytree.openProject(run)).name, run, "once the grant is run as written, the project opens");
     assert.deepEqual(await databasesContaining(run), [`storytree_${run}`]);
+    assert.deepEqual(googleCodeLoaded(), [], "and the local path never loaded Google's code");
+
+    // Only that refusal is taken for a missing grant. A user who may create databases, on a server
+    // where CREATE DATABASE fails for another reason (a read-only one, as a read replica is), is
+    // told the server's own reason: a grant would fix nothing.
+    await createTestRole(reader, { createdb: true });
+    await withTestClient((client) => client.query(`ALTER ROLE "${reader}" SET default_transaction_read_only = on`));
+    url.username = reader;
+    readOnly = await connect({ url: url.href });
+    await assert.rejects(readOnly.openProject(`${run}-replica`), (error: unknown) => {
+      assert.ok(!(error instanceof ConnectionError), `not a ConnectionError: ${String(error)}`);
+      assert.equal(codeOf(error), "25006", "Postgres's own read-only refusal");
+      return true;
+    });
+    assert.deepEqual(await databasesContaining(run), [`storytree_${run}`], "no database was made");
   } finally {
     await storytree?.close();
-    await dropTestDatabases([`storytree_${run}`]);
-    await dropTestRoles([role]);
+    await readOnly?.close();
+    await dropTestDatabases([`storytree_${run}`, `storytree_${run}-replica`]);
+    await dropTestRoles([role, reader]);
   }
 });
 
@@ -313,6 +345,8 @@ test("8.2 a Cloud SQL instance that does not answer is refused after a bounded w
     await turns(20);
     assert.equal(outcome, "waiting", "still waiting just short of 20 seconds");
     mock.timers.tick(1);
+    // Not `await connecting`: were there no bound, that would wait forever. This fails instead.
+    await turnsUntil(() => outcome !== "waiting", "connect() is refused once 20 seconds have passed");
     await connecting;
     assert.equal(
       refusal(outcome, "timeout").message,
@@ -329,10 +363,13 @@ test("8.2 a Cloud SQL instance that does not answer is refused after a bounded w
   }
 
   // An instance that takes the connection and then says nothing is refused at the same bound (here
-  // a quarter of a second), by every call that needs it, rather than waiting on the socket.
+  // a quarter of a second), by every call that needs it, rather than waiting on the socket. (The
+  // silent server hangs up after 10 seconds, so that were there no bound the test would fail on
+  // the time taken, not hang.)
   const held = new Set<Socket>();
   const silent = createServer((socket) => {
     held.add(socket);
+    setTimeout(() => socket.destroy(), 10_000).unref();
   });
   await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
   const { port } = silent.address() as AddressInfo;
@@ -417,6 +454,25 @@ function connectingSocket(port: number, host: string): Socket {
   const socket = openSocket(port, host);
   socket.connect = () => socket;
   return socket;
+}
+
+/**
+ * Assert that a connector whose sign-in failed was not closed. It holds nothing to close, and
+ * Google's close() would raise the failed lookup it keeps again, as an unhandled rejection: enough
+ * to end a Node process.
+ */
+function assertNotClosed(google: FakeGoogle): void {
+  assert.equal(google.closed, 0, "a connector whose sign-in failed is not closed");
+}
+
+/**
+ * The Google libraries this process has loaded. The connector's own code is an ES module, but the
+ * libraries it loads, google-auth-library and gaxios, are CommonJS and land in require's cache.
+ */
+function googleCodeLoaded(): string[] {
+  return Object.keys(createRequire(import.meta.url).cache).filter((file) =>
+    /[\\/]node_modules[\\/](?:google-auth-library|gaxios)[\\/]/.test(file),
+  );
 }
 
 /** An HTTP failure as Google's client libraries throw one: a gaxios GaxiosError, with its status and the reply. */

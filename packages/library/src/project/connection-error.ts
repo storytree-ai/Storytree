@@ -32,3 +32,44 @@ export class ConnectionError extends Error {
     this.problem = problem;
   }
 }
+
+/**
+ * The refusal of a new project's database: the server's user `user` may not create databases
+ * (Postgres refused CREATE DATABASE with `cause`, SQLSTATE 42501). It names the one grant that
+ * fixes it for good, and the other way out: the database made by someone who may, owned by the
+ * user, since only a database's owner may create tables in it (Postgres 15 and later).
+ */
+export function cannotCreateDatabases(
+  server: "postgres" | "cloud-sql",
+  user: string,
+  database: string,
+  cause: unknown,
+): ConnectionError {
+  const role = quoteIdentifier(user);
+  const [whose, grantor] =
+    server === "cloud-sql"
+      ? ["Your Cloud SQL user", "as the instance's `postgres` user"]
+      : ["Your Postgres user", "as a superuser (such as `postgres`)"];
+  return new ConnectionError(
+    "create-database",
+    `${whose} cannot create databases, and storytree keeps one database per project. Grant it once, ${grantor}: ` +
+      `\`ALTER ROLE ${role} CREATEDB;\` — or create the database \`${database}\` yourself, owned by ${role}.`,
+    cause,
+  );
+}
+
+/** Whether `error` is Postgres refusing for want of a privilege (SQLSTATE 42501, insufficient_privilege). */
+export function isInsufficientPrivilege(error: unknown): boolean {
+  return sqlState(error) === "42501";
+}
+
+/** The SQLSTATE of a Postgres error, as pg reports it in `code`; undefined for anything else. */
+export function sqlState(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const { code } = error as { code?: unknown };
+  return typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) ? code : undefined;
+}
+
+function quoteIdentifier(name: string): string {
+  return `"${name.replaceAll('"', '""')}"`;
+}

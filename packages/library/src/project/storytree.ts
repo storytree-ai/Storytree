@@ -1,8 +1,9 @@
 /**
  * Capability 1 · Project libraries (stories/library.md): one Postgres server holds many
- * projects, each in its own database, created the first time the project is opened.
+ * projects, each in its own database, created the first time the project is opened. The server is
+ * at a URL, or it is a Cloud SQL instance reached with Google sign-in (capability 8): either way it
+ * is reached through a ServerAccess, and everything here works the same on both.
  */
-import pg from "pg";
 import type { Pool } from "pg";
 
 import { HealthRecord } from "../health/health-record.js";
@@ -12,8 +13,10 @@ import { PgTransactions } from "../transactions/pg.js";
 import type { Transactions } from "../transactions/types.js";
 import { WorkModel } from "../work/work-model.js";
 import { cloudSqlServer, type CloudSqlConfig, type CloudSqlSeams } from "./cloud-sql.js";
+import { cannotCreateDatabases, ConnectionError, isInsufficientPrivilege } from "./connection-error.js";
 import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
 import { PROJECT_SCHEMA } from "./schema.js";
+import { localServer, type ServerAccess } from "./server.js";
 
 /** Where the Postgres server is: at a URL, or a Cloud SQL instance reached with Google sign-in. */
 export type ConnectOptions =
@@ -70,69 +73,93 @@ export interface Project {
 }
 
 /**
- * Connect to a Postgres server. Nothing touches the server until a call needs it. `seams` is
+ * Connect to a Postgres server. Nothing touches the server until a call needs it. A Cloud SQL
+ * instance is signed in to and looked up first, so a missing or bad Google sign-in, or an instance
+ * the account cannot use, is refused here with a ConnectionError saying what to fix. `seams` is
  * internal: tests hand the cloud path a fake connector through it.
  */
 export async function connect(options: ConnectOptions, seams: CloudSqlSeams = {}): Promise<Storytree> {
-  if (options.cloudSql !== undefined) {
-    await cloudSqlServer(options.cloudSql, seams);
-    throw new Error("not implemented");
+  if (options.cloudSql === undefined) return new ServerConnection(localServer(new URL(options.url)));
+  if (options.url !== undefined) {
+    throw new ConnectionError("config", "Give connect() either a url or a cloudSql instance, not both.");
   }
-  return new ServerConnection(new URL(options.url));
+  return new ServerConnection(await cloudSqlServer(options.cloudSql, seams));
 }
 
 class ServerConnection implements Storytree {
-  readonly #server: URL;
-  /** Connections to the server's own database, used only to create and list project databases. */
-  readonly #admin: Pool;
+  readonly #server: ServerAccess;
   readonly #projects = new Set<ProjectLibrary>();
   #closed = false;
 
-  constructor(server: URL) {
+  constructor(server: ServerAccess) {
     this.#server = server;
-    this.#admin = newPool(server.href);
   }
 
   async openProject(name: string): Promise<Project> {
     assertProjectName(name); // before anything touches the server
     const database = projectDatabase(name);
-    await this.#createDatabaseIfMissing(database);
-    const pool = newPool(databaseUrl(this.#server, database));
     try {
-      await applySchema(pool, name);
+      await this.#createDatabaseIfMissing(database);
+      const pool = this.#server.pool(database);
+      try {
+        await applySchema(pool, name);
+      } catch (error) {
+        await pool.end();
+        throw error;
+      }
+      const project = new ProjectLibrary(name, pool, () => this.#projects.delete(project));
+      this.#projects.add(project);
+      return project;
     } catch (error) {
-      await pool.end();
-      throw error;
+      throw this.#server.explain(error);
     }
-    const project = new ProjectLibrary(name, pool, () => this.#projects.delete(project));
-    this.#projects.add(project);
-    return project;
   }
 
   async listProjects(): Promise<string[]> {
-    const { rows } = await this.#admin.query<{ datname: string }>(
-      "SELECT datname FROM pg_database WHERE starts_with(datname, $1)",
-      [PROJECT_DATABASE_PREFIX],
-    );
-    return rows.map((row) => row.datname.slice(PROJECT_DATABASE_PREFIX.length)).sort();
+    try {
+      const { rows } = await this.#server.admin.query<{ datname: string }>(
+        "SELECT datname FROM pg_database WHERE starts_with(datname, $1)",
+        [PROJECT_DATABASE_PREFIX],
+      );
+      return rows.map((row) => row.datname.slice(PROJECT_DATABASE_PREFIX.length)).sort();
+    } catch (error) {
+      throw this.#server.explain(error);
+    }
   }
 
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    await Promise.all([...this.#projects].map((project) => project.close()));
-    await this.#admin.end();
+    try {
+      await Promise.all([...this.#projects].map((project) => project.close()));
+      await this.#server.admin.end();
+    } finally {
+      this.#server.close();
+    }
   }
 
   async #createDatabaseIfMissing(database: string): Promise<void> {
-    const existing = await this.#admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [database]);
+    const { admin } = this.#server;
+    const existing = await admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [database]);
     if (existing.rows.length > 0) return;
     try {
-      await this.#admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`);
+      await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`);
     } catch (error) {
       // Another open of the same project created it first: the outcome we wanted.
-      if (!isDuplicateDatabase(error)) throw error;
+      if (isDuplicateDatabase(error)) return;
+      // The server's user may not create databases: say how to let it, or how to do without.
+      if (isInsufficientPrivilege(error)) {
+        const user = await this.#serverUser().catch(() => undefined);
+        if (user !== undefined) throw cannotCreateDatabases(this.#server.kind, user, database, error);
+      }
+      throw error;
     }
+  }
+
+  /** The role the server's connections are signed in as. */
+  async #serverUser(): Promise<string | undefined> {
+    const { rows } = await this.#server.admin.query<{ name: string }>("SELECT current_user AS name");
+    return rows[0]?.name;
   }
 }
 
@@ -188,21 +215,6 @@ async function applySchema(pool: Pool, name: string): Promise<void> {
   } finally {
     client.release(failed);
   }
-}
-
-function newPool(connectionString: string): Pool {
-  const pool = new pg.Pool({ connectionString });
-  // An idle connection that drops (a server restart, a dropped database) is discarded by the pool
-  // and the next query reconnects or fails loudly. Without a listener Node would crash instead.
-  pool.on("error", () => {});
-  return pool;
-}
-
-/** The server URL with its database swapped for `database`; user, host, port and options stay. */
-function databaseUrl(server: URL, database: string): string {
-  const url = new URL(server.href);
-  url.pathname = `/${encodeURIComponent(database)}`;
-  return url.href;
 }
 
 function quoteIdentifier(name: string): string {

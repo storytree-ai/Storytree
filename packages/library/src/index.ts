@@ -5,9 +5,9 @@
 // nothing but this entry, so the internals behind it cannot be imported at all.
 export { connect } from "./api/index.js";
 export type { Change, Changes, Library, Storytree } from "./api/index.js";
-export type { ConnectOptions } from "./project/index.js";
+export type { CloudSqlConfig, ConnectionProblem, ConnectOptions } from "./project/index.js";
 
-export { ProjectNameError } from "./project/index.js";
+export { ConnectionError, ProjectNameError } from "./project/index.js";
 export { DependencyLoopError, MissingReferenceError } from "./references.js";
 export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
 

@@ -21,7 +21,8 @@ export interface Storytree {
   /**
    * Open the library of the project called `name`, creating its database the first time. A name
    * that breaks the project-name rule is refused (ProjectNameError) before anything touches the
-   * server.
+   * server. A server user that may not create databases is refused (ConnectionError) with the
+   * grant that lets it.
    */
   openProject(name: string): Promise<Library>;
   /** The names of the storytree projects on the server, sorted. No other database is listed. */
@@ -108,7 +109,13 @@ export interface Changes {
   cursor: number;
 }
 
-/** Connect to a Postgres server. Nothing touches the server until a call needs it. */
+/**
+ * Connect to a Postgres server: `{ url }` for one at a postgres:// URL, or `{ cloudSql: { instance,
+ * user } }` for a Cloud SQL instance, signed in to as your own Google account (capability 8).
+ * Nothing touches the server until a call needs it, but a Cloud SQL instance is signed in to and
+ * looked up here. Whatever stops storytree reaching or using a server as it is set up is refused
+ * with a ConnectionError saying what to fix.
+ */
 export async function connect(options: ConnectOptions): Promise<Storytree> {
   return new ServerHandle(await connectServer(options));
 }
