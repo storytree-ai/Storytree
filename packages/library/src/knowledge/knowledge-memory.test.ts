@@ -149,6 +149,8 @@ for (const backend of [memory, postgres]) {
     const edited = await knowledge.editNote(memory.id, { text: "Postmark needs a verified sender" });
     assert.deepEqual(await knowledge.search("postmark SENDER"), [edited]);
     assert.deepEqual(await knowledge.search("mailgun"), [decision]);
+    // The edited note keeps its place: results come in creation order, not in order of the latest change.
+    assert.deepEqual(await knowledge.search("verified"), [edited, definition]);
 
     // Case is ignored beyond ASCII too.
     const accented = await knowledge.defineTerm({ term: "Déjà vu", meaning: "Élan, café and naïveté" });
@@ -181,6 +183,9 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual(await knowledge.relatedNotes(other.id), [...linking.filter((note) => note.type === "decision"), elsewhere]);
     assert.deepEqual(await knowledge.relatedNotes(quiet.id), [], "a story no note links to");
     assert.deepEqual(await knowledge.relatedNotes(NO_STORY), [], "an id naming no record");
+    // A link is to one exact id: part of it, or the same letters in another case, is another id.
+    assert.deepEqual(await knowledge.relatedNotes(story.id.slice(0, -1)), [], "part of a linked id");
+    assert.deepEqual(await knowledge.relatedNotes(story.id.toUpperCase()), [], "a linked id in another case");
 
     // A note can link to another note, or to a record of any type, and relatedNotes answers for
     // any id. Records that are not notes are never returned, though an arc listing the story and
@@ -200,6 +205,11 @@ for (const backend of [memory, postgres]) {
     await knowledge.editNote(at(linking, 1).id, { links: [] });
     const joined = await knowledge.editNote(unlinked.id, { links: [quiet.id, story.id] });
     assert.deepEqual(await knowledge.relatedNotes(story.id), [...linking.slice(2), joined]);
+    // A note edited after the others keeps its place: the order is creation order, not the order
+    // of the latest change.
+    await clockPast(joined?.updatedAt ?? assert.fail("the note was not edited"));
+    const revised = await knowledge.editNote(at(linking, 2).id, { text: "Chosen again" });
+    assert.deepEqual(await knowledge.relatedNotes(story.id), [revised, ...linking.slice(3), joined]);
   });
 
   contract("6.3", "editing a decision keeps its old wording in history", async ({ knowledge, records, transactions }) => {
@@ -346,7 +356,12 @@ async function assertCreated(
 
 /** Wait until the clock has passed `record`'s creation, so the next record is created strictly later. */
 async function laterThan(record: { readonly createdAt: string }): Promise<void> {
-  while (Date.now() <= Date.parse(record.createdAt)) await sleep(1);
+  await clockPast(record.createdAt);
+}
+
+/** Wait until the clock has passed `timestamp`, so whatever is written next is stamped strictly later. */
+async function clockPast(timestamp: string): Promise<void> {
+  while (Date.now() <= Date.parse(timestamp)) await sleep(1);
 }
 
 /**
