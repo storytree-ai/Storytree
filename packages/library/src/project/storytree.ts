@@ -5,6 +5,7 @@
 import pg from "pg";
 import type { Pool } from "pg";
 
+import { HealthRecord } from "../health/health-record.js";
 import { Knowledge } from "../knowledge/knowledge.js";
 import { SchemaRecords } from "../schema/records.js";
 import { PgTransactions } from "../transactions/pg.js";
@@ -51,6 +52,8 @@ export interface Project {
   readonly work: WorkModel;
   /** What the project has learned: memory notes, decisions and definitions (capability 6). */
   readonly knowledge: Knowledge;
+  /** How healthy each story, capability and contract is, reported and verified (capability 5). */
+  readonly health: HealthRecord;
   /** Close this project's connections. */
   close(): Promise<void>;
 }
@@ -122,6 +125,7 @@ class ProjectLibrary implements Project {
   readonly records: SchemaRecords;
   readonly work: WorkModel;
   readonly knowledge: Knowledge;
+  readonly health: HealthRecord;
   readonly #forget: () => void;
   #closing: Promise<void> | undefined;
 
@@ -132,6 +136,7 @@ class ProjectLibrary implements Project {
     this.records = new SchemaRecords(this.transactions);
     this.work = new WorkModel(this.records);
     this.knowledge = new Knowledge(this.records);
+    this.health = new HealthRecord(this.records, this.work);
     this.#forget = forget;
   }
 
