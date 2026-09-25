@@ -210,9 +210,14 @@ works the same, and each project still gets its own database, now on the cloud s
 
 - **Depends on:** 1. It is built after 1–7 work on the local path, and no test of 1–7 depends on it.
 - **Leaves out:** every cloud except Google, and sharing one cloud library between several people.
-- **Live proof status:** built and proven OFFLINE (every refusal of contract 8.2). Contract 8.1's live run
-  waits on the owner: it needs a Cloud SQL user allowed to create databases (one database per
-  project), and the only instance available belongs to storytree 0.2.
+- **Live proof status:** PROVEN LIVE on 2026-09-26. Contract 8.1's suite passed against storytree 0.2's Cloud SQL
+  instance (Postgres 16), signed in as the owner's Google account.
+- **Setup a Cloud SQL owner does once:** on Cloud SQL (Postgres 16), a Google-account database user can never be given the
+  right to create databases, because only Google's internal admin may change such a user. So, once, as the
+  instance's `postgres` user: `CREATE ROLE storytree_creator NOLOGIN CREATEDB;` and
+  `GRANT storytree_creator TO "<google account>";`. The library borrows that role (SET ROLE) whenever it
+  creates a project's database, and its refusal message gives exactly these two lines when the role is
+  missing.
 
 **Contracts:**
 1. Capability 2's behaviour suite, unchanged, passes against a real Cloud SQL instance reached with
