@@ -4,6 +4,15 @@
  * message saying what to fix, never a hang. (8.1, the live proof, is in
  * src/transactions/cloud-sql.test.ts.)
  *
+ * Also here, the robustness checks behind 8.1, run offline and named "8.1 robustness, offline": a
+ * Cloud SQL IAM database user may not create databases, and the instance's `postgres` user cannot
+ * let it (on Postgres 16 and later only a role holding ADMIN OPTION on a role may alter it, and on
+ * Cloud SQL that is Google's cloudsqladmin alone). What `postgres` can do is make a role that may
+ * create databases and grant it to the user, and the user then borrows that role (SET ROLE) to
+ * make each project's database. These prove the borrowing on the local Postgres, in the same
+ * privilege shape: a user the superuser made, as cloudsqladmin makes an IAM user, and, where it
+ * matters, a `postgres` that may create roles and databases but is no superuser.
+ *
  * Nothing here reaches Google or a real Cloud SQL instance. The cloud path is handed a fake
  * connector through connect()'s seam: one that fails the way Google's does (no sign-in found, a
  * sign-in expired or revoked, an instance that is missing or not allowed, no answer at all), or one
@@ -18,7 +27,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { createServer, connect as openSocket, type AddressInfo, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { mock, test } from "node:test";
+import { after, before, describe, mock, test } from "node:test";
 
 import {
   createTestRole,
@@ -27,9 +36,12 @@ import {
   testServerUrl,
   uniqueProjectName,
   withTestClient,
+  withTestClientAs,
 } from "../testing/pg.js";
+import { transactionsBehaviourSuite } from "../transactions/behaviour-suite.js";
 import { PgTransactions } from "../transactions/pg.js";
 import {
+  cloudSqlServer,
   ConnectionError,
   connect,
   type CloudSqlConnector,
@@ -236,44 +248,61 @@ test("8.2 a Google account that is not a database user on the instance is refuse
   }
 });
 
-test("8.2 opening a new project on Cloud SQL as a user that may not create databases is refused with the grant that fixes it", async () => {
+test("8.2 opening a new project on Cloud SQL as a user that may not create databases, with no role to borrow, is refused with the two lines that let it", async () => {
   const run = uniqueProjectName();
-  // A database user without the right to create databases, as a Cloud SQL IAM user is by default.
+  // A database user without the right to create databases, as a Cloud SQL IAM user is by default,
+  // made by the server's superuser as Google's cloudsqladmin makes one: so `postgres` below holds no
+  // ADMIN OPTION on it.
   const user = `${run}@storytree.test`;
+  // The instance's `postgres` user as Cloud SQL makes it: it may create roles and databases, and it
+  // is no superuser.
+  const postgres = `${run}-postgres`;
+  // The message's storytree_creator, renamed so that runs sharing a test server never collide.
+  const creator = `${run}-creator`;
   const site = `${run}-site`;
-  const app = `${run}-app`;
   let storytree: Storytree | undefined;
   try {
     await createTestRole(user, { createdb: false });
+    await createTestRole(postgres, { createdb: true, createrole: true });
     storytree = await connect({ cloudSql: { instance: INSTANCE, user } }, { connector: fakeGoogle(toTestServer).make });
 
     const refused = await refusalOf(storytree.openProject(site), "create-database");
     assert.equal(
       refused.message,
-      "Your Cloud SQL user cannot create databases, and storytree keeps one database per project. Grant it once, as the " +
-        `instance's \`postgres\` user: \`ALTER ROLE "${user}" CREATEDB;\` — or create the database \`storytree_${site}\` ` +
-        `yourself, owned by "${user}".`,
+      "Your Cloud SQL user cannot create databases, and storytree keeps one database per project. Run these two lines " +
+        "once, as the instance's `postgres` user, to give it a role that can: `CREATE ROLE storytree_creator NOLOGIN CREATEDB;` " +
+        `\`GRANT storytree_creator TO "${user}";\` Storytree then borrows that role to create each project's database.`,
     );
     assert.equal(codeOf(refused.cause), "42501", "the server's own refusal is its cause");
     assert.deepEqual(await databasesContaining(run), [], "no database was made");
 
-    // Both ways out that the message names work. A database made for the user, and owned by it, opens:
-    await withTestClient((client) => client.query(`CREATE DATABASE "storytree_${app}" OWNER "${user}"`));
-    await assertUsable(await storytree.openProject(app), user);
-    // and once the grant is run as the message writes it, the new project's database is made.
-    await withTestClient((client) => client.query(grantIn(refused.message)));
-    await assertUsable(await storytree.openProject(site), user);
-    assert.deepEqual(await databasesContaining(run), [`storytree_${app}`, `storytree_${site}`]);
+    // This server has Cloud SQL's rule, which is why the message gives these two lines: its
+    // `postgres` may neither give the user CREATEDB (the old advice) nor make a database the user
+    // owns, since both need rights over the user that only the role which made it holds.
+    for (const oldAdvice of [`ALTER ROLE "${user}" CREATEDB`, `CREATE DATABASE "storytree_${site}" OWNER "${user}"`]) {
+      await assert.rejects(withTestClientAs(postgres, (client) => client.query(oldAdvice)), (error: unknown) => {
+        assert.equal(codeOf(error), "42501", `${oldAdvice}: ${String(error)}`);
+        return true;
+      });
+    }
+    // Once the two lines are run as the message writes them, by that `postgres`, the same
+    // connection opens the project, borrowing the role.
+    for (const line of linesIn(refused.message)) {
+      await withTestClientAs(postgres, (client) => client.query(renamed(line, creator)));
+    }
+    await assertBorrowed(await storytree.openProject(site), user, creator);
+    assert.deepEqual(await databasesContaining(run), [`storytree_${site}`]);
   } finally {
     await storytree?.close();
-    await dropTestDatabases([`storytree_${site}`, `storytree_${app}`]);
-    await dropTestRoles([user]);
+    await dropTestDatabases([`storytree_${site}`]);
+    await dropTestRoles([user, creator, postgres]);
   }
 });
 
-test("8.2 on the local path too, opening a new project as a server user that may not create databases is refused with the grant that fixes it", async () => {
+test("8.2 on the local path too, opening a new project as a server user that may not create databases, with no role to borrow, is refused with the two lines that let it", async () => {
   const run = uniqueProjectName();
   const role = `${run}-user`;
+  const creator = `${run}-creator`;
   const reader = `${run}-reader`;
   let storytree: Storytree | undefined;
   let readOnly: Storytree | undefined;
@@ -286,15 +315,17 @@ test("8.2 on the local path too, opening a new project as a server user that may
     const refused = await refusalOf(storytree.openProject(run), "create-database");
     assert.equal(
       refused.message,
-      "Your Postgres user cannot create databases, and storytree keeps one database per project. Grant it once, as a " +
-        `superuser (such as \`postgres\`): \`ALTER ROLE "${role}" CREATEDB;\` — or create the database \`storytree_${run}\` ` +
-        `yourself, owned by "${role}".`,
+      "Your Postgres user cannot create databases, and storytree keeps one database per project. Run these two lines " +
+        "once, as a superuser (such as `postgres`), to give it a role that can: `CREATE ROLE storytree_creator NOLOGIN CREATEDB;` " +
+        `\`GRANT storytree_creator TO "${role}";\` Storytree then borrows that role to create each project's database.`,
     );
     assert.equal(codeOf(refused.cause), "42501", "the server's own refusal is its cause");
     assert.deepEqual(await databasesContaining(run), [], "no database was made");
 
-    await withTestClient((client) => client.query(grantIn(refused.message)));
-    assert.equal((await storytree.openProject(run)).name, run, "once the grant is run as written, the project opens");
+    for (const line of linesIn(refused.message)) await withTestClient((client) => client.query(renamed(line, creator)));
+    const project = await storytree.openProject(run);
+    assert.equal(project.name, run, "once the two lines are run as written, the project opens");
+    await assertBorrowed(project, role, creator);
     assert.deepEqual(await databasesContaining(run), [`storytree_${run}`]);
     assert.deepEqual(googleCodeLoaded(), [], "and the local path never loaded Google's code");
 
@@ -315,7 +346,7 @@ test("8.2 on the local path too, opening a new project as a server user that may
     await storytree?.close();
     await readOnly?.close();
     await dropTestDatabases([`storytree_${run}`, `storytree_${run}-replica`]);
-    await dropTestRoles([role, reader]);
+    await dropTestRoles([role, creator, reader]);
   }
 });
 
@@ -400,6 +431,146 @@ test("8.2 a Cloud SQL instance that does not answer is refused after a bounded w
     await storytree?.close();
     for (const socket of held) socket.destroy();
     await new Promise<void>((resolve) => silent.close(() => resolve()));
+  }
+});
+
+test("8.1 robustness, offline: on either path, a user that may not create databases opens a new project by borrowing a role that may, and hands the role back", async () => {
+  const run = uniqueProjectName();
+  // A database user that may not create databases, as a Cloud SQL IAM user is, and a role that
+  // may, granted to it: what the two lines of the refusal above make.
+  const user = `${run}@storytree.test`;
+  const creator = `${run}-creator`;
+  const [onCloud, onLocal, raced, later] = ["cloud", "local", "raced", "later"].map((part) => `${run}-${part}`) as [
+    string,
+    string,
+    string,
+    string,
+  ];
+  const opened: Storytree[] = [];
+  try {
+    await createTestRole(user, { createdb: false });
+    await createTestRole(creator, { createdb: true, login: false });
+    await withTestClient((client) => client.query(`GRANT "${creator}" TO "${user}"`));
+    const cloud = await connect({ cloudSql: { instance: INSTANCE, user } }, { connector: fakeGoogle(toTestServer).make });
+    opened.push(cloud);
+    const url = new URL(testServerUrl());
+    url.username = user;
+    const local = await connect({ url: url.href });
+    opened.push(local);
+
+    await assertBorrowed(await cloud.openProject(onCloud), user, creator);
+    await assertBorrowed(await local.openProject(onLocal), user, creator);
+
+    // Two first opens of one project racing each other, one on each path, are as safe as ever:
+    // both succeed, and there is one database, set up once.
+    const both = await Promise.all([cloud.openProject(raced), local.openProject(raced)]);
+    assert.deepEqual(both.map((project) => project.name), [raced, raced]);
+    assert.deepEqual(await databasesContaining(raced), [`storytree_${raced}`]);
+    for (const project of both) await assertBorrowed(project, user, creator);
+
+    // The role was taken on for the CREATE DATABASE alone and handed back: once the grant is
+    // withdrawn, the same connections are refused a new project again, as the user itself.
+    await withTestClient((client) => client.query(`REVOKE "${creator}" FROM "${user}"`));
+    for (const storytree of opened) await refusalOf(storytree.openProject(later), "create-database");
+    assert.deepEqual(await databasesContaining(later), [], "no database was made");
+  } finally {
+    await Promise.allSettled(opened.map((storytree) => storytree.close()));
+    await dropTestDatabases([onCloud, onLocal, raced, later].map((name) => `storytree_${name}`));
+    await dropTestRoles([user, creator]);
+  }
+});
+
+test("8.1 robustness, offline: of the roles a user may take on that may create databases, it borrows the first by name, reached directly or through another role, and never one it may not SET ROLE to", async () => {
+  const run = uniqueProjectName();
+  const user = `${run}@storytree.test`;
+  // Three roles that may create databases, made and granted in the opposite order to their names,
+  // so that neither order can pass for the other. `-creator-0` comes first by name, but is granted
+  // WITH SET FALSE, so the user may not take it on; `-creator-a` is reached through `-group`.
+  const [notSettable, throughGroup, direct] = ["0", "a", "b"].map((suffix) => `${run}-creator-${suffix}`) as [
+    string,
+    string,
+    string,
+  ];
+  const group = `${run}-group`;
+  let storytree: Storytree | undefined;
+  try {
+    await createTestRole(user, { createdb: false });
+    await createTestRole(group, { createdb: false, login: false });
+    for (const creator of [direct, throughGroup, notSettable]) await createTestRole(creator, { createdb: true, login: false });
+    await withTestClient(async (client) => {
+      await client.query(`GRANT "${direct}" TO "${user}"`);
+      await client.query(`GRANT "${throughGroup}" TO "${group}"`);
+      await client.query(`GRANT "${group}" TO "${user}"`);
+      await client.query(`GRANT "${notSettable}" TO "${user}" WITH SET FALSE`);
+    });
+    storytree = await connect({ cloudSql: { instance: INSTANCE, user } }, { connector: fakeGoogle(toTestServer).make });
+
+    // The same role every time.
+    for (const part of ["one", "two"]) await assertBorrowed(await storytree.openProject(`${run}-${part}`), user, throughGroup);
+  } finally {
+    await storytree?.close();
+    await dropTestDatabases([`storytree_${run}-one`, `storytree_${run}-two`]);
+    await dropTestRoles([user, group, notSettable, throughGroup, direct]);
+  }
+});
+
+describe("8.1 robustness, offline: capability 2's behaviour suite, unchanged, in projects a user that may not create databases opened on the cloud path by borrowing a role that may", () => {
+  const run = uniqueProjectName();
+  const user = `${run}@storytree.test`;
+  const creator = `${run}-creator`;
+  const made: string[] = [];
+  before(async () => {
+    await createTestRole(user, { createdb: false });
+    await createTestRole(creator, { createdb: true, login: false });
+    await withTestClient((client) => client.query(`GRANT "${creator}" TO "${user}"`));
+  });
+  after(async () => {
+    await dropTestDatabases(made); // each test's own cleanup dropped its database; this catches any it could not
+    await dropTestRoles([user, creator]);
+  });
+  transactionsBehaviourSuite("cloud-sql path, borrowing a creator role", async () => {
+    const name = `${run}-${made.length + 1}`;
+    const database = `storytree_${name}`;
+    made.push(database);
+    const storytree = await connect({ cloudSql: { instance: INSTANCE, user } }, { connector: fakeGoogle(toTestServer).make });
+    const dispose = async (): Promise<void> => {
+      try {
+        await storytree.close();
+      } finally {
+        await dropAsUser(user, [database]);
+      }
+    };
+    try {
+      const project = await storytree.openProject(name);
+      return { store: new PgTransactions(project.pool), cleanup: dispose };
+    } catch (error) {
+      await dispose();
+      throw error;
+    }
+  });
+});
+
+test("8.1 robustness, offline: the live proof's cleanup drops a project database the borrowed role owns, over the user's own connection, even while the project is still open", async () => {
+  const run = uniqueProjectName();
+  const user = `${run}@storytree.test`;
+  const creator = `${run}-creator`;
+  const database = `storytree_${run}`;
+  let storytree: Storytree | undefined;
+  try {
+    await createTestRole(user, { createdb: false });
+    await createTestRole(creator, { createdb: true, login: false });
+    await withTestClient((client) => client.query(`GRANT "${creator}" TO "${user}"`));
+    storytree = await connect({ cloudSql: { instance: INSTANCE, user } }, { connector: fakeGoogle(toTestServer).make });
+    await assertBorrowed(await storytree.openProject(run), user, creator);
+    assert.ok((await sessionsOn(database, user)) > 0, "precondition: the open project holds a session of the user's on its database");
+
+    await dropAsUser(user, [database]);
+
+    assert.deepEqual(await databasesContaining(run), [], "the database is gone");
+  } finally {
+    await storytree?.close();
+    await dropTestDatabases([database]);
+    await dropTestRoles([user, creator]);
   }
 });
 
@@ -502,19 +673,80 @@ function codeOf(error: unknown): unknown {
   return typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
 }
 
-/** The ALTER ROLE statement a refusal's message tells the user to run. */
-function grantIn(message: string): string {
-  const grant = /`(ALTER ROLE [^`]+)`/.exec(message)?.[1];
-  return grant ?? assert.fail(`no grant in: ${message}`);
+/** The SQL lines a refusal's message gives the owner to run: each `…;` in it, in order. */
+function linesIn(message: string): string[] {
+  const lines = [...message.matchAll(/`([^`]+;)`/g)].map((match) => match[1] ?? assert.fail(`no line in ${match[0]}`));
+  return lines.length > 0 ? lines : assert.fail(`no lines to run in: ${message}`);
 }
 
-/** Assert that a project opened over the cloud path is signed in as `user`, on its own database, and keeps records. */
-async function assertUsable(project: Project, user: string): Promise<void> {
-  const { rows } = await project.pool.query<{ who: string; db: string }>("SELECT current_user AS who, current_database() AS db");
-  assert.deepEqual(rows, [{ who: user, db: `storytree_${project.name}` }]);
+/** `line` with its role, storytree_creator, renamed to `role`: a test server is shared by other runs. */
+function renamed(line: string, role: string): string {
+  return line.replaceAll("storytree_creator", `"${role}"`);
+}
+
+/**
+ * Assert that `project` was opened by borrowing `creator`: its database is the borrowed role's; the
+ * project is signed in as `user` itself, the role handed back; it has its tables, every one made by
+ * the user, holding the project's name (capability 1); and it saves and reads a record (capability 2).
+ */
+async function assertBorrowed(project: Project, user: string, creator: string): Promise<void> {
+  const database = `storytree_${project.name}`;
+  const owners = await withTestClient(async (client) => {
+    const { rows } = await client.query<{ owner: string }>(
+      "SELECT pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname = $1",
+      [database],
+    );
+    return rows.map((row) => row.owner);
+  });
+  assert.deepEqual(owners, [creator], "the project's database is the borrowed role's");
+
+  const { rows: signedIn } = await project.pool.query<{ current: string; session: string; db: string }>(
+    "SELECT current_user AS current, session_user AS session, current_database() AS db",
+  );
+  assert.deepEqual(signedIn, [{ current: user, session: user, db: database }], "the project is signed in as the user itself");
+
+  const { tables, meta } = await withTestClient(async (client) => {
+    const listed = await client.query<{ name: string; owner: string }>(
+      `SELECT tablename AS name, tableowner AS owner FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename COLLATE "C"`,
+    );
+    const kept = await client.query<{ key: string; value: string }>("SELECT key, value FROM library_meta");
+    return { tables: listed.rows, meta: Object.fromEntries(kept.rows.map((row) => [row.key, row.value])) };
+  }, database);
+  assert.ok(tables.length > 0, "the project has its tables");
+  assert.deepEqual(tables.filter((table) => table.owner !== user), [], "every one of them made by the user");
+  assert.deepEqual(meta, { project: project.name }, "holding the project's name");
+
   const store = new PgTransactions(project.pool);
-  const saved = await store.save({ id: "probe", type: "note", fields: { text: "written over the cloud path" } });
+  const saved = await store.save({ id: "probe", type: "note", fields: { text: "written in a database a borrowed role made" } });
   assert.deepEqual(await store.get("probe"), saved);
+}
+
+/**
+ * Drop `databases` as the live proof drops its own (dropOnInstance, src/transactions/cloud-sql.test.ts):
+ * through the admin pool of a server reached on the cloud path as `user`, never as the superuser.
+ */
+async function dropAsUser(user: string, databases: readonly string[]): Promise<void> {
+  const server = await cloudSqlServer({ instance: INSTANCE, user }, { connector: fakeGoogle(toTestServer).make });
+  try {
+    await dropTestDatabases(databases, server.admin);
+  } finally {
+    try {
+      await server.admin.end();
+    } finally {
+      server.close();
+    }
+  }
+}
+
+/** How many sessions `user` has open on `database`. */
+async function sessionsOn(database: string, user: string): Promise<number> {
+  return withTestClient(async (client) => {
+    const { rows } = await client.query<{ count: string }>(
+      "SELECT count(*) AS count FROM pg_stat_activity WHERE datname = $1 AND usename = $2",
+      [database, user],
+    );
+    return Number(rows[0]?.count ?? 0);
+  });
 }
 
 /** The databases on the test server whose names contain `token`, in byte order. */
