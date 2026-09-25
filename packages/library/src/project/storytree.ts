@@ -2,7 +2,11 @@
  * Capability 1 · Project libraries (stories/library.md): one Postgres server holds many
  * projects, each in its own database, created the first time the project is opened.
  */
+import pg from "pg";
 import type { Pool } from "pg";
+
+import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
+import { PROJECT_SCHEMA } from "./schema.js";
 
 /** Where the Postgres server is. */
 export interface ConnectOptions {
@@ -39,6 +43,135 @@ export interface Project {
 }
 
 /** Connect to a Postgres server. Nothing touches the server until a call needs it. */
-export async function connect(_options: ConnectOptions): Promise<Storytree> {
-  throw new Error("not implemented");
+export async function connect(options: ConnectOptions): Promise<Storytree> {
+  return new ServerConnection(new URL(options.url));
+}
+
+class ServerConnection implements Storytree {
+  readonly #server: URL;
+  /** Connections to the server's own database, used only to create and list project databases. */
+  readonly #admin: Pool;
+  readonly #projects = new Set<ProjectLibrary>();
+  #closed = false;
+
+  constructor(server: URL) {
+    this.#server = server;
+    this.#admin = newPool(server.href);
+  }
+
+  async openProject(name: string): Promise<Project> {
+    assertProjectName(name); // before anything touches the server
+    const database = projectDatabase(name);
+    await this.#createDatabaseIfMissing(database);
+    const pool = newPool(databaseUrl(this.#server, database));
+    try {
+      await applySchema(pool, name);
+    } catch (error) {
+      await pool.end();
+      throw error;
+    }
+    const project = new ProjectLibrary(name, pool, () => this.#projects.delete(project));
+    this.#projects.add(project);
+    return project;
+  }
+
+  async listProjects(): Promise<string[]> {
+    const { rows } = await this.#admin.query<{ datname: string }>(
+      "SELECT datname FROM pg_database WHERE starts_with(datname, $1)",
+      [PROJECT_DATABASE_PREFIX],
+    );
+    return rows.map((row) => row.datname.slice(PROJECT_DATABASE_PREFIX.length)).sort();
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return;
+    this.#closed = true;
+    await Promise.all([...this.#projects].map((project) => project.close()));
+    await this.#admin.end();
+  }
+
+  async #createDatabaseIfMissing(database: string): Promise<void> {
+    const existing = await this.#admin.query("SELECT 1 FROM pg_database WHERE datname = $1", [database]);
+    if (existing.rows.length > 0) return;
+    try {
+      await this.#admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`);
+    } catch (error) {
+      // Another open of the same project created it first: the outcome we wanted.
+      if (!isDuplicateDatabase(error)) throw error;
+    }
+  }
+}
+
+class ProjectLibrary implements Project {
+  readonly name: string;
+  readonly pool: Pool;
+  readonly #forget: () => void;
+  #closing: Promise<void> | undefined;
+
+  constructor(name: string, pool: Pool, forget: () => void) {
+    this.name = name;
+    this.pool = pool;
+    this.#forget = forget;
+  }
+
+  close(): Promise<void> {
+    this.#closing ??= this.pool.end().finally(this.#forget);
+    return this.#closing;
+  }
+}
+
+/**
+ * Apply the project schema in one transaction and record the project's name. Opens of one project
+ * can race (two processes, or two first opens), so they take turns on an advisory lock: two
+ * concurrent CREATE TABLE IF NOT EXISTS can otherwise collide.
+ */
+async function applySchema(pool: Pool, name: string): Promise<void> {
+  const client = await pool.connect();
+  let failed = false;
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('storytree.project-schema'))");
+    for (const statement of PROJECT_SCHEMA) await client.query(statement);
+    await client.query(
+      "INSERT INTO library_meta (key, value) VALUES ('project', $1) ON CONFLICT (key) DO NOTHING",
+      [name],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    failed = true;
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release(failed);
+  }
+}
+
+function newPool(connectionString: string): Pool {
+  const pool = new pg.Pool({ connectionString });
+  // An idle connection that drops (a server restart, a dropped database) is discarded by the pool
+  // and the next query reconnects or fails loudly. Without a listener Node would crash instead.
+  pool.on("error", () => {});
+  return pool;
+}
+
+/** The server URL with its database swapped for `database`; user, host, port and options stay. */
+function databaseUrl(server: URL, database: string): string {
+  const url = new URL(server.href);
+  url.pathname = `/${encodeURIComponent(database)}`;
+  return url.href;
+}
+
+function quoteIdentifier(name: string): string {
+  return `"${name.replaceAll('"', '""')}"`;
+}
+
+/**
+ * CREATE DATABASE lost a race with another open of the same project. Postgres reports that as
+ * duplicate_database or, when both creates passed its own existence check, as a unique violation
+ * on pg_database's name index.
+ */
+function isDuplicateDatabase(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, constraint } = error as { code?: unknown; constraint?: unknown };
+  return code === "42P04" || (code === "23505" && constraint === "pg_database_datname_index");
 }

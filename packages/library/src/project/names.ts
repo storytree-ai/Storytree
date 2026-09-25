@@ -1,0 +1,25 @@
+/** Project names, and the database each project lives in. */
+
+/** A project's database is this prefix followed by the project's name. */
+export const PROJECT_DATABASE_PREFIX = "storytree_";
+
+// 1-40 characters of lower-case letters, digits and single hyphens, starting with a letter or
+// digit (and, below, not ending with a hyphen). Forty keeps storytree_<name> well inside
+// Postgres's 63-byte limit on names, so a database name is never silently truncated.
+const PROJECT_NAME = /^[a-z0-9](?:[a-z0-9]|-(?!-)){0,39}$/;
+
+export const PROJECT_NAME_RULE =
+  "a project name is lower-case letters, digits and single hyphens " +
+  "(1-40 characters, starting with a letter or digit and not ending with a hyphen)";
+
+/** Throws an error naming the rule unless `name` is a valid project name. */
+export function assertProjectName(name: unknown): asserts name is string {
+  if (typeof name !== "string" || !PROJECT_NAME.test(name) || name.endsWith("-")) {
+    throw new Error(`project name ${JSON.stringify(name)} is not allowed: ${PROJECT_NAME_RULE}`);
+  }
+}
+
+/** The database that holds project `name`'s library. */
+export function projectDatabase(name: string): string {
+  return PROJECT_DATABASE_PREFIX + name;
+}
