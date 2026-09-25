@@ -1,0 +1,92 @@
+/**
+ * Capability 2 · Library transactions (stories/library.md): the only data actions the library
+ * allows. A record is saved, fetched, listed by type, edited field by field, or retired with a
+ * reason. Every change is all-or-nothing and is written first to an append-only history, so
+ * nothing is ever truly erased.
+ */
+
+/** A stored record: its fields, and the envelope the library keeps around them. */
+export interface RecordEnvelope {
+  id: string;
+  type: string;
+  /** The schema version the record was written on: 1 unless the writer said otherwise. Stored as given, never interpreted here. */
+  version: number;
+  fields: Record<string, unknown>;
+  /** When the record was first saved, as an ISO 8601 timestamp. */
+  createdAt: string;
+  /** When it last changed, as an ISO 8601 timestamp. */
+  updatedAt: string;
+}
+
+/** One change, as the history keeps it. */
+export interface HistoryEntry {
+  /** Where the change sits in the project's history: strictly increasing, not necessarily contiguous. */
+  seq: number;
+  recordId: string;
+  type: string;
+  action: "created" | "updated" | "retired";
+  /** The record after the change; for `retired`, its last state. */
+  record: RecordEnvelope;
+  /** Why the record was retired (`retired` only). */
+  reason?: string;
+  /** Who made the change, when the writer said. */
+  actor?: string;
+  /** When the change was written, as an ISO 8601 timestamp. */
+  at: string;
+}
+
+/**
+ * Runs on the would-be record inside the write, after any merge. If it throws, the write aborts,
+ * rejects with that error, and writes nothing: no record change and no history entry.
+ */
+export type Validate = (candidate: RecordEnvelope) => void;
+
+export interface SaveInput {
+  readonly id: string;
+  readonly type: string;
+  readonly fields: Record<string, unknown>;
+  /** Defaults to 1. */
+  readonly version?: number;
+  readonly actor?: string;
+  readonly validate?: Validate;
+}
+
+export interface EditInput {
+  readonly id: string;
+  /** Merged shallowly onto the stored fields; a key whose value is `undefined` is removed. */
+  readonly fields: Record<string, unknown>;
+  readonly actor?: string;
+  readonly validate?: Validate;
+}
+
+export interface RetireInput {
+  readonly id: string;
+  readonly reason: string;
+  readonly actor?: string;
+}
+
+export interface HistoryFilter {
+  /** Only this record's changes. */
+  readonly id?: string;
+  /** Only changes with a sequence number greater than this. */
+  readonly since?: number;
+}
+
+/** A project's records. These six verbs are the only data actions the library allows. */
+export interface Transactions {
+  /** Create the record, or replace it whole if the id exists. Appends one history entry. */
+  save(input: SaveInput): Promise<RecordEnvelope>;
+  /** The current record, or `null` if it is missing or retired. */
+  get(id: string): Promise<RecordEnvelope | null>;
+  /** The current (not retired) records of one type, ordered by id. */
+  list(type: string): Promise<RecordEnvelope[]>;
+  /**
+   * Change only the named fields, merged onto what is stored now. Returns `null`, and writes
+   * nothing, if the record is missing or retired.
+   */
+  edit(input: EditInput): Promise<RecordEnvelope | null>;
+  /** Retire the record: gone from `get` and `list`, kept in history. A no-op if it is missing or already retired. */
+  retire(input: RetireInput): Promise<void>;
+  /** The history, oldest first. */
+  history(filter?: HistoryFilter): Promise<HistoryEntry[]>;
+}

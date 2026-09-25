@@ -12,4 +12,28 @@ export const PROJECT_SCHEMA: readonly string[] = [
     key   text PRIMARY KEY,
     value text NOT NULL
   )`,
+
+  // Capability 2 · Library transactions. `record` holds each record as it is now; a retired
+  // record has no row here. `record_event` is the append-only history every change is written to
+  // first, so nothing is ever truly erased.
+  `CREATE TABLE IF NOT EXISTS record (
+    id         text PRIMARY KEY,
+    type       text NOT NULL,
+    version    int NOT NULL,
+    fields     jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS record_type_idx ON record (type)`,
+  `CREATE TABLE IF NOT EXISTS record_event (
+    seq       bigserial PRIMARY KEY,
+    record_id text NOT NULL,
+    type      text NOT NULL,
+    action    text NOT NULL CHECK (action IN ('created', 'updated', 'retired')),
+    record    jsonb NOT NULL,
+    reason    text,
+    actor     text,
+    at        timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS record_event_record_id_idx ON record_event (record_id)`,
 ];
