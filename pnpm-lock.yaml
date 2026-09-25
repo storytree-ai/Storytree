@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@storytree/local-postgres':
+        specifier: workspace:*
+        version: link:packages/local-postgres
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -23,22 +26,6 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
-    optionalDependencies:
-      '@embedded-postgres/darwin-arm64':
-        specifier: 17.10.0-beta.17
-        version: 17.10.0-beta.17
-      '@embedded-postgres/darwin-x64':
-        specifier: 17.10.0-beta.17
-        version: 17.10.0-beta.17
-      '@embedded-postgres/linux-arm64':
-        specifier: 17.10.0-beta.17
-        version: 17.10.0-beta.17
-      '@embedded-postgres/linux-x64':
-        specifier: 17.10.0-beta.17
-        version: 17.10.0-beta.17
-      '@embedded-postgres/windows-x64':
-        specifier: 17.10.0-beta.17
-        version: 17.10.0-beta.17
     devDependencies:
       '@types/node':
         specifier: ^24.13.6
