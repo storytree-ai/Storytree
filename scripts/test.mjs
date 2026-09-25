@@ -13,6 +13,10 @@
 // Arguments go to `node --test`: `pnpm test -- <file>` runs just that file. Give options in
 // --name=value form, so that a value is never mistaken for a file.
 //
+// On Windows, a Node.js whose libuv can end the process on a TCP connect is refused before anything
+// starts, with the release to install instead (scripts/node-runtime.mjs): under it, a test file now
+// and then dies at its first connection to Postgres, which reads as a flaky test.
+//
 // Logs: .pgtest/pg.log (the server, last run) and .pgtest/tools.log (initdb and pg_ctl).
 
 import { spawn } from "node:child_process";
@@ -21,6 +25,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DataDirInUseError, start } from "@storytree/local-postgres";
+
+import { runtimeRefusal } from "./node-runtime.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const work = path.join(root, ".pgtest");
@@ -54,6 +60,11 @@ main().then(
 );
 
 async function main() {
+  const refusal = runtimeRefusal();
+  if (refusal !== undefined) {
+    console.error(`test harness: ${refusal}`);
+    return 1;
+  }
   if (process.env.STORYTREE_TEST_PG_URL) {
     console.log("test Postgres: STORYTREE_TEST_PG_URL is set; using that server");
     return runTests(process.env);
