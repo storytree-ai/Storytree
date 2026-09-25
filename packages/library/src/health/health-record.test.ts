@@ -18,7 +18,7 @@ import { test } from "node:test";
 
 import { connect } from "../project/index.js";
 import { MissingReferenceError } from "../references.js";
-import { SchemaError, SchemaRecords, type RecordType, type SchemaRecord } from "../schema/index.js";
+import { NewerSchemaError, SchemaError, SchemaRecords, type RecordType, type SchemaRecord } from "../schema/index.js";
 import { dropTestDatabases, testServerUrl, uniqueProjectName } from "../testing/pg.js";
 import { MemoryTransactions, type RecordEnvelope, type Transactions } from "../transactions/index.js";
 import { WorkModel, type ProjectTree } from "../work/index.js";
@@ -101,6 +101,8 @@ for (const backend of [memory, postgres]) {
     // A story with no capabilities, and a capability with no contracts: nothing to roll up.
     const bare = await work.addStory({ title: "Visitor can leave" });
     const empty = await work.addCapability({ title: "Password rules", story: story.id });
+    // An arc, which is part of the tree but has no health.
+    const arc = await work.createArc({ title: "Launch v1", stories: [story.id] });
     const before = await transactions.history();
 
     for (const node of [story, capability, contract, bare, empty]) {
@@ -109,13 +111,14 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual(await health.healthHistory(contract.id), [], "a contract with no entries has no history");
 
     // The annotated tree is projectTree()'s tree with health added to every story, capability and
-    // contract, every one of them reading not-checked in both columns. The tree it is given is
-    // left as it was.
+    // contract, every one of them reading not-checked in both columns, and its arcs as they were.
+    // The tree it is given is left as it was.
     const tree = await work.projectTree();
     const asGiven = structuredClone(tree);
     assert.deepEqual(await health.annotate(tree), withHealth(tree, () => UNCHECKED));
     assert.deepEqual(tree, asGiven, "annotate leaves the tree it is given unchanged");
     assert.equal(countNodes(tree), 5, "control: the tree holds all five nodes");
+    assert.deepEqual(tree.arcs, [{ id: arc.id, title: "Launch v1", stories: [story.id] }], "control: and the arc");
     // Given no tree, it annotates the plan as it is now.
     assert.deepEqual(await health.annotate(), withHealth(tree, () => UNCHECKED));
 
@@ -123,7 +126,6 @@ for (const backend of [memory, postgres]) {
 
     // An id naming no live story, capability or contract has no entries either, and reads the same:
     // never passing, and never an error.
-    const arc = await work.createArc({ title: "Launch v1", stories: [story.id] });
     const note = await records.create("memory", { text: "Mailgun needs a verified domain", links: [story.id] });
     const dropped = await work.addContract({ title: "Accepts a plus address", capability: capability.id });
     await records.retire(dropped.id, "out of scope");
@@ -385,6 +387,17 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual([...raced].sort(byWriter), [...racers].sort(byWriter), "every racing entry, once");
     assert.deepEqual((await health.health(contract.id)).reported, columnOf(at(raced, raced.length - 1)));
 
+    // A column's record retired by hand (capability 2's retire, which the library API offers): the
+    // column has no entry now, so it reads not-checked; the retirement is not an entry, and the
+    // entries before it stay in the history; the next entry starts the column again.
+    const reportedRecord = at((await healthRecordsOf(transactions, contract.id)).filter((record) => record.fields.column === "reported"), 0);
+    await records.retire(reportedRecord.id, "cleared by hand");
+    assert.deepEqual(await health.health(contract.id), { reported: { state: "not-checked" }, verified: columnOf(at(written, 5)) });
+    assert.deepEqual(await health.healthHistory(contract.id), everything);
+    const fresh = await health.reportHealth(contract.id, "failing", { by: "agent-c" });
+    assert.deepEqual(await health.healthHistory(contract.id), [...everything, fresh]);
+    assert.deepEqual((await health.health(contract.id)).reported, columnOf(fresh));
+
     // Refused: an entry for a node that does not exist (missing, retired, a near miss, an id the
     // library cannot store), or for a record that is not a contract. For a story or a capability the
     // error says why: their health is rolled up from their contracts. Nothing is written.
@@ -415,12 +428,20 @@ for (const backend of [memory, postgres]) {
     // A retired contract keeps its entries in its history. Like any record that is gone it reads
     // not-checked, and a new entry for it is refused.
     await records.retire(contract.id, "replaced by a stricter contract");
-    assert.deepEqual(await health.healthHistory(contract.id), everything);
+    assert.deepEqual(await health.healthHistory(contract.id), [...everything, fresh]);
     assert.deepEqual(await health.health(contract.id), UNCHECKED);
     const afterRetiring = await transactions.history();
     await assert.rejects(health.reportHealth(contract.id, "passing"), missingNode(contract.id));
     await assert.rejects(health.recordVerified(contract.id, "passing"), missingNode(contract.id));
     assert.deepEqual(await transactions.history(), afterRetiring, "nothing was written");
+
+    // An entry written on a newer schema version than this code knows (as a later storytree could
+    // write one) is refused when read, as capability 3 refuses reading any such record: in the
+    // column, and in the history.
+    const siblingRecord = at(await healthRecordsOf(transactions, sibling.id), 0);
+    await transactions.save({ id: siblingRecord.id, type: "health", version: 2, fields: { ...siblingRecord.fields, state: "failing" } });
+    await assert.rejects(health.health(sibling.id), NewerSchemaError);
+    await assert.rejects(health.healthHistory(sibling.id), NewerSchemaError);
   });
 }
 

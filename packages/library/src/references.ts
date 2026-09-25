@@ -1,8 +1,8 @@
 /**
- * References between records (capabilities 4 and 6): a capability names its story, a contract its
- * capability, an arc the stories it grows, a capability the capabilities it depends on, and a note
- * the records it links to. A write whose references are broken is refused, and writes nothing:
- * the checks here run before the write, and throw.
+ * References between records (capabilities 4, 5 and 6): a capability names its story, a contract
+ * its capability, an arc the stories it grows, a capability the capabilities it depends on, a
+ * health entry its contract, and a note the records it links to. A write whose references are
+ * broken is refused, and writes nothing: the checks here run before the write, and throw.
  */
 import { unstorable, type SchemaRecord, type SchemaRecords } from "./schema/records.js";
 import type { RecordType } from "./schema/types.js";
@@ -13,7 +13,7 @@ import type { RecordType } from "./schema/types.js";
  * `field "story" names "story_0123456789ab": there is no story with that id (it is missing or retired)`.
  */
 export class MissingReferenceError extends Error {
-  /** The field holding the reference: `story`, `capability`, `stories`, `dependsOn` or `links`. */
+  /** The field holding the reference: `story`, `capability`, `stories`, `dependsOn`, `node` or `links`. */
   readonly field: string;
   /** The id that names no suitable record. */
   readonly id: string;
@@ -22,13 +22,14 @@ export class MissingReferenceError extends Error {
   /** The type of the record the id does name, when that record is of the wrong type. */
   readonly found: string | undefined;
 
-  constructor(field: string, id: string, expected: string, found?: string) {
+  /** `why`, when given, ends the message in brackets: why the reference may not name what it does. */
+  constructor(field: string, id: string, expected: string, found?: string, why?: string) {
     const named = `field ${JSON.stringify(field)} names ${JSON.stringify(id)}`;
-    super(
+    const problem =
       found === undefined
-        ? `${named}: there is no ${expected} with that id (it is missing or retired)`
-        : `${named}: that is ${article(found)} ${found} record, not ${article(expected)} ${expected}`,
-    );
+        ? `there is no ${expected} with that id (it is missing or retired)`
+        : `that is ${article(found)} ${found} record, not ${article(expected)} ${expected}`;
+    super(`${named}: ${problem}${why === undefined ? "" : ` (${why})`}`);
     this.name = "MissingReferenceError";
     this.field = field;
     this.id = id;
@@ -99,13 +100,20 @@ export async function liveRecord<T extends RecordType>(
   id: unknown,
   types: readonly T[],
 ): Promise<SchemaRecord<T> | null> {
-  if (!couldBeId(id)) return null;
-  const record = await records.get(id);
+  const record = await recordNamed(records, id);
   return record !== null && (types as readonly RecordType[]).includes(record.type) ? (record as SchemaRecord<T>) : null;
 }
 
+/**
+ * The live record `id` names, whatever its type, or null if it names none: it is missing or
+ * retired, or it is not an id the library could store, which is never looked up.
+ */
+export async function recordNamed(records: SchemaRecords, id: unknown): Promise<SchemaRecord | null> {
+  return couldBeId(id) ? records.get(id) : null;
+}
+
 /** Whether `value` could be the id of a stored record: a string of text the library can store. */
-function couldBeId(value: unknown): value is string {
+export function couldBeId(value: unknown): value is string {
   return typeof value === "string" && unstorable(value) === undefined;
 }
 
