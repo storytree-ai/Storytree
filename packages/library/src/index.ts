@@ -2,3 +2,13 @@
 // Its public API grows capability by capability (stories/library.md); capability 7 fixes the list.
 export { connect } from "./project/index.js";
 export type { ConnectOptions, Project, Storytree } from "./project/index.js";
+export type {
+  EditInput,
+  HistoryEntry,
+  HistoryFilter,
+  RecordEnvelope,
+  RetireInput,
+  SaveInput,
+  Transactions,
+  Validate,
+} from "./transactions/index.js";

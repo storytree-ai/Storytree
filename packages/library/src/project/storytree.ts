@@ -5,6 +5,8 @@
 import pg from "pg";
 import type { Pool } from "pg";
 
+import { PgTransactions } from "../transactions/pg.js";
+import type { Transactions } from "../transactions/types.js";
 import { assertProjectName, PROJECT_DATABASE_PREFIX, projectDatabase } from "./names.js";
 import { PROJECT_SCHEMA } from "./schema.js";
 
@@ -38,6 +40,8 @@ export interface Project {
    * it, and capability 7 keeps it out of the public API.
    */
   readonly pool: Pool;
+  /** This project's records: the only data actions the library allows (capability 2). */
+  readonly transactions: Transactions;
   /** Close this project's connections. */
   close(): Promise<void>;
 }
@@ -105,12 +109,14 @@ class ServerConnection implements Storytree {
 class ProjectLibrary implements Project {
   readonly name: string;
   readonly pool: Pool;
+  readonly transactions: Transactions;
   readonly #forget: () => void;
   #closing: Promise<void> | undefined;
 
   constructor(name: string, pool: Pool, forget: () => void) {
     this.name = name;
     this.pool = pool;
+    this.transactions = new PgTransactions(pool);
     this.#forget = forget;
   }
 

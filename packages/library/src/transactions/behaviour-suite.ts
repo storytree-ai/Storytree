@@ -56,13 +56,17 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
     );
     assert.deepEqual(await store.get("note-1"), created, "get returns the record save returned");
 
-    // What is stored is the store's own copy: changing the caller's objects afterwards changes nothing.
+    // What is stored is the store's own copy: changing the caller's objects afterwards, or the
+    // records save and get handed out, changes nothing stored. (Compared with a snapshot, which
+    // no store can reach.)
+    const asSaved = structuredClone(created);
     fields.title = "changed by the caller";
     fields.tags.push("changed by the caller");
-    const fetched = await store.get("note-1");
-    assert.ok(fetched);
-    fetched.fields.title = "changed by a reader";
-    assert.deepEqual(await store.get("note-1"), created, "the stored record is untouched");
+    for (const handedOut of [created, await store.get("note-1")]) {
+      assert.ok(handedOut);
+      handedOut.fields.title = "changed by a reader";
+    }
+    assert.deepEqual(await store.get("note-1"), asSaved, "the stored record is untouched");
 
     const replaced = await store.save({ id: "note-1", type: "note", fields: { title: "Second light" }, version: 2 });
     assertTimestamp(replaced.updatedAt, "updatedAt");
@@ -73,12 +77,12 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
         type: "note",
         version: 2,
         fields: { title: "Second light" },
-        createdAt: created.createdAt,
+        createdAt: asSaved.createdAt,
         updatedAt: replaced.updatedAt,
       },
       "replaced whole (tags and meta are gone, not merged in), and still the record created first",
     );
-    assert.ok(Date.parse(replaced.updatedAt) >= Date.parse(created.updatedAt), "updatedAt never goes back");
+    assert.ok(Date.parse(replaced.updatedAt) >= Date.parse(asSaved.updatedAt), "updatedAt never goes back");
     assert.deepEqual(await store.get("note-1"), replaced);
 
     const other = await store.save({ id: "note-2", type: "note", fields: {} });
@@ -86,7 +90,7 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
     assert.deepEqual(
       changesOf(await store.history()),
       [
-        { recordId: "note-1", type: "note", action: "created", record: created, actor: "agent-a" },
+        { recordId: "note-1", type: "note", action: "created", record: asSaved, actor: "agent-a" },
         { recordId: "note-1", type: "note", action: "updated", record: replaced },
         { recordId: "note-2", type: "note", action: "created", record: other },
       ],
@@ -157,8 +161,10 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
       note: null,
       priority: 2,
     });
-    const removed = await store.edit({ id: "task-1", fields: { note: undefined, meta: { z: 3 } } });
-    assert.deepEqual(removed?.fields, {
+    const meta = { z: 3 };
+    const removed = await store.edit({ id: "task-1", fields: { note: undefined, meta } });
+    assert.ok(removed);
+    assert.deepEqual(removed.fields, {
       title: "Plant the seed",
       status: "done",
       tags: ["a"],
@@ -178,6 +184,13 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
       ],
       "each edit appends one entry holding the record as that edit left it",
     );
+
+    // What is stored is the store's own copy: changing an object the caller passed in the edit,
+    // or the record the edit handed back, changes nothing stored.
+    const asStored = structuredClone(removed);
+    meta.z = 4;
+    removed.fields.title = "changed by a reader";
+    assert.deepEqual(await store.get("task-1"), asStored, "the stored record is untouched");
   });
 
   contract("2.3", "edit merges onto what is stored now, so racing edits of different fields all survive", async (store) => {
@@ -296,6 +309,11 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
     assert.deepEqual((await store.list("task")).map((record) => record.id), ["task-1", "was-a-note"]);
     assert.deepEqual(await store.list("Note"), [], "a type matches exactly");
     assert.deepEqual(await store.list("nothing"), [], "a type with no records");
+
+    // The records handed out are copies: changing one changes nothing stored.
+    const asStored = structuredClone(notes);
+    for (const record of notes) record.fields.label = "changed by a reader";
+    assert.deepEqual(await store.list("note"), asStored, "the stored records are untouched");
   });
 
   contract("2.7", "retire removes the record from get and list, keeps the reason in history, and is a harmless no-op when repeated or missing", async (store) => {
@@ -364,11 +382,11 @@ export function transactionsBehaviourSuite(label: string, makeStore: () => Promi
     assert.deepEqual(await store.history({ id: "a", since: third }), [all[3]]);
     assert.deepEqual(await store.history({ since: last }), []);
 
-    // The entries handed out are copies: changing one changes nothing stored.
-    const copy = await store.history({ id: "a" });
-    const first = copy[0] ?? assert.fail("no entry for a");
-    first.record.fields.v = 99;
-    assert.deepEqual(await store.history({ id: "a" }), [all[0], all[2], all[3]]);
+    // The entries handed out are copies: changing one changes nothing stored. (Compared with a
+    // snapshot: `all` itself would change along with a store that handed out its own entries.)
+    const asStored = structuredClone(all);
+    for (const entry of all) entry.record.fields.v = 99;
+    assert.deepEqual(await store.history(), asStored, "the stored history is untouched");
 
     // A reader following the history with `since` while changes are being written never misses
     // one: an entry only becomes visible once every entry before it is visible too.
