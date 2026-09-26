@@ -72,6 +72,12 @@ flowchart BT
 
 Build order: 1 → 2 → 3 → 4 → 5 (4 and 5 in either order).
 
+**What is built so far.** Capability 1 at part grain (contracts 1.1 to 1.3), in
+`packages/arc-surface` (`@storytree/arc-surface`). The forest reads it (`stories/forest.md`,
+ADR-0632 D3), and the forest's lane built it here, under this tree's names. The increment and arc
+grains of Work states, and capabilities 2, 4 and 5, wait for the library's and the agent link's
+revised trees, which store and read increments, questions and waits (ADR-0638 D4).
+
 ---
 
 ## 1 · Work states
@@ -98,6 +104,9 @@ blocked, claimed, idle, quiet, parked or closed.
     (ADR-0574); one reading per open increment in a fixed order, waiting on you, then queued, then
     held (ADR-0628 D3); the arc states and their order (ADR-0314 D4, with ADR-0351, ADR-0374,
     ADR-0523 and ADR-0535).
+- **As built (part grain):** `workStates(lines)` in `packages/arc-surface`, a pure function of the
+  agent activity log's lines, so the page can run it. A part's state follows its own claimed and
+  landed lines, the latest winning; a story's follows its parts.
 
 **Contracts:**
 1. A part no line names is planned. A claim makes it in progress, a landed report makes it landed,
