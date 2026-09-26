@@ -4,7 +4,7 @@
 holds every project's library, lists the storytree projects on the computer and shows one at a
 time, and hosts the surfaces that show the project on show: the forest, with the arc surface as an
 overlay the forest hosts. The page inside it cannot reach the database, so the app carries
-everything a surface reads.
+everything a surface reads. It keeps itself up to date (capability 4, added 2026-09-27, ADR-0637).
 
 **Approved** by the owner on 2026-09-26. The tree below is ADR-0634 in storytree 0.2's decision log
 (`storytree-ai/storytree02`), approved through the question `oq-0-3-app-capability-tree`
@@ -72,12 +72,14 @@ flowchart BT
   S --> L
   S --> LIB
   S --> LOG
+  U["4 · Updates"]
+  U --> L
   F --> S
   A --> F
   A --> S
 ```
 
-Build order: 1 → 2 → 3.
+Build order: 1 → 2 → 3 → 4.
 
 ---
 
@@ -100,8 +102,7 @@ database is and how to open the app, which is how an agent's session finds it or
   - The app keeps recording while its window is closed (ADR-0636 D3, the owner's, answering d1 of
     `oq-0-3-cuts-awaiting-owner-decision`): closing the window leaves the app and its database
     running, with a tray icon to quit. 0.2 never had the gap, because its database never stopped.
-  - The app updates itself (ADR-0637 D2, the owner's, answering d2): its capability comes to the
-    owner with its build.
+  - The app updates itself (ADR-0637 D2, the owner's, answering d2): capability 4, Updates.
   - Noticing a stopped database and starting it again in place, as 0.2's studio did, waits
     (ADR-0637 D3, d3): revisit if the database proves unstable in use.
 - **As built** (`0-3-desktop-app-shows-the-library`): `apps/desktop`'s main process starts the
@@ -221,6 +222,47 @@ surfaces when the project changes.
 
 ---
 
+## 4 · Updates
+
+The app keeps itself up to date by itself: on the owner's machine it runs from its own copy of
+merged main, notices new merges within a few minutes, and rebuilds and restarts itself in the
+background, so it never runs unmerged work and nobody rebuilds it by hand. Before first users, an
+installed app does the same from published releases.
+
+- **Approved** by the owner on 2026-09-27, as worded above ("Yes, build it"), added to the tree
+  ADR-0634 approved. The capability is ADR-0637 D2, the owner's answer to d2: "Can't we also bring
+  an auto update feature for 0.3? … i'd hope it works better than 0.2 which seems to constantly
+  need updating every time main moves."
+- **Depends on:** 1. Restarting stops and starts the database, as quitting and opening do.
+- **Its shelf,** founding book first:
+  - **Founding book** (ADR-0637 D2): the app keeps itself current. Two halves: for storytree 0.3's
+    own development now, the app follows merged main; for users, before first users, an installed
+    app updates itself from releases published off merged main. The split is the recording
+    session's.
+  - 0.2's reference and its pain: ADR-0181's pinned-main runtime, refreshed by hand as main moved,
+    and ADR-0207's electron-updater feed, planned and never built.
+  - **Parked** with the users' work (`0-3-app-users-own-projects`, due before first users): the
+    users' half. It needs an installer (NSIS on Windows), since electron-updater cannot update
+    today's portable exe, and `dist.mjs`'s Windows arm64 7z workaround will matter there.
+- **As built** (`0-3-app-updates-itself`, the first half): `pnpm app:follow-main` sets it up once,
+  with the app quit. It clones the repository into the app's runtime folder
+  (`~/.storytree/0.3/runtime`: a bare clone, `repo.git`, and two build slots, `a` and `b`), builds
+  main's commit in slot `a`, and starts the app from there in the background. From then on, the app
+  run from a slot checks every three minutes: it fetches main, and only main. When main has moved,
+  it checks out main's new commit in the other slot and builds it there (`pnpm install`, Electron's
+  binary, the bundle), and then restarts into it, with its window shown only if it was showing. A
+  failed build is logged and tried again at the next check, and the running app is untouched. The
+  app records each start in `app.json`, so an agent's session start opens the current slot. The app
+  run from anywhere else, such as `pnpm desktop` in a checkout, never updates itself. The logic is
+  `packages/app`'s `src/updates/follow-main.ts`.
+- **Proved by** `packages/app/src/updates/follow-main.test.ts`, red→green, against real git with a
+  throwaway origin and a stand-in build.
+
+**Contracts:**
+1. When merged main moves, the app is built at main's new commit beside the one running, and work
+   not merged to main is never run.
+2. A build that fails leaves the running app as it is.
+
 ## Also out of this story
 
 - **The live reading** (the asks every two seconds or so, and the clock checked once a minute)
@@ -233,7 +275,7 @@ surfaces when the project changes.
   `0-3-app-users-own-projects`, due before first users.
 - **The app's agent-written cuts**, d1 to d3, are decided (ADR-0636 D3, ADR-0637): d1, keeping
   the app recording with its window closed, is built (Lifecycle, contract 7); d2, the app updating
-  itself, comes as a capability of its own with its build; d3 waits.
+  itself, is capability 4, Updates; d3 waits.
 - **Left out by the owner's own decisions** (ADR-0634 D5): 0.2's one shared cloud database
   (ADR-0621 D4, option E1; ADR-0625 D4); 0.2's desktop app keeping a Claude login in the keychain,
   with a backend beside the hosted studio (ADR-0625 D1 and D4); and the terminal, a note browser and

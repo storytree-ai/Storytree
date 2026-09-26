@@ -7,3 +7,5 @@ export { smokeProblems } from "./surfaces/smoke.js";
 export type { Drawn } from "./surfaces/smoke.js";
 export { background, TRAY_MENU } from "./lifecycle/background.js";
 export type { Background, TrayItem } from "./lifecycle/background.js";
+export { appDirIn, buildApp, electronIn, setUpRuntime, slotOf, slotSha, updateToMain } from "./updates/follow-main.js";
+export type { Build, RunningBuild, Slot } from "./updates/follow-main.js";

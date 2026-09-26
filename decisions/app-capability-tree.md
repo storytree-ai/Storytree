@@ -26,8 +26,9 @@ moved.
 Lifecycle and Storytree projects were built before the story existed, so they rest on existing
 tests. Surfaces' new parts are built red→green.
 
-There is no "left out" list. The app's agent-written cuts await the owner by name: keeping agents'
-work while the window is closed, the app you open running merged main, and a stopped database
-noticed and started again in place. The cuts he made himself stand: 0.2's one shared cloud database,
+There is no "left out" list. The app's agent-written cuts went to the owner by name and are decided
+(ADR-0636 D3, ADR-0637): the app keeps recording with its window closed (Lifecycle, contract 7),
+the app updates itself (a fourth capability, Updates), and noticing a stopped database and starting
+it again in place waits. The cuts he made himself stand: 0.2's one shared cloud database,
 a Claude login in the keychain with a backend beside the hosted studio, and the terminal, a note
 browser and 0.2's forest.
