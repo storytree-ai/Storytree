@@ -1,7 +1,8 @@
 /**
  * `storytree-hook <harness>`: the command Claude Code (`claude-code`) and Codex (`codex`) run by
- * themselves at session start, after each file edit and shell command, and at session end, with
- * the hook's input on stdin (capability 3 · Hooks, stories/agent-link.md).
+ * themselves at session start, after each file edit, shell command and subagent start, before each
+ * call to storytree's own tools, and at session end, with the hook's input on stdin (capability 3 ·
+ * Hooks, stories/agent-link.md).
  *
  * It always exits 0 and never prints: whatever happens, the agent it runs beside is untouched. It
  * also never outlives DEADLINE_MS, whatever it is waiting on.

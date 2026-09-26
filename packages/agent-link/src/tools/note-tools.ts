@@ -6,8 +6,9 @@
  * - Every note a tool shows is a read, recorded in the agent activity log (ADR-0624 D1, ADR-0627
  *   D7): a spine or title shown is a peek, an opened note is read whole. How it was found is how
  *   the session last saw it: in a search, on a shelf, or as a link from another note; a note
- *   opened without having been shown was found by its id. The record says what was reached, never
- *   what helped (ADR-0624 D3).
+ *   opened without having been shown was found by its id. Each read names the agent that made it,
+ *   as the harness revealed it (ADR-0629 D2). The record says what was reached, never what helped
+ *   (ADR-0624 D3).
  * - A new note with no place named goes onto the shelf of the capability the session claimed most
  *   recently (ADR-0627 D4): a decision becomes one of its front covers; a memory or definition
  *   links to the cover the session last opened on that shelf, else to the shelf's first book; with
@@ -194,8 +195,10 @@ async function readsOf(call: Call): Promise<Extract<Line, { kind: "note-read" }>
 }
 
 async function recordReads(call: Call, reads: readonly { note: string; found: Found; read: "peek" | "whole" }[]): Promise<void> {
+  if (reads.length === 0) return;
+  const agent = await call.agent();
   for (const read of reads) {
-    await call.log.append(call.project, { ...lineOf(call.caller), source: "tool", folder: call.folder, kind: "note-read", ...read });
+    await call.log.append(call.project, { ...lineOf(call.caller), source: "tool", folder: call.folder, kind: "note-read", ...read, agent });
   }
 }
 

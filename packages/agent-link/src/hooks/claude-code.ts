@@ -1,17 +1,24 @@
 /**
- * Claude Code's hook inputs, as recorded from Claude Code 2.1.212: every event names the session
- * (`session_id`), its working folder (`cwd`) and itself (`hook_event_name`).
+ * Claude Code's hook inputs, as recorded from Claude Code 2.1.212 (and 2.1.283 for storytree's own
+ * tools and subagents): every event names the session (`session_id`), its working folder (`cwd`)
+ * and itself (`hook_event_name`).
  *
  * - SessionStart carries `source`: startup, resume, clear or compact. A resumed window keeps its
  *   session id.
  * - PostToolUse carries `tool_name` and `tool_input`. Write, Edit and MultiEdit name the file as
- *   `file_path`, NotebookEdit as `notebook_path`; Bash gives its `command`. Other tools make no line.
+ *   `file_path`, NotebookEdit as `notebook_path`; Bash gives its `command`. The Agent tool (Task
+ *   before it was renamed) starts a subagent: its `tool_input` gives the type (`subagent_type`) and
+ *   the task (`description`), its `tool_response` the subagent's id (`agentId`). Other tools make no
+ *   line.
+ * - PreToolUse, registered for storytree's own tools only, names the agent asking (requests.ts).
  * - SessionEnd carries `reason`.
  */
 import type { NewLine } from "../activity/index.js";
 import type { HookLines } from "./hooks.js";
+import { toolRequestedLine } from "./requests.js";
 
 const EDITS_FILE = new Set(["Write", "Edit", "MultiEdit"]);
+const STARTS_SUBAGENT = new Set(["Agent", "Task"]);
 
 export function claudeCodeLines(input: Record<string, unknown>): HookLines | undefined {
   const { session_id: session, cwd: folder, hook_event_name: event } = input;
@@ -24,11 +31,23 @@ export function claudeCodeLines(input: Record<string, unknown>): HookLines | und
       return line({ ...common, kind: "session-started", ...(isText(input.source) ? { how: input.source } : {}) });
     case "SessionEnd":
       return line({ ...common, kind: "session-ended", ...(isText(input.reason) ? { reason: input.reason } : {}) });
+    case "PreToolUse":
+      return line(toolRequestedLine(common, input));
     case "PostToolUse":
-      return line(toolLine(common, input.tool_name, input.tool_input));
+      return line(toolLine(common, input.tool_name, input.tool_input) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
     default:
       return undefined;
   }
+}
+
+function subagentLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown, toolResponse: unknown): NewLine | undefined {
+  if (!isText(tool) || !STARTS_SUBAGENT.has(tool) || !isRecord(toolInput) || !isRecord(toolResponse) || !isText(toolResponse.agentId)) return undefined;
+  const { subagent_type: type, description: task } = toolInput;
+  return { ...common, kind: "subagent-started", subagent: toolResponse.agentId, ...(isText(type) ? { type } : {}), ...(isText(task) ? { task } : {}) };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown): NewLine | undefined {

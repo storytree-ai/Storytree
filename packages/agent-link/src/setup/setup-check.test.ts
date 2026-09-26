@@ -84,7 +84,7 @@ function readJson(file: string): Record<string, unknown> {
 
 interface HookEntry {
   matcher?: string;
-  hooks: { type: string; command: string; args?: string[] }[];
+  hooks: { type: string; command: string; args?: string[]; async?: boolean }[];
 }
 
 /**
@@ -113,14 +113,22 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
 
     const claude = readJson(home.claudeSettings);
     assert.deepEqual({ ...claude, hooks: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined }, "Claude Code's other settings are as they were");
-    assert.deepEqual((claude.hooks as Record<string, unknown>).PreToolUse, CLAUDE_SETTINGS.hooks.PreToolUse, "and so is the user's own hook");
+    const claudeHooks = claude.hooks as Record<string, HookEntry[]>;
+    assert.deepEqual(claudeHooks.PreToolUse?.[0], CLAUDE_SETTINGS.hooks.PreToolUse[0], "and so is the user's own hook, still first");
     const claudeEvents = storytreeHooks(claude, HOOK.script, "claude-code");
-    assert.deepEqual(Object.keys(claudeEvents).sort(), ["PostToolUse", "SessionEnd", "SessionStart"]);
-    for (const tool of ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash"]) assert.match(tool, new RegExp(`^(${claudeEvents.PostToolUse})$`), `after ${tool}`);
+    assert.deepEqual(Object.keys(claudeEvents).sort(), ["PostToolUse", "PreToolUse", "SessionEnd", "SessionStart"]);
+    for (const tool of ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Agent", "Task"]) assert.match(tool, new RegExp(`^(${claudeEvents.PostToolUse})$`), `after ${tool}`);
+    assert.match("mcp__storytree__open", new RegExp(`^(${claudeEvents.PreToolUse})$`), "before a storytree tool");
+    assert.doesNotMatch("Bash", new RegExp(`^(${claudeEvents.PreToolUse})$`), "and before no other tool");
+    // Claude Code waits for that one, so its line is written before the call reaches the tool server.
+    const before = claudeHooks.PreToolUse?.find((entry) => entry.hooks.some((hook) => hook.args?.[0] === HOOK.script));
+    assert.equal(before?.hooks[0]?.async, undefined, "the hook before a storytree tool runs in the foreground");
 
     const codexEvents = storytreeHooks(readJson(home.codexHooks), HOOK.script, "codex");
-    assert.deepEqual(Object.keys(codexEvents).sort(), ["PostToolUse", "SessionEnd", "SessionStart"]);
-    for (const tool of ["apply_patch", "Bash"]) assert.match(tool, new RegExp(codexEvents.PostToolUse!), `after ${tool}`);
+    assert.deepEqual(Object.keys(codexEvents).sort(), ["PostToolUse", "PreToolUse", "SessionEnd", "SessionStart"]);
+    for (const tool of ["apply_patch", "Bash", "spawn_agent"]) assert.match(tool, new RegExp(codexEvents.PostToolUse!), `after ${tool}`);
+    assert.match("mcp__storytree__open", new RegExp(codexEvents.PreToolUse!), "before a storytree tool");
+    assert.doesNotMatch("Bash", new RegExp(codexEvents.PreToolUse!), "and before no other tool");
     assert.equal(readFileSync(home.codexConfig, "utf8"), CODEX_CONFIG, "Codex's config is untouched");
   });
 });
@@ -145,7 +153,7 @@ test("8.2 a second start changes nothing, and removing storytree takes out exact
     registerHooks(home.homes, { ...HOOK, script: path.join(dir, "old", "storytree-hook.mjs") });
     registerHooks(home.homes, HOOK);
     assert.deepEqual(Object.keys(storytreeHooks(readJson(home.claudeSettings), path.join(dir, "old", "storytree-hook.mjs"), "claude-code")), []);
-    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 3);
+    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 4);
   });
 });
 
@@ -238,10 +246,17 @@ test("8.5 the agent fires a test of each hook, and the connection shows as verif
           const { verified, missing, fixes } = (await agent.call("check_setup")).data as { verified: boolean; missing: string[]; fixes: string[] };
           return { verified, missing, fixes };
         };
-        assert.deepEqual(await check(), { verified: false, missing: ["session start", "file edit", "command"], fixes: ["new-session", "edit-check-file", "run-check-command"] });
+        assert.deepEqual(await check(), {
+          verified: false,
+          missing: ["session start", "storytree tool call", "file edit", "command"],
+          fixes: ["new-session", "edit-check-file", "run-check-command"],
+        });
 
         // The hooks fire, as Claude Code runs them for this session in this folder.
         await fireHook(home.storytreeHome, "claude-code", "session-start-startup", folder, "claude-1");
+        assert.deepEqual((await check()).missing, ["storytree tool call", "file edit", "command"]);
+        // The hook before each storytree tool call: calling check_setup fires it.
+        await fireHook(home.storytreeHome, "claude-code", "pre-tool-use-storytree", folder, "claude-1");
         assert.deepEqual((await check()).missing, ["file edit", "command"]);
         await fireHook(home.storytreeHome, "claude-code", "post-tool-use-write", folder, "claude-1");
         assert.deepEqual((await check()).missing, ["command"]);
@@ -252,7 +267,7 @@ test("8.5 the agent fires a test of each hook, and the connection shows as verif
       // A Codex session whose hooks have not run is told the one fix that is Codex's own: its one-time approval.
       await withAgent(folder, codex("codex-1", setup), async (agent) => {
         const { verified, missing, fixes } = (await agent.call("check_setup")).data as { verified: boolean; missing: string[]; fixes: string[] };
-        assert.deepEqual({ verified, missing }, { verified: false, missing: ["session start", "file edit", "command"] });
+        assert.deepEqual({ verified, missing }, { verified: false, missing: ["session start", "storytree tool call", "file edit", "command"] });
         assert.ok(fixes.includes("codex-approval"), `the fixes name Codex's approval: ${fixes.join(", ")}`);
       });
     } finally {

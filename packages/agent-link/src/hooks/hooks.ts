@@ -2,8 +2,10 @@
  * Capability 3 · Hooks (stories/agent-link.md): the commands Claude Code and Codex run by
  * themselves when a session starts, after every file edit and shell command, and when it ends, each
  * adding one line about that session to the agent activity log, so an agent that never calls
- * storytree still shows up. They always exit cleanly and never print, so they can never slow down or
- * break the agent, and when storytree isn't running they do nothing.
+ * storytree still shows up. They always exit cleanly and never print, so they can never break the
+ * agent, and when storytree isn't running they do nothing. Two more name the session's agents
+ * (ADR-0629 D2): one after a subagent is started, and one just before each call to storytree's own
+ * tools, which the harness waits for.
  *
  * A hook's input is the harness's own JSON on stdin. hookLines() turns it into lines, and knows
  * nothing of storytree's state; runHook() routes the session's folder (capability 1) and, only when

@@ -6,7 +6,8 @@
  * - Claude Code: `<config folder>/settings.json` (CLAUDE_CONFIG_DIR, else ~/.claude). Each hook is a
  *   program with arguments, run with no shell in between, so it works on Windows without a Unix
  *   shell. The start and edit hooks run in the background (`async`); the end hook runs before
- *   Claude Code exits.
+ *   Claude Code exits, and the hook before storytree's own tools before the call is made, so its
+ *   line is there when the call reaches the tool server (ADR-0629 D2).
  * - Codex: `<CODEX_HOME>/hooks.json` (else ~/.codex). Codex runs a hook as one command line through
  *   its shell (PowerShell on Windows, sh elsewhere), so the line is written for the shell of this
  *   machine. Codex runs a newly added hook only after the user approves it once (ADR-0626 D4).
@@ -15,6 +16,8 @@ import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:
 import { homedir } from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+
+import { STORYTREE_TOOLS } from "../hooks/index.js";
 
 /** The command a harness runs as storytree's hook: a Node and the built hook script. */
 export interface HookCommand {
@@ -80,7 +83,8 @@ function claudeEntries({ node, script }: HookCommand): Record<string, HookEntry>
   const run = (background: boolean) => ({ type: "command", command: node, args: [script, "claude-code"], ...(background ? { async: true } : {}) });
   return {
     SessionStart: { hooks: [run(true)] },
-    PostToolUse: { matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash", hooks: [run(true)] },
+    PreToolUse: { matcher: `${STORYTREE_TOOLS}.*`, hooks: [run(false)] },
+    PostToolUse: { matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task", hooks: [run(true)] },
     SessionEnd: { hooks: [run(false)] },
   };
 }
@@ -94,7 +98,8 @@ function codexEntries({ node, script }: HookCommand): Record<string, HookEntry> 
   const run = (timeout: number) => ({ type: "command", command: line, timeout });
   return {
     SessionStart: { hooks: [run(10)] },
-    PostToolUse: { matcher: "^(apply_patch|Bash)$", hooks: [run(10)] },
+    PreToolUse: { matcher: `^${STORYTREE_TOOLS}`, hooks: [run(10)] },
+    PostToolUse: { matcher: "^(apply_patch|Bash|spawn_agent)$", hooks: [run(10)] },
     SessionEnd: { hooks: [run(3)] },
   };
 }
