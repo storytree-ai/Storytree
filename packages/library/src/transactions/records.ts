@@ -3,7 +3,7 @@
  * exactly: the record a save or an edit would leave, the check on it, and the shape of a history
  * entry. Each backend only decides where these go and how a write stays atomic.
  */
-import type { HistoryEntry, RecordEnvelope, SaveInput, Validate } from "./types.js";
+import type { HistoryEntry, RecordEnvelope, SaveInput, Upgrade, Validate } from "./types.js";
 
 /** The time now, as records carry it: an ISO 8601 UTC timestamp. */
 export function now(): string {
@@ -23,10 +23,17 @@ export function savedRecord(input: SaveInput, current: RecordEnvelope | undefine
 }
 
 /**
- * The record `edit` would store: `fields` merged shallowly onto the stored fields, a key whose
- * value is undefined being removed. Everything else about the record stays as stored.
+ * The record `edit` would store: `fields` merged shallowly onto the stored fields (after the
+ * writer's upgrade, if any), a key whose value is undefined being removed. Everything else about
+ * the record stays as stored, or as the upgrade left it.
  */
-export function editedRecord(current: RecordEnvelope, fields: Record<string, unknown>, at: string): RecordEnvelope {
+export function editedRecord(
+  stored: RecordEnvelope,
+  fields: Record<string, unknown>,
+  at: string,
+  upgrade?: Upgrade,
+): RecordEnvelope {
+  const current = upgrade === undefined ? stored : upgrade(jsonCopy(stored));
   // A Map rather than assignment into an object, so a field named "__proto__" is kept as a field.
   const merged = new Map(Object.entries(current.fields));
   for (const [key, value] of Object.entries(fields)) {

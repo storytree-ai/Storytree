@@ -1,0 +1,18 @@
+/**
+ * The library's upgrade steps, and the schema it runs on.
+ *
+ * Every user has their own local library, so a record written by an older storytree stays in a
+ * database nobody else can reach. When a type changes so that such a record no longer fits, its
+ * version goes up (SCHEMA_VERSIONS) and a step goes here that brings the record's fields from the
+ * old version to the new one. Reads apply the steps in order, and the next write of the record
+ * stores it upgraded, in place. A step is never removed: the history keeps records on every
+ * version ever written.
+ *
+ * None yet: every type is still at version 1.
+ */
+import { RECORD_SCHEMAS, SCHEMA_VERSIONS, type LibrarySchema, type UpgradeStep } from "./types.js";
+
+export const UPGRADES: readonly UpgradeStep[] = [];
+
+/** The schema the library runs on. */
+export const LIBRARY_SCHEMA: LibrarySchema = { versions: SCHEMA_VERSIONS, schemas: RECORD_SCHEMAS, upgrades: UPGRADES };

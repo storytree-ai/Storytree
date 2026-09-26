@@ -76,3 +76,32 @@ export class NewerSchemaError extends Error {
     this.knownVersion = knownVersion;
   }
 }
+
+/**
+ * A stored record was written on an older schema version of its type, and no upgrade step brings
+ * it from that version to the next. It is refused, never guessed at: read by today's rules, its
+ * fields could be silently misread.
+ */
+export class MissingUpgradeError extends Error {
+  /** The record's id. */
+  readonly id: string;
+  /** The record's type. */
+  readonly type: string;
+  /** The version no step leads on from. */
+  readonly from: number;
+  /** The version this code reads the type at. */
+  readonly knownVersion: number;
+
+  constructor(id: string, type: string, from: number, knownVersion: number) {
+    super(
+      `record ${JSON.stringify(id)} (${type}) was written on schema version ${from}, and no upgrade step brings a ` +
+        `${type} from version ${from} to ${from + 1} (this code reads ${type} at version ${knownVersion}): ` +
+        `it is refused rather than guessed at`,
+    );
+    this.name = "MissingUpgradeError";
+    this.id = id;
+    this.type = type;
+    this.from = from;
+    this.knownVersion = knownVersion;
+  }
+}

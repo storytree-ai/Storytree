@@ -66,12 +66,14 @@ const LIBRARY_API = [
  * What the package's entry exports at run time: connect, and the errors callers catch by class.
  * ConnectionError joined the list with capability 8: it is how connect() refuses a server it cannot
  * reach or use as it is set up (a Cloud SQL instance without a Google sign-in, say), with a message
- * saying what to fix, so a caller catches every such refusal by its class.
+ * saying what to fix, so a caller catches every such refusal by its class. MissingUpgradeError
+ * joined it with schema upgrades: how a record no upgrade step can bring up to date is refused.
  */
 const RUNTIME_EXPORTS = [
   "ConnectionError",
   "DependencyLoopError",
   "MissingReferenceError",
+  "MissingUpgradeError",
   "NewerSchemaError",
   "ProjectNameError",
   "SchemaError",

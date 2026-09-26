@@ -4,17 +4,22 @@
  *
  * - Every write is checked INSIDE the write, as the transactions' validate hook, on the record the
  *   write would leave (for an edit, the merged fields). A refused write writes nothing.
+ * - A record written on an older schema version of its type is read upgraded: the schema's upgrade
+ *   steps are applied in order, up to the current version. An edit of one merges onto the upgraded
+ *   fields and stores it on the current version, in place, in the same all-or-nothing write.
  * - A record this code cannot interpret is refused, never guessed at: one whose type it does not
- *   know, or whose schema version is newer than it knows for that type.
- * - What comes back is capability 2's envelope, unchanged.
+ *   know, whose schema version is newer than it knows for that type, or whose older version no
+ *   upgrade step leads on from.
+ * - What comes back is capability 2's envelope, with its version and fields as upgraded.
  */
 import { randomUUID } from "node:crypto";
 
 import type { z } from "zod";
 
 import type { HistoryEntry, HistoryFilter, RecordEnvelope, Transactions } from "../transactions/types.js";
-import { NewerSchemaError, SchemaError, UnknownTypeError, type FieldProblem } from "./errors.js";
-import { RECORD_SCHEMAS, SCHEMA_VERSIONS, type FieldsOf, type RecordType } from "./types.js";
+import { MissingUpgradeError, NewerSchemaError, SchemaError, UnknownTypeError, type FieldProblem } from "./errors.js";
+import type { FieldsOf, LibrarySchema, RecordType } from "./types.js";
+import { LIBRARY_SCHEMA } from "./upgrades.js";
 
 /** A stored record of type `T`: capability 2's envelope, unchanged, with its type and fields typed. */
 export type SchemaRecord<T extends RecordType = RecordType> = {
@@ -40,9 +45,12 @@ export interface WriteOptions {
 
 export class SchemaRecords {
   readonly #transactions: Transactions;
+  readonly #schema: LibrarySchema;
 
-  constructor(transactions: Transactions) {
+  /** `schema` is the library's own, unless a test gives a later one. */
+  constructor(transactions: Transactions, schema: LibrarySchema = LIBRARY_SCHEMA) {
     this.#transactions = transactions;
+    this.#schema = schema;
   }
 
   /**
@@ -52,42 +60,49 @@ export class SchemaRecords {
    * (SchemaError); either way nothing is written.
    */
   async create<T extends RecordType>(type: T, fields: FieldsOf<T>, options: CreateOptions = {}): Promise<SchemaRecord<T>> {
-    if (!isRecordType(type)) throw new UnknownTypeError(type);
+    if (!this.#isRecordType(type)) throw new UnknownTypeError(type);
     const record = await this.#transactions.save({
       id: options.id ?? newId(type),
       type,
       fields,
-      version: SCHEMA_VERSIONS[type],
-      validate: checkRecord,
+      version: this.#version(type),
+      validate: this.#check,
       ...actorOf(options),
     });
     return record as SchemaRecord<T>;
   }
 
-  /** The record, or null if it is missing or retired. One this code cannot interpret is refused. */
+  /** The record, upgraded, or null if it is missing or retired. One this code cannot interpret is refused. */
   async get(id: string): Promise<SchemaRecord | null> {
     const record = await this.#transactions.get(id);
-    return record === null ? null : interpretable(record);
+    return record === null ? null : this.current(record);
   }
 
   /**
-   * The current records of `type`, ordered by id. An unknown type is refused, and so is the whole
-   * list if any record in it cannot be interpreted.
+   * The current records of `type`, upgraded, ordered by id. An unknown type is refused, and so is
+   * the whole list if any record in it cannot be interpreted.
    */
   async list<T extends RecordType>(type: T): Promise<SchemaRecord<T>[]> {
-    if (!isRecordType(type)) throw new UnknownTypeError(type);
+    if (!this.#isRecordType(type)) throw new UnknownTypeError(type);
     const records = await this.#transactions.list(type);
-    return records.map((record) => interpretable(record) as SchemaRecord<T>);
+    return records.map((record) => this.current(record) as SchemaRecord<T>);
   }
 
   /**
-   * Change only the named fields, merged onto what is stored now (capability 2's edit). The merged
-   * record is checked inside the write, so an edit that would leave it invalid, or that touches a
-   * record this code cannot interpret, is refused and writes nothing. Null if the record is
-   * missing or retired.
+   * Change only the named fields, merged onto what is stored now (capability 2's edit), upgraded
+   * first if it was written on an older version, so the record is stored on the current one. The
+   * merged record is checked inside the write, so an edit that would leave it invalid, or that
+   * touches a record this code cannot interpret, is refused and writes nothing. Null if the record
+   * is missing or retired.
    */
   async edit(id: string, fields: FieldEdit, options: WriteOptions = {}): Promise<SchemaRecord | null> {
-    const record = await this.#transactions.edit({ id, fields, validate: checkRecord, ...actorOf(options) });
+    const record = await this.#transactions.edit({
+      id,
+      fields,
+      upgrade: this.current,
+      validate: this.#check,
+      ...actorOf(options),
+    });
     return record as SchemaRecord | null;
   }
 
@@ -96,15 +111,59 @@ export class SchemaRecords {
     await this.#transactions.retire({ id, reason, ...actorOf(options) });
   }
 
-  /** The history, oldest first: capability 2's history, unchanged. */
+  /** The history, oldest first: capability 2's history, unchanged, each record as it was written. */
   async history(filter?: HistoryFilter): Promise<HistoryEntry[]> {
     return this.#transactions.history(filter);
   }
-}
 
-/** Whether `type` is a declared record type. Only the schema's own keys count, never inherited names. */
-function isRecordType(type: string): type is RecordType {
-  return Object.hasOwn(SCHEMA_VERSIONS, type);
+  /**
+   * `record` as this code reads it: upgraded one step at a time, from the version it was written on
+   * to the current version of its type. A record whose type is not declared, whose version is newer
+   * than the current one, or whose older version no step leads on from, is refused. (A reader of
+   * the history, which keeps each record as it was written, reads its records through this.)
+   */
+  readonly current = (record: RecordEnvelope): SchemaRecord => {
+    const { id, type } = record;
+    if (!this.#isRecordType(type)) throw new UnknownTypeError(type, id);
+    const known = this.#version(type);
+    if (record.version > known) throw new NewerSchemaError(id, type, record.version, known);
+    let { version, fields } = record;
+    while (version < known) {
+      const from = version;
+      const step = this.#schema.upgrades.find((candidate) => candidate.type === type && candidate.from === from);
+      if (step === undefined) throw new MissingUpgradeError(id, type, from, known);
+      fields = step.up(fields);
+      version = from + 1;
+    }
+    return (version === record.version ? record : { ...record, version, fields }) as SchemaRecord;
+  };
+
+  /**
+   * The validate hook of every write. The record the write would leave, after any upgrade and
+   * merge, must be one this code can interpret, and its fields must fit its type. A throw aborts
+   * the write.
+   */
+  readonly #check = (candidate: RecordEnvelope): void => {
+    const { type, fields } = this.current(candidate);
+    const problems = [...this.#shapeProblems(type, fields), ...unstorableText(fields)];
+    if (problems.length > 0) throw new SchemaError(type, problems);
+  };
+
+  /** How the fields break their type's schema, each problem naming its field. */
+  #shapeProblems(type: RecordType, fields: unknown): FieldProblem[] {
+    const result = this.#schema.schemas[type]!.safeParse(fields);
+    return result.success ? [] : result.error.issues.flatMap((issue) => describeIssue(issue, fields));
+  }
+
+  /** Whether `type` is a declared record type. Only the schema's own keys count, never inherited names. */
+  #isRecordType(type: string): type is RecordType {
+    return Object.hasOwn(this.#schema.versions, type);
+  }
+
+  /** The current version of a declared type. */
+  #version(type: RecordType): number {
+    return this.#schema.versions[type]!;
+  }
 }
 
 /** A new id for a record of `type`: `<type>_` and 12 lowercase hex digits, all of them random. */
@@ -115,34 +174,6 @@ function newId(type: RecordType): string {
 /** `{ actor }` when the writer named one, and nothing otherwise, as capability 2's inputs take it. */
 function actorOf(options: WriteOptions): { actor?: string } {
   return options.actor === undefined ? {} : { actor: options.actor };
-}
-
-/**
- * The record, if this code can interpret it: its type is declared, and its schema version is no
- * newer than this code knows for that type. Anything else is refused rather than guessed at.
- */
-function interpretable(record: RecordEnvelope): SchemaRecord {
-  const { id, type, version } = record;
-  if (!isRecordType(type)) throw new UnknownTypeError(type, id);
-  const known = SCHEMA_VERSIONS[type];
-  if (version > known) throw new NewerSchemaError(id, type, version, known);
-  return record as SchemaRecord;
-}
-
-/**
- * The validate hook of every write. The record the write would leave, after any merge, must be one
- * this code can interpret, and its fields must fit its type. A throw aborts the write.
- */
-function checkRecord(candidate: RecordEnvelope): void {
-  const { type } = interpretable(candidate);
-  const problems = [...shapeProblems(type, candidate.fields), ...unstorableText(candidate.fields)];
-  if (problems.length > 0) throw new SchemaError(type, problems);
-}
-
-/** How the fields break their type's schema, each problem naming its field. */
-function shapeProblems(type: RecordType, fields: unknown): FieldProblem[] {
-  const result = RECORD_SCHEMAS[type].safeParse(fields);
-  return result.success ? [] : result.error.issues.flatMap((issue) => describeIssue(issue, fields));
 }
 
 function describeIssue(issue: z.core.$ZodIssue, fields: unknown): FieldProblem[] {

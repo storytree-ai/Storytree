@@ -56,8 +56,17 @@ export interface EditInput {
   /** Merged shallowly onto the stored fields; a key whose value is `undefined` is removed. */
   readonly fields: Record<string, unknown>;
   readonly actor?: string;
+  /**
+   * Runs on the stored record inside the write, before the merge, and returns the record to merge
+   * onto: how a record written on an older schema version is upgraded in place. If it throws, the
+   * write aborts and writes nothing, as for `validate`.
+   */
+  readonly upgrade?: Upgrade;
   readonly validate?: Validate;
 }
+
+/** The record to merge an edit onto, given the record stored now. */
+export type Upgrade = (current: RecordEnvelope) => RecordEnvelope;
 
 export interface RetireInput {
   readonly id: string;
