@@ -33,6 +33,7 @@ import type { ActivityLog } from "../activity/index.js";
 import { habitsCard } from "../instructions/index.js";
 import { route } from "../routing/index.js";
 import { QUIET_MS } from "../sessions/index.js";
+import type { SetupOptions } from "../setup/index.js";
 import { registerClaimTools } from "./claim-tools.js";
 import { Connections } from "./connections.js";
 import { registerNoteTools } from "./note-tools.js";
@@ -48,6 +49,8 @@ export interface AgentToolOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** How long a claim's holder may be quiet before it can be taken over. By default, sessions' quiet time. */
   readonly quietMs?: number;
+  /** What the setup check (capability 8) works with: by default, the user's own homes and no hook command. */
+  readonly setup?: Omit<SetupOptions, "folder">;
 }
 
 /** A tool server, and how to close it with every connection it opened. */
