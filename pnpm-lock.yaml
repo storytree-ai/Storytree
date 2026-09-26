@@ -135,6 +135,12 @@ importers:
 
   packages/forest:
     dependencies:
+      '@storytree/agent-link':
+        specifier: workspace:*
+        version: link:../agent-link
+      '@storytree/arc-surface':
+        specifier: workspace:*
+        version: link:../arc-surface
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
