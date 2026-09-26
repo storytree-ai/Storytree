@@ -288,6 +288,12 @@ never calls storytree.
 - **Leaves out (vs 0.2):** nothing to leave. 0.2 had no picture of unclaimed work: every mark on its
   map was tied to a claimed unit, and its hooks never recorded edits.
 
+- **As built:** `unclaimedWork(lines)` in `packages/forest`: every edit and command the agent
+  link's own `attributeFrom` counts toward no capability, newest first, with the agent as people
+  call it, the files or the command, and the time, and their count. It touches no story node. The
+  page shows a box at the forest's lower left, "Unclaimed work" with its count always in view,
+  opening to the list; the live reading keeps it current.
+
 **Contracts:**
 1. Session B edits two files while holding no claim: the list shows B, both files and the time, the
    count reads 2, and no story node changes.
