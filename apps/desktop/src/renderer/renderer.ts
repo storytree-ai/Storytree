@@ -7,11 +7,12 @@
  */
 import type { Line } from "@storytree/agent-link";
 import { liveReading, workStates, type LiveReading } from "@storytree/arc-surface";
-import { forestDrawn, forestScene, type ForestDrawn } from "@storytree/forest";
+import { drillDown, forestDrawn, forestScene, type ForestDrawn } from "@storytree/forest";
 import type { AnnotatedTree, Change } from "@storytree/library";
 
 import type { StorytreeBridge } from "../bridge.js";
 import { openForestView, type ForestView } from "../forest/forest-view.js";
+import { renderStoryPanel } from "../forest/story-panel.js";
 import { renderNoProjects, renderSwitcher } from "../view/view.js";
 
 declare global {
@@ -67,20 +68,42 @@ async function show(name: string, projects: readonly string[]): Promise<void> {
 async function showForest(name: string): Promise<void> {
   const holder = document.createElement("div");
   holder.className = "forest";
-  content.replaceChildren(holder);
+  const panel = document.createElement("aside");
+  panel.className = "story-panel";
+  panel.hidden = true;
+  content.replaceChildren(holder, panel);
   document.body.dataset.surface = "forest";
   const mine: NonNullable<typeof showing> = { reading: undefined, view: undefined };
   showing = mine;
+  const history: Change[] = [];
+  const lines: Line[] = [];
+  let tree: AnnotatedTree | undefined;
+
+  /** The drill-down for the selected story node, or none (capability 4). */
+  const showPanel = (): void => {
+    const story = document.body.dataset.selected;
+    const opened = story === undefined || tree === undefined ? undefined : drillDown(tree, story, workStates(lines), history);
+    panel.hidden = opened === undefined;
+    if (opened === undefined) return panel.replaceChildren();
+    const open = new Set([...panel.querySelectorAll<HTMLElement>("details[open]")].map((node) => node.closest<HTMLElement>("[data-capability-id]")?.dataset.capabilityId));
+    panel.innerHTML = renderStoryPanel(opened);
+    for (const node of panel.querySelectorAll<HTMLElement>("[data-capability-id]")) {
+      if (open.has(node.dataset.capabilityId)) node.querySelector("details")?.setAttribute("open", "");
+    }
+    panel.querySelector(".panel-close")?.addEventListener("click", () => {
+      delete document.body.dataset.selected;
+      mine.view?.select(undefined);
+      showPanel();
+    });
+  };
   const view = await openForestView(holder, (story) => {
     if (story === undefined) delete document.body.dataset.selected;
     else document.body.dataset.selected = story;
+    showPanel();
   });
   if (showing !== mine) return view.dispose();
   mine.view = view;
 
-  const history: Change[] = [];
-  const lines: Line[] = [];
-  let tree: AnnotatedTree | undefined;
   let drawing = Promise.resolve();
   mine.reading = liveReading({
     project: name,
@@ -95,6 +118,7 @@ async function showForest(name: string): Promise<void> {
         const scene = forestScene(tree, history, workStates(lines));
         view.show(scene);
         sayWhatWasDrawn(forestDrawn(scene));
+        if (!panel.hidden) showPanel();
         setState("ready");
       }).catch((error: unknown) => {
         if (showing === mine && document.body.dataset.state !== "ready") showMessage("error", "Something went wrong", messageOf(error));

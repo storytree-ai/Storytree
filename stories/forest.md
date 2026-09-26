@@ -213,6 +213,17 @@ including any in other stories, named with their story and marked if not yet lan
   (part of a 5,624-line studio component), with its ancestor and descendant highlighting, and its
   session dock (ADR-0635, c5). The panel's library drawer is the note browser he cut from the MVP
   (ADR-0625 D4).
+- **As built:** `drillDown(tree, story, states, history)` in `packages/forest`, a pure function of
+  what the page already holds: the story's sentences, its capabilities in the grove's build order
+  with their sentences (or "no description yet"), work state and the agent's reported health, and
+  their contracts with the agent's trail in words ("red, then green", "green only"), read from the
+  health saves in the library's change history. Storytree's own column is carried only where an
+  entry was written. The diagram's arrows point from each capability to those it builds on; one in
+  another story is named with that story and marked until it lands. The page
+  (`apps/desktop/src/forest/story-panel.ts`) draws it as a panel over the forest's right side, with
+  the contracts folded until asked for and the diagram as boxes in columns by build depth, a box
+  dashed until it lands. Clicking a story node opens it, the × or the open sea closes it, and the
+  live reading keeps it current.
 
 **Contracts:**
 1. A story whose third capability builds on the first two opens to its sentences and its
