@@ -174,6 +174,11 @@ otherwise.
 - **Leaves out (vs 0.2):** self-declared presence, which 0.2 retired as "not useful … advisory
   rather than deterministic" (ADR-0200); identity by worktree folder; machine names; and 0.2's
   three staleness bands and two-hour reclaim clock.
+- **As built:** a session is every line under one harness session id; its state comes from its
+  latest line alone (an end line ends it, 30 minutes of quiet makes it idle), and it is flagged
+  "hooks not running" until a line from one of its hooks arrives. Claude Code and Codex both keep a
+  session's id when it is resumed (the probes, capability 3), which is what keeps a resumed window
+  one session.
 
 **Contracts:**
 1. A start line makes a live session labelled "Claude Code", with its folder, when it started and
