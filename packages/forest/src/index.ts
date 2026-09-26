@@ -2,3 +2,5 @@
 // one story node per story, read from the library through its public API.
 export { storyNodes } from "./story-nodes/story-nodes.js";
 export type { Point, StoryNode } from "./story-nodes/story-nodes.js";
+export { grove } from "./capability-tree/capability-tree.js";
+export type { Tree, TreeForm } from "./capability-tree/capability-tree.js";
