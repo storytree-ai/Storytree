@@ -16,6 +16,7 @@ if (command === "remove") {
   const removed = removeHooks(homes);
   console.log(`Claude Code: ${removed["claude-code"] === "removed" ? "storytree's hooks removed" : "no storytree hooks"}`);
   console.log(`Codex: ${removed.codex === "removed" ? "storytree's hooks removed" : "no storytree hooks"}`);
+  console.log(`Status line: ${removed.statusLine === "removed" ? "storytree's removed" : "not storytree's, left as it is"}`);
 } else if (command === "install") {
   const script = fileURLToPath(new URL("./storytree-hook.mjs", import.meta.url));
   if (!existsSync(script)) {
@@ -25,6 +26,7 @@ if (command === "remove") {
   const report = registerHooks(homes, { node: process.execPath, script });
   console.log(`Claude Code: ${report["claude-code"]}`);
   console.log(`Codex: ${report.codex}${report.codex === "registered" ? " (run `codex` in a terminal once and trust storytree's hooks when it asks)" : ""}`);
+  console.log(`Claude Code status line: ${report.statusLine}`);
 } else {
   console.error("usage: storytree-setup install | remove");
   process.exit(2);

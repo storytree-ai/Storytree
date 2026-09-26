@@ -12,7 +12,7 @@
  */
 import { spawn } from "node:child_process";
 
-import { runHook } from "../hooks/index.js";
+import { runHook, statusLine } from "../hooks/index.js";
 
 /** The longest a hook may run, start to finish. Reaching storytree is given up well before this. */
 const DEADLINE_MS = 5_000;
@@ -26,6 +26,11 @@ process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk: string) => (input += chunk));
 process.stdin.on("error", () => process.exit(0));
 process.stdin.on("end", () => {
+  // `storytree-hook statusline`: Claude Code's status line (hooks/status-line.ts), printed with no newline.
+  if (process.argv[2] === "statusline") {
+    void statusLine(input).then((line) => process.stdout.write(line, () => process.exit(0)));
+    return;
+  }
   runHook({ argv: process.argv.slice(2), input, handOff }).then(
     (added) => (added === undefined ? process.exit(0) : process.stdout.write(added, () => process.exit(0))),
     () => process.exit(0),

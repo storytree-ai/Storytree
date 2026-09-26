@@ -1,5 +1,5 @@
 /**
- * Capability 8 · Setup check: one test per contract 8.1-8.5 in stories/agent-link.md. Contract 8.6,
+ * Capability 8 · Setup check: one test per contract 8.1-8.5 and 8.7 in stories/agent-link.md. Contract 8.6,
  * the live check with a real Claude Code and a real Codex, is subscription-billed, and is run once
  * by hand as the story's final proof rather than here.
  *
@@ -123,10 +123,14 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
   await withTempDir(async (dir) => {
     const home = throwawayHome(dir);
     const report = await runSetupCheck({ folder: dir, hook: HOOK, homes: home.homes, storytreeHome: home.storytreeHome });
-    assert.deepEqual(report.hooks, { "claude-code": "registered", codex: "registered" });
+    assert.deepEqual(report.hooks, { "claude-code": "registered", codex: "registered", statusLine: "installed" });
 
     const claude = readJson(home.claudeSettings);
-    assert.deepEqual({ ...claude, hooks: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined }, "Claude Code's other settings are as they were");
+    assert.deepEqual({ ...claude, hooks: undefined, statusLine: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined, statusLine: undefined }, "Claude Code's other settings are as they were");
+    // The user has no status line of their own, so storytree's is installed: the hook script, run for the status line.
+    const statusLine = claude.statusLine as { type: string; command: string };
+    assert.equal(statusLine.type, "command");
+    assert.ok(statusLine.command.includes(HOOK.script) && statusLine.command.endsWith(" statusline"), statusLine.command);
     const claudeHooks = claude.hooks as Record<string, HookEntry[]>;
     assert.deepEqual(claudeHooks.PreToolUse?.[0], CLAUDE_SETTINGS.hooks.PreToolUse[0], "and so is the user's own hook, still first");
 
@@ -162,14 +166,14 @@ test("8.2 a second start changes nothing, and removing storytree takes out exact
     const first = { claude: readFileSync(home.claudeSettings, "utf8"), codex: readFileSync(home.codexHooks, "utf8") };
 
     const again = await runSetupCheck({ folder: dir, hook: HOOK, homes: home.homes, storytreeHome: home.storytreeHome });
-    assert.deepEqual(again.hooks, { "claude-code": "already registered", codex: "already registered" });
+    assert.deepEqual(again.hooks, { "claude-code": "already registered", codex: "already registered", statusLine: "already installed" });
     assert.deepEqual({ claude: readFileSync(home.claudeSettings, "utf8"), codex: readFileSync(home.codexHooks, "utf8") }, first, "not a byte changed");
 
-    assert.deepEqual(removeHooks(home.homes), { "claude-code": "removed", codex: "removed" });
+    assert.deepEqual(removeHooks(home.homes), { "claude-code": "removed", codex: "removed", statusLine: "removed" });
     assert.deepEqual(readJson(home.claudeSettings), CLAUDE_SETTINGS, "Claude Code's settings are as they were before storytree");
     assert.equal(existsSync(home.codexHooks), false, "the hooks file storytree made is gone");
     assert.equal(readFileSync(home.codexConfig, "utf8"), CODEX_CONFIG);
-    assert.deepEqual(removeHooks(home.homes), { "claude-code": "none", codex: "none" }, "and removing again finds nothing");
+    assert.deepEqual(removeHooks(home.homes), { "claude-code": "none", codex: "none", statusLine: "none" }, "and removing again finds nothing");
 
     // A registration from an older install, at another path, is replaced rather than doubled.
     registerHooks(home.homes, { ...HOOK, script: path.join(dir, "old", "storytree-hook.mjs") });
@@ -353,3 +357,16 @@ function fireHook(storytreeHome: string, harness: string, fixture: string, folde
     child.stdin.end(JSON.stringify(input));
   });
 }
+
+test("8.7 a status line of the user's own is kept: storytree's is installed only where there is none, and removing storytree leaves theirs", async () => {
+  await withTempDir(async (dir) => {
+    const home = throwawayHome(dir);
+    const theirs = { type: "command", command: "echo my own line" };
+    writeFileSync(home.claudeSettings, `${JSON.stringify({ ...CLAUDE_SETTINGS, statusLine: theirs }, null, 2)}\n`);
+    const report = await runSetupCheck({ folder: dir, hook: HOOK, homes: home.homes, storytreeHome: home.storytreeHome });
+    assert.equal(report.hooks?.statusLine, "the user's own kept");
+    assert.deepEqual(readJson(home.claudeSettings).statusLine, theirs, "theirs, untouched");
+    assert.equal(removeHooks(home.homes).statusLine, "none");
+    assert.deepEqual(readJson(home.claudeSettings), { ...CLAUDE_SETTINGS, statusLine: theirs }, "and still theirs once storytree is removed");
+  });
+});

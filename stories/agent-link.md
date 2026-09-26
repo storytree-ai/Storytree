@@ -144,7 +144,7 @@ running they do nothing.
 
 - **Depends on:** 1 and 2.
 - **Leaves out (vs 0.2):** 0.2's six session-start hooks (installing packages, repairing and pruning
-  worktrees, remote setup, a claim reminder) and its status line.
+  worktrees, remote setup, a claim reminder).
   0.2 never recorded edits or commands at all.
 - **As built:** one command, `storytree-hook <harness>` (`claude-code` or `codex`), built into a
   plain Node script (a 5 KB entry; the database code sits in chunks beside it, loaded only when a
@@ -207,6 +207,23 @@ running they do nothing.
   marker (0.2's three) gets none. The harness waits for this hook, so it gives up after 2 s and
   prints nothing; routed, it takes about 0.25 s here. It is the one hook that prints anything.
 
+- **Added by ADR-0636 D1 (b3), the status line,** ported from 0.2's `presence-hook.sh statusline`
+  by behaviour: one line in a Claude Code window, `storytree · holds Email form · 2 other agents
+  working · ⚠ src/signup.ts is being edited by Codex too`. It is `storytree-hook statusline`, which
+  Claude Code runs as a command line through a shell (both paths in double quotes, which bash and
+  cmd each read as one word; checked 2026-09-27), with the session's id and folder on stdin. What
+  this session holds comes from its claims (5), by capability title; the other agents are the
+  project's other live sessions (4). 0.2 warned when two sessions claimed one unit, which cannot
+  happen in 0.3, where a capability has one holder; so the warning is a file this session edited in
+  the last quiet time that another live session edited in it too. In a project with storytree
+  stopped it reads `storytree isn't running`; outside a project it shows nothing, since Claude Code
+  shows one status line in every folder. It waits at most 2 s. Claude Code has room for one status
+  line, so the setup check installs storytree's only where the user has none (8.7), and removing
+  storytree takes out only its own. Asking the user whether to replace theirs is not built. Codex's
+  status line shows only Codex's own items, so there is nothing to install there. Its input is not
+  recorded: Claude Code runs a status line only in an interactive window, so the test uses the
+  documented fields.
+
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed
    in, and four lines appear on that session, carrying the file path, the command and the
@@ -227,6 +244,9 @@ running they do nothing.
 7. At each prompt, the project's definitions for the terms it names are added for the agent: whole
    words in any case or plural, at most five, longest first, each once a session. A harness's own
    notice gets none, and with storytree stopped nothing is printed.
+8. The status line shows what this session holds, how many other agents are working, and a warning
+   when another is editing a file it edited. With storytree stopped it says so, and outside a
+   project it shows nothing.
 
 ## 4 · Sessions
 
@@ -456,6 +476,8 @@ set one up.
    answered yes, show up live, plan, claim, report red then green and land, and the agent activity
    log and the library show all of it. A second session that ignores storytree and only edits a
    file shows up as unplanned activity. *Subscription-billed: run once, as the final proof.*
+7. A status line of the user's own is kept: storytree's is installed only where there is none, and
+   removing storytree leaves theirs.
 
 ---
 
