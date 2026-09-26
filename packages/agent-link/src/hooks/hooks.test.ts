@@ -190,9 +190,15 @@ test("3.3 with storytree stopped, with garbage input, or outside a storytree pro
       ["outside a storytree project", start(outside), running],
     ];
     for (const [what, input, home] of cases) {
-      const ran = await runHook("claude-code", input, home);
-      assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, what);
-      assert.ok(ran.ms < QUICK_MS, `${what}: exited in ${ran.ms.toFixed(0)} ms`);
+      // Each case three times: every run must exit cleanly and silently, and the fastest must be
+      // under half a second. The fastest is what the command itself costs; a single run can also
+      // measure a moment when the whole test suite has the machine busy (a first full-suite run
+      // on Windows took 1.7 s for a command that takes 0.13 s).
+      const runs = [];
+      for (let run = 0; run < 3; run++) runs.push(await runHook("claude-code", input, home));
+      for (const ran of runs) assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, what);
+      const fastest = Math.min(...runs.map((ran) => ran.ms));
+      assert.ok(fastest < QUICK_MS, `${what}: exited in ${fastest.toFixed(0)} ms at best`);
     }
     assert.deepEqual(await linesOf(project), [], "nothing written for the project");
     assert.equal(await linesAnywhereFor(session), 0, "nothing written anywhere for the session");
