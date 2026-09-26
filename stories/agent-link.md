@@ -140,7 +140,8 @@ running they do nothing.
   worktrees, remote setup, a claim reminder), its prompt-time definition lookups and its status line.
   0.2 never recorded edits or commands at all.
 - **As built:** one command, `storytree-hook <harness>` (`claude-code` or `codex`), built into a
-  single plain Node script with nothing beside it, and run with the hook's input on stdin. Claude
+  plain Node script (a 5 KB entry; the database code sits in chunks beside it, loaded only when a
+  line is written), and run with the hook's input on stdin. Claude
   Code's edits are its Write, Edit, MultiEdit and NotebookEdit tools and its commands are Bash;
   Codex's edits are `apply_patch`, whose patch text names the files (also when the patch runs
   through the shell), and its commands are Bash. It reaches the database only when the folder is a
@@ -237,7 +238,7 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 - **Leaves out (vs 0.2):** the whole storytree command line (dozens of commands for the library,
   arcs, decisions, questions, the gate and the notice board), the build workers, the prove-it spine,
   signed verdicts and paid `--real` builds. The MVP toolbox has about a dozen tools.
-- **As built:** one command, `storytree-mcp`, a single plain Node script a harness starts for each
+- **As built:** one command, `storytree-mcp`, a plain Node script a harness starts for each
   session and talks to on stdio. Its thirteen tools: `plan_arc`, `plan_story`, `plan_capability`,
   `plan_contract`, `edit_plan`, `show_plan`, `claim`, `release`, `report` (red or green), `land`,
   `search_notes`, `open` (a story's or capability's shelf as spines, or a note whole) and
