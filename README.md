@@ -19,10 +19,10 @@ project and an optional Google Cloud connection. Its capabilities are listed in
 Storytree 0.3 keeps its own plan in the kind of library it gives every project. `pnpm seed:library`
 loads this repo's stories ([`stories/`](stories)) and the decisions made for them
 ([`decisions/`](decisions)) into the desktop app's library, as the project `storytree`. Each
-decision becomes a front cover of the one story or capability it decided. The seed then runs each
-story's own tests and records what they showed as its verified health. Quit the app first: the
-seed starts the app's own Postgres. Running it again updates everything in place and never adds
-anything twice.
+decision becomes a front cover of the one story or capability it decided; a decision about the
+whole project sits on no shelf, and is found by search. The seed then runs each story's own tests
+and records what they showed as its verified health. Quit the app first: the seed starts the app's
+own Postgres. Running it again updates everything in place and never adds anything twice.
 
 ## How changes land
 

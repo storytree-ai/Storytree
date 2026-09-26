@@ -471,20 +471,21 @@ export async function recordHealth(library, contractIds, verdicts) {
 
 /**
  * @typedef {{ story: string, capability?: number }} Cover
- * @typedef {{ title: string, cover: Cover, record: string, text: string }} ParsedDecision
+ * @typedef {{ title: string, cover?: Cover, record: string, text: string }} ParsedDecision
  */
 
 /**
  * Read a decision file (decisions/*.md): a decision made for this project, in short form, to be a
  * front cover of one story or capability. It has a `# <title>`; a `- **Front cover of:**` line
- * naming the story file, with `, capability N` for one of that story's capabilities; a
+ * naming the story file, with `, capability N` for one of that story's capabilities, or starting
+ * with `none` for a decision about the whole project, which sits on no shelf (ADR-0631); a
  * `- **Full record:**` line saying where the whole decision is, starting with the record's id
  * (`ADR-0621 in storytree 0.2's decision log`); and the decision in plain words. The text keeps the
  * words' paragraphs, each on one line (a list item on a line of its own, so the first line is
  * what a shelf shows under the title), and ends with the full record line. The record's id is
  * how a later run finds the decision again.
  * @param {string} markdown
- * @returns {ParsedDecision}
+ * @returns {ParsedDecision} with no `cover` for a decision on no shelf
  */
 export function parseDecision(markdown) {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -503,11 +504,13 @@ export function parseDecision(markdown) {
     else fields.set(field[1], field[2].trim());
   }
 
-  const cover = /^(stories\/[^\s,]+\.md)(?:,?\s+capability\s+(\d+))?\.?$/.exec(fields.get("Front cover of") ?? "");
-  if (cover === null) {
+  const coverLine = fields.get("Front cover of") ?? "";
+  const cover = /^(stories\/[^\s,]+\.md)(?:,?\s+capability\s+(\d+))?\.?$/.exec(coverLine);
+  if (cover === null && !/^none\b/i.test(coverLine)) {
     throw new Error(
       `"${title}" names no story or capability it is a front cover of: give it a ` +
-        "`- **Front cover of:** stories/<name>.md` line, adding `, capability N` for one of the story's capabilities",
+        "`- **Front cover of:** stories/<name>.md` line, adding `, capability N` for one of the story's capabilities, " +
+        "or `none` for a decision about the whole project, which sits on no shelf",
     );
   }
   const full = fields.get("Full record")?.replace(/\.$/, "");
@@ -517,7 +520,7 @@ export function parseDecision(markdown) {
   }
   return {
     title,
-    cover: { story: cover[1], ...(cover[2] === undefined ? {} : { capability: Number(cover[2]) }) },
+    ...(cover === null ? {} : { cover: { story: cover[1], ...(cover[2] === undefined ? {} : { capability: Number(cover[2]) }) } }),
     record,
     text: [...paragraphsOf(words), `Full record: ${full}.`].join("\n\n"),
   };
@@ -542,8 +545,9 @@ function paragraphsOf(lines) {
 
 /**
  * File each decision as a front cover of the story or capability it names, through the library's
- * public API, idempotently. `nodes` maps each story file to its story's id and its capabilities'
- * ids by number, as syncStory gives them.
+ * public API, idempotently; a decision with no cover, about the whole project, is filed on no
+ * shelf and found by search (ADR-0631). `nodes` maps each story file to its story's id and its
+ * capabilities' ids by number, as syncStory gives them.
  *
  * Every decision is placed before any is written: a decision naming a node the stories do not
  * have, or a record filed twice, is refused and nothing is written. A decision is found again by
@@ -558,7 +562,7 @@ function paragraphsOf(lines) {
  */
 export async function syncDecisions(library, decisions, nodes) {
   const counts = { added: 0, updated: 0, unchanged: 0, offShelf: 0 };
-  /** @type {Map<string, string>} record -> the id of the node it is a front cover of */
+  /** @type {Map<string, string | undefined>} record -> the id of the node it is a front cover of, undefined for none */
   const placed = new Map();
   /** @type {Map<string, string>} record -> the title it was first filed under */
   const titles = new Map();
@@ -570,6 +574,10 @@ export async function syncDecisions(library, decisions, nodes) {
       );
     }
     titles.set(record, title);
+    if (cover === undefined) {
+      placed.set(record, undefined);
+      continue;
+    }
     const story = nodes.get(cover.story);
     const nodeId = cover.capability === undefined ? story?.storyId : story?.capabilityIds.get(String(cover.capability));
     if (nodeId === undefined) {
@@ -590,7 +598,7 @@ export async function syncDecisions(library, decisions, nodes) {
     const frontCoverOf = placed.get(record);
     const old = filed.get(record);
     if (old === undefined) {
-      await library.recordDecision({ title, text, frontCoverOf });
+      await library.recordDecision({ title, text, ...(frontCoverOf === undefined ? {} : { frontCoverOf }) });
       counts.added++;
       continue;
     }

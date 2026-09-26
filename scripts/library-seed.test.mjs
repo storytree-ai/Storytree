@@ -256,7 +256,7 @@ test("recordHealth writes each passing or failing verdict to the verified column
   });
 });
 
-test("parseDecision reads a decision file: its title, the one story or capability it is a front cover of, and its words, ending with where its full record is", () => {
+test("parseDecision reads a decision file: its title, the one story or capability it is a front cover of, or none, and its words, ending with where its full record is", () => {
   const file = (header) =>
     [
       "# Keep the log beside the library",
@@ -283,7 +283,12 @@ test("parseDecision reads a decision file: its title, the one story or capabilit
       "Full record: ADR-0626 in storytree 0.2's decision log.",
   });
   assert.deepEqual(parseDecision(file(["- **Front cover of:** stories/agent-link.md", record])).cover, { story: "stories/agent-link.md" });
-  assert.throws(() => parseDecision(file([record])), /front cover/i, "a decision filed on no node is refused");
+  assert.equal(
+    parseDecision(file(["- **Front cover of:** none: it decides the whole project", record])).cover,
+    undefined,
+    "a decision about the whole project sits on no shelf",
+  );
+  assert.throws(() => parseDecision(file([record])), /front cover/i, "a decision that forgets its cover line is refused");
   assert.throws(() => parseDecision(file(["- **Front cover of:** stories/agent-link.md"])), /full record/i, "so is one with no record to point at");
 });
 
@@ -341,6 +346,26 @@ test("syncDecisions takes a decision the files no longer have off its shelf and 
     await assert.rejects(place("ADR-0003", { story: "stories/other.md" }), /ADR-0003.*stories\/other\.md/);
     await assert.rejects(syncDecisions(lib, [tree, { ...tree, title: "The tree, again" }], nodes), /ADR-0001.*twice/);
     assert.deepEqual((await lib.changesSince(cursor)).changes, [], "a refused run writes nothing, not even the decisions it could place");
+  });
+});
+
+test("syncDecisions files a decision about the whole project on no shelf, found by search, and moves it onto a shelf in place once its file names a node", async () => {
+  await withLibrary(async (lib) => {
+    const { storyId, capabilityIds } = await syncStory(lib, parseStory(TWO_PARTS));
+    const nodes = new Map([["stories/two-parts.md", { storyId, capabilityIds }]]);
+    const whole = decisionFor("ADR-0001", "The whole project", undefined);
+    const tree = decisionFor("ADR-0002", "The tree", { story: "stories/two-parts.md" });
+
+    const first = await syncDecisions(lib, [whole, tree], nodes);
+    assert.deepEqual(first.counts, { added: 2, updated: 0, unchanged: 0, offShelf: 0 });
+    const [found, ...others] = await lib.search("whole project");
+    assert.deepEqual([found.fields.title, found.fields.frontCoverOf, others.length], ["The whole project", undefined, 0], "on no shelf");
+    assert.deepEqual((await lib.frontCovers(storyId)).map(({ fields }) => fields.title), ["The tree"]);
+
+    // The story it decided now exists: its file names it, and the same decision moves onto that shelf.
+    const moved = await syncDecisions(lib, [{ ...whole, cover: { story: "stories/two-parts.md", capability: 2 } }, tree], nodes);
+    assert.deepEqual(moved.counts, { added: 0, updated: 1, unchanged: 1, offShelf: 0 });
+    assert.deepEqual((await lib.frontCovers(capabilityIds.get("2"))).map(({ id }) => id), [found.id]);
   });
 });
 
@@ -438,7 +463,7 @@ const TWO_PARTS = [
   "",
 ].join("\n");
 
-/** A decision as parseDecision reads one, a front cover of `cover`. */
+/** A decision as parseDecision reads one, a front cover of `cover`, or of nothing when it is undefined. */
 function decisionFor(record, title, cover) {
   return { title, cover, record, text: `What was decided.\n\nFull record: ${record} in storytree 0.2's decision log.` };
 }
