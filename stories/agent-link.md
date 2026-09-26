@@ -358,8 +358,9 @@ set one up.
   them. This story only uses them, through its tools.
 - **Getting storytree onto the machine** belongs to install and first run: the app download, the
   one-line tool-server install, and a first-run guide.
-- **Running the tests at landing,** and recording what storytree saw, belong to the verified-health
-  story, which reacts to the "landed" line.
+- **Running the tests at landing** is not in the MVP. The owner dropped verified health on
+  2026-09-26 (ADR-0630 in storytree 0.2's decision log): health is what the agent reports through
+  `report`, and nothing reacts to the "landed" line by running tests.
 - **Showing** sessions, claims and unplanned activity belongs to the arc surface and the forest,
   which read them from capabilities 2, 4 and 5.
 - **The view of note reads** (the planet idea) stays out of the MVP. This story keeps only the

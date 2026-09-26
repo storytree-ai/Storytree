@@ -16,9 +16,11 @@ stories it grows, but it need not: a research arc may touch no story at all.
 Storytree ships a local Postgres. A user may connect to a Google Cloud SQL database instead, signed
 in with their own Google account. Other clouds wait until someone asks for them.
 
-The library stores health and answers questions about it. Running a story's tests when a part lands
-belongs to verified health, claims and the agent's tools belong to the agent link, and starting
-Postgres belongs to the desktop app.
+The library stores health and answers questions about it. Claims and the agent's tools belong to
+the agent link, and starting Postgres belongs to the desktop app. Nothing in the MVP runs a story's
+tests when a part lands: the owner dropped verified health on 2026-09-26 (ADR-0630), so users'
+projects get only what the agent reports, and the verified column is written only by the seed, for
+storytree's own stories.
 
 Left out compared with 0.2: its single cloud instance and credential handling, the web door to the
 store, the library's command line and browse screens, 0.2's corpus (0.3 starts nearly empty), story
