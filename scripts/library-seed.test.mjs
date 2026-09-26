@@ -1,8 +1,9 @@
 // The seed's rules (scripts/library-seed.mjs): how stories/library.md becomes a story, capabilities
-// and contracts, how a test run's results become each contract's verified health, and that writing
-// them to a library is idempotent. The parsing and judging tests are pure; the library tests run
-// against the Postgres `pnpm test` provides (STORYTREE_TEST_PG_URL), each in a project of its own
-// that is dropped afterwards.
+// and contracts, how a test run's results become each contract's verified health, how a decision
+// file becomes a front cover of the story or capability it names, and that writing them to a
+// library is idempotent. The parsing and judging tests are pure; the library tests run against the
+// Postgres `pnpm test` provides (STORYTREE_TEST_PG_URL), each in a project of its own that is
+// dropped afterwards.
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -13,7 +14,16 @@ import { fileURLToPath } from "node:url";
 import { connect } from "@storytree/library";
 import pg from "pg";
 
-import { contractsCoveredBy, judge, parseJunit, parseStory, recordHealth, syncStory } from "./library-seed.mjs";
+import {
+  contractsCoveredBy,
+  judge,
+  parseDecision,
+  parseJunit,
+  parseStory,
+  recordHealth,
+  syncDecisions,
+  syncStory,
+} from "./library-seed.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const librarySpec = readFileSync(path.join(root, "stories", "library.md"), "utf8");
@@ -254,6 +264,94 @@ test("recordHealth writes each passing or failing verdict to the verified column
   });
 });
 
+test("parseDecision reads a decision file: its title, the one story or capability it is a front cover of, and its words, ending with where its full record is", () => {
+  const file = (header) =>
+    [
+      "# Keep the log beside the library",
+      "",
+      ...header,
+      "",
+      "The link keeps its own log beside the library,",
+      "not inside it.",
+      "",
+      "Two things live there:",
+      "- sessions and claims;",
+      "- note reads.",
+      "",
+    ].join("\n");
+  const record = "- **Full record:** ADR-0626 in storytree 0.2's decision log";
+
+  assert.deepEqual(parseDecision(file(["- **Front cover of:** stories/agent-link.md, capability 2", record])), {
+    title: "Keep the log beside the library",
+    cover: { story: "stories/agent-link.md", capability: 2 },
+    record: "ADR-0626",
+    text:
+      "The link keeps its own log beside the library, not inside it.\n\n" +
+      "Two things live there:\n- sessions and claims;\n- note reads.\n\n" +
+      "Full record: ADR-0626 in storytree 0.2's decision log.",
+  });
+  assert.deepEqual(parseDecision(file(["- **Front cover of:** stories/agent-link.md", record])).cover, { story: "stories/agent-link.md" });
+  assert.throws(() => parseDecision(file([record])), /front cover/i, "a decision filed on no node is refused");
+  assert.throws(() => parseDecision(file(["- **Front cover of:** stories/agent-link.md"])), /full record/i, "so is one with no record to point at");
+});
+
+test("syncDecisions files each decision as a front cover of the node it names; a second run writes nothing, and a changed decision is edited in place, never added twice", async () => {
+  await withLibrary(async (lib) => {
+    const { storyId, capabilityIds } = await syncStory(lib, parseStory(TWO_PARTS));
+    const nodes = new Map([["stories/two-parts.md", { storyId, capabilityIds }]]);
+    // A cover an agent wrote for itself before the seed ran, which the seed never touches.
+    const agents = await lib.recordDecision({ title: "An agent's own cover", text: "Written through the tools.", frontCoverOf: capabilityIds.get("2") });
+    const tree = decisionFor("ADR-0001", "The tree", { story: "stories/two-parts.md" });
+    const second = decisionFor("ADR-0002", "The second part", { story: "stories/two-parts.md", capability: 2 });
+
+    const first = await syncDecisions(lib, [tree, second], nodes);
+    assert.deepEqual(first.counts, { added: 2, updated: 0, unchanged: 0, offShelf: 0 });
+    const [tree1] = await lib.frontCovers(storyId);
+    assert.deepEqual([tree1.fields.title, tree1.fields.text], ["The tree", tree.text]);
+    const shelf = await lib.frontCovers(capabilityIds.get("2"));
+    assert.deepEqual(shelf.map(({ fields }) => fields.title).sort(), ["An agent's own cover", "The second part"]);
+    const second1 = shelf.find(({ fields }) => fields.title === "The second part");
+
+    const { cursor } = await lib.changesSince(0);
+    const again = await syncDecisions(lib, [tree, second], nodes);
+    assert.deepEqual(again.counts, { added: 0, updated: 0, unchanged: 2, offShelf: 0 });
+    assert.deepEqual((await lib.changesSince(cursor)).changes, [], "the second run wrote nothing");
+
+    // The files change: one decision is reworded, and the other moves to the first capability.
+    const changed = await syncDecisions(
+      lib,
+      [{ ...tree, title: "The tree, reworded" }, { ...second, cover: { story: "stories/two-parts.md", capability: 1 } }],
+      nodes,
+    );
+    assert.deepEqual(changed.counts, { added: 0, updated: 2, unchanged: 0, offShelf: 0 });
+    assert.deepEqual((await lib.frontCovers(storyId)).map(({ id, fields }) => [id, fields.title]), [[tree1.id, "The tree, reworded"]]);
+    assert.deepEqual((await lib.frontCovers(capabilityIds.get("1"))).map(({ id }) => id), [second1.id], "moved, not added again");
+    assert.deepEqual((await lib.frontCovers(capabilityIds.get("2"))).map(({ id }) => id), [agents.id]);
+    assert.equal((await lib.search("what was decided")).length, 2, "two decisions, never four");
+  });
+});
+
+test("syncDecisions takes a decision the files no longer have off its shelf and keeps it, and refuses a decision it cannot place, or one record filed twice, writing nothing", async () => {
+  await withLibrary(async (lib) => {
+    const { storyId, capabilityIds } = await syncStory(lib, parseStory(TWO_PARTS));
+    const nodes = new Map([["stories/two-parts.md", { storyId, capabilityIds }]]);
+    const tree = decisionFor("ADR-0001", "The tree", { story: "stories/two-parts.md" });
+    await syncDecisions(lib, [tree], nodes);
+
+    const gone = await syncDecisions(lib, [], nodes);
+    assert.deepEqual(gone.counts, { added: 0, updated: 0, unchanged: 0, offShelf: 1 });
+    assert.deepEqual(await lib.frontCovers(storyId), []);
+    assert.equal((await lib.search("what was decided")).length, 1, "off its shelf but not retired, so nothing filed inside it is stranded");
+
+    const { cursor } = await lib.changesSince(0);
+    const place = (record, cover) => syncDecisions(lib, [tree, decisionFor(record, "Somewhere", cover)], nodes);
+    await assert.rejects(place("ADR-0002", { story: "stories/two-parts.md", capability: 9 }), /ADR-0002.*capability 9/);
+    await assert.rejects(place("ADR-0003", { story: "stories/other.md" }), /ADR-0003.*stories\/other\.md/);
+    await assert.rejects(syncDecisions(lib, [tree, { ...tree, title: "The tree, again" }], nodes), /ADR-0001.*twice/);
+    assert.deepEqual((await lib.changesSince(cursor)).changes, [], "a refused run writes nothing, not even the decisions it could place");
+  });
+});
+
 // --- helpers ---------------------------------------------------------------------------------
 
 /** Node's junit reporter output, as it writes it (a crashed file, escaping, a skip, a failure, a suite, a todo). */
@@ -283,6 +381,37 @@ Error: boom &lt;&amp;> at TestContext.&lt;anonymous>
 	<!-- tests 7 -->
 </testsuites>
 `;
+
+/** A story file with two capabilities, for the decisions to be filed on. */
+const TWO_PARTS = [
+  "# Story: two parts",
+  "",
+  "**What it is.** A story with two capabilities.",
+  "",
+  "## 1 · First",
+  "",
+  "The first part.",
+  "",
+  "- **Depends on:** nothing.",
+  "",
+  "**Contracts:**",
+  "1. Does a thing.",
+  "",
+  "## 2 · Second",
+  "",
+  "The second part.",
+  "",
+  "- **Depends on:** 1.",
+  "",
+  "**Contracts:**",
+  "1. Does another.",
+  "",
+].join("\n");
+
+/** A decision as parseDecision reads one, a front cover of `cover`. */
+function decisionFor(record, title, cover) {
+  return { title, cover, record, text: `What was decided.\n\nFull record: ${record} in storytree 0.2's decision log.` };
+}
 
 /** Run `body` with a library for a fresh project on the test server, dropped afterwards, pass or fail. */
 async function withLibrary(body) {

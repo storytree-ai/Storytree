@@ -159,11 +159,11 @@ test("the story heads the page with its title, description and rolled-up health,
   assert.match(html, /1\.1 · <code>openProject\(&quot;site&quot;\)<\/code> creates it/);
 });
 
-test("a project with no stories says so, and with no projects at all the page says how to add the library story", () => {
+test("a project with no stories says so, and with no projects at all the page says how to add this repo's own stories", () => {
   const empty = renderProject("site", { stories: [], arcs: [] });
   assert.match(empty, /site has no stories yet/);
   assert.doesNotMatch(empty, /data-story-id/);
-  assert.match(renderNoProjects(), /pnpm seed:library-story/);
+  assert.match(renderNoProjects(), /<code>pnpm seed:library<\/code>/);
 });
 
 test("the project switcher lists every project, the one shown selected, names escaped", () => {

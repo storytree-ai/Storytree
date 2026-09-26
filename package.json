@@ -11,7 +11,7 @@
     "test": "node --import tsx scripts/test.mjs",
     "typecheck": "pnpm -r typecheck",
     "test-ratio": "node scripts/test-ratio.mjs",
-    "seed:library-story": "node --import tsx scripts/seed-library-story.mjs",
+    "seed:library": "node --import tsx scripts/seed-library.mjs",
     "desktop": "pnpm --filter @storytree/desktop start",
     "desktop:smoke": "pnpm --filter @storytree/desktop smoke",
     "desktop:dist": "pnpm --filter @storytree/desktop dist"
