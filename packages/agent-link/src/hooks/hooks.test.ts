@@ -139,6 +139,38 @@ test("3.1 recorded Claude Code hook inputs (a start, a file edit, a shell comman
   });
 });
 
+test("3.2 recorded Codex hook inputs make the same four lines, with the edited files read out of its patch text", async () => {
+  const project = uniqueProjectName();
+  await withTempDir(async (dir) => {
+    const folder = projectFolder(dir, project);
+    const home = storytreeHome(dir, true);
+    for (const name of ["session-start-startup", "post-tool-use-apply-patch", "post-tool-use-bash", "session-end"]) {
+      const ran = await runHook("codex", recorded("codex", name, folder), home);
+      assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
+    }
+    const session = "01a0dc55-55fe-7b01-a0ea-cebc2d4a4267";
+    const common = { project, session, harness: "codex", source: "hook", folder } as const;
+    assert.deepEqual((await linesOf(project)).map(written), [
+      { ...common, kind: "session-started", how: "startup" },
+      { ...common, kind: "file-edited", files: ["hello.txt"] },
+      { ...common, kind: "command-run", command: "echo probe-command" },
+      { ...common, kind: "session-ended", reason: "other" },
+    ]);
+
+    // One patch touching several files names them all: the one it updates, where it moves it, and the one it adds.
+    const before = (await linesOf(project)).length;
+    await runHook("codex", recorded("codex", "post-tool-use-apply-patch-move", folder), home);
+    // The same patch run through the shell (`apply_patch <<'EOF'`) reaches the hook as a Bash command.
+    const patch = (JSON.parse(recorded("codex", "post-tool-use-apply-patch-move", folder)) as { tool_input: { command: string } }).tool_input.command;
+    const shell = { ...JSON.parse(recorded("codex", "post-tool-use-bash", folder)), tool_input: { command: `apply_patch <<'EOF'\n${patch}\nEOF` } };
+    await runHook("codex", JSON.stringify(shell), home);
+    assert.deepEqual((await linesOf(project)).slice(before).map(written), [
+      { ...common, kind: "file-edited", files: ["hello.txt", "greeting.txt", "notes.txt"] },
+      { ...common, kind: "file-edited", files: ["hello.txt", "greeting.txt", "notes.txt"] },
+    ]);
+  });
+});
+
 test("3.3 with storytree stopped, with garbage input, or outside a storytree project, the command exits cleanly in under half a second and writes nothing", async () => {
   const project = uniqueProjectName();
   await withTempDir(async (dir) => {
