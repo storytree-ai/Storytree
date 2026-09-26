@@ -6,3 +6,5 @@ export { grove } from "./capability-tree/capability-tree.js";
 export type { Tree, TreeForm } from "./capability-tree/capability-tree.js";
 export { changedIslands, forestDrawn, forestScene, PLACE_WIDTH, storyAt } from "./render/forest-scene.js";
 export type { ForestDrawn, ForestScene, Island, PlacedTree } from "./render/forest-scene.js";
+export { drillDown, NO_DESCRIPTION } from "./drill-down/drill-down.js";
+export type { Arrow, CapabilityLine, ContractLine, StoryPanel } from "./drill-down/drill-down.js";
