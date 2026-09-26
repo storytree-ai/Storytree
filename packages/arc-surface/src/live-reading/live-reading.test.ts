@@ -1,0 +1,155 @@
+/**
+ * The live reading (part of capability 3 · Arc surface, stories/arc-surface.md): while it runs it
+ * asks the app's two reads about every two seconds, carrying each read's cursor forward, and re-reads
+ * the clock once a minute even when nothing is new. The reads and the clock are stand-ins here, so
+ * no app and no database are needed.
+ */
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import type { Line, LinesSince } from "@storytree/agent-link";
+import type { Change, Changes } from "@storytree/library";
+
+import { liveReading, type LiveReads, type News, type Timers } from "./live-reading.js";
+
+/** A stand-in clock whose timers fire only when the test moves it on. */
+class Clock implements Timers {
+  #now = Date.UTC(2026, 8, 27, 12);
+  #timers: { ms: number; next: number; run: () => void }[] = [];
+
+  now(): number {
+    return this.#now;
+  }
+
+  every(ms: number, run: () => void): () => void {
+    const timer = { ms, next: this.#now + ms, run };
+    this.#timers.push(timer);
+    return () => {
+      this.#timers = this.#timers.filter((other) => other !== timer);
+    };
+  }
+
+  /** Move on `ms`, firing each timer as its time comes, and let each read it starts settle. */
+  async advance(ms: number): Promise<void> {
+    const until = this.#now + ms;
+    for (;;) {
+      const due = this.#timers.filter((timer) => timer.next <= until).sort((a, b) => a.next - b.next)[0];
+      if (due === undefined) break;
+      this.#now = due.next;
+      due.next += due.ms;
+      due.run();
+      await settle();
+    }
+    this.#now = until;
+    await settle();
+  }
+}
+
+async function settle(): Promise<void> {
+  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+}
+
+/** The app's two reads over a project whose library and log the test adds to, recording every ask. */
+class App implements LiveReads {
+  readonly asked: string[] = [];
+  readonly changes: Change[] = [];
+  readonly lines: Line[] = [];
+  failing = false;
+
+  async changesSince(project: string, cursor: number): Promise<Changes> {
+    this.asked.push(`changes ${project} ${cursor}`);
+    if (this.failing) throw new Error("the app did not answer");
+    const changes = this.changes.filter(({ seq }) => seq > cursor);
+    return { changes, cursor: changes.at(-1)?.seq ?? cursor };
+  }
+
+  async linesSince(project: string, cursor: number): Promise<LinesSince> {
+    this.asked.push(`lines ${project} ${cursor}`);
+    if (this.failing) throw new Error("the app did not answer");
+    const lines = this.lines.filter(({ seq }) => seq > cursor);
+    return { lines, cursor: lines.at(-1)?.seq ?? cursor };
+  }
+
+  claim(capability: string): void {
+    const seq = this.lines.length + 1;
+    this.lines.push({ kind: "claimed", session: "s1", source: "tool", capability, reason: "building it", seq, project: "shop", at: new Date(0).toISOString() });
+  }
+
+  story(title: string): void {
+    const seq = this.changes.length + 1;
+    const at = new Date(0).toISOString();
+    this.changes.push({ seq, recordId: `story_${seq}`, type: "story", action: "created", record: { id: `story_${seq}`, type: "story", version: 1, fields: { title }, createdAt: at, updatedAt: at } });
+  }
+}
+
+function start(app: App, clock: Clock) {
+  const news: News[] = [];
+  const ticks: number[] = [];
+  const errors: unknown[] = [];
+  const reading = liveReading({
+    project: "shop",
+    reads: app,
+    timers: clock,
+    onNews: (next) => news.push(next),
+    onClock: (now) => ticks.push(now),
+    onError: (error) => errors.push(error),
+  });
+  return { reading, news, ticks, errors };
+}
+
+test("it reads everything at once, then asks about every two seconds from where it got to, and hands on only what is new", async () => {
+  const app = new App();
+  app.story("Visitor can sign up");
+  app.claim("cap_a");
+  const clock = new Clock();
+  const { reading, news } = start(app, clock);
+  await settle();
+
+  assert.deepEqual(news.map(({ changes, lines }) => [changes.length, lines.length]), [[1, 1]], "the first read is everything so far");
+
+  await clock.advance(2_000);
+  assert.equal(news.length, 1, "nothing new is not news");
+
+  app.claim("cap_b");
+  await clock.advance(2_000);
+  assert.deepEqual(news.at(-1)?.lines.map((line) => line.kind === "claimed" && line.capability), ["cap_b"], "a claim written while it runs arrives within two seconds");
+  assert.deepEqual(app.asked.slice(-2), ["changes shop 1", "lines shop 1"], "each read carries its own cursor forward");
+
+  reading.stop();
+  const asks = app.asked.length;
+  await clock.advance(10_000);
+  assert.equal(app.asked.length, asks, "once stopped it asks nothing");
+});
+
+test("it re-reads the clock once a minute even when nothing is new", async () => {
+  const app = new App();
+  const clock = new Clock();
+  const began = clock.now();
+  const { reading, ticks } = start(app, clock);
+  await clock.advance(59_000);
+  assert.deepEqual(ticks, []);
+  await clock.advance(1_000);
+  assert.deepEqual(ticks, [began + 60_000]);
+  await clock.advance(60_000);
+  assert.deepEqual(ticks, [began + 60_000, began + 120_000]);
+  reading.stop();
+});
+
+test("a read that fails is reported, and the next ask tries again from the same place", async () => {
+  const app = new App();
+  app.claim("cap_a");
+  const clock = new Clock();
+  const { reading, news, errors } = start(app, clock);
+  await settle();
+
+  app.failing = true;
+  app.claim("cap_b");
+  await clock.advance(2_000);
+  assert.equal(errors.length, 1);
+  assert.equal(news.length, 1);
+
+  app.failing = false;
+  await clock.advance(2_000);
+  assert.deepEqual(news.at(-1)?.lines.map((line) => line.kind === "claimed" && line.capability), ["cap_b"]);
+  reading.stop();
+});
