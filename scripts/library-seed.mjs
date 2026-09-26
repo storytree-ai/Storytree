@@ -1,7 +1,7 @@
-// The seed's rules, which scripts/seed-library-story.mjs runs: how a story file (stories/*.md)
-// becomes a story with its capabilities and contracts in a library, how a run of the story's tests
-// becomes each contract's VERIFIED health, and how a decision file (decisions/*.md) becomes a front
-// cover of the story or capability it decided. Everything here but syncStory, recordHealth and
+// The seed's rules, which scripts/seed-library.mjs runs: how a story file (stories/*.md) becomes a
+// story with its capabilities and contracts in a library, how a run of the story's tests becomes
+// each contract's VERIFIED health, and how a decision file (decisions/*.md) becomes a front cover
+// of the story or capability it decided. Everything here but syncStory, recordHealth and
 // syncDecisions, which write through the library's public API, is pure.
 //
 // Honesty rules for the verified column: a contract passes only if it has tests and every one of

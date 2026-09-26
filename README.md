@@ -11,8 +11,18 @@ plain-language view of how each story works and whether it is healthy. Health sh
 This repo is new. Its first story is the **library**: the project-scoped store every later story
 reads and writes. It holds the plan of work (arcs, stories, capabilities, contracts), each item's
 health, and what the project has learned. It runs on a local Postgres, with one database per
-project and an optional Google Cloud connection. Its eight capabilities are listed in
+project and an optional Google Cloud connection. Its capabilities are listed in
 [`stories/library.md`](stories/library.md).
+
+## This repo's own library
+
+Storytree 0.3 keeps its own plan in the kind of library it gives every project. `pnpm seed:library`
+loads this repo's stories ([`stories/`](stories)) and the decisions made for them
+([`decisions/`](decisions)) into the desktop app's library, as the project `storytree`. Each
+decision becomes a front cover of the one story or capability it decided. The seed then runs each
+story's own tests and records what they showed as its verified health. Quit the app first: the
+seed starts the app's own Postgres. Running it again updates everything in place and never adds
+anything twice.
 
 ## How changes land
 

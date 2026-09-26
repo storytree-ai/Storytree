@@ -4,7 +4,7 @@
  * own files in electron/. Nothing else in ~/.storytree/ is ever read or written: storytree 0.2
  * keeps its files there (secrets.json among them), and 0.3 leaves them alone.
  *
- * The seed script (scripts/seed-library-story.mjs) imports this too, so the two agree on where
+ * The seed script (scripts/seed-library.mjs) imports this too, so the two agree on where
  * the library is.
  */
 import { homedir } from "node:os";
