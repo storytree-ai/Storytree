@@ -111,6 +111,12 @@ that other processes wrote.
 - **Leaves out (vs 0.2):** 0.2's claim-event, work-event and trace tables, its retired presence
   rows, and the machine-wide register of running jobs (`storytree own`). Lines can't be edited or
   deleted.
+- **As built:** the log is its own database, `storytree-activity`, on the same Postgres server as
+  the projects' libraries. The library lists only databases named `storytree_<name>` as projects,
+  so the log is never one. One table holds every project's lines, and a project reads only its
+  own; a project's writes take turns on a lock, so its lines commit in the order they are numbered.
+  The kinds of line: a session started or ended, files edited, a command run, a storytree tool
+  called, a note read, and a capability claimed, released or landed.
 
 **Contracts:**
 1. Two separate processes write lines for two sessions, and reading from the start returns every
