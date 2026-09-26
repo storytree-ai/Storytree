@@ -188,6 +188,18 @@ surfaces when the project changes.
   - the app carries what the live reading asks for (L1): the library's changes and the agent log's
     new lines since a point, for the project on show;
   - the smoke check judges the surface on show by what that surface says it drew.
+- **As built** (this story): `pageReads` in `packages/app` answers all four of the page's reads.
+  The page reaches the two new ones as `window.storytree.changesSince(project, cursor)` (the
+  library's `changesSince`) and `window.storytree.linesSince(project, cursor)` (the agent log's
+  `since`). Each returns what came after the cursor, and the cursor to pass next time; 0 reads from
+  the start. A name the library does not list is refused before anything is opened, so asking never
+  creates a project. The app opens each project's library, and the log, the first time they are
+  asked for. Once a surface has drawn a project, it says what it drew in the page's
+  `document.body.dataset.drew`, as JSON: `{ surface, stories, capabilities }`, by id, plus any fields
+  of its own. The plain list says it as `"list"`. `smokeProblems` in `packages/app` passes the check
+  only if every story and capability of the project is in it, and `pnpm desktop:smoke` runs it in
+  the real app. The check no longer judges by the page's text, since a surface drawn on a canvas, as
+  the forest will be, has none to search.
 
 **Contracts:**
 1. The page can ask the app for the library's changes and the agent log's new lines since a point,
