@@ -321,6 +321,16 @@ set one up.
   fire from the next one, so a first session's check says to start a new session, or, for Codex,
   to approve the hooks once in a terminal. The file edit and command the agent fires to verify the
   hooks are `.storytree-check` and `echo storytree-check`.
+- **Live check, run 2026-09-26** (contract 6): in throwaway homes, Claude Code 2.1.212 (Sonnet) and
+  Codex 0.155 each took "add a sign-up form, with tests" in an empty folder with only the tool server
+  installed, the user's yes given in the prompt. Each ran `check_setup`, set the project up, planned
+  a story, claimed, reported red then green, and landed; a next session verified all three hooks;
+  a session with no storytree tools that only edited a file showed as unplanned activity. The first
+  session start opened the real desktop app from its launch record. The check found two bugs, both
+  fixed with regression tests: Claude Code shows the agent a tool's data rather than its text, so
+  every answer's data carries its sentence; and opening storytree now waits until its database
+  accepts connections. Codex's one-time approval was stood in for by `--dangerously-bypass-hook-trust`,
+  since it cannot be clicked in a non-interactive run.
 
 **Contracts:**
 1. In a throwaway home with only the tool server installed, the first session start registers the
