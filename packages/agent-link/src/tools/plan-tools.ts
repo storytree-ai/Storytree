@@ -1,6 +1,8 @@
 /**
  * The planning tools: plan an arc, a story, a capability or a contract, correct any of them, and
- * see the plan with its health, who holds what and which sessions are about.
+ * see the plan with its health, who holds what and which sessions are about. A story or capability
+ * is planned with its founding decision, the first book on its shelf, so none planned here starts
+ * with an empty shelf (ADR-0627 D5).
  */
 import type { AnnotatedTree, HealthState, NodeHealth } from "@storytree/library";
 import { z } from "zod";
@@ -13,6 +15,12 @@ import { quoted } from "./text.js";
 const title = z.string().min(1).describe("What it is called: a short name");
 const description = z.string().min(1).optional().describe("A sentence or two on what it is for");
 const id = (what: string) => z.string().min(1).describe(`The id of the ${what}, as the plan shows it`);
+const founding = z
+  .object({
+    title: z.string().min(1).describe("The one choice that shapes it, as a short title"),
+    text: z.string().min(1).describe("What it is for, and why that choice"),
+  })
+  .describe("Its founding decision, the first book on its shelf");
 
 export function registerPlanTools(define: Define): void {
   define(
@@ -27,26 +35,35 @@ export function registerPlanTools(define: Define): void {
 
   define(
     "plan_story",
-    "Plan a story: something a user of the project can do. Plan its capabilities next.",
-    z.object({ title, description }),
-    async ({ title: name, description: about }, { library }) => {
+    "Plan a story: something a user of the project can do, with its founding decision: what it is for, and the one choice that shapes it. Plan its capabilities next.",
+    z.object({ title, description, founding }),
+    async ({ title: name, description: about, founding: decision }, { library }) => {
       const story = await library.addStory({ title: name, ...optional({ description: about }) });
-      return { text: `Planned story ${quoted(name)} (${story.id}). Plan its capabilities next.`, data: { id: story.id } };
+      const book = await library.recordDecision({ ...decision, frontCoverOf: story.id });
+      return {
+        text: `Planned story ${quoted(name)} (${story.id}), founded on ${quoted(decision.title)} (${book.id}). Plan its capabilities next.`,
+        data: { id: story.id, founding: book.id },
+      };
     },
   );
 
   define(
     "plan_capability",
-    "Plan a capability: one part that makes a story work. Claim it before you build it.",
+    "Plan a capability: one part that makes a story work, with its founding decision: what it is for, and the one choice that shapes it. Claim it before you build it.",
     z.object({
       story: id("story it belongs to"),
       title,
       description,
       depends_on: z.array(z.string().min(1)).optional().describe("The ids of capabilities it needs first"),
+      founding,
     }),
-    async ({ story, title: name, description: about, depends_on: dependsOn }, { library }) => {
+    async ({ story, title: name, description: about, depends_on: dependsOn, founding: decision }, { library }) => {
       const capability = await library.addCapability({ title: name, story, ...optional({ description: about, dependsOn }) });
-      return { text: `Planned capability ${quoted(name)} (${capability.id}). Plan its contracts, then claim it before you build it.`, data: { id: capability.id } };
+      const book = await library.recordDecision({ ...decision, frontCoverOf: capability.id });
+      return {
+        text: `Planned capability ${quoted(name)} (${capability.id}), founded on ${quoted(decision.title)} (${book.id}). Plan its contracts, then claim it before you build it.`,
+        data: { id: capability.id, founding: book.id },
+      };
     },
   );
 

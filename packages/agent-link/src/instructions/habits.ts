@@ -12,7 +12,7 @@ Start every session with \`check_setup\`, and do what it says. If this folder is
 
 Plan first.
 - \`show_plan\` shows the plan: every story, capability and contract with its health, who holds what, and which sessions are about.
-- Plan a story (something a user can do) with \`plan_story\`, the parts that make it work with \`plan_capability\`, and each testable promise with \`plan_contract\`. Group stories under an initiative with \`plan_arc\`. Correct any of them with \`edit_plan\`.
+- Plan a story (something a user can do) with \`plan_story\`, the parts that make it work with \`plan_capability\`, and each testable promise with \`plan_contract\`. A story or capability starts with its founding decision: what it is for, and the one choice that shapes it. Group stories under an initiative with \`plan_arc\`. Correct any of them with \`edit_plan\`.
 
 Claim, and open the knowledge you need.
 - \`claim\` a capability, with a one-line reason, before you touch it. If another session holds it, pick other work: nobody queues.
