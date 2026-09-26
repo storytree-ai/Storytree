@@ -29,6 +29,11 @@ export async function buildBins(outdir: string): Promise<Record<string, string>>
     bundle: true,
     platform: "node",
     format: "esm",
+    // Code a command needs only sometimes goes into chunks of its own, loaded when first used: a
+    // hook with nothing to write then loads a few kilobytes, not the database code (pg, zod),
+    // which on a busy machine is the difference between a quick hook and a slow one.
+    splitting: true,
+    chunkNames: "chunks/[name]-[hash]",
     target: "node24",
     logLevel: "warning",
     // pg is CommonJS and requires Node's own modules; an ES module has no `require` of its own.
