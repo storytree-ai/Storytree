@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { after, before, test } from "node:test";
@@ -32,6 +32,8 @@ import { withTempDir } from "../testing/folders.js";
 import { testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
 
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
+/** The name of the machine the tests run on, as every line a hook writes names it. */
+const MACHINE = hostname().trim();
 /** "Under half a second", as the tests hold it. */
 const QUICK_MS = 500;
 /** Slower than this, a bare Node's start says the machine is busy: here one takes about 0.11 s. */
@@ -137,7 +139,7 @@ function written(line: Line): Omit<Line, "seq" | "at"> {
   return rest;
 }
 
-test("3.1 recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) make four lines on that session, carrying the file path and the command", async () => {
+test("3.1 recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) make four lines on that session, carrying the file path, the command and the machine's name", async () => {
   const project = uniqueProjectName();
   await withTempDir(async (dir) => {
     const folder = projectFolder(dir, project);
@@ -147,7 +149,7 @@ test("3.1 recorded Claude Code hook inputs (a start, a file edit, a shell comman
       assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
     }
     const session = "b2ef2128-23c1-4a1e-b126-4fa79b2c2a97";
-    const common = { project, session, harness: "claude-code", source: "hook", folder } as const;
+    const common = { project, session, harness: "claude-code", source: "hook", folder, machine: MACHINE } as const;
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...common, kind: "session-started", how: "startup" },
       { ...common, kind: "file-edited", files: ["C:\\Users\\dev\\projects\\site\\hello.txt"] },
@@ -167,7 +169,7 @@ test("3.2 recorded Codex hook inputs make the same four lines, with the edited f
       assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
     }
     const session = "01a0dc55-55fe-7b01-a0ea-cebc2d4a4267";
-    const common = { project, session, harness: "codex", source: "hook", folder } as const;
+    const common = { project, session, harness: "codex", source: "hook", folder, machine: MACHINE } as const;
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...common, kind: "session-started", how: "startup" },
       { ...common, kind: "file-edited", files: ["hello.txt"] },
@@ -270,8 +272,8 @@ test("3.5 recorded inputs for starting a subagent, for a storytree tool call ins
         assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, `${harness} ${name}`);
       }
     }
-    const claude = { project, session: "cf0453e9-0036-435f-9ea6-2a11f2ea0946", harness: "claude-code", source: "hook", folder } as const;
-    const codex = { project, session: "01a0dd1c-74c7-77d1-8248-f5e13dbe46c4", harness: "codex", source: "hook", folder } as const;
+    const claude = { project, session: "cf0453e9-0036-435f-9ea6-2a11f2ea0946", harness: "claude-code", source: "hook", folder, machine: MACHINE } as const;
+    const codex = { project, session: "01a0dd1c-74c7-77d1-8248-f5e13dbe46c4", harness: "codex", source: "hook", folder, machine: MACHINE } as const;
     const codexSubagent = "01a0dd1c-afd2-7062-8f09-8152ad44d7ff";
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...claude, kind: "subagent-started", subagent: "a5b107a7efcabea1e", type: "probe-reader", task: "probe read alpha" },
@@ -299,7 +301,7 @@ test("3.6 recorded inputs from before a shell command, after one that failed, an
       const ran = await runHook("claude-code", recorded("claude-code", name, folder), home);
       assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
     }
-    const claude = { project, session: "b4f8eff5-05ab-4ef2-b070-78375e2a5deb", harness: "claude-code", source: "hook", folder } as const;
+    const claude = { project, session: "b4f8eff5-05ab-4ef2-b070-78375e2a5deb", harness: "claude-code", source: "hook", folder, machine: MACHINE } as const;
     const command = "echo probe-start\nexit 3";
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...claude, kind: "command-started", command, call: "toolu_01Kjexd4yP2myMhXEATFdm25" },
@@ -307,7 +309,7 @@ test("3.6 recorded inputs from before a shell command, after one that failed, an
       { ...claude, kind: "turn-ended" },
     ]);
 
-    const codex = { project, session: "01a0de40-cd2f-73e1-92c7-8ee8ff58135b", harness: "codex", source: "hook", folder } as const;
+    const codex = { project, session: "01a0de40-cd2f-73e1-92c7-8ee8ff58135b", harness: "codex", source: "hook", folder, machine: MACHINE } as const;
     for (const name of ["pre-tool-use-bash", "stop"]) {
       const ran = await runHook("codex", recorded("codex", name, folder), home, ["--background"]);
       assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);

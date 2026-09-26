@@ -74,8 +74,9 @@ export async function runHook({ argv, input, handOff }: HookInput): Promise<void
     if (where.status !== "routed") return;
     if (flags.includes(BACKGROUND) && handOff !== undefined) return await handOff(harness, input);
     // Only now, with lines to write and somewhere to write them, is the database reached.
-    const { openActivityLog } = await import("../activity/index.js");
-    const log = await openActivityLog(where.url, { connectTimeoutMs: CONNECT_TIMEOUT_MS });
+    const { openActivityLog, thisMachine } = await import("../activity/index.js");
+    const machine = thisMachine();
+    const log = await openActivityLog(where.url, { connectTimeoutMs: CONNECT_TIMEOUT_MS, ...(machine === undefined ? {} : { machine }) });
     try {
       for (const line of made.lines) await log.append(where.project, line);
     } finally {

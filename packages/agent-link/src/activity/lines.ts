@@ -14,6 +14,8 @@ const common = {
   source: z.enum(["hook", "tool"]),
   /** The folder the agent was working in. */
   folder: z.string().min(1).optional(),
+  /** The name of the machine the line was written on (ADR-0636 D1), as the log that wrote it was told it. */
+  machine: z.string().min(1).optional(),
 };
 
 /**

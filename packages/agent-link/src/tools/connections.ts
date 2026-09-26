@@ -6,7 +6,7 @@
  */
 import { connect, type Library, type Storytree } from "@storytree/library";
 
-import { openActivityLog, type ActivityLog } from "../activity/index.js";
+import { openActivityLog, thisMachine, type ActivityLog } from "../activity/index.js";
 
 /** How long reaching storytree may take before a call gives up and says it isn't running. */
 const CONNECT_TIMEOUT_MS = 3_000;
@@ -34,7 +34,9 @@ export class Connections {
   /** The library of `project` and the activity log, on the storytree at `url`. */
   async reach(url: string, project: string): Promise<Reached> {
     const storytree = await this.server(url);
-    const log = (this.#log ??= forgetOnFailure(openActivityLog(url, { connectTimeoutMs: CONNECT_TIMEOUT_MS }), () => (this.#log = undefined)));
+    const machine = thisMachine();
+    const opened = () => openActivityLog(url, { connectTimeoutMs: CONNECT_TIMEOUT_MS, ...(machine === undefined ? {} : { machine }) });
+    const log = (this.#log ??= forgetOnFailure(opened(), () => (this.#log = undefined)));
     let library = this.#libraries.get(project);
     if (library === undefined) {
       library = forgetOnFailure(storytree.openProject(project), () => this.#libraries.delete(project));

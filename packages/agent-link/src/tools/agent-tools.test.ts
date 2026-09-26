@@ -11,6 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -148,7 +149,7 @@ test("6.2 it claims the capability, sees who is on what, reports the contract re
   });
 });
 
-test("6.3 every call is recorded against the session that made it, using the session id the harness passes", async () => {
+test("6.3 every call is recorded against the session that made it, using the session id the harness passes, and the machine it ran on", async () => {
   await withProject(async ({ folder, project, log }) => {
     await withAgent(folder, claudeCode("claude-1"), async (claude) => {
       await withAgent(folder, codex("codex-1"), async (codexAgent) => {
@@ -160,11 +161,11 @@ test("6.3 every call is recorded against the session that made it, using the ses
     });
     const calls = (await log.since(project, 0)).lines.filter((line): line is Extract<Line, { kind: "tool-called" }> => line.kind === "tool-called");
     assert.deepEqual(
-      calls.map(({ session, harness, source, tool, folder: where }) => ({ session, harness, source, tool, where })),
+      calls.map(({ session, harness, source, tool, folder: where, machine }) => ({ session, harness, source, tool, where, machine })),
       [
-        { session: "claude-1", harness: "claude-code", source: "tool", tool: "show_plan", where: folder },
-        { session: "codex-1", harness: "codex", source: "tool", tool: "show_plan", where: folder },
-        { session: "codex-2", harness: "codex", source: "tool", tool: "plan_story", where: folder },
+        { session: "claude-1", harness: "claude-code", source: "tool", tool: "show_plan", where: folder, machine: hostname().trim() },
+        { session: "codex-1", harness: "codex", source: "tool", tool: "show_plan", where: folder, machine: hostname().trim() },
+        { session: "codex-2", harness: "codex", source: "tool", tool: "plan_story", where: folder, machine: hostname().trim() },
       ],
     );
   });
