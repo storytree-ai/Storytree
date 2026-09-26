@@ -181,64 +181,56 @@ test("contractsCoveredBy finds the contract numbers a test file names, in itself
   assert.ok(covered("transactions/cloud-sql.test.ts").includes("8.1"));
 });
 
-test("syncStory adds the story once: a second run changes nothing, and a changed capability or contract is updated without a duplicate", async () => {
+test("syncStory adds the story once: a second run changes nothing, and a changed story, capability or contract is edited in place, keeping its id and health, never added twice", async () => {
   await withLibrary(async (lib) => {
-    const story = parseStory(librarySpec);
-    // The story's size comes from the file itself, so the test does not change when the file does.
-    const capabilityCount = story.capabilities.length;
-    const contractCount = story.capabilities.reduce((count, { contracts }) => count + contracts.length, 0);
-    const first = await syncStory(lib, story);
+    const first = await syncStory(lib, parseStory(THREE_PARTS));
     assert.deepEqual(first.counts, {
       story: "added",
-      capabilities: { added: capabilityCount, updated: 0, unchanged: 0, retired: 0 },
-      contracts: { added: contractCount, replaced: 0, unchanged: 0, retired: 0 },
+      capabilities: { added: 3, updated: 0, unchanged: 0, retired: 0 },
+      contracts: { added: 4, reworded: 0, unchanged: 0, retired: 0 },
     });
     const tree = await lib.projectTree();
     assert.equal(tree.stories.length, 1);
     const [stored] = tree.stories;
-    assert.equal(stored.title, "The library");
-    assert.equal(stored.description, story.description);
-    assert.deepEqual(stored.capabilities.map(({ title }) => title), story.capabilities.map(({ title }) => title), "added in build order");
+    assert.deepEqual([stored.title, stored.description], ["Three parts", "A story with three capabilities."]);
+    assert.deepEqual(stored.capabilities.map(({ title }) => title), ["1 · First", "2 · Second", "3 · Third"], "added in build order");
     const idOf = (title) => stored.capabilities.find((capability) => capability.title === title).id;
-    const api = stored.capabilities.find(({ title }) => title === "7 · Library API");
-    assert.deepEqual(api.dependsOn, ["1 · Project libraries", "4 · Work model", "5 · Health record", "6 · Knowledge and memory"].map(idOf));
-    // Its contracts as the story file numbers them, taken from the file so this does not change when the file does.
-    const apiContracts = story.capabilities.find(({ number }) => number === 7).contracts.map(({ number }) => number);
-    assert.deepEqual(api.contracts.map(({ title }) => title.split(" ")[0]), apiContracts);
-    assert.equal(first.contractIds.get("7.2"), api.contracts[1].id);
+    assert.deepEqual(stored.capabilities[2].dependsOn, [idOf("1 · First"), idOf("2 · Second")]);
+    assert.equal(first.contractIds.get("1.2"), stored.capabilities[0].contracts[1].id);
 
-    const second = await syncStory(lib, story);
+    const second = await syncStory(lib, parseStory(THREE_PARTS));
     assert.deepEqual(second.counts, {
       story: "unchanged",
-      capabilities: { added: 0, updated: 0, unchanged: capabilityCount, retired: 0 },
-      contracts: { added: 0, replaced: 0, unchanged: contractCount, retired: 0 },
+      capabilities: { added: 0, updated: 0, unchanged: 3, retired: 0 },
+      contracts: { added: 0, reworded: 0, unchanged: 4, retired: 0 },
     });
     assert.deepEqual(await lib.projectTree(), tree, "the second run wrote nothing");
 
-    // The file changes: a capability's description, one contract's wording, one contract gone, one new.
+    // The file changes: the story's description, a capability's, one contract's wording, one contract gone, one new.
+    await lib.recordVerified(first.contractIds.get("1.1"), "passing", { by: "storytree test run" });
     const changed = parseStory(
-      librarySpec
-        .replace("Every record has a declared type with a fixed set of fields", "Every record has a declared type with a FIXED set of fields")
-        .replace("`edit` of a missing record returns `null` and creates nothing.", "`edit` of a missing record returns `null`, and creates nothing at all.")
-        .replace(/5\. A project name that is not lower-case[\s\S]*?names the rule\.\n/, "")
-        .replace("4. A link to a record that does not exist is refused.", "4. A link to a record that does not exist is refused.\n5. A brand new promise."),
+      THREE_PARTS.replace("A story with three capabilities.", "A story of three capabilities.")
+        .replace("The second part.", "The second part, reworded.")
+        .replace("1. Does a thing.", "1. Does a thing, and says so.")
+        .replace("2. Does a second thing.\n", "")
+        .replace("1. Does the last thing.", "1. Does the last thing.\n2. Does one more."),
     );
     const third = await syncStory(lib, changed);
     assert.deepEqual(third.counts, {
-      story: "unchanged",
-      capabilities: { added: 0, updated: 1, unchanged: capabilityCount - 1, retired: 0 },
-      contracts: { added: 1, replaced: 1, unchanged: contractCount - 2, retired: 1 },
+      story: "updated",
+      capabilities: { added: 0, updated: 1, unchanged: 2, retired: 0 },
+      contracts: { added: 1, reworded: 1, unchanged: 2, retired: 1 },
     });
     const after = (await lib.projectTree()).stories;
     assert.equal(after.length, 1, "still one story");
-    const schema = after[0].capabilities.find(({ title }) => title === "3 · Data schema");
-    assert.equal(schema.id, idOf("3 · Data schema"), "updated in place");
-    assert.match(schema.description, /FIXED set of fields/);
+    assert.deepEqual([after[0].id, after[0].description], [stored.id, "A story of three capabilities."], "the story edited in place");
+    const second2 = after[0].capabilities.find(({ title }) => title === "2 · Second");
+    assert.deepEqual([second2.id, second2.description], [idOf("2 · Second"), "The second part, reworded."]);
+    const reworded = after[0].capabilities[0].contracts.find(({ title }) => title.startsWith("1.1 "));
+    assert.deepEqual([reworded.id, reworded.title], [first.contractIds.get("1.1"), "1.1 · Does a thing, and says so."], "reworded in place");
+    assert.equal((await lib.health(reworded.id)).verified.state, "passing", "so its health stays with it");
     const numbers = after[0].capabilities.flatMap(({ contracts }) => contracts.map(({ title }) => title.split(" ")[0]));
-    assert.equal(numbers.length, new Set(numbers).size, "no contract number twice");
-    assert.ok(!numbers.includes("1.5") && numbers.includes("6.5"));
-    const edited = after[0].capabilities.flatMap(({ contracts }) => contracts).find(({ title }) => title.startsWith("2.4 "));
-    assert.match(edited.title, /creates nothing at all\.$/);
+    assert.deepEqual(numbers, ["1.1", "2.1", "3.1", "3.2"], "1.2 gone, 3.2 new, no number twice");
   });
 });
 
@@ -381,6 +373,44 @@ Error: boom &lt;&amp;> at TestContext.&lt;anonymous>
 	<!-- tests 7 -->
 </testsuites>
 `;
+
+/** A story file with three capabilities, their dependencies and their contracts, for syncStory to load and reload. */
+const THREE_PARTS = [
+  "# Story: three parts",
+  "",
+  "**What it is.** A story with three capabilities.",
+  "",
+  "Build order: 1 → 2 → 3.",
+  "",
+  "## 1 · First",
+  "",
+  "The first part.",
+  "",
+  "- **Depends on:** nothing.",
+  "",
+  "**Contracts:**",
+  "1. Does a thing.",
+  "2. Does a second thing.",
+  "",
+  "## 2 · Second",
+  "",
+  "The second part.",
+  "",
+  "- **Depends on:** 1.",
+  "",
+  "**Contracts:**",
+  "1. Does another.",
+  "",
+  "## 3 · Third",
+  "",
+  "The third part.",
+  "",
+  "- **Depends on:** 1 and 2.",
+  "",
+  "**Contracts:**",
+  "1. Does the last thing.",
+  "",
+].join("\n");
 
 /** A story file with two capabilities, for the decisions to be filed on. */
 const TWO_PARTS = [
