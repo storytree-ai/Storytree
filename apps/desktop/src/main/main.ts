@@ -4,7 +4,12 @@
  * public API, opens the project asked for (`--project <name>`, else `storytree` if there is one,
  * else the first), and shows it. It answers the page's questions (bridge.ts) through
  * @storytree/app's pageReads: the projects, a project's tree, and the library's changes and the
- * agent activity log's new lines since a point. It stops Postgres when the app quits.
+ * agent activity log's new lines since a point.
+ *
+ * Closing the window does not stop the app or its database (ADR-0636 D3): the app keeps running in
+ * the background, with a tray icon, so agents' activity is still recorded. The tray's Quit is the
+ * one way to stop it, and it stops Postgres before the app exits. Opening the app again, or the
+ * tray's Open, brings the window back on the project it showed.
  *
  * `--smoke` renders the project without showing a window, saves a screenshot to the file given
  * with `--screenshot <file>`, prints the page's text to stdout, and quits: exit 0 only if the
@@ -13,15 +18,16 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, Tray } from "electron";
 
-import { pageReads, smokeProblems, type PageReads } from "@storytree/app";
+import { background, pageReads, smokeProblems, TRAY_MENU, type PageReads } from "@storytree/app";
 import { connect, type AnnotatedTree, type Storytree } from "@storytree/library";
 import { DataDirInUseError, findBinaries, start, type LocalPostgres } from "@storytree/local-postgres";
 
 import { CHANNELS } from "../bridge.js";
 import { APP_OWNER, appHome } from "../home.js";
 import { chooseProject, parseArgs } from "./args.js";
+import { TRAY_ICON_PNG } from "./tray-icon.js";
 
 const args = parseArgs(process.argv);
 const home = appHome();
@@ -35,20 +41,23 @@ let postgres: LocalPostgres | undefined;
 let storytree: Storytree | undefined;
 let reads: PageReads | undefined;
 let shutDown: Promise<void> | undefined;
+/** What the window was opened with, so it can be opened again after it is closed. */
+let windowQuery: { project?: string; problem?: string } = {};
+/** Held here so it is not garbage-collected, which would remove the icon. */
+let tray: Tray | undefined;
+const lifecycle = background({ stopDatabase: shutdown, exit: (code) => app.exit(code) });
 
 if (!args.smoke && !app.requestSingleInstanceLock()) {
   app.quit(); // the app is already open: that one is focused instead
 } else {
-  app.on("second-instance", () => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (window?.isMinimized() === true) window.restore();
-    window?.focus();
-  });
-  app.on("window-all-closed", () => app.quit());
+  app.on("second-instance", () => showWindow());
+  app.on("activate", () => showWindow());
+  // Closing the last window leaves the app, and its database, running in the background.
+  app.on("window-all-closed", () => lifecycle.windowClosed());
   // Quitting waits for Postgres to stop; app.exit then ends the app without asking again.
   app.on("before-quit", (event) => {
     event.preventDefault();
-    void shutdown().finally(() => app.exit(0));
+    void lifecycle.quit();
   });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => app.quit());
   if (args.smoke) {
@@ -82,8 +91,28 @@ async function run(): Promise<void> {
   }
   const projects = storytree === undefined ? [] : await storytree.listProjects();
   const project = chooseProject(projects, args.project);
-  const window = openWindow({ ...(project === undefined ? {} : { project }), ...(problem === undefined ? {} : { problem }) });
+  windowQuery = { ...(project === undefined ? {} : { project }), ...(problem === undefined ? {} : { problem }) };
+  const window = openWindow(windowQuery);
   if (args.smoke) await smoke(window, project);
+  else showTray();
+}
+
+/** The tray icon, whose menu brings the window back or quits the app. */
+function showTray(): void {
+  tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON_PNG));
+  tray.setToolTip("storytree 0.3");
+  const actions = { show: showWindow, quit: () => app.quit() };
+  tray.setContextMenu(Menu.buildFromTemplate(TRAY_MENU.map((item) => ({ label: item.label, click: actions[item.id] }))));
+  tray.on("click", showWindow);
+}
+
+/** Bring the window forward, opening it again on the same project if it was closed. */
+function showWindow(): void {
+  const [open] = BrowserWindow.getAllWindows();
+  const window = open ?? openWindow(windowQuery);
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
 }
 
 /**
