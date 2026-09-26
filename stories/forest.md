@@ -137,6 +137,12 @@ own.
 - **Leaves out (vs 0.2), by the owner's decisions:** health from 0.2's signed build verdicts, with
   its six states and five colours, drift badges and crown sizes (verified health was dropped,
   ADR-0630, and 0.2's build machinery is out of the MVP, ADR-0625 D4).
+- **As built:** `grove(story, states)` in `packages/forest`, a pure function of one story from the
+  library's `projectTree()` and the arc surface's `workStates(lines)` (`@storytree/arc-surface`,
+  built there under the arc surface's names, ADR-0632 D3). A tree carries its capability's id and
+  title, the capabilities it builds on, its work state, the agent's reported health and its form.
+  Trees come in build order: each after those it builds on within the story, otherwise in the order
+  the capabilities were created.
 
 **Contracts:**
 1. A story with four capabilities, planned, being built, landed and reported passing, and landed
