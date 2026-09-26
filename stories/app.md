@@ -83,8 +83,9 @@ Build order: 1 → 2 → 3.
 
 ## 1 · Lifecycle
 
-When the app opens it starts the database that holds every project's library, and when it closes it
-stops it. There is one owner at a time: opening the app again brings its window forward, another
+When the app opens it starts the database that holds every project's library, and it keeps it running
+until the app is quit: closing the window leaves both running in the background, with a tray icon
+whose Quit is the one way to stop them, so agents' work is still recorded. There is one owner at a time: opening the app again brings its window forward, another
 program holding the database is named, and while it runs the app leaves notes saying where the
 database is and how to open the app, which is how an agent's session finds it or opens it.
 
@@ -96,11 +97,13 @@ database is and how to open the app, which is how an agent's session finds it or
   - The app owns the database, and the library is only handed its address (ADR-0621 D5).
   - A cloud database exists in the library as an alternative (its capability 8), but the app does
     not offer it in the MVP (ADR-0621 D4, option E1; ADR-0625 D4).
-  - **Awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`, section D): whether agents' work
-    is kept while the window is closed, which 0.2 always did because its database never stopped
-    (d1, the same concern as b6); whether the app you open always runs merged main, as 0.2's pinned
-    runtime did (d2, ADR-0181); and whether the app notices a stopped database and starts it again
-    in place, as 0.2's studio did (d3). As built, closing the window closes storytree.
+  - The app keeps recording while its window is closed (ADR-0636 D3, the owner's, answering d1 of
+    `oq-0-3-cuts-awaiting-owner-decision`): closing the window leaves the app and its database
+    running, with a tray icon to quit. 0.2 never had the gap, because its database never stopped.
+  - The app updates itself (ADR-0637 D2, the owner's, answering d2): its capability comes to the
+    owner with its build.
+  - Noticing a stopped database and starting it again in place, as 0.2's studio did, waits
+    (ADR-0637 D3, d3): revisit if the database proves unstable in use.
 - **As built** (`0-3-desktop-app-shows-the-library`): `apps/desktop`'s main process starts the
   app's own Postgres through `local-postgres`, on `~/.storytree/0.3/pgdata` (or under
   `STORYTREE_HOME`), connects the library, and stops Postgres when the app quits. A second copy of
@@ -109,10 +112,16 @@ database is and how to open the app, which is how an agent's session finds it or
   owner record beside the data (who holds it, and on which port), and the app records how it was
   started in `app.json`. The agent link reads the first to find the database and the second to open
   the app.
+- **As built** (`0-3-app-keeps-running-when-closed`, ADR-0636 D3): closing the last window no
+  longer quits. The app keeps running with a tray icon (Open storytree 0.3, Quit storytree 0.3);
+  Quit, or the system asking the app to end, stops Postgres once and exits only after it has
+  stopped. Opening the app again, clicking the icon or choosing Open brings the window back, opened
+  again on the project it first showed if it was closed. The policy is `background` and `TRAY_MENU`
+  in `packages/app` (`src/lifecycle/`); `apps/desktop` wires them to Electron.
 - **Proved by** existing tests: contracts 1 to 3 by `local-postgres`'s own
   (`packages/local-postgres/src/local-postgres.test.ts`), and 4 to 6 by the agent link's 1.4, 1.5
   and 8.3. Those tests carry their own packages' numbering, so `pnpm seed:library` leaves these
-  contracts not checked.
+  contracts not checked. Contract 7 is proven red→green in `packages/app`, so the seed judges it.
 
 **Contracts:**
 1. Starting runs the database on the app's data folder, it answers at the address handed back, and
@@ -126,6 +135,8 @@ database is and how to open the app, which is how an agent's session finds it or
 5. A leftover address from a crashed app counts as not running: the answer comes in well under a
    second and never hangs.
 6. With storytree closed, an agent's session start opens it.
+7. Closing the window leaves the app and its database running, and the tray's Quit is the one way
+   to stop them: it stops the database once, and the app exits only after it has stopped.
 
 ## 2 · Storytree projects
 
@@ -220,9 +231,9 @@ surfaces when the project changes.
 - **Replacing the plain list with the forest** is the forest's (`stories/forest.md`, capability 3).
 - **Users' own projects** wait until storytree 0.3 is in a good place (ADR-0634 D4), parked as
   `0-3-app-users-own-projects`, due before first users.
-- **The app's agent-written cuts**, d1 to d3, await the owner by name in
-  `oq-0-3-cuts-awaiting-owner-decision` (with b6, the agent link's replay of what happened while
-  storytree was closed). If he brings d1 or d2 in, they become new Lifecycle work.
+- **The app's agent-written cuts**, d1 to d3, are decided (ADR-0636 D3, ADR-0637): d1, keeping
+  the app recording with its window closed, is built (Lifecycle, contract 7); d2, the app updating
+  itself, comes as a capability of its own with its build; d3 waits.
 - **Left out by the owner's own decisions** (ADR-0634 D5): 0.2's one shared cloud database
   (ADR-0621 D4, option E1; ADR-0625 D4); 0.2's desktop app keeping a Claude login in the keychain,
   with a backend beside the hosted studio (ADR-0625 D1 and D4); and the terminal, a note browser and
