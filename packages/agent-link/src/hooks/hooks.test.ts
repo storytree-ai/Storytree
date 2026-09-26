@@ -1,5 +1,5 @@
 /**
- * Capability 3 · Hooks: one test per contract 3.1-3.7 in stories/agent-link.md.
+ * Capability 3 · Hooks: one test per contract 3.1-3.8 in stories/agent-link.md.
  *
  * The hook runs the way a harness runs it: the built command (`storytree-hook.mjs`, a plain Node
  * script) started directly, with no shell, the hook's input on its stdin. The inputs are real ones,
@@ -9,7 +9,9 @@
  * two subagents that called a stand-in tool server, whose name and tool are rewritten to storytree's
  * `open`. Contract 3.6's were recorded on 2026-09-27 from the same versions, each running a shell
  * command that failed (Codex's sandbox refused its commands, so only its before-hook fired), and
- * 3.7's the same day, from one prompt each, with the prompt replaced.
+ * 3.7's the same day, from one prompt each, with the prompt replaced. Contract 3.8's status line
+ * input is not recorded: Claude Code runs a status line only in an interactive window, so it is the
+ * documented shape (session_id, cwd, workspace.current_dir).
  *
  * "Storytree running" is the test Postgres: a throwaway storytree home holds a copy of its owner
  * record, where the app's would be.
@@ -27,7 +29,7 @@ import { fileURLToPath } from "node:url";
 import { connect } from "@storytree/library";
 import pg from "pg";
 
-import { openActivityLog, type Line } from "../activity/index.js";
+import { openActivityLog, type Line, type NewLine } from "../activity/index.js";
 import { buildBins } from "../bins/build.js";
 import { MARKER_FILE } from "../routing/index.js";
 import { withTempDir } from "../testing/folders.js";
@@ -382,6 +384,50 @@ test("3.7 at each prompt, the project's definitions for the terms it names are a
       );
     });
   } finally {
+    await storytree.close();
+    await dropTestProjects([project]);
+  }
+});
+
+test("3.8 the status line shows what this session holds, how many other agents are working, and a warning when another is editing a file it edited; with storytree stopped it says so, and outside a project it shows nothing", async () => {
+  const project = uniqueProjectName();
+  const storytree = await connect({ url: testServerUrl() });
+  const log = await openActivityLog(testServerUrl());
+  try {
+    const library = await storytree.openProject(project);
+    const story = await library.addStory({ title: "Visitor can sign up" });
+    const emailForm = await library.addCapability({ title: "Email form", story: story.id });
+    await withTempDir(async (dir) => {
+      const folder = projectFolder(dir, project);
+      const home = storytreeHome(dir, true);
+      const status = async (cwd: string, where = home) => {
+        const input = JSON.stringify({ hook_event_name: "Status", session_id: "cc-1", cwd, workspace: { current_dir: cwd, project_dir: cwd } });
+        const ran = await runHook("statusline", input, where);
+        assert.deepEqual({ code: ran.code, stderr: ran.stderr }, { code: 0, stderr: "" });
+        return ran.stdout;
+      };
+      const write = (line: NewLine) => log.append(project, { folder, ...line });
+
+      await write({ session: "cc-1", harness: "claude-code", source: "hook", kind: "session-started", how: "startup" });
+      assert.equal(await status(folder), "storytree · holds nothing · no other agents working");
+
+      await write({ session: "cc-1", harness: "claude-code", source: "tool", kind: "claimed", capability: emailForm.id, reason: "building it" });
+      await write({ session: "cc-1", harness: "claude-code", source: "hook", kind: "file-edited", files: [path.join(folder, "src", "signup.ts")] });
+      await write({ session: "cx-1", harness: "codex", source: "hook", kind: "file-edited", files: ["src/other.ts"] });
+      assert.equal(await status(folder), "storytree · holds Email form · 1 other agent working");
+
+      // Codex names the files it edits relative to its folder: the same file, so a warning.
+      await write({ session: "cx-1", harness: "codex", source: "hook", kind: "file-edited", files: ["src/signup.ts"] });
+      await write({ session: "cx-2", harness: "codex", source: "hook", kind: "session-started", how: "startup" });
+      assert.equal(await status(folder), "storytree · holds Email form · 2 other agents working · ⚠ src/signup.ts is being edited by Codex too");
+
+      assert.equal(await status(folder, storytreeHome(path.join(dir, "stopped"), false)), "storytree isn't running");
+      const outside = path.join(dir, "elsewhere");
+      mkdirSync(outside);
+      assert.equal(await status(outside), "");
+    });
+  } finally {
+    await log.close();
     await storytree.close();
     await dropTestProjects([project]);
   }
