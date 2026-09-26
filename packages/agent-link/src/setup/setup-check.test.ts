@@ -135,7 +135,7 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
       ["codex", storytreeHooks(readJson(home.codexHooks), HOOK.script, "codex"), false],
     ] as const) {
       const failure = harness === "claude-code" ? ["PostToolUseFailure"] : [];
-      assert.deepEqual(Object.keys(events).sort(), ["PostToolUse", ...failure, "PreToolUse", "SessionEnd", "SessionStart", "Stop"].sort(), harness);
+      assert.deepEqual(Object.keys(events).sort(), ["PostToolUse", ...failure, "PreToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"].sort(), harness);
       const edits = harness === "claude-code" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Agent", "Task"] : ["apply_patch", "Bash", "spawn_agent"];
       for (const tool of edits) assert.ok(runsFor(events.PostToolUse?.[0], tool, anchored), `${harness}: after ${tool}`);
       if (harness === "claude-code") assert.ok(runsFor(events.PostToolUseFailure?.[0], "Bash", anchored), "after a shell command that failed");
@@ -148,6 +148,8 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
       assert.ok(runsFor(tools, "mcp__storytree__open", anchored) && !runsFor(tools, "Bash", anchored), `${harness}: in the foreground before a storytree tool, and no other`);
       assert.ok(runsFor(shell, "Bash", anchored) && !runsFor(shell, "mcp__storytree__open", anchored), `${harness}: in the background before a shell command, and no other`);
       assert.equal(events.Stop?.[0]?.background, true, `${harness}: in the background at the end of a turn`);
+      // The one at each prompt adds the project's definitions for the agent, so the harness waits for it.
+      assert.equal(events.UserPromptSubmit?.[0]?.background, false, `${harness}: in the foreground at each prompt`);
     }
     assert.equal(readFileSync(home.codexConfig, "utf8"), CODEX_CONFIG, "Codex's config is untouched");
   });
@@ -173,7 +175,7 @@ test("8.2 a second start changes nothing, and removing storytree takes out exact
     registerHooks(home.homes, { ...HOOK, script: path.join(dir, "old", "storytree-hook.mjs") });
     registerHooks(home.homes, HOOK);
     assert.deepEqual(Object.keys(storytreeHooks(readJson(home.claudeSettings), path.join(dir, "old", "storytree-hook.mjs"), "claude-code")), []);
-    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 6);
+    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 7);
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Capability 3 · Hooks: one test per contract 3.1-3.6 in stories/agent-link.md.
+ * Capability 3 · Hooks: one test per contract 3.1-3.7 in stories/agent-link.md.
  *
  * The hook runs the way a harness runs it: the built command (`storytree-hook.mjs`, a plain Node
  * script) started directly, with no shell, the hook's input on its stdin. The inputs are real ones,
@@ -8,7 +8,8 @@
  * Contract 3.5's were recorded the same day from Claude Code 2.1.283 and Codex 0.155, each starting
  * two subagents that called a stand-in tool server, whose name and tool are rewritten to storytree's
  * `open`. Contract 3.6's were recorded on 2026-09-27 from the same versions, each running a shell
- * command that failed (Codex's sandbox refused its commands, so only its before-hook fired).
+ * command that failed (Codex's sandbox refused its commands, so only its before-hook fired), and
+ * 3.7's the same day, from one prompt each, with the prompt replaced.
  *
  * "Storytree running" is the test Postgres: a throwaway storytree home holds a copy of its owner
  * record, where the app's would be.
@@ -23,13 +24,14 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { connect } from "@storytree/library";
 import pg from "pg";
 
 import { openActivityLog, type Line } from "../activity/index.js";
 import { buildBins } from "../bins/build.js";
 import { MARKER_FILE } from "../routing/index.js";
 import { withTempDir } from "../testing/folders.js";
-import { testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
+import { dropTestProjects, testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
 
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
 /** "Under half a second", as the tests hold it. */
@@ -320,4 +322,65 @@ test("3.6 recorded inputs from before a shell command, after one that failed, an
       { ...codex, kind: "turn-ended" },
     ]);
   });
+});
+
+/** The context a prompt hook's output adds for the agent, or undefined when it printed nothing. */
+function addedContext(ran: Ran): string | undefined {
+  if (ran.stdout === "") return undefined;
+  const output = JSON.parse(ran.stdout) as { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } };
+  assert.equal(output.hookSpecificOutput?.hookEventName, "UserPromptSubmit");
+  return output.hookSpecificOutput?.additionalContext;
+}
+
+/** A recorded prompt hook input for `harness`, in `folder`, with the prompt and session given. */
+function prompted(harness: "claude-code" | "codex", folder: string, prompt: string, session: string): string {
+  return JSON.stringify({ ...JSON.parse(recorded(harness, "user-prompt-submit", folder)), prompt, session_id: session });
+}
+
+test("3.7 at each prompt, the project's definitions for the terms it names are added for the agent: whole words in any case or plural, at most five, longest first, each once a session; a harness's own notice gets none, and with storytree stopped nothing is printed", async () => {
+  const project = uniqueProjectName();
+  const storytree = await connect({ url: testServerUrl() });
+  try {
+    const library = await storytree.openProject(project);
+    const define = (term: string, meaning: string) => library.defineTerm({ term, meaning });
+    const claim = await define("Claim", "Holding a capability while you build it.\nA second agent is refused.");
+    const quiet = await define("Quiet time", "How long a session may say nothing before it reads as idle.");
+    await define("Id", "Too short to look for.");
+    await define("Front cover", "A decision that is the way into a story's knowledge.");
+    await withTempDir(async (dir) => {
+      const folder = projectFolder(dir, project);
+      const home = storytreeHome(dir, true);
+      // Sessions named for this run: what each has been given is kept between runs of the hook.
+      const ask = async (harness: "claude-code" | "codex", prompt: string, session: string, where = home) => {
+        const ran = await runHook(harness, prompted(harness, folder, prompt, `${project}-${session}`), where);
+        assert.deepEqual({ code: ran.code, stderr: ran.stderr }, { code: 0, stderr: "" }, prompt);
+        return addedContext(ran);
+      };
+
+      const prompt = "Who holds the CLAIMS on the email form, and has its quiet-time passed? Give me the id, and skip the claimant.";
+      assert.equal(
+        await ask("claude-code", prompt, "cc-1"),
+        [
+          "[storytree] Definitions from this project's library for terms in this prompt (open a note by its id to read all of it):",
+          `- Quiet time (${quiet.id}): How long a session may say nothing before it reads as idle.`,
+          `- Claim (${claim.id}): Holding a capability while you build it.`,
+        ].join("\n"),
+      );
+      assert.equal(await ask("claude-code", prompt, "cc-1"), undefined, "each once a session");
+      assert.match((await ask("claude-code", prompt, "cc-2")) ?? "", /Quiet time/, "and again in another session");
+      assert.equal(await ask("claude-code", `<task-notification>\nthe claim was released</task-notification>`, "cc-3"), undefined, "a harness's own notice");
+      assert.equal(await ask("claude-code", prompt, "cc-4", storytreeHome(path.join(dir, "stopped"), false)), undefined, "storytree stopped");
+
+      for (const term of ["Arc", "Story", "Capability", "Contract", "Increment"]) await define(term, `The ${term.toLowerCase()}.`);
+      const named = await ask("codex", "Each arc, story, capability, contract, increment and front cover", "cx-1");
+      assert.deepEqual(
+        named?.split("\n").slice(1).map((line) => line.split(" (")[0]),
+        ["- Front cover", "- Capability", "- Increment", "- Contract", "- Story"],
+        "at most five, the longest terms first",
+      );
+    });
+  } finally {
+    await storytree.close();
+    await dropTestProjects([project]);
+  }
 });
