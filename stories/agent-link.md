@@ -203,6 +203,12 @@ idle.
   automatic promotion, typed roles, claims on arc increments, rules about stories versus
   capabilities, and release when a pull request merges. 0.2's claim board is six capabilities and
   about 3,800 lines of code, reworked across ten decisions.
+- **As built:** claims are lines in the agent activity log (claimed, released, landed), and who
+  holds what is worked out from them, with each holder's liveness from its session's latest line.
+  Claiming, releasing and landing each check and write under the project's lock, so two claims at
+  once cannot both win. A session may hold more than one capability; its edits and commands count
+  toward the one it claimed most recently of those it still holds. Landing a capability another
+  session holds is refused, naming the holder.
 
 **Contracts:**
 1. Session A claims "email form", and the claim shows A and the reason.

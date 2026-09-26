@@ -19,7 +19,7 @@ import pg from "pg";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 
-import { NEW_LINE, type Line, type LinesSince, type NewLine } from "./lines.js";
+import { NEW_LINE, type Line, type LineKind, type LinesSince, type NewLine } from "./lines.js";
 
 /** The database the log lives in, on the same server as the projects' libraries. */
 export const ACTIVITY_DATABASE = "storytree-activity";
@@ -30,8 +30,26 @@ export interface ActivityLog {
   append(project: string, line: NewLine): Promise<Line>;
   /** `project`'s lines after `cursor`, oldest first, and the cursor to pass next time. Start from 0. */
   since(project: string, cursor: number): Promise<LinesSince>;
+  /**
+   * Run `work` holding `project`'s lock: what it reads through the LockedLog it is handed, and any
+   * line it adds, happen with no other write to the project in between. It is how a claim checks
+   * who holds a capability and takes it in one step (capability 5).
+   */
+  locked<T>(project: string, work: (log: LockedLog) => Promise<T>): Promise<T>;
   /** Close the log's connections. */
   close(): Promise<void>;
+}
+
+/** One project's log, as a locked write sees it. */
+export interface LockedLog {
+  /** The project's lines, oldest first: only those of `kinds`, when given. */
+  lines(kinds?: readonly LineKind[]): Promise<Line[]>;
+  /** When each of the project's sessions last wrote a line. */
+  lastSeen(): Promise<Map<string, string>>;
+  /** The time by the database's clock, which stamps every line. */
+  now(): Promise<Date>;
+  /** Add a line, as ActivityLog.append does. */
+  append(line: NewLine): Promise<Line>;
 }
 
 export interface OpenOptions {
@@ -112,18 +130,8 @@ class PgActivityLog implements ActivityLog {
 
   async append(project: string, line: NewLine): Promise<Line> {
     assertProject(project);
-    const parsed = NEW_LINE.safeParse(line);
-    if (!parsed.success) throw new Error(`the activity log refused a line: ${z.prettifyError(parsed.error)}`);
-    const { session, harness, source, kind, folder, ...detail } = parsed.data;
-    return this.#write(project, async (client) => {
-      const { rows } = await client.query<{ seq: string; at: Date }>(
-        `INSERT INTO activity (project, session, harness, source, kind, folder, detail)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING seq, at`,
-        [project, session, harness ?? null, source, kind, folder ?? null, JSON.stringify(detail)],
-      );
-      const row = rows[0]!;
-      return { ...parsed.data, seq: Number(row.seq), project, at: row.at.toISOString() } as Line;
-    });
+    const parsed = parseLine(line);
+    return this.#write(project, (client) => insert(client, project, parsed));
   }
 
   async since(project: string, cursor: number): Promise<LinesSince> {
@@ -137,6 +145,31 @@ class PgActivityLog implements ActivityLog {
     );
     const lines = rows.map(lineOf);
     return { lines, cursor: lines.at(-1)?.seq ?? cursor };
+  }
+
+  locked<T>(project: string, work: (log: LockedLog) => Promise<T>): Promise<T> {
+    assertProject(project);
+    return this.#write(project, (client) =>
+      work({
+        lines: async (kinds) => {
+          const { rows } = await client.query<ActivityRow>(
+            `SELECT seq, project, at, ${COLUMNS.join(", ")}, detail FROM activity
+              WHERE project = $1 AND ($2::text[] IS NULL OR kind = ANY($2)) ORDER BY seq`,
+            [project, kinds === undefined ? null : [...kinds]],
+          );
+          return rows.map(lineOf);
+        },
+        lastSeen: async () => {
+          const { rows } = await client.query<{ session: string; at: Date }>(
+            "SELECT session, max(at) AS at FROM activity WHERE project = $1 GROUP BY session",
+            [project],
+          );
+          return new Map(rows.map((row) => [row.session, row.at.toISOString()]));
+        },
+        now: async () => (await client.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now,
+        append: (line) => insert(client, project, parseLine(line)),
+      }),
+    );
   }
 
   close(): Promise<void> {
@@ -167,6 +200,25 @@ class PgActivityLog implements ActivityLog {
       client.release(broken);
     }
   }
+}
+
+/** `line`, checked against the kinds of line the log knows: anything else is refused, naming what is wrong. */
+function parseLine(line: NewLine): NewLine {
+  const parsed = NEW_LINE.safeParse(line);
+  if (!parsed.success) throw new Error(`the activity log refused a line: ${z.prettifyError(parsed.error)}`);
+  return parsed.data;
+}
+
+/** Add `line` to `project`'s log on `client`, inside a transaction holding the project's lock. */
+async function insert(client: PoolClient, project: string, line: NewLine): Promise<Line> {
+  const { session, harness, source, kind, folder, ...detail } = line;
+  const { rows } = await client.query<{ seq: string; at: Date }>(
+    `INSERT INTO activity (project, session, harness, source, kind, folder, detail)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING seq, at`,
+    [project, session, harness ?? null, source, kind, folder ?? null, JSON.stringify(detail)],
+  );
+  const row = rows[0]!;
+  return { ...line, seq: Number(row.seq), project, at: row.at.toISOString() } as Line;
 }
 
 /** A stored row as the line it is: its own fields, with nothing absent written as undefined. */

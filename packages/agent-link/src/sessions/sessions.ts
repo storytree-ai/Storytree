@@ -48,6 +48,11 @@ export interface SessionOptions {
 /** The harnesses people know by another name than their id. */
 const LABELS: Readonly<Record<string, string>> = { "claude-code": "Claude Code", codex: "Codex" };
 
+/** A harness as people call it: "Claude Code" for `claude-code`, "Codex" for `codex`, any other by its own id. */
+export function labelOf(harness: string | undefined): string {
+  return harness === undefined ? "an unnamed harness" : (LABELS[harness] ?? harness);
+}
+
 /** The sessions `lines` show, in the order they started, each judged at `options.now`. */
 export function sessionsFrom(lines: readonly Line[], options: SessionOptions = {}): Session[] {
   const now = (options.now ?? new Date()).getTime();
@@ -67,7 +72,7 @@ export function sessionsFrom(lines: readonly Line[], options: SessionOptions = {
     return {
       session,
       ...(harness === undefined ? {} : { harness }),
-      label: harness === undefined ? "an unnamed harness" : (LABELS[harness] ?? harness),
+      label: labelOf(harness),
       ...(folder === undefined ? {} : { folder }),
       startedAt: first.at,
       lastSeenAt: latest.at,

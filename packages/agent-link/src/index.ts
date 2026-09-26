@@ -3,6 +3,8 @@
 export { findProject, locateStorytree, MARKER_FILE, NOT_A_PROJECT, NOT_RUNNING, route, setUpProject, storytreeHome } from "./routing/index.js";
 export type { LocateOptions, ProjectLookup, Route, SetUpOptions, StorytreeAddress } from "./routing/index.js";
 export { ACTIVITY_DATABASE, NEW_LINE, openActivityLog } from "./activity/index.js";
-export type { ActivityLog, Line, LineKind, LinesSince, NewLine, OpenOptions } from "./activity/index.js";
-export { QUIET_MS, readSessions, sessionsFrom } from "./sessions/index.js";
+export type { ActivityLog, Line, LineKind, LinesSince, LockedLog, NewLine, OpenOptions } from "./activity/index.js";
+export { labelOf, QUIET_MS, readSessions, sessionsFrom } from "./sessions/index.js";
 export type { Session, SessionOptions, SessionState } from "./sessions/index.js";
+export { attributeFrom, claim, claimsFrom, land, readAttribution, readClaims, release } from "./claims/index.js";
+export type { Attributed, Claim, ClaimAnswer, ClaimContext, ClaimsOptions, LandAnswer, ReleaseAnswer } from "./claims/index.js";
