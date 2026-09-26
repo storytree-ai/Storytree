@@ -116,7 +116,8 @@ that other processes wrote.
   so the log is never one. One table holds every project's lines, and a project reads only its
   own; a project's writes take turns on a lock, so its lines commit in the order they are numbered.
   The kinds of line: a session started or ended, files edited, a command run, a storytree tool
-  called, a note read, and a capability claimed, released or landed.
+  asked for (naming the agent that asked, as a hook saw it) or called, a subagent started, a note
+  read, and a capability claimed, released or landed.
 
 **Contracts:**
 1. Two separate processes write lines for two sessions, and reading from the start returns every
@@ -150,8 +151,25 @@ running they do nothing.
 - **The two probes, run 2026-09-26 before building:** Claude Code (2.1.212) starts the tool server
   with its session id in `CLAUDE_CODE_SESSION_ID`, the same id its hooks see, and a resumed session
   keeps it. Codex (0.155) sends `_meta.threadId` (and, from 0.155, `_meta.sessionId`) on every tool
-  call, equal to its hooks' `session_id` in a top-level session. So the hooks do not need to record
-  a pairing.
+  call, equal to its hooks' `session_id` in a top-level session. So the hooks did not need to
+  record a pairing for the session. ADR-0629 D2's agent needs one, below.
+- **Added by ADR-0629 D2** (storytree 0.2's decision log, decided by the owner after approval):
+  each note read names the agent that made it (capability 6), and only a hook sees that agent. So a
+  hook also runs just before each call to one of storytree's own tools (`mcp__storytree__…`, which
+  is why the tool server is registered under the name storytree), and it is the one hook the
+  harness waits for: its line is written before the call reaches the tool server. The line names
+  the agent asking, the session's orchestrator or a subagent by its id and type, under the
+  harness's id for the call. The hook after a tool also fires when a subagent is started (Claude
+  Code's Agent or Task tool, Codex's `spawn_agent`), and records the subagent's id, type and task.
+- **The probe for it, run 2026-09-26** (Claude Code 2.1.283 and Codex 0.155, each starting two
+  subagents): inside a subagent, a tool call's hook input carries `agent_id` and `agent_type`, and
+  the orchestrator's carries neither. The hook's `tool_use_id` is the id the call reaches the tool
+  server with (Claude Code's `_meta["claudecode/toolUseId"]`, Codex's `_meta.callId`). Claude
+  Code's orchestrator and subagents share one tool server, and a call tells it nothing else about
+  who made it. Codex starts a tool server for each subagent, and a call names its thread
+  (`_meta.threadId`, the subagent's own id, while `sessionId` stays the session's). A subagent's
+  task is revealed only when it is started: the Agent tool's `description`, `spawn_agent`'s
+  `message`.
 
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed
@@ -161,6 +179,10 @@ running they do nothing.
 3. With storytree stopped, with garbage input, or outside a storytree project, the command exits
    cleanly in under half a second and writes nothing.
 4. It runs on Windows without a Unix shell, and it never prints anything the agent would see.
+5. Real, recorded hook inputs for starting a subagent, for a storytree tool call made inside it,
+   and for one made by the orchestrator make three lines: the subagent's id, type and task; the
+   subagent asking, by its id and type, with the call's id; and the orchestrator asking, with its
+   call's id. The same holds for Claude Code and for Codex.
 
 ## 4 · Sessions
 
@@ -255,6 +277,12 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
   Reads can be found "from a shelf". Opening a story or capability returns its shelf as spines
   first (ADR-0627 D7): built, as `open`. Later (ADR-0627 D5): the planning tools take a short
   founding decision.
+- **Added by ADR-0629 D2:** every note read also names the agent that made it: the session's
+  orchestrator, or a subagent by its id, type and task. It is what the harness revealed before the
+  read, and nothing else: the hook's line for the call (capability 3), which is all Claude Code
+  shows, or for Codex the call's own thread; a subagent's type and task come from the line its
+  start left. When nothing was revealed the read names the agent as "unknown". It is never worked
+  out from timing or from transcripts. Reads recorded before this landed name no agent.
 
 **Contracts:**
 1. A test client talks to the server inside the test itself, with no real agent and no network. It
@@ -272,6 +300,9 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 6. Searching and opening a note leaves a log line saying which session read it, how it was found (a
    search result, a link from another note, by id, or from a shelf) and whether it took a peek or
    the whole note.
+7. Each read also names the agent that made it: a subagent by its id, type and task, or the
+   orchestrator, as the harness revealed them (Claude Code through the hook's line for the call,
+   Codex on the call itself), and "unknown" for a call the harness said nothing about.
 
 ## 7 · Instructions (the habits card)
 
@@ -316,12 +347,13 @@ set one up.
   `check_setup`, which the habits card has it do first; `set_up_project` is the user's yes. Hooks go
   into each harness's user-level settings, recognised by their script (`storytree-hook.mjs`) so
   nothing else is touched: Claude Code's `settings.json` (a program with arguments, no shell;
-  start and edit hooks run in the background), and Codex's `hooks.json` (one command line for the
-  machine's shell). `storytree-setup remove` takes them out. The app records how it was started in
+  start and edit hooks run in the background, the one before storytree's own tools in the
+  foreground), and Codex's `hooks.json` (one command line for the machine's shell). `storytree-setup remove` takes them out. The app records how it was started in
   `app.json` in its home, which is how a session start opens it. Hooks registered during a session
   fire from the next one, so a first session's check says to start a new session, or, for Codex,
   to approve the hooks once in a terminal. The file edit and command the agent fires to verify the
-  hooks are `.storytree-check` and `echo storytree-check`.
+  hooks are `.storytree-check` and `echo storytree-check`; calling `check_setup` fires the hook
+  before storytree's own tools (ADR-0629 D2).
 - **Live check, run 2026-09-26** (contract 6): in throwaway homes, Claude Code 2.1.212 (Sonnet) and
   Codex 0.155 each took "add a sign-up form, with tests" in an empty folder with only the tool server
   installed, the user's yes given in the prompt. Each ran `check_setup`, set the project up, planned
@@ -340,9 +372,9 @@ set one up.
 3. With storytree closed, a session start opens it.
 4. In a folder that isn't a project, the agent is told to ask the user, and nothing is created until
    the user says yes.
-5. The agent fires a test of each hook (a session start, a file edit, a command), and the connection
-   shows as verified only when storytree has received every one. Until then it names the missing
-   hook and the fix, such as Codex's one-time approval.
+5. The agent fires a test of each hook (a session start, a call to a storytree tool, a file edit, a
+   command), and the connection shows as verified only when storytree has received every one. Until
+   then it names the missing hook and the fix, such as Codex's one-time approval.
 6. Live check: a real Claude Code session and a real Codex session, each in a new empty folder with
    only the tool server installed and told "add a sign-up form, with tests", set storytree up when
    answered yes, show up live, plan, claim, report red then green and land, and the agent activity
@@ -364,4 +396,4 @@ set one up.
 - **Showing** sessions, claims and unplanned activity belongs to the arc surface and the forest,
   which read them from capabilities 2, 4 and 5.
 - **The view of note reads** (the planet idea) stays out of the MVP. This story keeps only the
-  record (ADR-0624).
+  record (ADR-0624), which names the agent behind each read (ADR-0629 D2).

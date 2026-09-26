@@ -1,10 +1,13 @@
 /**
- * Capability 3 · Hooks: one test per contract 3.1-3.4 in stories/agent-link.md.
+ * Capability 3 · Hooks: one test per contract 3.1-3.5 in stories/agent-link.md.
  *
  * The hook runs the way a harness runs it: the built command (`storytree-hook.mjs`, a plain Node
  * script) started directly, with no shell, the hook's input on its stdin. The inputs are real ones,
  * recorded from Claude Code 2.1.212 and Codex on 2026-09-26 (their paths rewritten to a neutral
  * folder); each test points the input's working folder at a throwaway folder set up as a project.
+ * Contract 3.5's were recorded the same day from Claude Code 2.1.283 and Codex 0.155, each starting
+ * two subagents that called a stand-in tool server, whose name and tool are rewritten to storytree's
+ * `open`.
  *
  * "Storytree running" is the test Postgres: a throwaway storytree home holds a copy of its owner
  * record, where the app's would be.
@@ -249,4 +252,38 @@ test("3.4 it runs on Windows without a Unix shell, and it never prints anything 
   } finally {
     silent.close();
   }
+});
+
+test("3.5 recorded inputs for starting a subagent, for a storytree tool call inside it and for one by the orchestrator make three lines: the subagent's id, type and task, and who asked for each call, by the call's id, for Claude Code and Codex alike", async () => {
+  const project = uniqueProjectName();
+  await withTempDir(async (dir) => {
+    const folder = projectFolder(dir, project);
+    const home = storytreeHome(dir, true);
+    for (const [harness, started] of [
+      ["claude-code", "post-tool-use-agent"],
+      ["codex", "post-tool-use-spawn-agent"],
+    ] as const) {
+      for (const name of [started, "pre-tool-use-storytree-subagent", "pre-tool-use-storytree"]) {
+        const ran = await runHook(harness, recorded(harness, name, folder), home);
+        assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, `${harness} ${name}`);
+      }
+    }
+    const claude = { project, session: "cf0453e9-0036-435f-9ea6-2a11f2ea0946", harness: "claude-code", source: "hook", folder } as const;
+    const codex = { project, session: "01a0dd1c-74c7-77d1-8248-f5e13dbe46c4", harness: "codex", source: "hook", folder } as const;
+    const codexSubagent = "01a0dd1c-afd2-7062-8f09-8152ad44d7ff";
+    assert.deepEqual((await linesOf(project)).map(written), [
+      { ...claude, kind: "subagent-started", subagent: "a5b107a7efcabea1e", type: "probe-reader", task: "probe read alpha" },
+      { ...claude, kind: "tool-requested", tool: "open", call: "toolu_01DAqeuVgkJN85ZEoYpcEjyk", agent: { subagent: "a5b107a7efcabea1e", type: "probe-reader" } },
+      { ...claude, kind: "tool-requested", tool: "open", call: "toolu_018cKhhRDozwv48NrNJx8p4z", agent: "orchestrator" },
+      {
+        ...codex,
+        kind: "subagent-started",
+        subagent: codexSubagent,
+        type: "explorer",
+        task: "Call the MCP tool open (on the MCP server storytree) with id decision_2f6c1e0a9b3d, then reply done.",
+      },
+      { ...codex, kind: "tool-requested", tool: "open", call: "exec-1ec1f51c-a4ca-4717-970e-c9e495cc6693", agent: { subagent: codexSubagent, type: "explorer" } },
+      { ...codex, kind: "tool-requested", tool: "open", call: "exec-a6165a7e-7f86-4ca3-a6d6-ae4a68433045", agent: "orchestrator" },
+    ]);
+  });
 });

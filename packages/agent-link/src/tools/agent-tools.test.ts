@@ -1,8 +1,9 @@
 /**
- * Capability 6 · Agent tools (the MCP server): one test per contract 6.1-6.6 in
+ * Capability 6 · Agent tools (the MCP server): one test per contract 6.1-6.7 in
  * stories/agent-link.md. A test client talks to the server inside the test itself, over an
  * in-memory transport, with no real agent and no network, as Claude Code or Codex would: Claude
- * Code's session id reaches the server in its environment, Codex's on each call's `_meta`.
+ * Code's session id reaches the server in its environment, Codex's on each call's `_meta`, and each
+ * call's `_meta` carries its id as that harness sends it.
  *
  * The server works in a throwaway folder set up as a project (named with uniqueProjectName(), its
  * library dropped afterwards), and finds storytree from the test Postgres's own owner record.
@@ -286,6 +287,42 @@ test("6.6 searching and opening a note leaves a log line saying which session re
         ],
       );
     });
+  });
+});
+
+test("6.7 each read names the agent that made it, as the harness revealed it: a subagent by its id, type and task, the orchestrator, or unknown when the harness said nothing", async () => {
+  await withProject(async ({ folder, project, library, log }) => {
+    const note = await library.writeMemory({ text: "Mailgun needs a verified domain" });
+    // What Claude Code's hooks leave (capability 3): a subagent's start, and who asked for each storytree call, by the call's id.
+    const claudeHook = { session: "claude-1", harness: "claude-code", source: "hook", folder } as const;
+    await log.append(project, { ...claudeHook, kind: "subagent-started", subagent: "a5b1", type: "Explore", task: "find the mail setup" });
+    await log.append(project, { ...claudeHook, kind: "tool-requested", tool: "open", call: "toolu_sub", agent: { subagent: "a5b1", type: "Explore" } });
+    await log.append(project, { ...claudeHook, kind: "tool-requested", tool: "open", call: "toolu_main", agent: "orchestrator" });
+    // Codex's: a subagent's start. Its calls name their own thread.
+    await log.append(project, { session: "codex-1", harness: "codex", source: "hook", folder, kind: "subagent-started", subagent: "thread-2", type: "explorer", task: "Read the mail decision" });
+    const before = (await log.since(project, 0)).cursor;
+
+    await withAgent(folder, claudeCode("claude-1"), async (agent) => {
+      await agent.call("open", { id: note.id }, { "claudecode/toolUseId": "toolu_sub" });
+      await agent.call("open", { id: note.id }, { "claudecode/toolUseId": "toolu_main" });
+      await agent.call("open", { id: note.id }, { "claudecode/toolUseId": "toolu_no_hook_saw" });
+    });
+    await withAgent(folder, codex("codex-1"), async (agent) => {
+      await agent.call("open", { id: note.id }, { sessionId: "codex-1", threadId: "thread-2", callId: "exec-1" });
+      await agent.call("open", { id: note.id }, { sessionId: "codex-1", threadId: "codex-1", callId: "exec-2" });
+    });
+
+    const reads = (await log.since(project, before)).lines.filter((line): line is Extract<Line, { kind: "note-read" }> => line.kind === "note-read");
+    assert.deepEqual(
+      reads.map(({ session, note: read, agent }) => ({ session, read, agent })),
+      [
+        { session: "claude-1", read: note.id, agent: { subagent: "a5b1", type: "Explore", task: "find the mail setup" } },
+        { session: "claude-1", read: note.id, agent: "orchestrator" },
+        { session: "claude-1", read: note.id, agent: "unknown" },
+        { session: "codex-1", read: note.id, agent: { subagent: "thread-2", type: "explorer", task: "Read the mail decision" } },
+        { session: "codex-1", read: note.id, agent: "orchestrator" },
+      ],
+    );
   });
 });
 
