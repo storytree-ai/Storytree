@@ -22,13 +22,15 @@ The leaves are always labelled as the agent's own report.
 
 The arc surface owns the one rule for planned, in progress or landed, and the live reading that
 keeps both views current. The forest uses both. The 0.3 app gets a story of its own for its frame:
-its database, the project switcher, hosting the views with the Forest | Arcs toggle, and which
-project it opens on.
+its database, the project switcher, hosting the views, and which project it opens on. A later
+decision the same day (ADR-0633) made the arc surface an overlay over the forest, in place of the
+Forest | Arcs toggle this tree first gave the app.
 
 "Unplanned activity" is renamed "unclaimed work": the edits and commands of a session holding no
 claim at that moment, decided by the claim and never by the files. It is never guessed onto a story,
 and it is listed beside the forest with a count always in view.
 
-Left out compared with 0.2: its layout engine and 2D map, the rig for measuring looks, the website
-mount, health from signed verdicts, wisps, the story panel's sub-map, session dock and library
-drawer, citation lists, art research and a second style, and 0.2's forest in the 0.3 app.
+Left out compared with 0.2, by the owner's own decisions: health from signed verdicts, citation
+lists, art research and a second style, and 0.2's forest in the 0.3 app. 0.2's layout engine gives
+way to the spiral he picked. The tree's other "left out" items were written by an agent; since
+ADR-0633 they are proposals awaiting his decision, not cuts.
