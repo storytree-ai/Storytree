@@ -14,8 +14,9 @@ no claim is listed beside the forest.
 without his explicit decision, and builders work from 0.2's code and corpus. Two things change
 here. The arc surface opens as an overlay over the forest, porting 0.2's arc surface, instead of as
 a second view behind a Forest | Arcs toggle. And each "left out" line an agent wrote is a proposal
-until he decides it by name: the forest's are items c1 to c5 of `oq-0-3-cuts-awaiting-owner-decision`,
-marked below as awaiting him. The lines that stand rest on decisions he made himself.
+until he decides it by name. The forest's five, items c1 to c5 of
+`oq-0-3-cuts-awaiting-owner-decision`, were put to him by name the same day, and he cut all five
+(ADR-0635). So every "leaves out" line below now rests on a decision he made himself.
 
 **Rule for building it: port behaviour, not code.** Storytree 0.2's 3D forest map
 (`packages/forest-world-r3f`, with the grove look of ADR-0508) is the behavioural reference for the
@@ -160,10 +161,10 @@ place of today's plain list.
   - Only meshes exported from the bought pine kit ship, never the kit itself. Its licence allows
     derived output and forbids repackaging, as 0.2 applied it (ADR-0418).
   - The look is judged by the owner's eye, with a screenshot at each landing that changes it.
-- **Proposed to leave out (vs 0.2), awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`):
-  the 2D map that took the clicks while the 3D picture sat underneath (c1); the rig for measuring
-  looks, 72,875 of 0.2's 142,439 forest lines, with its texture and palette ladders, crowd scenes and
-  true-ground projection (c2); and the website mount (c3).
+- **Leaves out (vs 0.2), by the owner's decision** (ADR-0635, c1 to c3): the 2D map that took the
+  clicks while the 3D picture sat underneath; the rig for measuring looks, 72,875 of 0.2's 142,439
+  forest lines, with its texture and palette ladders, crowd scenes and true-ground projection; and
+  the website mount.
 
 **Contracts:**
 1. The app's smoke check opens a seeded project and finds one story node per story, each drawn with
@@ -188,10 +189,10 @@ including any in other stories, named with their story and marked if not yet lan
   - The "storytree saw" column appears only where something wrote it (0.3's own project, from its
     seed). Elsewhere the agent's report stands alone, labelled as the agent's.
   - Cross-story capability links are shown, the same ones the arc surface shows.
-- **Proposed to leave out (vs 0.2), awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`,
-  c5): the pannable sub-map of 0.2's story panel (part of a 5,624-line studio component), with its
-  ancestor and descendant highlighting, and its session dock. The panel's library drawer is the note
-  browser the owner cut from the MVP (ADR-0625 D4).
+- **Leaves out (vs 0.2), by the owner's decisions:** the pannable sub-map of 0.2's story panel
+  (part of a 5,624-line studio component), with its ancestor and descendant highlighting, and its
+  session dock (ADR-0635, c5). The panel's library drawer is the note browser he cut from the MVP
+  (ADR-0625 D4).
 
 **Contracts:**
 1. A story whose third capability builds on the first two opens to its sentences and its
@@ -218,8 +219,8 @@ shown as idle.
   - A missing hook never reads as an agent doing nothing (ADR-0626 D4).
 - **Leaves out (vs 0.2), by the owner's one-holder rule** (ADR-0626 C1): claim grades, so a claim
   has no grade colour and there is no queue.
-- **Proposed to leave out, awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`, c4): build
-  wisps coloured by gate phase, and subagent tints.
+- **Leaves out (vs 0.2), by the owner's decision** (ADR-0635, c4): build wisps coloured by gate
+  phase, and subagent tints.
 
 **Contracts:**
 1. Session A claims "email form", and a marker reading "Claude Code: building the email form"
@@ -302,5 +303,6 @@ text and the titles of the notes it links to and from.
 - **Left out by the owner's own decisions** (ADR-0632 D6, as ADR-0633 annotated it): health from
   signed verdicts (ADR-0630), citation lists (ADR-0627), art research and a second style, and 0.2's
   forest in the 0.3 app (ADR-0625 D4). 0.2's layout engine gives way to his pick P1 (capability 1).
-  The rest of D6's list was written by an agent, and awaits his decision in
-  `oq-0-3-cuts-awaiting-owner-decision` (items c1 to c5).
+  The rest of D6's list was written by an agent; he decided it by name and cut all five (ADR-0635):
+  the 2D map, the look-measuring rig, the website mount, build wisps and subagent tints, and the
+  story panel's sub-map and session dock.
