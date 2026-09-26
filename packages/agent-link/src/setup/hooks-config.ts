@@ -38,14 +38,23 @@ export interface Homes {
 /** What registering found: storytree's hooks added now, already there, or no such harness on this machine. */
 export type HookRegistration = "registered" | "already registered" | "not here";
 
+/**
+ * What installing Claude Code's status line found (ADR-0636 D1, b3): storytree's installed now or
+ * already there, a status line of the user's own left as it is, or no Claude Code on this machine.
+ */
+export type StatusLineInstall = "installed" | "already installed" | "the user's own kept" | "not here";
+
 export interface HooksReport {
   readonly "claude-code": HookRegistration;
   readonly codex: HookRegistration;
+  readonly statusLine: StatusLineInstall;
 }
 
 export interface RemovalReport {
   readonly "claude-code": "removed" | "none";
   readonly codex: "removed" | "none";
+  /** Whether storytree's status line was taken out: a status line of the user's own is never touched. */
+  readonly statusLine: "removed" | "none";
 }
 
 /** The hook script's file name: what marks a hook entry as storytree's. */
@@ -66,20 +75,64 @@ export function defaultHomes(env: Readonly<Record<string, string | undefined>> =
   };
 }
 
-/** Register storytree's hooks for each harness whose home is here, replacing any older registration of them. */
+/**
+ * Register storytree's hooks for each harness whose home is here, replacing any older registration
+ * of them, and install storytree's status line in Claude Code where the user has none of their own.
+ */
 export function registerHooks(homes: Homes, hook: HookCommand): HooksReport {
   return {
     "claude-code": register(homes.claude, "settings.json", claudeEntries(hook)),
     codex: register(homes.codex, "hooks.json", codexEntries(hook)),
+    statusLine: installStatusLine(homes.claude, hook),
   };
 }
 
-/** Take storytree's hooks out of each harness's settings, leaving everything else as it was. */
+/** Take storytree's hooks, and its status line, out of each harness's settings, leaving everything else as it was. */
 export function removeHooks(homes: Homes): RemovalReport {
+  const statusLine = removeStatusLine(homes.claude);
   return {
     "claude-code": remove(homes.claude, "settings.json"),
     codex: remove(homes.codex, "hooks.json"),
+    statusLine,
   };
+}
+
+/**
+ * Claude Code's status line: one command line, which Claude Code runs through a shell. On Windows
+ * each path is in double quotes, which bash, cmd and Git Bash all read as one word.
+ */
+function statusLineCommand({ node, script }: HookCommand): string {
+  const quoted = process.platform === "win32" ? (text: string) => `"${text}"` : shQuoted;
+  return `${quoted(node)} ${quoted(script)} statusline`;
+}
+
+/** Install storytree's status line in Claude Code's settings, unless the user has one of their own. */
+function installStatusLine(home: string | undefined, hook: HookCommand): StatusLineInstall {
+  if (home === undefined || !isFolder(home)) return "not here";
+  const settingsFile = path.join(home, "settings.json");
+  const settings = readSettings(settingsFile);
+  const wanted = { type: "command", command: statusLineCommand(hook) };
+  const current = settings.statusLine;
+  if (current !== undefined && !isStorytreesStatusLine(current)) return "the user's own kept";
+  if (isDeepStrictEqual(current, wanted)) return "already installed";
+  writeSettings(settingsFile, { ...readSettings(settingsFile), statusLine: wanted });
+  return "installed";
+}
+
+function removeStatusLine(home: string | undefined): "removed" | "none" {
+  if (home === undefined) return "none";
+  const settingsFile = path.join(home, "settings.json");
+  if (!existsSync(settingsFile)) return "none";
+  const { statusLine, ...rest } = readSettings(settingsFile);
+  if (statusLine === undefined || !isStorytreesStatusLine(statusLine)) return "none";
+  writeSettings(settingsFile, rest);
+  return "removed";
+}
+
+/** Whether a status line setting runs storytree's hook script. */
+function isStorytreesStatusLine(statusLine: unknown): boolean {
+  const command = typeof statusLine === "object" && statusLine !== null ? (statusLine as Record<string, unknown>).command : undefined;
+  return typeof command === "string" && command.includes(SCRIPT_NAME);
 }
 
 /** Claude Code's entries: the hook script run with arguments, no shell. */

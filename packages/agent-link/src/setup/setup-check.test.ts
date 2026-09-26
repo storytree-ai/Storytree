@@ -126,7 +126,7 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
     assert.deepEqual(report.hooks, { "claude-code": "registered", codex: "registered", statusLine: "installed" });
 
     const claude = readJson(home.claudeSettings);
-    assert.deepEqual({ ...claude, hooks: undefined, statusLine: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined }, "Claude Code's other settings are as they were");
+    assert.deepEqual({ ...claude, hooks: undefined, statusLine: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined, statusLine: undefined }, "Claude Code's other settings are as they were");
     // The user has no status line of their own, so storytree's is installed: the hook script, run for the status line.
     const statusLine = claude.statusLine as { type: string; command: string };
     assert.equal(statusLine.type, "command");

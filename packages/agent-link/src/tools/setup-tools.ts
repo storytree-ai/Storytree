@@ -48,6 +48,8 @@ export function registerSetupTools({ server, folder, setup, connections, callerO
       else {
         const registered = (Object.keys(HARNESS_NAMES) as (keyof typeof HARNESS_NAMES)[]).filter((harness) => report.hooks?.[harness] === "registered");
         if (registered.length > 0) said.push(`storytree's hooks were registered for ${registered.map((harness) => HARNESS_NAMES[harness]).join(" and ")}.`);
+        if (report.hooks.statusLine === "installed") said.push("storytree's status line was installed in Claude Code: it shows from the next session.");
+        if (report.hooks.statusLine === "the user's own kept") said.push("The user has a Claude Code status line of their own, so storytree's was not installed: storytree never replaces it.");
       }
       if (report.project.status === "ask") {
         said.push(
