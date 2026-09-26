@@ -14,7 +14,7 @@ import { findProject, setUpProject } from "../routing/index.js";
 import { CHECK_FILE, FIX_SENTENCES, HOOK_TESTS, openStorytree, runSetupCheck, verifyHooks, type SetupOptions } from "../setup/index.js";
 import { isUnreachable, NOT_RUNNING_ANSWER, refusalOf, result } from "./answers.js";
 import type { Connections } from "./connections.js";
-import { lineOf, type Caller } from "./server.js";
+import { lineOf, metaOf, seenCaller, type Caller } from "./server.js";
 import { quoted } from "./text.js";
 
 export interface SetupToolContext {
@@ -36,7 +36,7 @@ export function registerSetupTools({ server, folder, setup, connections, callerO
       inputSchema: z.object({}),
     },
     (async (_args: unknown, context: ServerContext): Promise<CallToolResult> => {
-      const caller = callerOf(context);
+      const heard = callerOf(context);
       const report = await runSetupCheck({ ...setup, folder });
       const data: Record<string, unknown> = { storytree: report.storytree.state, hooks: report.hooks ?? null, project: report.project };
       const unverified = { verified: false, missing: [...HOOK_TESTS], fixes: [] };
@@ -58,6 +58,8 @@ export function registerSetupTools({ server, folder, setup, connections, callerO
       said.push(`This folder is storytree project ${quoted(report.project.name)}.`);
       try {
         const { log } = await connections.reach(report.storytree.url, report.project.name);
+        // The session as the hook before this call named it: after Claude Code's /clear, the new one.
+        const caller = seenCaller((await log.since(report.project.name, 0)).lines, heard, metaOf(context));
         await log.append(report.project.name, { ...lineOf(caller), source: "tool", folder, kind: "tool-called", tool: "check_setup" });
         const { lines } = await log.since(report.project.name, 0);
         const verification = verifyHooks(lines, caller.session, caller.harness);
