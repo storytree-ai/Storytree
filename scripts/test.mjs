@@ -3,7 +3,9 @@
 // (node --import tsx scripts/test.mjs): it imports @storytree/local-postgres, which is TypeScript.
 //
 // With STORYTREE_TEST_PG_URL set, the tests use that server and nothing is started or stopped.
-// Otherwise this runs a throwaway local server through @storytree/local-postgres, from the
+// Otherwise this runs a throwaway local server through @storytree/local-postgres, and hands the
+// tests its data directory too, as STORYTREE_TEST_PG_DATA (the agent link reads the owner record
+// local-postgres keeps beside it, as it reads the desktop app's). The server comes from the
 // @embedded-postgres binaries (on Windows arm64, the x64 build under the OS's emulation). Its
 // cluster lives in .pgtest/data and is created on first use. The server listens on 127.0.0.1 only,
 // on a free port, and is ALWAYS stopped again: after a pass, after a failure, and on Ctrl-C. A run
@@ -89,7 +91,7 @@ async function main() {
   }
   try {
     if (interrupted) return 130;
-    return await runTests({ ...process.env, STORYTREE_TEST_PG_URL: server.url });
+    return await runTests({ ...process.env, STORYTREE_TEST_PG_URL: server.url, STORYTREE_TEST_PG_DATA: server.dataDir });
   } finally {
     await server.stop();
   }
