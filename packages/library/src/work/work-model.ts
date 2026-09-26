@@ -24,6 +24,12 @@ export type NewCapability = FieldsOf<"capability">;
 export type NewContract = FieldsOf<"contract">;
 /** An edit of a capability: some of its fields. A field set to undefined is removed. */
 export type CapabilityEdit = { [F in keyof FieldsOf<"capability">]?: FieldsOf<"capability">[F] | undefined };
+/** An edit of a story: some of its fields. A field set to undefined is removed. */
+export type StoryEdit = { [F in keyof FieldsOf<"story">]?: FieldsOf<"story">[F] | undefined };
+/** An edit of a contract: some of its fields. A field set to undefined is removed. */
+export type ContractEdit = { [F in keyof FieldsOf<"contract">]?: FieldsOf<"contract">[F] | undefined };
+/** An edit of an arc: some of its fields. A field set to undefined is removed. */
+export type ArcEdit = { [F in keyof FieldsOf<"arc">]?: FieldsOf<"arc">[F] | undefined };
 
 /** The plan of work as the forest reads it: story › capability › contract, and the arcs. */
 export interface ProjectTree {
