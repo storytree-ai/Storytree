@@ -4,3 +4,5 @@ export { storyNodes } from "./story-nodes/story-nodes.js";
 export type { Point, StoryNode } from "./story-nodes/story-nodes.js";
 export { grove } from "./capability-tree/capability-tree.js";
 export type { Tree, TreeForm } from "./capability-tree/capability-tree.js";
+export { changedIslands, forestDrawn, forestScene, PLACE_WIDTH, storyAt } from "./render/forest-scene.js";
+export type { ForestDrawn, ForestScene, Island, PlacedTree } from "./render/forest-scene.js";
