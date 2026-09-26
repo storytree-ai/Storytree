@@ -105,10 +105,7 @@ async function main() {
       const { capabilities: caps, contracts: ks } = result.counts;
       console.log(`\nstory "${story.title}" (${file}): ${result.counts.story}`);
       console.log(`  capabilities: ${caps.added} added, ${caps.updated} updated, ${caps.unchanged} unchanged, ${caps.retired} retired`);
-      console.log(
-        `  contracts: ${ks.added} added, ${ks.replaced} replaced (wording changed), ${ks.unchanged} unchanged, ${ks.retired} retired`,
-      );
-      for (const note of result.notes) console.log(`  note: ${note}`);
+      console.log(`  contracts: ${ks.added} added, ${ks.reworded} reworded, ${ks.unchanged} unchanged, ${ks.retired} retired`);
       names.set(result.storyId, `the story "${story.title}"`);
       for (const capability of story.capabilities) {
         names.set(result.capabilityIds.get(String(capability.number)), `"${story.title}" › ${capability.title}`);
