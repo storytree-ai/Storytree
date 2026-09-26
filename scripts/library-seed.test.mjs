@@ -19,55 +19,42 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const librarySpec = readFileSync(path.join(root, "stories", "library.md"), "utf8");
 const librarySrc = path.join(root, "packages", "library", "src");
 
-test("parseStory reads stories/library.md: the story, its nine capabilities in build order, their descriptions and dependencies, and their contracts numbered N.M", () => {
-  const story = parseStory(librarySpec);
-  assert.equal(story.title, "The library");
-  assert.match(story.description, /^The library is where one project's records live: the plan of work, .* through the agent link\.$/);
+// test-removed: "parseStory reads stories/library.md" pinned the library story file's own titles, prose,
+// dependencies and contract counts, so it went red whenever that document changed (ADR-0623 D1: a test's
+// subject is a product behaviour, never the wording or shape of a document). The parse behaviours it was
+// the only test of, reading Depends on lines and following the build order, are the next test's subject.
 
-  assert.deepEqual(
-    story.capabilities.map((capability) => capability.title),
+test("parseStory takes capabilities in the build order's order, then any it leaves out, and reads each Depends on line up to its first full stop or bracket", () => {
+  const story = parseStory(
     [
-      "1 · Project libraries",
-      "2 · Library transactions",
-      "3 · Data schema",
-      "4 · Work model",
-      "6 · Knowledge and memory",
-      "5 · Health record",
-      "7 · Library API",
-      "8 · Cloud connection (GCP)",
-      "9 · Knowledge entrances",
-    ],
-    "in the story's build order: 1 → 2 → 3 → (4, 6) → 5 → 7, then 8, then 9",
-  );
-  const capability = (number) => story.capabilities.find((candidate) => candidate.number === number);
-  assert.equal(
-    capability(1).description,
-    "Each project gets its own library, a separate database on one Postgres server, created the first time the project is opened, " +
-      "with its tables set up automatically. Storytree can list the projects on the server, and nothing written in one project can ever show up in another.",
+      "# Story: four parts",
+      "",
+      "**What it is.** Four capabilities.",
+      "",
+      "Build order: 1 → (3, 2).",
+      "",
+      "## 1 · First",
+      "",
+      "- **Depends on:** nothing.",
+      "",
+      "## 2 · Second",
+      "",
+      "- **Depends on:** 1 (and 3's records, which it does not need).",
+      "",
+      "## 3 · Third",
+      "",
+      "- **Depends on:** 1.",
+      "",
+      "## 4 · Fourth",
+      "",
+      "- **Depends on:** 1 and 2. Not 3.",
+      "",
+    ].join("\n"),
   );
   assert.deepEqual(
     story.capabilities.map(({ number, dependsOn }) => [number, dependsOn]),
-    [[1, []], [2, [1]], [3, [2]], [4, [3]], [6, [3]], [5, [4]], [7, [1, 4, 5, 6]], [8, [1]], [9, [4, 6]]],
-    "dependencies from each capability's 'Depends on' line, and no more (6 names 4 only to say it does not depend on it)",
+    [[1, []], [3, [1]], [2, [1]], [4, [1, 2]]],
   );
-
-  assert.deepEqual(
-    story.capabilities.map(({ number, contracts }) => [number, contracts.map((contract) => contract.number)]),
-    [
-      [1, ["1.1", "1.2", "1.3", "1.4", "1.5"]],
-      [2, ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9"]],
-      [3, ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6"]],
-      [4, ["4.1", "4.2", "4.3", "4.4", "4.5"]],
-      [6, ["6.1", "6.2", "6.3", "6.4"]],
-      [5, ["5.1", "5.2", "5.3", "5.4", "5.5"]],
-      [7, ["7.1", "7.2", "7.3"]],
-      [8, ["8.1", "8.2"]],
-      [9, ["9.1", "9.2", "9.3"]],
-    ],
-  );
-  const first = capability(1).contracts[0];
-  assert.equal(first.title, '1.1 · `openProject("site")` on a server with no storytree databases creates the project\'s database and its tables.');
-  assert.equal(capability(8).contracts[1].title, "8.2 · A missing or bad Google sign-in is refused with a message saying what to fix, never a hang.");
 });
 
 test("parseStory keeps heading order when there is no build order, and refuses a build order that puts a capability before one it depends on", () => {
@@ -187,11 +174,14 @@ test("contractsCoveredBy finds the contract numbers a test file names, in itself
 test("syncStory adds the story once: a second run changes nothing, and a changed capability or contract is updated without a duplicate", async () => {
   await withLibrary(async (lib) => {
     const story = parseStory(librarySpec);
+    // The story's size comes from the file itself, so the test does not change when the file does.
+    const capabilityCount = story.capabilities.length;
+    const contractCount = story.capabilities.reduce((count, { contracts }) => count + contracts.length, 0);
     const first = await syncStory(lib, story);
     assert.deepEqual(first.counts, {
       story: "added",
-      capabilities: { added: 9, updated: 0, unchanged: 0, retired: 0 },
-      contracts: { added: 42, replaced: 0, unchanged: 0, retired: 0 },
+      capabilities: { added: capabilityCount, updated: 0, unchanged: 0, retired: 0 },
+      contracts: { added: contractCount, replaced: 0, unchanged: 0, retired: 0 },
     });
     const tree = await lib.projectTree();
     assert.equal(tree.stories.length, 1);
@@ -208,8 +198,8 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const second = await syncStory(lib, story);
     assert.deepEqual(second.counts, {
       story: "unchanged",
-      capabilities: { added: 0, updated: 0, unchanged: 9, retired: 0 },
-      contracts: { added: 0, replaced: 0, unchanged: 42, retired: 0 },
+      capabilities: { added: 0, updated: 0, unchanged: capabilityCount, retired: 0 },
+      contracts: { added: 0, replaced: 0, unchanged: contractCount, retired: 0 },
     });
     assert.deepEqual(await lib.projectTree(), tree, "the second run wrote nothing");
 
@@ -224,8 +214,8 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const third = await syncStory(lib, changed);
     assert.deepEqual(third.counts, {
       story: "unchanged",
-      capabilities: { added: 0, updated: 1, unchanged: 8, retired: 0 },
-      contracts: { added: 1, replaced: 1, unchanged: 40, retired: 1 },
+      capabilities: { added: 0, updated: 1, unchanged: capabilityCount - 1, retired: 0 },
+      contracts: { added: 1, replaced: 1, unchanged: contractCount - 2, retired: 1 },
     });
     const after = (await lib.projectTree()).stories;
     assert.equal(after.length, 1, "still one story");
