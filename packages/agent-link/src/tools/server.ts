@@ -30,6 +30,7 @@ import {
 import type { z } from "zod";
 
 import type { ActivityLog } from "../activity/index.js";
+import { habitsCard } from "../instructions/index.js";
 import { route } from "../routing/index.js";
 import { QUIET_MS } from "../sessions/index.js";
 import { registerClaimTools } from "./claim-tools.js";
@@ -88,7 +89,7 @@ export interface Answer {
 export type Define = <S extends z.ZodObject>(name: string, description: string, input: S, act: (args: z.output<S>, call: Call) => Promise<Answer>) => void;
 
 export function createAgentTools(options: AgentToolOptions): AgentTools {
-  const server = new McpServer({ name: "storytree", version: "0.3.0" });
+  const server = new McpServer({ name: "storytree", version: "0.3.0" }, { instructions: habitsCard() });
   const connections = new Connections();
   const env = options.env ?? process.env;
   const quietMs = options.quietMs ?? QUIET_MS;
