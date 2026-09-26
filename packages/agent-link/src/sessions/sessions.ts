@@ -1,6 +1,15 @@
 /**
- * Capability 4 · Sessions (stories/agent-link.md). Not built yet: this stub gives the contracts'
- * tests something to fail against.
+ * Capability 4 · Sessions (stories/agent-link.md): the agent activity log read as a list of agent
+ * sessions, one per Claude Code or Codex window. Nothing asks an agent whether it is still there:
+ * a session's state is worked out from its lines.
+ *
+ * - A session is its lines under one harness session id. A resumed window keeps its id, so it
+ *   continues the same session.
+ * - Its state comes from its latest line and the time now: ended if that line is its end line,
+ *   idle once the quiet time has passed since it, live otherwise. So it never reads as live just
+ *   because nobody said otherwise.
+ * - It is flagged "hooks not running" (`hooksRunning: false`) until a line from one of its hooks
+ *   arrives: a session seen only through its tool calls is not an agent doing nothing.
  */
 import type { ActivityLog, Line } from "../activity/index.js";
 
@@ -36,10 +45,40 @@ export interface SessionOptions {
   readonly quietMs?: number;
 }
 
-export function sessionsFrom(_lines: readonly Line[], _options: SessionOptions = {}): Session[] {
-  throw new Error("sessions are not built yet");
+/** The harnesses people know by another name than their id. */
+const LABELS: Readonly<Record<string, string>> = { "claude-code": "Claude Code", codex: "Codex" };
+
+/** The sessions `lines` show, in the order they started, each judged at `options.now`. */
+export function sessionsFrom(lines: readonly Line[], options: SessionOptions = {}): Session[] {
+  const now = (options.now ?? new Date()).getTime();
+  const quietMs = options.quietMs ?? QUIET_MS;
+  const bySession = new Map<string, Line[]>();
+  for (const line of [...lines].sort((a, b) => a.seq - b.seq)) {
+    const own = bySession.get(line.session);
+    if (own === undefined) bySession.set(line.session, [line]);
+    else own.push(line);
+  }
+  return [...bySession.entries()].map(([session, own]) => {
+    const first = own[0]!;
+    const latest = own.at(-1)!;
+    const harness = own.find((line) => line.harness !== undefined)?.harness;
+    const folder = (own.find((line) => line.kind === "session-started" && line.folder !== undefined) ?? own.find((line) => line.folder !== undefined))?.folder;
+    const state: SessionState = latest.kind === "session-ended" ? "ended" : now - Date.parse(latest.at) > quietMs ? "idle" : "live";
+    return {
+      session,
+      ...(harness === undefined ? {} : { harness }),
+      label: harness === undefined ? "an unnamed harness" : (LABELS[harness] ?? harness),
+      ...(folder === undefined ? {} : { folder }),
+      startedAt: first.at,
+      lastSeenAt: latest.at,
+      state,
+      hooksRunning: own.some((line) => line.source === "hook"),
+    };
+  });
 }
 
-export async function readSessions(_log: ActivityLog, _project: string, _options: SessionOptions = {}): Promise<Session[]> {
-  throw new Error("sessions are not built yet");
+/** The sessions in `project`'s log, in the order they started, each judged at `options.now`. */
+export async function readSessions(log: ActivityLog, project: string, options: SessionOptions = {}): Promise<Session[]> {
+  const { lines } = await log.since(project, 0);
+  return sessionsFrom(lines, options);
 }
