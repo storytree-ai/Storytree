@@ -10,3 +10,5 @@ export { drillDown, NO_DESCRIPTION } from "./drill-down/drill-down.js";
 export type { Arrow, CapabilityLine, ContractLine, StoryPanel } from "./drill-down/drill-down.js";
 export { claimMarkers } from "./agent-claims/agent-claims.js";
 export type { Marker } from "./agent-claims/agent-claims.js";
+export { unclaimedWork } from "./unclaimed-work/unclaimed-work.js";
+export type { UnclaimedEntry, UnclaimedWork } from "./unclaimed-work/unclaimed-work.js";

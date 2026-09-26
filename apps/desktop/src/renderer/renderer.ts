@@ -7,12 +7,13 @@
  */
 import type { Line } from "@storytree/agent-link";
 import { liveReading, workStates, type LiveReading } from "@storytree/arc-surface";
-import { claimMarkers, drillDown, forestDrawn, forestScene, type ForestDrawn } from "@storytree/forest";
+import { claimMarkers, drillDown, forestDrawn, forestScene, unclaimedWork, type ForestDrawn } from "@storytree/forest";
 import type { AnnotatedTree, Change } from "@storytree/library";
 
 import type { StorytreeBridge } from "../bridge.js";
 import { openForestView, type ForestView } from "../forest/forest-view.js";
 import { renderStoryPanel } from "../forest/story-panel.js";
+import { renderUnclaimed } from "../forest/unclaimed-list.js";
 import { renderNoProjects, renderSwitcher } from "../view/view.js";
 
 declare global {
@@ -71,7 +72,9 @@ async function showForest(name: string): Promise<void> {
   const panel = document.createElement("aside");
   panel.className = "story-panel";
   panel.hidden = true;
-  content.replaceChildren(holder, panel);
+  const unclaimed = document.createElement("aside");
+  unclaimed.className = "unclaimed";
+  content.replaceChildren(holder, panel, unclaimed);
   document.body.dataset.surface = "forest";
   const mine: NonNullable<typeof showing> = { reading: undefined, view: undefined };
   showing = mine;
@@ -118,7 +121,9 @@ async function showForest(name: string): Promise<void> {
         const scene = forestScene(tree, history, workStates(lines));
         view.show(scene);
         view.showMarkers(claimMarkers(lines, new Date()));
-        sayWhatWasDrawn(forestDrawn(scene));
+        const work = unclaimedWork(lines);
+        unclaimed.innerHTML = renderUnclaimed(work, unclaimed.querySelector("details")?.open === true);
+        sayWhatWasDrawn({ ...forestDrawn(scene), unclaimed: work.count });
         if (!panel.hidden) showPanel();
         setState("ready");
       }).catch((error: unknown) => {
@@ -147,7 +152,7 @@ function stopShowing(): void {
  * capabilities it drew, by id, with its own fields added. The smoke check judges the surface on
  * show by it.
  */
-function sayWhatWasDrawn(drawn: ForestDrawn): void {
+function sayWhatWasDrawn(drawn: ForestDrawn & { unclaimed: number }): void {
   document.body.dataset.drew = JSON.stringify(drawn);
 }
 
