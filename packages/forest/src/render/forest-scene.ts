@@ -65,7 +65,7 @@ export interface ForestDrawn {
 }
 
 /** How tall each form stands: a seedling is small, every landed tree full size. */
-const HEIGHT: Readonly<Record<TreeForm, number>> = { seedling: 0.38, pale: 1, green: 1, dead: 0.9 };
+const HEIGHT: Readonly<Record<TreeForm, number>> = { seedling: 0.5, pale: 1, green: 1, dead: 0.9 };
 
 /**
  * The forest for a project: `tree` is its projectTree(), `history` its changesSince(0) changes, and

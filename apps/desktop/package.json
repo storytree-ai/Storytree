@@ -15,12 +15,16 @@
   "devDependencies": {
     "@storytree/agent-link": "workspace:*",
     "@storytree/app": "workspace:*",
+    "@storytree/arc-surface": "workspace:^",
+    "@storytree/forest": "workspace:^",
     "@storytree/library": "workspace:*",
     "@storytree/local-postgres": "workspace:*",
     "@types/node": "^24.13.6",
+    "@types/three": "^0.185.0",
     "electron": "44.4.5",
     "electron-builder": "26.15.3",
     "esbuild": "^0.28.2",
+    "three": "^0.185.1",
     "typescript": "~7.0.2"
   },
   "optionalDependencies": {
