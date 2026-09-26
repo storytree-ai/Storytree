@@ -199,6 +199,9 @@ what just changed without re-reading everything.
 - **Depends on:** 1, 4, 5 and 6.
 - **Leaves out (vs 0.2):** the Library CLI, the browse UI, the HTTP door, and raw SQL. The MCP server
   belongs to the agent-link story, as a thin wrapper over this API.
+- **Extended** on 2026-09-26 by ADR-0626 with three edit functions, `editStory`, `editContract` and
+  `editArc`, so that an agent can correct a plan through the agent link's tools without retiring and
+  re-adding it. They edit the way `editCapability` and `editNote` already do.
 
 **Contracts:**
 1. An end-to-end "agent's day" against a real local Postgres: open a project, create an arc, add a
@@ -209,6 +212,9 @@ what just changed without re-reading everything.
    next time.
 3. The package's public entry exports exactly the API (listed below) and nothing else, and its
    internals cannot be imported through the package.
+4. `editStory`, `editContract` and `editArc` change only the fields they name, merged onto what is
+   stored now, and check a new reference as adding does (a contract's capability, an arc's
+   stories). Each gives `null`, writing nothing, for an id that is not a live record of its type.
 
 ## 8 · Cloud connection (GCP)
 
@@ -274,6 +280,7 @@ const story = await lib.addStory({ title: "Visitor can sign up" });             
 const arc   = await lib.createArc({ title: "Launch v1", stories: [story.id] });        // 4
 const cap   = await lib.addCapability({ title: "Email form", story: story.id });      // 4
 const k     = await lib.addContract({ title: "Rejects a bad email", capability: cap.id });
+await lib.editContract(k.id, { title: "Rejects an email with no @" }); // 7: correct the plan in place
 await lib.reportHealth(k.id, "passing", { by: "agent" });   // 5: what the agent says
 await lib.recordVerified(k.id, "failing", { by: "storytree" }); // 5: what storytree saw
 const cover = await lib.recordDecision({ title: "Send through Mailgun", text: "Simplest API", frontCoverOf: cap.id }); // 9

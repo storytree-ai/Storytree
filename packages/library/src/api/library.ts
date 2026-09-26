@@ -14,7 +14,7 @@ import { connect as connectServer, type ConnectOptions, type Project, type Story
 import { couldBeId } from "../references.js";
 import type { SchemaRecord } from "../schema/index.js";
 import type { HistoryEntry, RecordEnvelope } from "../transactions/index.js";
-import type { CapabilityEdit, NewArc, NewCapability, NewContract, NewStory } from "../work/index.js";
+import type { ArcEdit, CapabilityEdit, ContractEdit, NewArc, NewCapability, NewContract, NewStory, StoryEdit } from "../work/index.js";
 
 /** A connection to one Postgres server and the storytree projects on it. */
 export interface Storytree {
@@ -38,8 +38,18 @@ export interface Library {
 
   /** Add a story to the project, under an id the library makes. */
   addStory(story: NewStory): Promise<SchemaRecord<"story">>;
+  /**
+   * Change only the named fields of a story, merged onto what is stored now. Null, with nothing
+   * written, if `id` is not a live story.
+   */
+  editStory(id: string, fields: StoryEdit): Promise<SchemaRecord<"story"> | null>;
   /** Create an arc. Every story it lists must be a live story (MissingReferenceError otherwise); it may list none. */
   createArc(arc: NewArc): Promise<SchemaRecord<"arc">>;
+  /**
+   * Change only the named fields of an arc. Every story a new `stories` lists must be a live story
+   * (MissingReferenceError otherwise). Null, with nothing written, if `id` is not a live arc.
+   */
+  editArc(id: string, fields: ArcEdit): Promise<SchemaRecord<"arc"> | null>;
   /** Add a capability to a story. The story, and every capability it depends on, must be live. */
   addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">>;
   /**
@@ -49,6 +59,11 @@ export interface Library {
   editCapability(id: string, fields: CapabilityEdit): Promise<SchemaRecord<"capability"> | null>;
   /** Add a contract to a capability, which must be a live capability. */
   addContract(contract: NewContract): Promise<SchemaRecord<"contract">>;
+  /**
+   * Change only the named fields of a contract. A new `capability` must be a live capability
+   * (MissingReferenceError otherwise). Null, with nothing written, if `id` is not a live contract.
+   */
+  editContract(id: string, fields: ContractEdit): Promise<SchemaRecord<"contract"> | null>;
   /** The plan as it is now, story › capability › contract with every node's health, and the arcs: what the forest reads. */
   projectTree(): Promise<AnnotatedTree>;
   /** The live arcs listing story `storyId`, in creation order. */
@@ -165,8 +180,16 @@ class LibraryHandle implements Library {
     return this.#project.work.addStory(story);
   }
 
+  editStory(id: string, fields: StoryEdit): Promise<SchemaRecord<"story"> | null> {
+    return this.#project.work.editStory(id, fields);
+  }
+
   createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
     return this.#project.work.createArc(arc);
+  }
+
+  editArc(id: string, fields: ArcEdit): Promise<SchemaRecord<"arc"> | null> {
+    return this.#project.work.editArc(id, fields);
   }
 
   addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
@@ -179,6 +202,10 @@ class LibraryHandle implements Library {
 
   addContract(contract: NewContract): Promise<SchemaRecord<"contract">> {
     return this.#project.work.addContract(contract);
+  }
+
+  editContract(id: string, fields: ContractEdit): Promise<SchemaRecord<"contract"> | null> {
+    return this.#project.work.editContract(id, fields);
   }
 
   /** The work model's tree, annotated with health (capability 5 reads the plan through capability 4). */

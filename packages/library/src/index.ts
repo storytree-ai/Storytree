@@ -13,7 +13,7 @@ export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.
 
 export type { FieldsOf, RecordType, SchemaRecord } from "./schema/index.js";
 export type { RecordEnvelope } from "./transactions/index.js";
-export type { ArcNode, CapabilityEdit, NewArc, NewCapability, NewContract, NewStory } from "./work/index.js";
+export type { ArcEdit, ArcNode, CapabilityEdit, ContractEdit, NewArc, NewCapability, NewContract, NewStory, StoryEdit } from "./work/index.js";
 export type {
   AnnotatedCapability,
   AnnotatedContract,

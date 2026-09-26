@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { connect, type Change, type NodeHealth, type RecordEnvelope, type Storytree } from "@storytree/library";
+import { connect, MissingReferenceError, type Change, type NodeHealth, type RecordEnvelope, type Storytree } from "@storytree/library";
 // The type half of 7.3, which `pnpm typecheck` checks rather than a test run: the entry exports no
 // type that reaches a connection pool, a store or a table. Each import below must fail to compile.
 // If one ever compiles, its @ts-expect-error is left unused, and that fails the typecheck.
@@ -39,8 +39,11 @@ const LIBRARY_API = [
   "addStory",
   "createArc",
   "addCapability",
+  "editStory",
   "editCapability",
   "addContract",
+  "editContract",
+  "editArc",
   "projectTree",
   "arcsFor",
   "reportHealth",
@@ -372,6 +375,55 @@ test("7.3 the package's public entry exports exactly the API and nothing else, a
   ]) {
     await assert.rejects(import(internal), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" }, internal);
   }
+});
+
+test("7.4 editStory, editContract and editArc change only the fields they name, check a new reference as adding does, and give null for an id that is not a live record of their type", async () => {
+  const name = uniqueProjectName();
+  await withStorytree([name], async (storytree) => {
+    const lib = await storytree.openProject(name);
+    const story = await lib.addStory({ title: "Visitor can sign up", description: "With an email" });
+    const other = await lib.addStory({ title: "Visitor can sign in" });
+    const form = await lib.addCapability({ title: "Email form", story: story.id });
+    const link = await lib.addCapability({ title: "Confirmation link", story: story.id });
+    const contract = await lib.addContract({ title: "Rejects a bad email", capability: form.id, description: "Before sending" });
+    const arc = await lib.createArc({ title: "Launch v1", stories: [story.id] });
+
+    // Only the named fields change; the others keep their stored values, and one set to undefined goes.
+    assert.deepEqual((await lib.editStory(story.id, { title: "Visitor can sign up with email" }))?.fields, {
+      title: "Visitor can sign up with email",
+      description: "With an email",
+    });
+    assert.deepEqual((await lib.editStory(story.id, { description: undefined }))?.fields, { title: "Visitor can sign up with email" });
+    assert.deepEqual((await lib.editContract(contract.id, { capability: link.id }))?.fields, {
+      title: "Rejects a bad email",
+      capability: link.id,
+      description: "Before sending",
+    });
+    assert.deepEqual((await lib.editArc(arc.id, { stories: [story.id, other.id], description: "The first release" }))?.fields, {
+      title: "Launch v1",
+      stories: [story.id, other.id],
+      description: "The first release",
+    });
+    // The plan reads the edits: the story renamed, the contract under the capability it moved to, the arc grown.
+    const tree = await lib.projectTree();
+    assert.equal(tree.stories.find((node) => node.id === story.id)?.title, "Visitor can sign up with email");
+    const capabilities = tree.stories.flatMap((node) => node.capabilities);
+    assert.deepEqual(capabilities.find((node) => node.id === form.id)?.contracts, []);
+    assert.deepEqual(capabilities.find((node) => node.id === link.id)?.contracts.map((node) => node.id), [contract.id]);
+    assert.deepEqual((await lib.arcsFor(other.id)).map((node) => node.id), [arc.id]);
+
+    // A new reference is checked as adding checks it; an id that is not a live record of the type
+    // gives null. Neither writes anything.
+    const before = await lib.changesSince(0);
+    await assert.rejects(lib.editContract(contract.id, { capability: "capability_000000000000" }), MissingReferenceError);
+    await assert.rejects(lib.editContract(contract.id, { capability: story.id }), MissingReferenceError, "a story is not a capability");
+    await assert.rejects(lib.editArc(arc.id, { stories: [story.id, "story_000000000000"] }), MissingReferenceError);
+    assert.equal(await lib.editStory("story_000000000000", { title: "Nothing" }), null);
+    assert.equal(await lib.editStory(form.id, { title: "A capability, not a story" }), null);
+    assert.equal(await lib.editContract(arc.id, { title: "An arc, not a contract" }), null);
+    assert.equal(await lib.editArc(contract.id, { title: "A contract, not an arc" }), null);
+    assert.deepEqual(await lib.changesSince(before.cursor), { changes: [], cursor: before.cursor }, "nothing was written");
+  });
 });
 
 /** A class a caller can catch an error by. */

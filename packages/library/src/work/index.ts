@@ -1,13 +1,16 @@
 export { WorkModel } from "./work-model.js";
 export type {
+  ArcEdit,
   ArcNode,
   CapabilityEdit,
   CapabilityNode,
+  ContractEdit,
   ContractNode,
   NewArc,
   NewCapability,
   NewContract,
   NewStory,
   ProjectTree,
+  StoryEdit,
   StoryNode,
 } from "./work-model.js";

@@ -24,6 +24,12 @@ export type NewCapability = FieldsOf<"capability">;
 export type NewContract = FieldsOf<"contract">;
 /** An edit of a capability: some of its fields. A field set to undefined is removed. */
 export type CapabilityEdit = { [F in keyof FieldsOf<"capability">]?: FieldsOf<"capability">[F] | undefined };
+/** An edit of a story: some of its fields. A field set to undefined is removed. */
+export type StoryEdit = { [F in keyof FieldsOf<"story">]?: FieldsOf<"story">[F] | undefined };
+/** An edit of a contract: some of its fields. A field set to undefined is removed. */
+export type ContractEdit = { [F in keyof FieldsOf<"contract">]?: FieldsOf<"contract">[F] | undefined };
+/** An edit of an arc: some of its fields. A field set to undefined is removed. */
+export type ArcEdit = { [F in keyof FieldsOf<"arc">]?: FieldsOf<"arc">[F] | undefined };
 
 /** The plan of work as the forest reads it: story › capability › contract, and the arcs. */
 export interface ProjectTree {
@@ -131,6 +137,41 @@ export class WorkModel {
     return this.#serially(async () => {
       await checkReference(this.#records, "capability", contract.capability, "capability");
       return this.#records.create("contract", contract);
+    });
+  }
+
+  /**
+   * Change only the named fields of a story, as capability 3's edit does. Returns null, and writes
+   * nothing, if `id` is not a live story.
+   */
+  editStory(id: string, fields: StoryEdit): Promise<SchemaRecord<"story"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["story"])) === null) return null;
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"story"> | null;
+    });
+  }
+
+  /**
+   * Change only the named fields of a contract, as capability 3's edit does. A new capability is
+   * checked as addContract checks it. Returns null, and writes nothing, if `id` is not a live contract.
+   */
+  editContract(id: string, fields: ContractEdit): Promise<SchemaRecord<"contract"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["contract"])) === null) return null;
+      await checkReference(this.#records, "capability", fields.capability, "capability");
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"contract"> | null;
+    });
+  }
+
+  /**
+   * Change only the named fields of an arc, as capability 3's edit does. New stories are checked as
+   * createArc checks them. Returns null, and writes nothing, if `id` is not a live arc.
+   */
+  editArc(id: string, fields: ArcEdit): Promise<SchemaRecord<"arc"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["arc"])) === null) return null;
+      await checkReferences(this.#records, "stories", fields.stories, "story");
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"arc"> | null;
     });
   }
 
