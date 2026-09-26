@@ -32,5 +32,5 @@ and it is listed beside the forest with a count always in view.
 
 Left out compared with 0.2, by the owner's own decisions: health from signed verdicts, citation
 lists, art research and a second style, and 0.2's forest in the 0.3 app. 0.2's layout engine gives
-way to the spiral he picked. The tree's other "left out" items were written by an agent; since
-ADR-0633 they are proposals awaiting his decision, not cuts.
+way to the spiral he picked. The tree's other "left out" items were written by an agent, so under
+ADR-0633 they were proposals until he decided them; he cut all five the same day (ADR-0635).
