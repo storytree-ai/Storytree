@@ -16,7 +16,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 
-import { changedIslands, type ForestScene, type Island, type PlacedTree } from "@storytree/forest";
+import { changedIslands, type ForestScene, type Island, type Marker, type PlacedTree } from "@storytree/forest";
 
 import kitBytes from "./assets/dressing-kit.glb";
 
@@ -41,6 +41,8 @@ const LEAF_TINT = { seedling: "#d8c069", pale: "#c9c7a6" } as const;
 export interface ForestView {
   /** Draw `scene`, rebuilding only the islands that changed since the last one. */
   show(scene: ForestScene): void;
+  /** Show which agent holds which capability, each marker over its tree (capability 5). */
+  showMarkers(markers: readonly Marker[]): void;
   /** Mark `story` selected (undefined for none), as a click would. */
   select(story: string | undefined): void;
   /** Stop drawing and let go of the GPU. */
@@ -100,6 +102,30 @@ export async function openForestView(container: HTMLElement, onSelect: (story: s
   scene3d.add(ring);
 
   const groups = new Map<string, THREE.Group>();
+  const markerGroup = new THREE.Group();
+  scene3d.add(markerGroup);
+  let markers: readonly Marker[] = [];
+
+  function showMarkers(next: readonly Marker[]): void {
+    markers = next;
+    for (const old of [...markerGroup.children]) {
+      markerGroup.remove(old);
+      if (old instanceof CSS2DObject) old.element.remove();
+    }
+    const trees = new Map(current.islands.flatMap((island) => island.trees.map((tree) => [tree.capability, tree] as const)));
+    for (const marker of next) {
+      const tree = trees.get(marker.capability);
+      if (tree === undefined) continue;
+      const pill = document.createElement("div");
+      pill.className = `forest-claim${marker.faded ? " faded" : ""}${marker.hooksNotRunning ? " no-hooks" : ""}`;
+      pill.textContent = marker.hooksNotRunning ? `${marker.text} · hooks not running` : marker.text;
+      pill.dataset.capabilityId = marker.capability;
+      pill.title = marker.faded ? "quiet past the quiet time: it still holds this capability" : "";
+      const label = new CSS2DObject(pill);
+      label.position.set(tree.x, LAND_TOP + TREE_HEIGHT * tree.scale + 0.8, tree.z);
+      markerGroup.add(label);
+    }
+  }
   let current: ForestScene = { islands: [] };
   let selected: string | undefined;
   let framed = false;
@@ -120,6 +146,7 @@ export async function openForestView(container: HTMLElement, onSelect: (story: s
       }
     }
     current = next;
+    showMarkers(markers);
     if (!framed && next.islands.length > 0) {
       frame(next);
       framed = true;
@@ -195,6 +222,7 @@ export async function openForestView(container: HTMLElement, onSelect: (story: s
 
   return {
     show,
+    showMarkers,
     select,
     dispose() {
       running = false;

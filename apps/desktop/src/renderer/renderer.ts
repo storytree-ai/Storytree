@@ -7,7 +7,7 @@
  */
 import type { Line } from "@storytree/agent-link";
 import { liveReading, workStates, type LiveReading } from "@storytree/arc-surface";
-import { drillDown, forestDrawn, forestScene, type ForestDrawn } from "@storytree/forest";
+import { claimMarkers, drillDown, forestDrawn, forestScene, type ForestDrawn } from "@storytree/forest";
 import type { AnnotatedTree, Change } from "@storytree/library";
 
 import type { StorytreeBridge } from "../bridge.js";
@@ -117,6 +117,7 @@ async function showForest(name: string): Promise<void> {
         if (showing !== mine) return;
         const scene = forestScene(tree, history, workStates(lines));
         view.show(scene);
+        view.showMarkers(claimMarkers(lines, new Date()));
         sayWhatWasDrawn(forestDrawn(scene));
         if (!panel.hidden) showPanel();
         setState("ready");
@@ -124,7 +125,10 @@ async function showForest(name: string): Promise<void> {
         if (showing === mine && document.body.dataset.state !== "ready") showMessage("error", "Something went wrong", messageOf(error));
       });
     },
-    onClock: () => {},
+    // Once a minute, with no new line, a quiet holder's marker fades (capability 5).
+    onClock: (now) => {
+      if (showing === mine) view.showMarkers(claimMarkers(lines, new Date(now)));
+    },
     onError: (error) => {
       if (showing === mine && document.body.dataset.state !== "ready") showMessage("error", "The forest could not be read", messageOf(error));
     },

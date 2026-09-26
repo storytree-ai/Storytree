@@ -8,3 +8,5 @@ export { changedIslands, forestDrawn, forestScene, PLACE_WIDTH, storyAt } from "
 export type { ForestDrawn, ForestScene, Island, PlacedTree } from "./render/forest-scene.js";
 export { drillDown, NO_DESCRIPTION } from "./drill-down/drill-down.js";
 export type { Arrow, CapabilityLine, ContractLine, StoryPanel } from "./drill-down/drill-down.js";
+export { claimMarkers } from "./agent-claims/agent-claims.js";
+export type { Marker } from "./agent-claims/agent-claims.js";
