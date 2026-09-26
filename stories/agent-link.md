@@ -202,7 +202,11 @@ otherwise.
   latest line alone (an end line ends it, 30 minutes of quiet makes it idle), and it is flagged
   "hooks not running" until a line from one of its hooks arrives. Claude Code and Codex both keep a
   session's id when it is resumed (the probes, capability 3), which is what keeps a resumed window
-  one session.
+  one session. Claude Code's `/clear` does the opposite: the same window becomes a new session,
+  its hooks end the old id and start a new one, and the tool server keeps the old id in its
+  environment (seen 2026-09-26 in Claude Code 2.1.283, through its streaming input). So each tool
+  call is recorded on the session its hook named (capability 6), and a cleared window reads as the
+  new session it is.
 
 **Contracts:**
 1. A start line makes a live session labelled "Claude Code", with its folder, when it started and
@@ -290,6 +294,10 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
   (`note-reader`, `explorer`) and task. Each hook's line was written before its call reached the
   tool server. Codex starts a tool server with a trimmed environment, so a storytree home other
   than the default (`STORYTREE_HOME`) has to be passed to it in Codex's own settings.
+- **After Claude Code's `/clear`** (the agent link's parked leftover, checked 2026-09-26): the tool
+  server still holds the session id it was started with, while the hook before each call names the
+  session the window is in now. So a call is recorded on the session its hook's line names, found
+  by the call's id; a call no hook saw keeps the id the harness gave the tool server.
 
 **Contracts:**
 1. A test client talks to the server inside the test itself, with no real agent and no network. It
@@ -310,6 +318,9 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 7. Each read also names the agent that made it: a subagent by its id, type and task, or the
    orchestrator, as the harness revealed them (Claude Code through the hook's line for the call,
    Codex on the call itself), and "unknown" for a call the harness said nothing about.
+8. After Claude Code's `/clear`, which gives the window a new session id the tool server never
+   sees, each call is recorded on the new session, as the hook before it named it; a call no hook
+   saw keeps the id the tool server was started with.
 
 ## 7 · Instructions (the habits card)
 

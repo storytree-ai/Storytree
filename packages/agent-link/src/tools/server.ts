@@ -12,8 +12,10 @@
  * - answers "storytree isn't running, carry on without it" while it is not;
  * - is recorded in the agent activity log as a `tool-called` line on the calling session: Claude
  *   Code names it in the server's environment (`CLAUDE_CODE_SESSION_ID`), Codex on each call's
- *   `_meta` (`sessionId`, or `threadId` before Codex 0.155), the same ids their hooks see;
- * - can say which of the session's agents made it (ADR-0629 D2), from what the harness revealed:
+ *   `_meta` (`sessionId`, or `threadId` before Codex 0.155), the same ids their hooks see. When the
+ *   hook run just before the call named another session, it is that one: after Claude Code's
+ *   /clear the window is a new session, which only its hooks see (seenCaller);
+ * - knows which of the session's agents made it (ADR-0629 D2), from what the harness revealed:
  *   the line the hook before the call left under the call's id, or, for Codex, the call's own
  *   thread (agentOf);
  * - turns a refusal from the library or the claims into a readable answer marked as an error,
@@ -80,7 +82,7 @@ export interface Call {
   readonly folder: string;
   readonly quietMs: number;
   /** Which of the session's agents made this call, as the harness revealed it (ADR-0629 D2). */
-  agent(): Promise<Agent>;
+  readonly agent: Agent;
 }
 
 /** Registers one tool: its name, what it is for, its arguments, and what it does with them. */
@@ -101,12 +103,14 @@ export function createAgentTools(options: AgentToolOptions): AgentTools {
       const where = route(options.folder, locate);
       if (where.status === "not-running") return result({ text: NOT_RUNNING_ANSWER });
       if (where.status === "not-a-project") return result({ text: NOT_A_PROJECT_ANSWER });
-      const caller = callerOf(context);
+      const meta = metaOf(context);
       try {
         const { library, log } = await connections.reach(where.url, where.project);
+        // What the hooks have written, the one run just before this call included (ADR-0629 D2).
+        const { lines } = await log.since(where.project, 0);
+        const caller = seenCaller(lines, callerOf(context), meta);
         await log.append(where.project, { ...lineOf(caller), source: "tool", folder: options.folder, kind: "tool-called", tool: name });
-        const agent = () => agentOf(log, where.project, metaOf(context));
-        return result(await act(args as never, { library, log, project: where.project, caller, folder: options.folder, quietMs, agent }));
+        return result(await act(args as never, { library, log, project: where.project, caller, folder: options.folder, quietMs, agent: agentOf(lines, meta) }));
       } catch (error) {
         if (isUnreachable(error)) {
           await connections.close();
@@ -171,16 +175,29 @@ function callerFrom(server: McpServer, context: ServerContext, env: Readonly<Rec
  * - a subagent's type and task from the line its start left, when there is one.
  * Otherwise "unknown": never worked out from timing or transcripts.
  */
-async function agentOf(log: ActivityLog, project: string, meta: Readonly<Record<string, unknown>>): Promise<Agent> {
-  const { lines } = await log.since(project, 0);
-  const call = text(meta["claudecode/toolUseId"]) ?? text(meta.callId);
-  const requested = call === undefined ? undefined : lines.findLast((line): line is Extract<Line, { kind: "tool-requested" }> => line.kind === "tool-requested" && line.call === call);
-  const agent = requested?.agent ?? threadAgent(meta) ?? "unknown";
+function agentOf(lines: readonly Line[], meta: Readonly<Record<string, unknown>>): Agent {
+  const agent = requestOf(lines, meta)?.agent ?? threadAgent(meta) ?? "unknown";
   if (typeof agent === "string") return agent;
   const started = lines.findLast((line): line is Extract<Line, { kind: "subagent-started" }> => line.kind === "subagent-started" && line.subagent === agent.subagent);
   const type = agent.type ?? started?.type;
   const task = agent.task ?? started?.task;
   return { subagent: agent.subagent, ...(type === undefined ? {} : { type }), ...(task === undefined ? {} : { task }) };
+}
+
+/**
+ * The calling session as the hook before the call named it, when one did. After Claude Code's
+ * /clear the window is a new session that only its hooks see, while this server keeps the id it was
+ * started with; a call no hook saw keeps the id the harness gave the server.
+ */
+export function seenCaller(lines: readonly Line[], caller: Caller, meta: Readonly<Record<string, unknown>>): Caller {
+  const requested = requestOf(lines, meta);
+  return requested === undefined ? caller : { ...caller, session: requested.session };
+}
+
+/** The line the hook before a call left, found by the call's id: Claude Code's `_meta["claudecode/toolUseId"]`, Codex's `_meta.callId`. */
+function requestOf(lines: readonly Line[], meta: Readonly<Record<string, unknown>>): Extract<Line, { kind: "tool-requested" }> | undefined {
+  const call = text(meta["claudecode/toolUseId"]) ?? text(meta.callId);
+  return call === undefined ? undefined : lines.findLast((line): line is Extract<Line, { kind: "tool-requested" }> => line.kind === "tool-requested" && line.call === call);
 }
 
 /** Codex names the thread making each call beside its session: the session's own thread is its orchestrator. */
@@ -192,7 +209,7 @@ function threadAgent(meta: Readonly<Record<string, unknown>>): Agent | undefined
 }
 
 /** What the harness sent with a call beside its arguments. */
-function metaOf(context: ServerContext): Readonly<Record<string, unknown>> {
+export function metaOf(context: ServerContext): Readonly<Record<string, unknown>> {
   return (context.mcpReq._meta ?? {}) as Record<string, unknown>;
 }
 

@@ -1,5 +1,5 @@
 /**
- * Capability 6 · Agent tools (the MCP server): one test per contract 6.1-6.7 in
+ * Capability 6 · Agent tools (the MCP server): one test per contract 6.1-6.8 in
  * stories/agent-link.md. A test client talks to the server inside the test itself, over an
  * in-memory transport, with no real agent and no network, as Claude Code or Codex would: Claude
  * Code's session id reaches the server in its environment, Codex's on each call's `_meta`, and each
@@ -10,7 +10,7 @@
  * What the tests check is read back through the library and the activity log themselves.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -21,7 +21,7 @@ import { readClaims } from "../claims/index.js";
 import { MARKER_FILE } from "../routing/index.js";
 import { claudeCode, codex, idOf, withAgent } from "../testing/agent.js";
 import { withTempDir } from "../testing/folders.js";
-import { dropTestProjects, testServerUrl, uniqueProjectName } from "../testing/pg.js";
+import { dropTestProjects, testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
 import { NOT_RUNNING_ANSWER } from "./index.js";
 
 /** The toolbox: every tool the server offers. */
@@ -321,6 +321,38 @@ test("6.7 each read names the agent that made it, as the harness revealed it: a 
         { session: "claude-1", read: note.id, agent: "unknown" },
         { session: "codex-1", read: note.id, agent: { subagent: "thread-2", type: "explorer", task: "Read the mail decision" } },
         { session: "codex-1", read: note.id, agent: "orchestrator" },
+      ],
+    );
+  });
+});
+
+test("6.8 after Claude Code's /clear, which gives the window a new session id the tool server never sees, each call is recorded on the new session its hook named; a call no hook saw keeps the id the server was started with", async () => {
+  await withProject(async ({ folder, project, log }) => {
+    // check_setup finds storytree through a storytree home: here, one saying where the test Postgres listens.
+    const storytreeHome = path.join(folder, "..", "storytree-home");
+    mkdirSync(storytreeHome);
+    copyFileSync(`${testServerDataDir()}.owner.json`, path.join(storytreeHome, "pgdata.owner.json"));
+    const setup = { dataDir: path.join(storytreeHome, "pgdata"), setup: { homes: {}, storytreeHome } };
+    // The tool server was started before the /clear: its environment still names the old session.
+    await withAgent(folder, claudeCode("claude-before-clear", setup), async (agent) => {
+      // The hooks before two calls, as Claude Code runs them after the /clear: they name the new session.
+      for (const [call, tool] of [
+        ["toolu_plan", "show_plan"],
+        ["toolu_check", "check_setup"],
+      ] as const) {
+        await log.append(project, { session: "claude-after-clear", harness: "claude-code", source: "hook", folder, kind: "tool-requested", tool, call, agent: "orchestrator" });
+      }
+      await agent.call("show_plan", {}, { "claudecode/toolUseId": "toolu_plan" });
+      await agent.call("check_setup", {}, { "claudecode/toolUseId": "toolu_check" });
+      await agent.call("show_plan", {}, { "claudecode/toolUseId": "toolu_no_hook_saw" });
+    });
+    const calls = (await log.since(project, 0)).lines.filter((line): line is Extract<Line, { kind: "tool-called" }> => line.kind === "tool-called");
+    assert.deepEqual(
+      calls.map(({ tool, session }) => ({ tool, session })),
+      [
+        { tool: "show_plan", session: "claude-after-clear" },
+        { tool: "check_setup", session: "claude-after-clear" },
+        { tool: "show_plan", session: "claude-before-clear" },
       ],
     );
   });
