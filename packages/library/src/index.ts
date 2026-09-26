@@ -9,7 +9,7 @@ export type { CloudSqlConfig, ConnectionProblem, ConnectOptions } from "./projec
 
 export { ConnectionError, ProjectNameError } from "./project/index.js";
 export { DependencyLoopError, MissingReferenceError } from "./references.js";
-export { NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
+export { MissingUpgradeError, NewerSchemaError, SchemaError, UnknownTypeError } from "./schema/index.js";
 
 export type { FieldsOf, RecordType, SchemaRecord } from "./schema/index.js";
 export type { RecordEnvelope } from "./transactions/index.js";

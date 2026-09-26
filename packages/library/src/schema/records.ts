@@ -14,7 +14,8 @@ import type { z } from "zod";
 
 import type { HistoryEntry, HistoryFilter, RecordEnvelope, Transactions } from "../transactions/types.js";
 import { NewerSchemaError, SchemaError, UnknownTypeError, type FieldProblem } from "./errors.js";
-import { RECORD_SCHEMAS, SCHEMA_VERSIONS, type FieldsOf, type RecordType } from "./types.js";
+import { RECORD_SCHEMAS, SCHEMA_VERSIONS, type FieldsOf, type LibrarySchema, type RecordType } from "./types.js";
+import { LIBRARY_SCHEMA } from "./upgrades.js";
 
 /** A stored record of type `T`: capability 2's envelope, unchanged, with its type and fields typed. */
 export type SchemaRecord<T extends RecordType = RecordType> = {
@@ -41,7 +42,8 @@ export interface WriteOptions {
 export class SchemaRecords {
   readonly #transactions: Transactions;
 
-  constructor(transactions: Transactions) {
+  // Stub for the red: the schema is taken and not yet used.
+  constructor(transactions: Transactions, _schema: LibrarySchema = LIBRARY_SCHEMA) {
     this.#transactions = transactions;
   }
 

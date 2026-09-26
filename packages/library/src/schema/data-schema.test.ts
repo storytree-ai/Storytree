@@ -15,16 +15,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { z } from "zod";
+
 import { connect } from "../project/index.js";
 import { dropTestDatabases, testServerUrl, uniqueProjectName } from "../testing/pg.js";
 import { MemoryTransactions, type RecordEnvelope, type Transactions } from "../transactions/index.js";
 import {
+  MissingUpgradeError,
   NewerSchemaError,
+  RECORD_SCHEMAS,
   SCHEMA_VERSIONS,
   SchemaError,
   SchemaRecords,
   UnknownTypeError,
   type FieldsOf,
+  type LibrarySchema,
   type RecordType,
 } from "./index.js";
 
@@ -472,7 +477,86 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual(await records.get("story-2"), saved);
     assert.deepEqual(await transactions.get("story-2"), saved);
   });
+
+  contract("3.7", "a record written on an older version of its type is read upgraded to the current one, step by step", async ({ records, transactions }) => {
+    const signUp = await records.create("story", { title: "Visitor can sign up" }, { id: "story-1" });
+    const pay = await records.create("story", { title: "Visitor can pay", description: "By card" }, { id: "story-2" });
+    const before = await transactions.history();
+
+    // Tomorrow's code, where a story's title is renamed and its summary is required.
+    const later = new SchemaRecords(transactions, STORY_V2);
+    assert.deepEqual(await later.get("story-1"), { ...signUp, version: 2, fields: { name: "Visitor can sign up", summary: "" } });
+    assert.deepEqual(await later.list("story"), [
+      { ...signUp, version: 2, fields: { name: "Visitor can sign up", summary: "" } },
+      { ...pay, version: 2, fields: { name: "Visitor can pay", summary: "By card" } },
+    ]);
+
+    // Two versions on, the steps run in order, whatever order they are listed in.
+    const muchLater = new SchemaRecords(transactions, STORY_V3);
+    assert.deepEqual((await muchLater.get("story-2"))?.fields, { name: "Visitor can pay", about: "By card" });
+
+    // Reading changes nothing stored.
+    assert.deepEqual(await transactions.get("story-1"), signUp);
+    assert.deepEqual(await transactions.history(), before, "no history entry was written");
+  });
+
+  contract("3.8", "editing an older record merges onto its upgraded fields and stores it on the current version, in place", async ({ records, transactions }) => {
+    const written = await records.create("story", { title: "Visitor can sign up", description: "With email" }, { id: "story-1" });
+    const later = new SchemaRecords(transactions, STORY_V2);
+
+    const expected = { version: 2, fields: { name: "Visitor can sign up", summary: "With email or phone" } };
+    const edited = await later.edit("story-1", untyped({ summary: "With email or phone" }), { actor: "agent-a" });
+    assert.deepEqual({ version: edited?.version, fields: edited?.fields }, expected);
+    const stored = await transactions.get("story-1");
+    assert.deepEqual({ version: stored?.version, fields: stored?.fields }, expected, "stored upgraded, in place");
+    assert.equal(stored?.createdAt, written.createdAt, "the same record, not a new one");
+    const last = (await transactions.history({ id: "story-1" })).at(-1);
+    assert.deepEqual({ action: last?.action, record: last?.record }, { action: "updated", record: stored });
+
+    // The upgrade is part of the write: an edit whose upgraded result does not fit is refused whole.
+    const other = await records.create("story", { title: "Visitor can pay" }, { id: "story-2" });
+    const before = await transactions.history();
+    await assert.rejects(later.edit("story-2", untyped({ summary: undefined })), schemaError("story", ["summary"]));
+    assert.deepEqual(await transactions.get("story-2"), other, "still on version 1, unchanged");
+    assert.deepEqual(await transactions.history(), before, "no history entry was written");
+  });
+
+  contract("3.9", "an older record with no upgrade step to the current version is refused, naming the missing step", async ({ records, transactions }) => {
+    const written = await records.create("story", MINIMAL.story, { id: "story-1" });
+    const before = await transactions.history();
+    const stepless = new SchemaRecords(transactions, { ...STORY_V2, upgrades: [] });
+
+    await assert.rejects(stepless.get("story-1"), missingUpgrade("story-1", "story", 1, 2));
+    await assert.rejects(stepless.list("story"), missingUpgrade("story-1", "story", 1, 2));
+    await assert.rejects(stepless.edit("story-1", untyped({ summary: "Anything" })), missingUpgrade("story-1", "story", 1, 2));
+    assert.deepEqual(await transactions.get("story-1"), written, "the record is unchanged");
+    assert.deepEqual(await transactions.history(), before, "no history entry was written");
+  });
 }
+
+/** Tomorrow's schema: a story's `title` is renamed `name`, and its optional `description` becomes a required `summary`. */
+const STORY_V2: LibrarySchema = {
+  versions: { ...SCHEMA_VERSIONS, story: 2 },
+  schemas: { ...RECORD_SCHEMAS, story: z.object({ name: z.string().min(1), summary: z.string() }).strict() },
+  upgrades: [
+    {
+      type: "story",
+      from: 1,
+      name: "title-becomes-name",
+      up: ({ title, description, ...rest }) => ({ ...rest, name: title, summary: description ?? "" }),
+    },
+  ],
+};
+
+/** The day after: `summary` is renamed `about`. Its steps are listed newest first. */
+const STORY_V3: LibrarySchema = {
+  versions: { ...SCHEMA_VERSIONS, story: 3 },
+  schemas: { ...RECORD_SCHEMAS, story: z.object({ name: z.string().min(1), about: z.string() }).strict() },
+  upgrades: [
+    { type: "story", from: 2, name: "summary-becomes-about", up: ({ summary, ...rest }) => ({ ...rest, about: summary }) },
+    ...STORY_V2.upgrades,
+  ],
+};
 
 /** A value the compiler would refuse, sent the way a JavaScript caller or an agent could send it. */
 function untyped(value: unknown): never {
@@ -526,6 +610,21 @@ function newerVersion(id: string, type: RecordType, version: number): (error: un
     );
     assert.match(error.message, /newer/, `the message says the version is newer: ${error.message}`);
     for (const part of [JSON.stringify(id), type, `version ${version}`, "version 1"]) {
+      assert.ok(error.message.includes(part), `the message names ${part}: ${error.message}`);
+    }
+    return true;
+  };
+}
+
+/** An assert.rejects check: a MissingUpgradeError for record `id` of `type`, naming the version no step leads on from. */
+function missingUpgrade(id: string, type: RecordType, from: number, knownVersion: number): (error: unknown) => true {
+  return (error) => {
+    assert.ok(error instanceof MissingUpgradeError, `expected a MissingUpgradeError, got: ${String(error)}`);
+    assert.deepEqual(
+      { id: error.id, type: error.type, from: error.from, knownVersion: error.knownVersion },
+      { id, type, from, knownVersion },
+    );
+    for (const part of [JSON.stringify(id), `version ${from} to ${from + 1}`]) {
       assert.ok(error.message.includes(part), `the message names ${part}: ${error.message}`);
     }
     return true;
