@@ -5,3 +5,5 @@ export { pageReads } from "./surfaces/reads.js";
 export type { PageReads, PageReadsOptions } from "./surfaces/reads.js";
 export { smokeProblems } from "./surfaces/smoke.js";
 export type { Drawn } from "./surfaces/smoke.js";
+export { background, TRAY_MENU } from "./lifecycle/background.js";
+export type { Background, TrayItem } from "./lifecycle/background.js";
