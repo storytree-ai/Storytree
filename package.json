@@ -14,7 +14,8 @@
     "seed:library": "node --import tsx scripts/seed-library.mjs",
     "desktop": "pnpm --filter @storytree/desktop start",
     "desktop:smoke": "pnpm --filter @storytree/desktop smoke",
-    "desktop:dist": "pnpm --filter @storytree/desktop dist"
+    "desktop:dist": "pnpm --filter @storytree/desktop dist",
+    "app:follow-main": "node --import tsx scripts/follow-main.mjs"
   },
   "devDependencies": {
     "@storytree/library": "workspace:*",

@@ -11,6 +11,10 @@
  * one way to stop it, and it stops Postgres before the app exits. Opening the app again, or the
  * tray's Open, brings the window back on the project it showed.
  *
+ * Run from the runtime folder (~/.storytree/0.3/runtime, set up by `pnpm app:follow-main`), the app
+ * follows merged main (ADR-0637 D2): every few minutes it fetches main, and when main has moved it
+ * builds main's new commit beside itself and restarts into it (@storytree/app's follow-main).
+ *
  * `--smoke` renders the project without showing a window, saves a screenshot to the file given
  * with `--screenshot <file>`, prints the page's text to stdout, and quits: exit 0 only if the
  * surface on show says it drew every story of the project and every one of its capabilities.
@@ -20,7 +24,20 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, Tray } from "electron";
 
-import { background, pageReads, smokeProblems, TRAY_MENU, type PageReads } from "@storytree/app";
+import {
+  appDirIn,
+  background,
+  buildApp,
+  electronIn,
+  pageReads,
+  slotOf,
+  slotSha,
+  smokeProblems,
+  TRAY_MENU,
+  updateToMain,
+  type PageReads,
+  type RunningBuild,
+} from "@storytree/app";
 import { connect, type AnnotatedTree, type Storytree } from "@storytree/library";
 import { DataDirInUseError, findBinaries, start, type LocalPostgres } from "@storytree/local-postgres";
 
@@ -31,6 +48,8 @@ import { TRAY_ICON_PNG } from "./tray-icon.js";
 
 const args = parseArgs(process.argv);
 const home = appHome();
+/** How often the app that follows merged main checks whether main has moved. */
+const UPDATE_EVERY_MS = 3 * 60_000;
 /** How long the smoke check may take, start to finish, before it gives up. */
 const SMOKE_TIMEOUT_MS = 180_000;
 
@@ -92,9 +111,46 @@ async function run(): Promise<void> {
   const projects = storytree === undefined ? [] : await storytree.listProjects();
   const project = chooseProject(projects, args.project);
   windowQuery = { ...(project === undefined ? {} : { project }), ...(problem === undefined ? {} : { problem }) };
-  const window = openWindow(windowQuery);
-  if (args.smoke) await smoke(window, project);
-  else showTray();
+  if (args.smoke) await smoke(openWindow(windowQuery), project);
+  else {
+    if (!args.background) openWindow(windowQuery);
+    showTray();
+    void followMain();
+  }
+}
+
+/**
+ * When the app runs from one of the runtime's slots, follow merged main: check every few minutes,
+ * and when main has moved and its new commit has built beside this one, restart into it, with the
+ * window shown only if it is showing now. A failed build is logged and tried again at the next
+ * check; the running app is untouched. The app run from anywhere else (a checkout, `pnpm desktop`)
+ * never updates itself.
+ */
+async function followMain(): Promise<void> {
+  const slot = slotOf(home.runtime, app.getAppPath());
+  if (slot === undefined) return;
+  const dir = path.join(home.runtime, slot);
+  const running: RunningBuild = { slot, dir, sha: await slotSha(dir) };
+  console.log(`updates: following merged main from slot ${slot} (${running.sha.slice(0, 7)})`);
+  let checking = false;
+  const check = async (): Promise<void> => {
+    if (checking) return;
+    checking = true;
+    try {
+      const next = await updateToMain({ runtimeDir: home.runtime, running, build: buildApp });
+      if (next === undefined) return;
+      console.log(`updates: main moved to ${next.sha.slice(0, 7)}; restarting into slot ${next.slot}`);
+      const showing = BrowserWindow.getAllWindows().some((window) => window.isVisible());
+      app.relaunch({ execPath: electronIn(next.dir), args: [appDirIn(next.dir), ...(showing ? [] : ["--background"])] });
+      app.quit();
+    } catch (error) {
+      console.error(`updates: ${messageOf(error)}`);
+    } finally {
+      checking = false;
+    }
+  };
+  setInterval(() => void check(), UPDATE_EVERY_MS).unref();
+  void check();
 }
 
 /** The tray icon, whose menu brings the window back or quits the app. */
