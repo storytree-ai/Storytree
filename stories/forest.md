@@ -171,12 +171,26 @@ place of today's plain list.
   clicks while the 3D picture sat underneath; the rig for measuring looks, 72,875 of 0.2's 142,439
   forest lines, with its texture and palette ladders, crowd scenes and true-ground projection; and
   the website mount.
+- **As built:** the plan is `forestScene(tree, history, states)` in `packages/forest`: every story
+  node an island at its place (one place-width is 16 world units), its grove set out from the
+  middle like a sunflower's seeds in build order, and its name. `forestDrawn` says what was drawn as
+  the smoke check reads it (`surface: "forest"`, with each tree's form and the names added),
+  `changedIslands` names the islands a change touched, and `storyAt` is the island under a point on
+  the ground. The page (`apps/desktop/src/forest/forest-view.ts`) turns the plan into three.js
+  meshes: low-poly islands of sand and grass on a calm sea, one warm light with soft shadows, the
+  pines from the kit export 0.2 shipped (`dressing-kit.glb`, bundled as bytes; only that export
+  ships, never the kit), a seedling's needles in 0.2's building tint and a pale tree's washed, the
+  names as labels that face the camera, orbit controls to pan, zoom and turn, and a click that
+  selects the island under it (`data-selected`). The arc surface's live reading keeps it current:
+  the tree is read again only when the library changed, and only changed islands are rebuilt.
 
 **Contracts:**
 1. The app's smoke check opens a seeded project and finds one story node per story, each drawn with
    its capability tree.
 2. A capability landing redraws just its story node, without a reload.
 3. Clicking a story node selects it.
+4. Each story node shows its story's name, readable as the camera pans, zooms and turns (ADR-0636
+   D4: in 0.2 the names lived on the 2D map the owner cut, so the 3D forest carries them).
 
 ## 4 · Drill-down
 
