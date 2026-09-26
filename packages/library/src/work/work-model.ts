@@ -141,6 +141,41 @@ export class WorkModel {
   }
 
   /**
+   * Change only the named fields of a story, as capability 3's edit does. Returns null, and writes
+   * nothing, if `id` is not a live story.
+   */
+  editStory(id: string, fields: StoryEdit): Promise<SchemaRecord<"story"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["story"])) === null) return null;
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"story"> | null;
+    });
+  }
+
+  /**
+   * Change only the named fields of a contract, as capability 3's edit does. A new capability is
+   * checked as addContract checks it. Returns null, and writes nothing, if `id` is not a live contract.
+   */
+  editContract(id: string, fields: ContractEdit): Promise<SchemaRecord<"contract"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["contract"])) === null) return null;
+      await checkReference(this.#records, "capability", fields.capability, "capability");
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"contract"> | null;
+    });
+  }
+
+  /**
+   * Change only the named fields of an arc, as capability 3's edit does. New stories are checked as
+   * createArc checks them. Returns null, and writes nothing, if `id` is not a live arc.
+   */
+  editArc(id: string, fields: ArcEdit): Promise<SchemaRecord<"arc"> | null> {
+    return this.#serially(async () => {
+      if ((await liveRecord(this.#records, id, ["arc"])) === null) return null;
+      await checkReferences(this.#records, "stories", fields.stories, "story");
+      return (await this.#records.edit(id, fields)) as SchemaRecord<"arc"> | null;
+    });
+  }
+
+  /**
    * The plan as it is now: every story holding its capabilities, each holding its contracts, and
    * every arc, all in creation order. A capability or contract whose parent is not a live record
    * has no place in it.

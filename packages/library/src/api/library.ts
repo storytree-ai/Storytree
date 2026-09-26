@@ -180,16 +180,16 @@ class LibraryHandle implements Library {
     return this.#project.work.addStory(story);
   }
 
-  editStory(_id: string, _fields: StoryEdit): Promise<SchemaRecord<"story"> | null> {
-    throw new Error("editStory is not built yet");
+  editStory(id: string, fields: StoryEdit): Promise<SchemaRecord<"story"> | null> {
+    return this.#project.work.editStory(id, fields);
   }
 
   createArc(arc: NewArc): Promise<SchemaRecord<"arc">> {
     return this.#project.work.createArc(arc);
   }
 
-  editArc(_id: string, _fields: ArcEdit): Promise<SchemaRecord<"arc"> | null> {
-    throw new Error("editArc is not built yet");
+  editArc(id: string, fields: ArcEdit): Promise<SchemaRecord<"arc"> | null> {
+    return this.#project.work.editArc(id, fields);
   }
 
   addCapability(capability: NewCapability): Promise<SchemaRecord<"capability">> {
@@ -204,8 +204,8 @@ class LibraryHandle implements Library {
     return this.#project.work.addContract(contract);
   }
 
-  editContract(_id: string, _fields: ContractEdit): Promise<SchemaRecord<"contract"> | null> {
-    throw new Error("editContract is not built yet");
+  editContract(id: string, fields: ContractEdit): Promise<SchemaRecord<"contract"> | null> {
+    return this.#project.work.editContract(id, fields);
   }
 
   /** The work model's tree, annotated with health (capability 5 reads the plan through capability 4). */
