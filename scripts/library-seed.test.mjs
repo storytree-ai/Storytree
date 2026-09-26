@@ -192,7 +192,9 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const idOf = (title) => stored.capabilities.find((capability) => capability.title === title).id;
     const api = stored.capabilities.find(({ title }) => title === "7 · Library API");
     assert.deepEqual(api.dependsOn, ["1 · Project libraries", "4 · Work model", "5 · Health record", "6 · Knowledge and memory"].map(idOf));
-    assert.deepEqual(api.contracts.map(({ title }) => title.slice(0, 3)), ["7.1", "7.2", "7.3"]);
+    // Its contracts as the story file numbers them, taken from the file so this does not change when the file does.
+    const apiContracts = story.capabilities.find(({ number }) => number === 7).contracts.map(({ number }) => number);
+    assert.deepEqual(api.contracts.map(({ title }) => title.split(" ")[0]), apiContracts);
     assert.equal(first.contractIds.get("7.2"), api.contracts[1].id);
 
     const second = await syncStory(lib, story);
