@@ -41,17 +41,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - system: Linux
-            runner: ubuntu-latest
-          - system: macOS
-            runner: macos-latest
+          - system: Windows 1
+            runner: windows-latest
+          - system: Windows 2
+            runner: windows-latest
+          - system: Windows 3
+            runner: windows-latest
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
-      # Throwaway: fails the macOS run alone, to show that `verify` then fails. Never merged.
-      - name: Fail on macOS only
-        if: runner.os == 'macOS'
-        run: exit 1
       - uses: actions/checkout@v6
       # pnpm 9.15.0, from package.json's packageManager field.
       - uses: pnpm/action-setup@v6
@@ -61,10 +59,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # scripts/test.mjs starts a throwaway Postgres from this machine's @embedded-postgres package
-      # (linux-x64 on Linux, darwin-arm64 on macOS). The live Cloud SQL proof (contract 8.1) is
-      # skipped, visibly: CI holds no Google identity.
-      - run: pnpm test
+      # Throwaway measurement, never merged: the whole suite 7 times, to count the Windows flake.
+      - name: The suite, seven times
+        shell: bash
+        run: |
+          node --version
+          failed=0
+          for i in 1 2 3 4 5 6 7; do
+            start=$(date +%s)
+            if pnpm test > "run-$i.log" 2>&1; then verdict=pass; else verdict=FAIL; failed=$((failed + 1)); fi
+            echo "run $i: $verdict in $(( $(date +%s) - start )) s; $(grep -E '^ℹ (pass|fail|skipped) ' "run-$i.log" | tr '\n' ' ')"
+            if [ "$verdict" = FAIL ]; then
+              grep -n -E 'ECONNRESET|✖|not ok|Error' "run-$i.log" | head -40
+              tail -60 "run-$i.log"
+            fi
+          done
+          echo "failed runs: $failed of 7"
 
   # The check branch protection on main requires, and the one `automerge` waits for. It passes only
   # if every run in `platforms` passed. It runs whatever they did (always()), so a run that failed
