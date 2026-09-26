@@ -322,6 +322,19 @@ test("6.5 a note written with no place named while holding a claim goes onto tha
   });
 });
 
+test("the sentence travels with the data: a harness that shows the agent a tool's data instead of its text, as Claude Code 2.1.212 did, still shows the sentence (regression: the agent link's live check, 2026-09-26)", async () => {
+  await withProject(async ({ folder }) => {
+    await withAgent(folder, claudeCode("claude-1"), async (agent) => {
+      const story = await agent.call("plan_story", { title: "Visitor can sign up" });
+      const refused = await agent.call("claim", { capability: "capability_000000000000", reason: "building it" });
+      const plan = await agent.call("show_plan");
+      for (const [tool, answer] of [["plan_story", story], ["claim", refused], ["show_plan", plan]] as const) {
+        assert.equal(answer.data.message, answer.text, `${tool}'s data carries its sentence`);
+      }
+    });
+  });
+});
+
 test("6.6 searching and opening a note leaves a log line saying which session read it, how it was found (search, link, id or shelf) and whether it took a peek or the whole note", async () => {
   await withProject(async ({ folder, project, library, log }) => {
     const story = await library.addStory({ title: "Visitor can sign up" });
