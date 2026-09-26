@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { connect as connectTo, createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -175,6 +176,26 @@ test("8.3 with storytree closed, a session start opens it", async () => {
   });
 });
 
+test("opening storytree waits until it accepts connections, not only until it has said where it will listen (regression: the agent link's live check, 2026-09-26)", async () => {
+  await withTempDir(async (dir) => {
+    const storytreeHome = path.join(dir, "storytree-home");
+    mkdirSync(storytreeHome);
+    const dataDir = path.join(storytreeHome, "pgdata");
+    const port = await freePort();
+    // The stand-in says where it listens at once, and starts listening only 1.5 s later.
+    writeFileSync(path.join(storytreeHome, "app.json"), JSON.stringify({ command: process.execPath, args: [STUB_APP, dataDir, String(port), "1500"] }));
+    try {
+      const report = await runSetupCheck({ folder: dir, homes: {}, storytreeHome, openWaitMs: 20_000 });
+      assert.equal(report.storytree.state, "opened");
+      assert.equal(await accepts(port), true, "it accepts a connection the moment it is reported opened");
+    } finally {
+      const record = `${dataDir}.owner.json`;
+      const { pid } = existsSync(record) ? (readJson(record) as { pid?: number }) : {};
+      if (pid !== undefined) await stop(pid);
+    }
+  });
+});
+
 test("8.4 in a folder that isn't a project, the agent is told to ask the user, and nothing is created until the user says yes", async () => {
   await withTempDir(async (dir) => {
     const home = throwawayHome(dir);
@@ -239,6 +260,34 @@ test("8.5 the agent fires a test of each hook, and the connection shows as verif
     }
   });
 });
+
+/** A port nothing on 127.0.0.1 listens on just now. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+/** Whether something on 127.0.0.1:`port` accepts a connection within half a second. */
+function accepts(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connectTo({ port, host: "127.0.0.1", timeout: 500 });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
 
 /** Kill process `pid`, and wait until it has gone. */
 async function stop(pid: number): Promise<void> {
