@@ -336,10 +336,10 @@ function byNumber(a, b) {
 /**
  * Put `story` into `library` through its public API, idempotently. The story is found by its
  * title, a capability by the number in its title, a contract by its N.M. What is missing is
- * added; a capability whose title, description or dependencies changed is edited in place; a
- * contract whose wording changed is retired and added afresh (the API has no contract edit), so it
- * is never there twice; numbered capabilities and contracts the file no longer has are retired.
- * A second run over an unchanged file writes nothing.
+ * added. What changed is edited in place, keeping its id and so everything recorded against it:
+ * the story's description; a capability's title, description or dependencies; a contract's
+ * wording, so a reworded contract keeps its health. Numbered capabilities and contracts the file
+ * no longer has are retired. A second run over an unchanged file writes nothing.
  * @param {import("@storytree/library").Library} library
  * @param {ParsedStory} story
  * @param {{ source?: string }} [options] what the story was read from, for the reasons kept in history
@@ -348,10 +348,8 @@ export async function syncStory(library, story, { source = "the story file" } = 
   const counts = {
     story: "unchanged",
     capabilities: { added: 0, updated: 0, unchanged: 0, retired: 0 },
-    contracts: { added: 0, replaced: 0, unchanged: 0, retired: 0 },
+    contracts: { added: 0, reworded: 0, unchanged: 0, retired: 0 },
   };
-  /** @type {string[]} */
-  const notes = [];
   const tree = await library.projectTree();
   const node = tree.stories.find((candidate) => candidate.title === story.title);
   let storyId;
@@ -361,7 +359,8 @@ export async function syncStory(library, story, { source = "the story file" } = 
   } else {
     storyId = node.id;
     if ((node.description ?? "") !== (story.description ?? "")) {
-      notes.push(`the story's description differs from ${source}; the library API cannot edit a story, so the stored one is kept`);
+      await library.editStory(storyId, { description: story.description || undefined });
+      counts.story = "updated";
     }
   }
 
@@ -401,15 +400,17 @@ export async function syncStory(library, story, { source = "the story file" } = 
     const storedContracts = byNumberIn(stored?.contracts ?? []);
     for (const contract of capability.contracts) {
       const old = storedContracts.get(contract.number);
-      if (old !== undefined && old.title === contract.title) {
-        contractIds.set(contract.number, old.id);
-        counts.contracts.unchanged++;
+      if (old === undefined) {
+        contractIds.set(contract.number, (await library.addContract({ title: contract.title, capability: id })).id);
+        counts.contracts.added++;
         continue;
       }
-      if (old !== undefined) await library.retire(old.id, `its wording changed in ${source}`);
-      contractIds.set(contract.number, (await library.addContract({ title: contract.title, capability: id })).id);
-      if (old === undefined) counts.contracts.added++;
-      else counts.contracts.replaced++;
+      contractIds.set(contract.number, old.id);
+      if (old.title === contract.title) counts.contracts.unchanged++;
+      else {
+        await library.editContract(old.id, { title: contract.title });
+        counts.contracts.reworded++;
+      }
     }
     for (const [number, old] of storedContracts) {
       if (capability.contracts.some((contract) => contract.number === number)) continue;
@@ -426,7 +427,7 @@ export async function syncStory(library, story, { source = "the story file" } = 
     await library.retire(old.id, `no longer in ${source}`);
     counts.capabilities.retired++;
   }
-  return { storyId, capabilityIds, contractIds, counts, notes };
+  return { storyId, capabilityIds, contractIds, counts };
 }
 
 /** `nodes` by the number their titles start with (`N · ` or `N.M · `); nodes without one are left out. */
