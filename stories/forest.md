@@ -253,6 +253,14 @@ shown as idle.
 - **Leaves out (vs 0.2), by the owner's decision** (ADR-0635, c4): build wisps coloured by gate
   phase, and subagent tints.
 
+- **As built:** `claimMarkers(lines, now)` in `packages/forest`: one marker per claim standing, read
+  through the agent link's own `claimsFrom` and `sessionsFrom`, from its browser-safe entry
+  `@storytree/agent-link/readings` (added for the page, which cannot bundle the root entry's
+  Postgres code). A marker says "<agent>: <reason>", fades when its holder is quiet past the quiet
+  time, is flagged "hooks not running" when its session wrote no hook line (never faded), and
+  carries no health or state. The page draws each over its tree, and the live reading's minute
+  clock re-judges them with no new line.
+
 **Contracts:**
 1. Session A claims "email form", and a marker reading "Claude Code: building the email form"
    appears at that capability.

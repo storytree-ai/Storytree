@@ -504,3 +504,38 @@ body[data-surface="forest"] main {
 .panel-diagram marker path {
   fill: var(--muted);
 }
+
+/* Agent capability claims (stories/forest.md, capability 5): who holds a tree, over it. */
+
+.forest-claim {
+  padding: 0.05rem 0.5rem;
+  border-radius: 6px;
+  background: rgb(255 244 214 / 0.92);
+  color: #3b2f12;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+
+.forest-claim::before {
+  content: "● ";
+  color: #2f8f4e;
+}
+
+.forest-claim.faded {
+  opacity: 0.45;
+}
+
+.forest-claim.faded::before {
+  color: #8a8a8a;
+}
+
+.forest-claim.no-hooks {
+  background: rgb(253 231 231 / 0.95);
+  color: #7a1616;
+}
+
+.forest-claim.no-hooks::before {
+  content: "⚠ ";
+  color: #a61b1b;
+}
