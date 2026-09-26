@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -153,12 +153,18 @@ test("a server left running by a process that died is stopped and replaced, and 
 
 // --- helpers ---------------------------------------------------------------------------------
 
-/** A cluster of its own for one test, copied from one made once by ensureCluster. */
+/**
+ * A cluster of its own for one test, copied from one made once by ensureCluster. cpSync makes the
+ * directories it copies with the default mode (0755 under the usual umask), not the source's, and
+ * outside Windows Postgres will not start on a data directory other users can read, so the copy is
+ * given back initdb's 0700.
+ */
 async function freshCluster(name: string): Promise<string> {
   const template = path.join(root, "template");
   await ensureCluster(template);
   const dataDir = path.join(root, name);
   cpSync(template, dataDir, { recursive: true });
+  chmodSync(dataDir, 0o700);
   return dataDir;
 }
 

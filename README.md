@@ -14,6 +14,14 @@ health, and what the project has learned. It runs on a local Postgres, with one 
 project and an optional Google Cloud connection. Its eight capabilities are listed in
 [`stories/library.md`](stories/library.md).
 
+## How changes land
+
+Every change reaches `main` through a pull request. CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) installs, typechecks and runs the tests on
+Linux, against the merge of the branch with `main`, and merges the pull request once they pass.
+`main` is protected, so nothing merges without that check. A draft pull request is never merged:
+open one as a draft to hold it.
+
 ## Generations
 
 - **0.1**: the original Rust project.

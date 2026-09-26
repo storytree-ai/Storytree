@@ -1,0 +1,72 @@
+name: CI
+
+# Every change reaches main through a pull request. On each pull request into main, `verify`
+# installs, typechecks and runs the tests on Linux, against the merge of the branch with main, and
+# once it passes, `automerge` merges the pull request. Branch protection on main requires `verify`,
+# so nothing merges without it.
+#
+# A draft is never merged: open a pull request as a draft, or convert it to one, to hold it, and
+# `gh pr ready` releases it (`verify` runs again, and the pull request merges when it passes). A
+# pull request that carries the `hold` label when its run starts is not merged either. A pull
+# request from a fork is checked, never merged automatically.
+#
+# `verify` also runs on each push to main. A merge that `automerge` makes starts no such run:
+# GitHub starts no workflow from a push made with a workflow's own token.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+# A newer push to the same pull request, or to main, cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      # pnpm 9.15.0, from package.json's packageManager field.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # scripts/test.mjs starts a throwaway Postgres from @embedded-postgres/linux-x64. The live
+      # Cloud SQL proof (contract 8.1) is skipped, visibly: CI holds no Google identity.
+      - run: pnpm test
+
+  automerge:
+    name: automerge
+    needs: verify
+    if: >-
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      !contains(github.event.pull_request.labels.*.name, 'hold') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # --match-head-commit: merge the commit `verify` passed, never one pushed since. --auto: if
+      # main's protection still holds the merge back, GitHub's auto-merge makes it once it allows;
+      # otherwise gh merges now.
+      - name: Merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --merge --match-head-commit "$SHA"
