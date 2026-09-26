@@ -115,9 +115,13 @@ that other processes wrote.
   the projects' libraries. The library lists only databases named `storytree_<name>` as projects,
   so the log is never one. One table holds every project's lines, and a project reads only its
   own; a project's writes take turns on a lock, so its lines commit in the order they are numbered.
-  The kinds of line: a session started or ended, files edited, a command run, a storytree tool
-  asked for (naming the agent that asked, as a hook saw it) or called, a subagent started, a note
-  read, and a capability claimed, released or landed.
+  The kinds of line: a session started or ended, files edited, a command started or run, a turn
+  ended, a storytree tool asked for (naming the agent that asked, as a hook saw it) or called, a
+  subagent started, a note read, and a capability claimed, released or landed. Every line names
+  its session and its harness, and, since ADR-0636 D1 (b1), the machine it was written on: the
+  hooks and the tool server open the log with the machine's host name, trimmed, and it goes on
+  every line they write. It reads the same on every line until two machines share one log, which
+  is later (ADR-0637 D1).
 
 **Contracts:**
 1. Two separate processes write lines for two sessions, and reading from the start returns every
@@ -190,7 +194,8 @@ running they do nothing.
 
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed
-   in, and four lines appear on that session, carrying the file path and the command.
+   in, and four lines appear on that session, carrying the file path, the command and the
+   machine's name.
 2. The same holds for real, recorded Codex hook inputs, where the edited files are read out of its
    patch text.
 3. With storytree stopped, with garbage input, or outside a storytree project, the command exits
@@ -216,7 +221,7 @@ otherwise.
 - **Depends on:** 2, the agent activity log. Its lines come from the hooks (3) and the agent
   tools (6).
 - **Leaves out (vs 0.2):** self-declared presence, which 0.2 retired as "not useful … advisory
-  rather than deterministic" (ADR-0200); identity by worktree folder; machine names; and 0.2's
+  rather than deterministic" (ADR-0200); identity by worktree folder; and 0.2's
   three staleness bands and two-hour reclaim clock.
 - **As built:** a session is every line under one harness session id; its state comes from its
   latest line alone (an end line ends it, 30 minutes of quiet makes it idle), and it is flagged
@@ -342,7 +347,7 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
    green (the library shows the agent's report going from failing to passing, while the verified
    column stays "not checked"), and reports the capability landed, which ends the claim.
 3. Every call is recorded against the session that made it, using the session id the harness
-   passes.
+   passes, and the machine it ran on.
 4. A bad call, such as an unknown capability, gets a readable refusal rather than a crash, and with
    storytree stopped every tool answers "storytree isn't running, carry on without it".
 5. A note written with no place named while holding a claim goes onto that capability's shelf as

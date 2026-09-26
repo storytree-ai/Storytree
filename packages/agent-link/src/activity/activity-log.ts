@@ -15,6 +15,8 @@
  *   reads one twice.
  * - There is no way to change or delete a line.
  */
+import { hostname } from "node:os";
+
 import pg from "pg";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -55,6 +57,13 @@ export interface LockedLog {
 export interface OpenOptions {
   /** How long a connection to the server may take before the attempt is given up. By default, 5 s. */
   readonly connectTimeoutMs?: number;
+  /** The machine this log is written from: every line it adds that names no machine names this one. By default, none. */
+  readonly machine?: string;
+}
+
+/** This machine's name, as lines record it: its host name, trimmed; undefined when it has none. */
+export function thisMachine(): string | undefined {
+  return hostname().trim() || undefined;
 }
 
 /** The log's tables, as idempotent statements applied in order at every open. Later changes are appended. */
@@ -104,7 +113,7 @@ export async function openActivityLog(url: string, options: OpenOptions = {}): P
   const first = newPool(databaseUrl(server, ACTIVITY_DATABASE), timeout);
   try {
     await applySchema(first);
-    return new PgActivityLog(first);
+    return new PgActivityLog(first, options.machine);
   } catch (error) {
     await first.end();
     if (!isMissingDatabase(error) && !isConnectionReset(error)) throw error;
@@ -117,20 +126,22 @@ export async function openActivityLog(url: string, options: OpenOptions = {}): P
     await pool.end();
     throw error;
   }
-  return new PgActivityLog(pool);
+  return new PgActivityLog(pool, options.machine);
 }
 
 class PgActivityLog implements ActivityLog {
   readonly #pool: Pool;
+  readonly #machine: string | undefined;
   #closing: Promise<void> | undefined;
 
-  constructor(pool: Pool) {
+  constructor(pool: Pool, machine: string | undefined) {
     this.#pool = pool;
+    this.#machine = machine;
   }
 
   async append(project: string, line: NewLine): Promise<Line> {
     assertProject(project);
-    const parsed = parseLine(line);
+    const parsed = parseLine(this.#stamped(line));
     return this.#write(project, (client) => insert(client, project, parsed));
   }
 
@@ -167,9 +178,14 @@ class PgActivityLog implements ActivityLog {
           return new Map(rows.map((row) => [row.session, row.at.toISOString()]));
         },
         now: async () => (await client.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now,
-        append: (line) => insert(client, project, parseLine(line)),
+        append: (line) => insert(client, project, parseLine(this.#stamped(line))),
       }),
     );
+  }
+
+  /** `line`, naming this log's machine when it names none. */
+  #stamped(line: NewLine): NewLine {
+    return line.machine !== undefined || this.#machine === undefined ? line : { ...line, machine: this.#machine };
   }
 
   close(): Promise<void> {
