@@ -62,9 +62,16 @@ export async function dropTestProjects(projects: Iterable<string>): Promise<void
   }
 }
 
-/** The port the test server listens on. */
-export function testServerPort(): number {
-  return Number(new URL(testServerUrl()).port);
+/** The names of every database on the test server. */
+export async function databasesOnTestServer(): Promise<string[]> {
+  const client = new pg.Client({ connectionString: testServerUrl() });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ datname: string }>("SELECT datname FROM pg_database");
+    return rows.map((row) => row.datname);
+  } finally {
+    await client.end();
+  }
 }
 
 function required(name: string, how: string): string {

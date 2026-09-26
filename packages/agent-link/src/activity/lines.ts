@@ -1,0 +1,58 @@
+/**
+ * The lines of the agent activity log (capability 2): one for each thing that happens, each about
+ * one agent session. A line is only ever added, never changed.
+ */
+import { z } from "zod";
+
+/** Every line names the session it is about, and where it came from. */
+const common = {
+  /** The harness's own id for the session (one agent window). */
+  session: z.string().min(1),
+  /** Which harness the session runs in: `claude-code`, `codex`, or another that names itself. */
+  harness: z.string().min(1).optional(),
+  /** Written by a hook the harness ran by itself, or by a tool the agent chose to call. */
+  source: z.enum(["hook", "tool"]),
+  /** The folder the agent was working in. */
+  folder: z.string().min(1).optional(),
+};
+
+/** How a note was found, and how much of it was read (ADR-0624, ADR-0627 D7). */
+const noteRead = {
+  note: z.string().min(1),
+  found: z.enum(["search", "link", "id", "shelf"]),
+  read: z.enum(["peek", "whole"]),
+};
+
+/** A line as it is written: what happened, without the number and time the log gives it. */
+export const NEW_LINE = z.discriminatedUnion("kind", [
+  z.object({ ...common, kind: z.literal("session-started"), how: z.string().min(1).optional() }).strict(),
+  z.object({ ...common, kind: z.literal("session-ended"), reason: z.string().min(1).optional() }).strict(),
+  z.object({ ...common, kind: z.literal("file-edited"), files: z.array(z.string().min(1)).min(1) }).strict(),
+  z.object({ ...common, kind: z.literal("command-run"), command: z.string() }).strict(),
+  z.object({ ...common, kind: z.literal("tool-called"), tool: z.string().min(1) }).strict(),
+  z.object({ ...common, kind: z.literal("note-read"), ...noteRead }).strict(),
+  z.object({ ...common, kind: z.literal("claimed"), capability: z.string().min(1), reason: z.string().min(1), takenOverFrom: z.string().min(1).optional() }).strict(),
+  z.object({ ...common, kind: z.literal("released"), capability: z.string().min(1) }).strict(),
+  z.object({ ...common, kind: z.literal("landed"), capability: z.string().min(1) }).strict(),
+]);
+
+/** A line as it is written. */
+export type NewLine = z.infer<typeof NEW_LINE>;
+/** What happened, by kind. */
+export type LineKind = NewLine["kind"];
+
+/** A line as the log keeps it: numbered, timed, and under its project. */
+export type Line = NewLine & {
+  /** Its place in the log: strictly increasing within a project, not necessarily by one. Passed back as a cursor, it reads what came after it. */
+  seq: number;
+  project: string;
+  /** When it was written, as an ISO 8601 timestamp. */
+  at: string;
+};
+
+/** What reading the log returns: the lines after the cursor given, oldest first, and the cursor to pass next time. */
+export interface LinesSince {
+  lines: Line[];
+  /** The last line's number, or the cursor given when there are no newer lines. */
+  cursor: number;
+}

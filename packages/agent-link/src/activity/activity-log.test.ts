@@ -1,0 +1,156 @@
+/**
+ * Capability 2 · Agent activity log: one test per contract 2.1-2.4 in stories/agent-link.md, against
+ * the real Postgres `pnpm test` provides. Each test writes under projects named with
+ * uniqueProjectName(), so tests sharing the server never read each other's lines.
+ */
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { connect } from "@storytree/library";
+
+import { databasesOnTestServer, dropTestProjects, testServerUrl, uniqueProjectName } from "../testing/pg.js";
+import { ACTIVITY_DATABASE, openActivityLog, type ActivityLog, type Line } from "./index.js";
+
+const WRITER = fileURLToPath(new URL("../testing/activity-writer.ts", import.meta.url));
+
+/** Run `body` with the log open on the test server, and close it afterwards. */
+async function withLog(body: (log: ActivityLog) => Promise<void>): Promise<void> {
+  const log = await openActivityLog(testServerUrl());
+  try {
+    await body(log);
+  } finally {
+    await log.close();
+  }
+}
+
+/** Run the writer in a process of its own, resolving once it has exited cleanly. */
+function writeFromAnotherProcess(project: string, session: string, count: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--import", "tsx", WRITER, testServerUrl(), project, session, String(count)], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    child.on("error", reject);
+    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`the writer for ${session} exited ${code}: ${stderr}`))));
+  });
+}
+
+/** The command a `command-run` line carries. */
+function commandOf(line: Line): string {
+  assert.equal(line.kind, "command-run");
+  return line.command;
+}
+
+test("2.1 two separate processes write lines for two sessions, and reading from the start returns every line once, in the order written", async () => {
+  const project = uniqueProjectName();
+  const count = 60;
+  await withLog(async (log) => {
+    // Follow along while they write, passing back each cursor handed out: a line that commits late
+    // must still be read, and none twice.
+    let writing = true;
+    const writers = Promise.all(["A", "B"].map((session) => writeFromAnotherProcess(project, session, count))).finally(() => {
+      writing = false;
+    });
+    const followed: Line[] = [];
+    let cursor = 0;
+    while (writing) {
+      const read = await log.since(project, cursor);
+      followed.push(...read.lines);
+      cursor = read.cursor;
+    }
+    await writers;
+    followed.push(...(await log.since(project, cursor)).lines);
+
+    const all = (await log.since(project, 0)).lines;
+    assert.equal(all.length, 2 * count, "every line, once");
+    assert.equal(new Set(all.map((line) => line.seq)).size, all.length, "no line twice");
+    assert.deepEqual(
+      followed.map((line) => line.seq),
+      all.map((line) => line.seq),
+      "reading along as they wrote saw the same lines, in the same order",
+    );
+    for (let index = 1; index < all.length; index++) {
+      assert.ok(all[index]!.seq > all[index - 1]!.seq, "numbered in the order read back");
+    }
+    const steps = Array.from({ length: count }, (_, index) => `step ${index + 1}`);
+    for (const session of ["A", "B"]) {
+      assert.deepEqual(
+        all.filter((line) => line.session === session).map(commandOf),
+        steps,
+        `session ${session}'s lines in the order it wrote them`,
+      );
+    }
+  });
+});
+
+test('2.2 reading "since line N" returns only the lines after N, in order, each carrying the number to pass next time', async () => {
+  const project = uniqueProjectName();
+  await withLog(async (log) => {
+    const written: Line[] = [];
+    for (let step = 1; step <= 8; step++) {
+      written.push(await log.append(project, { session: "s", harness: "codex", source: "hook", kind: "command-run", command: `step ${step}` }));
+    }
+    const read = await log.since(project, written[4]!.seq);
+    assert.deepEqual(read.lines.map(commandOf), ["step 6", "step 7", "step 8"]);
+    assert.deepEqual(read.lines, written.slice(5), "each line as appending it returned it");
+    assert.equal(read.cursor, written[7]!.seq, "the cursor to pass next time is the last line's number");
+    assert.deepEqual(await log.since(project, read.cursor), { lines: [], cursor: read.cursor }, "nothing newer: no lines, the same cursor");
+    assert.deepEqual(
+      written.map(({ project: of, session, harness, source }) => ({ of, session, harness, source })),
+      Array.from({ length: 8 }, () => ({ of: project, session: "s", harness: "codex", source: "hook" })),
+    );
+  });
+});
+
+test('2.3 lines written for project "site" never appear when reading project "app"', async () => {
+  const site = uniqueProjectName();
+  const app = uniqueProjectName();
+  await withLog(async (log) => {
+    await log.append(site, { session: "s1", source: "hook", kind: "file-edited", files: ["index.html"] });
+    const appLine = await log.append(app, { session: "s2", source: "hook", kind: "file-edited", files: ["main.ts"] });
+    await log.append(site, { session: "s1", source: "hook", kind: "command-run", command: "npm test" });
+
+    const siteLines = (await log.since(site, 0)).lines;
+    assert.deepEqual(siteLines.map((line) => [line.project, line.session, line.kind]), [
+      [site, "s1", "file-edited"],
+      [site, "s1", "command-run"],
+    ]);
+    assert.deepEqual((await log.since(app, 0)).lines, [appLine]);
+    assert.deepEqual((await log.since(app, appLine.seq)).lines, [], "site's later line is not app's, whatever its number");
+  });
+});
+
+test("2.4 the log never shows up in the library's list of projects, and writing lines leaves the library's own records and change feed untouched", async () => {
+  const project = uniqueProjectName();
+  const storytree = await connect({ url: testServerUrl() });
+  try {
+    const library = await storytree.openProject(project);
+    await library.addStory({ title: "Visitor can sign up" });
+    const before = await library.changesSince(0);
+    const tree = await library.projectTree();
+
+    await withLog(async (log) => {
+      await log.append(project, { session: "s", harness: "claude-code", source: "hook", kind: "session-started", folder: "/work/site", how: "startup" });
+      await log.append(project, { session: "s", source: "tool", kind: "claimed", capability: "capability_1", reason: "building the email form" });
+      await log.append(project, { session: "s", source: "tool", kind: "note-read", note: "memory_1", found: "search", read: "peek" });
+    });
+
+    assert.deepEqual(await library.changesSince(before.cursor), { changes: [], cursor: before.cursor }, "the change feed is untouched");
+    assert.deepEqual(await library.projectTree(), tree, "the records are untouched");
+
+    assert.ok((await databasesOnTestServer()).includes(ACTIVITY_DATABASE), "the log lives on the same server");
+    const projects = await storytree.listProjects();
+    assert.ok(projects.includes(project));
+    assert.equal(
+      projects.some((name) => `storytree_${name}` === ACTIVITY_DATABASE || name === ACTIVITY_DATABASE),
+      false,
+      "the log's database is not listed as a project",
+    );
+  } finally {
+    await storytree.close();
+    await dropTestProjects([project]);
+  }
+});

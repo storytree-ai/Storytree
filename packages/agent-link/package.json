@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@storytree/library": "workspace:*",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
