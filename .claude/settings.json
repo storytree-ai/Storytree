@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/provision-worktree.mjs --hook",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
