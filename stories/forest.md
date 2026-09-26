@@ -10,6 +10,13 @@ no claim is listed beside the forest.
 (`storytree-ai/storytree02`), approved through the question `oq-0-3-forest-capability-tree`
 (revision 3). Names and scope come from that record; change them there first.
 
+**Changed by ADR-0633** (the owner's, 2026-09-26): nothing that worked in 0.2 is cut from 0.3
+without his explicit decision, and builders work from 0.2's code and corpus. Two things change
+here. The arc surface opens as an overlay over the forest, porting 0.2's arc surface, instead of as
+a second view behind a Forest | Arcs toggle. And each "left out" line an agent wrote is a proposal
+until he decides it by name: the forest's are items c1 to c5 of `oq-0-3-cuts-awaiting-owner-decision`,
+marked below as awaiting him. The lines that stand rest on decisions he made himself.
+
 **Rule for building it: port behaviour, not code.** Storytree 0.2's 3D forest map
 (`packages/forest-world-r3f`, with the grove look of ADR-0508) is the behavioural reference for the
 look: low-poly islands on a calm sea, the pine kit the owner bought, one warm light. It is ported as
@@ -37,8 +44,7 @@ landing that changes it brings him a screenshot.
   command made by a session that holds no claim at that moment. The owner called the name "a smell
   but we can address this more post mvp".
 - **S1:** the 0.3 app gets a story of its own, upstream of the forest and the arc surface. The project
-  switcher, the Forest | Arcs toggle and which project the app opens on are that story's, not the
-  forest's.
+  switcher, hosting the views and which project the app opens on are that story's, not the forest's.
 
 ```mermaid
 flowchart BT
@@ -90,9 +96,9 @@ node and a retired story's node goes, with nothing arranged by hand.
     in the order stories were created, fixed for good, and a retired story leaves open sea. So
     nothing ever moves a node, and the planet (ADR-0629) will be a new placement book, not a
     rewrite.
-- **Leaves out (vs 0.2):** 0.2's layout engine, which ranked stories by their dependencies, packed
-  them onto a hex grid and nudged neighbours apart as islands grew, so one story's change could move
-  another's island. In 0.3 a story has no dependencies of its own to rank by.
+- **Leaves out (vs 0.2), by the owner's pick P1** over P2, a layout that packs stories by how they
+  relate: 0.2's layout engine, which ranked stories by their dependencies, packed them onto a hex
+  grid and nudged neighbours apart as islands grew, so one story's change could move another's island.
 - **As built:** `storyNodes(tree, history)` in `packages/forest`, a pure function of the library's
   `projectTree()` and `changesSince(0)`. A node carries the story's id and title, its health as the
   agent reports it (the library's reported column, rolled up from its contracts), its place number,
@@ -127,8 +133,9 @@ own.
     green tree once landed and reported passing; a dead tree once landed with a failing report.
   - One rule for "landed" is shared with the arc surface.
   - Health is the agent's report, labelled as the agent's (ADR-0630 D2).
-- **Leaves out (vs 0.2):** green that came only from 0.2's signed build verdicts (its build
-  machinery is out of 0.3), the six-state, five-colour vocabulary, drift badges and crown sizes.
+- **Leaves out (vs 0.2), by the owner's decisions:** health from 0.2's signed build verdicts, with
+  its six states and five colours, drift badges and crown sizes (verified health was dropped,
+  ADR-0630, and 0.2's build machinery is out of the MVP, ADR-0625 D4).
 
 **Contracts:**
 1. A story with four capabilities, planned, being built, landed and reported passing, and landed
@@ -153,9 +160,10 @@ place of today's plain list.
   - Only meshes exported from the bought pine kit ship, never the kit itself. Its licence allows
     derived output and forbids repackaging, as 0.2 applied it (ADR-0418).
   - The look is judged by the owner's eye, with a screenshot at each landing that changes it.
-- **Leaves out (vs 0.2):** the 2D map that took the clicks while the 3D picture sat underneath; the
-  rig for measuring looks (72,875 of 0.2's 142,439 forest lines); the texture and palette ladders,
-  crowd scenes, true-ground projection and website mount.
+- **Proposed to leave out (vs 0.2), awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`):
+  the 2D map that took the clicks while the 3D picture sat underneath (c1); the rig for measuring
+  looks, 72,875 of 0.2's 142,439 forest lines, with its texture and palette ladders, crowd scenes and
+  true-ground projection (c2); and the website mount (c3).
 
 **Contracts:**
 1. The app's smoke check opens a seeded project and finds one story node per story, each drawn with
@@ -180,8 +188,10 @@ including any in other stories, named with their story and marked if not yet lan
   - The "storytree saw" column appears only where something wrote it (0.3's own project, from its
     seed). Elsewhere the agent's report stands alone, labelled as the agent's.
   - Cross-story capability links are shown, the same ones the arc surface shows.
-- **Leaves out (vs 0.2):** 0.2's story panel, part of a 5,624-line studio component, with its
-  pannable sub-map, ancestor and descendant highlighting, session dock and library drawer.
+- **Proposed to leave out (vs 0.2), awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`,
+  c5): the pannable sub-map of 0.2's story panel (part of a 5,624-line studio component), with its
+  ancestor and descendant highlighting, and its session dock. The panel's library drawer is the note
+  browser the owner cut from the MVP (ADR-0625 D4).
 
 **Contracts:**
 1. A story whose third capability builds on the first two opens to its sentences and its
@@ -206,8 +216,10 @@ shown as idle.
 - **Its shelf,** founding book first:
   - **Founding book:** a claim is never a sign of health (carried from 0.2).
   - A missing hook never reads as an agent doing nothing (ADR-0626 D4).
-- **Leaves out (vs 0.2):** the orbiting "wisps" in three grades, build wisps coloured by gate phase,
-  departing wisps and subagent tints. 0.3 has no grades and no queue (ADR-0626 D3).
+- **Leaves out (vs 0.2), by the owner's one-holder rule** (ADR-0626 C1): claim grades, so a claim
+  has no grade colour and there is no queue.
+- **Proposed to leave out, awaiting the owner** (`oq-0-3-cuts-awaiting-owner-decision`, c4): build
+  wisps coloured by gate phase, and subagent tints.
 
 **Contracts:**
 1. Session A claims "email form", and a marker reading "Claude Code: building the email form"
@@ -255,8 +267,9 @@ text and the titles of the notes it links to and from.
   - **Founding book:** one step in, and no note browser (ADR-0625 D4). Opening a book lists its
     links' titles, and stops there.
   - The founding book first, then oldest first (ADR-0627 D2).
-- **Leaves out (vs 0.2):** the library drawer and its lists of citations: 0.2 offered agents 3,351
-  pointers to decisions and 156 were opened, 4.7% (ADR-0464, quoted in ADR-0627).
+- **Leaves out (vs 0.2), by the owner's decisions:** the library drawer, which is the note browser
+  he cut from the MVP (ADR-0625 D4), and its lists of citations, which his rabbit-hole model replaces
+  (ADR-0627): 0.2 offered agents 3,351 pointers to decisions and 156 were opened, 4.7% (ADR-0464).
 
 **Contracts:**
 1. A capability with three front covers shows three spines, founding book first, each with its
@@ -271,9 +284,12 @@ text and the titles of the notes it links to and from.
 ## Also out of this story
 
 - **The 0.3 app's frame** belongs to the 0.3 app's own story (ADR-0632 D4, on
-  `storytree-0-3-app-arc`): its database, the project switcher, hosting the views with the
-  Forest | Arcs toggle, and which project it opens on. Until that story is built, the forest uses
-  today's project dropdown as it is.
+  `storytree-0-3-app-arc`): its database, the project switcher, hosting the views, and which project
+  it opens on. Until that story is built, the forest uses today's project dropdown as it is.
+- **The arc surface** opens as an overlay over the forest, porting 0.2's arc surface (ADR-0633 D3,
+  item 14). It is the arc surface's story to build, not the forest's. Whichever of the two surfaces
+  lands second adds the button that opens it, under the 0.3 app story's name, as ADR-0632 D3 had it
+  for the toggle this replaces.
 - **Work states and the live reading** belong to the arc surface's tree (ADR-0632 D3): the one rule
   for planned, in progress or landed, and the reading that keeps both views current. The forest uses
   them. Whichever surface reaches a shared piece first builds it under the other tree's name, and
@@ -283,7 +299,8 @@ text and the titles of the notes it links to and from.
   Story nodes and Story node render, not as a new tree.
 - **Storytree's own check of the tests** is out of the MVP (ADR-0630): the forest shows what the
   agent reports, labelled as the agent's.
-- **Left out entirely, compared with 0.2** (ADR-0632 D6): the layout engine, the 2D map, the
-  look-measuring rig, the website mount, health from signed verdicts, wisps, the story panel's
-  sub-map, session dock and library drawer, citation lists, art research and a second style, and
-  0.2's forest in the 0.3 app.
+- **Left out by the owner's own decisions** (ADR-0632 D6, as ADR-0633 annotated it): health from
+  signed verdicts (ADR-0630), citation lists (ADR-0627), art research and a second style, and 0.2's
+  forest in the 0.3 app (ADR-0625 D4). 0.2's layout engine gives way to his pick P1 (capability 1).
+  The rest of D6's list was written by an agent, and awaits his decision in
+  `oq-0-3-cuts-awaiting-owner-decision` (items c1 to c5).
