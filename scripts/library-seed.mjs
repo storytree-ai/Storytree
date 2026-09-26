@@ -464,3 +464,15 @@ export async function recordHealth(library, contractIds, verdicts) {
   }
   return written;
 }
+
+// --- decisions --------------------------------------------------------------------------------
+
+/** Read a decision file (decisions/*.md) into a decision to file as a front cover. (Stub: not built yet.) */
+export function parseDecision(_markdown) {
+  throw new Error("parseDecision is not built yet");
+}
+
+/** File each decision as a front cover of the node it names, in place. (Stub: not built yet.) */
+export async function syncDecisions(_library, _decisions, _nodes) {
+  throw new Error("syncDecisions is not built yet");
+}
