@@ -87,22 +87,36 @@ interface HookEntry {
   hooks: { type: string; command: string; args?: string[]; async?: boolean }[];
 }
 
+/** One of storytree's hook entries: its matcher, and whether the harness is left to go on without waiting for it. */
+interface Registered {
+  matcher: string;
+  background: boolean;
+}
+
 /**
  * The events for which `settings` runs storytree's hook `script` for `harness`, each with its
- * matcher: Claude Code runs it as a command with arguments, Codex as one command line.
+ * entries: Claude Code runs it as a command with arguments (in the background when `async`), Codex
+ * as one command line (handing its work to the background when it passes `--background`).
  */
-function storytreeHooks(settings: Record<string, unknown>, script: string, harness: string): Record<string, string> {
+function storytreeHooks(settings: Record<string, unknown>, script: string, harness: string): Record<string, Registered[]> {
   const events = (settings.hooks ?? {}) as Record<string, HookEntry[]>;
-  const found: Record<string, string> = {};
+  const found: Record<string, Registered[]> = {};
   for (const [event, entries] of Object.entries(events)) {
     for (const entry of entries) {
-      const runsIt = entry.hooks.some((hook) =>
+      const ours = entry.hooks.find((hook) =>
         hook.args !== undefined ? hook.args[0] === script && hook.args.includes(harness) : hook.command.includes(script) && hook.command.includes(harness),
       );
-      if (runsIt) found[event] = entry.matcher ?? "";
+      if (ours === undefined) continue;
+      const background = ours.async === true || (ours.args ?? ours.command.split(" ")).includes("--background");
+      (found[event] ??= []).push({ matcher: entry.matcher ?? "", background });
     }
   }
   return found;
+}
+
+/** Whether `tool` is one `entry` runs for. Claude Code anchors a matcher of names; Codex's are regular expressions as written. */
+function runsFor(entry: Registered | undefined, tool: string, anchored: boolean): boolean {
+  return entry !== undefined && new RegExp(anchored ? `^(${entry.matcher})$` : entry.matcher).test(tool);
 }
 
 test("8.1 in a throwaway home with only the tool server installed, the first session start registers the hooks for Claude Code and for Codex without touching any other setting", async () => {
@@ -115,20 +129,26 @@ test("8.1 in a throwaway home with only the tool server installed, the first ses
     assert.deepEqual({ ...claude, hooks: undefined }, { ...CLAUDE_SETTINGS, hooks: undefined }, "Claude Code's other settings are as they were");
     const claudeHooks = claude.hooks as Record<string, HookEntry[]>;
     assert.deepEqual(claudeHooks.PreToolUse?.[0], CLAUDE_SETTINGS.hooks.PreToolUse[0], "and so is the user's own hook, still first");
-    const claudeEvents = storytreeHooks(claude, HOOK.script, "claude-code");
-    assert.deepEqual(Object.keys(claudeEvents).sort(), ["PostToolUse", "PreToolUse", "SessionEnd", "SessionStart"]);
-    for (const tool of ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Agent", "Task"]) assert.match(tool, new RegExp(`^(${claudeEvents.PostToolUse})$`), `after ${tool}`);
-    assert.match("mcp__storytree__open", new RegExp(`^(${claudeEvents.PreToolUse})$`), "before a storytree tool");
-    assert.doesNotMatch("Bash", new RegExp(`^(${claudeEvents.PreToolUse})$`), "and before no other tool");
-    // Claude Code waits for that one, so its line is written before the call reaches the tool server.
-    const before = claudeHooks.PreToolUse?.find((entry) => entry.hooks.some((hook) => hook.args?.[0] === HOOK.script));
-    assert.equal(before?.hooks[0]?.async, undefined, "the hook before a storytree tool runs in the foreground");
 
-    const codexEvents = storytreeHooks(readJson(home.codexHooks), HOOK.script, "codex");
-    assert.deepEqual(Object.keys(codexEvents).sort(), ["PostToolUse", "PreToolUse", "SessionEnd", "SessionStart"]);
-    for (const tool of ["apply_patch", "Bash", "spawn_agent"]) assert.match(tool, new RegExp(codexEvents.PostToolUse!), `after ${tool}`);
-    assert.match("mcp__storytree__open", new RegExp(codexEvents.PreToolUse!), "before a storytree tool");
-    assert.doesNotMatch("Bash", new RegExp(codexEvents.PreToolUse!), "and before no other tool");
+    for (const [harness, events, anchored] of [
+      ["claude-code", storytreeHooks(claude, HOOK.script, "claude-code"), true],
+      ["codex", storytreeHooks(readJson(home.codexHooks), HOOK.script, "codex"), false],
+    ] as const) {
+      const failure = harness === "claude-code" ? ["PostToolUseFailure"] : [];
+      assert.deepEqual(Object.keys(events).sort(), ["PostToolUse", ...failure, "PreToolUse", "SessionEnd", "SessionStart", "Stop"].sort(), harness);
+      const edits = harness === "claude-code" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Agent", "Task"] : ["apply_patch", "Bash", "spawn_agent"];
+      for (const tool of edits) assert.ok(runsFor(events.PostToolUse?.[0], tool, anchored), `${harness}: after ${tool}`);
+      if (harness === "claude-code") assert.ok(runsFor(events.PostToolUseFailure?.[0], "Bash", anchored), "after a shell command that failed");
+
+      // The harness waits for the hook before a storytree tool, so its line is written before the
+      // call reaches the tool server; the one before a shell command never makes the agent wait.
+      const before = events.PreToolUse ?? [];
+      assert.equal(before.length, 2, `${harness}: two hooks before a tool`);
+      const [tools, shell] = [before.find((entry) => !entry.background), before.find((entry) => entry.background)];
+      assert.ok(runsFor(tools, "mcp__storytree__open", anchored) && !runsFor(tools, "Bash", anchored), `${harness}: in the foreground before a storytree tool, and no other`);
+      assert.ok(runsFor(shell, "Bash", anchored) && !runsFor(shell, "mcp__storytree__open", anchored), `${harness}: in the background before a shell command, and no other`);
+      assert.equal(events.Stop?.[0]?.background, true, `${harness}: in the background at the end of a turn`);
+    }
     assert.equal(readFileSync(home.codexConfig, "utf8"), CODEX_CONFIG, "Codex's config is untouched");
   });
 });
@@ -153,7 +173,7 @@ test("8.2 a second start changes nothing, and removing storytree takes out exact
     registerHooks(home.homes, { ...HOOK, script: path.join(dir, "old", "storytree-hook.mjs") });
     registerHooks(home.homes, HOOK);
     assert.deepEqual(Object.keys(storytreeHooks(readJson(home.claudeSettings), path.join(dir, "old", "storytree-hook.mjs"), "claude-code")), []);
-    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 4);
+    assert.equal(Object.keys(storytreeHooks(readJson(home.claudeSettings), HOOK.script, "claude-code")).length, 6);
   });
 });
 

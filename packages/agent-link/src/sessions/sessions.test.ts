@@ -1,5 +1,5 @@
 /**
- * Capability 4 · Sessions: one test per contract 4.1-4.4 in stories/agent-link.md. Lines are written
+ * Capability 4 · Sessions: one test per contract 4.1-4.5 in stories/agent-link.md. Lines are written
  * to the real agent activity log on the Postgres `pnpm test` provides, under projects named with
  * uniqueProjectName(), and the sessions are read back from it, judged at a chosen time.
  */
@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { openActivityLog, type ActivityLog, type Line, type NewLine } from "../activity/index.js";
 import { testServerUrl, uniqueProjectName } from "../testing/pg.js";
-import { QUIET_MS, readSessions } from "./index.js";
+import { LONGEST_COMMAND_MS, QUIET_MS, readSessions } from "./index.js";
 
 /** Run `body` with the log open on the test server and a fresh project to write in. */
 async function withProject(body: (log: ActivityLog, project: string) => Promise<void>): Promise<void> {
@@ -88,5 +88,25 @@ test('4.4 a Codex session whose hooks never ran, but which calls a storytree too
         { session: "codex-1", label: "Codex", state: "live", hooksRunning: false },
       ],
     );
+  });
+});
+
+test("4.5 a command that started 40 minutes ago and has not finished keeps its session live; once it finishes, or its turn ends, the quiet time counts again, and one older than the longest a command may run no longer counts", async () => {
+  await withProject(async (log, project) => {
+    const started = await log.append(project, { ...CLAUDE, kind: "command-started", command: "npm run build", call: "call-1" });
+    const [running] = await readSessions(log, project, { now: after(started, 40 * 60 * 1000) });
+    assert.equal(running?.state, "live", "live while its command runs");
+    const [abandoned] = await readSessions(log, project, { now: after(started, LONGEST_COMMAND_MS + 1) });
+    assert.equal(abandoned?.state, "idle", "a command older than the longest a command may run died with its window");
+
+    const finished = await log.append(project, { ...CLAUDE, kind: "command-run", command: "npm run build", call: "call-1" });
+    const [done] = await readSessions(log, project, { now: after(finished, QUIET_MS + 1) });
+    assert.equal(done?.state, "idle", "idle once the quiet time has passed after it finished");
+
+    // A command the harness refused never finishes: the end of its turn closes it.
+    await log.append(project, { ...CLAUDE, kind: "command-started", command: "rm -rf build", call: "call-2" });
+    const turn = await log.append(project, { ...CLAUDE, kind: "turn-ended" });
+    const [refused] = await readSessions(log, project, { now: after(turn, QUIET_MS + 1) });
+    assert.equal(refused?.state, "idle", "idle once the quiet time has passed after the turn ended");
   });
 });
