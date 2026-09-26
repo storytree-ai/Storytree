@@ -8,5 +8,6 @@ export type {
   RetireInput,
   SaveInput,
   Transactions,
+  Upgrade,
   Validate,
 } from "./types.js";

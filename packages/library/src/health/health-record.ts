@@ -15,10 +15,8 @@
  * the change's actor), when, and its note.
  */
 import { couldBeId, liveRecord, MissingReferenceError, recordNamed } from "../references.js";
-import { NewerSchemaError } from "../schema/errors.js";
 import type { SchemaRecord, SchemaRecords } from "../schema/index.js";
-import { SCHEMA_VERSIONS, type FieldsOf, type RecordType } from "../schema/types.js";
-import type { HistoryEntry } from "../transactions/types.js";
+import type { FieldsOf, RecordType } from "../schema/types.js";
 import type { ArcNode, CapabilityNode, ContractNode, ProjectTree, StoryNode, WorkModel } from "../work/index.js";
 
 /** A column's state. A column with no entry reads `not-checked`, never `passing`. */
@@ -152,7 +150,7 @@ export class HealthRecord {
       .flat()
       .filter((change) => change.action !== "retired")
       .sort((a, b) => a.seq - b.seq)
-      .map(entryOfChange);
+      .map((change) => entryOf(this.#records.current(change.record).fields as FieldsOf<"health">, change.at));
   }
 
   /**
@@ -251,15 +249,4 @@ function rollUp(states: readonly HealthState[]): HealthColumn {
 function entryOf(fields: FieldsOf<"health">, at: string): HealthEntry {
   const { column, state, by, note } = fields;
   return { column, state, ...(by === undefined ? {} : { by }), at, ...(note === undefined ? {} : { note }) };
-}
-
-/**
- * The entry a change to a column's record wrote. A record written on a newer schema version than
- * this code knows is refused rather than guessed at, as capability 3 refuses reading one.
- */
-function entryOfChange(change: HistoryEntry): HealthEntry {
-  const { record } = change;
-  const known = SCHEMA_VERSIONS.health;
-  if (record.version > known) throw new NewerSchemaError(record.id, record.type, record.version, known);
-  return entryOf(record.fields as FieldsOf<"health">, change.at);
 }

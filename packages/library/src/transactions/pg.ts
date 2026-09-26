@@ -80,7 +80,7 @@ export class PgTransactions implements Transactions {
     return this.#write(async (client) => {
       const current = await lockCurrent(client, input.id);
       if (current === undefined) return null;
-      const record = editedRecord(current, input.fields, now());
+      const record = editedRecord(current, input.fields, now(), input.upgrade);
       check(record, input.validate);
       await appendEvent(client, "updated", record, record.updatedAt, input.actor);
       await putRecord(client, record);
