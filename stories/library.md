@@ -7,6 +7,7 @@ forest and the arc surface, while agents reach it through the agent link.
 
 **Approved** by the owner on 2026-09-26. The tree below is ADR-0621 in storytree 0.2's decision log
 (`storytree-ai/storytree02`). Names and scope come from that record; change them there first.
+Capability 9 was added on 2026-09-26 by ADR-0627 in the same log.
 
 **Rule for building it: port behaviour, not code.** Storytree 0.2's `packages/library` and
 `packages/storage-protocol` are the behavioural reference. Nothing is copied from them wholesale.
@@ -25,6 +26,7 @@ flowchart BT
   K["6 · Knowledge & memory"]
   D["7 · Library API"]
   C["8 · Cloud connection (GCP)"]
+  E["9 · Knowledge entrances"]
   R --> P
   F --> R
   W --> F
@@ -35,9 +37,12 @@ flowchart BT
   D --> K
   D --> P
   C --> P
+  E --> W
+  E --> K
+  D --> E
 ```
 
-Build order: 1 → 2 → 3 → (4, 6) → 5 → 7, then 8.
+Build order: 1 → 2 → 3 → (4, 6) → 5 → 7, then 8, then 9.
 
 ---
 
@@ -101,7 +106,8 @@ written on, so a later change to a type is handled deliberately rather than sile
 
 - **Depends on:** 2.
 - **Types at version 1:** `arc`, `story`, `capability`, `contract`, `health`, `memory`, `decision`,
-  `definition`.
+  `definition`. A decision's optional `frontCoverOf` field (capability 9) was added at version 1:
+  every decision written before it still fits the type, so it is not a new version.
 - **Leaves out (vs 0.2):** fourteen knowledge kinds, generated renderers and templates, and the
   upgrade machinery. 0.3 starts at version 1 and adds an upgrade step only when the first real
   change happens.
@@ -169,17 +175,18 @@ as `passing`.
 ## 6 · Knowledge and memory
 
 Alongside the plan, the library keeps what the project has learned: memory notes, decisions and
-definitions of terms. Each can link to the stories or other notes it relates to, and you can find
-them again by searching their words.
+definitions of terms. Each can link to the other notes it relates to, and you can find them again
+by searching their words. A note never links straight to the work: capability 9 is how the work
+reaches its knowledge.
 
-- **Depends on:** 3 (links point at 4's records but do not require them).
+- **Depends on:** 3.
 - **Leaves out (vs 0.2):** the ~1,200-artifact corpus (0.3 starts nearly empty), principles,
   guardrails, agents, processes, friction and open questions as separate kinds, the graduation
   lease, decision status and supersession tags, and ranked "related" search.
 
 **Contracts:**
-1. A memory note linked to a story is found by `search` on any word it contains (case-insensitive).
-2. `relatedNotes(storyId)` returns every note, decision and definition that links to that story.
+1. A memory note is found by `search` on any word it contains (case-insensitive).
+2. `relatedNotes(noteId)` returns every note, decision and definition that links to that note.
 3. Editing a decision keeps its old wording in history.
 4. A link to a record that does not exist is refused.
 
@@ -195,8 +202,9 @@ what just changed without re-reading everything.
 
 **Contracts:**
 1. An end-to-end "agent's day" against a real local Postgres: open a project, create an arc, add a
-   story, a capability and a contract, report passing, record verified, write a memory, then read
-   `projectTree()` and `changesSince(0)`. Every step is visible where the next step expects it.
+   story, a capability and a contract, report passing, record verified, record a decision as the
+   capability's front cover and write a memory inside it, then read `projectTree()` and
+   `changesSince(0)`. Every step is visible where the next step expects it.
 2. `changesSince(n)` returns only changes after `n`, in order, each carrying the new cursor to pass
    next time.
 3. The package's public entry exports exactly the API (listed below) and nothing else, and its
@@ -224,6 +232,33 @@ works the same, and each project still gets its own database, now on the cloud s
    Google sign-in.
 2. A missing or bad Google sign-in is refused with a message saying what to fix, never a hang.
 
+## 9 · Knowledge entrances
+
+Every story and capability has its own shelf of front-cover decisions, and a decision can be a
+front cover of one of them at most. Notes link only to other notes, so the only way from the work
+into the knowledge is through a front cover.
+
+- **Added** on 2026-09-26 by ADR-0627, the owner's "rabbit-hole" model. The two sentences above are
+  the ones he approved.
+- **Depends on:** 4 and 6. It adds `frontCovers` to 7's list of functions.
+- **As built:** a decision's optional `frontCoverOf` field names the one story or capability it is
+  a front cover of. One field names one node, so no decision can be the cover of two, and nothing
+  has to check for it. A node's shelf is every live decision naming it, founding (oldest) first.
+  Replacing a cover takes ordinary writes: the new decision becomes a cover of the same node and
+  links to the old one, then the old one's `frontCoverOf` is removed. It leaves the shelf and is
+  still reached from the cover that replaced it.
+- **Leaves out:** where an agent's new note goes by default, a founding decision for each new story
+  and capability, and reading a shelf title by title. Those are the agent link's tools (ADR-0627
+  D4, D5, D7). Showing each part's shelf is the forest's drill-down.
+
+**Contracts:**
+1. A decision can be the front cover of a story or a capability, and `frontCovers(nodeId)` returns
+   that node's live covers, founding (oldest) first, and nothing else.
+2. A front cover that names anything but a live story or capability is refused, and nothing is
+   written. Only a decision can be a front cover.
+3. A note that links to a story, capability, contract, arc or health entry is refused, and nothing
+   is written. Notes link only to other notes.
+
 ---
 
 ## The API later stories program against
@@ -241,7 +276,9 @@ const cap   = await lib.addCapability({ title: "Email form", story: story.id });
 const k     = await lib.addContract({ title: "Rejects a bad email", capability: cap.id });
 await lib.reportHealth(k.id, "passing", { by: "agent" });   // 5: what the agent says
 await lib.recordVerified(k.id, "failing", { by: "storytree" }); // 5: what storytree saw
-await lib.writeMemory({ text: "Mailgun needs a verified domain", links: [story.id] }); // 6
+const cover = await lib.recordDecision({ title: "Send through Mailgun", text: "Simplest API", frontCoverOf: cap.id }); // 9
+await lib.writeMemory({ text: "Mailgun needs a verified domain", links: [cover.id] }); // 6: inside the cover
+await lib.frontCovers(cap.id);   // 9: the capability's shelf
 await lib.projectTree();          // 4 + 5: what the forest reads
 await lib.changesSince(cursor);   // 7: what just changed
 await storytree.close();

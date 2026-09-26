@@ -7,8 +7,9 @@
  *   `pnpm test` provides and named with uniqueProjectName(). Its database is dropped afterwards,
  *   pass or fail. Other test files share that server, so a test only ever reads its own project.
  *
- * The records that notes link to are written straight through the typed layer (capability 3):
- * capability 6 depends on 3 alone, and its links point at 4's records without needing 4's verbs.
+ * Notes link only to other notes (capability 9, stories/library.md). The few work records these
+ * tests need are written straight through the typed layer (capability 3), since capability 6
+ * depends on 3 alone.
  * Whether anything was written is judged one layer down, through the same project's
  * Transactions: every change appends a history entry (capability 2), so an unchanged history
  * means nothing was written.
@@ -89,10 +90,13 @@ for (const backend of [memory, postgres]) {
     });
   };
 
-  contract("6.1", "a memory note linked to a story is found by search on any word it contains, whatever its case", async ({ knowledge, records, transactions }) => {
+  contract("6.1", "a memory note is found by search on any word it contains, whatever its case", async ({ knowledge, records, transactions }) => {
     const story = await records.create("story", { title: "Visitor can sign up" });
-    const memory = await knowledge.writeMemory({ text: "Mailgun needs a verified domain", links: [story.id] });
-    await assertCreated(transactions, memory, "memory", { text: "Mailgun needs a verified domain", links: [story.id] });
+    // A note for the memory to link to, holding none of the words searched for below.
+    const signup = await knowledge.defineTerm({ term: "Signup", meaning: "Joining the site" });
+    await laterThan(signup);
+    const memory = await knowledge.writeMemory({ text: "Mailgun needs a verified domain", links: [signup.id] });
+    await assertCreated(transactions, memory, "memory", { text: "Mailgun needs a verified domain", links: [signup.id] });
 
     // Each word it contains finds it, in any case.
     for (const word of ["Mailgun", "needs", "a", "verified", "domain"]) {
@@ -108,14 +112,14 @@ for (const backend of [memory, postgres]) {
     // One word it does not contain rules it out, even beside words it does.
     assert.deepEqual(await knowledge.search("mailgun postmark"), []);
     assert.deepEqual(await knowledge.search("sendgrid"), []);
-    // A link is an id, not a word: the story's id does not find the note that links to it.
-    assert.deepEqual(await knowledge.search(story.id), []);
+    // A link is an id, not a word: the linked note's id does not find the note that links to it.
+    assert.deepEqual(await knowledge.search(signup.id), []);
     await laterThan(memory);
 
     // Beside other notes: exactly the notes holding every word, of all three kinds, in creation
     // order. A decision is searched by its title and its text, a definition by its term and its
     // meaning. Records that are not notes are never returned, whatever words they hold.
-    const decision = await knowledge.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest to call", links: [story.id] });
+    const decision = await knowledge.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest to call", links: [signup.id] });
     await laterThan(decision);
     const definition = await knowledge.defineTerm({ term: "Verified domain", meaning: "A domain whose DNS records prove we own it" });
     await laterThan(definition);
@@ -139,8 +143,8 @@ for (const backend of [memory, postgres]) {
       assert.deepEqual(await knowledge.search(query), found, `search(${JSON.stringify(query)})`);
     }
     // An empty query holds no word for a note to miss, so every note matches it (the rule, read literally).
-    assert.deepEqual(await knowledge.search(""), [memory, decision, definition, pricing]);
-    assert.deepEqual(await knowledge.search(" \t\n"), [memory, decision, definition, pricing]);
+    assert.deepEqual(await knowledge.search(""), [signup, memory, decision, definition, pricing]);
+    assert.deepEqual(await knowledge.search(" \t\n"), [signup, memory, decision, definition, pricing]);
 
     // Search reads the notes as they are now: a retired note is not found, and an edited one is
     // found by its new words and no longer by its old ones.
@@ -158,17 +162,17 @@ for (const backend of [memory, postgres]) {
     assert.deepEqual(await knowledge.search("CAFÉ naÏvetÉ"), [accented]);
   });
 
-  contract("6.2", "relatedNotes(storyId) returns every note, decision and definition that links to that story", async ({ knowledge, records }) => {
-    const story = await records.create("story", { title: "Visitor can sign up" });
-    const other = await records.create("story", { title: "Visitor can sign in" });
-    const quiet = await records.create("story", { title: "Visitor can leave" });
+  contract("6.2", "relatedNotes(noteId) returns every note, decision and definition that links to that note", async ({ knowledge, records }) => {
+    const target = await knowledge.defineTerm({ term: "Signup", meaning: "Joining the site" });
+    const other = await knowledge.writeMemory({ text: "Sign in comes next" });
+    const quiet = await knowledge.writeMemory({ text: "Nothing links here" });
 
-    // Notes of all three kinds linking to the story, created one after another in an order that
-    // is neither their ids' order nor grouped by kind. The decisions list the other story first.
+    // Notes of all three kinds linking to the target, created one after another in an order that
+    // is neither their ids' order nor grouped by kind. The decisions list the other note first.
     const linking = await createInOrder<Note>(3, (n) => {
-      if (n % 3 === 0) return knowledge.defineTerm({ term: `Term ${n}`, meaning: "Defined", links: [story.id] });
-      if (n % 3 === 1) return knowledge.writeMemory({ text: `Memory ${n}`, links: [story.id] });
-      return knowledge.recordDecision({ title: `Decision ${n}`, text: "Chosen", links: [other.id, story.id] });
+      if (n % 3 === 0) return knowledge.defineTerm({ term: `Term ${n}`, meaning: "Defined", links: [target.id] });
+      if (n % 3 === 1) return knowledge.writeMemory({ text: `Memory ${n}`, links: [target.id] });
+      return knowledge.recordDecision({ title: `Decision ${n}`, text: "Chosen", links: [other.id, target.id] });
     });
     // Notes that do not link to it: one with no links, one listing none, one linking elsewhere.
     const unlinked = await knowledge.writeMemory({ text: "Links nothing" });
@@ -176,57 +180,56 @@ for (const backend of [memory, postgres]) {
     const elsewhere = await knowledge.defineTerm({ term: "Sign in", meaning: "Coming back", links: [other.id] });
 
     assert.deepEqual(
-      await knowledge.relatedNotes(story.id),
+      await knowledge.relatedNotes(target.id),
       linking,
       "every note linking to it, of all three kinds, as stored, in creation order",
     );
     assert.deepEqual(await knowledge.relatedNotes(other.id), [...linking.filter((note) => note.type === "decision"), elsewhere]);
-    assert.deepEqual(await knowledge.relatedNotes(quiet.id), [], "a story no note links to");
-    assert.deepEqual(await knowledge.relatedNotes(NO_STORY), [], "an id naming no record");
+    assert.deepEqual(await knowledge.relatedNotes(quiet.id), [], "a note no note links to");
+    assert.deepEqual(await knowledge.relatedNotes(NO_MEMORY), [], "an id naming no record");
     // A link is to one exact id: part of it, or the same letters in another case, is another id.
-    assert.deepEqual(await knowledge.relatedNotes(story.id.slice(0, -1)), [], "part of a linked id");
-    assert.deepEqual(await knowledge.relatedNotes(story.id.toUpperCase()), [], "a linked id in another case");
+    assert.deepEqual(await knowledge.relatedNotes(target.id.slice(0, -1)), [], "part of a linked id");
+    assert.deepEqual(await knowledge.relatedNotes(target.id.toUpperCase()), [], "a linked id in another case");
 
-    // A note can link to another note, or to a record of any type, and relatedNotes answers for
-    // any id. Records that are not notes are never returned, though an arc listing the story and
-    // a capability under it point at it too.
+    // A note linking to a note that links to the target is related to the note it links to, not
+    // to the target. A story has no related notes: no note may link to one (capability 9), and its
+    // knowledge is reached through its front covers instead.
     const decision = at(linking, 2);
     const followUp = await knowledge.writeMemory({ text: "Revisit this decision", links: [decision.id] });
-    const capability = await records.create("capability", { title: "Email form", story: story.id });
-    const aboutForm = await knowledge.recordDecision({ title: "Validate on blur", text: "Fewer surprises", links: [capability.id] });
-    await records.create("arc", { title: "Launch v1", stories: [story.id] });
+    const story = await records.create("story", { title: "Visitor can sign up" });
     assert.deepEqual(await knowledge.relatedNotes(decision.id), [followUp]);
-    assert.deepEqual(await knowledge.relatedNotes(capability.id), [aboutForm]);
-    assert.deepEqual(await knowledge.relatedNotes(story.id), linking);
+    assert.deepEqual(await knowledge.relatedNotes(story.id), []);
+    assert.deepEqual(await knowledge.relatedNotes(target.id), linking);
 
     // Links as they are now: a retired note drops out, as does a note edited to drop its link,
     // and a note edited to add the link comes in.
     await records.retire(at(linking, 0).id, "superseded");
     await knowledge.editNote(at(linking, 1).id, { links: [] });
-    const joined = await knowledge.editNote(unlinked.id, { links: [quiet.id, story.id] });
-    assert.deepEqual(await knowledge.relatedNotes(story.id), [...linking.slice(2), joined]);
+    const joined = await knowledge.editNote(unlinked.id, { links: [quiet.id, target.id] });
+    assert.deepEqual(await knowledge.relatedNotes(target.id), [...linking.slice(2), joined]);
     // A note edited after the others keeps its place: the order is creation order, not the order
     // of the latest change.
     await clockPast(joined?.updatedAt ?? assert.fail("the note was not edited"));
     const revised = await knowledge.editNote(at(linking, 2).id, { text: "Chosen again" });
-    assert.deepEqual(await knowledge.relatedNotes(story.id), [revised, ...linking.slice(3), joined]);
+    assert.deepEqual(await knowledge.relatedNotes(target.id), [revised, ...linking.slice(3), joined]);
   });
 
   contract("6.3", "editing a decision keeps its old wording in history", async ({ knowledge, records, transactions }) => {
     const story = await records.create("story", { title: "Visitor can sign up" });
-    const decision = await knowledge.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest to call", links: [story.id] });
-    await assertCreated(transactions, decision, "decision", { title: "Use Mailgun", text: "Its API is the simplest to call", links: [story.id] });
+    const domain = await knowledge.defineTerm({ term: "Sending domain", meaning: "The domain our mail comes from" });
+    const decision = await knowledge.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest to call", links: [domain.id] });
+    await assertCreated(transactions, decision, "decision", { title: "Use Mailgun", text: "Its API is the simplest to call", links: [domain.id] });
 
     // Reworded, then retitled: each edit changes only the fields it names.
     const reworded = await knowledge.editNote(decision.id, { text: "Postmark delivers more of our mail" });
     assert.ok(reworded);
     assert.deepEqual(reworded, {
       ...decision,
-      fields: { title: "Use Mailgun", text: "Postmark delivers more of our mail", links: [story.id] },
+      fields: { title: "Use Mailgun", text: "Postmark delivers more of our mail", links: [domain.id] },
       updatedAt: reworded.updatedAt,
     });
     const retitled = await knowledge.editNote(decision.id, { title: "Use Postmark" });
-    assert.deepEqual(retitled?.fields, { title: "Use Postmark", text: "Postmark delivers more of our mail", links: [story.id] });
+    assert.deepEqual(retitled?.fields, { title: "Use Postmark", text: "Postmark delivers more of our mail", links: [domain.id] });
     assert.deepEqual(await records.get(decision.id), retitled, "get reads the latest wording");
 
     // history({ id }) keeps every wording, oldest first: the old text and the old title are still there.
@@ -243,14 +246,14 @@ for (const backend of [memory, postgres]) {
     assert.equal(kept[1]?.record.fields.title, "Use Mailgun", "and so is the old title");
 
     // A memory note and a definition keep their old wording the same way; a link can be removed.
-    const memory = await knowledge.writeMemory({ text: "Mailgun needs a verified domain", links: [story.id] });
+    const memory = await knowledge.writeMemory({ text: "Mailgun needs a verified domain", links: [decision.id] });
     const definition = await knowledge.defineTerm({ term: "Bounce", meaning: "A message the server sent back" });
     const rewritten = await knowledge.editNote(memory.id, { text: "Postmark needs a verified sender", links: undefined });
     assert.deepEqual(rewritten?.fields, { text: "Postmark needs a verified sender" });
     await knowledge.editNote(definition.id, { meaning: "A message that could not be delivered" });
     assert.deepEqual(
       (await records.history({ id: memory.id })).map(({ record }) => record.fields),
-      [{ text: "Mailgun needs a verified domain", links: [story.id] }, { text: "Postmark needs a verified sender" }],
+      [{ text: "Mailgun needs a verified domain", links: [decision.id] }, { text: "Postmark needs a verified sender" }],
     );
     assert.deepEqual(
       (await records.history({ id: definition.id })).map(({ record }) => record.fields),
@@ -277,35 +280,31 @@ for (const backend of [memory, postgres]) {
   });
 
   contract("6.4", "a link to a record that does not exist is refused", async ({ knowledge, records, transactions }) => {
-    // A live record of every type: a note may link to any of them.
-    const story = await records.create("story", { title: "Visitor can sign up" });
-    const arc = await records.create("arc", { title: "Launch v1", stories: [story.id] });
-    const capability = await records.create("capability", { title: "Email form", story: story.id });
-    const contract = await records.create("contract", { title: "Rejects a bad email", capability: capability.id });
-    const health = await records.create("health", { node: contract.id, column: "reported", state: "passing" });
+    // A live note of every kind, and a retired one. (A link to a work record is refused as well,
+    // since notes link only to notes: that is capability 9's contract 9.3.)
     const memory = await knowledge.writeMemory({ text: "Mailgun needs a verified domain" });
     const decision = await knowledge.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest" });
     const definition = await knowledge.defineTerm({ term: "Bounce", meaning: "A message sent back" });
-    const retired = await records.create("story", { title: "Visitor can pay" });
-    await records.retire(retired.id, "out of scope");
+    const retired = await knowledge.writeMemory({ text: "Postmark is cheaper" });
+    await records.retire(retired.id, "out of date");
     const before = await transactions.history();
 
     const refused: [attempt: () => Promise<unknown>, id: string][] = [
       [() => knowledge.writeMemory({ text: "Linked to nothing", links: [NO_STORY] }), NO_STORY],
-      [() => knowledge.writeMemory({ text: "Linked to nothing", links: [story.id, NO_MEMORY] }), NO_MEMORY],
+      [() => knowledge.writeMemory({ text: "Linked to nothing", links: [decision.id, NO_MEMORY] }), NO_MEMORY],
       [() => knowledge.recordDecision({ title: "Use Postmark", text: "Better delivery", links: [retired.id] }), retired.id],
       [
-        () => knowledge.recordDecision({ title: "Use Postmark", text: "Better delivery", links: [story.id, story.id.toUpperCase()] }),
-        story.id.toUpperCase(),
+        () => knowledge.recordDecision({ title: "Use Postmark", text: "Better delivery", links: [memory.id, memory.id.toUpperCase()] }),
+        memory.id.toUpperCase(),
       ],
       [() => knowledge.defineTerm({ term: "Hard bounce", meaning: "A permanent failure", links: [""] }), ""],
       // The first bad link is the one named.
       [
-        () => knowledge.defineTerm({ term: "Hard bounce", meaning: "A permanent failure", links: [arc.id, "definition_000000000000", NO_STORY] }),
+        () => knowledge.defineTerm({ term: "Hard bounce", meaning: "A permanent failure", links: [definition.id, "definition_000000000000", NO_STORY] }),
         "definition_000000000000",
       ],
       [() => knowledge.editNote(memory.id, { links: [NO_STORY] }), NO_STORY],
-      [() => knowledge.editNote(decision.id, { text: "Reconsidered", links: [story.id, retired.id] }), retired.id],
+      [() => knowledge.editNote(decision.id, { text: "Reconsidered", links: [memory.id, retired.id] }), retired.id],
     ];
     for (const [attempt, id] of refused) {
       await assert.rejects(attempt(), missingLink(id));
@@ -314,24 +313,24 @@ for (const backend of [memory, postgres]) {
     // asked for one): the write's schema check refuses it, naming links, on both backends.
     for (const bad of UNSTORABLE) {
       await assert.rejects(knowledge.writeMemory({ text: "Odd link", links: [bad] }), schemaError("memory", ["links"]));
-      await assert.rejects(knowledge.editNote(definition.id, { links: [story.id, bad] }), schemaError("definition", ["links"]));
+      await assert.rejects(knowledge.editNote(definition.id, { links: [memory.id, bad] }), schemaError("definition", ["links"]));
     }
     assert.deepEqual(await transactions.history(), before, "none of them wrote anything");
     assert.deepEqual(await transactions.get(memory.id), memory, "the edited notes are unchanged");
     assert.deepEqual(await transactions.get(decision.id), decision);
     assert.deepEqual(await transactions.get(definition.id), definition);
 
-    // Control: links to live records of every type are accepted, by every kind of note and by an
+    // Control: links to live notes of every kind are accepted, by every kind of note and by an
     // edit (which may link a note to itself).
-    const everything = [story, arc, capability, contract, health, memory, decision, definition].map((record) => record.id);
-    const linked = await knowledge.writeMemory({ text: "Links to everything", links: everything });
-    await assertCreated(transactions, linked, "memory", { text: "Links to everything", links: everything });
-    const decided = await knowledge.recordDecision({ title: "Keep it all", text: "Linked", links: everything });
-    await assertCreated(transactions, decided, "decision", { title: "Keep it all", text: "Linked", links: everything });
-    const defined = await knowledge.defineTerm({ term: "Everything", meaning: "All of it", links: everything });
-    await assertCreated(transactions, defined, "definition", { term: "Everything", meaning: "All of it", links: everything });
-    const relinked = await knowledge.editNote(memory.id, { links: [linked.id, ...everything] });
-    assert.deepEqual(relinked?.fields, { text: "Mailgun needs a verified domain", links: [linked.id, ...everything] });
+    const notes = [memory, decision, definition].map((record) => record.id);
+    const linked = await knowledge.writeMemory({ text: "Links to every kind", links: notes });
+    await assertCreated(transactions, linked, "memory", { text: "Links to every kind", links: notes });
+    const decided = await knowledge.recordDecision({ title: "Keep it all", text: "Linked", links: notes });
+    await assertCreated(transactions, decided, "decision", { title: "Keep it all", text: "Linked", links: notes });
+    const defined = await knowledge.defineTerm({ term: "Everything", meaning: "All of it", links: notes });
+    await assertCreated(transactions, defined, "definition", { term: "Everything", meaning: "All of it", links: notes });
+    const relinked = await knowledge.editNote(memory.id, { links: [linked.id, ...notes] });
+    assert.deepEqual(relinked?.fields, { text: "Mailgun needs a verified domain", links: [linked.id, ...notes] });
   });
 }
 
@@ -398,14 +397,14 @@ function alternateCase(word: string): string {
 
 /**
  * An assert.rejects check: a MissingReferenceError for field `links` holding `id`, which may name
- * a record of any type, so the id names no live record at all. The message names the field and the id.
+ * only a live note (capability 9), and names no live record at all. The message names the field and the id.
  */
 function missingLink(id: string): (error: unknown) => true {
   return (error) => {
     assert.ok(error instanceof MissingReferenceError, `expected a MissingReferenceError, got: ${String(error)}`);
     assert.deepEqual(
       { field: error.field, id: error.id, expected: error.expected, found: error.found },
-      { field: "links", id, expected: "record", found: undefined },
+      { field: "links", id, expected: "note", found: undefined },
       error.message,
     );
     for (const part of [JSON.stringify("links"), JSON.stringify(id)]) {
