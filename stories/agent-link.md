@@ -284,6 +284,12 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
   shows, or for Codex the call's own thread; a subagent's type and task come from the line its
   start left. When nothing was revealed the read names the agent as "unknown". It is never worked
   out from timing or from transcripts. Reads recorded before this landed name no agent.
+  **Live-checked 2026-09-26** with the built tool server and hook against a throwaway storytree:
+  in Claude Code 2.1.283 (Haiku) and in Codex 0.155, the orchestrator opened a note and then one
+  subagent did. Each read named its agent: the orchestrator, and the subagent by its id, type
+  (`note-reader`, `explorer`) and task. Each hook's line was written before its call reached the
+  tool server. Codex starts a tool server with a trimmed environment, so a storytree home other
+  than the default (`STORYTREE_HOME`) has to be passed to it in Codex's own settings.
 
 **Contracts:**
 1. A test client talks to the server inside the test itself, with no real agent and no network. It
