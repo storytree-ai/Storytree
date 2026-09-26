@@ -1,9 +1,13 @@
 name: CI
 
-# Every change reaches main through a pull request. On each pull request into main, `verify`
-# installs, typechecks and runs the tests on Linux, against the merge of the branch with main, and
-# once it passes, `automerge` merges the pull request. Branch protection on main requires `verify`,
-# so nothing merges without it.
+# Every change reaches main through a pull request. On each pull request into main, `platforms`
+# installs, typechecks and runs the tests on Linux and on macOS, against the merge of the branch
+# with main, and `verify` passes once both have. Then `automerge` merges the pull request. Branch
+# protection on main requires `verify`, so nothing merges unless the tests passed on both systems.
+#
+# The product ships for Windows first. The macOS run keeps the code working there from the day each
+# line is written, so that Mac support later is packaging rather than porting (ADR-0625 D7, in
+# storytree 0.2's decision log).
 #
 # A draft is never merged: open a pull request as a draft, or convert it to one, to hold it, and
 # `gh pr ready` releases it (`verify` runs again, and the pull request merges when it passes). A
@@ -29,9 +33,19 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: verify
-    runs-on: ubuntu-latest
+  # One run per system, each installing, typechecking and testing. A failure on one system leaves
+  # the other running (fail-fast: false), so a failure on one alone shows as that system's.
+  platforms:
+    name: verify on ${{ matrix.system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: Linux
+            runner: ubuntu-latest
+          - system: macOS
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -43,9 +57,28 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # scripts/test.mjs starts a throwaway Postgres from @embedded-postgres/linux-x64. The live
-      # Cloud SQL proof (contract 8.1) is skipped, visibly: CI holds no Google identity.
+      # scripts/test.mjs starts a throwaway Postgres from this machine's @embedded-postgres package
+      # (linux-x64 on Linux, darwin-arm64 on macOS). The live Cloud SQL proof (contract 8.1) is
+      # skipped, visibly: CI holds no Google identity.
       - run: pnpm test
+
+  # The check branch protection on main requires, and the one `automerge` waits for. It passes only
+  # if every run in `platforms` passed. It runs whatever they did (always()), so a run that failed
+  # or was cancelled fails it: were it skipped instead, GitHub would count the skipped check as
+  # passed.
+  verify:
+    name: verify
+    needs: platforms
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every system passed
+        env:
+          RESULT: ${{ needs.platforms.result }}
+        run: |
+          echo "platforms: $RESULT"
+          test "$RESULT" = success
 
   automerge:
     name: automerge
