@@ -151,10 +151,15 @@ function callerOf(server: McpServer, context: ServerContext, env: Readonly<Recor
   return harness === undefined ? { session } : { session, harness };
 }
 
+/**
+ * The answer as the harness gets it: the sentence as text, and any data beside it, carrying the
+ * sentence too. A harness may show the agent the data rather than the text (Claude Code 2.1.212
+ * does), and the sentence is what the agent acts on.
+ */
 function result(answer: Answer): CallToolResult {
   return {
     content: [{ type: "text", text: answer.text }],
-    ...(answer.data === undefined ? {} : { structuredContent: answer.data }),
+    ...(answer.data === undefined ? {} : { structuredContent: { message: answer.text, ...answer.data } }),
     ...(answer.refused === true ? { isError: true } : {}),
   };
 }
