@@ -1,0 +1,283 @@
+# Story: the forest
+
+**What it is.** Each project is its own 3D forest that grows as its agents' work lands, and any
+story opens to explain itself in plain words. Every story is a story node carrying a grove, one tree
+per capability: a tree grows as its capability lands, and its leaves show what the agent reports
+about its tests. The agents at work show at the capabilities they hold, and work done while holding
+no claim is listed beside the forest.
+
+**Approved** by the owner on 2026-09-26. The tree below is ADR-0632 in storytree 0.2's decision log
+(`storytree-ai/storytree02`), approved through the question `oq-0-3-forest-capability-tree`
+(revision 3). Names and scope come from that record; change them there first.
+
+**Rule for building it: port behaviour, not code.** Storytree 0.2's 3D forest map
+(`packages/forest-world-r3f`, with the grove look of ADR-0508) is the behavioural reference for the
+look: low-poly islands on a calm sea, the pine kit the owner bought, one warm light. It is ported as
+it stands, with no art research (ADR-0625 D4), and nothing is copied from it wholesale. Only meshes
+exported from the bought pine kit ship, never the kit itself: its licence allows derived output and
+forbids repackaging (ADR-0418's rule, as 0.2 applied it). The forest reads the library only through
+its public API (`stories/library.md`, capability 7), and the agent link only through what it already
+records (`stories/agent-link.md`, capabilities 2, 4 and 5). It adds nothing to either.
+
+**How each capability is proven.** Red→green, as for the library and the agent link. Each
+capability's tests are written and committed first, and seen failing (`red(<capability>): …`).
+Then the code that makes them pass is committed (`green(<capability>): …`). The git history is the
+evidence that the red came first. The look itself is judged by the owner's eye, not by a test: each
+landing that changes it brings him a screenshot.
+
+**The owner's choices** (ADR-0632):
+- **A1:** the tree as drawn, seven capabilities.
+- **P1:** a story node's place comes from its story alone, and is fixed for good.
+- **T1:** a story node is a grove, one tree per capability, the look endorsed for 0.2 (ADR-0508).
+  This corrects the signed spec's "one tree per story".
+- **G1:** a tree's size follows the work state, and its leaves follow the agent's report, always
+  labelled as the agent's own (ADR-0630).
+- **U1:** unclaimed work is listed beside the forest, with a count on the forest view.
+- **N2:** it is called "unclaimed work", not "unplanned activity". The rule is unchanged: an edit or
+  command made by a session that holds no claim at that moment. The owner called the name "a smell
+  but we can address this more post mvp".
+- **S1:** the 0.3 app gets a story of its own, upstream of the forest and the arc surface. The project
+  switcher, the Forest | Arcs toggle and which project the app opens on are that story's, not the
+  forest's.
+
+```mermaid
+flowchart BT
+  N["1 · Story nodes"]
+  T["2 · Capability tree"]
+  R["3 · Story node render"]
+  D["4 · Drill-down"]
+  C["5 · Agent capability claims"]
+  U["6 · Unclaimed work"]
+  E["7 · Library entrypoints"]
+  LIB[("the library (stories/library.md)")]
+  LOG[("the agent link's activity log (stories/agent-link.md)")]
+  WS["Work states and the live reading (the arc surface's)"]
+  APP["the 0.3 app's frame (the 0.3 app's story)"]
+  N --> LIB
+  T --> N
+  T --> WS
+  T --> LIB
+  R --> N
+  R --> T
+  R --> WS
+  R --> APP
+  D --> T
+  D --> R
+  C --> R
+  C --> WS
+  U --> R
+  U --> WS
+  E --> D
+  E --> LIB
+  WS --> LIB
+  WS --> LOG
+```
+
+Build order: 1 → 2 → 3 → 4 → 5 → 6 → 7.
+
+---
+
+## 1 · Story nodes
+
+The forest keeps one story node for every story in the project: where the story sits in the forest,
+with its title and its overall health. Nodes follow the library, so a new story appears as a new
+node and a retired story's node goes, with nothing arranged by hand.
+
+- **Depends on:** nothing in this story. It reads the library's `projectTree`, and its change
+  history (`changesSince`) for the stories since retired.
+- **Its shelf,** founding book first:
+  - **Founding book (P1):** a node's place comes from its story alone: the next place on a spiral,
+    in the order stories were created, fixed for good, and a retired story leaves open sea. So
+    nothing ever moves a node, and the planet (ADR-0629) will be a new placement book, not a
+    rewrite.
+- **Leaves out (vs 0.2):** 0.2's layout engine, which ranked stories by their dependencies, packed
+  them onto a hex grid and nudged neighbours apart as islands grew, so one story's change could move
+  another's island. In 0.3 a story has no dependencies of its own to rank by.
+
+**Contracts** (each one a test):
+1. Three stories give three story nodes, each with its title and its overall health as the agent
+   reports it.
+2. Adding a story to the library adds a node, and retiring a story removes its node.
+3. The same stories always get the same places: the first story sits at the centre and each later
+   one takes the next place on a spiral. Adding or retiring a story never moves another node, and a
+   retired story's place is never given to another.
+
+## 2 · Capability tree
+
+Each story node carries its capability tree: the story's capabilities, which ones build on which,
+and where each one stands, from planned through built to landed, and it grows as they land. Where a
+capability stands comes from two records kept side by side: the arc surface's rule for planned, in
+progress or landed, and the health the agent reports for its tests, always labelled as the agent's
+own.
+
+- **Depends on:** 1. It also reads the arc surface's Work states (the one rule for planned, in
+  progress or landed, shared so the two views never disagree about "landed"), and the library's
+  reported health column, which the agent link's report tool writes.
+- **Its shelf,** founding book first:
+  - **Founding book (T1):** a story node is a grove, one tree per capability, the look the owner
+    endorsed for 0.2 (ADR-0508). This corrects ADR-0625's "one tree per story".
+  - **G1:** a tree's size follows the work state, and its leaves follow the agent's report: a
+    seedling while planned or being built; a pale tree once landed with nothing reported; a full
+    green tree once landed and reported passing; a dead tree once landed with a failing report.
+  - One rule for "landed" is shared with the arc surface.
+  - Health is the agent's report, labelled as the agent's (ADR-0630 D2).
+- **Leaves out (vs 0.2):** green that came only from 0.2's signed build verdicts (its build
+  machinery is out of 0.3), the six-state, five-colour vocabulary, drift badges and crown sizes.
+
+**Contracts:**
+1. A story with four capabilities, planned, being built, landed and reported passing, and landed
+   with a failing report, gives a seedling, a seedling, a full green tree and a dead tree, in build
+   order, each with the capabilities it builds on.
+2. A capability the agent reports red while it is being built stays a seedling.
+3. A landed capability with nothing reported is a pale tree.
+4. A story with no capabilities yet shows one seedling, so a new story is never invisible.
+
+## 3 · Story node render
+
+Draws every story node with its capability tree, so the whole project shows as one 3D forest that
+you can pan, zoom and turn, and clicking a story node selects it. It is the view the app opens on, in
+place of today's plain list.
+
+- **Depends on:** 1 and 2. It is kept current by the arc surface's live reading, and sits in the 0.3
+  app's frame (the 0.3 app's story, ADR-0632 D4); until that story is built it uses today's project
+  dropdown as it is.
+- **Its shelf,** founding book first:
+  - **Founding book:** the land look endorsed for 0.2 is ported as it stands, with no art research
+    (ADR-0625 D4, ADR-0508).
+  - Only meshes exported from the bought pine kit ship, never the kit itself. Its licence allows
+    derived output and forbids repackaging, as 0.2 applied it (ADR-0418).
+  - The look is judged by the owner's eye, with a screenshot at each landing that changes it.
+- **Leaves out (vs 0.2):** the 2D map that took the clicks while the 3D picture sat underneath; the
+  rig for measuring looks (72,875 of 0.2's 142,439 forest lines); the texture and palette ladders,
+  crowd scenes, true-ground projection and website mount.
+
+**Contracts:**
+1. The app's smoke check opens a seeded project and finds one story node per story, each drawn with
+   its capability tree.
+2. A capability landing redraws just its story node, without a reload.
+3. Clicking a story node selects it.
+
+## 4 · Drill-down
+
+Clicking a story node opens a panel that explains the story in plain words: its two sentences, then
+each capability's two sentences with its health as the agent reports it, and its contracts on
+request. A small diagram shows how the capabilities connect, each pointing at the ones it builds on,
+including any in other stories, named with their story and marked if not yet landed.
+
+- **Depends on:** 2 and 3. It reads the library's `projectTree`.
+- **Its shelf,** founding book first:
+  - **Founding book:** the user's agent writes every description as it plans, and storytree writes
+    none (ADR-0625 D1).
+  - A missing description says so, instead of leaving a blank.
+  - Each contract shows whether the agent reported it red before green, from the history the
+    library keeps (ADR-0630 D2).
+  - The "storytree saw" column appears only where something wrote it (0.3's own project, from its
+    seed). Elsewhere the agent's report stands alone, labelled as the agent's.
+  - Cross-story capability links are shown, the same ones the arc surface shows.
+- **Leaves out (vs 0.2):** 0.2's story panel, part of a 5,624-line studio component, with its
+  pannable sub-map, ancestor and descendant highlighting, session dock and library drawer.
+
+**Contracts:**
+1. A story whose third capability builds on the first two opens to its sentences and its
+   capabilities in build order, each with its sentences and its health as the agent reports it, and
+   a diagram with exactly two arrows.
+2. A capability that builds on a capability in another story shows an arrow to it, named with that
+   story, and marked if it has not landed yet.
+3. A capability with no description says "no description yet" instead of leaving a blank.
+4. A contract the agent reported red, then green, shows "red, then green"; one reported only green
+   says so.
+5. Storytree's own column shows beside the agent's report only where something wrote it.
+
+## 5 · Agent capability claims
+
+Shows which agent holds which capability right now, with the agent's one-line reason, at that
+capability in its story node. It follows the agent link's claims and sessions, so the marker of an
+agent that has gone quiet fades, and a session whose hooks never reported in is flagged rather than
+shown as idle.
+
+- **Depends on:** 3. It reads the agent link's claims and sessions through the arc surface's live
+  reading, which re-checks the clock once a minute, so a marker fades even when no new line arrives.
+- **Its shelf,** founding book first:
+  - **Founding book:** a claim is never a sign of health (carried from 0.2).
+  - A missing hook never reads as an agent doing nothing (ADR-0626 D4).
+- **Leaves out (vs 0.2):** the orbiting "wisps" in three grades, build wisps coloured by gate phase,
+  departing wisps and subagent tints. 0.3 has no grades and no queue (ADR-0626 D3).
+
+**Contracts:**
+1. Session A claims "email form", and a marker reading "Claude Code: building the email form"
+   appears at that capability.
+2. After the quiet time with no new line the marker fades, and when A reports the capability landed
+   it goes.
+3. A session seen only through its tool calls is flagged "hooks not running".
+4. None of this changes how a capability's state is drawn.
+
+## 6 · Unclaimed work
+
+Shows the edits and commands made by agents holding no claim: who made them, which files, and when,
+with a count always in view. It is how work outside the plan stays visible, even from an agent that
+never calls storytree.
+
+- **Depends on:** 3. It reads the agent link's attribution of each edit and command through the arc
+  surface's live reading.
+- **Its shelf,** founding book first:
+  - **Founding book:** unclaimed work is never guessed onto a story. Storytree cannot know which
+    story it belongs to, so it says so plainly.
+  - **U1:** it is listed beside the forest, with a count on the forest view.
+  - **N2:** it is named "unclaimed work", not "unplanned activity" (ADR-0632 D5). It comes from
+    setup before a plan, fixes between claims, agents that skip claiming, agents that ignore
+    storytree, and seam or glue work done while holding no claim. Glue done under a claim counts
+    toward that claim. Reducing it is a post-MVP concern: the MVP shows it honestly.
+- **Leaves out (vs 0.2):** nothing to leave. 0.2 had no picture of unclaimed work: every mark on its
+  map was tied to a claimed unit, and its hooks never recorded edits.
+
+**Contracts:**
+1. Session B edits two files while holding no claim: the list shows B, both files and the time, the
+   count reads 2, and no story node changes.
+2. B then claims a capability, and its next edit counts toward that capability instead.
+3. An agent that never calls storytree still appears, through its hooks.
+
+## 7 · Library entrypoints
+
+Inside the drill-down, shows the story's and each capability's shelf of front-cover decisions as
+spines (each cover's title and first line), with the founding book first. Opening a book shows its
+text and the titles of the notes it links to and from.
+
+- **Depends on:** 4. It reads the library's shelf read (`frontCovers`) and `relatedNotes`, and the
+  titles of the notes a book links out to from the change history the app already follows, since the
+  library has no "read one note" function. It is not a priority (ADR-0627 D8), so it lands last.
+- **Its shelf,** founding book first:
+  - **Founding book:** one step in, and no note browser (ADR-0625 D4). Opening a book lists its
+    links' titles, and stops there.
+  - The founding book first, then oldest first (ADR-0627 D2).
+- **Leaves out (vs 0.2):** the library drawer and its lists of citations: 0.2 offered agents 3,351
+  pointers to decisions and 156 were opened, 4.7% (ADR-0464, quoted in ADR-0627).
+
+**Contracts:**
+1. A capability with three front covers shows three spines, founding book first, each with its
+   title and first line.
+2. Opening a book shows its full text, and the titles of the notes that link to it and of those it
+   links to.
+3. An empty shelf says "no decisions on this shelf yet".
+4. A decision on another capability's shelf never appears here.
+
+---
+
+## Also out of this story
+
+- **The 0.3 app's frame** belongs to the 0.3 app's own story (ADR-0632 D4, on
+  `storytree-0-3-app-arc`): its database, the project switcher, hosting the views with the
+  Forest | Arcs toggle, and which project it opens on. Until that story is built, the forest uses
+  today's project dropdown as it is.
+- **Work states and the live reading** belong to the arc surface's tree (ADR-0632 D3): the one rule
+  for planned, in progress or landed, and the reading that keeps both views current. The forest uses
+  them. Whichever surface reaches a shared piece first builds it under the other tree's name, and
+  whichever lands first retires today's plain list.
+- **The planet** (ADR-0629): islands on a sphere, with the project's knowledge inside as a core. It
+  builds on this forest once it is built, on its own arc, and arrives as new books on the shelves of
+  Story nodes and Story node render, not as a new tree.
+- **Storytree's own check of the tests** is out of the MVP (ADR-0630): the forest shows what the
+  agent reports, labelled as the agent's.
+- **Left out entirely, compared with 0.2** (ADR-0632 D6): the layout engine, the 2D map, the
+  look-measuring rig, the website mount, health from signed verdicts, wisps, the story panel's
+  sub-map, session dock and library drawer, citation lists, art research and a second style, and
+  0.2's forest in the 0.3 app.
