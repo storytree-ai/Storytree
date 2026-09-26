@@ -80,6 +80,13 @@ running it says so at once, so everything built on it quietly does nothing.
   folder, the shared "lobby" checkout that could claim nothing, and repairing worktrees or
   installing packages at session start. 0.2 had one shared database and no idea of a project.
   Connecting through the library's Google Cloud option is left for later.
+- **As built:** the marker is `.storytree.json` in the project's folder, holding
+  `{ "project": "<name>" }`; a folder belongs to the nearest marker at or above it, and a git
+  worktree without one is looked up in the folder it is a worktree of. Setting a folder up opens the
+  project in the library first, so the library's own name rule judges the name. Where storytree is
+  comes from the owner record `@storytree/local-postgres` keeps beside the app's data directory
+  (`~/.storytree/0.3/pgdata.owner.json`, or under `STORYTREE_HOME`): a record whose process has
+  ended is a crashed app's, and its address is never tried.
 
 **Contracts** (each one a test):
 1. Setting a folder up as project "site" leaves a marker in it naming "site", and asking from the

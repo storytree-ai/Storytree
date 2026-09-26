@@ -9,9 +9,10 @@ import path from "node:path";
 
 /** Run `body` with a fresh, empty directory, and remove it afterwards. */
 export async function withTempDir<T>(body: (dir: string) => Promise<T> | T): Promise<T> {
-  // realpath: on macOS the temp directory is reached through a symlink (/var -> /private/var), and
-  // git reports the real path.
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "storytree-link-")));
+  // The real path: on macOS the temp directory is reached through a symlink (/var -> /private/var),
+  // and on Windows it can be spelled with short (8.3) names (C:\Users\RUNNER~1\...); git and
+  // project routing both report the long, real one.
+  const dir = realpathSync.native(mkdtempSync(path.join(tmpdir(), "storytree-link-")));
   try {
     return await body(dir);
   } finally {
