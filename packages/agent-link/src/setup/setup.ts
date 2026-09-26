@@ -1,28 +1,24 @@
 /**
- * Capability 8 · Setup check (stories/agent-link.md). Not built yet: this stub gives the contracts'
- * tests something to fail against.
+ * Capability 8 · Setup check (stories/agent-link.md): the user installs only the storytree tool
+ * server, and every session start checks storytree's setup and fixes whatever is missing on the
+ * spot: it opens storytree if it is closed, registers the hooks if they are missing, and, in a
+ * folder that isn't a project yet, has the agent ask the user whether to set one up. Nothing is
+ * created without that yes (ADR-0626 D5).
+ *
+ * The tool server runs this at its start, and again whenever the agent calls check_setup; the
+ * agent's part (asking the user, and firing each hook to verify it) goes through check_setup's
+ * answer.
  */
+import path from "node:path";
 
-/** The command a harness runs as storytree's hook: a Node and the built hook script. */
-export interface HookCommand {
-  readonly node: string;
-  readonly script: string;
-}
+import { findProject } from "../routing/index.js";
+import { defaultHomes, registerHooks, type HookCommand, type Homes, type HooksReport } from "./hooks-config.js";
+import { openStorytree, type StorytreeOpened } from "./open-storytree.js";
 
-/** Where each harness keeps its settings: Claude Code's config folder (~/.claude) and Codex's home (~/.codex). */
-export interface Homes {
-  readonly claude?: string;
-  readonly codex?: string;
-}
-
-export type HookRegistration = "registered" | "already registered" | "not here";
-
-export interface HooksReport {
-  readonly "claude-code": HookRegistration;
-  readonly codex: HookRegistration;
-}
-
-export type StorytreeOpened = { state: "running"; url: string } | { state: "opened"; url: string } | { state: "not running"; message: string };
+export { defaultHomes, registerHooks, removeHooks } from "./hooks-config.js";
+export type { HookCommand, HookRegistration, Homes, HooksReport, RemovalReport } from "./hooks-config.js";
+export { openStorytree } from "./open-storytree.js";
+export type { StorytreeOpened } from "./open-storytree.js";
 
 export interface SetupOptions {
   /** The folder the session works in. */
@@ -39,22 +35,32 @@ export interface SetupOptions {
 
 export interface SetupReport {
   readonly storytree: StorytreeOpened;
+  /** What registering the hooks found; undefined when this server has no hook command to register. */
   readonly hooks: HooksReport | undefined;
+  /** The project the folder is set up as, or the name to suggest when asking the user. */
   readonly project: { status: "set up"; name: string } | { status: "ask"; suggestion: string };
 }
 
-export async function runSetupCheck(_options: SetupOptions): Promise<SetupReport> {
-  throw new Error("the setup check is not built yet");
+/** Check the setup for a session in `options.folder`, and fix what can be fixed without asking. */
+export async function runSetupCheck(options: SetupOptions): Promise<SetupReport> {
+  const storytree = await openStorytree({
+    ...(options.storytreeHome === undefined ? {} : { home: options.storytreeHome }),
+    ...(options.openWaitMs === undefined ? {} : { waitMs: options.openWaitMs }),
+  });
+  const hooks = options.hook === undefined ? undefined : registerHooks(options.homes ?? defaultHomes(), options.hook);
+  const found = findProject(options.folder);
+  const project = found.project === undefined ? { status: "ask" as const, suggestion: suggestedName(options.folder) } : { status: "set up" as const, name: found.project };
+  return { storytree, hooks, project };
 }
 
-export function registerHooks(_homes: Homes, _hook: HookCommand): HooksReport {
-  throw new Error("the setup check is not built yet");
-}
-
-export function removeHooks(_homes: Homes): { "claude-code": "removed" | "none"; codex: "removed" | "none" } {
-  throw new Error("the setup check is not built yet");
-}
-
-export async function openStorytree(_options: { home?: string; waitMs?: number } = {}): Promise<StorytreeOpened> {
-  throw new Error("the setup check is not built yet");
+/** A project name to suggest for `folder`: its own name, as the library's project-name rule allows. */
+export function suggestedName(folder: string): string {
+  const name = path
+    .basename(path.resolve(folder))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return name === "" ? "my-project" : name;
 }

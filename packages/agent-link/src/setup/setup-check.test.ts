@@ -164,7 +164,7 @@ test("8.3 with storytree closed, a session start opens it", async () => {
     } finally {
       const record = `${dataDir}.owner.json`;
       const { pid } = existsSync(record) ? (readJson(record) as { pid?: number }) : {};
-      if (pid !== undefined) process.kill(pid);
+      if (pid !== undefined) await stop(pid);
     }
 
     // With nothing saying how to open it, it says so rather than waiting.
@@ -239,6 +239,23 @@ test("8.5 the agent fires a test of each hook, and the connection shows as verif
     }
   });
 });
+
+/** Kill process `pid`, and wait until it has gone. */
+async function stop(pid: number): Promise<void> {
+  try {
+    process.kill(pid);
+  } catch {
+    return; // already gone
+  }
+  for (let waited = 0; waited < 5_000; waited += 100) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
 
 /** Run the built hook as `harness` runs it, with a recorded input moved to `folder` and `session`. */
 function fireHook(storytreeHome: string, harness: string, fixture: string, folder: string, session: string): Promise<void> {

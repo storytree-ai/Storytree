@@ -66,6 +66,7 @@ async function run(): Promise<void> {
   try {
     postgres = await start({ dataDir: home.pgdata, owner: APP_OWNER, bin: postgresBinaries(), log: (message) => console.log(`Postgres: ${message}`) });
     storytree = await connect({ url: postgres.url });
+    recordLaunch();
   } catch (error) {
     problem =
       error instanceof DataDirInUseError
@@ -78,6 +79,21 @@ async function run(): Promise<void> {
   const project = chooseProject(projects, args.project);
   const window = openWindow({ ...(project === undefined ? {} : { project }), ...(problem === undefined ? {} : { problem }) });
   if (args.smoke) await smoke(window, project);
+}
+
+/**
+ * Record how this app was started, so that an agent's session start can open it again when it is
+ * closed (the agent link's setup check). A packaged portable build runs from a temporary copy, so
+ * the portable file itself is what is recorded; in development, Electron and the app's folder.
+ */
+function recordLaunch(): void {
+  const command = app.isPackaged ? (process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath) : process.execPath;
+  const args = app.isPackaged ? [] : [app.getAppPath()];
+  try {
+    writeFileSync(home.launchRecord, `${JSON.stringify({ command, args }, null, 2)}\n`);
+  } catch (error) {
+    console.error(`recording how to open the app: ${messageOf(error)}`);
+  }
 }
 
 /** The Postgres binaries: shipped in the packaged app's resources, or from node_modules in development. */

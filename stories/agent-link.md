@@ -311,6 +311,16 @@ set one up.
 - **Leaves out (vs 0.2):** 0.2 never plugged into anyone's own agent. Its hooks were committed into
   its own repo's settings, nothing could undo them, and nothing checked that they fired: its Codex
   hooks silently never ran.
+- **As built:** the tool server runs the check at every start, and again when the agent calls
+  `check_setup`, which the habits card has it do first; `set_up_project` is the user's yes. Hooks go
+  into each harness's user-level settings, recognised by their script (`storytree-hook.mjs`) so
+  nothing else is touched: Claude Code's `settings.json` (a program with arguments, no shell;
+  start and edit hooks run in the background), and Codex's `hooks.json` (one command line for the
+  machine's shell). `storytree-setup remove` takes them out. The app records how it was started in
+  `app.json` in its home, which is how a session start opens it. Hooks registered during a session
+  fire from the next one, so a first session's check says to start a new session, or, for Codex,
+  to approve the hooks once in a terminal. The file edit and command the agent fires to verify the
+  hooks are `.storytree-check` and `echo storytree-check`.
 
 **Contracts:**
 1. In a throwaway home with only the tool server installed, the first session start registers the

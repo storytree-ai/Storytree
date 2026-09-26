@@ -3,8 +3,10 @@
  * to plan work, see the plan and who is on what, claim, report red, green and landed, and search,
  * read and write notes. Each tool is a thin wrapper over the library's API and the claims, and
  * answers in a short plain sentence the agent can act on, with what it made or found as data too.
+ * The habits card (capability 7) is handed to every session as the server's instructions, and the
+ * setup check's two tools (capability 8) sit beside the others.
  *
- * Every call, whatever the tool:
+ * Every call to a capability-6 tool:
  * - is routed from the folder the server works in (capability 1), afresh each time, so a project
  *   set up mid-session is found, and a storytree that has stopped is noticed;
  * - answers "storytree isn't running, carry on without it" while it is not;
@@ -15,18 +17,10 @@
  *   never a crash.
  */
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 import { McpServer, type CallToolResult, type ServerContext } from "@modelcontextprotocol/server";
-import {
-  ConnectionError,
-  DependencyLoopError,
-  MissingReferenceError,
-  NewerSchemaError,
-  ProjectNameError,
-  SchemaError,
-  UnknownTypeError,
-  type Library,
-} from "@storytree/library";
+import type { Library } from "@storytree/library";
 import type { z } from "zod";
 
 import type { ActivityLog } from "../activity/index.js";
@@ -34,10 +28,15 @@ import { habitsCard } from "../instructions/index.js";
 import { route } from "../routing/index.js";
 import { QUIET_MS } from "../sessions/index.js";
 import type { SetupOptions } from "../setup/index.js";
+import { isUnreachable, NOT_RUNNING_ANSWER, refusalOf, result, type Answer } from "./answers.js";
 import { registerClaimTools } from "./claim-tools.js";
 import { Connections } from "./connections.js";
 import { registerNoteTools } from "./note-tools.js";
 import { registerPlanTools } from "./plan-tools.js";
+import { registerSetupTools } from "./setup-tools.js";
+
+export { NOT_RUNNING_ANSWER };
+export type { Answer };
 
 /** What the tool server needs to know about where it runs. */
 export interface AgentToolOptions {
@@ -59,10 +58,8 @@ export interface AgentTools {
   close(): Promise<void>;
 }
 
-/** What every tool answers while storytree is not running. */
-export const NOT_RUNNING_ANSWER = "storytree isn't running, carry on without it";
 /** What every tool answers in a folder that is not a storytree project. */
-export const NOT_A_PROJECT_ANSWER = "this folder isn't a storytree project, so storytree has nothing to keep here; carry on without it";
+export const NOT_A_PROJECT_ANSWER = "this folder isn't a storytree project, so storytree has nothing to keep here; call check_setup to see what to do, or carry on without it";
 
 /** The session calling, as the harness names it. */
 export interface Caller {
@@ -81,13 +78,6 @@ export interface Call {
   readonly quietMs: number;
 }
 
-/** A tool's answer: one plain sentence (or a few lines), what it made or found as data, and whether it refused. */
-export interface Answer {
-  readonly text: string;
-  readonly data?: Record<string, unknown>;
-  readonly refused?: boolean;
-}
-
 /** Registers one tool: its name, what it is for, its arguments, and what it does with them. */
 export type Define = <S extends z.ZodObject>(name: string, description: string, input: S, act: (args: z.output<S>, call: Call) => Promise<Answer>) => void;
 
@@ -99,13 +89,14 @@ export function createAgentTools(options: AgentToolOptions): AgentTools {
   // A session id of its own, for a harness that names none: one server process serves one session.
   const ownSession = `storytree-mcp-${randomUUID()}`;
   const locate = options.dataDir === undefined ? {} : { dataDir: options.dataDir };
+  const callerOf = (context: ServerContext): Caller => callerFrom(server, context, env, ownSession);
 
   const define: Define = (name, description, input, act) => {
     const handle = async (args: unknown, context: ServerContext): Promise<CallToolResult> => {
       const where = route(options.folder, locate);
       if (where.status === "not-running") return result({ text: NOT_RUNNING_ANSWER });
       if (where.status === "not-a-project") return result({ text: NOT_A_PROJECT_ANSWER });
-      const caller = callerOf(server, context, env, ownSession);
+      const caller = callerOf(context);
       try {
         const { library, log } = await connections.reach(where.url, where.project);
         await log.append(where.project, { ...lineOf(caller), source: "tool", folder: options.folder, kind: "tool-called", tool: name });
@@ -123,6 +114,14 @@ export function createAgentTools(options: AgentToolOptions): AgentTools {
     server.registerTool(name, { description, inputSchema: input }, handle as never);
   };
 
+  registerSetupTools({
+    server,
+    folder: options.folder,
+    // The storytree home is where the data directory routing reads sits, unless it is named.
+    setup: { ...(options.dataDir === undefined ? {} : { storytreeHome: path.dirname(options.dataDir) }), ...options.setup },
+    connections,
+    callerOf,
+  });
   registerPlanTools(define);
   registerClaimTools(define);
   registerNoteTools(define);
@@ -145,7 +144,7 @@ export function lineOf(caller: Caller): { session: string; harness?: string } {
  * Who is calling. The harness from the client's name (Claude Code calls itself `claude-code`, Codex
  * `codex-mcp-client`); the session from where that harness puts it.
  */
-function callerOf(server: McpServer, context: ServerContext, env: Readonly<Record<string, string | undefined>>, ownSession: string): Caller {
+function callerFrom(server: McpServer, context: ServerContext, env: Readonly<Record<string, string | undefined>>, ownSession: string): Caller {
   const client = server.server.getClientVersion()?.name;
   const harness = client === "codex-mcp-client" ? "codex" : client;
   const meta = (context.mcpReq._meta ?? {}) as Record<string, unknown>;
@@ -153,34 +152,6 @@ function callerOf(server: McpServer, context: ServerContext, env: Readonly<Recor
   const fromEnv = text(env.CLAUDE_CODE_SESSION_ID);
   const session = (harness === "claude-code" ? (fromEnv ?? fromMeta) : (fromMeta ?? fromEnv)) ?? ownSession;
   return harness === undefined ? { session } : { session, harness };
-}
-
-/**
- * The answer as the harness gets it: the sentence as text, and any data beside it, carrying the
- * sentence too. A harness may show the agent the data rather than the text (Claude Code 2.1.212
- * does), and the sentence is what the agent acts on.
- */
-function result(answer: Answer): CallToolResult {
-  return {
-    content: [{ type: "text", text: answer.text }],
-    ...(answer.data === undefined ? {} : { structuredContent: { message: answer.text, ...answer.data } }),
-    ...(answer.refused === true ? { isError: true } : {}),
-  };
-}
-
-/** A refusal the agent can read: the library's own message for the refusals it makes, said plainly otherwise. */
-function refusalOf(error: unknown): string {
-  const refusals = [MissingReferenceError, SchemaError, DependencyLoopError, UnknownTypeError, NewerSchemaError, ProjectNameError, ConnectionError];
-  if (refusals.some((kind) => error instanceof kind)) return `storytree refused that: ${(error as Error).message}`;
-  return `storytree could not do that: ${error instanceof Error ? error.message : String(error)}`;
-}
-
-/** Storytree could not be reached, or went away: the connection failed, dropped or timed out. */
-function isUnreachable(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  const { code, message } = error as { code?: unknown; message?: unknown };
-  const codes = ["ECONNREFUSED", "ECONNRESET", "EPIPE", "ETIMEDOUT", "57P01", "57P02", "57P03", "08000", "08001", "08003", "08004", "08006"];
-  return (typeof code === "string" && codes.includes(code)) || (typeof message === "string" && /Connection terminated|timeout exceeded when trying to connect/.test(message));
 }
 
 function text(value: unknown): string | undefined {
