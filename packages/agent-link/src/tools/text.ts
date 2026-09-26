@@ -1,0 +1,48 @@
+/** How the agent tools put records into their short sentences. */
+import type { Note } from "@storytree/library";
+
+/** A title, quoted as the tools quote names. */
+export function quoted(title: string): string {
+  return `"${title}"`;
+}
+
+/** A note's spine: what it is called, the way a shelf or a search result shows it. */
+export function spineOf(note: Note): string {
+  switch (note.type) {
+    case "decision":
+      return note.fields.title;
+    case "definition":
+      return note.fields.term;
+    case "memory":
+      return firstLine(note.fields.text);
+  }
+}
+
+/** A note's first line, below its spine: the decision's text or the definition's meaning, begun. */
+export function firstLineOf(note: Note): string {
+  switch (note.type) {
+    case "decision":
+      return firstLine(note.fields.text);
+    case "definition":
+      return firstLine(note.fields.meaning);
+    case "memory":
+      return "";
+  }
+}
+
+/** A note in full, as opening it shows it. */
+export function wholeOf(note: Note): string {
+  switch (note.type) {
+    case "decision":
+      return `Decision ${quoted(note.fields.title)} (${note.id}):\n${note.fields.text}`;
+    case "definition":
+      return `Definition of ${quoted(note.fields.term)} (${note.id}):\n${note.fields.meaning}`;
+    case "memory":
+      return `Memory (${note.id}):\n${note.fields.text}`;
+  }
+}
+
+function firstLine(text: string): string {
+  const line = text.split(/\r?\n/, 1)[0] ?? "";
+  return line.length > 120 ? `${line.slice(0, 117)}...` : line;
+}
