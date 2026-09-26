@@ -93,6 +93,12 @@ node and a retired story's node goes, with nothing arranged by hand.
 - **Leaves out (vs 0.2):** 0.2's layout engine, which ranked stories by their dependencies, packed
   them onto a hex grid and nudged neighbours apart as islands grew, so one story's change could move
   another's island. In 0.3 a story has no dependencies of its own to rank by.
+- **As built:** `storyNodes(tree, history)` in `packages/forest`, a pure function of the library's
+  `projectTree()` and `changesSince(0)`. A node carries the story's id and title, its health as the
+  agent reports it (the library's reported column, rolled up from its contracts), its place number,
+  and where that place is, in place-widths from the centre. The spiral's turns are one place-width
+  apart and its places one width apart along it, so no two places are closer than 0.97 of a width,
+  and a hundred stories sit within 5.7 widths of the centre.
 
 **Contracts** (each one a test):
 1. Three stories give three story nodes, each with its title and its overall health as the agent
