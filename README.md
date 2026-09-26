@@ -18,10 +18,11 @@ project and an optional Google Cloud connection. Its eight capabilities are list
 
 Every change reaches `main` through a pull request. CI
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) installs, typechecks and runs the tests on
-Linux and on macOS, against the merge of the branch with `main`, and merges the pull request once
-they pass on both. `main` is protected, so nothing merges without that check. A draft pull request
-is never merged: open one as a draft to hold it. Storytree ships for Windows first; the macOS run
-keeps the code working on a Mac as it is written, so Mac support later is packaging, not porting.
+Linux, macOS and Windows, against the merge of the branch with `main`, and merges the pull request
+once they pass on all three. `main` is protected, so nothing merges without that check. A draft pull
+request is never merged: open one as a draft to hold it. Storytree ships for Windows first; the
+macOS run keeps the code working on a Mac as it is written, so Mac support later is packaging, not
+porting.
 
 When an increment lands, `pnpm test-ratio` prints how many lines of test code there are for each
 line of implementation, overall and per package, counting code lines only. A rising ratio is a
