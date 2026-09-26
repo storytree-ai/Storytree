@@ -1,11 +1,16 @@
 /**
  * Opening storytree when it is closed. The storytree app records how it was started, in
  * `<storytree home>/app.json` (`{ "command": ..., "args": [...] }`), each time it starts; opening
- * storytree is starting that again, and waiting until its Postgres is listening (as project routing
- * sees it: a live owner record beside the app's data directory).
+ * storytree is starting that again, and waiting until its Postgres accepts connections.
+ *
+ * Waiting for the owner record alone is not enough: the app's Postgres writes where it will listen
+ * before it starts listening, and a call made in between reads as "not running" (seen in the agent
+ * link's live check). So storytree counts as up once its owner record is live and its port accepts
+ * a connection.
  */
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { connect } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -24,8 +29,17 @@ export interface OpenOptions {
 export async function openStorytree(options: OpenOptions = {}): Promise<StorytreeOpened> {
   const home = options.home ?? storytreeHome();
   const dataDir = path.join(home, "pgdata");
+  const deadline = Date.now() + (options.waitMs ?? 60_000);
+
   const now = locateStorytree({ dataDir });
-  if (now.running) return { state: "running", url: now.url };
+  if (now.running) {
+    // Running, as its owner record says; if it has only just started, it may not answer yet.
+    while (!(await accepts(now.url))) {
+      if (Date.now() >= deadline) return { state: "not running", message: "storytree is starting but its database isn't answering yet: try again in a moment" };
+      await sleep(250);
+    }
+    return { state: "running", url: now.url };
+  }
 
   const app = appRecord(home);
   if (app === undefined) {
@@ -41,16 +55,32 @@ export async function openStorytree(options: OpenOptions = {}): Promise<Storytre
   } catch (error) {
     failed = error instanceof Error ? error.message : String(error);
   }
-  const deadline = Date.now() + (options.waitMs ?? 60_000);
   while (failed === undefined && Date.now() < deadline) {
     await sleep(250);
     const at = locateStorytree({ dataDir });
-    if (at.running) return { state: "opened", url: at.url };
+    if (at.running && (await accepts(at.url))) return { state: "opened", url: at.url };
   }
   return {
     state: "not running",
     message: failed === undefined ? "storytree was opened but did not start in time: open the storytree app" : `storytree could not be opened (${failed}): open the storytree app`,
   };
+}
+
+/** Whether the server at `url` accepts a connection within half a second. */
+function accepts(url: string): Promise<boolean> {
+  const { hostname, port } = new URL(url);
+  return new Promise((resolve) => {
+    const socket = connect({ host: hostname, port: Number(port), timeout: 500 });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once("error", () => resolve(false));
+  });
 }
 
 /** How the app was last started, as it recorded it; undefined when it never recorded it. */
