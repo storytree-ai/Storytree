@@ -13,19 +13,19 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { Client } from "@modelcontextprotocol/client";
-import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { connect, type Library } from "@storytree/library";
 
 import { openActivityLog, type ActivityLog, type Line } from "../activity/index.js";
 import { readClaims } from "../claims/index.js";
 import { MARKER_FILE } from "../routing/index.js";
+import { claudeCode, codex, idOf, withAgent } from "../testing/agent.js";
 import { withTempDir } from "../testing/folders.js";
-import { dropTestProjects, testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
-import { createAgentTools, NOT_RUNNING_ANSWER } from "./index.js";
+import { dropTestProjects, testServerUrl, uniqueProjectName } from "../testing/pg.js";
+import { NOT_RUNNING_ANSWER } from "./index.js";
 
 /** The toolbox: every tool the server offers. */
 const TOOLS = [
+  "check_setup",
   "claim",
   "edit_plan",
   "land",
@@ -37,76 +37,10 @@ const TOOLS = [
   "release",
   "report",
   "search_notes",
+  "set_up_project",
   "show_plan",
   "write_note",
 ];
-
-interface Answer {
-  text: string;
-  isError: boolean;
-  /** What the tool handed back as data, beside its sentence. */
-  data: Record<string, unknown>;
-}
-
-interface Agent {
-  call(tool: string, args?: Record<string, unknown>, meta?: Record<string, unknown>): Promise<Answer>;
-  tools(): Promise<string[]>;
-  close(): Promise<void>;
-}
-
-interface AgentOptions {
-  /** The client's name: `claude-code` (the default) or `codex-mcp-client`, as each harness calls itself. */
-  readonly client?: string;
-  /** The server's environment. Claude Code's session id is there. */
-  readonly env?: Record<string, string>;
-  /** Sent on every call, as Codex sends its session id. */
-  readonly meta?: Record<string, unknown>;
-  readonly dataDir?: string;
-  readonly quietMs?: number;
-}
-
-/** A tool server for `folder`, and a client connected to it in memory, as a harness would be. */
-async function agentIn(folder: string, options: AgentOptions = {}): Promise<Agent> {
-  const tools = createAgentTools({
-    folder,
-    dataDir: options.dataDir ?? testServerDataDir(),
-    env: options.env ?? {},
-    ...(options.quietMs === undefined ? {} : { quietMs: options.quietMs }),
-  });
-  const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-  await tools.server.connect(serverSide);
-  const client = new Client({ name: options.client ?? "claude-code", version: "test" });
-  await client.connect(clientSide);
-  return {
-    async call(tool, args = {}, meta) {
-      const sent = meta ?? options.meta;
-      const result = await client.callTool({ name: tool, arguments: args, ...(sent === undefined ? {} : { _meta: sent }) });
-      const content = result.content as { type: string; text?: string }[];
-      return {
-        text: content.map((block) => block.text ?? "").join("\n"),
-        isError: result.isError === true,
-        data: (result.structuredContent ?? {}) as Record<string, unknown>,
-      };
-    },
-    async tools() {
-      return (await client.listTools()).tools.map((tool) => tool.name).sort();
-    },
-    async close() {
-      await client.close();
-      await tools.close();
-    },
-  };
-}
-
-/** Claude Code, session `session`: its id in the server's environment. */
-function claudeCode(session: string, extra: AgentOptions = {}): AgentOptions {
-  return { client: "claude-code", env: { CLAUDE_CODE_SESSION_ID: session }, ...extra };
-}
-
-/** Codex, session `session`: its id on every call, as Codex 0.155 sends it. */
-function codex(session: string, extra: AgentOptions = {}): AgentOptions {
-  return { client: "codex-mcp-client", meta: { threadId: session, sessionId: session }, ...extra };
-}
 
 interface World {
   folder: string;
@@ -135,24 +69,6 @@ async function withProject(body: (world: World) => Promise<void>): Promise<void>
       }
     }
   });
-}
-
-/** Run `body` with an agent, and close it afterwards. */
-async function withAgent(folder: string, options: AgentOptions, body: (agent: Agent) => Promise<void>): Promise<void> {
-  const agent = await agentIn(folder, options);
-  try {
-    await body(agent);
-  } finally {
-    await agent.close();
-  }
-}
-
-/** The id a planning or writing tool handed back. */
-function idOf(answer: Answer): string {
-  assert.equal(answer.isError, false, answer.text);
-  const { id } = answer.data;
-  assert.equal(typeof id, "string", `an id in ${JSON.stringify(answer.data)}`);
-  return id as string;
 }
 
 test("6.1 a test client lists the tools, then plans an arc, a story, a capability and a contract, which appear in the library's tree, and it can correct each of them", async () => {
@@ -275,7 +191,9 @@ test('6.4 a bad call gets a readable refusal rather than a crash, and with story
         ["open", { id: "decision_000000000000" }],
         ["write_note", { kind: "memory", text: "Mailgun needs a verified domain" }],
       ];
-      assert.deepEqual(calls.map(([tool]) => tool).sort(), TOOLS, "every tool is tried");
+      // Every tool but the setup check's two, which open storytree when it is closed (capability 8).
+      const setupTools = ["check_setup", "set_up_project"];
+      assert.deepEqual(calls.map(([tool]) => tool).sort(), TOOLS.filter((tool) => !setupTools.includes(tool)), "every tool is tried");
       for (const [tool, args] of calls) {
         const answer = await agent.call(tool, args);
         assert.deepEqual({ text: answer.text, isError: answer.isError }, { text: NOT_RUNNING_ANSWER, isError: false }, tool);

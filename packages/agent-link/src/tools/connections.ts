@@ -22,20 +22,22 @@ export class Connections {
   #log: Promise<ActivityLog> | undefined;
   readonly #libraries = new Map<string, Promise<Library>>();
 
-  /** The library of `project` and the activity log, on the storytree at `url`. */
-  async reach(url: string, project: string): Promise<Reached> {
+  /** The connection to the storytree at `url`: the library's server, where projects are opened. */
+  async server(url: string): Promise<Storytree> {
     if (this.#url !== url) {
       await this.close();
       this.#url = url;
     }
-    const storytree = (this.#storytree ??= forgetOnFailure(connect({ url }), () => (this.#storytree = undefined)));
+    return (this.#storytree ??= forgetOnFailure(connect({ url }), () => (this.#storytree = undefined)));
+  }
+
+  /** The library of `project` and the activity log, on the storytree at `url`. */
+  async reach(url: string, project: string): Promise<Reached> {
+    const storytree = await this.server(url);
     const log = (this.#log ??= forgetOnFailure(openActivityLog(url, { connectTimeoutMs: CONNECT_TIMEOUT_MS }), () => (this.#log = undefined)));
     let library = this.#libraries.get(project);
     if (library === undefined) {
-      library = forgetOnFailure(
-        storytree.then((server) => server.openProject(project)),
-        () => this.#libraries.delete(project),
-      );
+      library = forgetOnFailure(storytree.openProject(project), () => this.#libraries.delete(project));
       this.#libraries.set(project, library);
     }
     return { library: await library, log: await log };
