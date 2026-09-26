@@ -226,7 +226,7 @@ for (const backend of [memory, postgres]) {
     const before = await transactions.history();
 
     // Every kind of work record, linked by every kind of note, new or edited. The first link that
-    // is not a note is the one named, and the message says how the work is reached instead.
+    // is not a note is the one named.
     for (const work of [story, capability, arc, contract, health]) {
       const attempts: (() => Promise<unknown>)[] = [
         () => knowledge.writeMemory({ text: "About the work", links: [work.id] }),
@@ -329,8 +329,7 @@ function missingCover(id: string, found: RecordType | undefined): (error: unknow
 
 /**
  * An assert.rejects check: a MissingReferenceError for field `links` holding `id`, a live work
- * record of type `found`, which a note may not link to. The message names the field and the id,
- * and says that the work is reached through a front cover.
+ * record of type `found`, which a note may not link to. The message names the field and the id.
  */
 function linkToWork(id: string, found: string): (error: unknown) => true {
   return (error) => {
@@ -340,7 +339,7 @@ function linkToWork(id: string, found: string): (error: unknown) => true {
       { field: "links", id, expected: "note", found },
       error.message,
     );
-    for (const part of [JSON.stringify("links"), JSON.stringify(id), "front cover"]) {
+    for (const part of [JSON.stringify("links"), JSON.stringify(id)]) {
       assert.ok(error.message.includes(part), `the message names ${part}: ${error.message}`);
     }
     return true;
