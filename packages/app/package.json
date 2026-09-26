@@ -1,0 +1,22 @@
+{
+  "name": "@storytree/app",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@storytree/agent-link": "workspace:*",
+    "@storytree/library": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
+    "tsx": "^4.23.15",
+    "typescript": "~7.0.2"
+  }
+}
