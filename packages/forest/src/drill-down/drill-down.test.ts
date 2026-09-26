@@ -18,8 +18,16 @@ function contract(id: string, reported: HealthState, verified?: HealthState): An
   return { id, title: `${id} works`, health: { reported: column(reported, reported !== "not-checked"), verified: column(verified ?? "not-checked", verified !== undefined) } };
 }
 
-function capability(id: string, dependsOn: string[], contracts: AnnotatedContract[] = [], description: string | undefined = `What ${id} does. Why it matters.`): AnnotatedCapability {
-  return { id, title: `The ${id}`, ...(description === undefined ? {} : { description }), dependsOn, contracts, health: { reported: { state: "not-checked" }, verified: { state: "not-checked" } } };
+/** A capability as the library hands it over: its health rolled up from its contracts (all passing is passing, any failing is failing). `null` for no description. */
+function capability(id: string, dependsOn: string[], contracts: AnnotatedContract[] = [], description: string | null = `What ${id} does. Why it matters.`): AnnotatedCapability {
+  const rollUp = (states: HealthState[]): HealthColumn => ({
+    state: states.includes("failing") ? "failing" : states.length > 0 && states.every((state) => state === "passing") ? "passing" : "not-checked",
+  });
+  const health = {
+    reported: rollUp(contracts.map((each) => each.health.reported.state)),
+    verified: rollUp(contracts.map((each) => each.health.verified.state)),
+  };
+  return { id, title: `The ${id}`, ...(description === null ? {} : { description }), dependsOn, contracts, health };
 }
 
 function story(id: string, ...capabilities: AnnotatedCapability[]): AnnotatedStory {
@@ -66,7 +74,7 @@ test("4.2 a capability that builds on one in another story points at it, named w
 });
 
 test("4.3 a capability with no description says so instead of leaving a blank", () => {
-  const tree: AnnotatedTree = { stories: [story("s", capability("bare", [], [], undefined))], arcs: [] };
+  const tree: AnnotatedTree = { stories: [story("s", capability("bare", [], [], null))], arcs: [] };
   assert.equal(drillDown(tree, "s", workStates([]), [])?.capabilities[0]?.description, NO_DESCRIPTION);
 });
 
@@ -87,7 +95,7 @@ test("4.5 storytree's own column shows beside the agent's only where something w
     ["seen", "passing"],
     ["unseen", undefined],
   ]);
-  assert.equal(line?.verified, "passing", "the capability shows it too, since one of its contracts has it");
+  assert.equal(line?.verified, "not-checked", "the capability shows storytree's column too, rolled up, since one of its contracts has an entry");
   const bare = drillDown({ stories: [story("t", capability("d", [], [contract("x", "failing")]))], arcs: [] }, "t", workStates([]), []);
   assert.equal(bare?.capabilities[0]?.verified, undefined);
 });
