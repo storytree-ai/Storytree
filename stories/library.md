@@ -200,6 +200,9 @@ reaches its knowledge.
 2. `relatedNotes(noteId)` returns every note, decision and definition that links to that note.
 3. Editing a decision keeps its old wording in history.
 4. A link to a record that does not exist is refused.
+5. `definitions()` returns every live definition, and nothing else, in creation order. Added for
+   the agent link's definition lookups at each prompt (ADR-0636 D1, b2), which adds `definitions`
+   to 7's list of functions.
 
 ## 7 · Library API
 

@@ -133,13 +133,14 @@ that other processes wrote.
 Small commands that Claude Code and Codex run by themselves when a session starts, after every file
 edit, before and after every shell command, at the end of each turn, and when it ends, each adding
 one line about that session to the agent activity log, so an agent that never calls storytree still
-shows up. They run in the background and
+shows up. At each prompt, one more adds the project's definitions for the terms the prompt names,
+for the agent to read. They run in the background and
 always exit cleanly, so they can never slow down or break the agent, and when storytree isn't
 running they do nothing.
 
 - **Depends on:** 1 and 2.
 - **Leaves out (vs 0.2):** 0.2's six session-start hooks (installing packages, repairing and pruning
-  worktrees, remote setup, a claim reminder), its prompt-time definition lookups and its status line.
+  worktrees, remote setup, a claim reminder) and its status line.
   0.2 never recorded edits or commands at all.
 - **As built:** one command, `storytree-hook <harness>` (`claude-code` or `codex`), built into a
   plain Node script (a 5 KB entry; the database code sits in chunks beside it, loaded only when a
@@ -177,8 +178,10 @@ running they do nothing.
   session reading idle, and another agent could take its claim mid-run. Now a hook also runs
   before each shell command, in the background, and writes a "command started" line under the
   harness's id for the call (`tool_use_id`), which the finish line carries too; a hook at the end
-  of each turn (Stop) writes "turn ended". Codex has no background hooks, so its two run with
-  `--background`: the hook hands its writing to a detached copy of itself and exits.
+  of each turn (Stop) writes "turn ended". Codex's two run with `--background`: the hook hands its
+  writing to a detached copy of itself and exits. *Corrected 2026-09-27:* this said Codex has no
+  background hooks. It has (`async`, seen in Codex 0.155), but it ended a still-running `async` hook
+  when it exited, where a detached copy finishes its write.
 - **The probe for it, run 2026-09-27** (Claude Code 2.1.283 and Codex 0.155, each asked to run a
   command that exits with an error): Claude Code's before-hook for Bash carries the command and the
   call's id. A command that fails fires `PostToolUseFailure`, not `PostToolUse`, so until this fix a
@@ -187,6 +190,18 @@ running they do nothing.
   finishes, which is why the end of the turn closes it. Both harnesses fire Stop at the end of each
   turn; Claude Code's lists the `background_tasks` still running, and a turn that leaves any writes
   no "turn ended" line, since their commands may still run.
+
+- **Added by ADR-0636 D1 (b2), definition lookups at each prompt,** ported from 0.2's
+  `definition-injection.mjs` by behaviour: the hook at each prompt (UserPromptSubmit) reads the
+  project library's definitions (`definitions()`, the library's capability 6) and adds those whose
+  term the prompt names, as JSON `additionalContext`, the form both harnesses take (a probe on
+  2026-09-27 had Claude Code 2.1.283 and Codex 0.155 each repeat a codeword only the hook gave).
+  A definition answers to its term and each `/`-separated part of it, three letters or more; it is
+  found as whole words, ignoring case, `-` and `_`, with its last word plural or not. At most five,
+  the longest first, each once a session (kept in the temporary folder), each shown as its term,
+  its id and its meaning's first line. A prompt whose first 400 characters carry a harness's notice
+  marker (0.2's three) gets none. The harness waits for this hook, so it gives up after 2 s and
+  prints nothing; routed, it takes about 0.25 s here. It is the one hook that prints anything.
 
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed
@@ -204,6 +219,9 @@ running they do nothing.
    a turn make three lines: the command started and the command finished, both under the call's id,
    and the turn ended. For Codex, whose hooks the agent waits for, the hook hands its line to one in
    the background and exits.
+7. At each prompt, the project's definitions for the terms it names are added for the agent: whole
+   words in any case or plural, at most five, longest first, each once a session. A harness's own
+   notice gets none, and with storytree stopped nothing is printed.
 
 ## 4 · Sessions
 

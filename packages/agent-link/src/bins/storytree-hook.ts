@@ -1,10 +1,11 @@
 /**
  * `storytree-hook <harness>`: the command Claude Code (`claude-code`) and Codex (`codex`) run by
- * themselves at session start, after each file edit, shell command and subagent start, before each
- * call to storytree's own tools, and at session end, with the hook's input on stdin (capability 3 ·
- * Hooks, stories/agent-link.md).
+ * themselves at session start, at each prompt, before and after each shell command, after each file
+ * edit and subagent start, before each call to storytree's own tools, at the end of each turn, and
+ * at session end, with the hook's input on stdin (capability 3 · Hooks, stories/agent-link.md).
  *
- * It always exits 0 and never prints: whatever happens, the agent it runs beside is untouched. It
+ * It always exits 0, and prints only what the prompt hook adds for the agent (the project's
+ * definitions for the prompt's terms): whatever happens, the agent it runs beside is untouched. It
  * also never outlives DEADLINE_MS, whatever it is waiting on. With `--background` (Codex's hooks
  * before a shell command and at the end of a turn) it hands the writing to a copy of itself that it
  * leaves running, detached and with nothing of the harness's open, and exits at once.
@@ -26,7 +27,7 @@ process.stdin.on("data", (chunk: string) => (input += chunk));
 process.stdin.on("error", () => process.exit(0));
 process.stdin.on("end", () => {
   runHook({ argv: process.argv.slice(2), input, handOff }).then(
-    () => process.exit(0),
+    (added) => (added === undefined ? process.exit(0) : process.stdout.write(added, () => process.exit(0))),
     () => process.exit(0),
   );
 });

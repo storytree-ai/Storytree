@@ -12,6 +12,10 @@
  * one at the end of each turn, ADR-0636 D2) is run with `--background`: once it knows it has a line
  * to write, it hands its input to a copy of itself that it leaves running, and exits.
  *
+ * One more, at each prompt (ADR-0636 D1, b2), is the one hook that prints: the project's
+ * definitions for the terms the prompt names (definitions.ts), which the harness adds for the agent.
+ * The harness waits for it, so it gives up after 2 s and prints nothing.
+ *
  * A hook's input is the harness's own JSON on stdin. hookLines() turns it into lines, and knows
  * nothing of storytree's state; runHook() routes the session's folder (capability 1) and, only when
  * it is a project on a running storytree, opens the log and writes them. Everything a hook does is
@@ -21,6 +25,7 @@ import type { NewLine } from "../activity/index.js";
 import { route } from "../routing/index.js";
 import { claudeCodeLines } from "./claude-code.js";
 import { codexLines } from "./codex.js";
+import { definitionsContext, definitionsNamedIn, isHarnessNotice, notYetGiven } from "./definitions.js";
 
 /** What a hook is run with: the command's arguments (the harness first, then any flags) and its stdin. */
 export interface HookInput {
@@ -61,18 +66,32 @@ export function hookLines(harness: string, input: unknown): HookLines | undefine
   }
 }
 
+/** A prompt the user sent, as both harnesses' prompt hook gives it (UserPromptSubmit). */
+interface Prompted {
+  readonly session: string;
+  readonly folder: string;
+  readonly prompt: string;
+}
+
 /**
  * Run one hook: read its input, and write its lines to the log of the project its folder belongs
- * to, if storytree is running. Never throws, and never prints.
+ * to, if storytree is running. Never throws. It prints nothing but what a prompt hook adds for the
+ * agent (the project's definitions for the prompt's terms), which it returns: the command prints it.
  */
-export async function runHook({ argv, input, handOff }: HookInput): Promise<void> {
+export async function runHook({ argv, input, handOff }: HookInput): Promise<string | undefined> {
   try {
     const [harness = "", ...flags] = argv;
-    const made = hookLines(harness, parse(input));
+    const parsed = parse(input);
+    const asked = promptIn(harness, parsed);
+    if (asked !== undefined) return await withinTime(definitionsFor(asked));
+    const made = hookLines(harness, parsed);
     if (made === undefined || made.lines.length === 0) return;
     const where = route(made.folder);
     if (where.status !== "routed") return;
-    if (flags.includes(BACKGROUND) && handOff !== undefined) return await handOff(harness, input);
+    if (flags.includes(BACKGROUND) && handOff !== undefined) {
+      await handOff(harness, input);
+      return undefined;
+    }
     // Only now, with lines to write and somewhere to write them, is the database reached.
     const { openActivityLog } = await import("../activity/index.js");
     const log = await openActivityLog(where.url, { connectTimeoutMs: CONNECT_TIMEOUT_MS });
@@ -84,6 +103,43 @@ export async function runHook({ argv, input, handOff }: HookInput): Promise<void
   } catch {
     // A hook never breaks the agent: whatever went wrong, nothing is written and nothing is said.
   }
+  return undefined;
+}
+
+/** The prompt in a prompt hook's input from `harness`, or undefined for any other input. */
+function promptIn(harness: string, input: unknown): Prompted | undefined {
+  if ((harness !== "claude-code" && harness !== "codex") || typeof input !== "object" || input === null) return undefined;
+  const { hook_event_name: event, session_id: session, cwd: folder, prompt } = input as Record<string, unknown>;
+  if (event !== "UserPromptSubmit" || typeof session !== "string" || typeof folder !== "string" || folder === "" || typeof prompt !== "string") return undefined;
+  return { session, folder, prompt };
+}
+
+/**
+ * What the agent is to be shown for a prompt, as the harness's hook output: the project's
+ * definitions for the terms it names, those not yet given to this session. Undefined for none.
+ */
+async function definitionsFor({ session, folder, prompt }: Prompted): Promise<string | undefined> {
+  if (isHarnessNotice(prompt)) return undefined;
+  const where = route(folder);
+  if (where.status !== "routed") return undefined;
+  const { connect } = await import("@storytree/library");
+  const storytree = await connect({ url: where.url });
+  try {
+    const library = await storytree.openProject(where.project);
+    const named = definitionsNamedIn(prompt, (await library.definitions()).map(({ id, fields }) => ({ id, ...fields })));
+    const fresh = notYetGiven(session, named);
+    if (fresh.length === 0) return undefined;
+    return JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: definitionsContext(fresh) } });
+  } finally {
+    await storytree.close();
+  }
+}
+
+/** `work`'s answer, or undefined if it takes longer than reaching storytree may (the harness waits on this hook). */
+function withinTime<T>(work: Promise<T | undefined>): Promise<T | undefined> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<undefined>((resolve) => (timer = setTimeout(() => resolve(undefined), CONNECT_TIMEOUT_MS)));
+  return Promise.race([work.catch(() => undefined), late]).finally(() => clearTimeout(timer));
 }
 
 function parse(input: string): unknown {
