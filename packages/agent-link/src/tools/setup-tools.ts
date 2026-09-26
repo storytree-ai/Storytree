@@ -64,7 +64,7 @@ export function registerSetupTools({ server, folder, setup, connections, callerO
         if (verification.verified) {
           const checkFile = path.join(folder, CHECK_FILE);
           if (existsSync(checkFile)) rmSync(checkFile, { force: true });
-          said.push("The connection is verified: storytree has received this session's start, a file edit and a command from its hooks.");
+          said.push("The connection is verified: storytree has received this session's start, a storytree tool call, a file edit and a command from its hooks.");
         } else {
           said.push(`Not verified yet: storytree has not received this session's ${verification.missing.join(", ")} from its hooks.`);
           said.push(...verification.fixes.map((fix) => FIX_SENTENCES[fix]), "Then call check_setup again.");

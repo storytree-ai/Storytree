@@ -8,12 +8,16 @@
  *   `tool_input.command` is the patch text: the files are the ones its `*** Add File:`,
  *   `*** Update File:`, `*** Delete File:` and `*** Move to:` lines name. A shell command is `Bash`,
  *   its `tool_input.command` one string; a patch run through the shell (`apply_patch <<'EOF'`)
- *   arrives that way too, and is read as the patch it applies.
+ *   arrives that way too, and is read as the patch it applies. `spawn_agent` starts a subagent: its
+ *   `tool_input` gives the type (`agent_type`) and the task (`message`), and its `tool_response` is
+ *   a JSON text holding the subagent's id (`agent_id`).
+ * - PreToolUse, registered for storytree's own tools only, names the agent asking (requests.ts).
  * - SessionEnd carries `reason`. Codex sends it only when a session shuts down, so a session whose
  *   end never comes goes idle instead (capability 4).
  */
 import type { NewLine } from "../activity/index.js";
 import type { HookLines } from "./hooks.js";
+import { toolRequestedLine } from "./requests.js";
 
 /** A line of a patch that names a file: the one it adds, updates or deletes, or where it moves one to. */
 const PATCH_FILE = /^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+?)\s*$/;
@@ -29,11 +33,35 @@ export function codexLines(input: Record<string, unknown>): HookLines | undefine
       return line({ ...common, kind: "session-started", ...(isText(input.source) ? { how: input.source } : {}) });
     case "SessionEnd":
       return line({ ...common, kind: "session-ended", ...(isText(input.reason) ? { reason: input.reason } : {}) });
+    case "PreToolUse":
+      return line(toolRequestedLine(common, input));
     case "PostToolUse":
-      return line(toolLine(common, input.tool_name, input.tool_input));
+      return line(toolLine(common, input.tool_name, input.tool_input) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
     default:
       return undefined;
   }
+}
+
+function subagentLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown, toolResponse: unknown): NewLine | undefined {
+  if (tool !== "spawn_agent" || typeof toolInput !== "object" || toolInput === null) return undefined;
+  const subagent = agentIdIn(toolResponse);
+  if (subagent === undefined) return undefined;
+  const { agent_type: type, message: task } = toolInput as Record<string, unknown>;
+  return { ...common, kind: "subagent-started", subagent, ...(isText(type) ? { type } : {}), ...(isText(task) ? { task } : {}) };
+}
+
+/** The subagent's id in spawn_agent's answer: a JSON text, or already an object. */
+function agentIdIn(response: unknown): string | undefined {
+  let answer = response;
+  if (typeof response === "string") {
+    try {
+      answer = JSON.parse(response);
+    } catch {
+      return undefined;
+    }
+  }
+  const id = typeof answer === "object" && answer !== null ? (answer as Record<string, unknown>).agent_id : undefined;
+  return isText(id) ? id : undefined;
 }
 
 function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown): NewLine | undefined {

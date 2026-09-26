@@ -157,8 +157,9 @@ running they do nothing.
   each note read names the agent that made it (capability 6), and only a hook sees that agent. So a
   hook also runs just before each call to one of storytree's own tools (`mcp__storytree__…`, which
   is why the tool server is registered under the name storytree), and it is the one hook the
-  harness waits for: its line is written before the call reaches the tool server. The line names
-  the agent asking, the session's orchestrator or a subagent by its id and type, under the
+  harness waits for: its line is written before the call reaches the tool server. That adds about
+  0.2 s to each storytree tool call here (median of ten runs; the first, cold, took 0.4 s). The line
+  names the agent asking, the session's orchestrator or a subagent by its id and type, under the
   harness's id for the call. The hook after a tool also fires when a subagent is started (Claude
   Code's Agent or Task tool, Codex's `spawn_agent`), and records the subagent's id, type and task.
 - **The probe for it, run 2026-09-26** (Claude Code 2.1.283 and Codex 0.155, each starting two

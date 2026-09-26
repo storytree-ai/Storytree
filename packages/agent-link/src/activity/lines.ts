@@ -16,19 +16,40 @@ const common = {
   folder: z.string().min(1).optional(),
 };
 
-/** How a note was found, and how much of it was read (ADR-0624, ADR-0627 D7). */
+/**
+ * Which of a session's agents did something (ADR-0629 D2): its orchestrator, or one of its
+ * subagents, by the harness's id for it, with its type and task when the harness has shown them.
+ * "unknown" when the harness showed nothing. It is only ever what the harness revealed, never
+ * worked out from timing or transcripts.
+ */
+const AGENT = z.union([
+  z.literal("orchestrator"),
+  z.literal("unknown"),
+  z.object({ subagent: z.string().min(1), type: z.string().min(1).optional(), task: z.string().min(1).optional() }).strict(),
+]);
+
+/** Which of a session's agents did something: its orchestrator, a subagent, or unknown. */
+export type Agent = z.infer<typeof AGENT>;
+
+/** How a note was found, how much of it was read (ADR-0624, ADR-0627 D7), and which agent read it (ADR-0629 D2). */
 const noteRead = {
   note: z.string().min(1),
   found: z.enum(["search", "link", "id", "shelf"]),
   read: z.enum(["peek", "whole"]),
+  /** Reads recorded before ADR-0629 D2 landed name no agent. */
+  agent: AGENT.optional(),
 };
 
 /** A line as it is written: what happened, without the number and time the log gives it. */
 export const NEW_LINE = z.discriminatedUnion("kind", [
   z.object({ ...common, kind: z.literal("session-started"), how: z.string().min(1).optional() }).strict(),
   z.object({ ...common, kind: z.literal("session-ended"), reason: z.string().min(1).optional() }).strict(),
+  /** A subagent the session started: the harness's id for it, its type, and the task it was given. */
+  z.object({ ...common, kind: z.literal("subagent-started"), subagent: z.string().min(1), type: z.string().min(1).optional(), task: z.string().min(1).optional() }).strict(),
   z.object({ ...common, kind: z.literal("file-edited"), files: z.array(z.string().min(1)).min(1) }).strict(),
   z.object({ ...common, kind: z.literal("command-run"), command: z.string() }).strict(),
+  /** A hook saw an agent ask for one of storytree's tools, before the call reached the tool server: the call's id, as the harness names it, and the agent asking. */
+  z.object({ ...common, kind: z.literal("tool-requested"), tool: z.string().min(1), call: z.string().min(1), agent: AGENT }).strict(),
   z.object({ ...common, kind: z.literal("tool-called"), tool: z.string().min(1) }).strict(),
   z.object({ ...common, kind: z.literal("note-read"), ...noteRead }).strict(),
   z.object({ ...common, kind: z.literal("claimed"), capability: z.string().min(1), reason: z.string().min(1), takenOverFrom: z.string().min(1).optional() }).strict(),

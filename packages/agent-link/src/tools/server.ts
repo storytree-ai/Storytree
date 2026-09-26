@@ -13,6 +13,9 @@
  * - is recorded in the agent activity log as a `tool-called` line on the calling session: Claude
  *   Code names it in the server's environment (`CLAUDE_CODE_SESSION_ID`), Codex on each call's
  *   `_meta` (`sessionId`, or `threadId` before Codex 0.155), the same ids their hooks see;
+ * - can say which of the session's agents made it (ADR-0629 D2), from what the harness revealed:
+ *   the line the hook before the call left under the call's id, or, for Codex, the call's own
+ *   thread (agentOf);
  * - turns a refusal from the library or the claims into a readable answer marked as an error,
  *   never a crash.
  */
@@ -23,7 +26,7 @@ import { McpServer, type CallToolResult, type ServerContext } from "@modelcontex
 import type { Library } from "@storytree/library";
 import type { z } from "zod";
 
-import type { ActivityLog } from "../activity/index.js";
+import type { ActivityLog, Agent, Line } from "../activity/index.js";
 import { habitsCard } from "../instructions/index.js";
 import { route } from "../routing/index.js";
 import { QUIET_MS } from "../sessions/index.js";
@@ -76,6 +79,8 @@ export interface Call {
   /** The folder the agent works in. */
   readonly folder: string;
   readonly quietMs: number;
+  /** Which of the session's agents made this call, as the harness revealed it (ADR-0629 D2). */
+  agent(): Promise<Agent>;
 }
 
 /** Registers one tool: its name, what it is for, its arguments, and what it does with them. */
@@ -100,7 +105,8 @@ export function createAgentTools(options: AgentToolOptions): AgentTools {
       try {
         const { library, log } = await connections.reach(where.url, where.project);
         await log.append(where.project, { ...lineOf(caller), source: "tool", folder: options.folder, kind: "tool-called", tool: name });
-        return result(await act(args as never, { library, log, project: where.project, caller, folder: options.folder, quietMs }));
+        const agent = () => agentOf(log, where.project, metaOf(context));
+        return result(await act(args as never, { library, log, project: where.project, caller, folder: options.folder, quietMs, agent }));
       } catch (error) {
         if (isUnreachable(error)) {
           await connections.close();
@@ -147,11 +153,47 @@ export function lineOf(caller: Caller): { session: string; harness?: string } {
 function callerFrom(server: McpServer, context: ServerContext, env: Readonly<Record<string, string | undefined>>, ownSession: string): Caller {
   const client = server.server.getClientVersion()?.name;
   const harness = client === "codex-mcp-client" ? "codex" : client;
-  const meta = (context.mcpReq._meta ?? {}) as Record<string, unknown>;
+  const meta = metaOf(context);
   const fromMeta = text(meta.sessionId) ?? text(meta.threadId);
   const fromEnv = text(env.CLAUDE_CODE_SESSION_ID);
   const session = (harness === "claude-code" ? (fromEnv ?? fromMeta) : (fromMeta ?? fromEnv)) ?? ownSession;
   return harness === undefined ? { session } : { session, harness };
+}
+
+/**
+ * Which of the session's agents made a call (ADR-0629 D2), from what the harness revealed and
+ * nothing else, as the 2026-09-26 probe of Claude Code 2.1.283 and Codex 0.155 found it:
+ * - the line the hook before the call left under the call's id (`_meta["claudecode/toolUseId"]`,
+ *   Codex's `_meta.callId`), which is all Claude Code reveals: it shares one tool server between
+ *   the orchestrator and its subagents;
+ * - else, for Codex, the call's own thread: the session's (`sessionId`) is the orchestrator's, any
+ *   other a subagent's own id;
+ * - a subagent's type and task from the line its start left, when there is one.
+ * Otherwise "unknown": never worked out from timing or transcripts.
+ */
+async function agentOf(log: ActivityLog, project: string, meta: Readonly<Record<string, unknown>>): Promise<Agent> {
+  const { lines } = await log.since(project, 0);
+  const call = text(meta["claudecode/toolUseId"]) ?? text(meta.callId);
+  const requested = call === undefined ? undefined : lines.findLast((line): line is Extract<Line, { kind: "tool-requested" }> => line.kind === "tool-requested" && line.call === call);
+  const agent = requested?.agent ?? threadAgent(meta) ?? "unknown";
+  if (typeof agent === "string") return agent;
+  const started = lines.findLast((line): line is Extract<Line, { kind: "subagent-started" }> => line.kind === "subagent-started" && line.subagent === agent.subagent);
+  const type = agent.type ?? started?.type;
+  const task = agent.task ?? started?.task;
+  return { subagent: agent.subagent, ...(type === undefined ? {} : { type }), ...(task === undefined ? {} : { task }) };
+}
+
+/** Codex names the thread making each call beside its session: the session's own thread is its orchestrator. */
+function threadAgent(meta: Readonly<Record<string, unknown>>): Agent | undefined {
+  const thread = text(meta.threadId);
+  const session = text(meta.sessionId);
+  if (thread === undefined || session === undefined) return undefined;
+  return thread === session ? "orchestrator" : { subagent: thread };
+}
+
+/** What the harness sent with a call beside its arguments. */
+function metaOf(context: ServerContext): Readonly<Record<string, unknown>> {
+  return (context.mcpReq._meta ?? {}) as Record<string, unknown>;
 }
 
 function text(value: unknown): string | undefined {
