@@ -16,6 +16,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 /** The commands, by the file each is built to. */
 const ENTRY_POINTS: Readonly<Record<string, string>> = {
   "storytree-hook": path.join(here, "storytree-hook.ts"),
+  "storytree-mcp": path.join(here, "storytree-mcp.ts"),
 };
 
 /** Build every command into `outdir`, and return the path of each, by name. */

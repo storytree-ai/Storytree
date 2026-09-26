@@ -1,0 +1,209 @@
+/**
+ * The note tools, on the library's knowledge entrances (ADR-0627): search notes, open a story or
+ * capability (its shelf of front covers, as spines) or a note (whole, with the titles of what it
+ * links to and what links to it), and write a note.
+ *
+ * - Every note a tool shows is a read, recorded in the agent activity log (ADR-0624 D1, ADR-0627
+ *   D7): a spine or title shown is a peek, an opened note is read whole. How it was found is how
+ *   the session last saw it: in a search, on a shelf, or as a link from another note; a note
+ *   opened without having been shown was found by its id. The record says what was reached, never
+ *   what helped (ADR-0624 D3).
+ * - A new note with no place named goes onto the shelf of the capability the session claimed most
+ *   recently (ADR-0627 D4): a decision becomes one of its front covers; a memory or definition
+ *   links to the cover the session last opened on that shelf, else to the shelf's first book; with
+ *   an empty shelf nothing is added, and the agent is told. A session holding no claim gets no
+ *   default, and a place the agent names always wins.
+ */
+import type { Library, Note, SchemaRecord } from "@storytree/library";
+import { z } from "zod";
+
+import type { Line, NewLine } from "../activity/index.js";
+import { claimsFrom } from "../claims/index.js";
+import { lineOf, type Answer, type Call, type Define } from "./server.js";
+import { firstLineOf, quoted, spineOf, wholeOf } from "./text.js";
+
+type Found = Extract<NewLine, { kind: "note-read" }>["found"];
+
+export function registerNoteTools(define: Define): void {
+  define(
+    "search_notes",
+    "Search the project's notes (memories, decisions, definitions) for words; you see each match's spine. Open one to read it whole.",
+    z.object({ query: z.string().describe("Words the note holds, in any case") }),
+    async ({ query }, call) => {
+      const notes = await call.library.search(query);
+      await recordReads(call, notes.map((note) => ({ note: note.id, found: "search", read: "peek" })));
+      if (notes.length === 0) return { text: `No note holds ${quoted(query)}.`, data: { notes: [] } };
+      return {
+        text: [`${notes.length} note${notes.length === 1 ? "" : "s"} hold ${quoted(query)}:`, ...notes.map(spineLine)].join("\n"),
+        data: { notes: notes.map(spineData) },
+      };
+    },
+  );
+
+  define(
+    "open",
+    "Open a story or a capability to see its shelf of front-cover decisions as spines, founding book first; or open a note to read it whole, with the titles of what it links to and what links to it. Start at the shelf, open what matches your task, and stop when you can act.",
+    z.object({ id: z.string().min(1).describe("The id of a story, a capability or a note") }),
+    async ({ id }, call) => openRecord(id, call),
+  );
+
+  define(
+    "write_note",
+    "Write down something worth remembering: a memory (text), a decision (title and text) or a definition (term and meaning). With no place named, it goes onto the shelf of the capability you claimed most recently.",
+    z.object({
+      kind: z.enum(["memory", "decision", "definition"]),
+      text: z.string().min(1).optional().describe("A memory's text, or a decision's"),
+      title: z.string().min(1).optional().describe("A decision's title"),
+      term: z.string().min(1).optional().describe("A definition's term"),
+      meaning: z.string().min(1).optional().describe("A definition's meaning"),
+      links: z.array(z.string().min(1)).optional().describe("The ids of notes this one links to"),
+      front_cover_of: z.string().min(1).optional().describe("A decision only: the story or capability it is a front cover of"),
+    }),
+    async (args, call) => writeNote(args, call),
+  );
+}
+
+async function openRecord(id: string, call: Call): Promise<Answer> {
+  const { library } = call;
+  const tree = await library.projectTree();
+  for (const story of tree.stories) {
+    if (story.id === id) return openShelf("Story", story.title, id, call);
+    const capability = story.capabilities.find((node) => node.id === id);
+    if (capability !== undefined) return openShelf("Capability", capability.title, id, call);
+  }
+  const notes = await library.search("");
+  const note = notes.find((candidate) => candidate.id === id);
+  if (note === undefined) {
+    const planned = tree.arcs.some((arc) => arc.id === id) || tree.stories.some((story) => story.capabilities.some((node) => node.contracts.some((contract) => contract.id === id)));
+    return {
+      text: planned ? `${id} is an arc or a contract: open a story, a capability or a note.` : `Nothing in this project has the id ${id}.`,
+      refused: true,
+    };
+  }
+  const found = await howFound(call, id);
+  const linksTo = (note.fields.links ?? []).flatMap((target) => notes.filter((candidate) => candidate.id === target));
+  const linkedFrom = await library.relatedNotes(id);
+  await recordReads(call, [
+    { note: id, found, read: "whole" },
+    ...[...linksTo, ...linkedFrom].map((shown) => ({ note: shown.id, found: "link" as const, read: "peek" as const })),
+  ]);
+  const out = [wholeOf(note)];
+  if (linksTo.length > 0) out.push("It links to:", ...linksTo.map(spineLine));
+  if (linkedFrom.length > 0) out.push("Linked from:", ...linkedFrom.map(spineLine));
+  return { text: out.join("\n"), data: { note: { id, kind: note.type, ...note.fields }, linksTo: linksTo.map(spineData), linkedFrom: linkedFrom.map(spineData) } };
+}
+
+async function openShelf(kind: "Story" | "Capability", title: string, id: string, call: Call): Promise<Answer> {
+  const shelf = await call.library.frontCovers(id);
+  await recordReads(call, shelf.map((cover) => ({ note: cover.id, found: "shelf", read: "peek" })));
+  if (shelf.length === 0) {
+    return { text: `${kind} ${quoted(title)} (${id}) has no front covers yet. Record its founding decision with write_note.`, data: { shelf: [] } };
+  }
+  return {
+    text: [`${kind} ${quoted(title)} (${id}). Its shelf, founding book first:`, ...shelf.map(spineLine)].join("\n"),
+    data: { shelf: shelf.map(spineData) },
+  };
+}
+
+interface NoteArgs {
+  kind: "memory" | "decision" | "definition";
+  text?: string | undefined;
+  title?: string | undefined;
+  term?: string | undefined;
+  meaning?: string | undefined;
+  links?: string[] | undefined;
+  front_cover_of?: string | undefined;
+}
+
+/** What each kind of note is written with. */
+const FIELDS = { memory: ["text"], decision: ["title", "text"], definition: ["term", "meaning"] } as const;
+
+async function writeNote(args: NoteArgs, call: Call): Promise<Answer> {
+  const needs: readonly string[] = FIELDS[args.kind];
+  const given = (["text", "title", "term", "meaning"] as const).filter((field) => args[field] !== undefined);
+  const missing = needs.filter((field) => args[field as keyof NoteArgs] === undefined);
+  const extra = given.filter((field) => !needs.includes(field));
+  if (missing.length > 0 || extra.length > 0) return { text: `A ${args.kind} is written with ${needs.join(" and ")}${extra.length > 0 ? `, not ${extra.join(" or ")}` : ""}.`, refused: true };
+  if (args.front_cover_of !== undefined && args.kind !== "decision") return { text: "Only a decision can be a front cover.", refused: true };
+
+  let place: { links?: string[]; frontCoverOf?: string } = {
+    ...(args.links === undefined ? {} : { links: args.links }),
+    ...(args.front_cover_of === undefined ? {} : { frontCoverOf: args.front_cover_of }),
+  };
+  let placed = "where you named";
+  let emptyShelf: string | undefined;
+  if (args.links === undefined && args.front_cover_of === undefined) {
+    const held = await latestClaim(call);
+    if (held === undefined) placed = "with no place: you hold no claim, so name its links (or, for a decision, the node it is a front cover of) to file it";
+    else if (args.kind === "decision") {
+      place = { frontCoverOf: held };
+      placed = `as a front cover of ${held}, the capability you hold`;
+    } else {
+      const shelf = await call.library.frontCovers(held);
+      const cover = (await lastOpened(call, shelf)) ?? shelf[0];
+      if (cover === undefined) {
+        emptyShelf = held;
+        placed = `with no place: the shelf of ${held}, the capability you hold, is empty. Record its founding decision with write_note (kind decision), then link notes inside it`;
+      } else {
+        place = { links: [cover.id] };
+        placed = `inside ${quoted(cover.fields.title)} (${cover.id}), on the shelf of the capability you hold`;
+      }
+    }
+  }
+  const note = await write(call.library, args, place);
+  return { text: `Wrote a ${args.kind} (${note.id}) ${placed}.`, data: { id: note.id, ...(emptyShelf === undefined ? {} : { shelf: "empty" }) } };
+}
+
+function write(library: Library, args: NoteArgs, place: { links?: string[]; frontCoverOf?: string }): Promise<Note> {
+  switch (args.kind) {
+    case "memory":
+      return library.writeMemory({ text: args.text!, ...(place.links === undefined ? {} : { links: place.links }) });
+    case "decision":
+      return library.recordDecision({ title: args.title!, text: args.text!, ...place });
+    case "definition":
+      return library.defineTerm({ term: args.term!, meaning: args.meaning!, ...(place.links === undefined ? {} : { links: place.links }) });
+  }
+}
+
+/** The capability the calling session claimed most recently of those it still holds. */
+async function latestClaim(call: Call): Promise<string | undefined> {
+  const { lines } = await call.log.since(call.project, 0);
+  const mine = claimsFrom(lines, { quietMs: call.quietMs }).filter((held) => held.session === call.caller.session);
+  return mine.sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : 0)).at(-1)?.capability;
+}
+
+/** The cover on `shelf` the calling session opened most recently, if it opened any. */
+async function lastOpened(call: Call, shelf: readonly SchemaRecord<"decision">[]): Promise<SchemaRecord<"decision"> | undefined> {
+  const opened = (await readsOf(call)).filter((line) => line.read === "whole").map((line) => line.note);
+  for (const note of opened.reverse()) {
+    const cover = shelf.find((candidate) => candidate.id === note);
+    if (cover !== undefined) return cover;
+  }
+  return undefined;
+}
+
+/** How the calling session came to note `id`: where it last saw it shown, or by its id if it never was. */
+async function howFound(call: Call, id: string): Promise<Found> {
+  return (await readsOf(call)).filter((line) => line.note === id && line.read === "peek").at(-1)?.found ?? "id";
+}
+
+/** The calling session's note reads, oldest first. */
+async function readsOf(call: Call): Promise<Extract<Line, { kind: "note-read" }>[]> {
+  const { lines } = await call.log.since(call.project, 0);
+  return lines.filter((line): line is Extract<Line, { kind: "note-read" }> => line.kind === "note-read" && line.session === call.caller.session);
+}
+
+async function recordReads(call: Call, reads: readonly { note: string; found: Found; read: "peek" | "whole" }[]): Promise<void> {
+  for (const read of reads) {
+    await call.log.append(call.project, { ...lineOf(call.caller), source: "tool", folder: call.folder, kind: "note-read", ...read });
+  }
+}
+
+function spineLine(note: Note): string {
+  const first = firstLineOf(note);
+  return `- ${quoted(spineOf(note))} (${note.id})${first === "" ? "" : `: ${first}`}`;
+}
+
+function spineData(note: Note): { id: string; kind: string; spine: string; firstLine: string } {
+  return { id: note.id, kind: note.type, spine: spineOf(note), firstLine: firstLineOf(note) };
+}
