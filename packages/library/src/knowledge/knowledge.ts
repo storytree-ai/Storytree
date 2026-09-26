@@ -108,6 +108,14 @@ export class Knowledge {
   }
 
   /**
+   * Every live definition, in creation order: what a reader that looks terms up by name (the agent
+   * link's prompt-time lookup, ADR-0636 D1) matches against.
+   */
+  async definitions(): Promise<SchemaRecord<"definition">[]> {
+    return (await this.#records.list("definition")).sort(byCreation);
+  }
+
+  /**
    * The live notes whose links include `noteId`, in creation order. Notes link only to notes, so a
    * story or capability has none: its knowledge is reached through frontCovers.
    */

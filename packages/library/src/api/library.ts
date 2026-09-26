@@ -93,6 +93,8 @@ export interface Library {
   search(query: string): Promise<Note[]>;
   /** The live notes linking to note `noteId`, in creation order. */
   relatedNotes(noteId: string): Promise<Note[]>;
+  /** Every live definition, in creation order. */
+  definitions(): Promise<SchemaRecord<"definition">[]>;
   /**
    * A story's or capability's shelf: the live decisions that are its front covers, founding
    * (oldest) first. This is how the work reaches its knowledge.
@@ -255,6 +257,10 @@ class LibraryHandle implements Library {
 
   relatedNotes(noteId: string): Promise<Note[]> {
     return this.#project.knowledge.relatedNotes(noteId);
+  }
+
+  definitions(): Promise<SchemaRecord<"definition">[]> {
+    return this.#project.knowledge.definitions();
   }
 
   frontCovers(nodeId: string): Promise<SchemaRecord<"decision">[]> {

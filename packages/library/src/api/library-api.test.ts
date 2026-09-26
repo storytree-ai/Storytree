@@ -53,6 +53,7 @@ const LIBRARY_API = [
   "writeMemory",
   "recordDecision",
   "defineTerm",
+  "definitions",
   "editNote",
   "search",
   "relatedNotes",

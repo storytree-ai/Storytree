@@ -6,9 +6,10 @@
  * - Claude Code: `<config folder>/settings.json` (CLAUDE_CONFIG_DIR, else ~/.claude). Each hook is a
  *   program with arguments, run with no shell in between, so it works on Windows without a Unix
  *   shell. The start, edit and end-of-turn hooks, and the one before each shell command, run in the
- *   background (`async`); the end hook runs before Claude Code exits, and the hook before
- *   storytree's own tools before the call is made, so its line is there when the call reaches the
- *   tool server (ADR-0629 D2).
+ *   background (`async`); the end hook runs before Claude Code exits, the hook before storytree's
+ *   own tools before the call is made, so its line is there when the call reaches the tool server
+ *   (ADR-0629 D2), and the prompt hook before the prompt reaches the agent, since what it prints is
+ *   added for the agent (ADR-0636 D1).
  * - Codex: `<CODEX_HOME>/hooks.json` (else ~/.codex). Codex runs a hook as one command line through
  *   its shell (PowerShell on Windows, sh elsewhere), so the line is written for the shell of this
  *   machine. Codex has no background hooks, so the ones before each shell command and at the end of
@@ -93,6 +94,7 @@ function claudeEntries({ node, script }: HookCommand): Record<string, HookEntry[
     PostToolUse: [{ matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task", hooks: [run(true)] }],
     PostToolUseFailure: [{ matcher: "Bash", hooks: [run(true)] }],
     Stop: [{ hooks: [run(true)] }],
+    UserPromptSubmit: [{ hooks: [run(false)] }],
     SessionEnd: [{ hooks: [run(false)] }],
   };
 }
@@ -112,6 +114,7 @@ function codexEntries({ node, script }: HookCommand): Record<string, HookEntry[]
     ],
     PostToolUse: [{ matcher: "^(apply_patch|Bash|spawn_agent)$", hooks: [run(10)] }],
     Stop: [{ hooks: [run(10, true)] }],
+    UserPromptSubmit: [{ hooks: [run(10)] }],
     SessionEnd: [{ hooks: [run(3)] }],
   };
 }

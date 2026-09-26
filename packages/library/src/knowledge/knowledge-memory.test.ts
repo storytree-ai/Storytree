@@ -1,5 +1,5 @@
 /**
- * Capability 6 · Knowledge and memory: one test per contract 6.1-6.4 in stories/library.md, each
+ * Capability 6 · Knowledge and memory: one test per contract 6.1-6.5 in stories/library.md, each
  * run on BOTH backends, as capabilities 2-4 are:
  *
  * - memory: a Knowledge over SchemaRecords over a fresh MemoryTransactions;
@@ -331,6 +331,18 @@ for (const backend of [memory, postgres]) {
     await assertCreated(transactions, defined, "definition", { term: "Everything", meaning: "All of it", links: notes });
     const relinked = await knowledge.editNote(memory.id, { links: [linked.id, ...notes] });
     assert.deepEqual(relinked?.fields, { text: "Mailgun needs a verified domain", links: [linked.id, ...notes] });
+  });
+
+  contract("6.5", "definitions() returns every live definition, and nothing else, in creation order", async ({ knowledge, records }) => {
+    const claim = await knowledge.defineTerm({ term: "Claim", meaning: "Holding a capability while you build it" });
+    await laterThan(claim);
+    await knowledge.writeMemory({ text: "Claim before you build" });
+    await knowledge.recordDecision({ title: "Claims have no queue", text: "A second agent picks other work" });
+    const quiet = await knowledge.defineTerm({ term: "Quiet time", meaning: "How long a session may say nothing before it reads as idle" });
+    const retired = await knowledge.defineTerm({ term: "Wisp", meaning: "0.2's picture of a claim" });
+    await records.retire(retired.id, "not in 0.3");
+    const edited = await knowledge.editNote(claim.id, { meaning: "Holding a capability while you build it, so nobody else takes it" });
+    assert.deepEqual(await knowledge.definitions(), [edited, quiet]);
   });
 }
 
