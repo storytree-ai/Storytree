@@ -280,8 +280,12 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
   memory or definition links to the cover the session last opened, else to the shelf's first book;
   with an empty shelf nothing is added and the agent is told; with no claim there is no default.
   Reads can be found "from a shelf". Opening a story or capability returns its shelf as spines
-  first (ADR-0627 D7): built, as `open`. Later (ADR-0627 D5): the planning tools take a short
-  founding decision.
+  first (ADR-0627 D7): built, as `open`.
+- **Founding decisions (ADR-0627 D5), built after the rest:** `plan_story` and `plan_capability`
+  take one short founding decision, the one choice that shapes the new node and what it is for,
+  and record it as the first book on its shelf, so no shelf planned through the tools starts
+  empty. A node made another way, such as through the library directly, can still have an empty
+  shelf, and a note written there is handled as D4 says.
 - **Added by ADR-0629 D2:** every note read also names the agent that made it: the session's
   orchestrator, or a subagent by its id, type and task. It is what the harness revealed before the
   read, and nothing else: the hook's line for the call (capability 3), which is all Claude Code
@@ -302,7 +306,8 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 **Contracts:**
 1. A test client talks to the server inside the test itself, with no real agent and no network. It
    lists the tools, then plans an arc, a story, a capability and a contract, which then appear in
-   the library's tree, and it can correct each of them.
+   the library's tree, the story and the capability each with its founding decision as the first
+   book on its shelf, and it can correct each of them.
 2. It claims the capability, sees the plan and who is on what, reports the contract red and then
    green (the library shows the agent's report going from failing to passing, while the verified
    column stays "not checked"), and reports the capability landed, which ends the claim.

@@ -43,6 +43,9 @@ const TOOLS = [
   "write_note",
 ];
 
+/** A founding decision: every story and capability planned through the tools is born with one (ADR-0627 D5). */
+const FOUNDED = { founding: { title: "Email first", text: "Signing up by email is the smallest thing that works" } };
+
 interface World {
   folder: string;
   project: string;
@@ -72,14 +75,14 @@ async function withProject(body: (world: World) => Promise<void>): Promise<void>
   });
 }
 
-test("6.1 a test client lists the tools, then plans an arc, a story, a capability and a contract, which appear in the library's tree, and it can correct each of them", async () => {
+test("6.1 a test client lists the tools, then plans an arc, a story, a capability and a contract, which appear in the library's tree, the story and the capability each with its founding decision first on its shelf, and it can correct each of them", async () => {
   await withProject(async ({ folder, library }) => {
     await withAgent(folder, claudeCode("claude-1"), async (agent) => {
       assert.deepEqual(await agent.tools(), TOOLS);
 
-      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up" }));
+      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up", founding: { title: "Email only, no social login", text: "The smallest signup that works" } }));
       const arc = idOf(await agent.call("plan_arc", { title: "Launch v1", stories: [story] }));
-      const capability = idOf(await agent.call("plan_capability", { story, title: "Email form" }));
+      const capability = idOf(await agent.call("plan_capability", { story, title: "Email form", founding: { title: "Validate on the client first", text: "Before any request is sent" } }));
       const contract = idOf(await agent.call("plan_contract", { capability, title: "Rejects a bad email" }));
 
       const planned = await library.projectTree();
@@ -87,6 +90,10 @@ test("6.1 a test client lists the tools, then plans an arc, a story, a capabilit
       assert.deepEqual(planned.stories[0]?.capabilities.map((node) => [node.id, node.title]), [[capability, "Email form"]]);
       assert.deepEqual(planned.stories[0]?.capabilities[0]?.contracts.map((node) => [node.id, node.title]), [[contract, "Rejects a bad email"]]);
       assert.deepEqual(planned.arcs.map((node) => [node.id, node.title, node.stories]), [[arc, "Launch v1", [story]]]);
+      // Each story and capability is born with its founding decision, the first book on its shelf.
+      const spines = async (node: string) => (await library.frontCovers(node)).map((cover) => [cover.fields.title, cover.fields.text]);
+      assert.deepEqual(await spines(story), [["Email only, no social login", "The smallest signup that works"]]);
+      assert.deepEqual(await spines(capability), [["Validate on the client first", "Before any request is sent"]]);
 
       for (const [id, title] of [
         [story, "Visitor can sign up with email"],
@@ -108,8 +115,8 @@ test("6.1 a test client lists the tools, then plans an arc, a story, a capabilit
 test("6.2 it claims the capability, sees who is on what, reports the contract red then green (reported moves from failing to passing, verified stays not checked), and reports it landed, which ends the claim", async () => {
   await withProject(async ({ folder, project, library, log }) => {
     await withAgent(folder, claudeCode("claude-1"), async (agent) => {
-      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up" }));
-      const capability = idOf(await agent.call("plan_capability", { story, title: "Email form" }));
+      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up", ...FOUNDED }));
+      const capability = idOf(await agent.call("plan_capability", { story, title: "Email form", ...FOUNDED }));
       const contract = idOf(await agent.call("plan_contract", { capability, title: "Rejects a bad email" }));
 
       const claimed = await agent.call("claim", { capability, reason: "building the email form" });
@@ -148,7 +155,7 @@ test("6.3 every call is recorded against the session that made it, using the ses
         await claude.call("show_plan");
         await codexAgent.call("show_plan");
         // Codex before 0.155 sends only the thread's id, which is its hooks' session id.
-        await codexAgent.call("plan_story", { title: "Visitor can sign in" }, { threadId: "codex-2" });
+        await codexAgent.call("plan_story", { title: "Visitor can sign in", ...FOUNDED }, { threadId: "codex-2" });
       });
     });
     const calls = (await log.since(project, 0)).lines.filter((line): line is Extract<Line, { kind: "tool-called" }> => line.kind === "tool-called");
@@ -171,7 +178,7 @@ test('6.4 a bad call gets a readable refusal rather than a crash, and with story
       assert.ok(unknown.text.includes("capability_000000000000"), `the refusal names what it refused: ${unknown.text}`);
       const malformed = await agent.call("report", { contract: 42, result: "amber" });
       assert.equal(malformed.isError, true, "arguments of the wrong shape are refused");
-      const story = await agent.call("plan_story", { title: "Still answering" });
+      const story = await agent.call("plan_story", { title: "Still answering", ...FOUNDED });
       assert.equal(story.isError, false, "and the server carries on");
     });
 
@@ -179,8 +186,8 @@ test('6.4 a bad call gets a readable refusal rather than a crash, and with story
     await withAgent(folder, claudeCode("claude-1", { dataDir: path.join(folder, "..", "stopped", "pgdata") }), async (agent) => {
       const calls: [string, Record<string, unknown>][] = [
         ["plan_arc", { title: "Launch v1" }],
-        ["plan_story", { title: "Visitor can sign up" }],
-        ["plan_capability", { story: "story_000000000000", title: "Email form" }],
+        ["plan_story", { title: "Visitor can sign up", ...FOUNDED }],
+        ["plan_capability", { story: "story_000000000000", title: "Email form", ...FOUNDED }],
         ["plan_contract", { capability: "capability_000000000000", title: "Rejects a bad email" }],
         ["edit_plan", { id: "story_000000000000", title: "Renamed" }],
         ["show_plan", {}],
@@ -206,20 +213,19 @@ test('6.4 a bad call gets a readable refusal rather than a crash, and with story
 test("6.5 a note written with no place named while holding a claim goes onto that capability's shelf (ADR-0627 D4), and one written with no claim gets no default place", async () => {
   await withProject(async ({ folder, library }) => {
     await withAgent(folder, claudeCode("claude-1"), async (agent) => {
-      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up" }));
-      const form = idOf(await agent.call("plan_capability", { story, title: "Email form" }));
-      const link = idOf(await agent.call("plan_capability", { story, title: "Confirmation link" }));
+      const story = idOf(await agent.call("plan_story", { title: "Visitor can sign up", ...FOUNDED }));
+      const form = idOf(await agent.call("plan_capability", { story, title: "Email form", founding: { title: "Send through Mailgun", text: "Its API is the simplest" } }));
+      const [founding] = (await library.frontCovers(form)).map((cover) => cover.id);
+      assert.ok(founding !== undefined, "the capability is born with its founding decision on its shelf");
 
       // No claim: no default place.
       const loose = idOf(await agent.call("write_note", { kind: "memory", text: "Written before any claim" }));
       assert.deepEqual((await noteFields(library, loose)).links, undefined);
 
       await agent.call("claim", { capability: form, reason: "building the email form" });
-      // A decision becomes a front cover of the claimed capability: the founding book.
-      const founding = idOf(await agent.call("write_note", { kind: "decision", title: "Send through Mailgun", text: "Its API is the simplest" }));
-      // A memory, with no cover opened yet this session, goes inside the shelf's first book.
+      // A memory, with no cover opened yet this session, goes inside the shelf's first book: its founding decision.
       const first = idOf(await agent.call("write_note", { kind: "memory", text: "Mailgun needs a verified domain" }));
-      // A second cover; once this session has opened it, a new memory goes inside that one.
+      // A new decision becomes another front cover of the claimed capability; once this session has opened it, a new memory goes inside that one.
       const second = idOf(await agent.call("write_note", { kind: "decision", title: "Validate on the client first", text: "Before any request" }));
       await agent.call("open", { id: second });
       const latest = idOf(await agent.call("write_note", { kind: "definition", term: "Bounce", meaning: "An email that could not be delivered" }));
@@ -231,7 +237,8 @@ test("6.5 a note written with no place named while holding a claim goes onto tha
       assert.deepEqual((await noteFields(library, latest)).links, [second]);
       assert.deepEqual((await noteFields(library, named)).links, [founding]);
 
-      // Holding a capability whose shelf is empty: nothing is added, and the agent is told.
+      // Holding a capability whose shelf is empty, as one made through the library itself can be: nothing is added, and the agent is told.
+      const link = (await library.addCapability({ title: "Confirmation link", story })).id;
       await agent.call("claim", { capability: link, reason: "building the confirmation link" });
       const unshelved = await agent.call("write_note", { kind: "memory", text: "Links expire after a day" });
       assert.equal(unshelved.isError, false);
@@ -244,7 +251,7 @@ test("6.5 a note written with no place named while holding a claim goes onto tha
 test("the sentence travels with the data: a harness that shows the agent a tool's data instead of its text, as Claude Code 2.1.212 did, still shows the sentence (regression: the agent link's live check, 2026-09-26)", async () => {
   await withProject(async ({ folder }) => {
     await withAgent(folder, claudeCode("claude-1"), async (agent) => {
-      const story = await agent.call("plan_story", { title: "Visitor can sign up" });
+      const story = await agent.call("plan_story", { title: "Visitor can sign up", ...FOUNDED });
       const refused = await agent.call("claim", { capability: "capability_000000000000", reason: "building it" });
       const plan = await agent.call("show_plan");
       for (const [tool, answer] of [["plan_story", story], ["claim", refused], ["show_plan", plan]] as const) {
