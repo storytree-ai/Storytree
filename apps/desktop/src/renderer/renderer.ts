@@ -1,8 +1,11 @@
 /**
- * The page's glue: it asks the main process (through the preload's two functions) for the
- * projects and a project's tree, and puts view.ts's HTML into the document. `data-state` on the
- * body says where it got to (loading, ready, empty, missing, error), which the smoke check reads.
+ * The page's glue: it asks the main process (through the preload's functions) for the projects and
+ * a project's tree, and puts view.ts's HTML into the document. `data-state` on the body says where
+ * it got to (loading, ready, empty, missing, error), and `data-drew` what the plain list drew, both
+ * of which the smoke check reads.
  */
+import type { Drawn } from "@storytree/app";
+
 import type { StorytreeBridge } from "../bridge.js";
 import { renderNoProjects, renderProject, renderSwitcher } from "../view/view.js";
 
@@ -32,6 +35,7 @@ async function open(): Promise<void> {
 /** Show project `name`, with the switcher listing `projects`. */
 async function show(name: string, projects: readonly string[]): Promise<void> {
   setState("loading");
+  delete document.body.dataset.drew;
   switcher.innerHTML = renderSwitcher(projects, projects.includes(name) ? name : undefined);
   const select = switcher.querySelector("select");
   if (select !== null) {
@@ -43,8 +47,24 @@ async function show(name: string, projects: readonly string[]): Promise<void> {
   }
   const tree = await window.storytree.projectTree(name);
   content.innerHTML = renderProject(name, tree);
+  sayWhatWasDrawn();
   document.title = `${name} · storytree 0.3`;
   setState("ready");
+}
+
+/**
+ * Say what the plain list drew, as every surface does once it has drawn a project: the stories and
+ * capabilities now on the page, by id. The smoke check judges the surface on show by it.
+ */
+function sayWhatWasDrawn(): void {
+  const ids = (selector: string, of: (node: HTMLElement) => string | undefined): string[] =>
+    [...content.querySelectorAll<HTMLElement>(selector)].map((node) => of(node) ?? "");
+  const drawn: Drawn = {
+    surface: "list",
+    stories: ids("[data-story-id]", (node) => node.dataset.storyId),
+    capabilities: ids("[data-capability-id]", (node) => node.dataset.capabilityId),
+  };
+  document.body.dataset.drew = JSON.stringify(drawn);
 }
 
 /** A heading and a line of text in place of the project, written as text (never as HTML). */

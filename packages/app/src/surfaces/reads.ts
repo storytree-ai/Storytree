@@ -1,0 +1,88 @@
+/**
+ * Capability 3 · Surfaces (stories/app.md): what the app answers when the page asks. The page runs
+ * sandboxed and cannot reach the database, so every read a surface makes comes through here: the
+ * projects, a project's tree, and the two the live reading asks for (ADR-0634 D3), the library's
+ * changes and the agent activity log's new lines since a point. The live reading, which decides when
+ * to ask, is the arc surface's; the app only answers.
+ *
+ * Only a project the library already has is read: a name that is not a project is refused, and
+ * never created, since opening a project's library would create it.
+ */
+import { openActivityLog, type ActivityLog, type LinesSince } from "@storytree/agent-link";
+import type { AnnotatedTree, Changes, Library, Storytree } from "@storytree/library";
+
+/** The page's reads, as the app answers them. */
+export interface PageReads {
+  /** The names of the projects in the app's library, sorted. */
+  listProjects(): Promise<string[]>;
+  /** A project's tree, with every node's health. */
+  projectTree(project: unknown): Promise<AnnotatedTree>;
+  /** The library's changes to a project after `cursor` (0 for all), and the cursor to pass next time. */
+  changesSince(project: unknown, cursor: unknown): Promise<Changes>;
+  /** The agent activity log's lines for a project after `cursor` (0 for all), and the cursor to pass next time. */
+  linesSince(project: unknown, cursor: unknown): Promise<LinesSince>;
+  /** Close the libraries and the log opened here. The connection to the library stays the caller's. */
+  close(): Promise<void>;
+}
+
+export interface PageReadsOptions {
+  /** The app's connection to its library. */
+  readonly storytree: Storytree;
+  /** The address of the Postgres server the libraries are on, where the agent activity log lives too. */
+  readonly serverUrl: string;
+}
+
+/**
+ * The page's reads over the app's library. Each project's library, and the agent activity log, are
+ * opened the first time they are asked for, and kept open until close(). A cursor is passed on as
+ * the page gave it: the library and the log each refuse one that is not a whole number, 0 or more.
+ */
+export function pageReads({ storytree, serverUrl }: PageReadsOptions): PageReads {
+  const libraries = new Map<string, Promise<Library>>();
+  let log: Promise<ActivityLog> | undefined;
+
+  /** `name`, if it is a project the library has; refused otherwise. */
+  async function project(name: unknown): Promise<string> {
+    if (typeof name !== "string" || !(await storytree.listProjects()).includes(name)) {
+      throw new Error(`there is no project called ${JSON.stringify(name)}`);
+    }
+    return name;
+  }
+
+  function library(name: string): Promise<Library> {
+    let open = libraries.get(name);
+    if (open === undefined) {
+      open = storytree.openProject(name);
+      libraries.set(name, open);
+      open.catch(() => libraries.delete(name));
+    }
+    return open;
+  }
+
+  function activityLog(): Promise<ActivityLog> {
+    if (log === undefined) {
+      const opening = openActivityLog(serverUrl);
+      log = opening;
+      opening.catch(() => {
+        if (log === opening) log = undefined;
+      });
+    }
+    return log;
+  }
+
+  return {
+    listProjects: () => storytree.listProjects(),
+    projectTree: async (name) => (await library(await project(name))).projectTree(),
+    changesSince: async (name, cursor) => (await library(await project(name))).changesSince(cursor as number),
+    linesSince: async (name, cursor) => {
+      const known = await project(name);
+      return (await activityLog()).since(known, cursor as number);
+    },
+    close: async () => {
+      const opened = [...libraries.values(), ...(log === undefined ? [] : [log])];
+      libraries.clear();
+      log = undefined;
+      await Promise.all(opened.map((open) => open.then((it) => it.close()).catch(() => {})));
+    },
+  };
+}
