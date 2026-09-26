@@ -237,12 +237,23 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 - **Leaves out (vs 0.2):** the whole storytree command line (dozens of commands for the library,
   arcs, decisions, questions, the gate and the notice board), the build workers, the prove-it spine,
   signed verdicts and paid `--real` builds. The MVP toolbox has about a dozen tools.
+- **As built:** one command, `storytree-mcp`, a single plain Node script a harness starts for each
+  session and talks to on stdio. Its thirteen tools: `plan_arc`, `plan_story`, `plan_capability`,
+  `plan_contract`, `edit_plan`, `show_plan`, `claim`, `release`, `report` (red or green), `land`,
+  `search_notes`, `open` (a story's or capability's shelf as spines, or a note whole) and
+  `write_note`. Each call is routed from the session's folder afresh and recorded as a
+  `tool-called` line on the calling session: Claude Code's id from `CLAUDE_CODE_SESSION_ID`, Codex's
+  from the call's `_meta.sessionId` (or `threadId` before Codex 0.155). A note shown as a spine or
+  title is a peek, an opened note is read whole, and how it was found is where the session last saw
+  it shown (search, shelf or link), else by its id. The note tools were built after the library's
+  knowledge entrances landed (its capability 9), on ADR-0627 D4 from their first version.
 - **Corrected after approval (ADR-0627).** A note no longer links to a capability. A new note with
   no place named goes onto the claimed capability's shelf: a decision becomes a front cover; a
   memory or definition links to the cover the session last opened, else to the shelf's first book;
   with an empty shelf nothing is added and the agent is told; with no claim there is no default.
-  Reads can be found "from a shelf". Later (ADR-0627 D5, D7): the planning tools take a short
-  founding decision, and opening a story or capability returns its shelf as spines first.
+  Reads can be found "from a shelf". Opening a story or capability returns its shelf as spines
+  first (ADR-0627 D7): built, as `open`. Later (ADR-0627 D5): the planning tools take a short
+  founding decision.
 
 **Contracts:**
 1. A test client talks to the server inside the test itself, with no real agent and no network. It
@@ -256,11 +267,10 @@ capability's shelf of front covers (ADR-0627 D4, which redirected ADR-0624's def
 4. A bad call, such as an unknown capability, gets a readable refusal rather than a crash, and with
    storytree stopped every tool answers "storytree isn't running, carry on without it".
 5. A note written with no place named while holding a claim goes onto that capability's shelf as
-   ADR-0627 D4 says, and one written with no claim gets no default place. *Waits for the library's
-   knowledge entrances (`0-3-library-knowledge-entrances`, ADR-0627 D8).*
+   ADR-0627 D4 says, and one written with no claim gets no default place.
 6. Searching and opening a note leaves a log line saying which session read it, how it was found (a
    search result, a link from another note, by id, or from a shelf) and whether it took a peek or
-   the whole note. *Waits with contract 5.*
+   the whole note.
 
 ## 7 · Instructions (the habits card)
 
