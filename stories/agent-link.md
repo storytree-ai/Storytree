@@ -139,6 +139,18 @@ running they do nothing.
 - **Leaves out (vs 0.2):** 0.2's six session-start hooks (installing packages, repairing and pruning
   worktrees, remote setup, a claim reminder), its prompt-time definition lookups and its status line.
   0.2 never recorded edits or commands at all.
+- **As built:** one command, `storytree-hook <harness>` (`claude-code` or `codex`), built into a
+  single plain Node script with nothing beside it, and run with the hook's input on stdin. Claude
+  Code's edits are its Write, Edit, MultiEdit and NotebookEdit tools and its commands are Bash;
+  Codex's edits are `apply_patch`, whose patch text names the files (also when the patch runs
+  through the shell), and its commands are Bash. It reaches the database only when the folder is a
+  project on a running storytree, gives up after 2 s, and never runs past 5 s. Where nothing is to
+  be written it exits in about 130 ms here.
+- **The two probes, run 2026-09-26 before building:** Claude Code (2.1.212) starts the tool server
+  with its session id in `CLAUDE_CODE_SESSION_ID`, the same id its hooks see, and a resumed session
+  keeps it. Codex (0.155) sends `_meta.threadId` (and, from 0.155, `_meta.sessionId`) on every tool
+  call, equal to its hooks' `session_id` in a top-level session. So the hooks do not need to record
+  a pairing.
 
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed

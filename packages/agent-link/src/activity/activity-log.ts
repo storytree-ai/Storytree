@@ -74,24 +74,30 @@ interface ActivityRow {
  * Open the agent activity log on the Postgres server at `url` (a postgres:// URL; its own database
  * is used only to create the log's, the first time). The log's database and table are made if
  * they are missing.
+ *
+ * The log's database is connected to straight away, which is one connection when it exists. When
+ * it does not, Postgres refuses (invalid_catalog_name), and on Windows it sometimes resets the
+ * connection before its refusal arrives. Either way the database is made if it is missing, from
+ * the server's own, and the log's is tried once more.
  */
 export async function openActivityLog(url: string, options: OpenOptions = {}): Promise<ActivityLog> {
   const server = new URL(url);
   const timeout = options.connectTimeoutMs ?? 5_000;
-  let pool = newPool(databaseUrl(server, ACTIVITY_DATABASE), timeout);
+  const first = newPool(databaseUrl(server, ACTIVITY_DATABASE), timeout);
+  try {
+    await applySchema(first);
+    return new PgActivityLog(first);
+  } catch (error) {
+    await first.end();
+    if (!isMissingDatabase(error) && !isConnectionReset(error)) throw error;
+  }
+  await createDatabaseIfMissing(server, timeout);
+  const pool = newPool(databaseUrl(server, ACTIVITY_DATABASE), timeout);
   try {
     await applySchema(pool);
   } catch (error) {
     await pool.end();
-    if (!isMissingDatabase(error)) throw error;
-    await createDatabase(server, timeout);
-    pool = newPool(databaseUrl(server, ACTIVITY_DATABASE), timeout);
-    try {
-      await applySchema(pool);
-    } catch (again) {
-      await pool.end();
-      throw again;
-    }
+    throw error;
   }
   return new PgActivityLog(pool);
 }
@@ -200,12 +206,13 @@ async function applySchema(pool: Pool): Promise<void> {
   }
 }
 
-/** Create the log's database from the server's own. Another open creating it first is the outcome wanted. */
-async function createDatabase(server: URL, timeout: number): Promise<void> {
+/** Create the log's database from the server's own, unless it is there. Another open creating it first is the outcome wanted. */
+async function createDatabaseIfMissing(server: URL, timeout: number): Promise<void> {
   const client = new pg.Client({ connectionString: server.href, connectionTimeoutMillis: timeout });
   await client.connect();
   try {
-    await client.query(`CREATE DATABASE "${ACTIVITY_DATABASE}"`);
+    const { rows } = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [ACTIVITY_DATABASE]);
+    if (rows.length === 0) await client.query(`CREATE DATABASE "${ACTIVITY_DATABASE}"`);
   } catch (error) {
     const { code, constraint } = error as { code?: unknown; constraint?: unknown };
     if (!(code === "42P04" || (code === "23505" && constraint === "pg_database_datname_index"))) throw error;
@@ -231,4 +238,9 @@ function databaseUrl(server: URL, database: string): string {
 /** The server said the database does not exist (invalid_catalog_name). */
 function isMissingDatabase(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "3D000";
+}
+
+/** The connection was reset, as Postgres on Windows sometimes does to one it is refusing. */
+function isConnectionReset(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "ECONNRESET";
 }

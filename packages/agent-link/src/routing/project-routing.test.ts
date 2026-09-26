@@ -91,7 +91,7 @@ test('1.1 setting a folder up as project "site" leaves a marker naming it, and a
 });
 
 test('1.2 a folder with no marker, in it or above it, gives "not a storytree project"', async () => {
-  assert.equal(NOT_A_PROJECT, "not a storytree project");
+  // test-removed: the message's exact wording (ADR-0623): the answer is checked by its status below.
   await withTempDir((dir) => {
     const plain = path.join(dir, "plain", "src");
     mkdirSync(plain, { recursive: true });
@@ -127,7 +127,7 @@ test("1.3 a project name the library would refuse is refused when setting a fold
 });
 
 test("1.4 with the app's database stopped, asking where to send activity answers \"storytree isn't running\" in well under a second", async () => {
-  assert.equal(NOT_RUNNING, "storytree isn't running");
+  // test-removed: the message's exact wording (ADR-0623): the answer is checked by its status below.
   await withTempDir((dir) => {
     const folder = markedFolder(dir, "site");
 
