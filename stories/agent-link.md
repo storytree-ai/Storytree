@@ -287,6 +287,9 @@ project's CLAUDE.md or AGENTS.md, where people can read it too.
   the generators that rebuild them, and the gate checks that compare them with the database.
 - **Added after approval (ADR-0627 D7):** the card also teaches three reading lines: start at the
   shelf, open what matches your task, stop when you can act. They join the card with the note tools.
+- **As built:** the card is 19 lines, handed to every session as the tool server's MCP
+  `instructions`. It names each tool in backticks and uses backticks for nothing else, which is how
+  its test knows the tools it teaches. Adding it to a project's CLAUDE.md or AGENTS.md is not built.
 
 **Contracts:**
 1. The text names every tool the server has, and no tool the server lacks.
