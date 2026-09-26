@@ -48,6 +48,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
+      # Throwaway: fails the macOS run alone, to show that `verify` then fails. Never merged.
+      - name: Fail on macOS only
+        if: runner.os == 'macOS'
+        run: exit 1
       - uses: actions/checkout@v6
       # pnpm 9.15.0, from package.json's packageManager field.
       - uses: pnpm/action-setup@v6
