@@ -22,6 +22,10 @@ Linux, against the merge of the branch with `main`, and merges the pull request 
 `main` is protected, so nothing merges without that check. A draft pull request is never merged:
 open one as a draft to hold it.
 
+When an increment lands, `pnpm test-ratio` prints how many lines of test code there are for each
+line of implementation, overall and per package, counting code lines only. A rising ratio is a
+prompt to check that each test still protects something the product does. It is never a failure.
+
 ## Generations
 
 - **0.1**: the original Rust project.
