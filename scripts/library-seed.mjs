@@ -1,7 +1,8 @@
 // The seed's rules, which scripts/seed-library-story.mjs runs: how a story file (stories/*.md)
-// becomes a story with its capabilities and contracts in a library, and how a run of the story's
-// tests becomes each contract's VERIFIED health. Everything here but syncStory and recordHealth,
-// which write through the library's public API, is pure.
+// becomes a story with its capabilities and contracts in a library, how a run of the story's tests
+// becomes each contract's VERIFIED health, and how a decision file (decisions/*.md) becomes a front
+// cover of the story or capability it decided. Everything here but syncStory, recordHealth and
+// syncDecisions, which write through the library's public API, is pure.
 //
 // Honesty rules for the verified column: a contract passes only if it has tests and every one of
 // them passed. Any failure fails it. A skipped test is not a pass, so a contract with one is not
@@ -467,12 +468,149 @@ export async function recordHealth(library, contractIds, verdicts) {
 
 // --- decisions --------------------------------------------------------------------------------
 
-/** Read a decision file (decisions/*.md) into a decision to file as a front cover. (Stub: not built yet.) */
-export function parseDecision(_markdown) {
-  throw new Error("parseDecision is not built yet");
+/**
+ * @typedef {{ story: string, capability?: number }} Cover
+ * @typedef {{ title: string, cover: Cover, record: string, text: string }} ParsedDecision
+ */
+
+/**
+ * Read a decision file (decisions/*.md): a decision made for this project, in short form, to be a
+ * front cover of one story or capability. It has a `# <title>`; a `- **Front cover of:**` line
+ * naming the story file, with `, capability N` for one of that story's capabilities; a
+ * `- **Full record:**` line saying where the whole decision is, starting with the record's id
+ * (`ADR-0621 in storytree 0.2's decision log`); and the decision in plain words. The text keeps the
+ * words' paragraphs, each on one line (a list item on a line of its own, so the first line is
+ * what a shelf shows under the title), and ends with the full record line. The record's id is
+ * how a later run finds the decision again.
+ * @param {string} markdown
+ * @returns {ParsedDecision}
+ */
+export function parseDecision(markdown) {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const top = lines.findIndex((line) => line.startsWith("# "));
+  if (top < 0) throw new Error("the decision file has no `# <title>` line");
+  const title = lines[top].slice(2).trim();
+
+  /** @type {Map<string, string>} */
+  const fields = new Map();
+  /** @type {string[]} */
+  const words = [];
+  for (const line of lines.slice(top + 1)) {
+    const field = /^- \*\*(Front cover of|Full record):\*\*(.*)$/.exec(line);
+    if (field === null) words.push(line);
+    else if (fields.has(field[1])) throw new Error(`"${title}" has two \`${field[1]}\` lines; a decision has one of each`);
+    else fields.set(field[1], field[2].trim());
+  }
+
+  const cover = /^(stories\/[^\s,]+\.md)(?:,?\s+capability\s+(\d+))?\.?$/.exec(fields.get("Front cover of") ?? "");
+  if (cover === null) {
+    throw new Error(
+      `"${title}" names no story or capability it is a front cover of: give it a ` +
+        "`- **Front cover of:** stories/<name>.md` line, adding `, capability N` for one of the story's capabilities",
+    );
+  }
+  const full = fields.get("Full record")?.replace(/\.$/, "");
+  const record = /^ADR-\d+\b/.exec(full ?? "")?.[0];
+  if (full === undefined || record === undefined) {
+    throw new Error(`"${title}" does not say where its full record is: give it a \`- **Full record:** ADR-NNNN in …\` line`);
+  }
+  return {
+    title,
+    cover: { story: cover[1], ...(cover[2] === undefined ? {} : { capability: Number(cover[2]) }) },
+    record,
+    text: [...paragraphsOf(words), `Full record: ${full}.`].join("\n\n"),
+  };
 }
 
-/** File each decision as a front cover of the node it names, in place. (Stub: not built yet.) */
-export async function syncDecisions(_library, _decisions, _nodes) {
-  throw new Error("syncDecisions is not built yet");
+/** The paragraphs of `lines`, each on one line, except that a list item starts a line of its own. */
+function paragraphsOf(lines) {
+  /** @type {string[]} */
+  const paragraphs = [];
+  /** @type {string[]} */
+  let current = [];
+  for (const line of [...lines, ""]) {
+    const text = line.trim();
+    if (text === "") {
+      if (current.length > 0) paragraphs.push(current.join("\n"));
+      current = [];
+    } else if (current.length > 0 && !/^(?:[-*]|\d+\.)\s/.test(text)) current[current.length - 1] += ` ${text}`;
+    else current.push(text);
+  }
+  return paragraphs;
+}
+
+/**
+ * File each decision as a front cover of the story or capability it names, through the library's
+ * public API, idempotently. `nodes` maps each story file to its story's id and its capabilities'
+ * ids by number, as syncStory gives them.
+ *
+ * Every decision is placed before any is written: a decision naming a node the stories do not
+ * have, or a record filed twice, is refused and nothing is written. A decision is found again by
+ * its full record's id, which its text ends with. What is missing is added, and one whose title,
+ * words or node changed is edited in place, so a second run over unchanged files writes nothing.
+ * A decision this seed filed whose file is gone leaves its shelf and stays in the library: a front
+ * cover is never retired, since retiring does not check what links to a record, and everything
+ * filed inside it would be stranded. A note the seed did not write is never touched.
+ * @param {import("@storytree/library").Library} library
+ * @param {ParsedDecision[]} decisions
+ * @param {Map<string, { storyId: string, capabilityIds: Map<string, string> }>} nodes story file -> ids
+ */
+export async function syncDecisions(library, decisions, nodes) {
+  const counts = { added: 0, updated: 0, unchanged: 0, offShelf: 0 };
+  /** @type {Map<string, string>} record -> the id of the node it is a front cover of */
+  const placed = new Map();
+  /** @type {Map<string, string>} record -> the title it was first filed under */
+  const titles = new Map();
+  for (const { record, title, cover } of decisions) {
+    if (titles.has(record)) {
+      throw new Error(
+        `${record} is filed twice, as "${titles.get(record)}" and as "${title}": ` +
+          "a decision is a front cover of one node at most, so give each record one file",
+      );
+    }
+    titles.set(record, title);
+    const story = nodes.get(cover.story);
+    const nodeId = cover.capability === undefined ? story?.storyId : story?.capabilityIds.get(String(cover.capability));
+    if (nodeId === undefined) {
+      const where = cover.capability === undefined ? cover.story : `${cover.story}, capability ${cover.capability}`;
+      throw new Error(`${record} ("${title}") is a front cover of ${where}, which the story files do not have`);
+    }
+    placed.set(record, nodeId);
+  }
+
+  /** @type {Map<string, import("@storytree/library").Note>} record -> the decision filed for it */
+  const filed = new Map();
+  for (const note of await library.search("")) {
+    const record = note.type === "decision" ? recordOf(note.fields.text) : undefined;
+    if (record !== undefined && !filed.has(record)) filed.set(record, note);
+  }
+
+  for (const { record, title, text } of decisions) {
+    const frontCoverOf = placed.get(record);
+    const old = filed.get(record);
+    if (old === undefined) {
+      await library.recordDecision({ title, text, frontCoverOf });
+      counts.added++;
+      continue;
+    }
+    const edit = {};
+    if (old.fields.title !== title) edit.title = title;
+    if (old.fields.text !== text) edit.text = text;
+    if (old.fields.frontCoverOf !== frontCoverOf) edit.frontCoverOf = frontCoverOf;
+    if (Object.keys(edit).length > 0) {
+      await library.editNote(old.id, edit);
+      counts.updated++;
+    } else counts.unchanged++;
+  }
+  for (const [record, old] of filed) {
+    if (placed.has(record) || old.fields.frontCoverOf === undefined) continue;
+    await library.editNote(old.id, { frontCoverOf: undefined });
+    counts.offShelf++;
+  }
+  return { counts, placed };
+}
+
+/** The id of the full record a decision's text ends with, as parseDecision writes it; undefined if it has none. */
+function recordOf(text) {
+  return /^Full record: (ADR-\d+)\b/m.exec(text)?.[1];
 }
