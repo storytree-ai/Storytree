@@ -2,19 +2,21 @@
  * The storytree 0.3 desktop app's main process. It starts the app's own Postgres on its data
  * directory (~/.storytree/0.3/pgdata) through local-postgres, connects the library through its
  * public API, opens the project asked for (`--project <name>`, else `storytree` if there is one,
- * else the first), and shows it. It answers the page's two questions, listProjects() and
- * projectTree(name), and stops Postgres when the app quits.
+ * else the first), and shows it. It answers the page's questions (bridge.ts) through
+ * @storytree/app's pageReads: the projects, a project's tree, and the library's changes and the
+ * agent activity log's new lines since a point. It stops Postgres when the app quits.
  *
  * `--smoke` renders the project without showing a window, saves a screenshot to the file given
- * with `--screenshot <file>`, prints the page's text to stdout, and quits: exit 0 only if every
- * story of the project and every one of its capabilities rendered.
+ * with `--screenshot <file>`, prints the page's text to stdout, and quits: exit 0 only if the
+ * surface on show says it drew every story of the project and every one of its capabilities.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
 
-import { connect, type AnnotatedTree, type Library, type Storytree } from "@storytree/library";
+import { pageReads, smokeProblems, type PageReads } from "@storytree/app";
+import { connect, type AnnotatedTree, type Storytree } from "@storytree/library";
 import { DataDirInUseError, findBinaries, start, type LocalPostgres } from "@storytree/local-postgres";
 
 import { CHANNELS } from "../bridge.js";
@@ -31,7 +33,7 @@ app.setPath("userData", home.electron);
 
 let postgres: LocalPostgres | undefined;
 let storytree: Storytree | undefined;
-const libraries = new Map<string, Promise<Library>>();
+let reads: PageReads | undefined;
 let shutDown: Promise<void> | undefined;
 
 if (!args.smoke && !app.requestSingleInstanceLock()) {
@@ -59,13 +61,16 @@ if (!args.smoke && !app.requestSingleInstanceLock()) {
 }
 
 async function run(): Promise<void> {
-  ipcMain.handle(CHANNELS.listProjects, () => (storytree === undefined ? [] : storytree.listProjects()));
-  ipcMain.handle(CHANNELS.projectTree, async (_event, name: unknown) => projectTree(name));
+  ipcMain.handle(CHANNELS.listProjects, () => (reads === undefined ? [] : reads.listProjects()));
+  ipcMain.handle(CHANNELS.projectTree, (_event, name: unknown) => open().projectTree(name));
+  ipcMain.handle(CHANNELS.changesSince, (_event, name: unknown, cursor: unknown) => open().changesSince(name, cursor));
+  ipcMain.handle(CHANNELS.linesSince, (_event, name: unknown, cursor: unknown) => open().linesSince(name, cursor));
 
   let problem: string | undefined;
   try {
     postgres = await start({ dataDir: home.pgdata, owner: APP_OWNER, bin: postgresBinaries(), log: (message) => console.log(`Postgres: ${message}`) });
     storytree = await connect({ url: postgres.url });
+    reads = pageReads({ storytree, serverUrl: postgres.url });
     recordLaunch();
   } catch (error) {
     problem =
@@ -103,20 +108,10 @@ function postgresBinaries(): string {
     : findBinaries({ resolveFrom: app.getAppPath() });
 }
 
-/** A project's tree. Only a project the library already has is opened: looking never creates one. */
-async function projectTree(name: unknown): Promise<AnnotatedTree> {
-  if (storytree === undefined) throw new Error("the library is not open");
-  if (typeof name !== "string" || !(await storytree.listProjects()).includes(name)) {
-    throw new Error(`there is no project called ${JSON.stringify(name)}`);
-  }
-  const connection = storytree;
-  let library = libraries.get(name);
-  if (library === undefined) {
-    library = connection.openProject(name);
-    libraries.set(name, library);
-    library.catch(() => libraries.delete(name));
-  }
-  return (await library).projectTree();
+/** The page's reads, once the library is open. */
+function open(): PageReads {
+  if (reads === undefined) throw new Error("the library is not open");
+  return reads;
 }
 
 function openWindow(query: { project?: string; problem?: string }): BrowserWindow {
@@ -144,7 +139,10 @@ function openWindow(query: { project?: string; problem?: string }): BrowserWindo
   return window;
 }
 
-/** The smoke check: wait for the page, screenshot it, print its text, and judge what rendered. */
+/**
+ * The smoke check: wait for the page, screenshot it, print its text, and judge the surface on show
+ * by what it says it drew (@storytree/app's smokeProblems).
+ */
 async function smoke(window: BrowserWindow, project: string | undefined): Promise<void> {
   let code = 1;
   try {
@@ -160,9 +158,8 @@ async function smoke(window: BrowserWindow, project: string | undefined): Promis
     })()`)) as { title: string; contracts: number } | null;
     const page = (await window.webContents.executeJavaScript(`(() => ({
       text: document.body.innerText,
-      stories: [...document.querySelectorAll("[data-story-id]")].map((node) => node.dataset.storyId),
-      capabilities: [...document.querySelectorAll("[data-capability-id]")].map((node) => node.dataset.capabilityId),
-    }))()`)) as { text: string; stories: string[]; capabilities: string[] };
+      drew: document.body.dataset.drew,
+    }))()`)) as { text: string; drew?: string };
 
     // A screenshot holds only what is in view, so the window is made as tall as the page first.
     const [width] = window.getContentSize();
@@ -184,14 +181,10 @@ async function smoke(window: BrowserWindow, project: string | undefined): Promis
     process.stdout.write(`${page.text.trim()}\n`);
     if (opened !== null) console.log(`smoke: opened "${opened.title}", showing its ${opened.contracts} contract(s)`);
 
-    const tree = project === undefined || state !== "ready" ? undefined : await projectTree(project);
-    const problems = smokeProblems(state, tree, page);
+    const tree = project === undefined || state !== "ready" ? undefined : await open().projectTree(project);
+    const problems = smokeProblems(state, tree, page.drew);
     if (problems.length === 0 && tree !== undefined) {
-      const capabilities = tree.stories.reduce((sum, story) => sum + story.capabilities.length, 0);
-      console.log(
-        `smoke: project "${project}" rendered ${tree.stories.map((story) => `story "${story.title}"`).join(", ")} ` +
-          `and ${page.capabilities.length}/${capabilities} capabilities`,
-      );
+      console.log(`smoke: project "${project}": ${drewText(tree, page.drew)}`);
       code = 0;
     } else {
       for (const problem of problems) console.error(`smoke: ${problem}`);
@@ -215,28 +208,18 @@ async function pageState(window: BrowserWindow): Promise<string> {
   }
 }
 
-/** What stops the smoke check passing: every story of the project and each of its capabilities must be on the page. */
-function smokeProblems(state: string, tree: AnnotatedTree | undefined, page: { text: string; stories: string[]; capabilities: string[] }): string[] {
-  if (state !== "ready") return [`the page did not render a project (its state is "${state}")`];
-  if (tree === undefined) return ["no project was opened"];
-  if (tree.stories.length === 0) return ["the project has no stories to render"];
-  const problems: string[] = [];
-  for (const story of tree.stories) {
-    if (!page.stories.includes(story.id) || !page.text.includes(story.title)) problems.push(`story "${story.title}" did not render`);
-    for (const capability of story.capabilities) {
-      if (!page.capabilities.includes(capability.id) || !page.text.includes(capability.title)) {
-        problems.push(`capability "${capability.title}" did not render`);
-      }
-    }
-  }
-  return problems;
+/** A passing check's summary: which surface drew the project's stories, and how many capabilities. */
+function drewText(tree: AnnotatedTree, drew: string | undefined): string {
+  const { surface } = JSON.parse(drew ?? "{}") as { surface?: string };
+  const capabilities = tree.stories.reduce((sum, story) => sum + story.capabilities.length, 0);
+  return `the ${surface ?? "surface"} drew ${tree.stories.map((story) => `story "${story.title}"`).join(", ")} and all ${capabilities} capabilities`;
 }
 
 /** Close the library and stop Postgres. Safe to call more than once. */
 function shutdown(): Promise<void> {
   shutDown ??= (async () => {
-    for (const library of libraries.values()) await library.then((open) => open.close()).catch(() => {});
-    libraries.clear();
+    await reads?.close().catch((error: unknown) => console.error(`closing the projects: ${messageOf(error)}`));
+    reads = undefined;
     await storytree?.close().catch((error: unknown) => console.error(`closing the library: ${messageOf(error)}`));
     storytree = undefined;
     await postgres?.stop().catch((error: unknown) => console.error(`stopping Postgres: ${messageOf(error)}`));

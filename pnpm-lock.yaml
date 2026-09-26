@@ -27,6 +27,12 @@ importers:
         specifier: 17.10.0-beta.17
         version: 17.10.0-beta.17
     devDependencies:
+      '@storytree/agent-link':
+        specifier: workspace:*
+        version: link:../../packages/agent-link
+      '@storytree/app':
+        specifier: workspace:*
+        version: link:../../packages/app
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library

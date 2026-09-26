@@ -13,6 +13,8 @@
     "dist": "node build.mjs && node dist.mjs"
   },
   "devDependencies": {
+    "@storytree/agent-link": "workspace:*",
+    "@storytree/app": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/local-postgres": "workspace:*",
     "@types/node": "^24.13.6",
