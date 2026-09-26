@@ -55,6 +55,8 @@ await build({
   platform: "browser",
   format: "iife",
   target: "es2023",
+  // The forest's pine kit export is bundled into the page as its bytes (src/forest/forest-view.ts).
+  loader: { ".glb": "binary" },
 });
 
 for (const file of ["index.html", "styles.css"]) {

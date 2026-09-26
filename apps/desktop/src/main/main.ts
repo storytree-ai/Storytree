@@ -194,7 +194,10 @@ async function smoke(window: BrowserWindow, project: string | undefined): Promis
     const [width] = window.getContentSize();
     const height = Number(await window.webContents.executeJavaScript("document.documentElement.scrollHeight"));
     window.setContentSize(width ?? 1120, Math.min(Math.max(height, 480), 4000));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // A window that was never shown does not composite a WebGL canvas (the forest), so it is shown,
+    // without taking focus, before the screenshot, and given a moment to paint.
+    window.showInactive();
+    await new Promise((resolve) => setTimeout(resolve, 800));
     let image = await window.webContents.capturePage();
     if (image.isEmpty()) {
       window.showInactive(); // some systems will not paint a window that has never been shown
