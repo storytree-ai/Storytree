@@ -1,8 +1,9 @@
 // `pnpm seed:library`: put this repo's own stories and decisions into the project `storytree` in
 // the desktop app's library (~/.storytree/0.3/pgdata). Every story file (stories/*.md) becomes a
 // story with its capabilities and contracts, and every decision file (decisions/*.md) a front cover
-// of the story or capability it decided. Then each story's tests are run, and each contract's
-// VERIFIED health is recorded from what they showed.
+// of the story or capability it decided, or, for a decision about the whole project, a decision on
+// no shelf. Then each story's tests are run, and each contract's VERIFIED health is recorded from
+// what they showed.
 //
 // The app's Postgres is started here, on the app's own data directory, and stopped again at the
 // end. While the app is running it holds that directory, so the seed says so and exits non-zero:
@@ -119,7 +120,10 @@ async function main() {
     const filed = await syncDecisions(library, decisions, synced);
     const { added, updated, unchanged, offShelf } = filed.counts;
     console.log(`\ndecisions: ${added} added, ${updated} updated, ${unchanged} unchanged, ${offShelf} taken off their shelves`);
-    for (const { record, title } of decisions) console.log(`  ${record} "${title}": a front cover of ${names.get(filed.placed.get(record))}`);
+    for (const { record, title } of decisions) {
+      const nodeId = filed.placed.get(record);
+      console.log(`  ${record} "${title}": ${nodeId === undefined ? "on no shelf" : `a front cover of ${names.get(nodeId)}`}`);
+    }
 
     let code = 0;
     for (const { file, story } of stories) {
