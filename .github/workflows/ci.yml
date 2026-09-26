@@ -47,6 +47,10 @@ jobs:
             runner: windows-latest
           - system: Windows 3
             runner: windows-latest
+          - system: Windows 4
+            runner: windows-latest
+          - system: Windows 5
+            runner: windows-latest
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
@@ -69,6 +73,7 @@ jobs:
             start=$(date +%s)
             if pnpm test > "run-$i.log" 2>&1; then verdict=pass; else verdict=FAIL; failed=$((failed + 1)); fi
             echo "run $i: $verdict in $(( $(date +%s) - start )) s; $(grep -E '^ℹ (pass|fail|skipped) ' "run-$i.log" | tr '\n' ' ')"
+            grep -E 'reset the connection before its refusal arrived' "run-$i.log" | sed "s/^/  retried: /" || true
             if [ "$verdict" = FAIL ]; then
               grep -n -E 'ECONNRESET|✖|not ok|Error' "run-$i.log" | head -40
               tail -60 "run-$i.log"
