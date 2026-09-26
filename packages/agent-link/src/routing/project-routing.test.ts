@@ -1,0 +1,172 @@
+/**
+ * Capability 1 · Project routing: one test per contract 1.1-1.5 in stories/agent-link.md.
+ *
+ * The folders are throwaway directories. Setting one up opens its project in the library on the
+ * real Postgres `pnpm test` provides; each such project is named with uniqueProjectName() and its
+ * database is dropped afterwards, pass or fail.
+ *
+ * "Is storytree running, and where?" is read from the owner record @storytree/local-postgres keeps
+ * beside the app's data directory (`<dataDir>.owner.json`) while the app's Postgres runs. The test
+ * server was started the same way, so its own record is the real thing; a crashed app's record is
+ * written here in the same shape.
+ */
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer, type AddressInfo } from "node:net";
+import path from "node:path";
+import { test } from "node:test";
+
+import { connect, ProjectNameError, type Storytree } from "@storytree/library";
+
+import { git, withTempDir } from "../testing/folders.js";
+import { dropTestProjects, testServerDataDir, testServerUrl, uniqueProjectName } from "../testing/pg.js";
+import { findProject, locateStorytree, MARKER_FILE, NOT_A_PROJECT, NOT_RUNNING, route, setUpProject } from "./index.js";
+
+/** "Well under a second", as the tests hold it. */
+const QUICK_MS = 500;
+
+/** Run `body` with a connection to the test server; afterwards close it and drop `projects`' libraries. */
+async function withStorytree(projects: readonly string[], body: (storytree: Storytree) => Promise<void>): Promise<void> {
+  const storytree = await connect({ url: testServerUrl() });
+  try {
+    await body(storytree);
+  } finally {
+    try {
+      await storytree.close();
+    } finally {
+      await dropTestProjects(projects);
+    }
+  }
+}
+
+/** A folder under `dir` that is already set up as `project`: the marker, as the spec shapes it. */
+function markedFolder(dir: string, project: string): string {
+  const folder = path.join(dir, project);
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(folder, MARKER_FILE), `${JSON.stringify({ project })}\n`);
+  return folder;
+}
+
+/** The owner record local-postgres keeps beside a data directory while a process holds it. */
+function writeOwnerRecord(dataDir: string, record: { pid: number; port: number }): void {
+  mkdirSync(path.dirname(dataDir), { recursive: true });
+  const owner = { ...record, token: "a crashed app's", owner: "the storytree 0.3 desktop app", startedAt: new Date().toISOString() };
+  writeFileSync(`${dataDir}.owner.json`, JSON.stringify(owner));
+}
+
+/** `fn`'s result and how long it took, in milliseconds. */
+function timed<T>(fn: () => T): { result: T; ms: number } {
+  const started = performance.now();
+  const result = fn();
+  return { result, ms: performance.now() - started };
+}
+
+test('1.1 setting a folder up as project "site" leaves a marker naming it, and asking from the folder, a sub-folder and a git worktree of it all give "site"', async () => {
+  const project = uniqueProjectName(); // "site", unique on the shared test server
+  await withTempDir(async (dir) => {
+    const folder = path.join(dir, "site");
+    mkdirSync(path.join(folder, "src", "components"), { recursive: true });
+    git(folder, "init", "-q");
+    git(folder, "commit", "-q", "--allow-empty", "-m", "first");
+
+    await withStorytree([project], async (storytree) => {
+      const setUp = await setUpProject({ folder, project, storytree });
+      assert.equal(setUp.project, project);
+      assert.deepEqual(JSON.parse(readFileSync(path.join(folder, MARKER_FILE), "utf8")), { project }, "the marker names the project");
+      assert.ok((await storytree.listProjects()).includes(project), "the project's library now exists");
+    });
+
+    // A worktree of the folder, beside it. The marker was never committed, so the worktree has no
+    // copy of its own: the answer has to come from the folder it is a worktree of.
+    const worktree = path.join(dir, "site-feature");
+    git(folder, "worktree", "add", "-q", "-b", "feature", worktree);
+    mkdirSync(path.join(worktree, "src"), { recursive: true });
+    assert.equal(existsSync(path.join(worktree, MARKER_FILE)), false, "the worktree holds no marker");
+
+    for (const from of [folder, path.join(folder, "src", "components"), worktree, path.join(worktree, "src")]) {
+      assert.deepEqual(findProject(from), { project, folder }, `asked from ${from}`);
+    }
+  });
+});
+
+test('1.2 a folder with no marker, in it or above it, gives "not a storytree project"', async () => {
+  assert.equal(NOT_A_PROJECT, "not a storytree project");
+  await withTempDir((dir) => {
+    const plain = path.join(dir, "plain", "src");
+    mkdirSync(plain, { recursive: true });
+    assert.deepEqual(findProject(plain), { project: undefined, message: NOT_A_PROJECT });
+
+    // A git repository with no marker, and a worktree of it, are no different.
+    const repo = path.join(dir, "repo");
+    mkdirSync(repo);
+    git(repo, "init", "-q");
+    git(repo, "commit", "-q", "--allow-empty", "-m", "first");
+    const worktree = path.join(dir, "repo-feature");
+    git(repo, "worktree", "add", "-q", "-b", "feature", worktree);
+    assert.deepEqual(findProject(repo), { project: undefined, message: NOT_A_PROJECT });
+    assert.deepEqual(findProject(worktree), { project: undefined, message: NOT_A_PROJECT });
+
+    // So routing sends nothing anywhere, whatever the state of storytree.
+    assert.deepEqual(route(plain, { dataDir: testServerDataDir() }), { status: "not-a-project", message: NOT_A_PROJECT });
+  });
+});
+
+test("1.3 a project name the library would refuse is refused when setting a folder up, and nothing is written", async () => {
+  const refused = ["Site", "my site", "-site", "site-", "si--te", "a".repeat(41), ""];
+  await withTempDir(async (dir) => {
+    await withStorytree([], async (storytree) => {
+      for (const name of refused) {
+        await assert.rejects(setUpProject({ folder: dir, project: name, storytree }), ProjectNameError, `${JSON.stringify(name)} is refused`);
+      }
+      assert.equal(existsSync(path.join(dir, MARKER_FILE)), false, "no marker was written");
+      const projects = await storytree.listProjects();
+      for (const name of refused) assert.equal(projects.includes(name), false, `no project ${JSON.stringify(name)}`);
+    });
+  });
+});
+
+test("1.4 with the app's database stopped, asking where to send activity answers \"storytree isn't running\" in well under a second", async () => {
+  assert.equal(NOT_RUNNING, "storytree isn't running");
+  await withTempDir((dir) => {
+    const folder = markedFolder(dir, "site");
+
+    // Running: the test server's own owner record says where it listens.
+    const running = { dataDir: testServerDataDir() };
+    assert.deepEqual(locateStorytree(running), { running: true, url: testServerUrl() });
+    assert.deepEqual(route(path.join(folder, "src"), running), { status: "routed", project: "site", folder, url: testServerUrl() });
+
+    // Stopped: a stopped server leaves no owner record.
+    const stopped = { dataDir: path.join(dir, "home", "pgdata") };
+    const { result, ms } = timed(() => route(folder, stopped));
+    assert.deepEqual(result, { status: "not-running", project: "site", message: NOT_RUNNING });
+    assert.deepEqual(locateStorytree(stopped), { running: false, message: NOT_RUNNING });
+    assert.ok(ms < QUICK_MS, `answered in ${ms.toFixed(0)} ms`);
+  });
+});
+
+test("1.5 a leftover address from a crashed app counts as not running: it answers in well under a second and never hangs", async () => {
+  // The pid of a process that has ended, as a crashed app leaves it in its owner record.
+  const gone = spawnSync(process.execPath, ["-e", "0"]).pid;
+  // Something on the leftover port that accepts a connection and never answers: were routing to
+  // try the address, it would hang there.
+  const silent = createServer(() => {});
+  await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+  const { port } = silent.address() as AddressInfo;
+  try {
+    await withTempDir((dir) => {
+      const folder = markedFolder(dir, "site");
+      const dataDir = path.join(dir, "home", "pgdata");
+      writeOwnerRecord(dataDir, { pid: gone, port });
+      const { result, ms } = timed(() => route(folder, { dataDir }));
+      assert.deepEqual(result, { status: "not-running", project: "site", message: NOT_RUNNING });
+      assert.ok(ms < QUICK_MS, `answered in ${ms.toFixed(0)} ms`);
+
+      // A record that cannot be read counts the same.
+      writeFileSync(`${dataDir}.owner.json`, "{ half a rec");
+      assert.deepEqual(locateStorytree({ dataDir }), { running: false, message: NOT_RUNNING });
+    });
+  } finally {
+    silent.close();
+  }
+});

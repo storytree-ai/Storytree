@@ -49,6 +49,28 @@ importers:
         specifier: ~7.0.2
         version: 7.0.2
 
+  packages/agent-link:
+    dependencies:
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.6
+        version: 24.13.6
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+
   packages/library:
     dependencies:
       '@google-cloud/cloud-sql-connector':
