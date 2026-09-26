@@ -53,6 +53,7 @@ const LIBRARY_API = [
   "editNote",
   "search",
   "relatedNotes",
+  "frontCovers",
   "retire",
   "changesSince",
   "close",
@@ -133,10 +134,14 @@ test("7.1 an agent's day against a real local Postgres: every step is visible wh
     assert.deepEqual(await lib.health(story.id), rolledUp);
     assert.deepEqual(await lib.healthHistory(contract.id), [reported, verified], "both entries, with who wrote them and when");
 
-    // A memory linked to the story: found from the story, and by its words.
-    const memory = await lib.writeMemory({ text: "Mailgun needs a verified domain", links: [story.id] });
-    assert.deepEqual(await lib.relatedNotes(story.id), [memory]);
+    // A decision that is the email form's front cover, and a memory filed inside it: the cover is on
+    // the capability's shelf, the memory is found from the cover, and both are found by their words.
+    const cover = await lib.recordDecision({ title: "Send through Mailgun", text: "Its API is the simplest", frontCoverOf: capability.id });
+    const memory = await lib.writeMemory({ text: "Mailgun needs a verified domain", links: [cover.id] });
+    assert.deepEqual(await lib.frontCovers(capability.id), [cover]);
+    assert.deepEqual(await lib.relatedNotes(cover.id), [memory]);
     assert.deepEqual(await lib.search("mailgun DOMAIN"), [memory]);
+    assert.deepEqual(await lib.search("mailgun simplest"), [cover]);
 
     // What the forest reads: the whole plan, with its health.
     const theDay = await lib.projectTree();
@@ -164,11 +169,12 @@ test("7.1 an agent's day against a real local Postgres: every step is visible wh
         action: "created",
         record: healthRecord(verifiedColumn, { node: contract.id, column: "verified", state: "failing", by: "storytree" }, verified.at),
       },
+      { recordId: cover.id, type: "decision", action: "created", record: cover },
       { recordId: memory.id, type: "memory", action: "created", record: memory },
     ]);
     assert.notEqual(reportedColumn, verifiedColumn, "each column is its own record");
     assertIncreasing(day.changes);
-    assert.equal(day.cursor, at(day.changes, 6).seq, "the cursor handed back is the last change's");
+    assert.equal(day.cursor, at(day.changes, 7).seq, "the cursor handed back is the last change's");
     assert.deepEqual(await lib.changesSince(day.cursor), { changes: [], cursor: day.cursor }, "and nothing came after it");
     // The day ends: the library is closed, and takes no more calls.
     await lib.close();
@@ -225,10 +231,10 @@ test("7.2 changesSince(n) returns only the changes after n, in order, each carry
     const contract = await lib.addContract({ title: "Rejects a bad email", capability: capability.id });
     const failing = await lib.reportHealth(contract.id, "failing", { by: "agent" });
     const passing = await lib.reportHealth(contract.id, "passing", { by: "agent" });
-    const memory = await lib.writeMemory({ text: "Mailgun needs a verified domain", links: [story.id] });
+    const memory = await lib.writeMemory({ text: "Mailgun needs a verified domain" });
     const reworded = await lib.editNote(memory.id, { text: "Mailgun needs a verified sending domain" });
     await lib.retire(memory.id, "folded into a decision");
-    const decision = await lib.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest", links: [story.id] });
+    const decision = await lib.recordDecision({ title: "Use Mailgun", text: "Its API is the simplest", frontCoverOf: capability.id });
     assert.equal(await lib.editCapability("capability_000000000000", { title: "Nothing" }), null);
     assert.equal(await lib.editNote(memory.id, { text: "Retired, so not edited" }), null);
     await lib.retire(memory.id, "already retired");

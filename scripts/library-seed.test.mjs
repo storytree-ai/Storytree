@@ -19,7 +19,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const librarySpec = readFileSync(path.join(root, "stories", "library.md"), "utf8");
 const librarySrc = path.join(root, "packages", "library", "src");
 
-test("parseStory reads stories/library.md: the story, its eight capabilities in build order, their descriptions and dependencies, and their contracts numbered N.M", () => {
+test("parseStory reads stories/library.md: the story, its nine capabilities in build order, their descriptions and dependencies, and their contracts numbered N.M", () => {
   const story = parseStory(librarySpec);
   assert.equal(story.title, "The library");
   assert.match(story.description, /^The library is where one project's records live: the plan of work, .* through the agent link\.$/);
@@ -35,8 +35,9 @@ test("parseStory reads stories/library.md: the story, its eight capabilities in 
       "5 · Health record",
       "7 · Library API",
       "8 · Cloud connection (GCP)",
+      "9 · Knowledge entrances",
     ],
-    "in the story's build order: 1 → 2 → 3 → (4, 6) → 5 → 7, then 8",
+    "in the story's build order: 1 → 2 → 3 → (4, 6) → 5 → 7, then 8, then 9",
   );
   const capability = (number) => story.capabilities.find((candidate) => candidate.number === number);
   assert.equal(
@@ -46,7 +47,7 @@ test("parseStory reads stories/library.md: the story, its eight capabilities in 
   );
   assert.deepEqual(
     story.capabilities.map(({ number, dependsOn }) => [number, dependsOn]),
-    [[1, []], [2, [1]], [3, [2]], [4, [3]], [6, [3]], [5, [4]], [7, [1, 4, 5, 6]], [8, [1]]],
+    [[1, []], [2, [1]], [3, [2]], [4, [3]], [6, [3]], [5, [4]], [7, [1, 4, 5, 6]], [8, [1]], [9, [4, 6]]],
     "dependencies from each capability's 'Depends on' line, and no more (6 names 4 only to say it does not depend on it)",
   );
 
@@ -61,6 +62,7 @@ test("parseStory reads stories/library.md: the story, its eight capabilities in 
       [5, ["5.1", "5.2", "5.3", "5.4", "5.5"]],
       [7, ["7.1", "7.2", "7.3"]],
       [8, ["8.1", "8.2"]],
+      [9, ["9.1", "9.2", "9.3"]],
     ],
   );
   const first = capability(1).contracts[0];
@@ -188,8 +190,8 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const first = await syncStory(lib, story);
     assert.deepEqual(first.counts, {
       story: "added",
-      capabilities: { added: 8, updated: 0, unchanged: 0, retired: 0 },
-      contracts: { added: 39, replaced: 0, unchanged: 0, retired: 0 },
+      capabilities: { added: 9, updated: 0, unchanged: 0, retired: 0 },
+      contracts: { added: 42, replaced: 0, unchanged: 0, retired: 0 },
     });
     const tree = await lib.projectTree();
     assert.equal(tree.stories.length, 1);
@@ -206,8 +208,8 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const second = await syncStory(lib, story);
     assert.deepEqual(second.counts, {
       story: "unchanged",
-      capabilities: { added: 0, updated: 0, unchanged: 8, retired: 0 },
-      contracts: { added: 0, replaced: 0, unchanged: 39, retired: 0 },
+      capabilities: { added: 0, updated: 0, unchanged: 9, retired: 0 },
+      contracts: { added: 0, replaced: 0, unchanged: 42, retired: 0 },
     });
     assert.deepEqual(await lib.projectTree(), tree, "the second run wrote nothing");
 
@@ -222,8 +224,8 @@ test("syncStory adds the story once: a second run changes nothing, and a changed
     const third = await syncStory(lib, changed);
     assert.deepEqual(third.counts, {
       story: "unchanged",
-      capabilities: { added: 0, updated: 1, unchanged: 7, retired: 0 },
-      contracts: { added: 1, replaced: 1, unchanged: 37, retired: 1 },
+      capabilities: { added: 0, updated: 1, unchanged: 8, retired: 0 },
+      contracts: { added: 1, replaced: 1, unchanged: 40, retired: 1 },
     });
     const after = (await lib.projectTree()).stories;
     assert.equal(after.length, 1, "still one story");

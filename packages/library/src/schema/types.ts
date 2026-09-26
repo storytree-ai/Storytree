@@ -3,12 +3,14 @@
  * set of fields, and is stamped with the schema version it was written on.
  *
  * This file declares the types, all at version 1. It describes field SHAPES only: whether the id
- * in a `story`, `capability`, `node`, `stories`, `dependsOn` or `links` field names a record that
- * exists is for capabilities 4, 5 and 6 to check.
+ * in a `story`, `capability`, `node`, `stories`, `dependsOn`, `links` or `frontCoverOf` field names
+ * a record that exists is for capabilities 4, 5, 6 and 9 to check.
  *
- * Changing a type is a new version of it: raise its number in SCHEMA_VERSIONS and add an upgrade
- * step for the records written on the old one. 0.3 starts at version 1 and has no upgrade step
- * until the first real change needs one.
+ * Changing a type so that a record written on the old one no longer fits it is a new version of
+ * it: raise its number in SCHEMA_VERSIONS and add an upgrade step for the records written on the
+ * old one. A new optional field is not, since every record written before it still fits: the
+ * decision's `frontCoverOf` (capability 9) was added that way, at version 1. 0.3 starts at
+ * version 1 and has no upgrade step until the first real change needs one.
  */
 import { z } from "zod";
 
@@ -82,6 +84,8 @@ export const RECORD_SCHEMAS = {
       title: nonEmpty,
       text: nonEmpty,
       links: ids.optional(),
+      /** The one story or capability this decision is a front cover of (capability 9). */
+      frontCoverOf: z.string().optional(),
     })
     .strict(),
   definition: z

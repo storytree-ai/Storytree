@@ -1,8 +1,9 @@
 /**
- * References between records (capabilities 4, 5 and 6): a capability names its story, a contract
- * its capability, an arc the stories it grows, a capability the capabilities it depends on, a
- * health entry its contract, and a note the records it links to. A write whose references are
- * broken is refused, and writes nothing: the checks here run before the write, and throw.
+ * References between records (capabilities 4, 5, 6 and 9): a capability names its story, a
+ * contract its capability, an arc the stories it grows, a capability the capabilities it depends
+ * on, a health entry its contract, a note the notes it links to, and a decision the story or
+ * capability it is a front cover of. A write whose references are broken is refused, and writes
+ * nothing: the checks here run before the write, and throw.
  */
 import { unstorable, type SchemaRecord, type SchemaRecords } from "./schema/records.js";
 import type { RecordType } from "./schema/types.js";
@@ -13,11 +14,14 @@ import type { RecordType } from "./schema/types.js";
  * `field "story" names "story_0123456789ab": there is no story with that id (it is missing or retired)`.
  */
 export class MissingReferenceError extends Error {
-  /** The field holding the reference: `story`, `capability`, `stories`, `dependsOn`, `node` or `links`. */
+  /** The field holding the reference: `story`, `capability`, `stories`, `dependsOn`, `node`, `links` or `frontCoverOf`. */
   readonly field: string;
   /** The id that names no suitable record. */
   readonly id: string;
-  /** What the reference must name: a record type, or `record` when any type will do. */
+  /**
+   * What the reference must name: a record type, `record` when any type will do, or the name of
+   * the types it may name (`note`, `story or capability`).
+   */
   readonly expected: string;
   /** The type of the record the id does name, when that record is of the wrong type. */
   readonly found: string | undefined;
@@ -57,9 +61,18 @@ export class DependencyLoopError extends Error {
 }
 
 /**
+ * What a reference may name: one record type; any type at all (`record`); or any of several types
+ * under one name for them, such as `note` for a memory, a decision or a definition, with `why`
+ * saying why no other type will do.
+ */
+export type Expected =
+  | RecordType
+  | "record"
+  | { readonly name: string; readonly types: readonly RecordType[]; readonly why?: string };
+
+/**
  * Check that `value`, the reference held in `field`, names a live (stored, not retired) record
- * whose type is `expected`, or of any type when `expected` is "record". Throws
- * MissingReferenceError when it does not.
+ * that `expected` allows. Throws MissingReferenceError when it does not.
  *
  * Only an id that could name a record is looked up. Anything else (undefined because the field is
  * absent, a value that is not a string, or text the library cannot store, which Postgres will not
@@ -70,10 +83,17 @@ export async function checkReference(
   records: SchemaRecords,
   field: string,
   value: unknown,
-  expected: RecordType | "record",
+  expected: Expected,
 ): Promise<void> {
   if (!couldBeId(value)) return;
   const target = await records.get(value);
+  if (typeof expected !== "string") {
+    if (target === null) throw new MissingReferenceError(field, value, expected.name);
+    if (!expected.types.includes(target.type)) {
+      throw new MissingReferenceError(field, value, expected.name, target.type, expected.why);
+    }
+    return;
+  }
   if (target === null) throw new MissingReferenceError(field, value, expected);
   if (expected !== "record" && target.type !== expected) {
     throw new MissingReferenceError(field, value, expected, target.type);
@@ -88,7 +108,7 @@ export async function checkReferences(
   records: SchemaRecords,
   field: string,
   values: unknown,
-  expected: RecordType | "record",
+  expected: Expected,
 ): Promise<void> {
   if (!Array.isArray(values)) return;
   for (const value of values) await checkReference(records, field, value, expected);

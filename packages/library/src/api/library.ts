@@ -63,18 +63,26 @@ export interface Library {
   /** Every health entry of a contract, both columns, in the order written. */
   healthHistory(contractId: string): Promise<HealthEntry[]>;
 
-  /** Write a memory note. Every link must name a live record. */
+  /** Write a memory note. Every link must name a live note: notes link only to notes. */
   writeMemory(memory: NewMemory): Promise<SchemaRecord<"memory">>;
-  /** Record a decision. Every link must name a live record. */
+  /**
+   * Record a decision. Every link must name a live note, and `frontCoverOf`, if given, the one live
+   * story or capability the decision is a front cover of.
+   */
   recordDecision(decision: NewDecision): Promise<SchemaRecord<"decision">>;
-  /** Define a term. Every link must name a live record. */
+  /** Define a term. Every link must name a live note. */
   defineTerm(definition: NewDefinition): Promise<SchemaRecord<"definition">>;
   /** Change only the named fields of a note, keeping its old wording in history. Null if `id` is not a live note. */
   editNote(id: string, fields: NoteEdit): Promise<Note | null>;
   /** The live notes holding every word of `query`, ignoring case, in creation order. */
   search(query: string): Promise<Note[]>;
-  /** The live notes linking to `nodeId`, in creation order. */
-  relatedNotes(nodeId: string): Promise<Note[]>;
+  /** The live notes linking to note `noteId`, in creation order. */
+  relatedNotes(noteId: string): Promise<Note[]>;
+  /**
+   * A story's or capability's shelf: the live decisions that are its front covers, founding
+   * (oldest) first. This is how the work reaches its knowledge.
+   */
+  frontCovers(nodeId: string): Promise<SchemaRecord<"decision">[]>;
 
   /**
    * Retire a record: it is gone from every read, and its history keeps it and `reason`. Retiring
@@ -218,8 +226,12 @@ class LibraryHandle implements Library {
     return this.#project.knowledge.search(query);
   }
 
-  relatedNotes(nodeId: string): Promise<Note[]> {
-    return this.#project.knowledge.relatedNotes(nodeId);
+  relatedNotes(noteId: string): Promise<Note[]> {
+    return this.#project.knowledge.relatedNotes(noteId);
+  }
+
+  frontCovers(nodeId: string): Promise<SchemaRecord<"decision">[]> {
+    return this.#project.knowledge.frontCovers(nodeId);
   }
 
   /**
