@@ -1,5 +1,5 @@
 /**
- * Capability 3 · Hooks: one test per contract 3.1-3.5 in stories/agent-link.md.
+ * Capability 3 · Hooks: one test per contract 3.1-3.6 in stories/agent-link.md.
  *
  * The hook runs the way a harness runs it: the built command (`storytree-hook.mjs`, a plain Node
  * script) started directly, with no shell, the hook's input on its stdin. The inputs are real ones,
@@ -7,7 +7,8 @@
  * folder); each test points the input's working folder at a throwaway folder set up as a project.
  * Contract 3.5's were recorded the same day from Claude Code 2.1.283 and Codex 0.155, each starting
  * two subagents that called a stand-in tool server, whose name and tool are rewritten to storytree's
- * `open`.
+ * `open`. Contract 3.6's were recorded on 2026-09-27 from the same versions, each running a shell
+ * command that failed (Codex's sandbox refused its commands, so only its before-hook fired).
  *
  * "Storytree running" is the test Postgres: a throwaway storytree home holds a copy of its owner
  * record, where the app's would be.
@@ -18,6 +19,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -61,10 +63,10 @@ interface Ran {
 }
 
 /** Run the built hook as a harness does: directly, no shell, `input` on stdin, the storytree home given. */
-function runHook(harness: string, input: string, storytreeHome: string): Promise<Ran> {
+function runHook(harness: string, input: string, storytreeHome: string, flags: readonly string[] = []): Promise<Ran> {
   return new Promise((resolve, reject) => {
     const started = performance.now();
-    const child = spawn(process.execPath, [hook, harness], {
+    const child = spawn(process.execPath, [hook, harness, ...flags], {
       env: { ...process.env, STORYTREE_HOME: storytreeHome },
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
@@ -149,7 +151,7 @@ test("3.1 recorded Claude Code hook inputs (a start, a file edit, a shell comman
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...common, kind: "session-started", how: "startup" },
       { ...common, kind: "file-edited", files: ["C:\\Users\\dev\\projects\\site\\hello.txt"] },
-      { ...common, kind: "command-run", command: "echo probe-command" },
+      { ...common, kind: "command-run", command: "echo probe-command", call: "toolu_0198fGg1AbRnVBG34suBFFTy" },
       { ...common, kind: "session-ended", reason: "other" },
     ]);
   });
@@ -169,7 +171,7 @@ test("3.2 recorded Codex hook inputs make the same four lines, with the edited f
     assert.deepEqual((await linesOf(project)).map(written), [
       { ...common, kind: "session-started", how: "startup" },
       { ...common, kind: "file-edited", files: ["hello.txt"] },
-      { ...common, kind: "command-run", command: "echo probe-command" },
+      { ...common, kind: "command-run", command: "echo probe-command", call: "exec-5a31d7cf-344a-4477-8f26-e0780d799779" },
       { ...common, kind: "session-ended", reason: "other" },
     ]);
 
@@ -284,6 +286,38 @@ test("3.5 recorded inputs for starting a subagent, for a storytree tool call ins
       },
       { ...codex, kind: "tool-requested", tool: "open", call: "exec-1ec1f51c-a4ca-4717-970e-c9e495cc6693", agent: { subagent: codexSubagent, type: "explorer" } },
       { ...codex, kind: "tool-requested", tool: "open", call: "exec-a6165a7e-7f86-4ca3-a6d6-ae4a68433045", agent: "orchestrator" },
+    ]);
+  });
+});
+
+test("3.6 recorded inputs from before a shell command, after one that failed, and at the end of a turn make three lines: the command started, and finished, under the call's id, and the turn ended; for Codex, which waits for its hooks, the hook hands its line to one in the background", async () => {
+  const project = uniqueProjectName();
+  await withTempDir(async (dir) => {
+    const folder = projectFolder(dir, project);
+    const home = storytreeHome(dir, true);
+    for (const name of ["pre-tool-use-bash", "post-tool-use-failure-bash", "stop"]) {
+      const ran = await runHook("claude-code", recorded("claude-code", name, folder), home);
+      assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
+    }
+    const claude = { project, session: "b4f8eff5-05ab-4ef2-b070-78375e2a5deb", harness: "claude-code", source: "hook", folder } as const;
+    const command = "echo probe-start\nexit 3";
+    assert.deepEqual((await linesOf(project)).map(written), [
+      { ...claude, kind: "command-started", command, call: "toolu_01Kjexd4yP2myMhXEATFdm25" },
+      { ...claude, kind: "command-run", command, call: "toolu_01Kjexd4yP2myMhXEATFdm25" },
+      { ...claude, kind: "turn-ended" },
+    ]);
+
+    const codex = { project, session: "01a0de40-cd2f-73e1-92c7-8ee8ff58135b", harness: "codex", source: "hook", folder } as const;
+    for (const name of ["pre-tool-use-bash", "stop"]) {
+      const ran = await runHook("codex", recorded("codex", name, folder), home, ["--background"]);
+      assert.deepEqual({ code: ran.code, stdout: ran.stdout, stderr: ran.stderr }, { code: 0, stdout: "", stderr: "" }, name);
+      // Its line arrives from the background, after the hook has already exited.
+      const deadline = Date.now() + 5_000;
+      while ((await linesOf(project)).filter((line) => line.session === codex.session).length < (name === "stop" ? 2 : 1) && Date.now() < deadline) await sleep(50);
+    }
+    assert.deepEqual((await linesOf(project)).filter((line) => line.session === codex.session).map(written), [
+      { ...codex, kind: "command-started", command: "echo probe-start", call: "exec-ba34158e-632e-4dbc-86d0-a2419ae85e68" },
+      { ...codex, kind: "turn-ended" },
     ]);
   });
 });

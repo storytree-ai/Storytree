@@ -1,5 +1,5 @@
 /**
- * Capability 5 · Claims: one test per contract 5.1-5.5 in stories/agent-link.md, against the real
+ * Capability 5 · Claims: one test per contract 5.1-5.6 in stories/agent-link.md, against the real
  * Postgres `pnpm test` provides. Each test plans a story with two capabilities in a fresh project's
  * library (named with uniqueProjectName(), dropped afterwards), and claims them through the agent
  * activity log, as sessions A (Claude Code) and B (Codex) would.
@@ -166,5 +166,18 @@ test('5.5 an edit made while A holds "email form" counts toward it, and an edit 
         ["A", "README.md", undefined],
       ],
     );
+  });
+});
+
+test("5.6 while a command A started is still running, past the quiet time, B's claim on A's capability is refused naming A", async () => {
+  await withWorld(async ({ log, project, emailForm, as }) => {
+    const quietMs = 1_000;
+    assert.equal((await claim(as("A"), emailForm, "building the email form")).ok, true);
+    await log.append(project, { session: "A", harness: "claude-code", source: "hook", kind: "command-started", command: "npm run build", call: "call-1" });
+
+    await sleep(quietMs + 300); // the build runs on, longer than the quiet time, and A writes nothing
+    const refused = await claim(as("B", { quietMs }), emailForm, "A went quiet; taking over");
+    assert.ok(!refused.ok && refused.refused === "held" && refused.holder.session === "A" && refused.holder.holder === "live");
+    assert.deepEqual((await readClaims(log, project, { quietMs })).map(({ session, holder }) => ({ session, holder })), [{ session: "A", holder: "live" }]);
   });
 });
