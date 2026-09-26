@@ -85,9 +85,20 @@ export function electronIn(slotDir: string): string {
   return path.join(electron, "dist", readFileSync(path.join(electron, "path.txt"), "utf8").trim());
 }
 
-/** The real build: install the slot's packages, then bundle the app, as `pnpm desktop` does. */
+/**
+ * The real build: install the slot's packages, fetch Electron's own binary (its install script,
+ * which pnpm does not run here; it does nothing once the binary is there), then bundle the app, as
+ * `pnpm desktop` does.
+ */
 export async function buildApp(dir: string): Promise<void> {
   await pnpm(dir, "install", "--frozen-lockfile");
+  // Run as Node whether this is Node or the app's own Electron.
+  await run(process.execPath, [path.join(appDirIn(dir), "node_modules", "electron", "install.js")], {
+    cwd: dir,
+    encoding: "utf8",
+    windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+  });
   await pnpm(dir, "--filter", "@storytree/desktop", "build");
 }
 
@@ -116,7 +127,9 @@ async function buildInSlot(runtimeDir: string, slot: Slot, sha: string, build: B
 
 async function pnpm(cwd: string, ...args: string[]): Promise<void> {
   // pnpm is a .cmd on Windows, which only a shell can run.
-  await run("pnpm", args, { cwd, encoding: "utf8", windowsHide: true, shell: process.platform === "win32", maxBuffer: 64 * 1024 * 1024 });
+  const options = { cwd, encoding: "utf8", windowsHide: true, maxBuffer: 64 * 1024 * 1024 } as const;
+  if (process.platform === "win32") await run(["pnpm", ...args].join(" "), [], { ...options, shell: true });
+  else await run("pnpm", args, options);
 }
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
