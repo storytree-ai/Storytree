@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { createServer, connect as openSocket, type AddressInfo, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { after, before, describe, mock, test } from "node:test";
+import { after, before, describe, mock, test, type TestContext } from "node:test";
 
 import {
   createTestRole,
@@ -213,7 +213,7 @@ test("8.2 an instance that does not exist, or that the account may not use, is r
   }
 });
 
-test("8.2 a Google account that is not a database user on the instance is refused, saying to add it as a Cloud SQL IAM user", async () => {
+test("8.2 a Google account that is not a database user on the instance is refused, saying to add it as a Cloud SQL IAM user", async (t) => {
   const run = uniqueProjectName();
   // No role of this name on the server: an account never added to the instance as a database user.
   const user = `${run}@storytree.test`;
@@ -225,7 +225,7 @@ test("8.2 a Google account that is not a database user on the instance is refuse
       ["listProjects", () => opened.listProjects()],
       ["openProject", () => opened.openProject(run)],
     ] as const) {
-      const refused = await refusalOf(attempt(), "database-user");
+      const refused = await loginRefusalOf(t, call, attempt, "database-user");
       assert.equal(
         refused.message,
         `Cloud SQL did not let ${user} in as a database user on "${INSTANCE}". Add the account to the instance as a ` +
@@ -666,6 +666,37 @@ async function refusalOf(promise: Promise<unknown>, problem: ConnectionProblem):
     return refusal(error, problem);
   }
   assert.fail(`expected a refusal (${problem}), but the call succeeded`);
+}
+
+/**
+ * The ConnectionError `attempt` rejects with, refusing for `problem`, where the refusal is the
+ * local test Postgres turning a login down, which it does by ending the connection. On Windows,
+ * Postgres now and then resets that connection so that its refusal never reaches pg, which reports
+ * only `read ECONNRESET` (on GitHub's Windows runners, 2026-09-26: 3 full runs of 21, always
+ * here; never on Linux or macOS). Such an attempt shows nothing about storytree, so it is made
+ * again, up to ten times, and each reset is reported. Ten, because resets can come in a row on a
+ * busy machine: the development box once reset three attempts of five. The stand-in is what
+ * resets, not a Cloud SQL instance, so this decides nothing about how storytree should treat a
+ * reset from a real one.
+ */
+async function loginRefusalOf(
+  t: TestContext,
+  call: string,
+  attempt: () => Promise<unknown>,
+  problem: ConnectionProblem,
+): Promise<ConnectionError> {
+  for (let tries = 1; ; tries++) {
+    try {
+      await attempt();
+    } catch (error) {
+      if (codeOf(error) === "ECONNRESET" && tries < 10) {
+        t.diagnostic(`${call}, try ${tries}: the test Postgres reset the connection before its refusal arrived; trying again`);
+        continue;
+      }
+      return refusal(error, problem);
+    }
+    assert.fail(`expected a refusal (${problem}), but the call succeeded`);
+  }
 }
 
 /** The SQLSTATE of a Postgres error, as pg reports it. */
