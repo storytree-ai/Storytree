@@ -72,9 +72,9 @@ flowchart BT
 
 Build order: 1 → 2 → 3 → 4 → 5 (4 and 5 in either order).
 
-**What is built so far.** Capability 1 at part grain (contracts 1.1 to 1.3), in
-`packages/arc-surface` (`@storytree/arc-surface`). The forest reads it (`stories/forest.md`,
-ADR-0632 D3), and the forest's lane built it here, under this tree's names. The increment and arc
+**What is built so far.** Capability 1 at part grain (contracts 1.1 to 1.3), and the live reading
+of capability 3, in `packages/arc-surface` (`@storytree/arc-surface`). The forest reads both
+(`stories/forest.md`, ADR-0632 D3), and the forest's lane built them here, under this tree's names. The increment and arc
 grains of Work states, and capabilities 2, 4 and 5, wait for the library's and the agent link's
 revised trees, which store and read increments, questions and waits (ADR-0638 D4).
 
@@ -178,6 +178,14 @@ it re-checks the clock once a minute, so an agent that goes quiet turns idle wit
   - **Proposed, approved with the tree:** the lane chips "waiting" and "blocked" are yellow, matching
     the bars; the count says "open" where 0.2 said "queued", so "queued" means only waiting on other
     work; the smoke check judges this surface by what it says it drew (ADR-0634 D2).
+- **As built (the live reading):** `liveReading(options)` in `packages/arc-surface`. It reads
+  everything at once, then about every two seconds asks the app's two reads,
+  `changesSince(project, cursor)` and `linesSince(project, cursor)`, each carrying its own cursor
+  forward, and hands on only what is new. Once a minute it re-reads the clock even when nothing is
+  new, so a holder's quiet time can pass without a record. A failed read is reported and the next
+  ask tries again from the same place; it never writes. Its clock and timers are handed in, so its
+  own tests use a stand-in clock and no app. Contracts 3.4 and 3.5 are proved in the app once the
+  overlay is drawn.
 
 **Contracts:**
 1. It opens over the surface on show and closes back to it, and nothing on it writes. While its
