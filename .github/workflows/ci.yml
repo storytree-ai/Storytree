@@ -1,13 +1,14 @@
 name: CI
 
 # Every change reaches main through a pull request. On each pull request into main, `platforms`
-# installs, typechecks and runs the tests on Linux and on macOS, against the merge of the branch
-# with main, and `verify` passes once both have. Then `automerge` merges the pull request. Branch
-# protection on main requires `verify`, so nothing merges unless the tests passed on both systems.
+# installs, typechecks and runs the tests on Linux, macOS and Windows, against the merge of the
+# branch with main, and `verify` passes once all three have. Then `automerge` merges the pull
+# request. Branch protection on main requires `verify`, so nothing merges unless the tests passed on
+# every system.
 #
-# The product ships for Windows first. The macOS run keeps the code working there from the day each
-# line is written, so that Mac support later is packaging rather than porting (ADR-0625 D7, in
-# storytree 0.2's decision log).
+# The product ships for Windows first, on x64 and arm64; the Windows run here is x64. The macOS run
+# keeps the code working on a Mac from the day each line is written, so that Mac support later is
+# packaging rather than porting (ADR-0625 D7, in storytree 0.2's decision log).
 #
 # A draft is never merged: open a pull request as a draft, or convert it to one, to hold it, and
 # `gh pr ready` releases it (`verify` runs again, and the pull request merges when it passes). A
@@ -34,7 +35,7 @@ permissions:
 
 jobs:
   # One run per system, each installing, typechecking and testing. A failure on one system leaves
-  # the other running (fail-fast: false), so a failure on one alone shows as that system's.
+  # the others running (fail-fast: false), so a failure on one alone shows as that system's.
   platforms:
     name: verify on ${{ matrix.system }}
     strategy:
@@ -45,6 +46,8 @@ jobs:
             runner: ubuntu-latest
           - system: macOS
             runner: macos-latest
+          - system: Windows
+            runner: windows-latest
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
@@ -58,7 +61,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       # scripts/test.mjs starts a throwaway Postgres from this machine's @embedded-postgres package
-      # (linux-x64 on Linux, darwin-arm64 on macOS). The live Cloud SQL proof (contract 8.1) is
+      # (linux-x64, darwin-arm64 or windows-x64). The live Cloud SQL proof (contract 8.1) is
       # skipped, visibly: CI holds no Google identity.
       - run: pnpm test
 
