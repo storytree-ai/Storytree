@@ -102,15 +102,19 @@ written first to a permanent, append-only history, so nothing is ever truly eras
 
 Every record has a declared type with a fixed set of fields, and a badly filled-in record is refused
 with a message naming the problem field. Every record is stamped with the schema version it was
-written on, so a later change to a type is handled deliberately rather than silently misread.
+written on, so a later change to a type is handled deliberately rather than silently misread: an
+older record is upgraded automatically, step by step, and stored upgraded the next time it is
+written, because every user's library is their own database and nobody else can repair it.
 
 - **Depends on:** 2.
 - **Types at version 1:** `arc`, `story`, `capability`, `contract`, `health`, `memory`, `decision`,
   `definition`. A decision's optional `frontCoverOf` field (capability 9) was added at version 1:
   every decision written before it still fits the type, so it is not a new version.
-- **Leaves out (vs 0.2):** fourteen knowledge kinds, generated renderers and templates, and the
-  upgrade machinery. 0.3 starts at version 1 and adds an upgrade step only when the first real
-  change happens.
+- **Leaves out (vs 0.2):** fourteen knowledge kinds, and generated renderers and templates.
+- **Brought back (ADR-0636 D1, a1, 2026-09-27):** 0.2's upgrade machinery, as automatic upgrading
+  of older records (`packages/library/src/schema/upgrades.ts`). 0.3 starts at version 1 and adds
+  an upgrade step only when the first real change needs one: making a field required, or renaming
+  or removing one. Adding an optional field needs none.
 
 **Contracts:**
 1. Saving a `story` with no `title` is refused, the error names `title`, and nothing is written.
@@ -121,6 +125,13 @@ written on, so a later change to a type is handled deliberately rather than sile
    saying so. It is never guessed at.
 6. An `edit` that would leave the record invalid (for example blanking a required field) is
    refused, and nothing is written.
+7. A record written on an OLDER version of its type is read (`get`, `list`) upgraded to the current
+   version, its upgrade steps applied in order. Reading it writes nothing.
+8. An `edit` of such a record merges onto its upgraded fields and stores it on the current version,
+   in place, in the same all-or-nothing write. If the upgraded result does not fit, nothing is
+   written.
+9. An older record that no upgrade step brings to the next version is refused by `get`, `list` and
+   `edit`, with an error naming the missing step. It is never guessed at.
 
 ## 4 · Work model
 
