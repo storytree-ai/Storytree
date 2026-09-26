@@ -7,6 +7,11 @@
  * (ADR-0629 D2): one after a subagent is started, and one just before each call to storytree's own
  * tools, which the harness waits for.
  *
+ * The harness waits for a hook unless told not to. Claude Code can be told (`async`); Codex cannot,
+ * so a Codex hook that must never make the agent wait (the one before each shell command, and the
+ * one at the end of each turn, ADR-0636 D2) is run with `--background`: once it knows it has a line
+ * to write, it hands its input to a copy of itself that it leaves running, and exits.
+ *
  * A hook's input is the harness's own JSON on stdin. hookLines() turns it into lines, and knows
  * nothing of storytree's state; runHook() routes the session's folder (capability 1) and, only when
  * it is a project on a running storytree, opens the log and writes them. Everything a hook does is
@@ -17,11 +22,19 @@ import { route } from "../routing/index.js";
 import { claudeCodeLines } from "./claude-code.js";
 import { codexLines } from "./codex.js";
 
-/** What a hook is run with: the command's arguments (the harness first) and its stdin. */
+/** What a hook is run with: the command's arguments (the harness first, then any flags) and its stdin. */
 export interface HookInput {
   readonly argv: readonly string[];
   readonly input: string;
+  /**
+   * With `--background`, how the hook hands its work on: start a copy of itself for `harness`,
+   * with `input` on its stdin, that outlives this one. Resolves once the input is handed over.
+   */
+  readonly handOff?: (harness: string, input: string) => Promise<void>;
 }
+
+/** The flag that makes a hook hand its writing to the background instead of doing it. */
+export const BACKGROUND = "--background";
 
 /** The lines one hook's input makes, and the folder the session was working in. */
 export interface HookLines {
@@ -52,13 +65,14 @@ export function hookLines(harness: string, input: unknown): HookLines | undefine
  * Run one hook: read its input, and write its lines to the log of the project its folder belongs
  * to, if storytree is running. Never throws, and never prints.
  */
-export async function runHook({ argv, input }: HookInput): Promise<void> {
+export async function runHook({ argv, input, handOff }: HookInput): Promise<void> {
   try {
-    const [harness = ""] = argv;
+    const [harness = "", ...flags] = argv;
     const made = hookLines(harness, parse(input));
     if (made === undefined || made.lines.length === 0) return;
     const where = route(made.folder);
     if (where.status !== "routed") return;
+    if (flags.includes(BACKGROUND) && handOff !== undefined) return await handOff(harness, input);
     // Only now, with lines to write and somewhere to write them, is the database reached.
     const { openActivityLog } = await import("../activity/index.js");
     const log = await openActivityLog(where.url, { connectTimeoutMs: CONNECT_TIMEOUT_MS });

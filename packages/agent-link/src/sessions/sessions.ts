@@ -8,6 +8,10 @@
  * - Its state comes from its latest line and the time now: ended if that line is its end line,
  *   idle once the quiet time has passed since it, live otherwise. So it never reads as live just
  *   because nobody said otherwise.
+ * - A shell command writes one line when it starts and one when it finishes, so a session whose
+ *   command is still running is not idle, however long the command takes (ADR-0636 D2). A command
+ *   the harness refused never finishes: the end of its turn closes it, as a restart or an end line
+ *   does, and one started longer ago than LONGEST_COMMAND_MS is taken to have died with its window.
  * - It is flagged "hooks not running" (`hooksRunning: false`) until a line from one of its hooks
  *   arrives: a session seen only through its tool calls is not an agent doing nothing.
  */
@@ -15,6 +19,15 @@ import type { ActivityLog, Line } from "../activity/index.js";
 
 /** The quiet time after which a session whose lines have stopped reads as idle: 30 minutes to start with. */
 export const QUIET_MS = 30 * 60 * 1000;
+
+/** The kinds of line that decide whether a session has a command running. */
+export const COMMAND_KINDS = ["command-started", "command-run", "turn-ended", "session-started", "session-ended"] as const;
+
+/**
+ * The longest a started command keeps its session live without finishing: 12 hours. Past it, the
+ * command is taken to have died with its window, as when a window crashes mid-command.
+ */
+export const LONGEST_COMMAND_MS = 12 * 60 * 60 * 1000;
 
 /** Live while its lines keep arriving, idle after the quiet time, ended once its end line arrives. */
 export type SessionState = "live" | "idle" | "ended";
@@ -68,7 +81,7 @@ export function sessionsFrom(lines: readonly Line[], options: SessionOptions = {
     const latest = own.at(-1)!;
     const harness = own.find((line) => line.harness !== undefined)?.harness;
     const folder = (own.find((line) => line.kind === "session-started" && line.folder !== undefined) ?? own.find((line) => line.folder !== undefined))?.folder;
-    const state: SessionState = latest.kind === "session-ended" ? "ended" : now - Date.parse(latest.at) > quietMs ? "idle" : "live";
+    const state: SessionState = latest.kind === "session-ended" ? "ended" : isQuiet(own, now, quietMs) ? "idle" : "live";
     return {
       session,
       ...(harness === undefined ? {} : { harness }),
@@ -80,6 +93,34 @@ export function sessionsFrom(lines: readonly Line[], options: SessionOptions = {
       hooksRunning: own.some((line) => line.source === "hook"),
     };
   });
+}
+
+/**
+ * Whether a session, by its own lines `own` (oldest first), has been quiet for longer than `quietMs`
+ * at `now`: no line in that time, and no command of its still running.
+ */
+export function isQuiet(own: readonly Line[], now: number, quietMs: number): boolean {
+  const latest = own.at(-1);
+  if (latest === undefined) return true;
+  return now - Date.parse(latest.at) > quietMs && !commandRunning(own, now);
+}
+
+/**
+ * Whether a session, by its own lines `own` (oldest first), has a command still running at `now`.
+ * Only its command-started, command-run, turn-ended, session-started and session-ended lines count,
+ * so `own` may hold just those (COMMAND_KINDS). A command is running when it
+ * started, has no finish line under its call's id, and was not closed since by the end of
+ * its turn or of its session, or by a restart. The finish line may be written before the start line
+ * (each is written by its own hook process), so a finish anywhere closes it.
+ */
+export function commandRunning(own: readonly Line[], now: number): boolean {
+  const finished = new Set(own.flatMap((line) => (line.kind === "command-run" && line.call !== undefined ? [line.call] : [])));
+  let running: number[] = [];
+  for (const line of own) {
+    if (line.kind === "command-started" && !finished.has(line.call)) running.push(Date.parse(line.at));
+    else if (line.kind === "turn-ended" || line.kind === "session-started" || line.kind === "session-ended") running = [];
+  }
+  return running.some((startedAt) => now - startedAt <= LONGEST_COMMAND_MS);
 }
 
 /** The sessions in `project`'s log, in the order they started, each judged at `options.now`. */

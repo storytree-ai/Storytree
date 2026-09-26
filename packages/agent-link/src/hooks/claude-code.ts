@@ -10,7 +10,12 @@
  *   before it was renamed) starts a subagent: its `tool_input` gives the type (`subagent_type`) and
  *   the task (`description`), its `tool_response` the subagent's id (`agentId`). Other tools make no
  *   line.
- * - PreToolUse, registered for storytree's own tools only, names the agent asking (requests.ts).
+ * - PreToolUse, registered for storytree's own tools, names the agent asking (requests.ts). Also
+ *   registered, in the background, for Bash: its line says the command started, under the call's
+ *   `tool_use_id`, which the line after it carries too (ADR-0636 D2).
+ * - A command that exits with an error fires PostToolUseFailure instead of PostToolUse (seen
+ *   2026-09-27 in Claude Code 2.1.283), with the same `tool_input` and `tool_use_id`, and `error`.
+ * - Stop fires when the agent finishes its turn, and lists the `background_tasks` still running.
  * - SessionEnd carries `reason`.
  */
 import type { NewLine } from "../activity/index.js";
@@ -32,9 +37,14 @@ export function claudeCodeLines(input: Record<string, unknown>): HookLines | und
     case "SessionEnd":
       return line({ ...common, kind: "session-ended", ...(isText(input.reason) ? { reason: input.reason } : {}) });
     case "PreToolUse":
-      return line(toolRequestedLine(common, input));
+      return line(toolRequestedLine(common, input) ?? commandStartedLine(common, input));
     case "PostToolUse":
-      return line(toolLine(common, input.tool_name, input.tool_input) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
+      return line(toolLine(common, input) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
+    case "PostToolUseFailure":
+      return line(input.tool_name === "Bash" ? toolLine(common, input) : undefined);
+    case "Stop":
+      // A turn that leaves tasks running in the background may leave a command of theirs running too.
+      return Array.isArray(input.background_tasks) && input.background_tasks.length > 0 ? undefined : line({ ...common, kind: "turn-ended" });
     default:
       return undefined;
   }
@@ -50,13 +60,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown): NewLine | undefined {
-  if (!isText(tool) || typeof toolInput !== "object" || toolInput === null) return undefined;
-  const { file_path: filePath, notebook_path: notebookPath, command } = toolInput as Record<string, unknown>;
+function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, input: Record<string, unknown>): NewLine | undefined {
+  const { tool_name: tool, tool_input: toolInput, tool_use_id: call } = input;
+  if (!isText(tool) || !isRecord(toolInput)) return undefined;
+  const { file_path: filePath, notebook_path: notebookPath, command } = toolInput;
   if (EDITS_FILE.has(tool) && isText(filePath)) return { ...common, kind: "file-edited", files: [filePath] };
   if (tool === "NotebookEdit" && isText(notebookPath)) return { ...common, kind: "file-edited", files: [notebookPath] };
-  if (tool === "Bash" && typeof command === "string") return { ...common, kind: "command-run", command };
+  if (tool === "Bash" && typeof command === "string") return { ...common, kind: "command-run", command, ...(isText(call) ? { call } : {}) };
   return undefined;
+}
+
+function commandStartedLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, input: Record<string, unknown>): NewLine | undefined {
+  const { tool_name: tool, tool_input: toolInput, tool_use_id: call } = input;
+  if (tool !== "Bash" || !isRecord(toolInput) || typeof toolInput.command !== "string" || !isText(call)) return undefined;
+  return { ...common, kind: "command-started", command: toolInput.command, call };
 }
 
 function isText(value: unknown): value is string {

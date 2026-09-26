@@ -5,19 +5,22 @@
  *
  * - Claude Code: `<config folder>/settings.json` (CLAUDE_CONFIG_DIR, else ~/.claude). Each hook is a
  *   program with arguments, run with no shell in between, so it works on Windows without a Unix
- *   shell. The start and edit hooks run in the background (`async`); the end hook runs before
- *   Claude Code exits, and the hook before storytree's own tools before the call is made, so its
- *   line is there when the call reaches the tool server (ADR-0629 D2).
+ *   shell. The start, edit and end-of-turn hooks, and the one before each shell command, run in the
+ *   background (`async`); the end hook runs before Claude Code exits, and the hook before
+ *   storytree's own tools before the call is made, so its line is there when the call reaches the
+ *   tool server (ADR-0629 D2).
  * - Codex: `<CODEX_HOME>/hooks.json` (else ~/.codex). Codex runs a hook as one command line through
  *   its shell (PowerShell on Windows, sh elsewhere), so the line is written for the shell of this
- *   machine. Codex runs a newly added hook only after the user approves it once (ADR-0626 D4).
+ *   machine. Codex has no background hooks, so the ones before each shell command and at the end of
+ *   each turn pass `--background`: the hook hands its writing to a copy of itself and exits (hooks.ts).
+ *   Codex runs a newly added hook only after the user approves it once (ADR-0626 D4).
  */
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
-import { STORYTREE_TOOLS } from "../hooks/index.js";
+import { BACKGROUND, STORYTREE_TOOLS } from "../hooks/index.js";
 
 /** The command a harness runs as storytree's hook: a Node and the built hook script. */
 export interface HookCommand {
@@ -79,32 +82,41 @@ export function removeHooks(homes: Homes): RemovalReport {
 }
 
 /** Claude Code's entries: the hook script run with arguments, no shell. */
-function claudeEntries({ node, script }: HookCommand): Record<string, HookEntry> {
+function claudeEntries({ node, script }: HookCommand): Record<string, HookEntry[]> {
   const run = (background: boolean) => ({ type: "command", command: node, args: [script, "claude-code"], ...(background ? { async: true } : {}) });
   return {
-    SessionStart: { hooks: [run(true)] },
-    PreToolUse: { matcher: `${STORYTREE_TOOLS}.*`, hooks: [run(false)] },
-    PostToolUse: { matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task", hooks: [run(true)] },
-    SessionEnd: { hooks: [run(false)] },
+    SessionStart: [{ hooks: [run(true)] }],
+    PreToolUse: [
+      { matcher: `${STORYTREE_TOOLS}.*`, hooks: [run(false)] },
+      { matcher: "Bash", hooks: [run(true)] },
+    ],
+    PostToolUse: [{ matcher: "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task", hooks: [run(true)] }],
+    PostToolUseFailure: [{ matcher: "Bash", hooks: [run(true)] }],
+    Stop: [{ hooks: [run(true)] }],
+    SessionEnd: [{ hooks: [run(false)] }],
   };
 }
 
 /** Codex's entries: one command line for this machine's shell. */
-function codexEntries({ node, script }: HookCommand): Record<string, HookEntry> {
+function codexEntries({ node, script }: HookCommand): Record<string, HookEntry[]> {
   const line =
     process.platform === "win32"
       ? `& ${powerShellQuoted(node)} ${powerShellQuoted(script)} codex`
       : `${shQuoted(node)} ${shQuoted(script)} codex`;
-  const run = (timeout: number) => ({ type: "command", command: line, timeout });
+  const run = (timeout: number, background = false) => ({ type: "command", command: background ? `${line} ${BACKGROUND}` : line, timeout });
   return {
-    SessionStart: { hooks: [run(10)] },
-    PreToolUse: { matcher: `^${STORYTREE_TOOLS}`, hooks: [run(10)] },
-    PostToolUse: { matcher: "^(apply_patch|Bash|spawn_agent)$", hooks: [run(10)] },
-    SessionEnd: { hooks: [run(3)] },
+    SessionStart: [{ hooks: [run(10)] }],
+    PreToolUse: [
+      { matcher: `^${STORYTREE_TOOLS}`, hooks: [run(10)] },
+      { matcher: "^Bash$", hooks: [run(10, true)] },
+    ],
+    PostToolUse: [{ matcher: "^(apply_patch|Bash|spawn_agent)$", hooks: [run(10)] }],
+    Stop: [{ hooks: [run(10, true)] }],
+    SessionEnd: [{ hooks: [run(3)] }],
   };
 }
 
-function register(home: string | undefined, file: string, entries: Record<string, HookEntry>): HookRegistration {
+function register(home: string | undefined, file: string, entries: Record<string, HookEntry[]>): HookRegistration {
   if (home === undefined || !isFolder(home)) return "not here";
   const settingsFile = path.join(home, file);
   const settings = readSettings(settingsFile);
@@ -112,9 +124,8 @@ function register(home: string | undefined, file: string, entries: Record<string
   let changed = false;
   for (const [event, wanted] of Object.entries(entries)) {
     const current = hooks[event] ?? [];
-    const ours = current.filter(isStorytrees);
-    if (ours.length === 1 && isDeepStrictEqual(ours[0], wanted)) continue;
-    hooks[event] = [...current.filter((entry) => !isStorytrees(entry)), wanted];
+    if (isDeepStrictEqual(current.filter(isStorytrees), wanted)) continue;
+    hooks[event] = [...current.filter((entry) => !isStorytrees(entry)), ...wanted];
     changed = true;
   }
   if (!changed) return "already registered";

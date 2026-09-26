@@ -6,7 +6,8 @@
  * holder's session ends, or when another session takes it over after the holder has gone idle.
  *
  * - Claims are lines in the agent activity log (claimed, released, landed), and who holds what is
- *   worked out from them, with the holders' liveness from their sessions' latest lines.
+ *   worked out from them, with the holders' liveness from their sessions' latest lines. A holder
+ *   whose command is still running is live however long the command takes (capability 4).
  * - Taking a claim, landing and releasing each check and write under the project's lock
  *   (ActivityLog.locked), so two sessions claiming at once cannot both win.
  * - A session may hold more than one capability. Its edits count toward the one it claimed most
@@ -17,7 +18,7 @@
 import type { Library } from "@storytree/library";
 
 import type { ActivityLog, Line, LockedLog } from "../activity/index.js";
-import { labelOf, QUIET_MS } from "../sessions/index.js";
+import { COMMAND_KINDS, commandRunning, labelOf, QUIET_MS } from "../sessions/index.js";
 
 /** A capability held by a session, as the log shows it. */
 export interface Claim {
@@ -126,7 +127,8 @@ export function claimsFrom(lines: readonly Line[], options: ClaimsOptions = {}):
   const lastSeen = new Map<string, string>();
   for (const line of ordered) lastSeen.set(line.session, line.at);
   const claimLines = ordered.filter((line) => (CLAIM_KINDS as readonly string[]).includes(line.kind));
-  return [...held(claimLines, lastSeen, (options.now ?? new Date()).getTime(), options.quietMs ?? QUIET_MS).values()];
+  const now = (options.now ?? new Date()).getTime();
+  return [...held(claimLines, lastSeen, runningIn(ordered, now), now, options.quietMs ?? QUIET_MS).values()];
 }
 
 /** Who holds what in `project`'s log. */
@@ -171,12 +173,19 @@ export async function readAttribution(log: ActivityLog, project: string): Promis
 
 /** Who holds what right now, read under the project's lock, by the database's clock. */
 async function heldNow(log: LockedLog, context: ClaimContext): Promise<Map<string, Claim>> {
-  const [lines, lastSeen, now] = [await log.lines(CLAIM_KINDS), await log.lastSeen(), await log.now()];
-  return held(lines, lastSeen, now.getTime(), context.quietMs ?? QUIET_MS);
+  const [lines, commands, lastSeen, now] = [await log.lines(CLAIM_KINDS), await log.lines(COMMAND_KINDS), await log.lastSeen(), (await log.now()).getTime()];
+  return held(lines, lastSeen, runningIn(commands, now), now, context.quietMs ?? QUIET_MS);
 }
 
-/** The claims standing after `claimLines`, by capability, each holder judged by when its session last wrote. */
-function held(claimLines: readonly Line[], lastSeen: ReadonlyMap<string, string>, now: number, quietMs: number): Map<string, Claim> {
+/** The sessions with a command still running at `now`, as `lines` (oldest first) show them. */
+function runningIn(lines: readonly Line[], now: number): Set<string> {
+  const bySession = new Map<string, Line[]>();
+  for (const line of lines) bySession.set(line.session, [...(bySession.get(line.session) ?? []), line]);
+  return new Set([...bySession].filter(([, own]) => commandRunning(own, now)).map(([session]) => session));
+}
+
+/** The claims standing after `claimLines`, by capability, each holder judged by when its session last wrote and whether a command of its is running. */
+function held(claimLines: readonly Line[], lastSeen: ReadonlyMap<string, string>, running: ReadonlySet<string>, now: number, quietMs: number): Map<string, Claim> {
   const holders = new Map<string, Omit<Claim, "holder">>();
   for (const line of claimLines) {
     switch (line.kind) {
@@ -195,7 +204,7 @@ function held(claimLines: readonly Line[], lastSeen: ReadonlyMap<string, string>
   const claims = new Map<string, Claim>();
   for (const [capability, holder] of holders) {
     const quiet = now - Date.parse(lastSeen.get(holder.session) ?? holder.since);
-    claims.set(capability, { ...holder, holder: quiet > quietMs ? "idle" : "live" });
+    claims.set(capability, { ...holder, holder: quiet > quietMs && !running.has(holder.session) ? "idle" : "live" });
   }
   return claims;
 }

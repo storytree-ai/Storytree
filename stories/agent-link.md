@@ -131,8 +131,9 @@ that other processes wrote.
 ## 3 · Hooks
 
 Small commands that Claude Code and Codex run by themselves when a session starts, after every file
-edit and shell command, and when it ends, each adding one line about that session to the agent
-activity log, so an agent that never calls storytree still shows up. They run in the background and
+edit, before and after every shell command, at the end of each turn, and when it ends, each adding
+one line about that session to the agent activity log, so an agent that never calls storytree still
+shows up. They run in the background and
 always exit cleanly, so they can never slow down or break the agent, and when storytree isn't
 running they do nothing.
 
@@ -171,6 +172,21 @@ running they do nothing.
   (`_meta.threadId`, the subagent's own id, while `sessionId` stays the session's). A subagent's
   task is revealed only when it is started: the Agent tool's `description`, `spawn_agent`'s
   `message`.
+- **Fixed by ADR-0636 D2** (b8's rider, a defect in the first build): a shell command was recorded
+  only when it finished, so a single command running past the quiet time (capability 4) left its
+  session reading idle, and another agent could take its claim mid-run. Now a hook also runs
+  before each shell command, in the background, and writes a "command started" line under the
+  harness's id for the call (`tool_use_id`), which the finish line carries too; a hook at the end
+  of each turn (Stop) writes "turn ended". Codex has no background hooks, so its two run with
+  `--background`: the hook hands its writing to a detached copy of itself and exits.
+- **The probe for it, run 2026-09-27** (Claude Code 2.1.283 and Codex 0.155, each asked to run a
+  command that exits with an error): Claude Code's before-hook for Bash carries the command and the
+  call's id. A command that fails fires `PostToolUseFailure`, not `PostToolUse`, so until this fix a
+  failed command wrote no line at all; it is registered for Bash now. Codex's sandbox refused both
+  commands, and then only the before-hook fired, never an after-hook: a refused command never
+  finishes, which is why the end of the turn closes it. Both harnesses fire Stop at the end of each
+  turn; Claude Code's lists the `background_tasks` still running, and a turn that leaves any writes
+  no "turn ended" line, since their commands may still run.
 
 **Contracts:**
 1. Real, recorded Claude Code hook inputs (a start, a file edit, a shell command, an end) are fed
@@ -184,6 +200,10 @@ running they do nothing.
    and for one made by the orchestrator make three lines: the subagent's id, type and task; the
    subagent asking, by its id and type, with the call's id; and the orchestrator asking, with its
    call's id. The same holds for Claude Code and for Codex.
+6. Real, recorded hook inputs from before a shell command, after one that failed, and at the end of
+   a turn make three lines: the command started and the command finished, both under the call's id,
+   and the turn ended. For Codex, whose hooks the agent waits for, the hook hands its line to one in
+   the background and exits.
 
 ## 4 · Sessions
 
@@ -202,7 +222,11 @@ otherwise.
   latest line alone (an end line ends it, 30 minutes of quiet makes it idle), and it is flagged
   "hooks not running" until a line from one of its hooks arrives. Claude Code and Codex both keep a
   session's id when it is resumed (the probes, capability 3), which is what keeps a resumed window
-  one session. Claude Code's `/clear` does the opposite: the same window becomes a new session,
+  one session. A session whose shell command is still running is live however long the command
+  takes: a command is running from its "command started" line until its finish line (by the call's
+  id), the end of its turn, a restart or the session's end, and at most 12 hours
+  (`LONGEST_COMMAND_MS`), past which it is taken to have died with its window (ADR-0636 D2).
+  Claude Code's `/clear` does the opposite: the same window becomes a new session,
   its hooks end the old id and start a new one, and the tool server keeps the old id in its
   environment (seen 2026-09-26 in Claude Code 2.1.283, through its streaming input). So each tool
   call is recorded on the session its hook named (capability 6), and a cleared window reads as the
@@ -216,6 +240,9 @@ otherwise.
 3. A resumed window continues the same session instead of starting a second one.
 4. A Codex session whose hooks never ran, but which calls a storytree tool, still appears and is
    flagged "hooks not running", so a missing hook never looks like an agent doing nothing.
+5. A command that started 40 minutes ago and has not finished keeps its session live. Once it
+   finishes, or its turn ends, the quiet time counts again, and one started longer ago than the
+   longest a command may run no longer counts.
 
 ## 5 · Claims
 
@@ -236,7 +263,8 @@ idle.
   Claiming, releasing and landing each check and write under the project's lock, so two claims at
   once cannot both win. A session may hold more than one capability; its edits and commands count
   toward the one it claimed most recently of those it still holds. Landing a capability another
-  session holds is refused, naming the holder.
+  session holds is refused, naming the holder. A holder whose command is still running
+  (capability 4) is live, so its claim cannot be taken mid-run (ADR-0636 D2).
 
 **Contracts:**
 1. Session A claims "email form", and the claim shows A and the reason.
@@ -248,6 +276,8 @@ idle.
    same instant exactly one wins.
 5. An edit made while A holds "email form" counts toward it, and an edit from a session holding
    nothing counts as unplanned activity.
+6. While a command A started is still running, past the quiet time, B's claim on A's capability is
+   refused, naming A.
 
 ## 6 · Agent tools (the MCP server)
 

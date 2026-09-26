@@ -11,7 +11,11 @@
  *   arrives that way too, and is read as the patch it applies. `spawn_agent` starts a subagent: its
  *   `tool_input` gives the type (`agent_type`) and the task (`message`), and its `tool_response` is
  *   a JSON text holding the subagent's id (`agent_id`).
- * - PreToolUse, registered for storytree's own tools only, names the agent asking (requests.ts).
+ * - PreToolUse, registered for storytree's own tools, names the agent asking (requests.ts). Also
+ *   registered for Bash: its line says the command started, under the call's `tool_use_id`, which
+ *   the line after it carries too (ADR-0636 D2). A command Codex's sandbox refuses fires only this
+ *   one, never PostToolUse (seen 2026-09-27 in Codex 0.155).
+ * - Stop fires when the agent finishes its turn, which closes a refused command.
  * - SessionEnd carries `reason`. Codex sends it only when a session shuts down, so a session whose
  *   end never comes goes idle instead (capability 4).
  */
@@ -34,9 +38,11 @@ export function codexLines(input: Record<string, unknown>): HookLines | undefine
     case "SessionEnd":
       return line({ ...common, kind: "session-ended", ...(isText(input.reason) ? { reason: input.reason } : {}) });
     case "PreToolUse":
-      return line(toolRequestedLine(common, input));
+      return line(toolRequestedLine(common, input) ?? commandStartedLine(common, input));
     case "PostToolUse":
-      return line(toolLine(common, input.tool_name, input.tool_input) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
+      return line(toolLine(common, input.tool_name, input.tool_input, input.tool_use_id) ?? subagentLine(common, input.tool_name, input.tool_input, input.tool_response));
+    case "Stop":
+      return line({ ...common, kind: "turn-ended" });
     default:
       return undefined;
   }
@@ -64,7 +70,7 @@ function agentIdIn(response: unknown): string | undefined {
   return isText(id) ? id : undefined;
 }
 
-function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown): NewLine | undefined {
+function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, tool: unknown, toolInput: unknown, call: unknown): NewLine | undefined {
   if (typeof toolInput !== "object" || toolInput === null) return undefined;
   const { command } = toolInput as Record<string, unknown>;
   if (typeof command !== "string") return undefined;
@@ -73,7 +79,15 @@ function toolLine(common: Pick<NewLine, "session" | "harness" | "source" | "fold
     const files = patchFiles(command);
     return files.length === 0 ? undefined : { ...common, kind: "file-edited", files };
   }
-  return tool === "Bash" ? { ...common, kind: "command-run", command } : undefined;
+  return tool === "Bash" ? { ...common, kind: "command-run", command, ...(isText(call) ? { call } : {}) } : undefined;
+}
+
+function commandStartedLine(common: Pick<NewLine, "session" | "harness" | "source" | "folder">, input: Record<string, unknown>): NewLine | undefined {
+  const { tool_name: tool, tool_input: toolInput, tool_use_id: call } = input;
+  if (tool !== "Bash" || typeof toolInput !== "object" || toolInput === null || !isText(call)) return undefined;
+  const { command } = toolInput as Record<string, unknown>;
+  // A patch run through the shell makes an edit line, not a command's finish line, so it starts no command.
+  return typeof command === "string" && !command.includes("*** Begin Patch") ? { ...common, kind: "command-started", command, call } : undefined;
 }
 
 /** The files a patch names, each once, in the order it names them. */

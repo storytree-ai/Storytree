@@ -47,7 +47,12 @@ export const NEW_LINE = z.discriminatedUnion("kind", [
   /** A subagent the session started: the harness's id for it, its type, and the task it was given. */
   z.object({ ...common, kind: z.literal("subagent-started"), subagent: z.string().min(1), type: z.string().min(1).optional(), task: z.string().min(1).optional() }).strict(),
   z.object({ ...common, kind: z.literal("file-edited"), files: z.array(z.string().min(1)).min(1) }).strict(),
-  z.object({ ...common, kind: z.literal("command-run"), command: z.string() }).strict(),
+  /** A shell command about to run: the harness's id for the call, which its finish line carries too. Until that line, or the end of its turn, the command is running (capability 4). */
+  z.object({ ...common, kind: z.literal("command-started"), command: z.string(), call: z.string().min(1) }).strict(),
+  /** A shell command that finished, whether it succeeded or failed: the call's id, where the harness gave one (lines written before ADR-0636 D2's fix carry none). */
+  z.object({ ...common, kind: z.literal("command-run"), command: z.string(), call: z.string().min(1).optional() }).strict(),
+  /** The agent finished its turn: no command it started in that turn is still running. */
+  z.object({ ...common, kind: z.literal("turn-ended") }).strict(),
   /** A hook saw an agent ask for one of storytree's tools, before the call reached the tool server: the call's id, as the harness names it, and the agent asking. */
   z.object({ ...common, kind: z.literal("tool-requested"), tool: z.string().min(1), call: z.string().min(1), agent: AGENT }).strict(),
   z.object({ ...common, kind: z.literal("tool-called"), tool: z.string().min(1) }).strict(),
